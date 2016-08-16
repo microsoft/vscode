@@ -12,7 +12,6 @@ import {Action} from 'vs/base/common/actions';
 import {ipcRenderer as ipc, shell} from 'electron';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IRequestService} from 'vs/platform/request/common/request';
 
 interface IUpdate {
 	releaseNotes: string;
@@ -56,8 +55,7 @@ export class Update {
 
 	constructor(
 		@IWorkspaceContextService private contextService : IWorkspaceContextService,
-		@IMessageService private messageService : IMessageService,
-		@IRequestService private requestService : IRequestService
+		@IMessageService private messageService : IMessageService
 	) {
 		const env = this.contextService.getConfiguration().env;
 

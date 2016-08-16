@@ -108,6 +108,23 @@ export function download(filePath: string, context: IRequestContext): TPromise<v
 	});
 }
 
+export function text(context: IRequestContext): TPromise<string> {
+	return new Promise((c, e) => {
+		if (!isSuccess(context)) {
+			return e('Server returned ' + context.res.statusCode);
+		}
+
+		if (hasNoContent(context)) {
+			return c(null);
+		}
+
+		let buffer: string[] = [];
+		context.stream.on('data', d => buffer.push(d));
+		context.stream.on('end', () => c(buffer.join('')));
+		context.stream.on('error', e);
+	});
+}
+
 export function json<T>(context: IRequestContext): TPromise<T> {
 	return new Promise((c, e) => {
 		if (!isSuccess(context)) {

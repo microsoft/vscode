@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
-import { IRequestService2 } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
 import { download, json } from 'vs/base/node/request';
@@ -227,7 +227,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	constructor(
-		@IRequestService2 private requestService: IRequestService2,
+		@IRequestService private requestService: IRequestService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {

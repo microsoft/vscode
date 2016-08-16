@@ -28,7 +28,6 @@ import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
@@ -256,48 +255,6 @@ export class TestStorageService extends EventEmitter.EventEmitter implements ISt
 	}
 }
 
-export class TestRequestService extends BaseRequestService {
-
-	constructor(workspace = TestWorkspace) {
-		super(new TestContextService(), NullTelemetryService);
-	}
-}
-
-export interface ICustomResponse {
-	responseText: string;
-	getResponseHeader: (key: string) => string;
-}
-
-export interface IMockRequestHandler {
-	(url: string): string | ICustomResponse;
-}
-
-export class MockRequestService extends BaseRequestService {
-
-	constructor(workspace: any, private handler: IMockRequestHandler) {
-		super(new TestContextService(), NullTelemetryService);
-	}
-
-	public makeRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
-		let data = this.handler(options.url);
-
-		if (!data) {
-			return super.makeRequest(options);
-		}
-
-		let isString = Types.isString(data);
-		let responseText = isString ? <string>data : (<ICustomResponse>data).responseText;
-		let getResponseHeader = isString ? () => '' : (<ICustomResponse>data).getResponseHeader;
-
-		return TPromise.as<http.IXHRResponse>({
-			responseText: responseText,
-			status: 200,
-			readyState: 4,
-			getResponseHeader: getResponseHeader
-		});
-	}
-}
-
 export class TestUntitledEditorService implements IUntitledEditorService {
 	public _serviceBrand: any;
 
@@ -518,7 +475,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 	}
 
 	close(): void {
-		
+
 	}
 
 	show(prefix?: string, options?: any): Promise {
