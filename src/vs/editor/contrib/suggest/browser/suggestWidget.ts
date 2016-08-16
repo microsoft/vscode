@@ -166,23 +166,6 @@ class Delegate implements IDelegate<CompletionItem> {
 	}
 }
 
-function computeScore(suggestion: string, currentWord: string, currentWordLowerCase: string): number {
-	const suggestionLowerCase = suggestion.toLowerCase();
-	let score = 0;
-
-	for (let i = 0; i < currentWord.length && i < suggestion.length; i++) {
-		if (currentWord[i] === suggestion[i]) {
-			score += 2;
-		} else if (currentWordLowerCase[i] === suggestionLowerCase[i]) {
-			score += 1;
-		} else {
-			break;
-		}
-	}
-
-	return score;
-}
-
 enum State {
 	Hidden,
 	Loading,
@@ -592,21 +575,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.completionModel = null;
 
 		} else {
-			const currentWord = e.currentWord;
-			const currentWordLowerCase = currentWord.toLowerCase();
+			// TODO@joao,joh move this to a better place
 			let snippetCount = 0;
 			let textCount = 0;
-			let bestSuggestionIndex = -1;
-			let bestScore = -1;
-
 			this.completionModel.items.forEach((item, index) => {
-				const score = computeScore(item.suggestion.label, currentWord, currentWordLowerCase);
-
-				if (score > bestScore) {
-					bestScore = score;
-					bestSuggestionIndex = index;
-				}
-
 				switch (item.suggestion.type) {
 					case 'snippet': snippetCount++; break;
 					case 'text': textCount++; break;
@@ -614,8 +586,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			});
 
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
-			this.list.setFocus(bestSuggestionIndex);
-			this.list.reveal(bestSuggestionIndex, 0);
+			this.list.setFocus(this.completionModel.topScoreIdx);
+			this.list.reveal(this.completionModel.topScoreIdx, 0);
 
 			this.setState(State.Open);
 
