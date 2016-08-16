@@ -92,8 +92,8 @@ class SnippetsRegistry {
 			result.push({
 				type: 'snippet',
 				label: s.prefix,
-				documentationLabel: s.description,
-				codeSnippet: s.codeSnippet,
+				documentation: s.description,
+				insertText: s.codeSnippet,
 				noAutoAccept: true,
 				overwriteBefore
 			});

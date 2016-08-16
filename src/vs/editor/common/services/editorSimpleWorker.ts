@@ -264,7 +264,7 @@ export abstract class BaseEditorSimpleWorker {
 			return <ISuggestion> {
 				type: 'text',
 				label: word,
-				codeSnippet: word,
+				insertText: word,
 				noAutoAccept: true
 			};
 		});

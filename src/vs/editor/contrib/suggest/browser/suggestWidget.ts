@@ -99,7 +99,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).suggestion;
 
-		if (suggestion.documentationLabel) {
+		if (suggestion.documentation) {
 			data.root.setAttribute('aria-label', nls.localize('suggestionWithDetailsAriaLabel', "{0}, suggestion, has details", suggestion.label));
 		} else {
 			data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
@@ -109,7 +109,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		data.colorspan.style.backgroundColor = '';
 
 		if (suggestion.type === 'color') {
-			let color = matchesColor(suggestion.label) || matchesColor(suggestion.documentationLabel);
+			let color = matchesColor(suggestion.label) || matchesColor(suggestion.documentation);
 			if (color) {
 				data.icon.className = 'icon customcolor';
 				data.colorspan.style.backgroundColor = color;
@@ -117,10 +117,10 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, (<CompletionItem>element).highlights);
-		data.typeLabel.textContent = suggestion.typeLabel || '';
-		data.documentation.textContent = suggestion.documentationLabel || '';
+		data.typeLabel.textContent = suggestion.detail || '';
+		data.documentation.textContent = suggestion.documentation || '';
 
-		if (suggestion.documentationLabel) {
+		if (suggestion.documentation) {
 			show(data.documentationDetails);
 			data.documentationDetails.onmousedown = e => {
 				e.stopPropagation();
@@ -154,7 +154,7 @@ class Delegate implements IDelegate<CompletionItem> {
 	getHeight(element: CompletionItem): number {
 		const focus = this.listProvider().getFocusedElements()[0];
 
-		if (element.suggestion.documentationLabel && element === focus) {
+		if (element.suggestion.documentation && element === focus) {
 			return FocusHeight;
 		}
 
@@ -251,8 +251,8 @@ class SuggestionDetails {
 		}
 
 		this.title.innerText = item.suggestion.label;
-		this.type.innerText = item.suggestion.typeLabel || '';
-		this.docs.innerText = item.suggestion.documentationLabel;
+		this.type.innerText = item.suggestion.detail || '';
+		this.docs.innerText = item.suggestion.documentation;
 		this.back.onmousedown = e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -265,7 +265,7 @@ class SuggestionDetails {
 
 		this.scrollbar.scanDomNode();
 
-		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.typeLabel || '', item.suggestion.documentationLabel || '');
+		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.detail || '', item.suggestion.documentation || '');
 	}
 
 	getAriaLabel(): string {
@@ -421,7 +421,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private _getSuggestionAriaAlertLabel(item:CompletionItem): string {
-		if (item.suggestion.documentationLabel) {
+		if (item.suggestion.documentation) {
 			return nls.localize('ariaCurrentSuggestionWithDetails',"{0}, suggestion, has details", item.suggestion.label);
 		} else {
 			return nls.localize('ariaCurrentSuggestion',"{0}, suggestion", item.suggestion.label);
@@ -721,7 +721,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		const item = this.list.getFocusedElements()[0];
 
-		if (!item || !item.suggestion.documentationLabel) {
+		if (!item || !item.suggestion.documentation) {
 			return;
 		}
 
