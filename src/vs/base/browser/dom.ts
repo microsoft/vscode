@@ -965,7 +965,7 @@ export function emmet<T extends HTMLElement>(description: string): T {
 
 export function show(...elements: HTMLElement[]): void {
 	for (let element of elements) {
-		element.style.display = null;
+		element.style.display = '';
 	}
 }
 
