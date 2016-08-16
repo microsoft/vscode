@@ -174,8 +174,8 @@ export class TerminalPanel extends Panel {
 		}));
 	}
 
-	public createNewTerminalInstance(terminalProcess: ITerminalProcess, terminalFocusContextKey: IContextKey<boolean>): TPromise<number> {
-		return this.createTerminal(terminalProcess, terminalFocusContextKey).then((terminalInstance) => {
+	public createNewTerminalInstance(process: ITerminalProcess, focusContextKey: IContextKey<boolean>): TPromise<number> {
+		return this.createTerminal(process, focusContextKey).then((terminalInstance) => {
 			this.updateConfig();
 			this.focus();
 			return TPromise.as(terminalInstance.id);

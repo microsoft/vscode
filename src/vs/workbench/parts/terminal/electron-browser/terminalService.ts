@@ -152,7 +152,7 @@ export class TerminalService implements ITerminalService {
 		return this.focus();
 	}
 
-	public createNew(): TPromise<number> {
+	public createNew(name?: string): TPromise<number> {
 		let self = this;
 		let processCount = this.terminalProcesses.length;
 
@@ -170,7 +170,7 @@ export class TerminalService implements ITerminalService {
 			}
 
 			self.initConfigHelper(terminalPanel.getContainer());
-			return terminalPanel.createNewTerminalInstance(self.createTerminalProcess(), this._terminalFocusContextKey).then((terminalId) => {
+			return terminalPanel.createNewTerminalInstance(self.createTerminalProcess(name), this._terminalFocusContextKey).then((terminalId) => {
 				self._onInstancesChanged.fire();
 				return TPromise.as(terminalId);
 			});
@@ -245,11 +245,11 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private createTerminalProcess(): ITerminalProcess {
+	private createTerminalProcess(name?: string): ITerminalProcess {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		let env = TerminalService.createTerminalEnv(process.env, this.configHelper.getShell(), this.contextService.getWorkspace(), locale);
 		let terminalProcess = {
-			title: '',
+			title: name,
 			process: cp.fork('./terminalProcess', [], {
 				env: env,
 				cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
@@ -259,12 +259,15 @@ export class TerminalService implements ITerminalService {
 		this._onInstancesChanged.fire();
 		this.activeTerminalIndex = this.terminalProcesses.length - 1;
 		this._onActiveInstanceChanged.fire();
-		terminalProcess.process.on('message', (message) => {
-			if (message.type === 'title') {
-				terminalProcess.title = message.content;
-				this._onInstanceTitleChanged.fire();
-			}
-		});
+		if (!name) {
+			// Only listen for process title changes when a name is not provided
+			terminalProcess.process.on('message', (message) => {
+				if (message.type === 'title') {
+					terminalProcess.title = message.content;
+					this._onInstanceTitleChanged.fire();
+				}
+			});
+		}
 		return terminalProcess;
 	}
 

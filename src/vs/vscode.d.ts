@@ -3465,7 +3465,7 @@ declare namespace vscode {
 		 */
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
-		export function createTerminal(name?: string): Thenable<vscode.Terminal>;
+		export function createTerminal(label?: string): Thenable<vscode.Terminal>;
 	}
 
 	/**
