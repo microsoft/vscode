@@ -44,7 +44,7 @@ export class CloseEditorAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let activeEditor = this.editorService.getActiveEditor();
+		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
 		}
@@ -270,15 +270,15 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	private _analyzeLoaderTimes(): any[] {
-		let stats = <ILoaderEvent[]>(<any>require).getStats();
-		let result = [];
+		const stats = <ILoaderEvent[]>(<any>require).getStats();
+		const result = [];
 
 		let total = 0;
 
 		for (let i = 0, len = stats.length; i < len; i++) {
 			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
 				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
-					let entry: any = {};
+					const entry: any = {};
 					entry['Event'] = 'nodeRequire ' + stats[i].detail;
 					entry['Took (ms)'] = (stats[i].timestamp - stats[i - 1].timestamp);
 					total += (stats[i].timestamp - stats[i - 1].timestamp);
@@ -290,7 +290,7 @@ export class ShowStartupPerformance extends Action {
 		}
 
 		if (total > 0) {
-			let entry: any = {};
+			const entry: any = {};
 			entry['Event'] = '===nodeRequire TOTAL';
 			entry['Took (ms)'] = total;
 			entry['Start (ms)'] = '**';
@@ -302,18 +302,18 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		let table: any[] = [];
+		const table: any[] = [];
 		table.push(...this._analyzeLoaderTimes());
 
-		let start = Math.round(remote.getGlobal('programStart') || remote.getGlobal('vscodeStart'));
-		let windowShowTime = Math.round(remote.getGlobal('windowShow'));
+		const start = Math.round(remote.getGlobal('programStart') || remote.getGlobal('vscodeStart'));
+		const windowShowTime = Math.round(remote.getGlobal('windowShow'));
 
 		let lastEvent: timer.ITimerEvent;
-		let events = timer.getTimeKeeper().getCollectedEvents();
+		const events = timer.getTimeKeeper().getCollectedEvents();
 		events.forEach((e) => {
 			if (e.topic === 'Startup') {
 				lastEvent = e;
-				let entry: any = {};
+				const entry: any = {};
 
 				entry['Event'] = e.name;
 				entry['Took (ms)'] = e.stopTime.getTime() - e.startTime.getTime();
@@ -326,12 +326,12 @@ export class ShowStartupPerformance extends Action {
 
 		table.push({ Event: '---------------------------' });
 
-		let windowShowEvent: any = {};
+		const windowShowEvent: any = {};
 		windowShowEvent['Event'] = 'Show Window at';
 		windowShowEvent['Start (ms)'] = windowShowTime - start;
 		table.push(windowShowEvent);
 
-		let sum: any = {};
+		const sum: any = {};
 		sum['Event'] = 'Total';
 		sum['Took (ms)'] = lastEvent.stopTime.getTime() - start;
 		table.push(sum);
@@ -384,7 +384,7 @@ export class OpenRecentAction extends Action {
 		const recentFolders = this.contextService.getConfiguration().env.recentFolders;
 		const recentFiles = this.contextService.getConfiguration().env.recentFiles;
 
-		let folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => {
+		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => {
 			return {
 				label: paths.basename(p),
 				description: paths.dirname(p),
@@ -394,7 +394,7 @@ export class OpenRecentAction extends Action {
 			};
 		});
 
-		let filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => {
+		const filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => {
 			return {
 				label: paths.basename(p),
 				description: paths.dirname(p),
@@ -414,7 +414,7 @@ export class OpenRecentAction extends Action {
 	}
 
 	private runPick(path, context): void {
-		let newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+		const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 
 		ipc.send('vscode:windowOpen', [path], newWindow);
 	}
@@ -460,7 +460,6 @@ CommandsRegistry.registerCommand('_workbench.ipc', function (accessor: ServicesA
 });
 
 CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string]) {
-
 	const editorService = accessor.get(IWorkbenchEditorService);
 	let [left, right, label] = args;
 
@@ -479,9 +478,8 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 });
 
 CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
-
 	const editorService = accessor.get(IWorkbenchEditorService);
-	let [resource, column] = args;
+	const [resource, column] = args;
 
 	return editorService.openEditor({ resource }, column).then(() => {
 		return void 0;
