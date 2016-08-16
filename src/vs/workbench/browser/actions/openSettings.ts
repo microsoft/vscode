@@ -26,6 +26,7 @@ import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 interface IWorkbenchSettingsConfiguration {
@@ -134,7 +135,8 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, editorService, editorGroupService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
@@ -166,7 +168,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		// Open settings
 		let emptySettingsHeader = nls.localize('emptySettingsHeader', "Place your settings in this file to overwrite the default settings");
 
-		return this.open('// ' + emptySettingsHeader + '\n{\n}', URI.file(this.contextService.getConfiguration().env.appSettingsPath));
+		return this.open('// ' + emptySettingsHeader + '\n{\n}', URI.file(this.environmentService.appSettingsPath));
 	}
 }
 
@@ -185,7 +187,8 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 		@IMessageService messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, editorService, editorGroupService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
@@ -193,7 +196,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 	public run(event?: any): TPromise<void> {
 		let emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 
-		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.keybindingService), URI.file(this.contextService.getConfiguration().env.appKeybindingsPath), emptyContents);
+		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.keybindingService), URI.file(this.environmentService.appKeybindingsPath), emptyContents);
 	}
 }
 

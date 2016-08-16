@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import * as paths from 'vs/base/node/paths';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import * as os from 'os';
 import * as path from 'path';
-import { mkdirp } from 'vs/base/node/pfs';
-import { parseArgs } from 'vs/code/node/argv';
+import {mkdirp} from 'vs/base/node/pfs';
+import {parseArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 export class EnvironmentService implements IEnvironmentService {
 
@@ -27,6 +27,15 @@ export class EnvironmentService implements IEnvironmentService {
 	private _userDataPath: string;
 	get userDataPath(): string { return this._userDataPath; }
 
+	private _appSettingsHome: string;
+	get appSettingsHome(): string { return this._appSettingsHome; }
+
+	private _appSettingsPath: string;
+	get appSettingsPath(): string { return this._appSettingsPath; }
+
+	private _appKeybindingsPath: string;
+	get appKeybindingsPath(): string { return this._appKeybindingsPath; }
+
 	private _extensionsPath: string;
 	get extensionsPath(): string { return this._extensionsPath; }
 
@@ -40,6 +49,10 @@ export class EnvironmentService implements IEnvironmentService {
 
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._userDataPath = paths.getUserDataPath(process.platform, pkg.name, process.argv);
+
+		this._appSettingsHome = path.join(this.userDataPath, 'User');
+		this._appSettingsPath = path.join(this.appSettingsHome, 'settings.json');
+		this._appKeybindingsPath = path.join(this.appSettingsHome, 'keybindings.json');
 
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
 		this._extensionsPath = argv.extensionHomePath || path.join(this._userHome, 'extensions');
