@@ -30,6 +30,7 @@ export class TerminalService implements ITerminalService {
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
+	private nextTerminalName: string;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 
 	private configHelper: TerminalConfigHelper;
@@ -155,6 +156,13 @@ export class TerminalService implements ITerminalService {
 	public createNew(name?: string): TPromise<number> {
 		let self = this;
 		let processCount = this.terminalProcesses.length;
+
+		// When there are 0 processes it means that the panel is not yet created, so the name needs
+		// to be stored for when createNew is called from TerminalPanel.create.
+		if (processCount === 0 && !name) {
+			name = this.nextTerminalName;
+		}
+		this.nextTerminalName = name;
 
 		return this.focus().then((terminalPanel) => {
 			// terminalPanel will be null if createNew is called from the command before the
