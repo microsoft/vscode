@@ -18,6 +18,22 @@ export class ExtHostTerminal implements vscode.Terminal {
 		this.name = name;
 		this._proxy = proxy;
 	}
+
+	public sendText(text: string, addNewLine: boolean = true) {
+		// TODO: Implement
+	}
+
+	public show(preserveFocus: boolean): void {
+		this._proxy.$show(0, preserveFocus);
+	}
+
+	public hide(): void {
+		// TODO: Implement
+	}
+
+	public dispose(): void {
+		// TODO: Implement
+	}
 }
 
 export class ExtHostTerminalService {
@@ -28,7 +44,8 @@ export class ExtHostTerminalService {
 		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
 	}
 
-	createTerminal(name?: string): vscode.Terminal {
+	public createTerminal(name?: string): vscode.Terminal {
+		this._proxy.$createTerminal(name);
 		return new ExtHostTerminal(this._proxy, name);
 	}
 }

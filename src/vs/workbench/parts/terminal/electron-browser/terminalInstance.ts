@@ -23,6 +23,8 @@ import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
 
 export class TerminalInstance {
 
+	public id: number;
+
 	private static eolRegex = /\r?\n/g;
 
 	private isExiting: boolean = false;
@@ -53,6 +55,7 @@ export class TerminalInstance {
 		this.terminalDomElement = document.createElement('div');
 		this.xterm = xterm();
 
+		this.id = this.terminalProcess.process.pid;
 		this.terminalProcess.process.on('message', (message) => {
 			if (message.type === 'data') {
 				this.xterm.write(message.content);
@@ -63,6 +66,8 @@ export class TerminalInstance {
 				event: 'input',
 				data: this.sanitizeInput(data)
 			});
+
+			console.log('this.terminalProcess.process.pid=' + this.terminalProcess.process.pid);
 			return false;
 		});
 		this.xterm.attachCustomKeydownHandler(function (event: KeyboardEvent) {

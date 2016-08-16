@@ -65,7 +65,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setActiveTerminal(index: number): TPromise<any> {
-		return this.focus().then(() => {
+		return this.show(true).then(() => {
 			return this.showAndGetTerminalPanel().then((terminalPanel) => {
 				this.activeTerminalIndex = index;
 				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
@@ -75,12 +75,8 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public focus(): TPromise<any> {
-		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
-	}
-
 	public focusNext(): TPromise<any> {
-		return this.focus().then(() => {
+		return this.show(true).then(() => {
 			return this.showAndGetTerminalPanel().then((terminalPanel) => {
 				if (this.terminalProcesses.length <= 1) {
 					return;
@@ -97,7 +93,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public focusPrevious(): TPromise<any> {
-		return this.focus().then(() => {
+		return this.show(true).then(() => {
 			return this.showAndGetTerminalPanel().then((terminalPanel) => {
 				if (this.terminalProcesses.length <= 1) {
 					return;
@@ -135,10 +131,10 @@ export class TerminalService implements ITerminalService {
 			return TPromise.as(null);
 		}
 
-		return this.show();
+		return this.show(true);
 	}
 
-	public show(): TPromise<any> {
+	public show(focus: boolean): TPromise<any> {
 		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
 	}
 
@@ -191,7 +187,7 @@ export class TerminalService implements ITerminalService {
 
 	public paste(): TPromise<any> {
 		return this.showAndGetTerminalPanel().then((terminalPanel) => {
-			this.focus().then(() => {
+			this.show(true).then(() => {
 				document.execCommand('paste');
 			});
 		});
@@ -213,7 +209,7 @@ export class TerminalService implements ITerminalService {
 		return new TPromise<TerminalPanel>((complete) => {
 			let panel = this.panelService.getActivePanel();
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				this.show().then(() => {
+				this.show(true).then(() => {
 					panel = this.panelService.getActivePanel();
 					complete(<TerminalPanel>panel);
 				});

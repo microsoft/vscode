@@ -147,7 +147,8 @@ export abstract class MainThreadOutputServiceShape {
 }
 
 export abstract class MainThreadTerminalServiceShape {
-	$createTerminal(name?: string) { throw ni(); }
+	$createTerminal(name?: string): void { throw ni(); }
+	$show(terminalId: number, preserveFocus: boolean): void { throw ni(); }
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {

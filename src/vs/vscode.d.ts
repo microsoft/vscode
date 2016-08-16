@@ -2972,7 +2972,38 @@ declare namespace vscode {
 	}
 
 	export interface Terminal {
-		name: string
+
+		/**
+		 * The name of the terminal.
+		 *
+		 * @readonly
+		 */
+		name: string;
+
+		/**
+		 * Send text to the terminal.
+		 *
+		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
+		 * required to run a command in the terminal. This defaults to `true`.
+		 */
+		sendText(text: string, addNewLine?: boolean);
+
+		/**
+		 * Reveal this channel in the UI.
+		 *
+		 * @param preserveFocus When `true` the channel will not take focus.
+		 */
+		show(preservceFocus?: boolean): void;
+
+		/**
+		 * Hide this channel from the UI.
+		 */
+		hide(): void;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
 	}
 
 	/**
