@@ -40,7 +40,7 @@ export interface ISnippet {
 	codeSnippet: string;
 }
 
-class SnippetsRegistry {
+class SnippetsRegistry implements ISnippetsRegistry {
 
 	private _snippets: { [modeId: string]: { [owner: string]: ISnippet[] } } = Object.create(null);
 
@@ -111,6 +111,6 @@ export function getNonWhitespacePrefix(model: IReadOnlyModel, position: IPositio
 	return '';
 }
 
-const snippetsRegistry = new SnippetsRegistry();
+const snippetsRegistry: ISnippetsRegistry = new SnippetsRegistry();
 Registry.add(Extensions.Snippets, snippetsRegistry);
 
