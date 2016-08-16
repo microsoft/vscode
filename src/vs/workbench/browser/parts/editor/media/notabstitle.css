@@ -8,6 +8,11 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration {
 	width: 18px;
 	padding-left: 2px;
+	opacity: 0.5;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-decoration {
+	opacity: 1;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty {
