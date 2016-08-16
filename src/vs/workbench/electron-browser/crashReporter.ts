@@ -14,9 +14,9 @@ import {Registry} from 'vs/platform/platform';
 
 import {ipcRenderer as ipc, crashReporter} from 'electron';
 
-let TELEMETRY_SECTION_ID = 'telemetry';
+const TELEMETRY_SECTION_ID = 'telemetry';
 
-let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110.5,
@@ -53,7 +53,7 @@ export class CrashReporter {
 	public start(rawConfiguration:Electron.CrashReporterStartOptions): void {
 		if (!this.isStarted) {
 
-			let sessionId = !this.sessionId
+			const sessionId = !this.sessionId
 				? this.telemetryService.getTelemetryInfo().then(info => this.sessionId = info.sessionId)
 				: TPromise.as(undefined);
 

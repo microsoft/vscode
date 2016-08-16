@@ -60,7 +60,7 @@ export class ElectronIntegration {
 	public integrate(shellContainer: HTMLElement): void {
 
 		// Register the active window
-		let activeWindow = this.instantiationService.createInstance(ElectronWindow, currentWindow, shellContainer);
+		const activeWindow = this.instantiationService.createInstance(ElectronWindow, currentWindow, shellContainer);
 		this.windowService.registerWindow(activeWindow);
 
 		// Support runAction event
@@ -70,10 +70,10 @@ export class ElectronIntegration {
 
 		// Support options change
 		ipc.on('vscode:optionsChange', (event, options: string) => {
-			let optionsData = JSON.parse(options);
+			const optionsData = JSON.parse(options);
 			for (let key in optionsData) {
 				if (optionsData.hasOwnProperty(key)) {
-					let value = optionsData[key];
+					const value = optionsData[key];
 					this.contextService.updateOptions(key, value);
 				}
 			}
@@ -102,7 +102,7 @@ export class ElectronIntegration {
 
 		ipc.on('vscode:reportError', (event, error) => {
 			if (error) {
-				let errorParsed = JSON.parse(error);
+				const errorParsed = JSON.parse(error);
 				errorParsed.mainProcess = true;
 				errors.onUnexpectedError(errorParsed);
 			}
@@ -124,7 +124,7 @@ export class ElectronIntegration {
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {
-			let windowConfig: IWindowConfiguration = e.config;
+			const windowConfig: IWindowConfiguration = e.config;
 
 			let newZoomLevel = 0;
 			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
@@ -172,12 +172,12 @@ export class ElectronIntegration {
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map((id) => {
-				let bindings = this.keybindingService.lookupKeybindings(id);
+				const bindings = this.keybindingService.lookupKeybindings(id);
 
 				// return the first binding that can be represented by electron
 				for (let i = 0; i < bindings.length; i++) {
-					let binding = bindings[i];
-					let electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
+					const binding = bindings[i];
+					const electronAccelerator = this.keybindingService.getElectronAcceleratorFor(binding);
 					if (electronAccelerator) {
 						return {
 							id: id,

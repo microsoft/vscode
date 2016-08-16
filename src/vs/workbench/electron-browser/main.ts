@@ -53,16 +53,17 @@ export interface IMainEnvironment extends IEnvironment {
 }
 
 export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
+
 	// Shell Configuration
-	let shellConfiguration: IConfiguration = {
+	const shellConfiguration: IConfiguration = {
 		env: environment
 	};
 
 	// Shell Options
-	let filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
-	let filesToCreate = environment.filesToCreate && environment.filesToCreate.length ? toInputs(environment.filesToCreate) : null;
-	let filesToDiff = environment.filesToDiff && environment.filesToDiff.length ? toInputs(environment.filesToDiff) : null;
-	let shellOptions: IOptions = {
+	const filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
+	const filesToCreate = environment.filesToCreate && environment.filesToCreate.length ? toInputs(environment.filesToCreate) : null;
+	const filesToDiff = environment.filesToDiff && environment.filesToDiff.length ? toInputs(environment.filesToDiff) : null;
+	const shellOptions: IOptions = {
 		singleFileMode: !environment.workspacePath,
 		filesToOpen: filesToOpen,
 		filesToCreate: filesToCreate,
@@ -81,7 +82,7 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 
 function toInputs(paths: IPath[]): IResourceInput[] {
 	return paths.map(p => {
-		let input = <IResourceInput>{
+		const input = <IResourceInput>{
 			resource: uri.file(p.filePath)
 		};
 
@@ -112,11 +113,11 @@ function getWorkspace(environment: IMainEnvironment): IWorkspace {
 		realWorkspacePath = strings.rtrim(realWorkspacePath, paths.nativeSep);
 	}
 
-	let workspaceResource = uri.file(realWorkspacePath);
-	let folderName = path.basename(realWorkspacePath) || realWorkspacePath;
-	let folderStat = fs.statSync(realWorkspacePath);
+	const workspaceResource = uri.file(realWorkspacePath);
+	const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
+	const folderStat = fs.statSync(realWorkspacePath);
 
-	let workspace: IWorkspace = {
+	const workspace: IWorkspace = {
 		'resource': workspaceResource,
 		'id': platform.isLinux ? realWorkspacePath : realWorkspacePath.toLowerCase(),
 		'name': folderName,
@@ -128,9 +129,9 @@ function getWorkspace(environment: IMainEnvironment): IWorkspace {
 }
 
 function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
-	let eventService = new EventService();
-	let contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
-	let configurationService = new ConfigurationService(contextService, eventService);
+	const eventService = new EventService();
+	const contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
+	const configurationService = new ConfigurationService(contextService, eventService);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
@@ -141,8 +142,8 @@ function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, opt
 			timers.afterReady = new Date();
 
 			// Open Shell
-			let beforeOpen = new Date();
-			let shell = new WorkbenchShell(document.body, workspace, {
+			const beforeOpen = new Date();
+			const shell = new WorkbenchShell(document.body, workspace, {
 				configurationService,
 				eventService,
 				contextService
@@ -150,7 +151,7 @@ function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, opt
 			shell.open();
 
 			shell.joinCreation().then(() => {
-				timer.start(timer.Topic.STARTUP, 'Open Shell, Viewlet & Editor', beforeOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
+				timer.start(timer.Topic.STARTUP, 'Open Shell, Viewconst & Editor', beforeOpen, 'Workbench has opened after this event with viewconst and editor restored').stop();
 			});
 
 			// Inform user about loading issues from the loader
