@@ -21,6 +21,7 @@
 	position: relative;
 	overflow: visible;
 	-webkit-text-size-adjust: 100%;
+	-ms-high-contrast-adjust: none;
 }
 .monaco-editor.enable-ligatures {
 	-webkit-font-feature-settings: "liga" on, "calt" on;
