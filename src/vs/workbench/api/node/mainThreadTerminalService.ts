@@ -26,4 +26,10 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 	public $show(terminalId: number, preserveFocus: boolean): void {
 		this._terminalService.show(!preserveFocus, terminalId);
 	}
+
+	public $sendText(terminalId: number, text: string, addNewLine: boolean): void {
+		this._terminalService.show(false, terminalId).then((terminalPanel) => {
+			// TODO: Implement
+		});
+	}
 }

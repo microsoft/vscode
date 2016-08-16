@@ -149,6 +149,7 @@ export abstract class MainThreadOutputServiceShape {
 export abstract class MainThreadTerminalServiceShape {
 	$createTerminal(name?: string): TPromise<number> { throw ni(); }
 	$show(terminalId: number, preserveFocus: boolean): void { throw ni(); }
+	$sendText(terminalId: number, text: string, addNewLine: boolean): void { throw ni(); }
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {
