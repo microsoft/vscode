@@ -37,6 +37,7 @@ function readOrEmpty(name: string): TPromise<string> {
 
 const root = URI.parse(require.toUrl('')).fsPath;
 const source = path.resolve(root, '..', 'bin', 'code');
+// TODO@Joao remove this, show the actions regardless and mention the actions can't run if that's the case
 const isAvailable = fs.existsSync(source);
 
 class InstallAction extends Action {
