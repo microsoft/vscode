@@ -19,6 +19,7 @@ import {EventService} from 'vs/platform/event/common/eventService';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
 import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
+import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import fs = require('fs');
 import gracefulFs = require('graceful-fs');
@@ -129,6 +130,7 @@ function getWorkspace(environment: IMainEnvironment): IWorkspace {
 
 function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
+	const environmentService = new EnvironmentService();
 	const contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
 	const configurationService = new ConfigurationService(contextService, eventService);
 
@@ -145,7 +147,8 @@ function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, opt
 			const shell = new WorkbenchShell(document.body, workspace, {
 				configurationService,
 				eventService,
-				contextService
+				contextService,
+				environmentService
 			}, configuration, options);
 			shell.open();
 

@@ -12,10 +12,17 @@ export interface IEnvironmentService {
 	_serviceBrand: any;
 
 	appRoot: string;
+	
 	userHome: string;
 	userDataPath: string;
+
+	appSettingsHome: string;
+	appSettingsPath: string;
+	appKeybindingsPath: string;
+
 	extensionsPath: string;
 	extensionDevelopmentPath: string;
+
 	isBuilt: boolean;
 
 	createPaths(): TPromise<void>;

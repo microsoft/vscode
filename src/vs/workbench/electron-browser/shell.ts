@@ -55,6 +55,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
@@ -89,6 +90,7 @@ export interface ICoreServices {
 	contextService: IWorkspaceContextService;
 	eventService: IEventService;
 	configurationService: IConfigurationService;
+	environmentService: IEnvironmentService;
 }
 
 /**
@@ -99,6 +101,7 @@ export class WorkbenchShell {
 	private storageService: IStorageService;
 	private messageService: MessageService;
 	private eventService: IEventService;
+	private environmentService:IEnvironmentService;
 	private contextViewService: ContextViewService;
 	private windowService: IWindowService;
 	private threadService: MainThreadService;
@@ -129,6 +132,7 @@ export class WorkbenchShell {
 		this.contextService = services.contextService;
 		this.eventService = services.eventService;
 		this.configurationService = services.configurationService;
+		this.environmentService = services.environmentService;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
@@ -225,6 +229,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IEventService, this.eventService);
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
+		serviceCollection.set(IEnvironmentService, this.environmentService);
 
 		const instantiationService = new InstantiationService(serviceCollection, true);
 
