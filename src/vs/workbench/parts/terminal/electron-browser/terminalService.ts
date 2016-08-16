@@ -65,52 +65,46 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setActiveTerminal(index: number): TPromise<any> {
-		return this.show(true).then(() => {
-			return this.showAndGetTerminalPanel().then((terminalPanel) => {
-				this.activeTerminalIndex = index;
-				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
-				terminalPanel.focus();
-				this._onActiveInstanceChanged.fire();
-			});
+		return this.focus().then((terminalPanel) => {
+			this.activeTerminalIndex = index;
+			terminalPanel.setActiveTerminal(this.activeTerminalIndex);
+			terminalPanel.focus();
+			this._onActiveInstanceChanged.fire();
 		});
 	}
 
 	public focusNext(): TPromise<any> {
-		return this.show(true).then(() => {
-			return this.showAndGetTerminalPanel().then((terminalPanel) => {
-				if (this.terminalProcesses.length <= 1) {
-					return;
-				}
-				this.activeTerminalIndex++;
-				if (this.activeTerminalIndex >= this.terminalProcesses.length) {
-					this.activeTerminalIndex = 0;
-				}
-				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
-				terminalPanel.focus();
-				this._onActiveInstanceChanged.fire();
-			});
+		return this.focus().then((terminalPanel) => {
+			if (this.terminalProcesses.length <= 1) {
+				return;
+			}
+			this.activeTerminalIndex++;
+			if (this.activeTerminalIndex >= this.terminalProcesses.length) {
+				this.activeTerminalIndex = 0;
+			}
+			terminalPanel.setActiveTerminal(this.activeTerminalIndex);
+			terminalPanel.focus();
+			this._onActiveInstanceChanged.fire();
 		});
 	}
 
 	public focusPrevious(): TPromise<any> {
-		return this.show(true).then(() => {
-			return this.showAndGetTerminalPanel().then((terminalPanel) => {
-				if (this.terminalProcesses.length <= 1) {
-					return;
-				}
-				this.activeTerminalIndex--;
-				if (this.activeTerminalIndex < 0) {
-					this.activeTerminalIndex = this.terminalProcesses.length - 1;
-				}
-				terminalPanel.setActiveTerminal(this.activeTerminalIndex);
-				terminalPanel.focus();
-				this._onActiveInstanceChanged.fire();
-			});
+		return this.focus().then((terminalPanel) => {
+			if (this.terminalProcesses.length <= 1) {
+				return;
+			}
+			this.activeTerminalIndex--;
+			if (this.activeTerminalIndex < 0) {
+				this.activeTerminalIndex = this.terminalProcesses.length - 1;
+			}
+			terminalPanel.setActiveTerminal(this.activeTerminalIndex);
+			terminalPanel.focus();
+			this._onActiveInstanceChanged.fire();
 		});
 	}
 
 	public runSelectedText(): TPromise<any> {
-		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+		return this.focus().then((terminalPanel) => {
 			let editor = this.codeEditorService.getFocusedCodeEditor();
 			let selection = editor.getSelection();
 			let text = selection.isEmpty() ? editor.getValue() : editor.getModel().getValueInRange(selection, os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF);
@@ -123,19 +117,22 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public toggle(): TPromise<any> {
-		const panel = this.panelService.getActivePanel();
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this.partService.setPanelHidden(true);
-
-			return TPromise.as(null);
-		}
-
-		return this.show(true);
+	public show(focus: boolean): TPromise<TerminalPanel> {
+		return new TPromise<TerminalPanel>((complete) => {
+			let panel = this.panelService.getActivePanel();
+			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
+				return this.panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
+					panel = this.panelService.getActivePanel();
+					complete(<TerminalPanel>panel);
+				});
+			} else {
+				complete(<TerminalPanel>panel);
+			}
+		});
 	}
 
-	public show(focus: boolean): TPromise<any> {
-		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
+	public focus(): TPromise<TerminalPanel> {
+		return this.show(true);
 	}
 
 	public hide(): TPromise<any> {
@@ -146,11 +143,20 @@ export class TerminalService implements ITerminalService {
 		return TPromise.as(null);
 	}
 
+	public toggle(): TPromise<any> {
+		const panel = this.panelService.getActivePanel();
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			this.partService.setPanelHidden(true);
+			return TPromise.as(null);
+		}
+		return this.focus();
+	}
+
 	public createNew(): TPromise<any> {
 		let self = this;
 		let processCount = this.terminalProcesses.length;
 
-		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+		return this.focus().then((terminalPanel) => {
 			// terminalPanel will be null if createNew is called from the command before the
 			// TerminalPanel has been initialized. In this case, skip creating the terminal here
 			// data rely on TerminalPanel's constructor creating the new instance.
@@ -171,7 +177,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public close(): TPromise<any> {
-		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+		return this.focus().then((terminalPanel) => {
 			return terminalPanel.closeActiveTerminal();
 		});
 	}
@@ -186,36 +192,20 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public paste(): TPromise<any> {
-		return this.showAndGetTerminalPanel().then((terminalPanel) => {
-			this.show(true).then(() => {
-				document.execCommand('paste');
-			});
+		return this.focus().then(() => {
+			document.execCommand('paste');
 		});
 	}
 
 	public scrollDown(): TPromise<any> {
-		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+		return this.focus().then((terminalPanel) => {
 			terminalPanel.scrollDown();
 		});
 	}
 
 	public scrollUp(): TPromise<any> {
-		return this.showAndGetTerminalPanel().then((terminalPanel) => {
+		return this.focus().then((terminalPanel) => {
 			terminalPanel.scrollUp();
-		});
-	}
-
-	private showAndGetTerminalPanel(): TPromise<TerminalPanel> {
-		return new TPromise<TerminalPanel>((complete) => {
-			let panel = this.panelService.getActivePanel();
-			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				this.show(true).then(() => {
-					panel = this.panelService.getActivePanel();
-					complete(<TerminalPanel>panel);
-				});
-			} else {
-				complete(<TerminalPanel>panel);
-			}
 		});
 	}
 
