@@ -23,7 +23,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public sendText(text: string, addNewLine: boolean = true) {
-		// TODO: Implement
+		this._proxy.$sendText(this._id, text, addNewLine);
 	}
 
 	public show(preserveFocus: boolean): void {
