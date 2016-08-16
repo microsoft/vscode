@@ -63,7 +63,7 @@ function registerListeners(enableDeveloperTools) {
 
 	// Devtools & reload support
 	if (enableDeveloperTools) {
-		const extractKey = function(e) {
+		const extractKey = function (e) {
 			return [
 				e.ctrlKey ? 'ctrl-' : '',
 				e.metaKey ? 'meta-' : '',
@@ -76,7 +76,7 @@ function registerListeners(enableDeveloperTools) {
 		const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-		window.addEventListener('keydown', function(e) {
+		window.addEventListener('keydown', function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
 				ipc.send('vscode:toggleDevTools', windowId);
@@ -86,7 +86,7 @@ function registerListeners(enableDeveloperTools) {
 		});
 	}
 
-	process.on('uncaughtException', function(error) { onError(error, enableDeveloperTools) });
+	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools) });
 }
 
 function main() {
@@ -147,8 +147,8 @@ function main() {
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
 	// loads as soon as the loader loads. To be able to have pseudo translation
-	createScript(rootUrl + '/vs/loader.js', function() {
-		define('fs', ['original-fs'], function(originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+	createScript(rootUrl + '/vs/loader.js', function () {
+		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
@@ -158,7 +158,7 @@ function main() {
 			]
 		});
 		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function(nlsPlugin) {
+			require(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 			});
 		}

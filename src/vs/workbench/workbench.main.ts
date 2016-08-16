@@ -76,8 +76,9 @@ import 'vs/workbench/parts/welcome/electron-browser/electronGettingStarted.contr
 
 import 'vs/workbench/parts/update/electron-browser/update.contribution';
 
-import 'vs/workbench/electron-browser/darwin/cli.contribution';
-import 'vs/workbench/electron-browser/nps.contribution';
+import 'vs/workbench/parts/nps/electron-browser/nps.contribution';
+
+import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
 
 import 'vs/workbench/api/node/extHost.contribution';
 
