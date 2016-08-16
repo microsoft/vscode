@@ -10,8 +10,8 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {isLinux} from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
-import {guessMimeTypes} from 'vs/base/common/mime';
 import {IFileStat} from 'vs/platform/files/common/files';
+import {guessMimeTypes} from 'vs/base/common/mime';
 
 export enum StatType {
 	FILE,
@@ -32,12 +32,12 @@ export class FileStat implements IFileStat {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
+	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mime = !isDirectory ? guessMimeTypes(resource.fsPath).join(', ') : void (0), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
 		this.hasChildren = isDirectory && hasChildren;
-		this.mime = !isDirectory ? guessMimeTypes(this.resource.fsPath).join(', ') : void (0);
+		this.mime = mime;
 		this.etag = etag;
 		this.mtime = mtime;
 
@@ -54,7 +54,7 @@ export class FileStat implements IFileStat {
 	}
 
 	public static create(raw: IFileStat, resolveTo?: URI[]): FileStat {
-		let stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
+		let stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mime, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -139,7 +139,7 @@ export class FileStat implements IFileStat {
 	 * Returns a deep copy of this model object.
 	 */
 	public clone(): FileStat {
-		let stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mtime, this.etag);
+		let stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mime, this.mtime, this.etag);
 		stat.isDirectoryResolved = this.isDirectoryResolved;
 
 		if (this.parent) {

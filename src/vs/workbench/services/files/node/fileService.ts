@@ -658,7 +658,7 @@ export class StatResolver {
 		this.isDirectory = isDirectory;
 		this.mtime = mtime;
 		this.name = paths.basename(resource.fsPath);
-		this.mime = !this.isDirectory ? baseMime.guessMimeTypes(resource.fsPath).join(', ') : null;
+		this.mime = !this.isDirectory ? baseMime.guessMimeTypes(resource.fsPath).join(', ') : void 0;
 		this.etag = etag(size, mtime);
 		this.size = size;
 
@@ -760,7 +760,7 @@ export class StatResolver {
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),
 							size: fileStat.size,
-							mime: !fileStat.isDirectory() ? baseMime.guessMimeTypes(fileResource.fsPath).join(', ') : undefined
+							mime: !fileStat.isDirectory() ? baseMime.guessMimeTypes(fileResource.fsPath).join(', ') : void 0
 						};
 
 						// Return early for files

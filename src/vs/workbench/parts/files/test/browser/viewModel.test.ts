@@ -10,12 +10,13 @@ import {isUndefinedOrNull, isArray} from 'vs/base/common/types';
 import {isLinux, isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
+import {guessMimeTypes} from 'vs/base/common/mime';
 import {validateFileName} from 'vs/workbench/parts/files/browser/fileActions';
 import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime) {
-	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);
+	return new FileStat(toResource(path), isFolder, hasChildren, name, !isFolder ? guessMimeTypes(path).join(', ') : null, mtime);
 }
 
 function toResource(path) {
@@ -284,9 +285,9 @@ suite('Files - View Model', () => {
 
 	test('File Change Event (with stats)', function () {
 		let d = new Date().toUTCString();
-		let s1 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', 8096 /* Size */, d);
-		let s2 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', 16000 /* Size */, d);
-		let s3 = new FileStat(toResource('/path/to/sNameMoved'), false, false, 'sNameMoved', 8096 /* Size */, d);
+		let s1 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', void 0, 8096 /* Size */, d);
+		let s2 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', void 0, 16000 /* Size */, d);
+		let s3 = new FileStat(toResource('/path/to/sNameMoved'), false, false, 'sNameMoved', void 0, 8096 /* Size */, d);
 
 		// Got Added
 		let event = new LocalFileChangeEvent(null, s1);
@@ -327,20 +328,20 @@ suite('Files - View Model', () => {
 	test('Merge Local with Disk', function () {
 		let d = new Date().toUTCString();
 
-		let merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', 8096, d);
-		let merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', 16000, new Date(0).toUTCString());
+		let merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', void 0, 8096, d);
+		let merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', void 0, 16000, new Date(0).toUTCString());
 
 		// Merge Properties
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', 8096, d));
+		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', void 0, 8096, d));
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.children.length, 0);
 
 		// Merge Child with isDirectoryResolved=true
-		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', 8096, d));
+		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', void 0, 8096, d));
 		merge2.isDirectoryResolved = true;
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.children.length, 1);
