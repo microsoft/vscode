@@ -7,11 +7,9 @@
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { xhr } from 'vs/base/common/network';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import platform = require('vs/platform/platform');
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BaseRequestService } from 'vs/platform/request/common/baseRequestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -133,24 +131,3 @@ export class RequestService extends BaseRequestService {
 		this.disposables = dispose(this.disposables);
 	}
 }
-
-// Configuration
-let confRegistry = <IConfigurationRegistry>platform.Registry.as(Extensions.Configuration);
-confRegistry.registerConfiguration({
-	id: 'http',
-	order: 15,
-	title: nls.localize('httpConfigurationTitle', "HTTP"),
-	type: 'object',
-	properties: {
-		'http.proxy': {
-			type: 'string',
-			pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+)(:\\d+)?/?$|^$',
-			description: nls.localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables")
-		},
-		'http.proxyStrictSSL': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('strictSSL', "Whether the proxy server certificate should be verified against the list of supplied CAs.")
-		}
-	}
-});

@@ -15,6 +15,8 @@ import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';
 import { createGunzip } from 'zlib';
 
+export type Agent = any;
+
 export interface IRequestOptions {
 	type?: string;
 	url?: string;
@@ -23,21 +25,21 @@ export interface IRequestOptions {
 	headers?: any;
 	timeout?: number;
 	data?: any;
-	agent?: any;
+	agent?: Agent;
 	followRedirects?: number;
 	strictSSL?: boolean;
 }
 
-export interface IRequestResult {
+export interface IRequestContext {
 	req: http.ClientRequest;
 	res: http.ClientResponse;
 	stream: Stream;
 }
 
-export function request(options: IRequestOptions): TPromise<IRequestResult> {
+export function request(options: IRequestOptions): TPromise<IRequestContext> {
 	let req: http.ClientRequest;
 
-	return new TPromise<IRequestResult>((c, e) => {
+	return new TPromise<IRequestContext>((c, e) => {
 		let endpoint = parseUrl(options.url);
 
 		let opts: https.RequestOptions = {
