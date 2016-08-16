@@ -11,6 +11,7 @@ import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHTTPConfiguration } from 'vs/platform/request/common/request';
 import { BaseRequestService } from 'vs/platform/request/common/baseRequestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -18,13 +19,6 @@ import { assign } from 'vs/base/common/objects';
 import { IXHROptions, IXHRResponse } from 'vs/base/common/http';
 import { request } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-
-interface IHTTPConfiguration {
-	http?: {
-		proxy?: string;
-		proxyStrictSSL?: boolean;
-	};
-}
 
 export class RequestService extends BaseRequestService {
 
