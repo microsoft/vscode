@@ -89,7 +89,6 @@ export class ExtensionHostMain {
 		const env = this._contextService.getConfiguration().env;
 
 		function rmkDir(directory: string): boolean {
-			console.log('Creating Directory ' + directory);
 			try {
 				fs.mkdirSync(directory);
 				return true;
