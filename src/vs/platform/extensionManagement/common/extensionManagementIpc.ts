@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent } from './extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension } from './extensionManagement';
 import Event from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
@@ -15,7 +15,8 @@ export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'event:onDidInstallExtension'): TPromise<void>;
 	call(command: 'event:onUninstallExtension'): TPromise<void>;
 	call(command: 'event:onDidUninstallExtension'): TPromise<void>;
-	call(command: 'install', extensionOrPath: ILocalExtension | string): TPromise<ILocalExtension>;
+	call(command: 'install', path: string): TPromise<void>;
+	call(command: 'installFromGallery', extension: IGalleryExtension): TPromise<void>;
 	call(command: 'uninstall', extension: ILocalExtension): TPromise<void>;
 	call(command: 'getInstalled'): TPromise<ILocalExtension[]>;
 	call(command: string, arg: any): TPromise<any>;
@@ -32,6 +33,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 			case 'event:onUninstallExtension': return eventToCall(this.service.onUninstallExtension);
 			case 'event:onDidUninstallExtension': return eventToCall(this.service.onDidUninstallExtension);
 			case 'install': return this.service.install(arg);
+			case 'installFromGallery': return this.service.installFromGallery(arg);
 			case 'uninstall': return this.service.uninstall(arg);
 			case 'getInstalled': return this.service.getInstalled();
 		}
@@ -56,10 +58,12 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	private _onDidUninstallExtension = eventFromCall<string>(this.channel, 'event:onDidUninstallExtension');
 	get onDidUninstallExtension(): Event<string> { return this._onDidUninstallExtension; }
 
-	install(extension: IGalleryExtension): TPromise<void>;
-	install(zipPath: string): TPromise<void>;
-	install(arg: any): TPromise<void> {
-		return this.channel.call('install', arg);
+	install(zipPath: string): TPromise<void> {
+		return this.channel.call('install', zipPath);
+	}
+
+	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+		return this.channel.call('installFromGallery', extension);
 	}
 
 	uninstall(extension: ILocalExtension): TPromise<void> {

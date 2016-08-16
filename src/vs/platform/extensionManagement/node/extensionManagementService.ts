@@ -6,26 +6,19 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { tmpdir } from 'os';
 import * as path from 'path';
-import types = require('vs/base/common/types');
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryVersion, IGalleryMetadata, InstallExtensionEvent, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { download, json, IRequestOptions } from 'vs/base/node/request';
-import { getProxyAgent } from 'vs/base/node/proxy';
+import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryMetadata, InstallExtensionEvent, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
-import { UserSettings } from 'vs/base/node/userSettings';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
-import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
-import pkg from 'vs/platform/package';
 
 function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
 	return new Promise((c, e) => {
@@ -88,100 +81,60 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	onDidUninstallExtension: Event<string> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
 		this.extensionsPath = environmentService.extensionsPath;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
 		this.obsoleteFileLimiter = new Limiter(1);
 	}
 
-	install(extension: IGalleryExtension): TPromise<void>;
-	install(zipPath: string): TPromise<void>;
-	install(arg: any): TPromise<void> {
-		let id: string;
-		let result: TPromise<ILocalExtension>;
+	install(zipPath: string): TPromise<void> {
+		return validate(zipPath).then<void>(manifest => {
+			const id = getExtensionId(manifest, manifest.version);
 
-		if (types.isString(arg)) {
-			const zipPath = arg as string;
-
-			result = validate(zipPath).then(manifest => {
-				id = getExtensionId(manifest, manifest.version);
-				this._onInstallExtension.fire({ id });
-
-				return this.installValidExtension(zipPath, id);
-			});
-		} else {
-			const extension = arg as IGalleryExtension;
-			id = getExtensionId(extension, extension.versions[0].version);
-			this._onInstallExtension.fire({ id, gallery: extension });
-
-			result = this.isObsolete(id).then(obsolete => {
-				if (obsolete) {
-					return TPromise.wrapError<ILocalExtension>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
+			return this.isObsolete(id).then(isObsolete => {
+				if (isObsolete) {
+					return TPromise.wrapError(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name)));
 				}
 
-				return this.installFromGallery(arg);
+				this._onInstallExtension.fire({ id });
+
+				return this.installExtension(zipPath, id)
+					.then(
+						local => this._onDidInstallExtension.fire({ id, local }),
+						error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); }
+					);
 			});
-		}
-
-		return result.then(
-			local => this._onDidInstallExtension.fire({ id, local }),
-			error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); }
-		);
-	}
-
-	private installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
-		return this.getLastValidExtensionVersion(extension).then(versionInfo => {
-				const version = versionInfo.version;
-				const url = versionInfo.downloadUrl;
-				const headers = versionInfo.downloadHeaders;
-				const zipPath = path.join(tmpdir(), extension.id);
-				const id = getExtensionId(extension, version);
-				const metadata = {
-					id: extension.id,
-					publisherId: extension.publisherId,
-					publisherDisplayName: extension.publisherDisplayName
-				};
-
-				return this.request(url)
-					.then(opts => assign(opts, { headers }))
-					.then(opts => download(zipPath, opts))
-					.then(() => validate(zipPath, extension, version))
-					.then(() => this.installValidExtension(zipPath, id, metadata));
 		});
 	}
 
-	private getLastValidExtensionVersion(extension: IGalleryExtension): TPromise<IGalleryVersion> {
-		return this._getLastValidExtensionVersion(extension, extension.versions);
+	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+		const id = getExtensionId(extension, extension.version);
+
+		return this.isObsolete(id).then(isObsolete => {
+			if (isObsolete) {
+				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
+			}
+
+			this._onInstallExtension.fire({ id, gallery: extension });
+
+			const metadata = {
+				id: extension.id,
+				publisherId: extension.publisherId,
+				publisherDisplayName: extension.publisherDisplayName
+			};
+
+			return this.galleryService.download(extension)
+				.then(zipPath => this.installExtension(zipPath, id, metadata))
+				.then(
+					local => this._onDidInstallExtension.fire({ id, local }),
+					error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); }
+				);
+		});
 	}
 
-	private _getLastValidExtensionVersion(extension: IGalleryExtension, versions: IGalleryVersion[]): TPromise<IGalleryVersion> {
-		if (!versions.length) {
-			return TPromise.wrapError(new Error(nls.localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName || extension.name)));
-		}
-
-		const headers = { 'accept-encoding': 'gzip' };
-		const version = versions[0];
-
-		return this.request(version.manifestUrl)
-			.then(opts => assign(opts, { headers }))
-			.then(opts => json<IExtensionManifest>(opts))
-			.then(manifest => {
-				const desc = {
-					isBuiltin: false,
-					engines: { vscode: manifest.engines.vscode },
-					main: manifest.main
-				};
-
-				if (!isValidExtensionVersion(pkg.version, desc, [])) {
-					return this._getLastValidExtensionVersion(extension, versions.slice(1));
-				}
-
-				return version;
-			});
-	}
-
-	private installValidExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<ILocalExtension> {
+	private installExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<ILocalExtension> {
 		const extensionPath = path.join(this.extensionsPath, id);
 		const manifestPath = path.join(extensionPath, 'package.json');
 
@@ -311,24 +264,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					}
 				})
 				.then(() => result);
-		});
-	}
-
-	// Helper for proxy business... shameful.
-	// This should be pushed down and not rely on the context service
-	private request(url: string): TPromise<IRequestOptions> {
-		const settings = TPromise.join([
-			// TODO@Joao we need a nice configuration service here!
-			UserSettings.getValue(this.environmentService.userDataPath, 'http.proxy'),
-			UserSettings.getValue(this.environmentService.userDataPath, 'http.proxyStrictSSL')
-		]);
-
-		return settings.then(settings => {
-			const proxyUrl: string = settings[0];
-			const strictSSL: boolean = settings[1];
-			const agent = getProxyAgent(url, { proxyUrl, strictSSL });
-
-			return { url, agent, strictSSL };
 		});
 	}
 

@@ -63,11 +63,11 @@ class Extension implements IExtension {
 	}
 
 	get version(): string {
-		return this.local ? this.local.manifest.version : this.gallery.versions[0].version;
+		return this.local ? this.local.manifest.version : this.gallery.version;
 	}
 
 	get latestVersion(): string {
-		return this.gallery ? this.gallery.versions[0].version : this.local.manifest.version;
+		return this.gallery ? this.gallery.version : this.local.manifest.version;
 	}
 
 	get description(): string {
@@ -79,11 +79,7 @@ class Extension implements IExtension {
 			return this.local.readmeUrl;
 		}
 
-		if (this.gallery && this.gallery.versions[0].readmeUrl) {
-			return this.gallery.versions[0].readmeUrl;
-		}
-
-		return null;
+		return this.gallery && this.gallery.assets.readme;
 	}
 
 	get iconUrl(): string {
@@ -91,19 +87,11 @@ class Extension implements IExtension {
 			return URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
 		}
 
-		if (this.gallery) {
-			return this.gallery.versions[0].iconUrl;
-		}
-
-		return require.toUrl('./media/defaultIcon.png');
+		return this.gallery ? this.gallery.assets.icon : require.toUrl('./media/defaultIcon.png');
 	}
 
 	get licenseUrl(): string {
-		if (this.gallery) {
-			return this.gallery.versions[0].licenseUrl;
-		}
-
-		return null;
+		return this.gallery && this.gallery.assets.license;
 	}
 
 	get state(): ExtensionState {
@@ -283,7 +271,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		return this.extensionService.install(gallery);
+		return this.extensionService.installFromGallery(gallery);
 	}
 
 	uninstall(extension: IExtension): TPromise<void> {
