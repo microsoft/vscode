@@ -27,7 +27,6 @@ export interface ITriggerEvent {
 
 export interface ISuggestEvent {
 	completionModel: CompletionModel;
-	currentWord: string;
 	isFrozen: boolean;
 	auto: boolean;
 }
@@ -367,7 +366,6 @@ export class SuggestModel implements IDisposable {
 
 			this._onDidSuggest.fire({
 				completionModel: this.completionModel,
-				currentWord: ctx.wordBefore,
 				isFrozen: isFrozen,
 				auto: this.isAutoSuggest()
 			});
