@@ -22,6 +22,8 @@ import { ExtensionManagementService } from 'vs/platform/extensionManagement/node
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { IRequestService2 } from 'vs/platform/request/common/request';
+import { RequestService2 } from 'vs/platform/request/node/requestService2';
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -57,6 +59,7 @@ function main(server: Server): void {
 	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
 	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+	services.set(IRequestService2, new SyncDescriptor(RequestService2));
 
 	const instantiationService = new InstantiationService(services);
 

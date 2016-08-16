@@ -10,11 +10,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService2 } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { request, download, json, IRequestOptions } from 'vs/base/node/request';
-import { getProxyAgent } from 'vs/base/node/proxy';
+import { download, json } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
@@ -32,6 +31,11 @@ interface IRawGalleryExtensionVersion {
 	files: IRawGalleryExtensionFile[];
 }
 
+interface IRawGalleryExtensionStatistics {
+	statisticName: string;
+	value: number;
+}
+
 interface IRawGalleryExtension {
 	extensionId: string;
 	extensionName: string;
@@ -42,9 +46,17 @@ interface IRawGalleryExtension {
 	statistics: IRawGalleryExtensionStatistics[];
 }
 
-interface IRawGalleryExtensionStatistics {
-	statisticName: string;
-	value: number;
+interface IRawGalleryQueryResult {
+	results: {
+		extensions: IRawGalleryExtension[];
+		resultMetadata: {
+			metadataType: string;
+			metadataItems: {
+				name: string;
+				count: number;
+			}[];
+		}[]
+	}[];
 }
 
 enum Flags {
@@ -215,7 +227,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	constructor(
-		@IRequestService private requestService: IRequestService,
+		@IRequestService2 private requestService: IRequestService2,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -279,19 +291,25 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
-		const data = JSON.stringify(query.raw);
-		const opts = this.request(this.api('/extensionquery'));
-
 		return this.getCommonHeaders()
-			.then(headers => assign(headers, {
-				'Content-Type': 'application/json',
-				'Accept': 'application/json;api-version=3.0-preview.1',
-				'Accept-Encoding': 'gzip',
-				'Content-Length': data.length
-			}))
-			.then(headers => assign(opts, { type: 'POST', data, headers }))
-			.then(() => request(opts))
-			.then(context => json<any>(context))
+			.then(headers => {
+				const data = JSON.stringify(query.raw);
+
+				headers = assign(headers, {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json;api-version=3.0-preview.1',
+					'Accept-Encoding': 'gzip',
+					'Content-Length': data.length
+				});
+
+				return this.requestService.request({
+					type: 'POST',
+					url: this.api('/extensionquery'),
+					data,
+					headers
+				});
+			})
+			.then(context => json<IRawGalleryQueryResult>(context))
 			.then(result => {
 				const r = result.results[0];
 				const galleryExtensions = r.extensions;
@@ -320,11 +338,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions).then(rawVersion => {
 				const url = `${ getAssetSource(rawVersion.files, AssetType.VSIX) }?install=true`;
 				const zipPath = path.join(tmpdir(), extension.id);
-				const opts = this.request(url);
 
 				return this.getCommonHeaders()
-					.then(headers => assign(opts, { headers }))
-					.then(() => request(opts))
+					.then(headers => this.requestService.request({ url, headers }))
 					.then(context => download(zipPath, context))
 					.then(() => zipPath);
 			});
@@ -338,9 +354,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		const version = versions[0];
 		const url = getAssetSource(version.files, AssetType.Manifest);
-		const opts = assign(this.request(url), { headers: { 'accept-encoding': 'gzip' } });
 
-		return request(opts)
+		return this.getCommonHeaders()
+			.then(headers => assign(headers, { 'accept-encoding': 'gzip' }))
+			.then(headers => this.requestService.request({ url, headers }))
 			.then(context => json<IExtensionManifest>(context))
 			.then(manifest => {
 				const desc = {
@@ -355,16 +372,5 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 				return version;
 			});
-	}
-
-	// Helper for proxy business... shameful.
-	// This should be pushed down and not rely on the context service
-	private request(url: string): IRequestOptions {
-		const httpConfig = this.configurationService.getConfiguration<any>('http') || {};
-		const proxyUrl = httpConfig.proxy as string;
-		const strictSSL = httpConfig.proxyStrictSSL as boolean;
-		const agent = getProxyAgent(url, { proxyUrl, strictSSL });
-
-		return { url, agent, strictSSL };
 	}
 }

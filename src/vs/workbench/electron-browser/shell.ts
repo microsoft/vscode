@@ -30,7 +30,9 @@ import {Update} from 'vs/workbench/electron-browser/update';
 import {WorkspaceStats} from 'vs/workbench/services/telemetry/common/workspaceStats';
 import {IWindowService, WindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {MessageService} from 'vs/workbench/services/message/electron-browser/messageService';
+import {IRequestService,IRequestService2} from 'vs/platform/request/common/request';
 import {RequestService} from 'vs/workbench/services/request/node/requestService';
+import {RequestService2} from 'vs/platform/request/node/requestService2';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
@@ -57,7 +59,6 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -295,6 +296,9 @@ export class WorkbenchShell {
 
 		const requestService = disposables.add(instantiationService.createInstance(RequestService));
 		serviceCollection.set(IRequestService, requestService);
+
+		const requestService2 = instantiationService.createInstance(RequestService2);
+		serviceCollection.set(IRequestService2, requestService2);
 
 		const markerService = instantiationService.createInstance(MarkerService);
 		serviceCollection.set(IMarkerService, markerService);
