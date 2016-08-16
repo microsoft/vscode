@@ -152,7 +152,7 @@ export class TerminalService implements ITerminalService {
 		return this.focus();
 	}
 
-	public createNew(): TPromise<any> {
+	public createNew(): TPromise<number> {
 		let self = this;
 		let processCount = this.terminalProcesses.length;
 
@@ -170,9 +170,10 @@ export class TerminalService implements ITerminalService {
 			}
 
 			self.initConfigHelper(terminalPanel.getContainer());
-			terminalPanel.createNewTerminalInstance(self.createTerminalProcess(), this._terminalFocusContextKey);
-			self._onInstancesChanged.fire();
-			return TPromise.as(void 0);
+			return terminalPanel.createNewTerminalInstance(self.createTerminalProcess(), this._terminalFocusContextKey).then((terminalId) => {
+				self._onInstancesChanged.fire();
+				return TPromise.as(terminalId);
+			});
 		});
 	}
 

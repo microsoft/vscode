@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import vscode = require('vscode');
 import {MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
@@ -12,10 +13,12 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	public name: string;
 
+	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
 
-	constructor(proxy: MainThreadTerminalServiceShape, name?: string) {
+	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string) {
 		this.name = name;
+		this._id = id;
 		this._proxy = proxy;
 	}
 
@@ -24,7 +27,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public show(preserveFocus: boolean): void {
-		this._proxy.$show(0, preserveFocus);
+		this._proxy.$show(this._id, preserveFocus);
 	}
 
 	public hide(): void {
@@ -44,8 +47,9 @@ export class ExtHostTerminalService {
 		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
 	}
 
-	public createTerminal(name?: string): vscode.Terminal {
-		this._proxy.$createTerminal(name);
-		return new ExtHostTerminal(this._proxy, name);
+	public createTerminal(name?: string): TPromise<vscode.Terminal> {
+		return this._proxy.$createTerminal(name).then((terminalId) => {
+			return new ExtHostTerminal(this._proxy, terminalId, name);
+		});
 	}
 }

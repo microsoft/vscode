@@ -65,7 +65,7 @@ export interface ITerminalService {
 
 	close(): TPromise<any>;
 	copySelection(): TPromise<any>;
-	createNew(): TPromise<any>;
+	createNew(name?: string): TPromise<number>;
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;
 	hide(): TPromise<any>;
