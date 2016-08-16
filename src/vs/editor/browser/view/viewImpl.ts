@@ -358,7 +358,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 				}
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
 			},
-
+			shouldSuppressMouseDownOnWidget: (widgetId: string) => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.pointerHandler.shouldSuppressMouseDownOnWidget: View is disposed');
+				}
+				return this.contentWidgets.shouldSuppressMouseDownOnWidget(widgetId);
+			},
 			getPositionFromDOMInfo: (spanNode: HTMLElement, offset: number) => {
 				if (this._isDisposed) {
 					throw new Error('ViewImpl.pointerHandler.getPositionFromDOMInfo: View is disposed');

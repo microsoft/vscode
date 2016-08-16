@@ -50,6 +50,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	private static ID: number = 0;
 
+	public suppressMouseDown: boolean;
+
 	private _id: string;
 
 	private _domNode: HTMLElement;
@@ -64,6 +66,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget.ID);
 		this._editor = editor;
+
+		this.suppressMouseDown = true;
 
 		this.setSymbolRange(symbolRange);
 

@@ -102,7 +102,8 @@ export interface IPointerHandlerHelper {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData;
-	shouldSuppressMouseDownOnViewZone(viewZoneId:number): boolean;
+	shouldSuppressMouseDownOnViewZone(viewZoneId: number): boolean;
+	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
 	/**
 	 * Decode an Editor.IPosition from a rendered dom node
@@ -263,13 +264,14 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		let targetIsLineNumbers = (t.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
 		let selectOnLineNumbers = this._context.configuration.editor.viewInfo.selectOnLineNumbers;
 		let targetIsViewZone = (t.type === editorCommon.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorCommon.MouseTargetType.GUTTER_VIEW_ZONE);
+		let targetIsWidget = (t.type === editorCommon.MouseTargetType.CONTENT_WIDGET);
 
 		let shouldHandle = e.leftButton;
 		if (platform.isMacintosh && e.ctrlKey) {
 			shouldHandle = false;
 		}
 
-		if (shouldHandle && (targetIsContent || (targetIsLineNumbers && selectOnLineNumbers))) {
+		var focus = () => {
 			if (browser.isIE11orEarlier) {
 				// IE does not want to focus when coming in from the browser's address bar
 				if ((<any>e.browserEvent).fromElement) {
@@ -285,7 +287,10 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 				e.preventDefault();
 				this.viewHelper.focusTextArea();
 			}
+		};
 
+		if (shouldHandle && (targetIsContent || (targetIsLineNumbers && selectOnLineNumbers))) {
+			focus();
 			this._mouseDownOperation.start(t.type, e);
 
 		} else if (targetIsGutter) {
@@ -294,8 +299,13 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		} else if (targetIsViewZone) {
 			let viewZoneData = <editorBrowser.IViewZoneData>t.detail;
 			if (this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
+				focus();
+				this._mouseDownOperation.start(t.type, e);
 				e.preventDefault();
 			}
+		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>t.detail)) {
+			focus();
+			e.preventDefault();
 		}
 
 		this.viewController.emitMouseDown({
