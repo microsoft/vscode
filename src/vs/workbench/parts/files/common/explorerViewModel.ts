@@ -6,7 +6,6 @@
 'use strict';
 
 import assert = require('vs/base/common/assert');
-import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {isLinux} from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
@@ -54,7 +53,7 @@ export class FileStat implements IFileStat {
 	}
 
 	public static create(raw: IFileStat, resolveTo?: URI[]): FileStat {
-		let stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mime, raw.mtime, raw.etag);
+		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mime, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -69,7 +68,7 @@ export class FileStat implements IFileStat {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					let child = FileStat.create(raw.children[i], resolveTo);
+					const child = FileStat.create(raw.children[i], resolveTo);
 					child.parent = stat;
 					stat.children.push(child);
 					stat.hasChildren = stat.children.length > 0;
@@ -89,7 +88,7 @@ export class FileStat implements IFileStat {
 		assert.ok(disk.resource.toString() === local.resource.toString(), 'Merging only supported for stats with the same resource');
 
 		// Stop merging when a folder is not resolved to avoid loosing local data
-		let mergingDirectories = disk.isDirectory || local.isDirectory;
+		const mergingDirectories = disk.isDirectory || local.isDirectory;
 		if (mergingDirectories && local.isDirectoryResolved && !disk.isDirectoryResolved) {
 			return;
 		}
@@ -107,7 +106,7 @@ export class FileStat implements IFileStat {
 		if (mergingDirectories && disk.isDirectoryResolved) {
 
 			// Map resource => stat
-			let oldLocalChildren: { [resource: string]: FileStat; } = Object.create(null);
+			const oldLocalChildren: { [resource: string]: FileStat; } = Object.create(null);
 			local.children.forEach((localChild: FileStat) => {
 				oldLocalChildren[localChild.resource.toString()] = localChild;
 			});
@@ -117,7 +116,7 @@ export class FileStat implements IFileStat {
 
 			// Merge received children
 			disk.children.forEach((diskChild: FileStat) => {
-				let formerLocalChild = oldLocalChildren[diskChild.resource.toString()];
+				const formerLocalChild = oldLocalChildren[diskChild.resource.toString()];
 
 				// Existing child: merge
 				if (formerLocalChild) {
@@ -139,7 +138,7 @@ export class FileStat implements IFileStat {
 	 * Returns a deep copy of this model object.
 	 */
 	public clone(): FileStat {
-		let stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mime, this.mtime, this.etag);
+		const stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mime, this.mtime, this.etag);
 		stat.isDirectoryResolved = this.isDirectoryResolved;
 
 		if (this.parent) {
@@ -159,10 +158,6 @@ export class FileStat implements IFileStat {
 	 * Adds a child element to this folder.
 	 */
 	public addChild(child: FileStat): void {
-		assert.ok(this.isDirectory, 'Can only add a child to a folder');
-
-		// Overwrite a previous child with the same name
-		this.removeChild(child);
 
 		// Inherit some parent properties to child
 		child.parent = this;
@@ -179,11 +174,8 @@ export class FileStat implements IFileStat {
 	 * @param type the type of stat to check for.
 	 */
 	public hasChild(name: string, ignoreCase?: boolean, type: StatType = StatType.ANY): boolean {
-		assert.ok(this.isDirectory, 'Can only call hasChild on a directory');
-		assert.ok(types.isString(name), 'Expected parameter of type String');
-
 		for (let i = 0; i < this.children.length; i++) {
-			let child = this.children[i];
+			const child = this.children[i];
 			if ((type === StatType.FILE && child.isDirectory) || (type === StatType.FOLDER && !child.isDirectory)) {
 				continue;
 			}
@@ -206,9 +198,6 @@ export class FileStat implements IFileStat {
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: FileStat): void {
-		assert.ok(this.isDirectory, 'Can only remove a child from a directory');
-		assert.ok(!!this.children, 'Expected children for directory but found none: ' + this.resource.fsPath);
-
 		for (let i = 0; i < this.children.length; i++) {
 			if (this.children[i].resource.toString() === child.resource.toString()) {
 				this.children.splice(i, 1);
@@ -223,8 +212,6 @@ export class FileStat implements IFileStat {
 	 * Moves this element under a new parent element.
 	 */
 	public move(newParent: FileStat, fnBetweenStates?: (callback: () => void) => void, fnDone?: () => void): void {
-		assert.ok(newParent.isDirectory, 'Can only move an element into a directory');
-
 		if (!fnBetweenStates) {
 			fnBetweenStates = (cb: () => void) => { cb(); };
 		}
@@ -232,6 +219,7 @@ export class FileStat implements IFileStat {
 		this.parent.removeChild(this);
 
 		fnBetweenStates(() => {
+			newParent.removeChild(this); // make sure to remove any previous version of the file if any
 			newParent.addChild(this);
 			this.updateResource(true);
 			if (fnDone) {
@@ -284,7 +272,7 @@ export class FileStat implements IFileStat {
 		}
 
 		for (let i = 0; i < this.children.length; i++) {
-			let child = this.children[i];
+			const child = this.children[i];
 
 			if (this.fileResourceEquals(resource, child.resource)) {
 				return child;
@@ -341,7 +329,7 @@ export class NewStatPlaceholder extends FileStat {
 	 * Returns a deep copy of this model object.
 	 */
 	public clone(): NewStatPlaceholder {
-		let stat = new NewStatPlaceholder(this.isDirectory);
+		const stat = new NewStatPlaceholder(this.isDirectory);
 		stat.parent = this.parent;
 
 		return stat;
@@ -372,9 +360,7 @@ export class NewStatPlaceholder extends FileStat {
 	}
 
 	public static addNewStatPlaceholder(parent: FileStat, isDirectory: boolean): NewStatPlaceholder {
-		assert.ok(parent.isDirectory, 'Can only add a child to a folder');
-
-		let child = new NewStatPlaceholder(isDirectory);
+		const child = new NewStatPlaceholder(isDirectory);
 
 		// Inherit some parent properties to child
 		child.parent = parent;

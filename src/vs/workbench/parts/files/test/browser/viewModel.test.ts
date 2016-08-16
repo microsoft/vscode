@@ -44,31 +44,10 @@ suite('Files - View Model', () => {
 	test('Add and Remove Child, check for hasChild', function () {
 		let d = new Date().getTime();
 		let s = createStat('/path/to/stat', 'sName', true, false, 8096, d);
-		let s2 = createStat('/path/to/stat2', 'sName2', false, false, 8096, d);
 
 		let child1 = createStat('/path/to/stat/foo', 'foo', true, false, 8096, d);
 		let child2 = createStat('/path/to/stat/bar.html', 'bar', false, false, 8096, d);
 		let child4 = createStat('/otherpath/to/other/otherbar.html', 'otherbar.html', false, false, 8096, d);
-
-		assert.throws(function () {
-			s2.addChild(child1); // Can not add into non directory
-		});
-
-		assert.throws(function () {
-			s2.addChild(null);
-		});
-
-		assert.throws(function () {
-			s2.hasChild(child1.name);
-		});
-
-		assert.throws(function () {
-			s2.removeChild(child1);
-		});
-
-		assert.throws(function () {
-			s.hasChild(null);
-		});
 
 		assert(!s.hasChild(child1.name));
 		assert(!s.hasChild(child2.name));
@@ -105,18 +84,6 @@ suite('Files - View Model', () => {
 		s2.addChild(s3);
 		s3.addChild(s4);
 
-		assert.throws(function () {
-			s4.move(null);
-		});
-
-		assert.throws(function () {
-			s2.move(s4); // Can not move into a file
-		});
-
-		assert.throws(function () {
-			s1.move(s3); // Can not move root
-		});
-
 		s4.move(s1);
 
 		assert.strictEqual(s3.children.length, 0);
@@ -148,19 +115,6 @@ suite('Files - View Model', () => {
 		let s2 = createStat('/path', 'path', true, false, 8096, d);
 		let s3 = createStat('/path/to', 'to', true, false, 8096, d);
 		let s4 = createStat('/path/to/stat', 'stat', true, false, 8096, d);
-		let s5 = createStat('/path/to/stat', 'stat', true, false, 8096, d);
-
-		assert.throws(function () {
-			s2.rename(null);
-		});
-
-		assert.throws(function () {
-			s1.rename(s2); // Can not rename root
-		});
-
-		assert.throws(function () {
-			s4.rename(s5); // Can not rename to stat from different workspace
-		});
 
 		s1.addChild(s2);
 		s2.addChild(s3);

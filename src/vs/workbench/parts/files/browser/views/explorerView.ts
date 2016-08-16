@@ -367,6 +367,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				// Add the new file to its parent (Model)
 				let childElement = FileStat.create(addedElement);
+				parentElement.removeChild(childElement); // make sure to remove any previous version of the file if any
 				parentElement.addChild(childElement);
 
 				let refreshPromise = () => {
