@@ -30,15 +30,15 @@ suite('Suggest', function () {
 					suggestions: [{
 						label: 'aaa',
 						type: 'snippet',
-						codeSnippet: 'aaa'
+						insertText: 'aaa'
 					}, {
 							label: 'zzz',
 							type: 'snippet',
-							codeSnippet: 'zzz'
+							insertText: 'zzz'
 						}, {
 							label: 'fff',
 							type: 'property',
-							codeSnippet: 'fff'
+							insertText: 'fff'
 						}]
 				};
 			}

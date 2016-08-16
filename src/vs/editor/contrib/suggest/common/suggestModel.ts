@@ -380,7 +380,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		this._onDidAccept.fire({
-			snippet: new CodeSnippet(suggestion.codeSnippet),
+			snippet: new CodeSnippet(suggestion.insertText),
 			overwriteBefore: overwriteBefore + (this.editor.getPosition().column - this.context.column),
 			overwriteAfter
 		});

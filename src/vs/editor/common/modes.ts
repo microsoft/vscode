@@ -358,10 +358,10 @@ export type SuggestionType = 'method'
  */
 export interface ISuggestion {
 	label: string;
-	codeSnippet: string;
+	insertText: string;
 	type: SuggestionType;
-	typeLabel?: string;
-	documentationLabel?: string;
+	detail?: string;
+	documentation?: string;
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;

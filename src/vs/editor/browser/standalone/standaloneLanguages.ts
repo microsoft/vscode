@@ -386,10 +386,10 @@ class SuggestAdapter {
 		return {
 			_actual: item,
 			label: item.label,
-			codeSnippet: item.insertText || item.label,
+			insertText: item.insertText || item.label,
 			type: convertKind(item.kind),
-			typeLabel: item.detail,
-			documentationLabel: item.documentation,
+			detail: item.detail,
+			documentation: item.documentation,
 			sortText: item.sortText,
 			filterText: item.filterText
 		};
@@ -444,7 +444,7 @@ class SuggestAdapter {
 
 					// insert the text of the edit and create a dedicated
 					// suggestion-container with overwrite[Before|After]
-					suggestion.codeSnippet = item.textEdit.text;
+					suggestion.insertText = item.textEdit.text;
 					suggestion.overwriteBefore = position.column - editRange.startColumn;
 					suggestion.overwriteAfter = editRange.endColumn - position.column;
 				} else {

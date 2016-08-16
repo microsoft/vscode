@@ -146,7 +146,7 @@ export class HTMLWorker {
 			if (matchingTag) {
 				let suggestion : modes.ISuggestion = {
 					label: '/' + matchingTag,
-					codeSnippet: '/' + matchingTag + closeTag,
+					insertText: '/' + matchingTag + closeTag,
 					overwriteBefore: overwriteBefore,
 					type: 'property'
 				};
@@ -159,7 +159,7 @@ export class HTMLWorker {
 					let endIndent = model.getLineContent(endPosition.lineNumber).substring(0, endPosition.column - 1);
 					if (isWhiteSpace(startIndent) && isWhiteSpace(endIndent)) {
 						suggestion.overwriteBefore = position.column - 1; // replace from start of line
-						suggestion.codeSnippet = startIndent + '</' + matchingTag + closeTag;
+						suggestion.insertText = startIndent + '</' + matchingTag + closeTag;
 						suggestion.filterText = endIndent + '</' + matchingTag + closeTag;
 					}
 				}
@@ -177,9 +177,9 @@ export class HTMLWorker {
 						suggestions.suggestions.push({
 							label: '/' + tag,
 							overwriteBefore: suggestions.currentWord.length + 1,
-							codeSnippet: '/' + tag + closeTag,
+							insertText: '/' + tag + closeTag,
 							type: 'property',
-							documentationLabel: label,
+							documentation: label,
 							filterText: '</' + tag + closeTag
 						});
 					});
@@ -192,9 +192,9 @@ export class HTMLWorker {
 				provider.collectTags((tag, label) => {
 					suggestions.suggestions.push({
 						label: tag,
-						codeSnippet: tag,
+						insertText: tag,
 						type: 'property',
-						documentationLabel: label,
+						documentation: label,
 						overwriteBefore: suggestions.currentWord.length
 					});
 				});
@@ -227,7 +227,7 @@ export class HTMLWorker {
 				}
 				suggestions.suggestions.push({
 					label: attribute,
-					codeSnippet: codeSnippet,
+					insertText: codeSnippet,
 					type: type === 'handler' ? 'function' : 'value',
 					overwriteBefore: suggestions.currentWord.length
 				});
@@ -260,7 +260,7 @@ export class HTMLWorker {
 			provider.collectValues(parentTag, attribute,(value) => {
 				suggestions.suggestions.push({
 					label: value,
-					codeSnippet: needsQuotes ? '"' + value + '"' : value,
+					insertText: needsQuotes ? '"' + value + '"' : value,
 					type: 'unit',
 					overwriteBefore: suggestions.currentWord.length
 				});

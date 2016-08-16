@@ -314,10 +314,10 @@ export const Suggest = {
 	from(item: vscode.CompletionItem): modes.ISuggestion {
 		const suggestion: modes.ISuggestion = {
 			label: item.label,
-			codeSnippet: item.insertText || item.label,
+			insertText: item.insertText || item.label,
 			type: CompletionItemKind.from(item.kind),
-			typeLabel: item.detail,
-			documentationLabel: item.documentation,
+			detail: item.detail,
+			documentation: item.documentation,
 			sortText: item.sortText,
 			filterText: item.filterText
 		};
@@ -326,10 +326,10 @@ export const Suggest = {
 
 	to(container: modes.ISuggestResult, position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
-		result.insertText = suggestion.codeSnippet;
+		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.type);
-		result.detail = suggestion.typeLabel;
-		result.documentation = suggestion.documentationLabel;
+		result.detail = suggestion.detail;
+		result.documentation = suggestion.documentation;
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 
@@ -340,7 +340,7 @@ export const Suggest = {
 			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
 		}
 
-		result.textEdit = types.TextEdit.replace(new types.Range(startPosition, endPosition), suggestion.codeSnippet);
+		result.textEdit = types.TextEdit.replace(new types.Range(startPosition, endPosition), suggestion.insertText);
 		return result;
 	}
 };

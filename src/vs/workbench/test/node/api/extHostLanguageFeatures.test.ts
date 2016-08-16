@@ -767,7 +767,7 @@ suite('ExtHostLanguageFeatures', function() {
 		return threadService.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
 				assert.equal(value.length, 1);
-				assert.equal(value[0].suggestion.codeSnippet, 'testing2');
+				assert.equal(value[0].suggestion.insertText, 'testing2');
 			});
 		});
 	});
@@ -789,7 +789,7 @@ suite('ExtHostLanguageFeatures', function() {
 		return threadService.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
 				assert.equal(value.length, 1);
-				assert.equal(value[0].suggestion.codeSnippet, 'weak-selector');
+				assert.equal(value[0].suggestion.insertText, 'weak-selector');
 			});
 		});
 	});
@@ -811,8 +811,8 @@ suite('ExtHostLanguageFeatures', function() {
 		return threadService.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
 				assert.equal(value.length, 2);
-				assert.equal(value[0].suggestion.codeSnippet, 'strong-1'); // sort by label
-				assert.equal(value[1].suggestion.codeSnippet, 'strong-2');
+				assert.equal(value[0].suggestion.insertText, 'strong-1'); // sort by label
+				assert.equal(value[1].suggestion.insertText, 'strong-2');
 			});
 		});
 	});

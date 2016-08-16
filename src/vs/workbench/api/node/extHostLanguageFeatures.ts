@@ -554,7 +554,7 @@ class SuggestAdapter {
 
 					// insert the text of the edit and create a dedicated
 					// suggestion-container with overwrite[Before|After]
-					suggestion.codeSnippet = item.textEdit.newText;
+					suggestion.insertText = item.textEdit.newText;
 					suggestion.overwriteBefore = pos.character - editRange.start.character;
 					suggestion.overwriteAfter = editRange.end.character - pos.character;
 
