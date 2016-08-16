@@ -199,6 +199,13 @@ export function fileExistsWithResult<T>(path: string, successResult: T): TPromis
 	});
 }
 
+export function existsWithResult<T>(path: string, successResult: T): TPromise<T> {
+	return exists(path).then((exists) => {
+		return exists ? successResult : null;
+	}, (err) => {
+		return TPromise.wrapError(err);
+	});
+}
 
 function removeNull<T>(arr: T[]): T[] {
 	return arr.filter(item => (item !== null));
