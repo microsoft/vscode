@@ -31,6 +31,7 @@ import {IWindowService} from 'vs/workbench/services/window/electron-browser/wind
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelBuilder} from 'vs/editor/node/model/modelBuilder';
+import product from 'vs/platform/product';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -219,7 +220,7 @@ export class TextFileService extends AbstractTextFileService {
 		}
 
 		let opts: Electron.ShowMessageBoxOptions = {
-			title: this.contextService.getConfiguration().env.appName,
+			title: product.nameLong,
 			message: message.join('\n'),
 			type: 'warning',
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them."),

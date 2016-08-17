@@ -8,6 +8,7 @@
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
+import product from 'vs/platform/product';
 import {EventType} from 'vs/base/common/events';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {EditorInput, IGroupEvent, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
@@ -161,7 +162,7 @@ export abstract class BaseHistoryService {
 	}
 
 	private doGetWindowTitle(input?: IEditorInput): string {
-		const appName = this.contextService.getConfiguration().env.appName;
+		const appName = product.nameLong;
 
 		let prefix = input && input.getName();
 		if (prefix && input) {

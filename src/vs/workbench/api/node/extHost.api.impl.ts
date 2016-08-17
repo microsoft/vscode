@@ -9,6 +9,7 @@ import {score} from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import * as errors from 'vs/base/common/errors';
+import product from 'vs/platform/product';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
@@ -168,7 +169,7 @@ export class ExtHostAPIImplementation {
 			get machineId() { return telemetryInfo.machineId; },
 			get sessionId() { return telemetryInfo.sessionId; },
 			get language() { return Platform.language; },
-			get appName() { return contextService.getConfiguration().env.appName; }
+			get appName() { return product.nameLong; }
 		});
 		telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 

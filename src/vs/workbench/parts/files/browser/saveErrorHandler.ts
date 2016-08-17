@@ -10,6 +10,7 @@ import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
+import product from 'vs/platform/product';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
@@ -25,7 +26,6 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {EventType as FileEventType, TextFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
@@ -223,7 +223,6 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		message: string,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		this.model = model;
@@ -241,7 +240,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					const mime = guessMimeTypes(resource.fsPath).join(', ');
 					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, mime, paths.basename(resource.fsPath), resource.fsPath);
 					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, mime, void 0);
-					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} - on disk ↔ in {1}", modifiedInput.getName(), this.contextService.getConfiguration().env.appName), nls.localize('resolveSaveConflict', "{0} - Resolve save conflict", modifiedInput.getDescription()), originalInput, modifiedInput);
+					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} - on disk ↔ in {1}", modifiedInput.getName(), product.nameLong), nls.localize('resolveSaveConflict', "{0} - Resolve save conflict", modifiedInput.getDescription()), originalInput, modifiedInput);
 
 					return this.editorService.openEditor(conflictInput).then(editor => {
 
