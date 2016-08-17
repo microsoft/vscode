@@ -55,11 +55,6 @@ export interface IConfiguration extends IEnvironment {
 
 export function startup(configuration: IConfiguration, globalSettings: IGlobalSettings): winjs.TPromise<void> {
 
-	// Shell Configuration
-	const shellConfiguration: any = {
-		env: configuration
-	};
-
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
 	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
@@ -78,7 +73,7 @@ export function startup(configuration: IConfiguration, globalSettings: IGlobalSe
 	}
 
 	// Open workbench
-	return openWorkbench(configuration, getWorkspace(configuration.workspacePath), shellConfiguration, shellOptions);
+	return openWorkbench(configuration, getWorkspace(configuration.workspacePath), shellOptions);
 }
 
 function toInputs(paths: IPath[]): IResourceInput[] {
@@ -127,10 +122,10 @@ function getWorkspace(workspacePath: string): IWorkspace {
 	};
 }
 
-function openWorkbench(environment: IEnvironment, workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
+function openWorkbench(environment: IEnvironment, workspace: IWorkspace, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment);
-	const contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
+	const contextService = new WorkspaceContextService(eventService, workspace, options);
 	const configurationService = new ConfigurationService(contextService, eventService, environmentService);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
@@ -148,7 +143,7 @@ function openWorkbench(environment: IEnvironment, workspace: IWorkspace, configu
 				eventService,
 				contextService,
 				environmentService
-			}, configuration, options);
+			}, options);
 			shell.open();
 
 			shell.joinCreation().then(() => {

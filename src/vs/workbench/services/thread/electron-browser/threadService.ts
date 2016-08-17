@@ -177,7 +177,6 @@ class ExtensionHostProcessManager {
 							},
 							contextService: {
 								workspace: this.contextService.getWorkspace(),
-								configuration: this.contextService.getConfiguration(),
 								options: this.contextService.getOptions()
 							},
 						});

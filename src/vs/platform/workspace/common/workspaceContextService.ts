@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {IWorkspaceContextService, IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 
 /**
  * Simple IWorkspaceContextService implementation to allow sharing of this service implementation
@@ -19,20 +19,14 @@ export class BaseWorkspaceContextService implements IWorkspaceContextService {
 	protected options: any;
 
 	private workspace: IWorkspace;
-	private configuration: IConfiguration;
 
-	constructor(workspace: IWorkspace, configuration?: IConfiguration, options: any = {}) {
+	constructor(workspace: IWorkspace, options: any = {}) {
 		this.workspace = workspace;
-		this.configuration = configuration;
 		this.options = options;
 	}
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
-	}
-
-	public getConfiguration(): IConfiguration {
-		return this.configuration;
 	}
 
 	public getOptions(): any {
