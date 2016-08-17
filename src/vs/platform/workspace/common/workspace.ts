@@ -118,7 +118,6 @@ export interface IEnvironment {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
-	debugBrkExtensionHost: boolean;
 	disableExtensions: boolean;
 
 	logExtensionHostCommunication: boolean;

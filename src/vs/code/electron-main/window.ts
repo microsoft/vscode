@@ -412,7 +412,7 @@ export class VSCodeWindow {
 			configuration.logExtensionHostCommunication = cli.logExtensionHostCommunication;
 			configuration.debugBrkFileWatcherPort = cli.debugBrkFileWatcherPort;
 			configuration.debugPluginHost = cli.debugPluginHost;
-			configuration.debugBrkExtensionHost = cli.debugBrkExtensionHost;
+			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
 			configuration.extensionsHomePath = cli.extensionsHomePath;
 		}
 

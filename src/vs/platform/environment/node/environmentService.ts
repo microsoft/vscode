@@ -42,10 +42,14 @@ export class EnvironmentService implements IEnvironmentService {
 	private _debugExtensionHostPort: number;
 	get debugExtensionHostPort(): number { return this._debugExtensionHostPort; }
 
+	private _debugBrkExtensionHost: boolean;
+	get debugBrkExtensionHost(): boolean { return this._debugBrkExtensionHost; }
+
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this.args.verbose; }
 
-	get debugBrkFileWatcherPort(): number { return typeof this.args.debugBrkFileWatcherPort === 'string' ? Number(this.args.debugBrkFileWatcherPort) : void 0; }
+	private _debugBrkFileWatcherPort: number;
+	get debugBrkFileWatcherPort(): number { return this._debugBrkFileWatcherPort; }
 
 	constructor(private args: ParsedArgs) {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
@@ -64,5 +68,9 @@ export class EnvironmentService implements IEnvironmentService {
 		if (args.debugPluginHost) {
 			this._debugExtensionHostPort = Number(args.debugPluginHost);
 		}
+
+		this._debugBrkExtensionHost = Boolean(args.debugBrkPluginHost);
+
+		this._debugBrkFileWatcherPort = (typeof args.debugBrkFileWatcherPort === 'string') ? Number(args.debugBrkFileWatcherPort) : void 0;
 	}
 }
