@@ -13,7 +13,7 @@ import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { download, json } from 'vs/base/node/request';
+import { download, asJson } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
@@ -309,7 +309,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					headers
 				});
 			})
-			.then(context => json<IRawGalleryQueryResult>(context))
+			.then(context => asJson<IRawGalleryQueryResult>(context))
 			.then(result => {
 				const r = result.results[0];
 				const galleryExtensions = r.extensions;
@@ -358,7 +358,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.getCommonHeaders()
 			.then(headers => assign(headers, { 'accept-encoding': 'gzip' }))
 			.then(headers => this.requestService.request({ url, headers }))
-			.then(context => json<IExtensionManifest>(context))
+			.then(context => asJson<IExtensionManifest>(context))
 			.then(manifest => {
 				const desc = {
 					isBuiltin: false,

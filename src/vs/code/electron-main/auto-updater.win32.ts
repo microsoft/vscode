@@ -14,7 +14,7 @@ import { spawn } from 'child_process';
 import { mkdirp } from 'vs/base/node/extfs';
 import { isString } from 'vs/base/common/types';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { request, download, json } from 'vs/base/node/request';
+import { request, download, asJson } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { ISettingsService  } from 'vs/code/electron-main/settings';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
@@ -69,7 +69,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
 		this.currentRequest = request({ url: this.url, agent })
-			.then(context => json<IUpdate>(context))
+			.then(context => asJson<IUpdate>(context))
 			.then(update => {
 				if (!update || !update.url || !update.version) {
 					this.emit('update-not-available');

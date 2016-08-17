@@ -108,7 +108,7 @@ export function download(filePath: string, context: IRequestContext): TPromise<v
 	});
 }
 
-export function text(context: IRequestContext): TPromise<string> {
+export function asText(context: IRequestContext): TPromise<string> {
 	return new Promise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);
@@ -125,7 +125,7 @@ export function text(context: IRequestContext): TPromise<string> {
 	});
 }
 
-export function json<T>(context: IRequestContext): TPromise<T> {
+export function asJson<T>(context: IRequestContext): TPromise<T> {
 	return new Promise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);

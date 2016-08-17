@@ -8,7 +8,7 @@
 import { EventEmitter } from 'events';
 import { isString } from 'vs/base/common/types';
 import { Promise } from 'vs/base/common/winjs.base';
-import { request, json } from 'vs/base/node/request';
+import { request, asJson } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { IEnvironmentService } from 'vs/code/electron-main/env';
@@ -55,7 +55,7 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
 		this.currentRequest = request({ url: this.url, agent })
-			.then(context => json<IUpdate>(context))
+			.then(context => asJson<IUpdate>(context))
 			.then(update => {
 				if (!update || !update.url || !update.version) {
 					this.emit('update-not-available');

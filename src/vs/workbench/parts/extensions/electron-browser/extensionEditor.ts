@@ -18,7 +18,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { text } from 'vs/base/node/request';
+import { asText } from 'vs/base/node/request';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
@@ -177,7 +177,7 @@ export class ExtensionEditor extends BaseEditor {
 			promise = promise
 				.then(() => addClass(this.body, 'loading'))
 				.then(() => this.requestService.request({ url: extension.readmeUrl }))
-				.then(text)
+				.then(asText)
 				.then(marked.parse)
 				.then<void>(body => {
 					const webview = new WebView(
