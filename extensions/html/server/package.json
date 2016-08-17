@@ -1,0 +1,20 @@
+{
+  "name": "vscode-html-languageserver",
+  "description": "HTML language server",
+  "version": "1.0.0",
+  "author": "Microsoft Corporation",
+  "license": "MIT",
+  "engines": {
+    "node": "*"
+  },
+  "dependencies": {
+    "vscode-languageserver": "^2.4.0-next.4",
+    "vscode-nls": "^1.0.4"
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:json-server",
+    "watch": "gulp watch-extension:json-server",
+    "install-server-next": "npm install vscode-languageserver@next -f -S",
+    "install-server-local": "npm install ../../../../vscode-languageserver-node/server -f -S"
+  }
+}
