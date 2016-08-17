@@ -13,6 +13,7 @@ import Event from 'vs/base/common/event';
 
 export const ISettingsService = createDecorator<ISettingsService>('settingsService');
 
+// TODO@Joao TODO@Ben - this needs to die
 export interface ISettingsService {
 	_serviceBrand: any;
 	globalSettings: ISettings;
