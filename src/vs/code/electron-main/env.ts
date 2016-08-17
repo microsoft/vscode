@@ -146,6 +146,7 @@ export class EnvService implements IEnvService {
 		const debugBrkExtensionHostPort = getNumericValue(argv.debugBrkPluginHost, 5870);
 		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
 		const debugPluginHost = debugBrkExtensionHostPort ? String(debugBrkExtensionHostPort) : debugExtensionHostPort ? String(debugExtensionHostPort): void 0;
+		const debugBrkPluginHost = debugBrkExtensionHostPort ? String(true) : void 0;
 		const pathArguments = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 		const timestamp = parseInt(argv.timestamp);
 		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
@@ -157,7 +158,7 @@ export class EnvService implements IEnvService {
 			performance: argv.performance,
 			verbose: argv.verbose,
 			debugPluginHost,
-			debugBrkPluginHost: String(!!debugBrkExtensionHostPort),
+			debugBrkPluginHost,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
 			debugBrkFileWatcherPort: debugBrkFileWatcherPort ? String(debugBrkFileWatcherPort) : void 0,
 			'new-window': argv['new-window'],
