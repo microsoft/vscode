@@ -252,7 +252,7 @@ export class WorkbenchShell {
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
-				piiPaths: [this.environmentService.appRoot, this.configuration.env.userExtensionsHome]
+				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
