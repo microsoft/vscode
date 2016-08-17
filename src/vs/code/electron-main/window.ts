@@ -13,6 +13,7 @@ import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
 import { ILogService } from 'vs/code/electron-main/log';
+import { parseArgs } from 'vs/code/node/argv';
 
 export interface IWindowState {
 	width?: number;
@@ -419,10 +420,13 @@ export class VSCodeWindow {
 		this.load(configuration);
 	}
 
-	private getUrl(config: IWindowConfiguration): string {
+	private getUrl(windowConfiguration: IWindowConfiguration): string {
 		let url = require.toUrl('vs/workbench/electron-browser/bootstrap/index.html');
 
-		// Config
+		// Config (combination of process.argv and window configuration)
+		const environment = parseArgs(process.argv);
+		const config = objects.assign(environment, windowConfiguration);
+
 		url += '?config=' + encodeURIComponent(JSON.stringify(config));
 
 		return url;

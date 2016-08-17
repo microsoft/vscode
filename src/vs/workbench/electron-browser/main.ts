@@ -16,9 +16,9 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {ParsedArgs, parseArgs} from 'vs/code/node/argv';
+import {ParsedArgs} from 'vs/code/node/argv';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
@@ -46,7 +46,7 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IMainEnvironment extends IEnvironment {
+export interface IConfiguration extends ParsedArgs {
 	workspacePath?: string;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
@@ -54,16 +54,10 @@ export interface IMainEnvironment extends IEnvironment {
 	extensionsToInstall?: string[];
 }
 
-export function startup(configuration: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
-
-	// Args (TODO@Ben clean up explicit overwrite of args)
-	const parsedArgs = parseArgs(process.argv);
-	if (typeof configuration.extensionDevelopmentPath === 'string') {
-		parsedArgs.extensionDevelopmentPath = configuration.extensionDevelopmentPath;
-	}
+export function startup(configuration: IConfiguration, globalSettings: IGlobalSettings): winjs.TPromise<void> {
 
 	// Shell Configuration
-	const shellConfiguration: IConfiguration = {
+	const shellConfiguration: any = {
 		env: configuration
 	};
 
@@ -80,12 +74,12 @@ export function startup(configuration: IMainEnvironment, globalSettings: IGlobal
 		globalSettings: globalSettings
 	};
 
-	if (configuration.enablePerformance) {
+	if (configuration.performance) {
 		timer.ENABLE_TIMER = true;
 	}
 
 	// Open workbench
-	return openWorkbench(parsedArgs, getWorkspace(configuration.workspacePath), shellConfiguration, shellOptions);
+	return openWorkbench(configuration, getWorkspace(configuration.workspacePath), shellConfiguration, shellOptions);
 }
 
 function toInputs(paths: IPath[]): IResourceInput[] {
@@ -134,9 +128,9 @@ function getWorkspace(workspacePath: string): IWorkspace {
 	};
 }
 
-function openWorkbench(args: ParsedArgs, workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
+function openWorkbench(environment: ParsedArgs, workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
-	const environmentService = new EnvironmentService(args);
+	const environmentService = new EnvironmentService(environment);
 	const contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
 	const configurationService = new ConfigurationService(contextService, eventService, environmentService);
 
