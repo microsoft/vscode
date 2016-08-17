@@ -12,7 +12,7 @@ import {Builder, $} from 'vs/base/browser/builder';
 import {Dropdown} from 'vs/base/browser/ui/dropdown/dropdown';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import product from 'vs/platform/product';
 
 export interface IFeedback {
 	feedback: string;
@@ -59,8 +59,7 @@ export class FeedbackDropdown extends Dropdown {
 	constructor(
 		container: HTMLElement,
 		options: IFeedbackDropdownOptions,
-		@ITelemetryService protected telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -87,9 +86,8 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.sendButton = null;
 
-		const env = contextService.getConfiguration().env;
-		this.reportIssueLink = env.sendASmile.reportIssueUrl;
-		this.requestFeatureLink = env.sendASmile.requestFeatureUrl;
+		this.reportIssueLink = product.reportIssueUrl;
+		this.requestFeatureLink = product.requestFeatureUrl;
 	}
 
 	public renderContents(container: HTMLElement): IDisposable {

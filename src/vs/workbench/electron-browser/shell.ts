@@ -15,6 +15,8 @@ import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
 import {dispose, IDisposable, Disposables} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
+import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/electron-browser/workbench';
@@ -244,8 +246,8 @@ export class WorkbenchShell {
 		// Telemetry
 		if (this.configuration.env.isBuilt && !this.environmentService.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
-			const commit = this.contextService.getConfiguration().env.commitHash;
-			const version = this.contextService.getConfiguration().env.version;
+			const commit = product.commit;
+			const version = pkg.version;
 
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),

@@ -56,8 +56,8 @@ export class EditorState {
 			return true;
 		}
 
-		let liftedSelection = Selection.liftSelection(this._selection);
-		let liftedOtherSelection = Selection.liftSelection(other._selection);
+		const liftedSelection = Selection.liftSelection(this._selection);
+		const liftedOtherSelection = Selection.liftSelection(other._selection);
 
 		if (Math.abs(liftedSelection.getStartPosition().lineNumber - liftedOtherSelection.getStartPosition().lineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
 			// ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
@@ -105,8 +105,8 @@ export abstract class BaseHistoryService {
 		dispose(this.activeEditorListeners);
 		this.activeEditorListeners = [];
 
-		let activeEditor = this.editorService.getActiveEditor();
-		let activeInput = activeEditor ? activeEditor.input : void 0;
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeInput = activeEditor ? activeEditor.input : void 0;
 
 		// Propagate to history
 		this.onEditorEvent(activeEditor);
@@ -128,7 +128,7 @@ export abstract class BaseHistoryService {
 	}
 
 	private onEditorEvent(editor: IBaseEditor): void {
-		let input = editor ? editor.input : null;
+		const input = editor ? editor.input : null;
 
 		// Calculate New Window Title
 		this.updateWindowTitle(input);
@@ -153,7 +153,7 @@ export abstract class BaseHistoryService {
 	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
 
 	protected getWindowTitle(input?: IEditorInput): string {
-		let title = this.doGetWindowTitle(input);
+		const title = this.doGetWindowTitle(input);
 
 		// Extension Development Host gets a special title to identify itself
 		if (this.environmentService.extensionDevelopmentPath) {
@@ -173,9 +173,9 @@ export abstract class BaseHistoryService {
 			}
 		}
 
-		let workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace();
 		if (workspace) {
-			let wsName = workspace.name;
+			const wsName = workspace.name;
 
 			if (prefix) {
 				if (platform.isMacintosh) {
@@ -313,7 +313,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private navigate(): void {
-		let state = this.stack[this.index];
+		const state = this.stack[this.index];
 
 		let options = state.options;
 		if (options) {
@@ -366,7 +366,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private restoreInHistory(input: IEditorInput): void {
-		let index = this.indexOf(input);
+		const index = this.indexOf(input);
 		if (index < 0) {
 			return;
 		}
@@ -403,7 +403,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private indexOf(input: IEditorInput): number {
 		for (let i = 0; i < this.history.length; i++) {
-			let entry = this.history[i];
+			const entry = this.history[i];
 			if (entry.matches(input)) {
 				return i;
 			}
@@ -431,7 +431,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private handleTextEditorEvent(editor: BaseTextEditor, storeSelection: boolean): void {
-		let stateCandidate = new EditorState(editor.input, editor.getSelection());
+		const stateCandidate = new EditorState(editor.input, editor.getSelection());
 		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate)) {
 			this.currentFileEditorState = stateCandidate;
 
@@ -448,7 +448,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private handleNonTextEditorEvent(editor: IBaseEditor): void {
-		let currentStack = this.stack[this.index];
+		const currentStack = this.stack[this.index];
 		if (currentStack && currentStack.input.matches(editor.input)) {
 			return; // do not push same editor input again
 		}
@@ -462,13 +462,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		// with editor options to indicate that this entry is more specific.
 		let replace = false;
 		if (this.stack[this.index]) {
-			let currentEntry = this.stack[this.index];
+			const currentEntry = this.stack[this.index];
 			if (currentEntry.input.matches(input) && !currentEntry.options) {
 				replace = true;
 			}
 		}
 
-		let entry = {
+		const entry = {
 			input: input,
 			options: options
 		};
@@ -598,10 +598,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // nothing to save because history was not used
 		}
 
-		let entries: ISerializedEditorInput[] = this.history.map((input: EditorInput) => {
-			let factory = this.registry.getEditorInputFactory(input.getTypeId());
+		const entries: ISerializedEditorInput[] = this.history.map((input: EditorInput) => {
+			const factory = this.registry.getEditorInputFactory(input.getTypeId());
 			if (factory) {
-				let value = factory.serialize(input);
+				const value = factory.serialize(input);
 				if (typeof value === 'string') {
 					return {
 						id: input.getTypeId(),
@@ -618,13 +618,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private load(): void {
 		let entries: ISerializedEditorInput[] = [];
-		let entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
+		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			entries = JSON.parse(entriesRaw);
 		}
 
 		this.history = entries.map(entry => {
-			let factory = this.registry.getEditorInputFactory(entry.id);
+			const factory = this.registry.getEditorInputFactory(entry.id);
 			if (factory && typeof entry.value === 'string') {
 				return factory.deserialize(this.instantiationService, entry.value);
 			}
