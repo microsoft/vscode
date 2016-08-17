@@ -732,15 +732,10 @@ export class WindowsManager implements IWindowsService {
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.extensionsToInstall = extensionsToInstall;
-		configuration.appName = this.envService.product.nameLong;
-		configuration.applicationName = this.envService.product.applicationName;
 		configuration.appRoot = this.envService.appRoot;
 		configuration.version = pkg.version;
 		configuration.appSettingsHome = this.envService.appSettingsHome;
-		configuration.appSettingsPath = this.envService.appSettingsPath;
-		configuration.appKeybindingsPath = this.envService.appKeybindingsPath;
 		configuration.userExtensionsHome = this.envService.userExtensionsHome;
-		configuration.isBuilt = this.envService.isBuilt;
 		configuration.userEnv = userEnv;
 
 		const recents = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);

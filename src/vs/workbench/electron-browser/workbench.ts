@@ -68,6 +68,7 @@ import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -140,7 +141,8 @@ export class Workbench implements IPartService {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IThreadService private threadService: IThreadService
+		@IThreadService private threadService: IThreadService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 
 		// Validate params
@@ -229,7 +231,7 @@ export class Workbench implements IPartService {
 			// Load Viewlet
 			const viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletId = viewletRegistry.getDefaultViewletId();
-			if (!this.workbenchParams.configuration.env.isBuilt) {
+			if (!this.environmentService.isBuilt) {
 				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
 			}
 

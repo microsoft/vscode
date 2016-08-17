@@ -85,17 +85,11 @@ export interface IConfiguration {
 }
 
 export interface IEnvironment {
-	appName: string;
 	appRoot: string;
-	isBuilt: boolean;
-
-	applicationName: string;
 
 	version: string;
 
 	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
 
 	disableExtensions: boolean;
 

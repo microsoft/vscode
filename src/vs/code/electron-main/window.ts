@@ -90,21 +90,20 @@ export interface IPath {
 
 export interface IWindowConfiguration extends ICommandLineArguments {
 	version: string;
-	appName: string;
-	applicationName: string;
 	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
 	userExtensionsHome: string;
 	appRoot: string;
-	isBuilt: boolean;
+
+	// Used to configure the workbench when opening
+	workspacePath?: string;
 	recentFiles: string[];
 	recentFolders: string[];
-	workspacePath?: string;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	extensionsToInstall: string[];
+
+	// Used to send the main process environment over to the renderer
 	userEnv: IProcessEnvironment;
 }
 
@@ -359,7 +358,7 @@ export class VSCodeWindow {
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
-		if (!config.isBuilt) {
+		if (!this.envService.isBuilt) {
 			this.showTimeoutHandle = setTimeout(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();

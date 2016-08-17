@@ -104,7 +104,7 @@ function main() {
 	const webFrame = require('electron').webFrame;
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
-	const enableDeveloperTools = !configuration.isBuilt || !!configuration.extensionDevelopmentPath;
+	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
@@ -167,7 +167,7 @@ function main() {
 		}
 
 		window.MonacoEnvironment = {};
-		
+
 		const timers = window.MonacoEnvironment.timers = {
 			start: new Date()
 		};
