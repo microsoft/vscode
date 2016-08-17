@@ -12,7 +12,6 @@ import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
-import pkg from 'vs/platform/package';
 import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
@@ -733,7 +732,6 @@ export class WindowsManager implements IWindowsService {
 		configuration.filesToDiff = filesToDiff;
 		configuration.extensionsToInstall = extensionsToInstall;
 		configuration.appRoot = this.envService.appRoot;
-		configuration.version = pkg.version;
 		configuration.appSettingsHome = this.envService.appSettingsHome;
 		configuration.userExtensionsHome = this.envService.userExtensionsHome;
 		configuration.userEnv = userEnv;

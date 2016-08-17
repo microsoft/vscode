@@ -87,8 +87,6 @@ export interface IConfiguration {
 export interface IEnvironment {
 	appRoot: string;
 
-	version: string;
-
 	appSettingsHome: string;
 
 	disableExtensions: boolean;

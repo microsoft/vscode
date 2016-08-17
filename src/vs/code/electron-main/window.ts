@@ -89,10 +89,10 @@ export interface IPath {
 }
 
 export interface IWindowConfiguration extends ICommandLineArguments {
-	version: string;
+
+	// TODO@Ben things to still clean up
 	appSettingsHome: string;
 	userExtensionsHome: string;
-	appRoot: string;
 
 	// Used to configure the workbench when opening
 	workspacePath?: string;
@@ -104,6 +104,7 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 	extensionsToInstall: string[];
 
 	// Used to send the main process environment over to the renderer
+	appRoot: string;
 	userEnv: IProcessEnvironment;
 }
 
