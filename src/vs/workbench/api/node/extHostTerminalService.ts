@@ -15,6 +15,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
+	private _disposed: boolean;
 
 	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string) {
 		this.name = name;
@@ -31,11 +32,14 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public hide(): void {
-		// TODO: Implement
+		this._proxy.$hide(this._id);
 	}
 
 	public dispose(): void {
-		// TODO: Implement
+		if (!this._disposed) {
+			this._disposed = true;
+			this._proxy.$dispose(this._id);
+		}
 	}
 }
 
