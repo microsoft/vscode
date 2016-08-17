@@ -8,29 +8,29 @@ import * as minimist from 'minimist';
 import { localize } from 'vs/nls';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
-	help: boolean;
-	version: boolean;
-	wait: boolean;
-	diff: boolean;
-	goto: boolean;
-	'new-window': boolean;
-	'reuse-window': boolean;
-	locale: string;
-	'user-data-dir': string;
-	performance: boolean;
-	verbose: boolean;
-	logExtensionHostCommunication: boolean;
-	debugBrkFileWatcherPort: string;
-	'disable-extensions': boolean;
-	extensionHomePath: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-	timestamp: string;
-	debugBrkPluginHost: string;
-	debugPluginHost: string;
-	'list-extensions': boolean;
-	'install-extension': string | string[];
-	'uninstall-extension': string | string[];
+	help?: boolean;
+	version?: boolean;
+	wait?: boolean;
+	diff?: boolean;
+	goto?: boolean;
+	'new-window'?: boolean;
+	'reuse-window'?: boolean;
+	locale?: string;
+	'user-data-dir'?: string;
+	performance?: boolean;
+	verbose?: boolean;
+	logExtensionHostCommunication?: boolean;
+	debugBrkFileWatcherPort?: string;
+	'disable-extensions'?: boolean;
+	extensionHomePath?: string;
+	extensionDevelopmentPath?: string;
+	extensionTestsPath?: string;
+	timestamp?: string;
+	debugBrkPluginHost?: string;
+	debugPluginHost?: string;
+	'list-extensions'?: boolean;
+	'install-extension'?: string | string[];
+	'uninstall-extension'?: string | string[];
 }
 
 const options: minimist.Opts = {

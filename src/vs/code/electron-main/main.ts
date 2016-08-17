@@ -122,7 +122,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 	// Spawn shared process
 	const sharedProcess = spawnSharedProcess({
-		allowOutput: !envService.isBuilt || envService.cliArgs.verboseLogging,
+		allowOutput: !envService.isBuilt || envService.cliArgs.verbose,
 		debugPort: envService.isBuilt ? null : 5871
 	});
 
@@ -135,7 +135,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	}
 
 	// Set programStart in the global scope
-	global.programStart = envService.cliArgs.programStart;
+	global.programStart = envService.cliArgs.timestamp;
 
 	function dispose() {
 		if (mainIpcServer) {
@@ -195,12 +195,12 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	updateService.initialize();
 
 	// Open our first window
-	if (envService.cliArgs.openNewWindow && envService.cliArgs.pathArguments.length === 0) {
+	if (envService.cliArgs['new-window'] && envService.cliArgs.pathArguments.length === 0) {
 		windowsService.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
 	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.pathArguments || !envService.cliArgs.pathArguments.length)) {
 		windowsService.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
-		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs.openNewWindow, diffMode: envService.cliArgs.diffMode }); // default: read paths from cli
+		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs['new-window'], diffMode: envService.cliArgs.diff }); // default: read paths from cli
 	}
 }
 

@@ -104,7 +104,7 @@ function main() {
 	const webFrame = require('electron').webFrame;
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
-	const enableDeveloperTools = !configuration.isBuilt || !!configuration.extensionDevelopmentPath;
+	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
@@ -145,18 +145,21 @@ function main() {
 
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
+
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
 	// loads as soon as the loader loads. To be able to have pseudo translation
 	createScript(rootUrl + '/vs/loader.js', function () {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
-			recordStats: configuration.enablePerformance,
+			recordStats: !!configuration.performance,
 			ignoreDuplicateModules: [
 				'vs/workbench/parts/search/common/searchQuery'
 			]
 		});
+
 		if (nlsConfig.pseudo) {
 			require(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
@@ -164,11 +167,12 @@ function main() {
 		}
 
 		window.MonacoEnvironment = {};
+
 		const timers = window.MonacoEnvironment.timers = {
 			start: new Date()
 		};
 
-		if (configuration.enablePerformance) {
+		if (!!configuration.performance) {
 			const programStart = remote.getGlobal('programStart');
 			const vscodeStart = remote.getGlobal('vscodeStart');
 

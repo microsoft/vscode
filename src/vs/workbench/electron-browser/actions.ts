@@ -19,6 +19,7 @@ import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -262,11 +263,11 @@ export class ShowStartupPerformance extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 
-		this.enabled = contextService.getConfiguration().env.enablePerformance;
+		this.enabled = environmentService.performance;
 	}
 
 	private _analyzeLoaderTimes(): any[] {
@@ -381,8 +382,8 @@ export class OpenRecentAction extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		const recentFolders = this.contextService.getConfiguration().env.recentFolders;
-		const recentFiles = this.contextService.getConfiguration().env.recentFiles;
+		const recentFolders = this.contextService.getOptions().recentFolders;
+		const recentFiles =  this.contextService.getOptions().recentFiles;
 
 		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => {
 			return {

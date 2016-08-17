@@ -10,6 +10,7 @@ import * as Platform from 'vs/base/common/platform';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import * as errors from 'vs/base/common/errors';
 import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
@@ -128,7 +129,7 @@ export class ExtHostAPIImplementation {
 		registerApiCommands(extHostCommands);
 
 
-		this.version = contextService.getConfiguration().env.version;
+		this.version = pkg.version;
 		this.Uri = URI;
 		this.Location = extHostTypes.Location;
 		this.Diagnostic = extHostTypes.Diagnostic;

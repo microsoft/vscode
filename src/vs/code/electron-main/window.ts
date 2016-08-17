@@ -13,6 +13,7 @@ import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
 import { ILogService } from 'vs/code/electron-main/log';
+import { parseArgs } from 'vs/code/node/argv';
 
 export interface IWindowState {
 	width?: number;
@@ -88,49 +89,21 @@ export interface IPath {
 }
 
 export interface IWindowConfiguration extends ICommandLineArguments {
-	execPath: string;
-	version: string;
-	appName: string;
-	applicationName: string;
-	darwinBundleIdentifier: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
-	userExtensionsHome: string;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
 	appRoot: string;
-	isBuilt: boolean;
-	commitHash: string;
-	updateFeedUrl: string;
-	updateChannel: string;
+	execPath: string;
+
+	userEnv: IProcessEnvironment;
+
+	workspacePath?: string;
+
 	recentFiles: string[];
 	recentFolders: string[];
-	workspacePath?: string;
+
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
+
 	extensionsToInstall: string[];
-	crashReporter: Electron.CrashReporterStartOptions;
-	extensionsGallery: {
-		serviceUrl: string;
-		itemUrl: string;
-	};
-	extensionTips: { [id: string]: string; };
-	welcomePage: string;
-	releaseNotesUrl: string;
-	licenseUrl: string;
-	productDownloadUrl: string;
-	enableTelemetry: boolean;
-	userEnv: IProcessEnvironment;
-	aiConfig: {
-		key: string;
-		asimovKey: string;
-	};
-	sendASmile: {
-		reportIssueUrl: string,
-		requestFeatureUrl: string
-	};
 }
 
 export class VSCodeWindow {
@@ -384,7 +357,7 @@ export class VSCodeWindow {
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
-		if (!config.isBuilt) {
+		if (!this.envService.isBuilt) {
 			this.showTimeoutHandle = setTimeout(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
@@ -407,22 +380,24 @@ export class VSCodeWindow {
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
 		if (this.isPluginDevelopmentHost && cli) {
-			configuration.verboseLogging = cli.verboseLogging;
-			configuration.logExtensionHostCommunication = cli.logExtensionHostCommunication;
+			configuration.verbose = cli.verbose;
 			configuration.debugBrkFileWatcherPort = cli.debugBrkFileWatcherPort;
-			configuration.debugExtensionHostPort = cli.debugExtensionHostPort;
-			configuration.debugBrkExtensionHost = cli.debugBrkExtensionHost;
-			configuration.extensionsHomePath = cli.extensionsHomePath;
+			configuration.debugPluginHost = cli.debugPluginHost;
+			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
+			configuration.extensionHomePath = cli.extensionHomePath;
 		}
 
 		// Load config
 		this.load(configuration);
 	}
 
-	private getUrl(config: IWindowConfiguration): string {
+	private getUrl(windowConfiguration: IWindowConfiguration): string {
 		let url = require.toUrl('vs/workbench/electron-browser/bootstrap/index.html');
 
-		// Config
+		// Config (combination of process.argv and window configuration)
+		const environment = parseArgs(process.argv);
+		const config = objects.assign(environment, windowConfiguration);
+
 		url += '?config=' + encodeURIComponent(JSON.stringify(config));
 
 		return url;

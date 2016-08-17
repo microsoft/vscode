@@ -20,32 +20,15 @@ import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import product, { IProductConfiguration } from 'vs/platform/product';
-import { parseArgs } from 'vs/code/node/argv';
+import { parseArgs, ParsedArgs } from 'vs/code/node/argv';
 import pkg from 'vs/platform/package';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
 }
 
-export interface ICommandLineArguments {
-	verboseLogging: boolean;
-	debugExtensionHostPort: number;
-	debugBrkExtensionHost: boolean;
-	debugBrkFileWatcherPort: number;
-	logExtensionHostCommunication: boolean;
-	disableExtensions: boolean;
-	extensionsHomePath: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-	programStart: number;
+export interface ICommandLineArguments extends ParsedArgs {
 	pathArguments?: string[];
-	enablePerformance?: boolean;
-	openNewWindow?: boolean;
-	openInSameWindow?: boolean;
-	gotoLineMode?: boolean;
-	diffMode?: boolean;
-	locale?: string;
-	waitForWindowClose?: boolean;
 }
 
 export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService');
@@ -162,34 +145,37 @@ export class EnvService implements IEnvService {
 
 		const debugBrkExtensionHostPort = getNumericValue(argv.debugBrkPluginHost, 5870);
 		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
+		const debugPluginHost = debugBrkExtensionHostPort ? String(debugBrkExtensionHostPort) : debugExtensionHostPort ? String(debugExtensionHostPort): void 0;
+		const debugBrkPluginHost = debugBrkExtensionHostPort ? String(true) : void 0;
 		const pathArguments = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 		const timestamp = parseInt(argv.timestamp);
 		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
 
 		this._cliArgs = Object.freeze({
+			_: [],
 			pathArguments: pathArguments,
-			programStart: types.isNumber(timestamp) ? timestamp : 0,
-			enablePerformance: argv.performance,
-			verboseLogging: argv.verbose,
-			debugExtensionHostPort: debugBrkExtensionHostPort || debugExtensionHostPort,
-			debugBrkExtensionHost: !!debugBrkExtensionHostPort,
+			timestamp: types.isNumber(timestamp) ? String(timestamp) : '0',
+			performance: argv.performance,
+			verbose: argv.verbose,
+			debugPluginHost,
+			debugBrkPluginHost,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
-			debugBrkFileWatcherPort: debugBrkFileWatcherPort,
-			openNewWindow: argv['new-window'],
-			openInSameWindow: argv['reuse-window'],
-			gotoLineMode: argv.goto,
-			diffMode: argv.diff && pathArguments.length === 2,
-			extensionsHomePath: normalizePath(argv.extensionHomePath),
+			debugBrkFileWatcherPort: debugBrkFileWatcherPort ? String(debugBrkFileWatcherPort) : void 0,
+			'new-window': argv['new-window'],
+			'reuse-window': argv['reuse-window'],
+			goto: argv.goto,
+			diff: argv.diff && pathArguments.length === 2,
+			extensionHomePath: normalizePath(argv.extensionHomePath),
 			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
 			extensionTestsPath: normalizePath(argv.extensionTestsPath),
-			disableExtensions: argv['disable-extensions'],
+			'disable-extensions': argv['disable-extensions'],
 			locale: argv.locale,
-			waitForWindowClose: argv.wait
+			wait: argv.wait
 		});
 
-		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
+		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkPluginHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
-		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
+		this._userExtensionsHome = this.cliArgs.extensionHomePath || path.join(this._userHome, 'extensions');
 
 		const prefix = this.getIPCHandleBaseName();
 		const suffix = process.platform === 'win32' ? '-sock' : '.sock';

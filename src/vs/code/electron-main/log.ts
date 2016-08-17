@@ -23,9 +23,9 @@ export class MainLogService implements ILogService {
 	}
 
 	log(...args: any[]): void {
-		const { verboseLogging } = this.envService.cliArgs;
+		const { verbose } = this.envService.cliArgs;
 
-		if (verboseLogging) {
+		if (verbose) {
 			console.log(`(${new Date().toLocaleTimeString()})`, ...args);
 		}
 	}

@@ -19,11 +19,6 @@ export interface IWorkspaceContextService {
 	getWorkspace(): IWorkspace;
 
 	/**
-	 * Provides access to the configuration object the platform is running with.
-	 */
-	getConfiguration(): IConfiguration;
-
-	/**
 	 * Provides access to the options object the platform is running with.
 	 */
 	getOptions(): any;
@@ -75,75 +70,4 @@ export interface IWorkspace {
 	 * is just derived from the workspace name.
 	 */
 	uid?: number;
-}
-
-export interface IConfiguration {
-	/**
-	 * Some environmental flags
-	 */
-	env?: IEnvironment;
-}
-
-export interface IEnvironment {
-	appName: string;
-	appRoot: string;
-	isBuilt: boolean;
-	execPath: string;
-
-	applicationName: string;
-	darwinBundleIdentifier: string;
-
-	version: string;
-	commitHash: string;
-
-	updateFeedUrl: string;
-	updateChannel: string;
-
-	extensionsGallery: {
-		serviceUrl: string;
-		itemUrl: string;
-	};
-
-	extensionTips: { [id: string]: string; };
-
-	releaseNotesUrl: string;
-	licenseUrl: string;
-	productDownloadUrl: string;
-
-	welcomePage: string;
-
-	crashReporter: any;
-
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
-
-	debugExtensionHostPort: number;
-	debugBrkExtensionHost: boolean;
-	disableExtensions: boolean;
-
-	logExtensionHostCommunication: boolean;
-	debugBrkFileWatcherPort: number;
-	verboseLogging: boolean;
-	enablePerformance: boolean;
-
-	userExtensionsHome: string;
-	sharedIPCHandle: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-
-	recentFiles: string[];
-	recentFolders: string[];
-
-	enableTelemetry: boolean;
-
-	aiConfig: {
-		key: string;
-		asimovKey: string;
-	};
-
-	sendASmile: {
-		reportIssueUrl: string,
-		requestFeatureUrl: string
-	};
 }

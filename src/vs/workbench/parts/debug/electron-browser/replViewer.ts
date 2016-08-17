@@ -27,7 +27,6 @@ import {CopyAction} from 'vs/workbench/parts/debug/electron-browser/electronDebu
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 const $ = dom.emmet;
 
@@ -106,8 +105,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	private characterWidth: number;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		// noop
 	}

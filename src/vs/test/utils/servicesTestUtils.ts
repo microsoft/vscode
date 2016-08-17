@@ -10,13 +10,12 @@ import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import {NullTelemetryService, ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
 import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
-import Types = require('vs/base/common/types');
+import Objects = require('vs/base/common/objects');
 import Severity from 'vs/base/common/severity';
-import http = require('vs/base/common/http');
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -28,7 +27,7 @@ import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -52,22 +51,16 @@ export const TestWorkspace: IWorkspace = {
 	mtime: new Date().getTime()
 };
 
-export const TestConfiguration: IConfiguration = {
-	env: Object.create(null)
-};
-
-export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv));
+export const TestEnvironmentService = new EnvironmentService(Objects.assign(parseArgs(process.argv), { execPath: process.execPath }));
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public _serviceBrand: any;
 
 	private workspace: any;
-	private configuration: any;
 	private options: any;
 
-	constructor(workspace: any = TestWorkspace, configuration: any = TestConfiguration, options: any = null) {
+	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
-		this.configuration = configuration;
 		this.options = options || {
 			globalSettings: {
 				settings: {}
@@ -77,10 +70,6 @@ export class TestContextService implements WorkspaceContextService.IWorkspaceCon
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
-	}
-
-	public getConfiguration(): IConfiguration {
-		return this.configuration;
 	}
 
 	public getOptions() {

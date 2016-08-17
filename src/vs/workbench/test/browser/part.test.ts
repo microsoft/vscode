@@ -105,7 +105,7 @@ suite('Workbench Part', () => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
-		context = new BaseWorkspaceContextService(TestUtils.TestWorkspace, TestUtils.TestConfiguration, null);
+		context = new BaseWorkspaceContextService(TestUtils.TestWorkspace, null);
 		storage = new Storage(new InMemoryLocalStorage(), null, context);
 	});
 

@@ -11,12 +11,20 @@ import * as path from 'path';
 import {ParsedArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
 
+// TODO@Ben TODO@Joao this interface should be composed once the main => renderer
+// communication is also fit for that
+export interface IEnvironment extends ParsedArgs {
+	execPath: string;
+}
+
 export class EnvironmentService implements IEnvironmentService {
 
 	_serviceBrand: any;
 
 	private _appRoot: string;
 	get appRoot(): string { return this._appRoot; }
+
+	get execPath(): string { return this.args.execPath; }
 
 	private _userHome: string;
 	get userHome(): string { return this._userHome; }
@@ -39,12 +47,24 @@ export class EnvironmentService implements IEnvironmentService {
 	private _extensionDevelopmentPath: string;
 	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
 
+	get extensionTestsPath(): string { return this.args.extensionTestsPath; }
+	get disableExtensions(): boolean { return this.args['disable-extensions'];  }
+
+	private _debugExtensionHostPort: number;
+	get debugExtensionHostPort(): number { return this._debugExtensionHostPort; }
+
+	private _debugBrkExtensionHost: boolean;
+	get debugBrkExtensionHost(): boolean { return this._debugBrkExtensionHost; }
+
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this.args.verbose; }
+	get performance(): boolean { return this.args.performance; }
+	get logExtensionHostCommunication(): boolean { return this.args.logExtensionHostCommunication; }
 
-	get debugBrkFileWatcherPort(): number { return typeof this.args.debugBrkFileWatcherPort === 'string' ? Number(this.args.debugBrkFileWatcherPort) : void 0; }
+	private _debugBrkFileWatcherPort: number;
+	get debugBrkFileWatcherPort(): number { return this._debugBrkFileWatcherPort; }
 
-	constructor(private args: ParsedArgs) {
+	constructor(private args: IEnvironment) {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._userDataPath = args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
 
@@ -57,5 +77,13 @@ export class EnvironmentService implements IEnvironmentService {
 		this._extensionsPath = path.normalize(this._extensionsPath);
 
 		this._extensionDevelopmentPath = args.extensionDevelopmentPath;
+
+		if (args.debugPluginHost) {
+			this._debugExtensionHostPort = Number(args.debugPluginHost);
+		}
+
+		this._debugBrkExtensionHost = Boolean(args.debugBrkPluginHost);
+
+		this._debugBrkFileWatcherPort = (typeof args.debugBrkFileWatcherPort === 'string') ? Number(args.debugBrkFileWatcherPort) : void 0;
 	}
 }

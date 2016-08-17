@@ -12,7 +12,6 @@ import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
-import pkg from 'vs/platform/package';
 import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
@@ -502,7 +501,7 @@ export class WindowsManager implements IWindowsService {
 		// Find paths from provided paths if any
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
 			iPathsToOpen = openConfig.pathsToOpen.map((pathToOpen) => {
-				let iPath = this.toIPath(pathToOpen, false, openConfig.cli && openConfig.cli.gotoLineMode);
+				let iPath = this.toIPath(pathToOpen, false, openConfig.cli && openConfig.cli.goto);
 
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
@@ -727,38 +726,14 @@ export class WindowsManager implements IWindowsService {
 
 	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
 		let configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
+		configuration.appRoot = this.envService.appRoot;
 		configuration.execPath = process.execPath;
+		configuration.userEnv = userEnv;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.extensionsToInstall = extensionsToInstall;
-		configuration.appName = this.envService.product.nameLong;
-		configuration.applicationName = this.envService.product.applicationName;
-		configuration.darwinBundleIdentifier = this.envService.product.darwinBundleIdentifier;
-		configuration.appRoot = this.envService.appRoot;
-		configuration.version = pkg.version;
-		configuration.commitHash = this.envService.product.commit;
-		configuration.appSettingsHome = this.envService.appSettingsHome;
-		configuration.appSettingsPath = this.envService.appSettingsPath;
-		configuration.appKeybindingsPath = this.envService.appKeybindingsPath;
-		configuration.userExtensionsHome = this.envService.userExtensionsHome;
-		configuration.extensionTips = this.envService.product.extensionTips;
-		configuration.mainIPCHandle = this.envService.mainIPCHandle;
-		configuration.sharedIPCHandle = this.envService.sharedIPCHandle;
-		configuration.isBuilt = this.envService.isBuilt;
-		configuration.crashReporter = this.envService.product.crashReporter;
-		configuration.extensionsGallery = this.envService.product.extensionsGallery;
-		configuration.welcomePage = this.envService.product.welcomePage;
-		configuration.productDownloadUrl = this.envService.product.downloadUrl;
-		configuration.releaseNotesUrl = this.envService.product.releaseNotesUrl;
-		configuration.licenseUrl = this.envService.product.licenseUrl;
-		configuration.updateFeedUrl = this.updateService.feedUrl;
-		configuration.updateChannel = this.updateService.channel;
-		configuration.aiConfig = this.envService.product.aiConfig;
-		configuration.sendASmile = this.envService.product.sendASmile;
-		configuration.enableTelemetry = this.envService.product.enableTelemetry;
-		configuration.userEnv = userEnv;
 
 		const recents = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
 		configuration.recentFiles = recents.files;
@@ -873,7 +848,7 @@ export class WindowsManager implements IWindowsService {
 			}
 		}
 
-		let iPaths = candidates.map((candidate) => this.toIPath(candidate, ignoreFileNotFound, cli.gotoLineMode)).filter((path) => !!path);
+		let iPaths = candidates.map((candidate) => this.toIPath(candidate, ignoreFileNotFound, cli.goto)).filter((path) => !!path);
 		if (iPaths.length > 0) {
 			return iPaths;
 		}
@@ -923,12 +898,11 @@ export class WindowsManager implements IWindowsService {
 			let currentWindowConfig = vscodeWindow.config;
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
-				configuration.verboseLogging = currentWindowConfig.verboseLogging;
-				configuration.logExtensionHostCommunication = currentWindowConfig.logExtensionHostCommunication;
+				configuration.verbose = currentWindowConfig.verbose;
 				configuration.debugBrkFileWatcherPort = currentWindowConfig.debugBrkFileWatcherPort;
-				configuration.debugBrkExtensionHost = currentWindowConfig.debugBrkExtensionHost;
-				configuration.debugExtensionHostPort = currentWindowConfig.debugExtensionHostPort;
-				configuration.extensionsHomePath = currentWindowConfig.extensionsHomePath;
+				configuration.debugBrkPluginHost = currentWindowConfig.debugBrkPluginHost;
+				configuration.debugPluginHost = currentWindowConfig.debugPluginHost;
+				configuration.extensionHomePath = currentWindowConfig.extensionHomePath;
 			}
 		}
 
