@@ -122,12 +122,12 @@ export class ThemeService implements IThemeService {
 
 		windowService.onBroadcast(e => {
 			if (e.channel === THEME_CHANNEL && typeof e.payload === 'string') {
-				this.setTheme(e.payload, false);
+				this.setColorTheme(e.payload, false);
 			}
 		});
 	}
 
-	public get onDidThemeChange(): Event<string> {
+	public get onDidColorThemeChange(): Event<string> {
 		return this.onThemeChange.event;
 	}
 
@@ -139,10 +139,10 @@ export class ThemeService implements IThemeService {
 			themeId = DEFAULT_THEME_ID;
 			this.storageService.store(THEME_PREF, themeId, StorageScope.GLOBAL);
 		}
-		return this.setTheme(themeId, false);
+		return this.setColorTheme(themeId, false);
 	}
 
-	public setTheme(themeId: string, broadcastToAllWindows: boolean) : TPromise<boolean> {
+	public setColorTheme(themeId: string, broadcastToAllWindows: boolean) : TPromise<boolean> {
 		if (!themeId) {
 			return TPromise.as(false);
 		}
@@ -177,12 +177,12 @@ export class ThemeService implements IThemeService {
 		return this.applyThemeCSS(themeId, DEFAULT_THEME_ID, onApply);
 	}
 
-	public getTheme() {
+	public getColorTheme() {
 		return this.currentTheme || this.storageService.get(THEME_PREF, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 	}
 
 	private loadTheme(themeId: string, defaultId?: string): TPromise<IInternalThemeData> {
-		return this.getThemes().then(allThemes => {
+		return this.getColorThemes().then(allThemes => {
 			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
 				return <IInternalThemeData> themes[0];
@@ -206,7 +206,7 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	public getThemes(): TPromise<IThemeData[]> {
+	public getColorThemes(): TPromise<IThemeData[]> {
 		return this.extensionService.onReady().then(isReady => {
 			return this.knownThemes;
 		});

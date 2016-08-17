@@ -82,7 +82,7 @@ class Snapper {
 
 
 	public appendThemeInformation(data: Data[]) : TPromise<Data[]> {
-		let currentTheme = this.themeService.getTheme();
+		let currentTheme = this.themeService.getColorTheme();
 
 		let getThemeName = (id: string) => {
 			let part = 'vscode-theme-defaults-themes-';
@@ -93,11 +93,11 @@ class Snapper {
 			return void 0;
 		};
 
-		return this.themeService.getThemes().then(themeDatas => {
+		return this.themeService.getColorThemes().then(themeDatas => {
 			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
 			return TPromise.join(defaultThemes.map(defaultTheme => {
 				let themeId = defaultTheme.id;
-				return this.themeService.setTheme(themeId, false).then(success => {
+				return this.themeService.setColorTheme(themeId, false).then(success => {
 					if (success) {
 						let testNode = this.getTestNode(themeId);
 						let themeName = getThemeName(themeId);
@@ -108,7 +108,7 @@ class Snapper {
 				});
 			}));
 		}).then(_ => {
-			return this.themeService.setTheme(currentTheme, false).then(_ => {
+			return this.themeService.setColorTheme(currentTheme, false).then(_ => {
 				return data;
 			});
 		});

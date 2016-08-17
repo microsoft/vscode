@@ -55,7 +55,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.toUnbind.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, _ => this.handleConfigurationChangeEvent()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
 
-		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.handleConfigurationChangeEvent()));
+		this.toUnbind.push(_themeService.onDidColorThemeChange(_ => this.handleConfigurationChangeEvent()));
 	}
 
 	public get instantiationService(): IInstantiationService {
@@ -110,7 +110,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			overviewRulerLanes: 3,
 			glyphMargin: true,
 			lineNumbersMinChars: 3,
-			theme: this._themeService.getTheme()
+			theme: this._themeService.getColorTheme()
 		};
 
 		// Always mixin editor options from the context into our set to allow for override

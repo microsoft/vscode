@@ -90,7 +90,7 @@ export class Repl extends Panel {
 				}
 			}
 		}));
-		this.toDispose.push(this.themeService.onDidThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
+		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
 	}
 
 	private onReplElementsUpdated(): void {
@@ -227,7 +227,7 @@ export class Repl extends Panel {
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
 			lineHeight: 21,
-			theme: this.themeService.getTheme()
+			theme: this.themeService.getColorTheme()
 		};
 
 		// Always mixin editor options from the context into our set to allow for override

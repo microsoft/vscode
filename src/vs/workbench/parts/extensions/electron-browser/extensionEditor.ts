@@ -181,11 +181,11 @@ export class ExtensionEditor extends BaseEditor {
 						document.querySelector('.monaco-editor-background')
 					);
 
-					webview.style(this.themeService.getTheme());
+					webview.style(this.themeService.getColorTheme());
 					webview.contents = [renderBody(body)];
 
 					const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString()));
-					const themeListener = this.themeService.onDidThemeChange(themeId => webview.style(themeId));
+					const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
 					this.transientDisposables.push(webview, linkListener, themeListener);
 				})
 				.then(null, () => null)

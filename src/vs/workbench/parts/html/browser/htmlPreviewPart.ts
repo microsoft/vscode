@@ -110,8 +110,8 @@ export class HtmlPreviewPart extends BaseEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this._themeService.onDidThemeChange(themeId => this.webview.style(themeId));
-			this.webview.style(this._themeService.getTheme());
+			this._themeChangeSubscription = this._themeService.onDidColorThemeChange(themeId => this.webview.style(themeId));
+			this.webview.style(this._themeService.getColorTheme());
 
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
