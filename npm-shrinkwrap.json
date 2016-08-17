@@ -103,9 +103,9 @@
       "resolved": "https://registry.npmjs.org/extract-opts/-/extract-opts-2.2.0.tgz"
     },
     "fast-plist": {
-      "version": "0.1.0",
-      "from": "fd-slicer@>=0.1.0 <0.2.0",
-      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.0.tgz"
+      "version": "0.1.1",
+      "from": "fast-plist@0.1.1",
+      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.1.tgz"
     },
     "fd-slicer": {
       "version": "1.0.1",
@@ -386,11 +386,6 @@
       "version": "1.5.4",
       "from": "repeat-string@>=1.5.2 <2.0.0",
       "resolved": "https://registry.npmjs.org/repeat-string/-/repeat-string-1.5.4.tgz"
-    },
-    "sax": {
-      "version": "1.1.2",
-      "from": "sax@1.1.2",
-      "resolved": "https://registry.npmjs.org/sax/-/sax-1.1.2.tgz"
     },
     "semver": {
       "version": "4.3.6",
