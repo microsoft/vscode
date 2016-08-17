@@ -7,16 +7,15 @@
 
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import nls = require('vs/nls');
+import product from 'vs/platform/product';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IConfirmation} from 'vs/platform/message/common/message';
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class MessageService extends WorkbenchMessageService {
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWindowService private windowService: IWindowService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
@@ -33,7 +32,7 @@ export class MessageService extends WorkbenchMessageService {
 		}
 
 		let opts: Electron.ShowMessageBoxOptions = {
-			title: confirmation.title || this.contextService.getConfiguration().env.appName,
+			title: confirmation.title || product.nameLong,
 			message: confirmation.message,
 			buttons: [
 				isLinux ? this.mnemonicLabel(confirmation.secondaryButton) : this.mnemonicLabel(confirmation.primaryButton),
