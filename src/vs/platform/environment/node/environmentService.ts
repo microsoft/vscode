@@ -39,6 +39,9 @@ export class EnvironmentService implements IEnvironmentService {
 	private _extensionDevelopmentPath: string;
 	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
 
+	private _debugExtensionHostPort: number;
+	get debugExtensionHostPort(): number { return this._debugExtensionHostPort; }
+
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this.args.verbose; }
 
@@ -57,5 +60,9 @@ export class EnvironmentService implements IEnvironmentService {
 		this._extensionsPath = path.normalize(this._extensionsPath);
 
 		this._extensionDevelopmentPath = args.extensionDevelopmentPath;
+
+		if (args.debugPluginHost) {
+			this._debugExtensionHostPort = Number(args.debugPluginHost);
+		}
 	}
 }

@@ -29,7 +29,7 @@ export interface IProcessEnvironment {
 
 export interface ICommandLineArguments {
 	verbose: boolean;
-	debugExtensionHostPort: number;
+	debugPluginHost: string;
 	debugBrkExtensionHost: boolean;
 	debugBrkFileWatcherPort: number;
 	logExtensionHostCommunication: boolean;
@@ -162,6 +162,7 @@ export class EnvService implements IEnvService {
 
 		const debugBrkExtensionHostPort = getNumericValue(argv.debugBrkPluginHost, 5870);
 		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
+		const debugPluginHost = debugBrkExtensionHostPort ? String(debugBrkExtensionHostPort) : debugExtensionHostPort ? String(debugExtensionHostPort): void 0;
 		const pathArguments = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 		const timestamp = parseInt(argv.timestamp);
 		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
@@ -171,7 +172,7 @@ export class EnvService implements IEnvService {
 			programStart: types.isNumber(timestamp) ? timestamp : 0,
 			enablePerformance: argv.performance,
 			verbose: argv.verbose,
-			debugExtensionHostPort: debugBrkExtensionHostPort || debugExtensionHostPort,
+			debugPluginHost,
 			debugBrkExtensionHost: !!debugBrkExtensionHostPort,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
 			debugBrkFileWatcherPort: debugBrkFileWatcherPort,
