@@ -108,13 +108,14 @@ export class TerminalService implements ITerminalService {
 		return this.focus().then((terminalPanel) => {
 			let editor = this.codeEditorService.getFocusedCodeEditor();
 			let selection = editor.getSelection();
-			let text = selection.isEmpty() ? editor.getValue() : editor.getModel().getValueInRange(selection, os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF);
-			// Add a new line if one doesn't already exist so the text is executed
-			text = text + (text.substr(text.length - os.EOL.length) === os.EOL ? '' : os.EOL);
-			this.terminalProcesses[this.activeTerminalIndex].process.send({
-				event: 'input',
-				data: text
-			});
+			let text: string;
+			if (selection.isEmpty()) {
+				text = editor.getValue();
+			} else {
+				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+			}
+			terminalPanel.sendTextToActiveTerminal(text, true);
 		});
 	}
 

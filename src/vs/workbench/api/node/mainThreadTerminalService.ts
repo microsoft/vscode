@@ -24,12 +24,15 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
-		this._terminalService.show(!preserveFocus, terminalId);
+		this._terminalService.show(!preserveFocus).then((terminalPanel) => {
+			terminalPanel.setActiveTerminalById(terminalId);
+		});
 	}
 
 	public $sendText(terminalId: number, text: string, addNewLine: boolean): void {
-		this._terminalService.show(false, terminalId).then((terminalPanel) => {
-			// TODO: Implement
+		this._terminalService.show(false).then((terminalPanel) => {
+			terminalPanel.setActiveTerminalById(terminalId);
+			terminalPanel.sendTextToActiveTerminal(text, addNewLine);
 		});
 	}
 }

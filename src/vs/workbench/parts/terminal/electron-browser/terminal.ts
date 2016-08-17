@@ -73,7 +73,7 @@ export interface ITerminalService {
 	runSelectedText(): TPromise<any>;
 	scrollDown(): TPromise<any>;
 	scrollUp(): TPromise<any>;
-	show(focus: boolean, terminalId?: number): TPromise<ITerminalPanel>;
+	show(focus: boolean): TPromise<ITerminalPanel>;
 	setActiveTerminal(index: number): TPromise<any>;
 	toggle(): TPromise<any>;
 
@@ -84,5 +84,6 @@ export interface ITerminalService {
 }
 
 export interface ITerminalPanel {
-
+	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
+	setActiveTerminalById(terminalId: number): void;
 }

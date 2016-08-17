@@ -181,6 +181,16 @@ export class TerminalInstance {
 		});
 	}
 
+	public sendText(text: string, addNewLine: boolean): void {;
+		if (addNewLine && text.substr(text.length - os.EOL.length) !== os.EOL) {
+			text += os.EOL;
+		}
+		this.terminalProcess.process.send({
+			event: 'input',
+			data: text
+		});
+	}
+
 	public focus(force?: boolean): void {
 		if (!this.xterm) {
 			return;

@@ -207,6 +207,11 @@ export class TerminalPanel extends Panel {
 		return super.setVisible(visible);
 	}
 
+	public sendTextToActiveTerminal(text: string, addNewLine: boolean): void {
+		let terminalInstance = this.terminalInstances[this.terminalService.getActiveTerminalIndex()];
+		terminalInstance.sendText(text, addNewLine);
+	}
+
 	private createTerminal(terminalProcess: ITerminalProcess, terminalFocusContextKey: IContextKey<boolean>): TPromise<TerminalInstance> {
 		return new TPromise<TerminalInstance>(resolve => {
 			var terminalInstance = new TerminalInstance(
@@ -230,13 +235,13 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
-	public setActiveTerminal(newActiveIndex: number) {
+	public setActiveTerminal(newActiveIndex: number): void {
 		this.terminalInstances.forEach((terminalInstance, i) => {
 			terminalInstance.toggleVisibility(i === newActiveIndex);
 		});
 	}
 
-	public setActiveTerminalById(terminalId: number) {
+	public setActiveTerminalById(terminalId: number): void {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
 			if (terminalInstance.id === terminalId) {
