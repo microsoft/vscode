@@ -35,7 +35,6 @@ import {Selection} from 'vs/editor/common/core/selection';
 export abstract class BaseTextEditor extends BaseEditor {
 	private editorControl: IEditor;
 	private _editorContainer: Builder;
-	private _hasPendingConfigurationChange = false;
 
 	constructor(
 		id: string,
@@ -47,15 +46,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEventService private _eventService: IEventService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IModeService private _modeService: IModeService,
-		@IThemeService private _themeService: IThemeService
+		@IModeService private modeService: IModeService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(id, telemetryService);
 
-		this.toUnbind.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, _ => this.handleConfigurationChangeEvent()));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
-
-		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.handleConfigurationChangeEvent()));
+		this.toUnbind.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.doUpdateEditorSettings()));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.doUpdateEditorSettings(e.config)));
+		this.toUnbind.push(themeService.onDidThemeChange(() => this.doUpdateEditorSettings()));
 	}
 
 	public get instantiationService(): IInstantiationService {
@@ -74,55 +72,45 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this._messageService;
 	}
 
-	private handleConfigurationChangeEvent(configuration?: any): void {
-		if (this.isVisible()) {
-			this.applyConfiguration(configuration);
-		} else {
-			this._hasPendingConfigurationChange = true;
-		}
-	}
-
-	private consumePendingConfigurationChangeEvent(): void {
-		if (this._hasPendingConfigurationChange) {
-			this.applyConfiguration(this.configurationService.getConfiguration());
-			this._hasPendingConfigurationChange = false;
-		}
-	}
-
-	protected applyConfiguration(configuration?: any): void {
-		if (!this.editorControl) {
-			return;
-		}
-		if (configuration) {
-			// Update Editor with configuration and editor settings
-			let specificEditorSettings = this.getCodeEditorOptions();
-			configuration = objects.clone(configuration); // dont modify original config
-			objects.assign(configuration[EditorConfiguration.EDITOR_SECTION], specificEditorSettings);
-			EditorConfiguration.apply(configuration, this.editorControl);
-
-		} else {
-			this.editorControl.updateOptions(this.getCodeEditorOptions());
-		}
-	}
-
-	protected getCodeEditorOptions(): IEditorOptions {
-		let baseOptions: IEditorOptions = {
-			overviewRulerLanes: 3,
-			glyphMargin: true,
-			lineNumbersMinChars: 3,
-			theme: this._themeService.getTheme()
-		};
-
-		// Always mixin editor options from the context into our set to allow for override
-		return objects.mixin(baseOptions, this.contextService.getOptions().editor);
-	}
-
 	public get eventService(): IEventService {
 		return this._eventService;
 	}
 
 	public get editorService() {
 		return this._editorService;
+	}
+
+	private doUpdateEditorSettings(configuration?: IFilesConfiguration): void {
+		if (!this.editorControl) {
+			return;
+		}
+
+		const specificEditorSettings = this.getCodeEditorOptions();
+
+		// Configuration
+		if (configuration) {
+			configuration = objects.clone(configuration); // dont modify original config
+			objects.assign(configuration[EditorConfiguration.EDITOR_SECTION], specificEditorSettings);
+
+			EditorConfiguration.apply(configuration, this.editorControl);
+		}
+
+		// Options
+		else {
+			this.editorControl.updateOptions(specificEditorSettings);
+		}
+	}
+
+	protected getCodeEditorOptions(): IEditorOptions {
+		const baseOptions: IEditorOptions = {
+			overviewRulerLanes: 3,
+			glyphMargin: true,
+			lineNumbersMinChars: 3,
+			theme: this.themeService.getTheme()
+		};
+
+		// Always mixin editor options from the context into our set to allow for override
+		return objects.mixin(baseOptions, this.contextService.getOptions().editor);
 	}
 
 	public get editorContainer(): Builder {
@@ -136,7 +124,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.editorControl = this.createEditorControl(parent);
 
 		// Configuration
-		this.applyConfiguration(this.configurationService.getConfiguration<IFilesConfiguration>());
+		this.doUpdateEditorSettings(this.configurationService.getConfiguration<IFilesConfiguration>());
 	}
 
 	/**
@@ -157,7 +145,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Pass on to Editor
 		if (visible) {
-			this.consumePendingConfigurationChangeEvent();
 			this.editorControl.onVisible();
 		} else {
 			this.editorControl.onHide();
