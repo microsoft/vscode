@@ -502,7 +502,7 @@ export class WindowsManager implements IWindowsService {
 		// Find paths from provided paths if any
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
 			iPathsToOpen = openConfig.pathsToOpen.map((pathToOpen) => {
-				let iPath = this.toIPath(pathToOpen, false, openConfig.cli && openConfig.cli.gotoLineMode);
+				let iPath = this.toIPath(pathToOpen, false, openConfig.cli && openConfig.cli.goto);
 
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
@@ -873,7 +873,7 @@ export class WindowsManager implements IWindowsService {
 			}
 		}
 
-		let iPaths = candidates.map((candidate) => this.toIPath(candidate, ignoreFileNotFound, cli.gotoLineMode)).filter((path) => !!path);
+		let iPaths = candidates.map((candidate) => this.toIPath(candidate, ignoreFileNotFound, cli.goto)).filter((path) => !!path);
 		if (iPaths.length > 0) {
 			return iPaths;
 		}

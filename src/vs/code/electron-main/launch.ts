@@ -62,7 +62,7 @@ export class LaunchService implements ILaunchService {
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv });
-		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
+		} else if (args.pathArguments.length === 0 && args['new-window']) {
 			usedWindows = this.windowsService.open({ cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args.pathArguments.length === 0) {
 			usedWindows = [this.windowsService.focusLastActive(args)];
@@ -70,15 +70,15 @@ export class LaunchService implements ILaunchService {
 			usedWindows = this.windowsService.open({
 				cli: args,
 				userEnv,
-				forceNewWindow: args.waitForWindowClose || args.openNewWindow,
-				preferNewWindow: !args.openInSameWindow,
-				diffMode: args.diffMode
+				forceNewWindow: args.wait || args['new-window'],
+				preferNewWindow: !args['reuse-window'],
+				diffMode: args.diff
 			});
 		}
 
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
 		// is being used and only then resolve the startup promise which will kill this second instance
-		if (args.waitForWindowClose && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
+		if (args.wait && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
 			const windowId = usedWindows[0].id;
 
 			return new TPromise<void>((c, e) => {

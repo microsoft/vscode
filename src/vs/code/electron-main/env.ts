@@ -40,12 +40,12 @@ export interface ICommandLineArguments {
 	programStart: number;
 	pathArguments?: string[];
 	performance?: boolean;
-	openNewWindow?: boolean;
-	openInSameWindow?: boolean;
-	gotoLineMode?: boolean;
-	diffMode?: boolean;
+	'new-window'?: boolean;
+	'reuse-window'?: boolean;
+	goto?: boolean;
+	diff?: boolean;
 	locale?: string;
-	waitForWindowClose?: boolean;
+	wait?: boolean;
 }
 
 export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService');
@@ -176,16 +176,16 @@ export class EnvService implements IEnvService {
 			debugBrkPluginHost: !!debugBrkExtensionHostPort,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
 			debugBrkFileWatcherPort: debugBrkFileWatcherPort ? String(debugBrkFileWatcherPort) : void 0,
-			openNewWindow: argv['new-window'],
-			openInSameWindow: argv['reuse-window'],
-			gotoLineMode: argv.goto,
-			diffMode: argv.diff && pathArguments.length === 2,
+			'new-window': argv['new-window'],
+			'reuse-window': argv['reuse-window'],
+			goto: argv.goto,
+			diff: argv.diff && pathArguments.length === 2,
 			extensionHomePath: normalizePath(argv.extensionHomePath),
 			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
 			extensionTestsPath: normalizePath(argv.extensionTestsPath),
 			'disable-extensions': argv['disable-extensions'],
 			locale: argv.locale,
-			waitForWindowClose: argv.wait
+			wait: argv.wait
 		});
 
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkPluginHost;
