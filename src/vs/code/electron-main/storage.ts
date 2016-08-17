@@ -8,7 +8,7 @@
 import * as path from 'path';
 import * as fs from 'original-fs';
 import { EventEmitter } from 'events';
-import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { IEnvService } from 'vs/code/electron-main/env';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
@@ -33,7 +33,7 @@ export class StorageService implements IStorageService {
 	private database: any = null;
 	private eventEmitter = new EventEmitter();
 
-	constructor(@IEnvironmentService private envService: IEnvironmentService) {
+	constructor(@IEnvService private envService: IEnvService) {
 		this.dbPath = path.join(envService.appHome, 'storage.json');
 	}
 

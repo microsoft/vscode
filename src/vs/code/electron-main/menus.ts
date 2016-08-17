@@ -58,7 +58,7 @@ export class VSCodeMenu {
 		@IStorageService private storageService: IStorageService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWindowsService private windowsService: IWindowsService,
-		@env.IEnvironmentService private envService: env.IEnvironmentService
+		@env.IEnvService private envService: env.IEnvService
 	) {
 		this.actionIdKeybindingRequests = [];
 
