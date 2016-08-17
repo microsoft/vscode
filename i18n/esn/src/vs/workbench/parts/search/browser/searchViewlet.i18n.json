@@ -16,6 +16,8 @@
 	"noResultsIncludes": "No se encontraron resultados en '{0}' - ",
 	"noResultsIncludesExcludes": "No se encontraron resultados en '{0}' con exclusión de '{1}' - ",
 	"openSettings.message": "Abrir configuración",
+	"removeAll.confirmation.message": "Quitar {0} apariciones en {1} archivos?",
+	"removeAll.message": "{0} apariciones quitadas en {1} archivos.",
 	"replaceAll.confirm.button": "Reemplazar",
 	"replaceAll.confirmation.message": "¿Reemplazar {0} apariciones en {1} archivos?",
 	"replaceAll.confirmation.title": "Reemplazar todo",

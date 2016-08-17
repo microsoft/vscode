@@ -10,6 +10,7 @@
 	"openInEditor": "Passa alla visualizzazione editor",
 	"stageSelectedLines": "Gestisci temporaneamente le righe selezionate",
 	"switchToChangesView": "Passa alla visualizzazione modifiche",
+	"unstageSelectedLines": "Annulla la preparazione delle righe selezionate",
 	"workbenchStage": "Prepara",
 	"workbenchUnstage": "Annulla preparazione"
 }

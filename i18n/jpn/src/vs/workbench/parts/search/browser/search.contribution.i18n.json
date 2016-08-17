@@ -9,10 +9,9 @@
 	"exclude.when": "一致するファイルの兄弟を追加的に検査します。一致するファイル名の変数として $(basename) を使用します。",
 	"findInFolder": "フォルダー内を検索",
 	"name": "検索",
-	"openAnythingHandlerDescription": "名前でファイルとシンボルを開く",
-	"openSymbolDescriptionNormal": "名前でシンボルを開く",
-	"searchConfigurationTitle": "検索構成",
-	"showSearchViewlet": "検索の表示",
+	"openAnythingHandlerDescription": "名前でファイルとグローバル シンボルを開く",
+	"openSymbolDescriptionNormal": "名前で任意のシンボルを開く",
+	"searchConfigurationTitle": "検索",
 	"showTriggerActions": "シンボルをすべて表示",
 	"view": "表示"
 }

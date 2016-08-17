@@ -6,6 +6,7 @@
 {
 	"canNotRunPlaceholder": "Questo gestore per l'apertura rapida non può essere usato nel contesto corrente",
 	"emptyPicks": "Non ci sono voci selezionabili",
+	"entryAriaLabel": "{0}, aperti di recente",
 	"historyMatches": "aperti di recente",
 	"inputModeEntry": "Premere 'INVIO' per confermare l'input oppure 'ESC' per annullare",
 	"inputModeEntryDescription": "{0} (premere 'INVIO' per confermare oppure 'ESC' per annullare)",

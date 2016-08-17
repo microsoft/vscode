@@ -6,7 +6,7 @@
 {
 	"DebugConfig.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"launch.json\" 文件。",
 	"app.launch.json.configurations": "配置列表。添加新配置或编辑现有配置。",
-	"app.launch.json.title": "启动配置",
+	"app.launch.json.title": "启动",
 	"app.launch.json.version": "此文件格式的版本。",
 	"debugNoType": "不可省略调试适配器“类型”，其类型必须是“字符串”。",
 	"duplicateDebuggerType": "调试类型“{0}”已注册，且具有属性“{1}”，正在忽略属性“{1}”。",

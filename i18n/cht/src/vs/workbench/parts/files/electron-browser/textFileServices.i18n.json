@@ -7,9 +7,11 @@
 	"allFiles": "所有檔案",
 	"cancel": "取消",
 	"dontSave": "不要儲存(&&N)",
+	"moreFile": "...1 個其他檔案未顯示",
+	"moreFiles": "...{0} 個其他檔案未顯示",
 	"save": "儲存(&&S)",
 	"saveAll": "全部儲存(&&S)",
 	"saveChangesDetail": "如果您不儲存變更，這些變更將會遺失。",
 	"saveChangesMessage": "要儲存對 {0} 所做的變更嗎?",
-	"saveChangesMessages": "要儲存對下列檔案所做的變更嗎?"
+	"saveChangesMessages": "要儲存對下列 {0} 個檔案所做的變更嗎?"
 }

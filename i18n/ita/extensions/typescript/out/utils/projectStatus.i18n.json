@@ -11,6 +11,7 @@
 	"hintExclude.generic": "Per prestazioni ottimali escludere le cartelle che contengono molti file.",
 	"hintExclude.tooltip": "Per prestazioni ottimali escludere le cartelle che contengono molti file.",
 	"ignore.cmdCreate": "Ignora",
+	"jsconfig.heading": "// Per la documentazione relativa al formato jsconfig.json,\n\t// vedere https://go.microsoft.com/fwlink/?LinkId=759670",
 	"large.label": "Configura esclusioni",
 	"open": "Configura esclusioni"
 }

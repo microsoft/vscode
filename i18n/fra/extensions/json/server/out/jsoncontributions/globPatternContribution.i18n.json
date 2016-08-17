@@ -7,7 +7,7 @@
 	"derivedDescription": "Faites correspondre les fichiers ayant des frères portant le même nom, mais avec une extension distincte.",
 	"derivedLabel": "Fichiers avec frères par nom",
 	"falseDescription": "Désactivez le modèle.",
-	"falseLabel": "Faux",
+	"falseLabel": "false",
 	"fileDescription": "Faites correspondre tous les fichiers ayant une extension de fichier spécifique.",
 	"fileLabel": "Fichiers par extension",
 	"filesDescription": "Faites correspondre tous les fichiers, indépendamment de leurs extensions.",
@@ -20,5 +20,5 @@
 	"topFoldersDescription": "Faites correspondre plusieurs dossiers de premier niveau.",
 	"topFoldersLabel": "Dossiers avec plusieurs noms (premier niveau)",
 	"trueDescription": "Activez le modèle.",
-	"trueLabel": "Vrai"
+	"trueLabel": "true"
 }

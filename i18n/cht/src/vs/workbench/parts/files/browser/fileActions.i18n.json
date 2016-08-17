@@ -20,6 +20,7 @@
 	"deleteButtonLabel": "刪除(&&D)",
 	"deleteButtonLabelRecycleBin": "移至資源回收筒(&&M)",
 	"deleteButtonLabelTrash": "移至垃圾筒(&&M)",
+	"dirtyWarning": "如果您不儲存變更，這些變更將會遺失。",
 	"duplicateFile": "複製",
 	"emptyFileNameError": "必須提供檔案或資料夾名稱。",
 	"fileNameExistsError": "這個位置已存在檔案或資料夾 **{0}**。請選擇不同的名稱。",
@@ -53,6 +54,5 @@
 	"showInExplorer": "在總管中顯示使用中的檔案",
 	"unableToFileToCompare": "選取的檔案無法與 '{0}' 進行比較。",
 	"undoBin": "您可以從資源回收筒還原。",
-	"undoTrash": "您可以從垃圾筒還原。",
-	"warningFileDirty": "正在儲存 '{0}' 檔案，請稍後再試一次。"
+	"undoTrash": "您可以從垃圾筒還原。"
 }

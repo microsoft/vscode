@@ -20,6 +20,7 @@
 	"deleteButtonLabel": "&&Eliminar",
 	"deleteButtonLabelRecycleBin": "&&Mover a la papelera de reciclaje",
 	"deleteButtonLabelTrash": "&&Mover a la papelera",
+	"dirtyWarning": "Los cambios se perderán si no se guardan.",
 	"duplicateFile": "Duplicado",
 	"emptyFileNameError": "Debe especificarse un nombre de archivo o carpeta.",
 	"fileNameExistsError": "Ya existe el archivo o carpeta **{0}** en esta ubicación. Elija un nombre diferente.",
@@ -53,6 +54,5 @@
 	"showInExplorer": "Mostrar el archivo activo en el explorador",
 	"unableToFileToCompare": "El archivo seleccionado no se puede comparar con '{0}'.",
 	"undoBin": "Puede restaurar desde la papelera de reciclaje.",
-	"undoTrash": "Puede restaurar desde la papelera.",
-	"warningFileDirty": "El archivo '{0}' se está guardando. Vuelva a intentarlo más tarde."
+	"undoTrash": "Puede restaurar desde la papelera."
 }

@@ -6,6 +6,7 @@
 {
 	"canNotRunPlaceholder": "目前內容無法使用這個快速開啟處理常式",
 	"emptyPicks": "沒有可挑選的項目",
+	"entryAriaLabel": "{0}，最近開啟的項目",
 	"historyMatches": "最近開啟的",
 	"inputModeEntry": "按 'Enter' 鍵確認您的輸入或按 'Esc' 鍵取消",
 	"inputModeEntryDescription": "{0} (按 'Enter' 鍵確認或按 'Esc' 鍵取消)",

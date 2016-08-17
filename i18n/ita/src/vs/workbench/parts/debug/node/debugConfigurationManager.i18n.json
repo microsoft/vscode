@@ -10,6 +10,7 @@
 	"app.launch.json.version": "Versione di questo formato di file.",
 	"debugNoType": "L'adattatore di debug 'type' non può essere omesso e deve essere di tipo 'string'.",
 	"duplicateDebuggerType": "Il tipo di debug '{0}' è già registrato e include l'attributo '{1}'. L'attributo '{1}' verrà ignorato.",
+	"interactiveVariableNotFound": "L'adattatore {0} non contribuisce alla variabile {1} specificata nella configurazione di avvio.",
 	"selectDebug": "Seleziona ambiente",
 	"vscode.extension.contributes.breakpoints": "Punti di interruzione per contributes.",
 	"vscode.extension.contributes.breakpoints.language": "Consente i punti di interruzione per questo linguaggio.",
@@ -28,6 +29,7 @@
 	"vscode.extension.contributes.debuggers.runtime": "Runtime facoltativo nel caso in cui l'attributo del programma non sia un eseguibile ma richieda un runtime.",
 	"vscode.extension.contributes.debuggers.runtimeArgs": "Argomenti del runtime facoltativo.",
 	"vscode.extension.contributes.debuggers.type": "Identificatore univoco per questo adattatore di debug.",
+	"vscode.extension.contributes.debuggers.variables": "Mapping tra le variabili interattive, ad esempio ${action.pickProcess}) in `launch.json` e un comando.",
 	"vscode.extension.contributes.debuggers.windows": "Impostazioni specifiche di Windows.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Runtime usato per Windows."
 }

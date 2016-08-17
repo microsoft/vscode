@@ -28,7 +28,6 @@
 	"parameterHints": "Aktiviert Parameterhinweise.",
 	"quickSuggestions": "Steuert, ob Schnellvorschläge während der Eingabe angezeigt werden.",
 	"quickSuggestionsDelay": "Steuert die Verzögerung in ms für die Anzeige der Schnellvorschläge.",
-	"referenceInfos": "Steuert, ob der Editor Verweisinformationen zu den Modi anzeigt, die dies unterstützen.",
 	"renderControlCharacters": "Steuert, ob der Editor Steuerzeichen rendern soll.",
 	"renderIndentGuides": "Steuert, ob der Editor Einzugsführungslinien rendern soll.",
 	"renderWhitespace": "Steuert, ob der Editor Leerzeichen rendert.",

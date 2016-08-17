@@ -11,5 +11,5 @@
 	"terminal.external.linuxExec": "Linux에서 실행할 터미널을 사용자 지정합니다.",
 	"terminal.external.osxExec": "OS X에서 실행할 터미널 응용 프로그램을 사용자 지정합니다.",
 	"terminal.external.windowsExec": "Windows에서 실행할 터미널을 사용자 지정합니다.",
-	"terminalConfigurationTitle": "외부 터미널 구성"
+	"terminalConfigurationTitle": "외부 터미널"
 }

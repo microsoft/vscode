@@ -9,7 +9,7 @@
 	"gitAutoFetch": "Indique si l'extraction automatique est activée.",
 	"gitAutoRefresh": "Indique si l'actualisation automatique est activée",
 	"gitCommands": "Commandes Git",
-	"gitConfigurationTitle": "Configuration Git",
+	"gitConfigurationTitle": "Git",
 	"gitEnabled": "Vérification de l'activation de git",
 	"gitLargeRepos": "Toujours autoriser la gestion des grands référentiels par le code.",
 	"gitLongCommit": "Si les messages de validation longs doivent faire l'objet d'un avertissement.",

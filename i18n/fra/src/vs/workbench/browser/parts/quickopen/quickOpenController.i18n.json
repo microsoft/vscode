@@ -6,6 +6,7 @@
 {
 	"canNotRunPlaceholder": "Ce gestionnaire d'ouverture rapide ne peut pas être utilisé dans le contexte actuel.",
 	"emptyPicks": "Aucune entrée à sélectionner",
+	"entryAriaLabel": "{0}, ouvert récemment",
 	"historyMatches": "récemment ouvert",
 	"inputModeEntry": "Appuyez sur 'Entrée' pour confirmer votre saisie, ou sur 'Échap' pour l'annuler",
 	"inputModeEntryDescription": "{0} (Appuyez sur 'Entrée' pour confirmer ou sur 'Échap' pour annuler)",

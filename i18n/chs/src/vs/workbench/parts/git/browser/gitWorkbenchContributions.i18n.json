@@ -9,7 +9,7 @@
 	"gitAutoFetch": "是否启用了自动提取。",
 	"gitAutoRefresh": "是否已启用自动刷新",
 	"gitCommands": "GIT 命令",
-	"gitConfigurationTitle": "GIT 配置",
+	"gitConfigurationTitle": "GIT",
 	"gitEnabled": "是否启用了 GIT",
 	"gitLargeRepos": "始终允许大型存储库由 Code 托管。",
 	"gitLongCommit": "是否应警告提交长段消息。",

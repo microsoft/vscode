@@ -9,6 +9,7 @@
 	"commit": "Commit",
 	"commitAll": "Esegui commit di tutto",
 	"commitAll2": "Esegui commit di tutto",
+	"commitMessage": "Messaggio di commit",
 	"commitStaged": "Esegui commit delle righe preparate",
 	"commitStaged2": "Esegui commit delle righe preparate",
 	"confirmPublishMessage": "Pubblicare '{0}' in '{1}'?",

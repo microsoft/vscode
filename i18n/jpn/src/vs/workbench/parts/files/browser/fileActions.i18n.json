@@ -20,6 +20,7 @@
 	"deleteButtonLabel": "削除(&&D)",
 	"deleteButtonLabelRecycleBin": "ごみ箱に移動(&&M)",
 	"deleteButtonLabelTrash": "ゴミ箱に移動(&&M)",
+	"dirtyWarning": "保存しないと変更内容が失われます。",
 	"duplicateFile": "重複",
 	"emptyFileNameError": "ファイルまたはフォルダーの名前を指定する必要があります。",
 	"fileNameExistsError": "**{0}** というファイルまたはフォルダーはこの場所に既に存在します。別の名前を指定してください。",
@@ -53,6 +54,5 @@
 	"showInExplorer": "アクティブ ファイルをエクスプローラーで表示",
 	"unableToFileToCompare": "選択されたファイルを '{0}' と比較できません。",
 	"undoBin": "ごみ箱から復元できます。",
-	"undoTrash": "ゴミ箱から復元できます。",
-	"warningFileDirty": "ファイル '{0}' は現在保存中です。後でもう一度お試しください。"
+	"undoTrash": "ゴミ箱から復元できます。"
 }

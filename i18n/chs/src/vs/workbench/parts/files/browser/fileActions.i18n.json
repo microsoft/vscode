@@ -20,6 +20,7 @@
 	"deleteButtonLabel": "删除(&&D)",
 	"deleteButtonLabelRecycleBin": "移动到回收站(&&M)",
 	"deleteButtonLabelTrash": "移动到回收站(&&M)",
+	"dirtyWarning": "如果不保存，更改将丢失。",
 	"duplicateFile": "重复",
 	"emptyFileNameError": "必须提供文件或文件夹名。",
 	"fileNameExistsError": "此位置已存在文件或文件夹 **{0}**。请选择其他名称。",
@@ -53,6 +54,5 @@
 	"showInExplorer": "在资源管理器中显示活动文件",
 	"unableToFileToCompare": "无法将所选文件与“{0}”进行比较。",
 	"undoBin": "可以从回收站还原。",
-	"undoTrash": "可以从回收站还原。",
-	"warningFileDirty": "正在保存文件“{0}”，请稍后重试。"
+	"undoTrash": "可以从回收站还原。"
 }

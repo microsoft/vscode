@@ -9,7 +9,7 @@
 	"gitAutoFetch": "是否啟用自動擷取。",
 	"gitAutoRefresh": "是否啟用自動重新整理",
 	"gitCommands": "Git 命令",
-	"gitConfigurationTitle": "Git 組態",
+	"gitConfigurationTitle": "Git",
 	"gitEnabled": "已啟用 Git",
 	"gitLargeRepos": "一律允許 Code 管理大型儲存機制。",
 	"gitLongCommit": "是否對長認可訊息發出警告。",

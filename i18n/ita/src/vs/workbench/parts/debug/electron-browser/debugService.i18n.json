@@ -6,10 +6,12 @@
 {
 	"DebugTaskNotFound": "L'attività di preavvio '{0}' non è stata trovata.",
 	"NewLaunchConfig": "Impostare il file di configurazione di avvio per l'applicazione.",
+	"breakpointAdded": "Aggiunto un punto di interruzione a riga {0} del file {1}",
+	"breakpointRemoved": "Rimosso un punto di interruzione a riga {0} del file {1}",
 	"debugAdapterCrash": "Il processo dell'adattatore di debug è stato terminato in modo imprevisto",
 	"debugAnyway": "Eseguire comunque il debug",
 	"debugSourceNotAvailable": "L'origine {0} non è disponibile.",
-	"debugTypeMissing": "In launch.json manca la proprietà 'type' per la configurazione selezionata.",
+	"debugTypeMissing": "Manca la proprietà 'type' per la configurazione di avvio scelta.",
 	"debugTypeNotSupported": "Il tipo di debug configurato '{0}' non è supportato.",
 	"debuggingContinued": "Il debug è continuato.",
 	"debuggingPaused": "Il debug è stato sospeso. Motivo: {0}, {1} {2}",

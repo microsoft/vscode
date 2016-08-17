@@ -7,7 +7,7 @@
 	"derivedDescription": "동일한 이름의 형제가 있지만 확장명이 다른 파일을 일치시킵니다.",
 	"derivedLabel": "이름별 형제가 있는 파일",
 	"falseDescription": "패턴을 사용하지 않도록 설정합니다.",
-	"falseLabel": "False",
+	"falseLabel": "false",
 	"fileDescription": "특정 파일 확장명이 있는 모든 파일을 일치시킵니다.",
 	"fileLabel": "확장명별 파일",
 	"filesDescription": "파일 확장명이 있는 모든 파일을 일치시킵니다.",
@@ -20,5 +20,5 @@
 	"topFoldersDescription": "여러 최상위 폴더를 일치시킵니다.",
 	"topFoldersLabel": "이름이 여러 개 있는 폴더(최상위)",
 	"trueDescription": "패턴을 사용하도록 설정합니다.",
-	"trueLabel": "True"
+	"trueLabel": "true"
 }

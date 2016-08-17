@@ -9,7 +9,7 @@
 	"gitAutoFetch": "자동 가져오기를 사용하도록 설정했는지 여부입니다.",
 	"gitAutoRefresh": "자동 새로 고침 사용 여부",
 	"gitCommands": "Git 명령",
-	"gitConfigurationTitle": "Git 구성",
+	"gitConfigurationTitle": "Git",
 	"gitEnabled": "git를 사용하도록 설정할까요?",
 	"gitLargeRepos": "항상 대규모 리포지토리가 코드로 관리되도록 허용합니다.",
 	"gitLongCommit": "긴 커밋 메시지에 대해 경고할지 여부입니다.",

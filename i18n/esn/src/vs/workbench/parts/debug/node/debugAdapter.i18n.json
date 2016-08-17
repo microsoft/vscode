@@ -11,5 +11,6 @@
 	"debugRequest": "Tipo de solicitud de la configuración. Puede ser \"launch\" o \"attach\".",
 	"debugType": "Tipo de configuración.",
 	"debugWindowsConfiguration": "Atributos de configuración de inicio específicos de Windows.",
+	"internalConsoleOptions": "Controla el comportamiento de la consola de depuración interna.",
 	"relativePathsNotConverted": "Las rutas de acceso relativas ya no se convertirán en absolutas automáticamente. Considere la posibilidad de usar ${workspaceRoot} como prefijo."
 }
