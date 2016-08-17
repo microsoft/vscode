@@ -12,10 +12,10 @@ export let IThemeService = createDecorator<IThemeService>('themeService');
 
 export interface IThemeService {
 	_serviceBrand: any;
-	setTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
-	getTheme(): string;
-	getThemes(): TPromise<IThemeData[]>;
-	onDidThemeChange: Event<string>;
+	setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
+	getColorTheme(): string;
+	getColorThemes(): TPromise<IThemeData[]>;
+	onDidColorThemeChange: Event<string>;
 }
 
 export interface IThemeData {

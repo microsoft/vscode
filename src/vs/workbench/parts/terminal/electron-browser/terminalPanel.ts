@@ -221,7 +221,7 @@ export class TerminalPanel extends Panel {
 				this.onTerminalInstanceExit.bind(this));
 			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
-			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
+			this.toDispose.push(this.themeService.onDidColorThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateConfig.bind(this)));
 			this.updateTheme();
 			this.updateConfig();
@@ -253,7 +253,7 @@ export class TerminalPanel extends Panel {
 
 	private updateTheme(themeId?: string): void {
 		if (!themeId) {
-			themeId = this.themeService.getTheme();
+			themeId = this.themeService.getColorTheme();
 		}
 
 		let baseThemeId = getBaseThemeId(themeId);

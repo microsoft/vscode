@@ -197,7 +197,7 @@ export class WorkbenchShell {
 				windowSize: windowSize,
 				emptyWorkbench: !this.contextService.getWorkspace(),
 				customKeybindingsCount,
-				theme: this.themeService.getTheme(),
+				theme: this.themeService.getColorTheme(),
 				language: platform.language
 			});
 

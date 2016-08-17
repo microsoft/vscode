@@ -38,8 +38,8 @@ class SelectThemeAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		return this.themeService.getThemes().then(themes => {
-			const currentThemeId = this.themeService.getTheme();
+		return this.themeService.getColorThemes().then(themes => {
+			const currentThemeId = this.themeService.getColorTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
 
 			const picks: IPickOpenEntry[] = themes
@@ -47,7 +47,7 @@ class SelectThemeAction extends Action {
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
 			const selectTheme = (theme, broadcast) => {
-				this.themeService.setTheme(theme.id, broadcast)
+				this.themeService.setColorTheme(theme.id, broadcast)
 					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem loading theme: {0}", err.message)));
 			};
 
