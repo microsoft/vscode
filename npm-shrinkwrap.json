@@ -102,6 +102,11 @@
       "from": "extract-opts@>=2.2.0 <3.0.0",
       "resolved": "https://registry.npmjs.org/extract-opts/-/extract-opts-2.2.0.tgz"
     },
+    "fast-plist": {
+      "version": "0.1.0",
+      "from": "fd-slicer@>=0.1.0 <0.2.0",
+      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.0.tgz"
+    },
     "fd-slicer": {
       "version": "1.0.1",
       "from": "fd-slicer@>=1.0.1 <1.1.0",
@@ -413,9 +418,9 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.11.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.0.1",
-      "from": "vscode-textmate@2.0.1",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.0.1.tgz"
+      "version": "2.1.0",
+      "from": "vscode-textmate@2.1.0",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.1.0.tgz"
     },
     "windows-mutex": {
       "version": "0.2.0",
