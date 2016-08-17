@@ -727,7 +727,6 @@ export class WindowsManager implements IWindowsService {
 
 	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
 		let configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
-		configuration.execPath = process.execPath;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
@@ -735,29 +734,13 @@ export class WindowsManager implements IWindowsService {
 		configuration.extensionsToInstall = extensionsToInstall;
 		configuration.appName = this.envService.product.nameLong;
 		configuration.applicationName = this.envService.product.applicationName;
-		configuration.darwinBundleIdentifier = this.envService.product.darwinBundleIdentifier;
 		configuration.appRoot = this.envService.appRoot;
 		configuration.version = pkg.version;
-		configuration.commitHash = this.envService.product.commit;
 		configuration.appSettingsHome = this.envService.appSettingsHome;
 		configuration.appSettingsPath = this.envService.appSettingsPath;
 		configuration.appKeybindingsPath = this.envService.appKeybindingsPath;
 		configuration.userExtensionsHome = this.envService.userExtensionsHome;
-		configuration.extensionTips = this.envService.product.extensionTips;
-		configuration.mainIPCHandle = this.envService.mainIPCHandle;
-		configuration.sharedIPCHandle = this.envService.sharedIPCHandle;
 		configuration.isBuilt = this.envService.isBuilt;
-		configuration.crashReporter = this.envService.product.crashReporter;
-		configuration.extensionsGallery = this.envService.product.extensionsGallery;
-		configuration.welcomePage = this.envService.product.welcomePage;
-		configuration.productDownloadUrl = this.envService.product.downloadUrl;
-		configuration.releaseNotesUrl = this.envService.product.releaseNotesUrl;
-		configuration.licenseUrl = this.envService.product.licenseUrl;
-		configuration.updateFeedUrl = this.updateService.feedUrl;
-		configuration.updateChannel = this.updateService.channel;
-		configuration.aiConfig = this.envService.product.aiConfig;
-		configuration.sendASmile = this.envService.product.sendASmile;
-		configuration.enableTelemetry = this.envService.product.enableTelemetry;
 		configuration.userEnv = userEnv;
 
 		const recents = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
