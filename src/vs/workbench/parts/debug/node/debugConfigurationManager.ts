@@ -31,6 +31,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {ConfigVariables} from 'vs/workbench/parts/lib/node/configVariables';
 import {ISystemVariables} from 'vs/base/common/parsers';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
@@ -183,10 +184,11 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@ICommandService private commandService: ICommandService
 	) {
-		this.systemVariables = this.contextService.getWorkspace() ? new ConfigVariables(this.configurationService, this.editorService, this.contextService) : null;
+		this.systemVariables = this.contextService.getWorkspace() ? new ConfigVariables(this.configurationService, this.editorService, this.contextService, this.environmentService) : null;
 		this._onDidConfigurationChange = new Emitter<string>();
 		this.setConfiguration(configName);
 		this.adapters = [];

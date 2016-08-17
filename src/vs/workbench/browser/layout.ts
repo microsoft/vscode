@@ -10,7 +10,6 @@ import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpe
 import {Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation} from 'vs/base/browser/ui/sash/sash';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
@@ -94,7 +93,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService

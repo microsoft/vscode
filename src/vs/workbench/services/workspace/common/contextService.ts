@@ -8,7 +8,7 @@ import {IOptions} from 'vs/workbench/common/options';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspace, IConfiguration, IWorkspaceContextService as IBaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace, IWorkspaceContextService as IBaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspaceContextService';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
@@ -33,10 +33,9 @@ export class WorkspaceContextService extends BaseWorkspaceContextService impleme
 	constructor(
 		private eventService: IEventService,
 		workspace: IWorkspace,
-		configuration?: IConfiguration,
 		options: any = {}
 	) {
-		super(workspace, configuration, options);
+		super(workspace, options);
 	}
 
 	public updateOptions(key: string, value: any): void {

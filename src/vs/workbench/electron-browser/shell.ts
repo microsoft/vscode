@@ -64,7 +64,7 @@ import {ISearchService} from 'vs/platform/search/common/search';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {CommandService} from 'vs/platform/commands/common/commandService';
-import {IWorkspaceContextService, IConfiguration, IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -119,16 +119,14 @@ export class WorkbenchShell {
 	private content: HTMLElement;
 	private contentsContainer: Builder;
 
-	private configuration: IConfiguration;
 	private workspace: IWorkspace;
 	private options: IOptions;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, workspace: IWorkspace, services: ICoreServices, configuration: IConfiguration, options: IOptions) {
+	constructor(container: HTMLElement, workspace: IWorkspace, services: ICoreServices, options: IOptions) {
 		this.container = container;
 
 		this.workspace = workspace;
-		this.configuration = configuration;
 		this.options = options;
 
 		this.contextService = services.contextService;
@@ -152,13 +150,13 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection();
 
 		//crash reporting
-		if (!!this.configuration.env.crashReporter) {
-			const crashReporter = instantiationService.createInstance(CrashReporter, this.configuration.env.version, this.configuration.env.commitHash);
-			crashReporter.start(this.configuration.env.crashReporter);
+		if (!!product.crashReporter) {
+			const crashReporter = instantiationService.createInstance(CrashReporter, pkg.version, product.commit);
+			crashReporter.start(product.crashReporter);
 		}
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (customKeybindingsCount) => {
 				this.onWorkbenchStarted(customKeybindingsCount);
@@ -239,12 +237,12 @@ export class WorkbenchShell {
 		serviceCollection.set(IWindowService, this.windowService);
 
 		// Storage
-		const disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
+		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 
 		// Telemetry
-		if (this.configuration.env.isBuilt && !this.environmentService.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
+		if (this.environmentService.isBuilt && !this.environmentService.extensionDevelopmentPath && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const commit = product.commit;
 			const version = pkg.version;
@@ -252,7 +250,7 @@ export class WorkbenchShell {
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
-				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
+				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);

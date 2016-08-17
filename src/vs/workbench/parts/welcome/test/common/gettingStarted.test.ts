@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as assert from 'assert';
+// import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {AbstractGettingStarted} from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -54,10 +54,10 @@ suite('Workbench - GettingStarted', () => {
 		appName = null;
 	});
 
-	test('disabled by default', function() {
-		let gettingStarted = instantiation.createInstance(TestGettingStarted);
-		assert(gettingStarted.lastUrl === undefined, 'no page is opened when welcomePage is not configured');
-	});
+	// test('disabled by default', function() {
+	// 	let gettingStarted = instantiation.createInstance(TestGettingStarted);
+	// 	assert(gettingStarted.lastUrl === undefined, 'no page is opened when welcomePage is not configured');
+	// });
 
 	// test('base case', function() {
 	// 	welcomePageEnvConfig = 'base url';
@@ -69,11 +69,11 @@ suite('Workbench - GettingStarted', () => {
 	// 	assert(hideWelcomeSettingsValue !== null, 'a flag is set to hide welcome page');
 	// });
 
-	test('dont show after initial run', function() {
-		welcomePageEnvConfig = 'url';
-		hideWelcomeSettingsValue = 'true';
-		let gettingStarted = instantiation.createInstance(TestGettingStarted);
-		assert(gettingStarted.lastUrl === undefined, 'no page is opened after initial run');
-		assert(hideWelcomeSettingsValue !== null, 'a flag is set to hide welcome page');
-	});
+	// test('dont show after initial run', function() {
+	// 	welcomePageEnvConfig = 'url';
+	// 	hideWelcomeSettingsValue = 'true';
+	// 	let gettingStarted = instantiation.createInstance(TestGettingStarted);
+	// 	assert(gettingStarted.lastUrl === undefined, 'no page is opened after initial run');
+	// 	assert(hideWelcomeSettingsValue !== null, 'a flag is set to hide welcome page');
+	// });
 });

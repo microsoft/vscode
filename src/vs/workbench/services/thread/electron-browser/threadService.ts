@@ -55,7 +55,7 @@ export class MainThreadService extends AbstractThreadService implements IThreadS
 
 		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService, environmentService);
 
-		let logCommunication = logExtensionHostCommunication || contextService.getConfiguration().env.logExtensionHostCommunication;
+		let logCommunication = logExtensionHostCommunication || environmentService.logExtensionHostCommunication;
 
 		// Message: Window --> Extension Host
 		this.remoteCom = create((msg) => {
@@ -112,10 +112,9 @@ class ExtensionHostProcessManager {
 	) {
 
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		const config = this.contextService.getConfiguration();
 		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
-		this.isExtensionDevelopmentDebugging = !!config.env.debugBrkExtensionHost;
-		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!config.env.extensionTestsPath && !config.env.debugBrkExtensionHost;
+		this.isExtensionDevelopmentDebugging = !!environmentService.debugBrkExtensionHost;
+		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugBrkExtensionHost;
 
 		this.unsentMessages = [];
 		this.extensionHostProcessReady = false;
@@ -140,7 +139,7 @@ class ExtensionHostProcessManager {
 		this.initializeExtensionHostProcess = new TPromise<ChildProcess>((c, e) => {
 
 			// Resolve additional execution args (e.g. debug)
-			return this.resolveDebugPort(this.contextService.getConfiguration().env.debugExtensionHostPort, port => {
+			return this.resolveDebugPort(this.environmentService.debugExtensionHostPort, port => {
 				if (port) {
 					opts.execArgv = ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port];
 				}
@@ -169,9 +168,15 @@ class ExtensionHostProcessManager {
 
 						let initPayload = stringify({
 							parentPid: process.pid,
+							environment: {
+								appSettingsHome: this.environmentService.appSettingsHome,
+								disableExtensions: this.environmentService.disableExtensions,
+								userExtensionsHome: this.environmentService.extensionsPath,
+								extensionDevelopmentPath: this.environmentService.extensionDevelopmentPath,
+								extensionTestsPath: this.environmentService.extensionTestsPath
+							},
 							contextService: {
 								workspace: this.contextService.getWorkspace(),
-								configuration: this.contextService.getConfiguration(),
 								options: this.contextService.getOptions()
 							},
 						});

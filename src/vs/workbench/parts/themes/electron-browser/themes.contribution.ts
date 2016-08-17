@@ -14,7 +14,6 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {Registry} from 'vs/platform/platform';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {VIEWLET_ID, IExtensionsViewlet} from 'vs/workbench/parts/extensions/electron-browser/extensions';
 import {IExtensionGalleryService} from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -29,7 +28,6 @@ class SelectThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
 		@IThemeService private themeService: IThemeService,

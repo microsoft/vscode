@@ -17,7 +17,7 @@ suite('Workbench Memento', () => {
 	let storage;
 
 	setup(() => {
-		context = new BaseWorkspaceContextService(TestUtils.TestWorkspace, TestUtils.TestConfiguration, null);
+		context = new BaseWorkspaceContextService(TestUtils.TestWorkspace, null);
 		storage = new Storage(new InMemoryLocalStorage(), null, context);
 	});
 
