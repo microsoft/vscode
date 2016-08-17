@@ -237,12 +237,12 @@ export class WorkbenchShell {
 		serviceCollection.set(IWindowService, this.windowService);
 
 		// Storage
-		const disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
+		const disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 		serviceCollection.set(IStorageService, this.storageService);
 
 		// Telemetry
-		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
+		if (this.configuration.env.isBuilt && !this.environmentService.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const commit = this.contextService.getConfiguration().env.commitHash;
 			const version = this.contextService.getConfiguration().env.version;

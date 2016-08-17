@@ -11,8 +11,8 @@ import {IMessage, IExtensionDescription, IExtensionsStatus} from 'vs/platform/ex
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ExtHostContext, ExtHostExtensionServiceShape} from './extHost.protocol';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 /**
  * Represents a failed extension in the ext host.
@@ -33,7 +33,7 @@ class MainProcessSuccessExtension extends ActivatedExtension {
 	}
 }
 
-function messageWithSource(msg:IMessage): string {
+function messageWithSource(msg: IMessage): string {
 	return (msg.source ? '[' + msg.source + ']: ' : '') + msg.message;
 }
 
@@ -49,13 +49,12 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IThreadService threadService: IThreadService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(false);
-		let config = contextService.getConfiguration();
-		this._isDev = !config.env.isBuilt || !!config.env.extensionDevelopmentPath;
+		this._isDev = !environmentService.isBuilt || !!environmentService.extensionDevelopmentPath;
 
 		this._messageService = messageService;
 		this._threadService = threadService;

@@ -47,9 +47,14 @@ export interface IProductConfiguration {
 	npsSurveyUrl: string;
 }
 
-const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
-const productJsonPath = path.join(rootPath, 'product.json');
-const product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
+let product: IProductConfiguration;
+try {
+	const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
+	const productJsonPath = path.join(rootPath, 'product.json');
+	product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
+} catch (error) {
+	product = Object.create(null); // can happen in environments where product.json is missing (e.g. when used from tests)
+}
 
 if (process.env['VSCODE_DEV']) {
 	product.nameShort += ' Dev';

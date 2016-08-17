@@ -12,7 +12,7 @@ export interface IEnvironmentService {
 	_serviceBrand: any;
 
 	appRoot: string;
-	
+
 	userHome: string;
 	userDataPath: string;
 
@@ -24,6 +24,9 @@ export interface IEnvironmentService {
 	extensionDevelopmentPath: string;
 
 	isBuilt: boolean;
+	verbose: boolean;
+
+	debugBrkFileWatcherPort: number;
 
 	createPaths(): TPromise<void>;
 }

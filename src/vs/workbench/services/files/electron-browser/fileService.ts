@@ -20,6 +20,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Action} from 'vs/base/common/actions';
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 import {shell} from 'electron';
 
@@ -38,14 +39,14 @@ export class FileService implements IFileService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IMessageService private messageService: IMessageService
 	) {
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-		const env = this.contextService.getConfiguration().env;
 
-		// adjust encodings (TODO@Ben knowledge on settings location ('.vscode') is hardcoded)
+		// adjust encodings
 		let encodingOverride: IEncodingOverride[] = [];
-		encodingOverride.push({ resource: uri.file(env.appSettingsHome), encoding: encoding.UTF8 });
+		encodingOverride.push({ resource: uri.file(environmentService.appSettingsHome), encoding: encoding.UTF8 });
 		if (this.contextService.getWorkspace()) {
 			encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
 		}
@@ -61,12 +62,12 @@ export class FileService implements IFileService {
 			encoding: configuration.files && configuration.files.encoding,
 			encodingOverride: encodingOverride,
 			watcherIgnoredPatterns: watcherIgnoredPatterns,
-			verboseLogging: env.verboseLogging,
-			debugBrkFileWatcherPort: env.debugBrkFileWatcherPort
+			verboseLogging: environmentService.verbose,
+			debugBrkFileWatcherPort: environmentService.debugBrkFileWatcherPort
 		};
 
-		if (typeof env.debugBrkFileWatcherPort === 'number') {
-			console.warn(`File Watcher STOPPED on first line for debugging on port ${env.debugBrkFileWatcherPort}`);
+		if (typeof environmentService.debugBrkFileWatcherPort === 'number') {
+			console.warn(`File Watcher STOPPED on first line for debugging on port ${environmentService.debugBrkFileWatcherPort}`);
 		}
 
 		// create service
