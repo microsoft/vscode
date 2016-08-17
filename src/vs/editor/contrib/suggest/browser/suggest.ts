@@ -16,7 +16,7 @@ import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEdit
 import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
-import { getSnippetController } from 'vs/editor/contrib/snippet/common/snippet';
+import { getSnippetController, CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
 import { CompletionItem } from '../common/completionModel';
@@ -54,8 +54,6 @@ export class SuggestController implements IEditorContribution {
 		this.toDispose.push(editor.onDidChangeModelMode(() => this.update()));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.update, this));
 
-		this.toDispose.push(this.model.onDidAccept(e => getSnippetController(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
-
 		this.update();
 	}
 
@@ -78,12 +76,16 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private onDidSelectItem(item: CompletionItem): void {
-		if (!item) {
-			this.model.cancel();
-			return;
+		if (item) {
+			const {insertText, overwriteBefore, overwriteAfter} = item.suggestion;
+			const columnDelta = this.editor.getPosition().column - this.model.getTriggerPosition().column;
+
+			getSnippetController(this.editor).run(new CodeSnippet(insertText),
+				overwriteBefore + columnDelta,
+				overwriteAfter);
 		}
-		const {overwriteBefore, overwriteAfter} = item.suggestion;
-		this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
+
+		this.model.cancel();
 	}
 
 	private update(): void {

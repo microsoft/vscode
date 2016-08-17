@@ -10,8 +10,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition} from 'vs/editor/common/editorCommon';
-import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
-import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
+import {ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
 import {ISuggestionItem, provideSuggestionItems} from './suggest';
 import {CompletionModel} from './completionModel';
 
@@ -27,12 +26,6 @@ export interface ISuggestEvent {
 	completionModel: CompletionModel;
 	isFrozen: boolean;
 	auto: boolean;
-}
-
-export interface IAcceptEvent {
-	snippet: CodeSnippet;
-	overwriteBefore: number;
-	overwriteAfter: number;
 }
 
 class Context {
@@ -169,9 +162,6 @@ export class SuggestModel implements IDisposable {
 	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter();
 	get onDidSuggest(): Event<ISuggestEvent> { return this._onDidSuggest.event; }
 
-	private _onDidAccept: Emitter<IAcceptEvent> = new Emitter();
-	get onDidAccept(): Event<IAcceptEvent> { return this._onDidAccept.event; }
-
 	constructor(private editor: ICommonCodeEditor) {
 		this.state = State.Idle;
 		this.triggerAutoSuggestPromise = null;
@@ -182,7 +172,7 @@ export class SuggestModel implements IDisposable {
 		this.context = null;
 
 		this.toDispose = [];
-		this.toDispose.push(this._onDidAccept, this._onDidCancel, this._onDidSuggest, this._onDidTrigger);
+		this.toDispose.push(this._onDidCancel, this._onDidSuggest, this._onDidTrigger);
 		this.toDispose.push(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this.toDispose.push(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.cancel()));
@@ -321,6 +311,11 @@ export class SuggestModel implements IDisposable {
 		}).then(null, onUnexpectedError);
 	}
 
+	public getTriggerPosition(): IPosition {
+		const {lineNumber, column} = this.context;
+		return { lineNumber, column };
+	}
+
 	private onNewContext(ctx: Context): void {
 		if (this.context && this.context.isDifferentContext(ctx)) {
 			if (this.context.shouldRetrigger(ctx)) {
@@ -359,21 +354,6 @@ export class SuggestModel implements IDisposable {
 				auto: this.isAutoSuggest()
 			});
 		}
-	}
-
-	accept(suggestion: ISuggestion, overwriteBefore: number, overwriteAfter: number): boolean {
-		if (this.suggestionItems === null) {
-			return false;
-		}
-
-		this._onDidAccept.fire({
-			snippet: new CodeSnippet(suggestion.insertText),
-			overwriteBefore: overwriteBefore + (this.editor.getPosition().column - this.context.column),
-			overwriteAfter
-		});
-
-		this.cancel();
-		return true;
 	}
 
 	private onEditorConfigurationChange(): void {
