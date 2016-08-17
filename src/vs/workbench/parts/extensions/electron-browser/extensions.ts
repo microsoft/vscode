@@ -39,6 +39,7 @@ export interface IExtension {
 	rating: number;
 	ratingCount: number;
 	outdated: boolean;
+	telemetryData: any;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';

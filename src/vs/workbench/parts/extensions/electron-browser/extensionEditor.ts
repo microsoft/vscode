@@ -125,6 +125,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.transientDisposables = dispose(this.transientDisposables);
 
 		const extension = input.extension;
+		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
 		this.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
 		this.name.textContent = extension.displayName;
