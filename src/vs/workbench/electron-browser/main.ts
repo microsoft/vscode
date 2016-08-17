@@ -16,11 +16,10 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {ParsedArgs} from 'vs/code/node/argv';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
-import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
+import {EnvironmentService, IEnvironment} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import fs = require('fs');
 import gracefulFs = require('graceful-fs');
@@ -46,7 +45,7 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IConfiguration extends ParsedArgs {
+export interface IConfiguration extends IEnvironment {
 	workspacePath?: string;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
@@ -128,7 +127,7 @@ function getWorkspace(workspacePath: string): IWorkspace {
 	};
 }
 
-function openWorkbench(environment: ParsedArgs, workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
+function openWorkbench(environment: IEnvironment, workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment);
 	const contextService = new WorkspaceContextService(eventService, workspace, configuration, options);

@@ -11,12 +11,18 @@ import * as path from 'path';
 import {ParsedArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
 
+export interface IEnvironment extends ParsedArgs {
+	execPath: string;
+}
+
 export class EnvironmentService implements IEnvironmentService {
 
 	_serviceBrand: any;
 
 	private _appRoot: string;
 	get appRoot(): string { return this._appRoot; }
+
+	get execPath(): string { return this.args.execPath; }
 
 	private _userHome: string;
 	get userHome(): string { return this._userHome; }
@@ -52,7 +58,7 @@ export class EnvironmentService implements IEnvironmentService {
 	private _debugBrkFileWatcherPort: number;
 	get debugBrkFileWatcherPort(): number { return this._debugBrkFileWatcherPort; }
 
-	constructor(private args: ParsedArgs) {
+	constructor(private args: IEnvironment) {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._userDataPath = args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
 

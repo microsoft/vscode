@@ -10,13 +10,12 @@ import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import {NullTelemetryService, ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
 import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
-import Types = require('vs/base/common/types');
+import Objects = require('vs/base/common/objects');
 import Severity from 'vs/base/common/severity';
-import http = require('vs/base/common/http');
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -56,7 +55,7 @@ export const TestConfiguration: IConfiguration = {
 	env: Object.create(null)
 };
 
-export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv));
+export const TestEnvironmentService = new EnvironmentService(Objects.assign(parseArgs(process.argv), { execPath: process.execPath }));
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public _serviceBrand: any;

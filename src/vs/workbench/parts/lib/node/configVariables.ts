@@ -10,10 +10,18 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import URI from 'vs/base/common/uri';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ConfigVariables extends SystemVariables {
-	constructor(private configurationService: IConfigurationService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService, workspaceRoot: URI = null, envVariables: { [key: string]: string } = process.env) {
-		super(editorService, contextService, workspaceRoot, envVariables);
+	constructor(
+		private configurationService: IConfigurationService,
+		editorService: IWorkbenchEditorService,
+		contextService: IWorkspaceContextService,
+		environmentService: IEnvironmentService,
+		workspaceRoot: URI = null,
+		envVariables: { [key: string]: string } = process.env
+	) {
+		super(editorService, contextService, environmentService, workspaceRoot, envVariables);
 	}
 
 	protected resolveString(value: string): string {
