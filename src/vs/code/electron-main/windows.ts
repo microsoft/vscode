@@ -732,6 +732,7 @@ export class WindowsManager implements IWindowsService {
 		configuration.filesToDiff = filesToDiff;
 		configuration.extensionsToInstall = extensionsToInstall;
 		configuration.appRoot = this.envService.appRoot;
+		configuration.execPath = process.execPath;
 		configuration.appSettingsHome = this.envService.appSettingsHome;
 		configuration.userExtensionsHome = this.envService.userExtensionsHome;
 		configuration.userEnv = userEnv;

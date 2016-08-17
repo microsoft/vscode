@@ -12,8 +12,7 @@ import * as WorkbenchEditorCommon from 'vs/workbench/common/editor';
 
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-
-import { remote } from 'electron';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class SystemVariables extends AbstractSystemVariables {
 	private _workspaceRoot: string;
@@ -23,6 +22,7 @@ export class SystemVariables extends AbstractSystemVariables {
 	constructor(
 		private editorService: IWorkbenchEditorService,
 		contextService: IWorkspaceContextService,
+		environmentService: IEnvironmentService,
 		workspaceRoot: URI = null,
 		envVariables: { [key: string]: string } = process.env
 	) {
@@ -32,7 +32,7 @@ export class SystemVariables extends AbstractSystemVariables {
 			fsPath = workspaceRoot ? workspaceRoot.fsPath : contextService.getWorkspace().resource.fsPath;
 		}
 		this._workspaceRoot = Paths.normalize(fsPath, true);
-		this._execPath = remote.process.execPath;
+		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
 			this[`env.${key}`] = envVariables[key];
 		});

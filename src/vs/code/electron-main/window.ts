@@ -105,6 +105,7 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 
 	// Used to send the main process environment over to the renderer
 	appRoot: string;
+	execPath: string;
 	userEnv: IProcessEnvironment;
 }
 

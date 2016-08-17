@@ -10,6 +10,7 @@ export const IEnvironmentService = createDecorator<IEnvironmentService>('environ
 export interface IEnvironmentService {
 	_serviceBrand: any;
 
+	execPath: string;
 	appRoot: string;
 
 	userHome: string;
