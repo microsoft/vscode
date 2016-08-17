@@ -413,7 +413,7 @@ export class VSCodeWindow {
 			configuration.debugBrkFileWatcherPort = cli.debugBrkFileWatcherPort;
 			configuration.debugPluginHost = cli.debugPluginHost;
 			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
-			configuration.extensionsHomePath = cli.extensionsHomePath;
+			configuration.extensionHomePath = cli.extensionHomePath;
 		}
 
 		// Load config

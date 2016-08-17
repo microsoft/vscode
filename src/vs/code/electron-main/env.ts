@@ -31,15 +31,15 @@ export interface ICommandLineArguments {
 	verbose: boolean;
 	debugPluginHost: string;
 	debugBrkPluginHost: boolean;
-	debugBrkFileWatcherPort: number;
+	debugBrkFileWatcherPort: string;
 	logExtensionHostCommunication: boolean;
-	disableExtensions: boolean;
-	extensionsHomePath: string;
+	'disable-extensions': boolean;
+	extensionHomePath: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 	programStart: number;
 	pathArguments?: string[];
-	enablePerformance?: boolean;
+	performance?: boolean;
 	openNewWindow?: boolean;
 	openInSameWindow?: boolean;
 	gotoLineMode?: boolean;
@@ -170,27 +170,27 @@ export class EnvService implements IEnvService {
 		this._cliArgs = Object.freeze({
 			pathArguments: pathArguments,
 			programStart: types.isNumber(timestamp) ? timestamp : 0,
-			enablePerformance: argv.performance,
+			performance: argv.performance,
 			verbose: argv.verbose,
 			debugPluginHost,
 			debugBrkPluginHost: !!debugBrkExtensionHostPort,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
-			debugBrkFileWatcherPort: debugBrkFileWatcherPort,
+			debugBrkFileWatcherPort: debugBrkFileWatcherPort ? String(debugBrkFileWatcherPort) : void 0,
 			openNewWindow: argv['new-window'],
 			openInSameWindow: argv['reuse-window'],
 			gotoLineMode: argv.goto,
 			diffMode: argv.diff && pathArguments.length === 2,
-			extensionsHomePath: normalizePath(argv.extensionHomePath),
+			extensionHomePath: normalizePath(argv.extensionHomePath),
 			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
 			extensionTestsPath: normalizePath(argv.extensionTestsPath),
-			disableExtensions: argv['disable-extensions'],
+			'disable-extensions': argv['disable-extensions'],
 			locale: argv.locale,
 			waitForWindowClose: argv.wait
 		});
 
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkPluginHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
-		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
+		this._userExtensionsHome = this.cliArgs.extensionHomePath || path.join(this._userHome, 'extensions');
 
 		const prefix = this.getIPCHandleBaseName();
 		const suffix = process.platform === 'win32' ? '-sock' : '.sock';

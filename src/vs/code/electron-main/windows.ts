@@ -928,7 +928,7 @@ export class WindowsManager implements IWindowsService {
 				configuration.debugBrkFileWatcherPort = currentWindowConfig.debugBrkFileWatcherPort;
 				configuration.debugBrkPluginHost = currentWindowConfig.debugBrkPluginHost;
 				configuration.debugPluginHost = currentWindowConfig.debugPluginHost;
-				configuration.extensionsHomePath = currentWindowConfig.extensionsHomePath;
+				configuration.extensionHomePath = currentWindowConfig.extensionHomePath;
 			}
 		}
 
