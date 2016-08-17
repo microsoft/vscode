@@ -6,7 +6,6 @@
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import * as paths from 'vs/base/node/paths';
 import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
 import * as os from 'os';
 import * as path from 'path';
 import {ParsedArgs} from 'vs/code/node/argv';
@@ -41,22 +40,22 @@ export class EnvironmentService implements IEnvironmentService {
 	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
-	get verbose(): boolean { return this.parsedArgs.verbose; }
+	get verbose(): boolean { return this.args.verbose; }
 
-	get debugBrkFileWatcherPort(): number { return typeof this.parsedArgs.debugBrkFileWatcherPort === 'string' ? Number(this.parsedArgs.debugBrkFileWatcherPort) : void 0; }
+	get debugBrkFileWatcherPort(): number { return typeof this.args.debugBrkFileWatcherPort === 'string' ? Number(this.args.debugBrkFileWatcherPort) : void 0; }
 
-	constructor(private parsedArgs: ParsedArgs) {
+	constructor(private args: ParsedArgs) {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
-		this._userDataPath = paths.getUserDataPath(process.platform, pkg.name, parsedArgs['user-data-dir']);
+		this._userDataPath = args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
 
 		this._appSettingsHome = path.join(this.userDataPath, 'User');
 		this._appSettingsPath = path.join(this.appSettingsHome, 'settings.json');
 		this._appKeybindingsPath = path.join(this.appSettingsHome, 'keybindings.json');
 
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
-		this._extensionsPath = parsedArgs.extensionHomePath || path.join(this._userHome, 'extensions');
+		this._extensionsPath = args.extensionHomePath || path.join(this._userHome, 'extensions');
 		this._extensionsPath = path.normalize(this._extensionsPath);
 
-		this._extensionDevelopmentPath = parsedArgs.extensionDevelopmentPath;
+		this._extensionDevelopmentPath = args.extensionDevelopmentPath;
 	}
 }
