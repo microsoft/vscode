@@ -13,7 +13,7 @@ import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { download, asJson } from 'vs/base/node/request';
+import { IRequestOptions, IRequestContext, download, asJson } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
@@ -340,11 +340,19 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				const zipPath = path.join(tmpdir(), extension.id);
 
 				return this.getCommonHeaders()
-					.then(headers => this.requestService.request({ url, headers }))
+					.then(headers => this._getAsset({ url, headers }))
 					.then(context => download(zipPath, context))
 					.then(() => zipPath);
 			});
 		});
+	}
+
+	getAsset(url: string): TPromise<IRequestContext> {
+		return this._getAsset({ url });
+	}
+
+	private _getAsset(options: IRequestOptions): TPromise<IRequestContext> {
+		return this.requestService.request(options);
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {

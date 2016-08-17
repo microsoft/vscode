@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IRequestContext } from 'vs/base/node/request';
 
 export interface IExtensionManifest {
 	name: string;
@@ -99,6 +100,7 @@ export interface IExtensionGalleryService {
 	isEnabled(): boolean;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
+	getAsset(url: string): TPromise<IRequestContext>;
 }
 
 export type InstallExtensionEvent = { id: string; gallery?: IGalleryExtension; };

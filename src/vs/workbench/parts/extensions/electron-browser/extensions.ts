@@ -56,4 +56,5 @@ export interface IExtensionsWorkbenchService {
 	canInstall(extension: IExtension): boolean;
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+	getReadmeContents(extension: IExtension): TPromise<string>;
 }
