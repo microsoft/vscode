@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/test/utils/servicesTestUtils';
+import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService, TestWorkspace} from 'vs/test/utils/servicesTestUtils';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -1384,7 +1384,7 @@ suite('Editor Stacks Model', () => {
 		let inst = new TestInstantiationService();
 
 		inst.stub(IStorageService, new TestStorageService());
-		inst.stub(IWorkspaceContextService, new TestContextService(TestWorkspace, TestConfiguration, { filesToCreate: [true] }));
+		inst.stub(IWorkspaceContextService, new TestContextService(TestWorkspace, { filesToCreate: [true] }));
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();

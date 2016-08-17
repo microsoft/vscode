@@ -27,7 +27,7 @@ import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -51,22 +51,16 @@ export const TestWorkspace: IWorkspace = {
 	mtime: new Date().getTime()
 };
 
-export const TestConfiguration: IConfiguration = {
-	env: Object.create(null)
-};
-
 export const TestEnvironmentService = new EnvironmentService(Objects.assign(parseArgs(process.argv), { execPath: process.execPath }));
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public _serviceBrand: any;
 
 	private workspace: any;
-	private configuration: any;
 	private options: any;
 
-	constructor(workspace: any = TestWorkspace, configuration: any = TestConfiguration, options: any = null) {
+	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
-		this.configuration = configuration;
 		this.options = options || {
 			globalSettings: {
 				settings: {}
@@ -76,10 +70,6 @@ export class TestContextService implements WorkspaceContextService.IWorkspaceCon
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
-	}
-
-	public getConfiguration(): IConfiguration {
-		return this.configuration;
 	}
 
 	public getOptions() {

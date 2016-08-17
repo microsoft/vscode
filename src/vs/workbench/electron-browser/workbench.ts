@@ -46,7 +46,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
-import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
@@ -76,7 +76,6 @@ export const NoEditorsVisibleContext:ContextKeyExpr = EditorsVisibleContext.toNe
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;
-	configuration: IConfiguration;
 	options: IOptions;
 	serviceCollection: ServiceCollection;
 }
@@ -131,7 +130,6 @@ export class Workbench implements IPartService {
 	constructor(
 		container: HTMLElement,
 		workspace: IWorkspace,
-		configuration: IConfiguration,
 		options: IOptions,
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -146,7 +144,7 @@ export class Workbench implements IPartService {
 	) {
 
 		// Validate params
-		this.validateParams(container, configuration, options);
+		this.validateParams(container, options);
 
 		// If String passed in as container, try to find it in DOM
 		if (types.isString(container)) {
@@ -161,7 +159,6 @@ export class Workbench implements IPartService {
 
 		this.workbenchParams = {
 			workspace: workspace,
-			configuration: configuration,
 			options: options || {},
 			serviceCollection
 		};
@@ -175,7 +172,7 @@ export class Workbench implements IPartService {
 		});
 	}
 
-	private validateParams(container: HTMLElement, configuration: IConfiguration, options: IOptions): void {
+	private validateParams(container: HTMLElement, options: IOptions): void {
 
 		// Container
 		assert.ok(container, 'Workbench requires a container to be created with');

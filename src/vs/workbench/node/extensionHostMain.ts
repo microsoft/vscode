@@ -44,7 +44,6 @@ export interface IInitData {
 	threadService: any;
 	contextService: {
 		workspace: any;
-		configuration: any;
 		options: any;
 	};
 }
@@ -74,7 +73,7 @@ export class ExtensionHostMain {
 
 		this._environment = initData.environment;
 
-		this._contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
+		this._contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.options);
 		const workspaceStoragePath = this._getOrCreateWorkspaceStoragePath();
 
 		const threadService = new ExtHostThreadService(remoteCom);

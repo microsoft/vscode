@@ -19,11 +19,6 @@ export interface IWorkspaceContextService {
 	getWorkspace(): IWorkspace;
 
 	/**
-	 * Provides access to the configuration object the platform is running with.
-	 */
-	getConfiguration(): IConfiguration;
-
-	/**
 	 * Provides access to the options object the platform is running with.
 	 */
 	getOptions(): any;
@@ -75,21 +70,4 @@ export interface IWorkspace {
 	 * is just derived from the workspace name.
 	 */
 	uid?: number;
-}
-
-export interface IConfiguration {
-	/**
-	 * Some environmental flags
-	 */
-	env?: IEnvironment;
-}
-
-export interface IEnvironment {
-	appRoot: string;
-
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-
-	recentFiles: string[];
-	recentFolders: string[];
 }
