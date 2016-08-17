@@ -91,8 +91,6 @@ export interface IEnvironment {
 
 	disableExtensions: boolean;
 
-	logExtensionHostCommunication: boolean;
-
 	userExtensionsHome: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
