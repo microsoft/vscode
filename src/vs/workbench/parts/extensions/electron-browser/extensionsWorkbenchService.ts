@@ -18,6 +18,8 @@ import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsSe
 import * as semver from 'semver';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
+import { readFile } from 'vs/base/node/pfs';
+import { asText } from 'vs/base/node/request';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService } from './extensions';
 
 interface IExtensionStateProvider {
@@ -413,6 +415,21 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const eventName = toTelemetryEventName(active.operation);
 
 		this.telemetryService.publicLog(eventName, assign(data, { success, duration }));
+	}
+
+	getReadmeContents(extension: IExtension): TPromise<string> {
+		if (!extension.readmeUrl) {
+			return TPromise.as('');
+		}
+
+		const uri = URI.parse(extension.readmeUrl);
+
+		if (uri.scheme === 'file') {
+			return readFile(uri.fsPath, 'utf8');
+		}
+
+		return this.galleryService.getAsset(extension.readmeUrl)
+			.then(asText);
 	}
 
 	dispose(): void {

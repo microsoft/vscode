@@ -18,8 +18,6 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { asText } from 'vs/base/node/request';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
@@ -71,7 +69,6 @@ export class ExtensionEditor extends BaseEditor {
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IRequestService private requestService: IRequestService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService private themeService: IThemeService,
@@ -176,8 +173,7 @@ export class ExtensionEditor extends BaseEditor {
 		if (extension.readmeUrl) {
 			promise = promise
 				.then(() => addClass(this.body, 'loading'))
-				.then(() => this.requestService.request({ url: extension.readmeUrl }))
-				.then(asText)
+				.then(() => this.extensionsWorkbenchService.getReadmeContents(extension))
 				.then(marked.parse)
 				.then<void>(body => {
 					const webview = new WebView(
