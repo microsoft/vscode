@@ -90,17 +90,6 @@ function registerListeners(enableDeveloperTools) {
 }
 
 function main() {
-	try {
-		const theme = window.localStorage.getItem('storage://global/workbench.theme');
-		const baseTheme = (theme || '').split(' ')[0];
-
-		if (baseTheme !== 'vs-dark') {
-			window.document.body.className = 'monaco-shell ' + baseTheme;
-		}
-	} catch (error) {
-		console.error(error);
-	}
-
 	const webFrame = require('electron').webFrame;
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};

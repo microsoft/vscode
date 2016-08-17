@@ -4,6 +4,18 @@
 	<head>
 		<meta charset="utf-8" />
 		<style>.monaco-shell.vs-dark { background-color: #1E1E1E; }</style>
+		<script>
+			try {
+				const theme = window.localStorage.getItem('storage://global/workbench.theme');
+				const baseTheme = (theme || '').split(' ')[0];
+
+				if (baseTheme !== 'vs-dark') {
+					window.document.body.className = 'monaco-shell ' + baseTheme;
+				}
+			} catch (error) {
+				console.error(error);
+			}
+		</script>
 	</head>
 	<body class="monaco-shell vs-dark" aria-label=""></body>
 	<script src="index.js"></script>
