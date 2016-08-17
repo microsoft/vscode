@@ -262,6 +262,10 @@ class LanguageProvider {
 		}
 		this.currentDiagnostics.set(Uri.file(file), diagnostics);
 	}
+
+	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
+		this.currentDiagnostics.set(Uri.file(file), diagnostics);
+	}
 }
 
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
@@ -349,6 +353,18 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		if (Is.defined(body.queueLength)) {
 			BuildStatus.update( { queueLength: body.queueLength });
 		}
+	}
+
+	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
+		/* See https://github.com/Microsoft/TypeScript/issues/10384
+		const body = event.body;
+		if (body.diagnostics) {
+			const language = this.findLanguage(body.triggerFile);
+			if (language) {
+				language.configFileDiagnosticsReceived(body.configFile, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+			}
+		}
+		*/
 	}
 
 	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {

@@ -4,14 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as path from 'path';
+
 import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypescriptServiceClient, APIVersion } from '../typescriptService';
 import { Delayer } from '../utils/async';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
 }
+
+const Mode2ScriptKind: Map<"TS" | "JS" | "TSX" | "JSX"> = {
+	'typescript': 'TS',
+	'typescriptreact': 'TSX',
+	'javascript': 'JS',
+	'javascriptreact': 'JSX'
+};
 
 class SyncedBuffer {
 
@@ -30,8 +39,19 @@ class SyncedBuffer {
 	public open(): void {
 		let args: Proto.OpenRequestArgs = {
 			file: this.filepath,
-			fileContent: this.document.getText()
+			fileContent: this.document.getText(),
 		};
+		if (this.client.apiVersion === APIVersion.v2_0_0) {
+			// we have no extension. So check the mode and
+			// set the script kind accordningly.
+			const ext = path.extname(this.filepath);
+			if (ext === '') {
+				const scriptKind = Mode2ScriptKind[this.document.languageId];
+				if (scriptKind) {
+					args.scriptKindName = scriptKind;
+				}
+			}
+		}
 		this.client.execute('open', args, false);
 	}
 
