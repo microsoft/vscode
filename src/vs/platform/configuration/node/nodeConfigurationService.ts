@@ -8,6 +8,7 @@ import { readFile, writeFile } from 'vs/base/node/pfs';
 import { watch, FSWatcher, readFileSync } from 'fs';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { mixin } from 'vs/base/common/objects';
 import { Delayer } from 'vs/base/common/async';
 import { JSONPath, parse } from 'vs/base/common/json';
 import { applyEdits } from 'vs/base/common/jsonFormatter';
@@ -16,6 +17,21 @@ import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+
+function deconstruct(obj: { [key: string]: any; }): any {
+	return Object.keys(obj).reduce((r, key) => {
+		const keyPath = key.split('.').filter(p => !!p);
+
+		let k = null;
+		let value = obj[key];
+
+		while (k = keyPath.pop()) {
+			value = { [k]: value };
+		}
+
+		return mixin(r, value);
+	}, {});
+}
 
 /**
  * Configuration service to be used in the node side.
@@ -103,20 +119,23 @@ export class NodeConfigurationService implements IConfigurationService, IDisposa
 	}
 
 	private load(): void {
-		let content = '{}';
+		let raw = '{}';
 
 		try {
 			// TODO@Joao: is sync really the way to go?
-			content = readFileSync(this.configurationPath, 'utf8');
+			raw = readFileSync(this.configurationPath, 'utf8');
 		} catch (error) {
-			content = '{}';
+			raw = '{}';
 		}
 
+		let content = {};
 		try {
-			this.cache = parse(content) || {};
+			content = parse(raw);
 		} catch (error) {
 			// noop
 		}
+
+		this.cache = deconstruct(content);
 	}
 
 	hasWorkspaceConfiguration(): boolean {
