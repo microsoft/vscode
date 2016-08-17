@@ -9,7 +9,7 @@ import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
-import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { IEnvService } from 'vs/code/electron-main/env';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
@@ -50,7 +50,7 @@ export class LifecycleService implements ILifecycleService {
 	private _wasUpdated: boolean;
 
 	constructor(
-		@IEnvironmentService private envService: IEnvironmentService,
+		@IEnvService private envService: IEnvService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService
 	) {

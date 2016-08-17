@@ -48,9 +48,9 @@ export interface ICommandLineArguments {
 	waitForWindowClose?: boolean;
 }
 
-export const IEnvironmentService = createDecorator<IEnvironmentService>('mainEnvironmentService');
+export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService');
 
-export interface IEnvironmentService {
+export interface IEnvService {
 	_serviceBrand: any;
 	cliArgs: ICommandLineArguments;
 	userExtensionsHome: string;
@@ -86,7 +86,7 @@ function getNumericValue(value: string, defaultValue: number, fallback: number =
 	return fallback;
 }
 
-export class EnvService implements IEnvironmentService {
+export class EnvService implements IEnvService {
 
 	_serviceBrand: any;
 

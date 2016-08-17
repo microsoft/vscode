@@ -10,12 +10,13 @@ import * as path from 'path';
 import * as electron from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { EventEmitter } from 'events';
-import { IEnvironmentService, getPlatformIdentifier } from 'vs/code/electron-main/env';
+import { IEnvService, getPlatformIdentifier } from 'vs/code/electron-main/env';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 export enum State {
 	Uninitialized,
@@ -71,8 +72,9 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEnvironmentService private envService: IEnvironmentService,
-		@ISettingsService private settingsService: ISettingsService
+		@IEnvService private envService: IEnvService,
+		@ISettingsService private settingsService: ISettingsService,
+		@IRequestService requestService: IRequestService
 	) {
 		super();
 

@@ -8,7 +8,7 @@
 import { app } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { UserSettings, ISettings } from 'vs/base/node/userSettings';
-import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { IEnvService } from 'vs/code/electron-main/env';
 import Event from 'vs/base/common/event';
 
 export const ISettingsService = createDecorator<ISettingsService>('settingsService');
@@ -25,7 +25,7 @@ export class SettingsManager extends UserSettings implements ISettingsService {
 
 	_serviceBrand: any;
 
-	constructor(@IEnvironmentService envService: IEnvironmentService) {
+	constructor(@IEnvService envService: IEnvService) {
 		super(envService.appSettingsPath, envService.appKeybindingsPath);
 
 		app.on('will-quit', () => {

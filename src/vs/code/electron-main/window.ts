@@ -11,7 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ICommandLineArguments, IEnvironmentService, IProcessEnvironment } from 'vs/code/electron-main/env';
+import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
 import { ILogService } from 'vs/code/electron-main/log';
 
 export interface IWindowState {
@@ -159,7 +159,7 @@ export class VSCodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
-		@IEnvironmentService private envService: IEnvironmentService,
+		@IEnvService private envService: IEnvService,
 		@IStorageService private storageService: IStorageService
 	) {
 		this.options = config;

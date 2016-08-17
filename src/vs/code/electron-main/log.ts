@@ -6,7 +6,7 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { IEnvService } from 'vs/code/electron-main/env';
 
 export const ILogService = createDecorator<ILogService>('logService');
 
@@ -19,7 +19,7 @@ export class MainLogService implements ILogService {
 
 	_serviceBrand: any;
 
-	constructor( @IEnvironmentService private envService: IEnvironmentService) {
+	constructor( @IEnvService private envService: IEnvService) {
 	}
 
 	log(...args: any[]): void {

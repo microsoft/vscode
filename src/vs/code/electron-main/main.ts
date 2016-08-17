@@ -10,7 +10,8 @@ import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { IProcessEnvironment, IEnvironmentService, EnvService } from 'vs/code/electron-main/env';
+import { parseArgs } from 'vs/code/node/argv';
+import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
@@ -30,6 +31,12 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/platform/request/node/requestService';
 import * as cp from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
@@ -58,7 +65,7 @@ function quit(accessor: ServicesAccessor, arg?: any) {
 function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProcessEnvironment): void {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
-	const envService = accessor.get(IEnvironmentService);
+	const envService = accessor.get(IEnvService);
 	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
@@ -199,7 +206,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
-	const envService = accessor.get(IEnvironmentService);
+	const envService = accessor.get(IEnvService);
 
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(envService.mainIPCHandle).then(server => {
@@ -266,11 +273,14 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 // TODO: isolate
 const services = new ServiceCollection();
 
-services.set(IEnvironmentService, new SyncDescriptor(EnvService));
+services.set(IEnvService, new SyncDescriptor(EnvService));
+services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv)));
 services.set(ILogService, new SyncDescriptor(MainLogService));
 services.set(IWindowsService, new SyncDescriptor(WindowsManager));
 services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 services.set(IStorageService, new SyncDescriptor(StorageService));
+services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+services.set(IRequestService, new SyncDescriptor(RequestService));
 services.set(IUpdateService, new SyncDescriptor(UpdateManager));
 services.set(ISettingsService, new SyncDescriptor(SettingsManager));
 
@@ -363,7 +373,7 @@ function getShellEnvironment(): TPromise<IEnv> {
 function getEnvironment(): TPromise<IEnv> {
 	return getShellEnvironment().then(shellEnv => {
 		return instantiationService.invokeFunction(a => {
-			const envService = a.get(IEnvironmentService);
+			const envService = a.get(IEnvService);
 			const instanceEnv = {
 				VSCODE_PID: String(process.pid),
 				VSCODE_IPC_HOOK: envService.mainIPCHandle,
@@ -381,7 +391,7 @@ function getEnvironment(): TPromise<IEnv> {
 getEnvironment().then(env => {
 	assign(process.env, env);
 
-	return instantiationService.invokeFunction(a => a.get(IEnvironmentService).createPaths())
+	return instantiationService.invokeFunction(a => a.get(IEnvService).createPaths())
 		.then(() => instantiationService.invokeFunction(setupIPC))
 		.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
 })

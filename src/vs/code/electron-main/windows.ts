@@ -17,7 +17,7 @@ import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
-import { ICommandLineArguments, IProcessEnvironment, IEnvironmentService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
+import { ICommandLineArguments, IProcessEnvironment, IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
@@ -130,7 +130,7 @@ export class WindowsManager implements IWindowsService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
-		@IEnvironmentService private envService: IEnvironmentService,
+		@IEnvService private envService: IEnvService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IUpdateService private updateService: IUpdateService,
 		@ISettingsService private settingsService: ISettingsService
