@@ -7,13 +7,10 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { forEach } from 'vs/base/common/collections';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { getSnippetController, CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
@@ -31,7 +28,7 @@ export class SuggestController implements IEditorContribution {
 
 	private model: SuggestModel;
 	private widget: SuggestWidget;
-	private triggerCharacterListeners: IDisposable[];
+
 	private toDispose: IDisposable[] = [];
 
 	constructor(
@@ -39,22 +36,12 @@ export class SuggestController implements IEditorContribution {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.model = new SuggestModel(this.editor);
-		this.widget = instantiationService.createInstance(SuggestWidget, this.editor);
-
 		this.toDispose.push(this.model.onDidTrigger(e => this.widget.showTriggered(e)));
 		this.toDispose.push(this.model.onDidSuggest(e => this.widget.showSuggestions(e)));
 		this.toDispose.push(this.model.onDidCancel(e => this.widget.showDidCancel(e)));
 
+		this.widget = instantiationService.createInstance(SuggestWidget, this.editor);
 		this.toDispose.push(this.widget.onDidSelect(this.onDidSelectItem, this));
-
-		this.triggerCharacterListeners = [];
-
-		this.toDispose.push(editor.onDidChangeConfiguration(() => this.update()));
-		this.toDispose.push(editor.onDidChangeModel(() => this.update()));
-		this.toDispose.push(editor.onDidChangeModelMode(() => this.update()));
-		this.toDispose.push(SuggestRegistry.onDidChange(this.update, this));
-
-		this.update();
 	}
 
 	getId(): string {
@@ -63,8 +50,6 @@ export class SuggestController implements IEditorContribution {
 
 	dispose(): void {
 		this.toDispose = dispose(this.toDispose);
-		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
-
 		if (this.widget) {
 			this.widget.dispose();
 			this.widget = null;
@@ -86,39 +71,6 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		this.model.cancel();
-	}
-
-	private update(): void {
-
-		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
-
-		if (this.editor.getConfiguration().readOnly
-			|| !this.editor.getModel()
-			|| !this.editor.getConfiguration().contribInfo.suggestOnTriggerCharacters) {
-
-			return;
-		}
-
-		const supportsByTriggerCharacter: { [ch: string]: ISuggestSupport[] } = Object.create(null);
-		for (const support of SuggestRegistry.all(this.editor.getModel())) {
-			if (isFalsyOrEmpty(support.triggerCharacters)) {
-				continue;
-			}
-			for (const ch of support.triggerCharacters) {
-				const array = supportsByTriggerCharacter[ch];
-				if (!array) {
-					supportsByTriggerCharacter[ch] = [support];
-				} else {
-					array.push(support);
-				}
-			}
-		}
-
-		forEach(supportsByTriggerCharacter, entry => {
-			this.triggerCharacterListeners.push(this.editor.addTypingListener(entry.key, () => {
-				this.model.trigger(true, false, entry.value);
-			}));
-		});
 	}
 
 	triggerSuggest(): void {
