@@ -32,6 +32,7 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelBuilder} from 'vs/editor/node/model/modelBuilder';
 import product from 'vs/platform/product';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -50,7 +51,8 @@ export class TextFileService extends AbstractTextFileService {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWindowService private windowService: IWindowService,
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService, modelService);
 
@@ -173,7 +175,7 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public confirmSave(resources?: URI[]): ConfirmResult {
-		if (!!this.contextService.getConfiguration().env.extensionDevelopmentPath) {
+		if (!!this.environmentService.extensionDevelopmentPath) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 

@@ -19,6 +19,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService} from './search';
 import {ISearchChannel, SearchChannelClient} from './searchIpc';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -28,11 +29,11 @@ export class SearchService implements ISearchService {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		let config = contextService.getConfiguration();
-		this.diskSearch = new DiskSearch(!config.env.isBuilt || config.env.verboseLogging);
+		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose);
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {

@@ -12,6 +12,7 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEventService } from 'vs/platform/event/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -202,6 +203,7 @@ export class ElectronGitService extends GitService {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const conf = configurationService.getConfiguration<IGitConfiguration>('git');
@@ -218,7 +220,7 @@ export class ElectronGitService extends GitService {
 			const gitPath = conf.path || null;
 			const encoding = filesConf.encoding || 'utf8';
 			const workspaceRoot = workspace.resource.fsPath;
-			const verbose = !contextService.getConfiguration().env.isBuilt || contextService.getConfiguration().env.verboseLogging;
+			const verbose = !environmentService.isBuilt || environmentService.verbose;
 
 			if (ElectronGitService.USE_REMOTE_PROCESS_SERVICE) {
 				raw = createRemoteRawGitService(gitPath, workspaceRoot, encoding, verbose);

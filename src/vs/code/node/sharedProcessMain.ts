@@ -14,6 +14,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { parseArgs } from 'vs/code/node/argv';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
@@ -57,7 +58,7 @@ function main(server: Server): void {
 	const services = new ServiceCollection();
 
 	services.set(IEventService, new SyncDescriptor(EventService));
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv)));
 	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 

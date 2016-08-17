@@ -10,7 +10,7 @@ import pkg from 'vs/platform/package';
 import * as os from 'os';
 import * as path from 'path';
 import {mkdirp} from 'vs/base/node/pfs';
-import {parseArgs} from 'vs/code/node/argv';
+import {ParsedArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 
@@ -43,10 +43,11 @@ export class EnvironmentService implements IEnvironmentService {
 	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
+	get verbose(): boolean { return this.argv.verbose; }
 
-	constructor() {
-		const argv = parseArgs(process.argv);
+	get debugBrkFileWatcherPort(): number { return typeof this.argv.debugBrkFileWatcherPort === 'string' ? Number(this.argv.debugBrkFileWatcherPort) : void 0; }
 
+	constructor(private argv: ParsedArgs) {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._userDataPath = paths.getUserDataPath(process.platform, pkg.name, process.argv);
 
@@ -62,8 +63,7 @@ export class EnvironmentService implements IEnvironmentService {
 	}
 
 	createPaths(): TPromise<void> {
-		const promises = [this.userHome, this.extensionsPath]
-			.map(p => mkdirp(p));
+		const promises = [this.userHome, this.extensionsPath].map(p => mkdirp(p));
 
 		return TPromise.join(promises) as TPromise<any>;
 	}

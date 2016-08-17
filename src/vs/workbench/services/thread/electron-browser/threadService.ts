@@ -18,11 +18,12 @@ import {IMainProcessExtHostIPC, create} from 'vs/platform/extensions/common/ipcR
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {AbstractThreadService} from 'vs/workbench/services/thread/common/abstractThreadService';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {IConfiguration, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {ChildProcess, fork} from 'child_process';
 import {ipcRenderer as ipc} from 'electron';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -47,11 +48,12 @@ export class MainThreadService extends AbstractThreadService implements IThreadS
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMessageService messageService: IMessageService,
 		@IWindowService windowService: IWindowService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super(true);
 
-		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService);
+		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService, environmentService);
 
 		let logCommunication = logExtensionHostCommunication || contextService.getConfiguration().env.logExtensionHostCommunication;
 
@@ -82,7 +84,7 @@ export class MainThreadService extends AbstractThreadService implements IThreadS
 		this.extensionHostProcessManager.terminate();
 	}
 
-	protected _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any> {
+	protected _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any> {
 		return this.remoteCom.callOnRemote(proxyId, path, args);
 	}
 }
@@ -105,12 +107,13 @@ class ExtensionHostProcessManager {
 		private contextService: IWorkspaceContextService,
 		private messageService: IMessageService,
 		private windowService: IWindowService,
-		private lifecycleService: ILifecycleService
+		private lifecycleService: ILifecycleService,
+		private environmentService: IEnvironmentService
 	) {
 
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		const config = this.contextService.getConfiguration();
-		this.isExtensionDevelopmentHost = !!config.env.extensionDevelopmentPath;
+		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
 		this.isExtensionDevelopmentDebugging = !!config.env.debugBrkExtensionHost;
 		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!config.env.extensionTestsPath && !config.env.debugBrkExtensionHost;
 
@@ -120,14 +123,12 @@ class ExtensionHostProcessManager {
 	}
 
 	public startExtensionHostProcess(onExtensionHostMessage: (msg: any) => void): void {
-		let config = this.contextService.getConfiguration();
-
 		let opts: any = {
 			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
 		};
 
 		// Help in case we fail to start it
-		if (!config.env.isBuilt || this.isExtensionDevelopmentHost) {
+		if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
 			this.initializeTimer = setTimeout(() => {
 				const msg = this.isExtensionDevelopmentDebugging ? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
@@ -139,7 +140,7 @@ class ExtensionHostProcessManager {
 		this.initializeExtensionHostProcess = new TPromise<ChildProcess>((c, e) => {
 
 			// Resolve additional execution args (e.g. debug)
-			return this.resolveDebugPort(config, (port) => {
+			return this.resolveDebugPort(this.contextService.getConfiguration().env.debugExtensionHostPort, port => {
 				if (port) {
 					opts.execArgv = ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port];
 				}
@@ -154,7 +155,7 @@ class ExtensionHostProcessManager {
 						payload: {
 							port: port
 						}
-					}, config.env.extensionDevelopmentPath /* target */);
+					}, this.environmentService.extensionDevelopmentPath /* target */);
 				}
 
 				// Messages from Extension host
@@ -220,11 +221,11 @@ class ExtensionHostProcessManager {
 						}
 
 						// Broadcast to other windows if we are in development mode
-						else if (!config.env.isBuilt || this.isExtensionDevelopmentHost) {
+						else if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
 							this.windowService.broadcast({
 								channel: EXTENSION_LOG_BROADCAST_CHANNEL,
 								payload: logEntry
-							}, config.env.extensionDevelopmentPath /* target */);
+							}, this.environmentService.extensionDevelopmentPath /* target */);
 						}
 					}
 
@@ -278,19 +279,19 @@ class ExtensionHostProcessManager {
 		}, () => this.terminate());
 	}
 
-	private resolveDebugPort(config: IConfiguration, clb: (port: number) => void): void {
+	private resolveDebugPort(extensionHostPort: number, clb: (port: number) => void): void {
 
 		// Check for a free debugging port
-		if (typeof config.env.debugExtensionHostPort === 'number') {
-			return findFreePort(config.env.debugExtensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
+		if (typeof extensionHostPort === 'number') {
+			return findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
 
 					return clb(void 0);
 				}
 
-				if (port !== config.env.debugExtensionHostPort) {
-					console.warn('%c[Extension Host] %cProvided debugging port ' + config.env.debugExtensionHostPort + ' is not free, using ' + port + ' instead.', 'color: blue', 'color: black');
+				if (port !== extensionHostPort) {
+					console.warn('%c[Extension Host] %cProvided debugging port ' + extensionHostPort + ' is not free, using ' + port + ' instead.', 'color: blue', 'color: black');
 				}
 
 				if (this.isExtensionDevelopmentDebugging) {
@@ -329,7 +330,7 @@ class ExtensionHostProcessManager {
 		}
 	}
 
-	private _onWillShutdown(event: ShutdownEvent): void{
+	private _onWillShutdown(event: ShutdownEvent): void {
 
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
@@ -337,7 +338,7 @@ class ExtensionHostProcessManager {
 			this.windowService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: true
-			}, this.contextService.getConfiguration().env.extensionDevelopmentPath /* target */);
+			}, this.environmentService.extensionDevelopmentPath /* target */);
 
 			event.veto(TPromise.timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
 		}

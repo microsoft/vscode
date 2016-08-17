@@ -16,6 +16,7 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {EventService} from 'vs/platform/event/common/eventService';
+import {ParsedArgs, parseArgs} from 'vs/code/node/argv';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
 import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
@@ -56,6 +57,12 @@ export interface IMainEnvironment extends IEnvironment {
 
 export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
 
+	// Args (TODO@Ben clean up explicit overwrite of args)
+	const parsedArgs = parseArgs(process.argv);
+	if (typeof environment.extensionDevelopmentPath === 'string') {
+		parsedArgs.extensionDevelopmentPath = environment.extensionDevelopmentPath;
+	}
+
 	// Shell Configuration
 	const shellConfiguration: IConfiguration = {
 		env: environment
@@ -79,7 +86,7 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 	}
 
 	// Open workbench
-	return openWorkbench(getWorkspace(environment), shellConfiguration, shellOptions);
+	return openWorkbench(parsedArgs, getWorkspace(environment), shellConfiguration, shellOptions);
 }
 
 function toInputs(paths: IPath[]): IResourceInput[] {
@@ -128,9 +135,9 @@ function getWorkspace(environment: IMainEnvironment): IWorkspace {
 	};
 }
 
-function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
+function openWorkbench(args: ParsedArgs, workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
-	const environmentService = new EnvironmentService();
+	const environmentService = new EnvironmentService(args);
 	const contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
 	const configurationService = new ConfigurationService(contextService, eventService);
 

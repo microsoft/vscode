@@ -25,6 +25,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {Registry} from 'vs/platform/platform';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -85,7 +86,8 @@ export abstract class BaseHistoryService {
 		private eventService: IEventService,
 		protected editorGroupService: IEditorGroupService,
 		protected editorService: IWorkbenchEditorService,
-		protected contextService: IWorkspaceContextService
+		protected contextService: IWorkspaceContextService,
+		private environmentService: IEnvironmentService
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
@@ -154,7 +156,7 @@ export abstract class BaseHistoryService {
 		let title = this.doGetWindowTitle(input);
 
 		// Extension Development Host gets a special title to identify itself
-		if (this.contextService.getConfiguration().env.extensionDevelopmentPath) {
+		if (this.environmentService.extensionDevelopmentPath) {
 			return nls.localize('devExtensionWindowTitle', "[Extension Development Host] - {0}", title);
 		}
 
@@ -234,12 +236,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(eventService, editorGroupService, editorService, contextService);
+		super(eventService, editorGroupService, editorService, contextService, environmentService);
 
 		this.index = -1;
 		this.stack = [];
