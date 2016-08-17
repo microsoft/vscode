@@ -33,11 +33,6 @@ export interface ISuggestionItem {
 
 export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
 
-export interface ISuggestOptions {
-	groups?: ISuggestSupport[][];
-	snippetConfig?: SnippetConfig;
-}
-
 
 // add suggestions from snippet registry.
 const snippetSuggestSupport: ISuggestSupport = {
@@ -52,13 +47,13 @@ const snippetSuggestSupport: ISuggestSupport = {
 	}
 };
 
-export function provideSuggestionItems(model: IReadOnlyModel, position: Position, options: ISuggestOptions = {}): TPromise<ISuggestionItem[]> {
+export function provideSuggestionItems(model: IReadOnlyModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[]): TPromise<ISuggestionItem[]> {
 
 	const result: ISuggestionItem[] = [];
-	const acceptSuggestion = createSuggesionFilter(options);
+	const acceptSuggestion = createSuggesionFilter(snippetConfig);
 
 	// get provider groups, always add snippet suggestion provider
-	const supports = (options.groups || SuggestRegistry.orderedGroups(model)).slice(0);
+	const supports = SuggestRegistry.orderedGroups(model);
 	supports.unshift([snippetSuggestSupport]);
 
 	// add suggestions from contributed providers - providers are ordered in groups of
@@ -71,35 +66,42 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 				return;
 			}
 			// for each support in the group ask for suggestions
-			return TPromise.join(supports.map(support => asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(container => {
+			return TPromise.join(supports.map(support => {
 
-				const len = result.length;
+				if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
+					return;
+				}
 
-				if (container && !isFalsyOrEmpty(container.suggestions)) {
-					for (let suggestion of container.suggestions) {
-						if (acceptSuggestion(suggestion)) {
+				return asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(container => {
 
-							fixOverwriteBeforeAfter(suggestion, container);
+					const len = result.length;
 
-							result.push({
-								container,
-								suggestion,
-								support,
-								resolve: createSuggestionResolver(support, suggestion, model, position)
-							});
+					if (container && !isFalsyOrEmpty(container.suggestions)) {
+						for (let suggestion of container.suggestions) {
+							if (acceptSuggestion(suggestion)) {
+
+								fixOverwriteBeforeAfter(suggestion, container);
+
+								result.push({
+									container,
+									suggestion,
+									support,
+									resolve: createSuggestionResolver(support, suggestion, model, position)
+								});
+							}
 						}
 					}
-				}
 
-				if (len !== result.length && support !== snippetSuggestSupport) {
-					hasResult = true;
-				}
+					if (len !== result.length && support !== snippetSuggestSupport) {
+						hasResult = true;
+					}
 
-			}, onUnexpectedError)));
+				}, onUnexpectedError);
+			}));
 		};
 	});
 
-	return sequence(factory).then(() => result.sort(createSuggesionComparator(options)));
+	return sequence(factory).then(() => result.sort(createSuggesionComparator(snippetConfig)));
 }
 
 function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
@@ -121,15 +123,15 @@ function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISugges
 	};
 }
 
-function createSuggesionFilter(options: ISuggestOptions): (candidate: ISuggestion) => boolean {
-	if (options.snippetConfig === 'none') {
+function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: ISuggestion) => boolean {
+	if (snippetConfig === 'none') {
 		return suggestion => suggestion.type !== 'snippet';
 	} else {
 		return () => true;
 	}
 }
 
-function createSuggesionComparator(options: ISuggestOptions): (a: ISuggestionItem, b: ISuggestionItem) => number {
+function createSuggesionComparator(snippetConfig: SnippetConfig): (a: ISuggestionItem, b: ISuggestionItem) => number {
 
 	function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
@@ -179,9 +181,9 @@ function createSuggesionComparator(options: ISuggestOptions): (a: ISuggestionIte
 		return defaultComparator(a, b);
 	}
 
-	if (options.snippetConfig === 'top') {
+	if (snippetConfig === 'top') {
 		return snippetUpComparator;
-	} else if (options.snippetConfig === 'bottom') {
+	} else if (snippetConfig === 'bottom') {
 		return snippetDownComparator;
 	} else {
 		return defaultComparator;

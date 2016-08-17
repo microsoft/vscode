@@ -7,6 +7,8 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { forEach } from 'vs/base/common/collections';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
@@ -95,47 +97,30 @@ export class SuggestController implements IEditorContribution {
 			return;
 		}
 
-		let groups = SuggestRegistry.orderedGroups(this.editor.getModel());
-		if (groups.length === 0) {
-			return;
+		const supportsByTriggerCharacter: { [ch: string]: ISuggestSupport[] } = Object.create(null);
+		for (const support of SuggestRegistry.all(this.editor.getModel())) {
+			if (isFalsyOrEmpty(support.triggerCharacters)) {
+				continue;
+			}
+			for (const ch of support.triggerCharacters) {
+				const array = supportsByTriggerCharacter[ch];
+				if (!array) {
+					supportsByTriggerCharacter[ch] = [support];
+				} else {
+					array.push(support);
+				}
+			}
 		}
 
-		let triggerCharacters: { [ch: string]: ISuggestSupport[][] } = Object.create(null);
-
-		groups.forEach(group => {
-
-			let groupTriggerCharacters: { [ch: string]: ISuggestSupport[] } = Object.create(null);
-
-			group.forEach(support => {
-				let localTriggerCharacters = support.triggerCharacters;
-				if (localTriggerCharacters) {
-					for (let ch of localTriggerCharacters) {
-						let array = groupTriggerCharacters[ch];
-						if (array) {
-							array.push(support);
-						} else {
-							array = [support];
-							groupTriggerCharacters[ch] = array;
-							if (triggerCharacters[ch]) {
-								triggerCharacters[ch].push(array);
-							} else {
-								triggerCharacters[ch] = [array];
-							}
-						}
-					}
-				}
-			});
-		});
-
-		Object.keys(triggerCharacters).forEach(ch => {
-			this.triggerCharacterListeners.push(this.editor.addTypingListener(ch, () => {
-				this.model.trigger(false, ch, false, triggerCharacters[ch]);
+		forEach(supportsByTriggerCharacter, entry => {
+			this.triggerCharacterListeners.push(this.editor.addTypingListener(entry.key, () => {
+				this.model.trigger(true, false, entry.value);
 			}));
 		});
 	}
 
 	triggerSuggest(): void {
-		this.model.trigger(false, undefined, false);
+		this.model.trigger(false, false);
 		this.editor.focus();
 	}
 
