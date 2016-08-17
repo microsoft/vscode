@@ -47,18 +47,9 @@ export interface IProductConfiguration {
 	npsSurveyUrl: string;
 }
 
-let product: IProductConfiguration;
-try {
-	const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
-	const productJsonPath = path.join(rootPath, 'product.json');
-	product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
-} catch (error) {
-	product = <IProductConfiguration>{
-		nameLong: 'Code - OSS',
-		applicationName: 'code-oss',
-		dataFolderName: '.vscode-oss'
-	};
-}
+const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
+const productJsonPath = path.join(rootPath, 'product.json');
+const product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
 
 if (process.env['VSCODE_DEV']) {
 	product.nameShort += ' Dev';
