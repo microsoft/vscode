@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as Platform from 'vs/base/common/platform';
 
-import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
+import { SystemVariables } from 'vs/workbench/parts/lib/electron-browser/systemVariables';
 
 suite('SystemVariables tests', () => {
 	test('SystemVariables: substitute one', () => {
