@@ -14,7 +14,7 @@ import { Reader } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, OutputChannel }  from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost }  from './typescriptService';
+import { ITypescriptServiceClient, ITypescriptServiceClientHost, APIVersion }  from './typescriptService';
 
 import * as VersionStatus from './utils/versionStatus';
 
@@ -90,6 +90,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private callbacks: CallbackMap;
 
 	private _packageInfo: IPackageInfo;
+	private _apiVersion: APIVersion;
 	private telemetryReporter: TelemetryReporter;
 
 	constructor(host: ITypescriptServiceClientHost, storagePath: string) {
@@ -115,6 +116,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		const configuration = workspace.getConfiguration();
 		this.tsdk = configuration.get<string>('typescript.tsdk', null);
 		this._experimentalAutoBuild = configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
+		this._apiVersion = APIVersion.v1_x;
 		this.trace = this.readTrace();
 		workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
@@ -143,6 +145,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public get experimentalAutoBuild(): boolean {
 		return this._experimentalAutoBuild;
+	}
+
+	public get apiVersion(): APIVersion {
+		return this._apiVersion;
 	}
 
 	public onReady(): Promise<void> {
@@ -202,8 +208,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return;
 		}
 
-		let label = this.getTypeScriptVersion(modulePath);
-		let tooltip = modulePath;
+		let version = this.getTypeScriptVersion(modulePath);
+		if (!version) {
+			version = workspace.getConfiguration().get<string>('typescript.tsdk_version', undefined);
+		}
+		if (version) {
+			this._apiVersion = APIVersion.fromString(version);
+		}
+		const label = version || localize('versionNumber.custom' ,'custom');
+		const tooltip = modulePath;
 		VersionStatus.enable(!!this.tsdk);
 		VersionStatus.setInfo(label, tooltip);
 
@@ -264,26 +277,25 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private getTypeScriptVersion(serverPath: string): string {
-		const custom = localize('versionNumber.custom' ,'custom');
 		let p = serverPath.split(path.sep);
 		if (p.length <= 2) {
-			return custom;
+			return undefined;
 		}
 		let p2 = p.slice(0, -2);
 		let modulePath = p2.join(path.sep);
 		let fileName = path.join(modulePath, 'package.json');
 		if (!fs.existsSync(fileName)) {
-			return custom;
+			return undefined;
 		}
 		let contents = fs.readFileSync(fileName).toString();
 		let desc = null;
 		try {
 			desc = JSON.parse(contents);
 		} catch(err) {
-			return custom;
+			return undefined;
 		}
 		if (!desc.version) {
-			return custom;
+			return undefined;
 		}
 		return desc.version;
 	}
@@ -431,10 +443,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				let event: Proto.Event = <Proto.Event>message;
 				this.traceEvent(event);
 				if (event.event === 'syntaxDiag') {
-					this.host.syntaxDiagnosticsReceived(event);
-				}
-				if (event.event === 'semanticDiag') {
-					this.host.semanticDiagnosticsReceived(event);
+					this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
+				} else if (event.event === 'semanticDiag') {
+					this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
+				} else if (event.event === 'configFileDiag') {
+					this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
 				}
 			} else {
 				throw new Error('Unknown message type ' + message.type + ' recevied');
