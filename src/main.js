@@ -9,6 +9,7 @@ global.vscodeStart = Date.now();
 var app = require('electron').app;
 var fs = require('fs');
 var path = require('path');
+var minimist = require('minimist');
 var paths = require('./paths');
 var pkg = require('../package.json');
 
@@ -127,7 +128,9 @@ try {
 }
 
 // Set userData path before app 'ready' event
-var userData = paths.getUserDataPath(process.platform, pkg.name, process.argv);
+var argv = minimist(process.argv, { string: ['user-data-dir'] });
+var userDataDir = argv['user-data-dir'];
+var userData = paths.getUserDataPath(process.platform, pkg.name, userDataDir);
 app.setPath('userData', userData);
 
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
