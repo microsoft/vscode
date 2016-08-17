@@ -122,7 +122,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 	// Spawn shared process
 	const sharedProcess = spawnSharedProcess({
-		allowOutput: !envService.isBuilt || envService.cliArgs.verboseLogging,
+		allowOutput: !envService.isBuilt || envService.cliArgs.verbose,
 		debugPort: envService.isBuilt ? null : 5871
 	});
 

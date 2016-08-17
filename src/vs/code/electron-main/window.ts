@@ -408,7 +408,7 @@ export class VSCodeWindow {
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
 		if (this.isPluginDevelopmentHost && cli) {
-			configuration.verboseLogging = cli.verboseLogging;
+			configuration.verbose = cli.verbose;
 			configuration.logExtensionHostCommunication = cli.logExtensionHostCommunication;
 			configuration.debugBrkFileWatcherPort = cli.debugBrkFileWatcherPort;
 			configuration.debugExtensionHostPort = cli.debugExtensionHostPort;

@@ -923,7 +923,7 @@ export class WindowsManager implements IWindowsService {
 			let currentWindowConfig = vscodeWindow.config;
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
-				configuration.verboseLogging = currentWindowConfig.verboseLogging;
+				configuration.verbose = currentWindowConfig.verbose;
 				configuration.logExtensionHostCommunication = currentWindowConfig.logExtensionHostCommunication;
 				configuration.debugBrkFileWatcherPort = currentWindowConfig.debugBrkFileWatcherPort;
 				configuration.debugBrkExtensionHost = currentWindowConfig.debugBrkExtensionHost;

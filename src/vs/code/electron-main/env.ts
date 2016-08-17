@@ -28,7 +28,7 @@ export interface IProcessEnvironment {
 }
 
 export interface ICommandLineArguments {
-	verboseLogging: boolean;
+	verbose: boolean;
 	debugExtensionHostPort: number;
 	debugBrkExtensionHost: boolean;
 	debugBrkFileWatcherPort: number;
@@ -170,7 +170,7 @@ export class EnvService implements IEnvService {
 			pathArguments: pathArguments,
 			programStart: types.isNumber(timestamp) ? timestamp : 0,
 			enablePerformance: argv.performance,
-			verboseLogging: argv.verbose,
+			verbose: argv.verbose,
 			debugExtensionHostPort: debugBrkExtensionHostPort || debugExtensionHostPort,
 			debugBrkExtensionHost: !!debugBrkExtensionHostPort,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
