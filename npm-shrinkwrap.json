@@ -413,9 +413,9 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.11.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.1.0",
-      "from": "vscode-textmate@2.1.0",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.1.0.tgz"
+      "version": "2.1.1",
+      "from": "vscode-textmate@2.1.1",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.1.1.tgz"
     },
     "windows-mutex": {
       "version": "0.2.0",

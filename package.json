@@ -28,7 +28,7 @@
     "fast-plist": "0.1.1",
     "semver": "4.3.6",
     "vscode-debugprotocol": "1.11.0",
-    "vscode-textmate": "2.1.0",
+    "vscode-textmate": "2.1.1",
     "winreg": "1.2.0",
     "xterm": "git+https://github.com/sourcelair/xterm.js.git#b32a34b",
     "yauzl": "2.3.1"
