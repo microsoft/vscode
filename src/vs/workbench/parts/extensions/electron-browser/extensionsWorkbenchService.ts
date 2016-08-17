@@ -113,6 +113,30 @@ class Extension implements IExtension {
 	get outdated(): boolean {
 		return semver.gt(this.latestVersion, this.version);
 	}
+
+	get telemetryData(): any {
+		const { local, gallery } = this;
+
+		if (gallery) {
+			return {
+				id: `${ gallery.publisher }.${ gallery.name }`,
+				name: gallery.name,
+				galleryId: gallery.id,
+				publisherId: gallery.publisherId,
+				publisherName: gallery.publisher,
+				publisherDisplayName: gallery.publisherDisplayName
+			};
+		} else {
+			return {
+				id: `${ local.manifest.publisher }.${ local.manifest.name }`,
+				name: local.manifest.name,
+				galleryId: local.metadata ? local.metadata.id : null,
+				publisherId: local.metadata ? local.metadata.publisherId : null,
+				publisherName: local.manifest.publisher,
+				publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
+			};
+		}
+	}
 }
 
 function stripVersion(id: string): string {
@@ -384,34 +408,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private reportTelemetry(active: IActiveExtension, success: boolean): void {
-		if (!active.extension) {
-			return;
-		}
-
-		const local = active.extension.local;
-		const gallery = active.extension.gallery;
-		let data = null;
-
-		if (gallery) {
-			data = {
-				id: `${ gallery.publisher }.${ gallery.name }`,
-				name: gallery.name,
-				galleryId: gallery.id,
-				publisherId: gallery.publisherId,
-				publisherName: gallery.publisher,
-				publisherDisplayName: gallery.publisherDisplayName
-			};
-		} else {
-			data = {
-				id: `${ local.manifest.publisher }.${ local.manifest.name }`,
-				name: local.manifest.name,
-				galleryId: local.metadata ? local.metadata.id : null,
-				publisherId: local.metadata ? local.metadata.publisherId : null,
-				publisherName: local.manifest.publisher,
-				publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
-			};
-		}
-
+		const data = active.extension.telemetryData;
 		const duration = new Date().getTime() - active.start.getTime();
 		const eventName = toTelemetryEventName(active.operation);
 
