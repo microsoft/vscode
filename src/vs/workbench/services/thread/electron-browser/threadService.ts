@@ -140,7 +140,7 @@ class ExtensionHostProcessManager {
 		this.initializeExtensionHostProcess = new TPromise<ChildProcess>((c, e) => {
 
 			// Resolve additional execution args (e.g. debug)
-			return this.resolveDebugPort(this.contextService.getConfiguration().env.debugExtensionHostPort, port => {
+			return this.resolveDebugPort(this.environmentService.debugExtensionHostPort, port => {
 				if (port) {
 					opts.execArgv = ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port];
 				}
