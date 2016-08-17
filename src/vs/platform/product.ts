@@ -53,7 +53,11 @@ try {
 	const productJsonPath = path.join(rootPath, 'product.json');
 	product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
 } catch (error) {
-	product = Object.create(null); // can happen in environments where product.json is missing (e.g. when used from tests)
+	product = <IProductConfiguration>{
+		nameLong: 'Code - OSS',
+		applicationName: 'code-oss',
+		dataFolderName: '.vscode-oss'
+	};
 }
 
 if (process.env['VSCODE_DEV']) {

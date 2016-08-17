@@ -48,8 +48,6 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 
 	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
 
-	protected contextService: IWorkspaceContextService;
-	protected eventService: IEventService;
 	protected workspaceSettingsRootFolder: string;
 
 	private cachedConfig: ILoadConfigResult;
@@ -59,10 +57,11 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	private callOnDispose: IDisposable;
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
-	constructor(contextService: IWorkspaceContextService, eventService: IEventService, workspaceSettingsRootFolder: string = '.vscode') {
-		this.contextService = contextService;
-		this.eventService = eventService;
-
+	constructor(
+		protected contextService: IWorkspaceContextService,
+		protected eventService: IEventService,
+		workspaceSettingsRootFolder: string = '.vscode'
+	) {
 		this.workspaceSettingsRootFolder = workspaceSettingsRootFolder;
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.cachedConfig = {

@@ -41,6 +41,8 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {RawText} from 'vs/editor/common/model/textModel';
+import {parseArgs} from 'vs/code/node/argv';
+import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -53,6 +55,8 @@ export const TestWorkspace: IWorkspace = {
 export const TestConfiguration: IConfiguration = {
 	env: Object.create(null)
 };
+
+export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv));
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public _serviceBrand: any;
