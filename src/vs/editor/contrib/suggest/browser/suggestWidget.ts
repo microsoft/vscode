@@ -24,7 +24,6 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
 import { CompletionItem, CompletionModel } from '../common/completionModel';
-import { ICancelEvent, ISuggestEvent, ITriggerEvent } from '../common/suggestModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -532,12 +531,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		return this.onDidSelectEmitter.event;
 	}
 
-	showTriggered(e: ITriggerEvent) {
+	showTriggered(auto: boolean) {
 		if (this.state !== State.Hidden) {
 			return;
 		}
 
-		this.isAuto = !!e.auto;
+		this.isAuto = !!auto;
 
 		if (!this.isAuto) {
 			this.loadingTimeout = setTimeout(() => {
@@ -547,15 +546,15 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	showSuggestions(e: ISuggestEvent): void {
+	showSuggestions(completionModel: CompletionModel, isFrozen: boolean, isAuto: boolean): void {
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;
 		}
 
-		this.completionModel = e.completionModel;
+		this.completionModel = completionModel;
 
-		if (e.isFrozen && this.state !== State.Empty) {
+		if (isFrozen && this.state !== State.Empty) {
 			this.setState(State.Frozen);
 			return;
 		}
@@ -566,7 +565,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.suggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
 		if (isEmpty) {
-			if (e.auto) {
+			if (isAuto) {
 				this.setState(State.Hidden);
 			} else {
 				this.setState(State.Empty);
@@ -595,19 +594,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				suggestionCount: visibleCount,
 				snippetCount,
 				textCount,
-				wasAutomaticallyTriggered: !!e.auto
+				wasAutomaticallyTriggered: !!isAuto
 			});
-		}
-	}
-
-	showDidCancel(e: ICancelEvent) {
-		if (this.loadingTimeout) {
-			clearTimeout(this.loadingTimeout);
-			this.loadingTimeout = null;
-		}
-
-		if (!e.retrigger) {
-			this.setState(State.Hidden);
 		}
 	}
 
@@ -715,11 +703,16 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		removeClass(this.element, 'visible');
 	}
 
-	cancel(): void {
+	hideWidget(): void {
+		clearTimeout(this.loadingTimeout);
+		this.setState(State.Hidden);
+	}
+
+	hideDetailsOrHideWidget(): void {
 		if (this.state === State.Details) {
 			this.toggleDetails();
 		} else {
-			this.showDidCancel({ retrigger: false });
+			this.hideWidget();
 		}
 	}
 
