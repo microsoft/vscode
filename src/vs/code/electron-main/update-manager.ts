@@ -11,7 +11,7 @@ import * as electron from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { EventEmitter } from 'events';
 import { IEnvService, getPlatformIdentifier } from 'vs/code/electron-main/env';
-import { ISettingsService } from 'vs/code/electron-main/settings';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
@@ -73,7 +73,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEnvService private envService: IEnvService,
-		@ISettingsService private settingsService: ISettingsService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IRequestService requestService: IRequestService
 	) {
 		super();
@@ -232,7 +232,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 	}
 
 	private getUpdateChannel(): string {
-		const channel = this.settingsService.getValue<string>('update.channel') || 'default';
+		const channel = this.configurationService.getConfiguration<string>('update.channel') || 'default';
 		return channel === 'none' ? null : this.envService.quality;
 	}
 
