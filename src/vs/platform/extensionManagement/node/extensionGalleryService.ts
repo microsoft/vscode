@@ -18,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
+import * as url from 'url';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -351,8 +352,18 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this._getAsset({ url });
 	}
 
+	/**
+	 * Always try with the `redirect=true` query string.
+	 * If that does not return 200, try without it.
+	 */
 	private _getAsset(options: IRequestOptions): TPromise<IRequestContext> {
-		return this.requestService.request(options);
+		const parsedUrl = url.parse(options.url, true);
+		parsedUrl.search = undefined;
+		parsedUrl.query['redirect'] = 'true';
+
+		return this.requestService.request(assign({}, options, { url: url.format(parsedUrl) }))
+			.then(context => context.res.statusCode !== 200 && TPromise.wrapError('expected 200'))
+			.then(null, () => this.requestService.request(options));
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
