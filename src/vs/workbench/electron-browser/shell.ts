@@ -152,9 +152,9 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection();
 
 		//crash reporting
-		if (!!this.configuration.env.crashReporter) {
-			const crashReporter = instantiationService.createInstance(CrashReporter, this.configuration.env.version, this.configuration.env.commitHash);
-			crashReporter.start(this.configuration.env.crashReporter);
+		if (!!product.crashReporter) {
+			const crashReporter = instantiationService.createInstance(CrashReporter, pkg.version, product.commit);
+			crashReporter.start(product.crashReporter);
 		}
 
 		// Workbench
@@ -244,7 +244,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IStorageService, this.storageService);
 
 		// Telemetry
-		if (this.configuration.env.isBuilt && !this.environmentService.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
+		if (this.environmentService.isBuilt && !this.environmentService.extensionDevelopmentPath && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const commit = product.commit;
 			const version = pkg.version;
@@ -252,7 +252,7 @@ export class WorkbenchShell {
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
-				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
+				piiPaths: [this.environmentService.appRoot, this.configuration.env.userExtensionsHome]
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);

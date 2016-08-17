@@ -88,31 +88,10 @@ export interface IEnvironment {
 	appName: string;
 	appRoot: string;
 	isBuilt: boolean;
-	execPath: string;
 
 	applicationName: string;
-	darwinBundleIdentifier: string;
 
 	version: string;
-	commitHash: string;
-
-	updateFeedUrl: string;
-	updateChannel: string;
-
-	extensionsGallery: {
-		serviceUrl: string;
-		itemUrl: string;
-	};
-
-	extensionTips: { [id: string]: string; };
-
-	releaseNotesUrl: string;
-	licenseUrl: string;
-	productDownloadUrl: string;
-
-	welcomePage: string;
-
-	crashReporter: any;
 
 	appSettingsHome: string;
 	appSettingsPath: string;
@@ -123,22 +102,9 @@ export interface IEnvironment {
 	logExtensionHostCommunication: boolean;
 
 	userExtensionsHome: string;
-	sharedIPCHandle: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
 	recentFiles: string[];
 	recentFolders: string[];
-
-	enableTelemetry: boolean;
-
-	aiConfig: {
-		key: string;
-		asimovKey: string;
-	};
-
-	sendASmile: {
-		reportIssueUrl: string,
-		requestFeatureUrl: string
-	};
 }

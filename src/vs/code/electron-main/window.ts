@@ -89,22 +89,15 @@ export interface IPath {
 }
 
 export interface IWindowConfiguration extends ICommandLineArguments {
-	execPath: string;
 	version: string;
 	appName: string;
 	applicationName: string;
-	darwinBundleIdentifier: string;
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 	userExtensionsHome: string;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
 	appRoot: string;
 	isBuilt: boolean;
-	commitHash: string;
-	updateFeedUrl: string;
-	updateChannel: string;
 	recentFiles: string[];
 	recentFolders: string[];
 	workspacePath?: string;
@@ -112,26 +105,7 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	extensionsToInstall: string[];
-	crashReporter: Electron.CrashReporterStartOptions;
-	extensionsGallery: {
-		serviceUrl: string;
-		itemUrl: string;
-	};
-	extensionTips: { [id: string]: string; };
-	welcomePage: string;
-	releaseNotesUrl: string;
-	licenseUrl: string;
-	productDownloadUrl: string;
-	enableTelemetry: boolean;
 	userEnv: IProcessEnvironment;
-	aiConfig: {
-		key: string;
-		asimovKey: string;
-	};
-	sendASmile: {
-		reportIssueUrl: string,
-		requestFeatureUrl: string
-	};
 }
 
 export class VSCodeWindow {
