@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {ipcRenderer as ipc, shell} from 'electron';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import product from 'vs/platform/product';
 
 interface IUpdate {
 	releaseNotes: string;
@@ -54,22 +54,19 @@ export const DownloadAction = (url: string) => new Action(
 export class Update {
 
 	constructor(
-		@IWorkspaceContextService private contextService : IWorkspaceContextService,
-		@IMessageService private messageService : IMessageService
+		@IMessageService private messageService: IMessageService
 	) {
-		const env = this.contextService.getConfiguration().env;
-
 		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
 			this.messageService.show(severity.Info, {
-				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", env.appName),
-				actions: [ShowReleaseNotesAction(env.releaseNotesUrl), NotNowAction, ApplyUpdateAction]
+				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
+				actions: [ShowReleaseNotesAction(product.releaseNotesUrl), NotNowAction, ApplyUpdateAction]
 			});
 		});
 
 		ipc.on('vscode:update-available', (event, url: string) => {
 			this.messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
-				actions: [ShowReleaseNotesAction(env.releaseNotesUrl), NotNowAction, DownloadAction(url)]
+				actions: [ShowReleaseNotesAction(product.releaseNotesUrl), NotNowAction, DownloadAction(url)]
 			});
 		});
 

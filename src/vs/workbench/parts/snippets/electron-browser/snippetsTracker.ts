@@ -14,7 +14,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import {readAndRegisterSnippets} from 'vs/editor/node/textMate/TMSnippets';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 import fs = require('fs');
 
@@ -29,9 +29,9 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	constructor(
 		@IFileService private fileService: IFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		this.snippetFolder = paths.join(contextService.getConfiguration().env.appSettingsHome, 'snippets');
+		this.snippetFolder = paths.join(environmentService.appSettingsHome, 'snippets');
 
 		this.toDispose = [];
 		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);

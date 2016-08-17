@@ -15,7 +15,7 @@ import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
 import errors = require('vs/base/common/errors');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -31,7 +31,7 @@ class OpenSnippetsAction extends actions.Action {
 	constructor(
 		id: string,
 		label:string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IQuickOpenService private quickOpenService:IQuickOpenService,
 		@IModeService private modeService:IModeService
 	) {
@@ -57,7 +57,7 @@ class OpenSnippetsAction extends actions.Action {
 
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language for Snippet") }).then((language) => {
 			if (language) {
-				var snippetPath = paths.join(this.contextService.getConfiguration().env.appSettingsHome, 'snippets', language.id + '.json');
+				var snippetPath = paths.join(this.environmentService.appSettingsHome, 'snippets', language.id + '.json');
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
 						this.openFile(snippetPath);

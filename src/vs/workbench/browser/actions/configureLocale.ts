@@ -15,6 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -39,13 +40,14 @@ class ConfigureLocaleAction extends Action {
 	constructor(id, label,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<IEditor> {
-		let file = URI.file(Path.join(this.contextService.getConfiguration().env.appSettingsHome, 'locale.json'));
+		const file = URI.file(Path.join(this.environmentService.appSettingsHome, 'locale.json'));
 		return this.fileService.resolveFile(file).then(null, (error) => {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat) => {
@@ -67,9 +69,9 @@ class ConfigureLocaleAction extends Action {
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
 
-let schemaId = 'vscode://schemas/locale';
+const schemaId = 'vscode://schemas/locale';
 // Keep en-US since we generated files with that content.
-let schema: IJSONSchema =
+const schema: IJSONSchema =
 	{
 		id: schemaId,
 		description: 'Locale Definition file',
@@ -87,5 +89,5 @@ let schema: IJSONSchema =
 		}
 	};
 
-let jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
