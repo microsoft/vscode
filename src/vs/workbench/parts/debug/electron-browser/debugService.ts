@@ -37,7 +37,7 @@ import model = require('vs/workbench/parts/debug/common/debugModel');
 import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import {ConfigurationManager} from 'vs/workbench/parts/debug/node/debugConfigurationManager';
+import {ConfigurationManager} from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
 import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 import {ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
 import {TaskError, TaskErrors} from 'vs/workbench/parts/tasks/common/taskSystem';

@@ -56,7 +56,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 
-import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
+import { ConfigVariables } from 'vs/workbench/parts/lib/electron-browser/configVariables';
 import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
@@ -65,9 +65,9 @@ import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import { LanguageServiceTaskSystem, LanguageServiceTaskConfiguration }  from 'vs/workbench/parts/tasks/common/languageServiceTaskSystem';
-import * as FileConfig  from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
-import { ProcessRunnerSystem } from 'vs/workbench/parts/tasks/node/processRunnerSystem';
-import { ProcessRunnerDetector }  from 'vs/workbench/parts/tasks/node/processRunnerDetector';
+import * as FileConfig  from 'vs/workbench/parts/tasks/electron-browser/processRunnerConfiguration';
+import { ProcessRunnerSystem } from 'vs/workbench/parts/tasks/electron-browser/processRunnerSystem';
+import { ProcessRunnerDetector }  from 'vs/workbench/parts/tasks/electron-browser/processRunnerDetector';
 
 let $ = Builder.$;
 

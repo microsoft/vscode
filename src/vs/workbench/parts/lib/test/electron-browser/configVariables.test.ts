@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as Platform from 'vs/base/common/platform';
-import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
+import { ConfigVariables } from 'vs/workbench/parts/lib/electron-browser/configVariables';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import {TPromise} from 'vs/base/common/winjs.base';
 

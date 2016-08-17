@@ -14,7 +14,7 @@ import { LineProcess } from 'vs/base/node/processes';
 
 import { IFileService } from 'vs/platform/files/common/files';
 
-import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
+import { SystemVariables } from 'vs/workbench/parts/lib/electron-browser/systemVariables';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 
 import * as FileConfig from './processRunnerConfiguration';
