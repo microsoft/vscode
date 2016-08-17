@@ -168,6 +168,13 @@ class ExtensionHostProcessManager {
 
 						let initPayload = stringify({
 							parentPid: process.pid,
+							environment: {
+								appSettingsHome: this.environmentService.appSettingsHome,
+								disableExtensions: this.environmentService.disableExtensions,
+								userExtensionsHome: this.environmentService.extensionsPath,
+								extensionDevelopmentPath: this.environmentService.extensionDevelopmentPath,
+								extensionTestsPath: this.environmentService.extensionTestsPath
+							},
 							contextService: {
 								workspace: this.contextService.getWorkspace(),
 								configuration: this.contextService.getConfiguration(),

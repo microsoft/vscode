@@ -20,6 +20,7 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
+	disableExtensions: boolean;
 	extensionsPath: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;

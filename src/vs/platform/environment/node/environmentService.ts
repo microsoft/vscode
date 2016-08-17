@@ -48,6 +48,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
 
 	get extensionTestsPath(): string { return this.args.extensionTestsPath; }
+	get disableExtensions(): boolean { return this.args['disable-extensions'];  }
 
 	private _debugExtensionHostPort: number;
 	get debugExtensionHostPort(): number { return this._debugExtensionHostPort; }
