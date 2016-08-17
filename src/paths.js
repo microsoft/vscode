@@ -5,6 +5,7 @@
 
 var path = require('path');
 var os = require('os');
+var pkg = require('../package.json');
 
 function getAppDataPath(platform) {
 	switch (platform) {
@@ -15,15 +16,9 @@ function getAppDataPath(platform) {
 	}
 }
 
-function getUserDataPath(platform, appName, userDataDir) {
-	if (userDataDir) {
-		return userDataDir;
-	}
+function getDefaultUserDataPath(platform) {
 
-	var appData = getAppDataPath(platform);
-
-	return path.join(appData, appName);
+	return path.join(getAppDataPath(platform), pkg.name);
 }
-
 exports.getAppDataPath = getAppDataPath;
-exports.getUserDataPath = getUserDataPath;
+exports.getDefaultUserDataPath = getDefaultUserDataPath;
