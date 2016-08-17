@@ -41,22 +41,22 @@ export class EnvironmentService implements IEnvironmentService {
 	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
-	get verbose(): boolean { return this.argv.verbose; }
+	get verbose(): boolean { return this.parsedArgs.verbose; }
 
-	get debugBrkFileWatcherPort(): number { return typeof this.argv.debugBrkFileWatcherPort === 'string' ? Number(this.argv.debugBrkFileWatcherPort) : void 0; }
+	get debugBrkFileWatcherPort(): number { return typeof this.parsedArgs.debugBrkFileWatcherPort === 'string' ? Number(this.parsedArgs.debugBrkFileWatcherPort) : void 0; }
 
-	constructor(private argv: ParsedArgs) {
+	constructor(private parsedArgs: ParsedArgs) {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
-		this._userDataPath = paths.getUserDataPath(process.platform, pkg.name, process.argv);
+		this._userDataPath = paths.getUserDataPath(process.platform, pkg.name, parsedArgs['user-data-dir']);
 
 		this._appSettingsHome = path.join(this.userDataPath, 'User');
 		this._appSettingsPath = path.join(this.appSettingsHome, 'settings.json');
 		this._appKeybindingsPath = path.join(this.appSettingsHome, 'keybindings.json');
 
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
-		this._extensionsPath = argv.extensionHomePath || path.join(this._userHome, 'extensions');
+		this._extensionsPath = parsedArgs.extensionHomePath || path.join(this._userHome, 'extensions');
 		this._extensionsPath = path.normalize(this._extensionsPath);
 
-		this._extensionDevelopmentPath = argv.extensionDevelopmentPath;
+		this._extensionDevelopmentPath = parsedArgs.extensionDevelopmentPath;
 	}
 }

@@ -7,7 +7,7 @@ import uri from 'vs/base/common/uri';
 
 interface IPaths {
 	getAppDataPath(platform: string): string;
-	getUserDataPath(platform: string, appName: string, args: string[]): string;
+	getUserDataPath(platform: string, appName: string, userDataDir: string): string;
 }
 
 const pathsPath = uri.parse(require.toUrl('paths')).fsPath;

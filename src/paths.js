@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var minimist = require('minimist');
 var path = require('path');
 var os = require('os');
 
@@ -16,14 +15,12 @@ function getAppDataPath(platform) {
 	}
 }
 
-function getUserDataPath(platform, appName, args) {
-	var argv = minimist(args, { string: ['user-data-dir'] });
-	var userDataDir = argv['user-data-dir'];
-	var appData = getAppDataPath(platform);
-
+function getUserDataPath(platform, appName, userDataDir) {
 	if (userDataDir) {
 		return userDataDir;
 	}
+
+	var appData = getAppDataPath(platform);
 
 	return path.join(appData, appName);
 }
