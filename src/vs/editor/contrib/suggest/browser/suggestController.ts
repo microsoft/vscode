@@ -28,7 +28,6 @@ export class SuggestController implements IEditorContribution {
 
 	private model: SuggestModel;
 	private widget: SuggestWidget;
-
 	private toDispose: IDisposable[] = [];
 
 	constructor(
@@ -36,9 +35,9 @@ export class SuggestController implements IEditorContribution {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.model = new SuggestModel(this.editor);
-		this.toDispose.push(this.model.onDidTrigger(e => this.widget.showTriggered(e)));
-		this.toDispose.push(this.model.onDidSuggest(e => this.widget.showSuggestions(e)));
-		this.toDispose.push(this.model.onDidCancel(e => this.widget.showDidCancel(e)));
+		this.toDispose.push(this.model.onDidTrigger(e => this.widget.showTriggered(e.auto)));
+		this.toDispose.push(this.model.onDidSuggest(e => this.widget.showSuggestions(e.completionModel, e.isFrozen, e.auto)));
+		this.toDispose.push(this.model.onDidCancel(e => !e.retrigger && this.widget.hideWidget()));
 
 		this.widget = instantiationService.createInstance(SuggestWidget, this.editor);
 		this.toDispose.push(this.widget.onDidSelect(this.onDidSelectItem, this));
@@ -87,7 +86,7 @@ export class SuggestController implements IEditorContribution {
 
 	cancelSuggestWidget(): void {
 		if (this.widget) {
-			this.widget.cancel();
+			this.widget.hideDetailsOrHideWidget();
 		}
 	}
 
