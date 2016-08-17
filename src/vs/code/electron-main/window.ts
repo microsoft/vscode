@@ -90,10 +90,6 @@ export interface IPath {
 
 export interface IWindowConfiguration extends ICommandLineArguments {
 
-	// TODO@Ben things to still clean up
-	appSettingsHome: string;
-	userExtensionsHome: string;
-
 	// Used to configure the workbench when opening
 	workspacePath?: string;
 	recentFiles: string[];

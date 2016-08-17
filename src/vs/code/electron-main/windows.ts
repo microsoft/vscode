@@ -726,16 +726,14 @@ export class WindowsManager implements IWindowsService {
 
 	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
 		let configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
+		configuration.appRoot = this.envService.appRoot;
+		configuration.execPath = process.execPath;
+		configuration.userEnv = userEnv;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.extensionsToInstall = extensionsToInstall;
-		configuration.appRoot = this.envService.appRoot;
-		configuration.execPath = process.execPath;
-		configuration.appSettingsHome = this.envService.appSettingsHome;
-		configuration.userExtensionsHome = this.envService.userExtensionsHome;
-		configuration.userEnv = userEnv;
 
 		const recents = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
 		configuration.recentFiles = recents.files;
