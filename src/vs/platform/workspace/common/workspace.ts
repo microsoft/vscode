@@ -124,7 +124,6 @@ export interface IEnvironment {
 
 	logExtensionHostCommunication: boolean;
 	debugBrkFileWatcherPort: number;
-	verboseLogging: boolean;
 	enablePerformance: boolean;
 
 	userExtensionsHome: string;
