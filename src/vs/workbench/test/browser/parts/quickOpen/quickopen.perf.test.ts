@@ -21,7 +21,8 @@ import {QuickOpenHandler, IQuickOpenRegistry, Extensions} from 'vs/workbench/bro
 import {Registry} from 'vs/platform/platform';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {TestConfiguration, TestEditorService, TestEditorGroupService} from 'vs/test/utils/servicesTestUtils';
+import {TestEnvironmentService, TestConfiguration, TestEditorService, TestEditorGroupService} from 'vs/test/utils/servicesTestUtils';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import * as Timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
@@ -51,13 +52,14 @@ suite('QuickOpen performance', () => {
 				mtime: null
 			}, TestConfiguration),
 
-			telemetryService: telemetryService
+			telemetryService
 		};
 
 		const services = ensureStaticPlatformServices(overrides);
 		const instantiationService = services.instantiationService.createChild(new ServiceCollection(
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
+			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
 			[ISearchService, createSyncDescriptor(SearchService)]
 		));

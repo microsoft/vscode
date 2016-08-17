@@ -11,6 +11,16 @@ export interface IPackageConfiguration {
 	version: string;
 }
 
-const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
-const packageJsonPath = path.join(rootPath, 'package.json');
-export default require.__$__nodeRequire(packageJsonPath) as IPackageConfiguration;
+let pkg: IPackageConfiguration;
+try {
+	const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
+	const packageJsonPath = path.join(rootPath, 'package.json');
+	pkg = require.__$__nodeRequire(packageJsonPath) as IPackageConfiguration;
+} catch (error) {
+	pkg = {
+		name: 'code-oss-dev',
+		version: '1.x.x'
+	};
+}
+
+export default pkg;

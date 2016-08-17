@@ -139,7 +139,7 @@ function openWorkbench(args: ParsedArgs, workspace: IWorkspace, configuration: I
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(args);
 	const contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
-	const configurationService = new ConfigurationService(contextService, eventService);
+	const configurationService = new ConfigurationService(contextService, eventService, environmentService);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers

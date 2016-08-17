@@ -15,6 +15,7 @@ import {IConfigFile} from 'vs/platform/configuration/common/model';
 import objects = require('vs/base/common/objects');
 import {IStat, IContent, ConfigurationService as CommonConfigurationService} from 'vs/platform/configuration/common/configurationService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -31,7 +32,8 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	constructor(
 		contextService: IWorkspaceContextService,
-		eventService: IEventService
+		eventService: IEventService,
+		private environmentService: IEnvironmentService
 	) {
 		super(contextService, eventService);
 
@@ -120,8 +122,8 @@ export class ConfigurationService extends CommonConfigurationService {
 	}
 
 	public setUserConfiguration(key: any, value: any) : Thenable<void> {
-		const appSettingsPath = this.contextService.getConfiguration().env.appSettingsPath;
-		
+		const appSettingsPath = this.environmentService.appSettingsPath;
+
 		return readFile(appSettingsPath, 'utf8').then(content => {
 			const {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
 			const path: JSONPath = typeof key === 'string' ? (<string> key).split('.') : <JSONPath> key;
