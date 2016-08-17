@@ -404,7 +404,7 @@ function _settingsToStatements(settings: ThemeSettingStyle): string {
 			case 'fontStyle':
 				let segments = value.split(' ');
 				segments.forEach(s => {
-					switch (value) {
+					switch (s) {
 						case 'italic':
 							statements.push(`font-style: italic;`);
 							break;
