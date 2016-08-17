@@ -1,11 +1,21 @@
 ## Contributing Issues
 
 ### Before Submitting an Issue
-First, please do a search in open issues to see if the issue or feature request has already been filed. If there is an issue add your comments to this issue.
+First, please do a search in [open issues](https://github.com/Microsoft/vscode/issues) to see if the issue or feature request has already been filed. Use this [query](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) to search for the most popular issues. 
 
-The Code project is distributed across multiple repositories, try to file the issue against the correct repository [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects).
+If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments).
+
+> Note: Use the reaction in place of "+1" comment. 
+ 
+👍 - upvote
+
+👎 - downvote
+
+The VS Code project is distributed across multiple repositories, try to file the issue against the correct repository [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects).
 
 If your issue is a question then please ask the question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`.
+
+If you cannot find an existing issue that describes your feature, submit an issue using the guidelines below. 
 
 ## Writing Good Bug Reports and Feature Requests
 
