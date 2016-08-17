@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
@@ -27,6 +26,4 @@ export interface IEnvironmentService {
 	verbose: boolean;
 
 	debugBrkFileWatcherPort: number;
-
-	createPaths(): TPromise<void>;
 }

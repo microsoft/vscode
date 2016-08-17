@@ -30,6 +30,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import {mkdirp} from 'vs/base/node/pfs';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -151,7 +152,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 	return instantiationService.invokeFunction(accessor => {
 		const envService = accessor.get(IEnvironmentService);
 
-		return envService.createPaths().then(() => {
+		return TPromise.join([envService.userHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
 			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = envService;
 
 			const services = new ServiceCollection();

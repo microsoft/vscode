@@ -9,10 +9,8 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import * as os from 'os';
 import * as path from 'path';
-import {mkdirp} from 'vs/base/node/pfs';
 import {ParsedArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
 
 export class EnvironmentService implements IEnvironmentService {
 
@@ -60,11 +58,5 @@ export class EnvironmentService implements IEnvironmentService {
 		this._extensionsPath = path.normalize(this._extensionsPath);
 
 		this._extensionDevelopmentPath = argv.extensionDevelopmentPath;
-	}
-
-	createPaths(): TPromise<void> {
-		const promises = [this.userHome, this.extensionsPath].map(p => mkdirp(p));
-
-		return TPromise.join(promises) as TPromise<any>;
 	}
 }
