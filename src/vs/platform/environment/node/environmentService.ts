@@ -11,6 +11,8 @@ import * as path from 'path';
 import {ParsedArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
 
+// TODO@Ben TODO@Joao this interface should be composed once the main => renderer
+// communication is also fit for that
 export interface IEnvironment extends ParsedArgs {
 	execPath: string;
 }

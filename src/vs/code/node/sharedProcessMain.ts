@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product';
+import * as objects from 'vs/base/common/objects';
 import pkg from 'vs/platform/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -58,7 +59,7 @@ function main(server: Server): void {
 	const services = new ServiceCollection();
 
 	services.set(IEventService, new SyncDescriptor(EventService));
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv)));
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, objects.assign(parseArgs(process.argv), { execPath: process.execPath })));
 	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
