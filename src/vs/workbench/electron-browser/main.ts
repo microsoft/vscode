@@ -52,41 +52,40 @@ export interface IMainEnvironment extends IEnvironment {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	extensionsToInstall?: string[];
-	userEnv: { [key: string]: string; };
 }
 
-export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
+export function startup(configuration: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
 
 	// Args (TODO@Ben clean up explicit overwrite of args)
 	const parsedArgs = parseArgs(process.argv);
-	if (typeof environment.extensionDevelopmentPath === 'string') {
-		parsedArgs.extensionDevelopmentPath = environment.extensionDevelopmentPath;
+	if (typeof configuration.extensionDevelopmentPath === 'string') {
+		parsedArgs.extensionDevelopmentPath = configuration.extensionDevelopmentPath;
 	}
 
 	// Shell Configuration
 	const shellConfiguration: IConfiguration = {
-		env: environment
+		env: configuration
 	};
 
 	// Shell Options
-	const filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
-	const filesToCreate = environment.filesToCreate && environment.filesToCreate.length ? toInputs(environment.filesToCreate) : null;
-	const filesToDiff = environment.filesToDiff && environment.filesToDiff.length ? toInputs(environment.filesToDiff) : null;
+	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
+	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
+	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
 	const shellOptions: IOptions = {
-		singleFileMode: !environment.workspacePath,
+		singleFileMode: !configuration.workspacePath,
 		filesToOpen: filesToOpen,
 		filesToCreate: filesToCreate,
 		filesToDiff: filesToDiff,
-		extensionsToInstall: environment.extensionsToInstall,
+		extensionsToInstall: configuration.extensionsToInstall,
 		globalSettings: globalSettings
 	};
 
-	if (environment.enablePerformance) {
+	if (configuration.enablePerformance) {
 		timer.ENABLE_TIMER = true;
 	}
 
 	// Open workbench
-	return openWorkbench(parsedArgs, getWorkspace(environment), shellConfiguration, shellOptions);
+	return openWorkbench(parsedArgs, getWorkspace(configuration.workspacePath), shellConfiguration, shellOptions);
 }
 
 function toInputs(paths: IPath[]): IResourceInput[] {
@@ -108,12 +107,12 @@ function toInputs(paths: IPath[]): IResourceInput[] {
 	});
 }
 
-function getWorkspace(environment: IMainEnvironment): IWorkspace {
-	if (!environment.workspacePath) {
+function getWorkspace(workspacePath: string): IWorkspace {
+	if (!workspacePath) {
 		return null;
 	}
 
-	let realWorkspacePath = path.normalize(fs.realpathSync(environment.workspacePath));
+	let realWorkspacePath = path.normalize(fs.realpathSync(workspacePath));
 	if (paths.isUNC(realWorkspacePath) && strings.endsWith(realWorkspacePath, paths.nativeSep)) {
 		// for some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
