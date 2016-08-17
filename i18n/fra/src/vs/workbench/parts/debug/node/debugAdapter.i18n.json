@@ -11,5 +11,6 @@
 	"debugRequest": "Type de requête de configuration. Il peut s'agir de \"launch\" ou \"attach\".",
 	"debugType": "Type de configuration.",
 	"debugWindowsConfiguration": "Attributs de configuration de lancement spécifiques à Windows.",
+	"internalConsoleOptions": "Contrôle le comportement de la console de débogage interne.",
 	"relativePathsNotConverted": "Les chemins relatifs ne sont plus convertis automatiquement en chemins absolus. Utilisez ${workspaceRoot} comme préfixe."
 }

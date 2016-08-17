@@ -9,7 +9,7 @@
 	"gitAutoFetch": "Si la búsqueda automática está habilitada.",
 	"gitAutoRefresh": "Indica si la actualización automática está habilitada",
 	"gitCommands": "Comandos Git",
-	"gitConfigurationTitle": "Configuración Git",
+	"gitConfigurationTitle": "Git",
 	"gitEnabled": "Habilitado para GIT",
 	"gitLargeRepos": "Permitir siempre que Code administre grandes repositorios.",
 	"gitLongCommit": "Si se debe advertir sobre los mensajes de confirmación largos.",

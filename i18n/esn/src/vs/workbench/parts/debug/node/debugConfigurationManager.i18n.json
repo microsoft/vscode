@@ -6,7 +6,7 @@
 {
 	"DebugConfig.failed": "No se puede crear el archivo \"launch.json\" dentro de la carpeta \".vscode\" ({0}).",
 	"app.launch.json.configurations": "Lista de configuraciones. Agregue configuraciones nuevas o edite las ya existentes.",
-	"app.launch.json.title": "Iniciar configuración",
+	"app.launch.json.title": "Iniciar",
 	"app.launch.json.version": "Versión de este formato de archivo.",
 	"debugNoType": "El valor \"type\" del adaptador de depuración no se puede omitir y debe ser de tipo \"string\".",
 	"duplicateDebuggerType": "El tipo de depuración '{0}' ya está registrado y tiene el atributo '{1}', se ignora el atributo '{1}'.",

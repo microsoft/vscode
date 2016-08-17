@@ -11,5 +11,6 @@
 	"indentationToSpaces": "Convertir sangría en espacios",
 	"indentationToTabs": "Convertir sangría en tabulaciones",
 	"selectTabWidth": "Seleccionar tamaño de tabulación para el archivo actual",
+	"toggleRenderControlCharacters": "Alternar caracteres de control",
 	"toggleRenderWhitespace": "Alternar representación de espacio en blanco"
 }

@@ -6,6 +6,7 @@
 {
 	"canNotRunPlaceholder": "Dieser Handler zum schnellen Öffnen kann im aktuellen Kontext nicht verwendet werden.",
 	"emptyPicks": "Es sind keine Einträge zur Auswahl verfügbar.",
+	"entryAriaLabel": "{0}, zuletzt geöffnet",
 	"historyMatches": "zuletzt geöffnet",
 	"inputModeEntry": "Drücken Sie die EINGABETASTE, um Ihre Eingabe zu bestätigen, oder ESC, um den Vorgang abzubrechen.",
 	"inputModeEntryDescription": "{0} (Drücken Sie die EINGABETASTE zur Bestätigung oder ESC, um den Vorgang abzubrechen.)",

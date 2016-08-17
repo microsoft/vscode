@@ -7,7 +7,5 @@
 	"createFile": "Créer un fichier",
 	"fileEditorAriaLabel": "Éditeur de fichier texte.",
 	"fileEditorWithInputAriaLabel": "{0}. Éditeur de fichier texte.",
-	"fileTooLarge": "Nous sommes désolés, mais le fichier est trop grand pour pouvoir être ouvert dans un éditeur.",
-	"folderOutofWorkspace": "Le dossier '{0}' est situé en dehors du dossier racine actuellement ouvert. Impossible de l'ouvrir dans cette instance.",
 	"textFileEditor": "Éditeur de fichier texte"
 }

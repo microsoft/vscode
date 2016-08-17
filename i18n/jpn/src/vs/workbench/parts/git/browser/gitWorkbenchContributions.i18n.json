@@ -9,7 +9,7 @@
 	"gitAutoFetch": "自動フェッチの有効/無効。",
 	"gitAutoRefresh": "自動更新が有効かどうか",
 	"gitCommands": "Git コマンド",
-	"gitConfigurationTitle": "Git 構成",
+	"gitConfigurationTitle": "Git",
 	"gitEnabled": "は Git 対応です",
 	"gitLargeRepos": "Code による大規模なリポジトリの管理を常に許可します。",
 	"gitLongCommit": "長いコミット メッセージを警告するかどうか。",

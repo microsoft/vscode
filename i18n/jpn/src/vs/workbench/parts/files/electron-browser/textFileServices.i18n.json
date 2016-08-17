@@ -7,9 +7,11 @@
 	"allFiles": "すべてのファイル",
 	"cancel": "キャンセル",
 	"dontSave": "保存しない(&&N)",
+	"moreFile": "...1 つの追加ファイルが表示されていません",
+	"moreFiles": "...{0} 個の追加ファイルが表示されていません",
 	"save": "保存する(&&S)",
 	"saveAll": "すべて保存(&&S)",
 	"saveChangesDetail": "保存しないと変更内容が失われます。",
 	"saveChangesMessage": "{0} に加えた変更を保存しますか?",
-	"saveChangesMessages": "次のファイルに対する変更を保存しますか?"
+	"saveChangesMessages": "次の {0} ファイルに対する変更を保存しますか?"
 }

@@ -6,7 +6,7 @@
 {
 	"DebugConfig.failed": "'launch.json' ファイルを '.vscode' フォルダー ({0}) 内に作成できません。",
 	"app.launch.json.configurations": "構成の一覧。新しい構成を追加したり、既存の構成を編集したります。",
-	"app.launch.json.title": "起動構成",
+	"app.launch.json.title": "起動",
 	"app.launch.json.version": "このファイル形式のバージョン。",
 	"debugNoType": "デバッグ アダプター 'type' は省略不可で、型 'string' でなければなりません。",
 	"duplicateDebuggerType": "デバッグの種類 '{0}' は既に登録されており、属性 '{1}' があります、属性 '{1}' は無視されます。",

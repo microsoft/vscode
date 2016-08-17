@@ -6,6 +6,7 @@
 {
 	"canNotRunPlaceholder": "이 빠른 열기 처리기는 현재 컨텍스트에서 사용할 수 없습니다.",
 	"emptyPicks": "선택할 항목이 없습니다.",
+	"entryAriaLabel": "{0}, 최근에 사용한 항목",
 	"historyMatches": "최근에 사용한 항목",
 	"inputModeEntry": "입력을 확인하려면 'Enter' 키를 누르고, 취소하려면 'Esc' 키를 누르세요.",
 	"inputModeEntryDescription": "{0}(확인하려면 'Enter' 키를 누르고, 취소하려면 'Escape' 키를 누름)",

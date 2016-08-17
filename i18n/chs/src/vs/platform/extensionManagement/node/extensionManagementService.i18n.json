@@ -8,7 +8,6 @@
 	"invalidName": "扩展无效: 清单名不匹配。",
 	"invalidPublisher": "扩展无效: 清单发布服务器不匹配。",
 	"invalidVersion": "扩展无效: 清单版本不匹配。",
-	"missingGalleryInformation": "库信息缺失",
 	"noCompatible": "找不到可与此代码版本兼容的 {0} 版本。",
 	"notExists": "找不到扩展",
 	"restartCode": "请先重启 Code 再重新安装 {0}。"

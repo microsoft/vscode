@@ -20,6 +20,7 @@
 	"deleteButtonLabel": "삭제(&&D)",
 	"deleteButtonLabelRecycleBin": "휴지통으로 이동(&&M)",
 	"deleteButtonLabelTrash": "휴지통으로 이동(&&M)",
+	"dirtyWarning": "변경 내용을 저장하지 않은 경우 변경 내용이 손실됩니다.",
 	"duplicateFile": "중복",
 	"emptyFileNameError": "파일 또는 폴더 이름을 입력해야 합니다.",
 	"fileNameExistsError": "파일 또는 폴더 **{0}**이(가) 이 위치에 이미 있습니다. 다른 이름을 선택하세요.",
@@ -53,6 +54,5 @@
 	"showInExplorer": "탐색기에서 활성 파일 표시",
 	"unableToFileToCompare": "선택한 파일을 '{0}'과(와) 비교할 수 없습니다.",
 	"undoBin": "휴지통에서 복원할 수 있습니다.",
-	"undoTrash": "휴지통에서 복원할 수 있습니다.",
-	"warningFileDirty": "현재 '{0}' 파일을 저장하고 있습니다. 나중에 다시 시도하세요."
+	"undoTrash": "휴지통에서 복원할 수 있습니다."
 }

@@ -6,6 +6,7 @@
 {
 	"canNotRunPlaceholder": "Este controlador de apertura rápida no se puede usar en el contexto actual",
 	"emptyPicks": "No hay entradas para seleccionar",
+	"entryAriaLabel": "{0}, abiertos recientemente",
 	"historyMatches": "abiertos recientemente",
 	"inputModeEntry": "Presione \"Entrar\" para confirmar su entrada o \"Esc\" para cancelar",
 	"inputModeEntryDescription": "{0} (Presione \"Entrar\" para confirmar o \"Esc\" para cancelar)",

@@ -11,6 +11,8 @@
 	"gitCommands": "Comandi GIT",
 	"gitConfigurationTitle": "GIT",
 	"gitEnabled": "GIT abilitato",
+	"gitLargeRepos": "Consente a Code di gestire sempre i repository di grandi dimensioni.",
+	"gitLongCommit": "Indica se visualizzare un avviso in caso di messaggi di commit lunghi.",
 	"gitPath": "Percorso dell'eseguibile di GIT",
 	"gitPendingChangesBadge": "{0} modifiche in sospeso",
 	"gitProgressBadge": "Stato di esecuzione GIT",

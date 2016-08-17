@@ -11,11 +11,13 @@
 	"installExtensions": "Installa estensioni",
 	"installing": "Installazione",
 	"postUninstallMessage": "{0} è stato disinstallato. Riavviare per disattivarlo.",
+	"restart": "Per abilitare questa estensione, è necessario riavviare questa finestra di Visual Studio Code.\n\nContinuare?",
 	"restartNow": "Riavvia ora",
 	"showInstalledExtensions": "Mostra estensioni installate",
 	"showOutdatedExtensions": "Mostra estensioni obsolete",
 	"showPopularExtensions": "Mostra estensioni più richieste",
 	"showRecommendedExtensions": "Mostra estensioni consigliate",
+	"toggleExtensionsViewlet": "Mostra estensioni",
 	"uninstall": "Disinstalla",
 	"updateAction": "Aggiorna"
 }

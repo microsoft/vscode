@@ -7,7 +7,7 @@
 	"derivedDescription": "Ordnet Dateien zu, die gleichgeordnete Elemente mit dem gleichen Namen und einer anderen Erweiterung besitzen.",
 	"derivedLabel": "Dateien mit gleichgeordneten Elementen nach Name",
 	"falseDescription": "Deaktiviert das Muster.",
-	"falseLabel": "False",
+	"falseLabel": "false",
 	"fileDescription": "Ordnet alle Dateien mit einer bestimmten Erweiterung zu.",
 	"fileLabel": "Dateien nach Erweiterung",
 	"filesDescription": "Ordnet alle Dateien mit einer der Dateierweiterungen zu.",
@@ -20,5 +20,5 @@
 	"topFoldersDescription": "Ordnet mehrere Ordner auf oberster Ebene zu.",
 	"topFoldersLabel": "Ordner mit mehreren Namen (oberste Ebene)",
 	"trueDescription": "Aktiviert das Muster.",
-	"trueLabel": "True"
+	"trueLabel": "true"
 }

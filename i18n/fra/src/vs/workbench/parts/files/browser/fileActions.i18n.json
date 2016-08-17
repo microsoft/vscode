@@ -20,6 +20,7 @@
 	"deleteButtonLabel": "S&&upprimer",
 	"deleteButtonLabelRecycleBin": "&&Déplacer vers la Corbeille",
 	"deleteButtonLabelTrash": "&&Déplacer vers la Poubelle",
+	"dirtyWarning": "Vous perdrez vos modifications, si vous ne les enregistrez pas.",
 	"duplicateFile": "Doublon",
 	"emptyFileNameError": "Un nom de fichier ou de dossier doit être fourni.",
 	"fileNameExistsError": "Un fichier ou dossier **{0}** existe déjà à cet emplacement. Choisissez un autre nom.",
@@ -53,6 +54,5 @@
 	"showInExplorer": "Afficher le fichier actif dans l'Explorateur",
 	"unableToFileToCompare": "Impossible de comparer le fichier sélectionné à '{0}'.",
 	"undoBin": "Vous pouvez effectuer une restauration à partir de la Corbeille.",
-	"undoTrash": "Vous pouvez effectuer une restauration à partir de la Poubelle.",
-	"warningFileDirty": "Le fichier '{0}' est en cours d'enregistrement, réessayez ultérieurement."
+	"undoTrash": "Vous pouvez effectuer une restauration à partir de la Poubelle."
 }

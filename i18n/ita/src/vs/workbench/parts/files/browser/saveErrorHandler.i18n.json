@@ -13,8 +13,8 @@
 	"readonlySaveError": "Non è stato possibile salvare '{0}': il file è protetto da scrittura. Selezionare 'Sovrascrivi' per rimuovere la protezione.",
 	"resolveSaveConflict": "{0} - Risolvi conflitto di salvataggio",
 	"retry": "Riprova",
-	"revertLocalChanges": "Rimuovi modifiche locali e ripristina contenuto su disco",
+	"revertLocalChanges": "Ripristina",
 	"saveConflictDiffLabel": "{0} - su disco ↔ in {1}",
 	"staleSaveError": "Non è stato possibile salvare '{0}': il contenuto sul disco è più recente. Fare clic su **Confronta** per confrontare la versione corrente con quella sul disco.",
-	"userGuide": "Usare le azioni della barra degli strumenti dell'editor per **annullare** le modifiche oppure **sovrascrivere** il contenuto su disco con le modifiche"
+	"userGuide": "Selezionare **Ripristina** per annullare le modifiche oppure **Sovrascrivi** per sostituire il contenuto su disco con le modifiche"
 }

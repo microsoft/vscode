@@ -8,6 +8,7 @@
 	"defaultKeybindingsHeader": "Überschreiben Sie Tastenbindungen, indem Sie sie in die Tastenbindungsdatei einfügen.",
 	"defaultName": "Standardeinstellungen",
 	"defaultSettingsHeader": "Überschreiben Sie Einstellungen, indem Sie sie in die Einstellungsdatei einfügen.",
+	"defaultSettingsHeader2": "Unter http://go.microsoft.com/fwlink/?LinkId=808995 finden Sie die am häufigsten verwendeten Einstellungen.",
 	"emptyKeybindingsHeader": "Platzieren Sie Ihre Tastenbindungen in dieser Datei, um die Standardwerte zu überschreiben.",
 	"emptySettingsHeader": "Platzieren Sie Ihre Einstellungen in dieser Datei, um die Standardeinstellungen zu überschreiben.",
 	"emptySettingsHeader1": "Platzieren Sie Ihre Einstellungen in dieser Datei, um Standard- und Benutzereinstellungen zu überschreiben.",

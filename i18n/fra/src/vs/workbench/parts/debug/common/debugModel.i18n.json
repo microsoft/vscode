@@ -6,5 +6,6 @@
 {
 	"snapshotObj": "Seules les valeurs primitives sont affichées pour cet objet.",
 	"startDebugFirst": "Démarrez une session de débogage pour évaluation",
+	"unknownSource": "Source inconnue",
 	"unknownStack": "Emplacement de pile inconnu"
 }

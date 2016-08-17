@@ -9,10 +9,9 @@
 	"exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
 	"findInFolder": "Buscar en carpeta",
 	"name": "Búsqueda",
-	"openAnythingHandlerDescription": "Abrir archivos y símbolos por nombre",
-	"openSymbolDescriptionNormal": "Abrir símbolo por nombre",
-	"searchConfigurationTitle": "Configuración de búsqueda",
-	"showSearchViewlet": "Mostrar búsqueda",
+	"openAnythingHandlerDescription": "Abrir archivos y símbolos globales por nombre",
+	"openSymbolDescriptionNormal": "Abrir cualquier símbolo por nombre",
+	"searchConfigurationTitle": "Buscar",
 	"showTriggerActions": "Mostrar todos los símbolos",
 	"view": "Ver"
 }

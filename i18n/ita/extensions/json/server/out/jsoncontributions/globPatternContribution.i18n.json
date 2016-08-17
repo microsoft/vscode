@@ -7,7 +7,7 @@
 	"derivedDescription": "Trova file con elementi di pari livello e nome identico ma estensione diversa.",
 	"derivedLabel": "File con elementi di pari livello in base al nome",
 	"falseDescription": "Disabilita il criterio.",
-	"falseLabel": "False",
+	"falseLabel": "false",
 	"fileDescription": "Trova tutti i file di un'estensione di file specifica.",
 	"fileLabel": "File in base all'estensione",
 	"filesDescription": "Trova tutti i file con qualsiasi estensione di file.",
@@ -20,5 +20,5 @@
 	"topFoldersDescription": "Trova più cartelle di primo livello.",
 	"topFoldersLabel": "Cartella con più nomi (primo livello)",
 	"trueDescription": "Abilita il criterio.",
-	"trueLabel": "True"
+	"trueLabel": "true"
 }

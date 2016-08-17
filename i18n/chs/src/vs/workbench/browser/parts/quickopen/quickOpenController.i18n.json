@@ -6,6 +6,7 @@
 {
 	"canNotRunPlaceholder": "在当前上下文中无法使用此快速打开处理程序",
 	"emptyPicks": "无条目可供选取",
+	"entryAriaLabel": "{0}，最近打开",
 	"historyMatches": "最近打开",
 	"inputModeEntry": "按 \"Enter\" 以确认或按 \"Esc\" 以取消",
 	"inputModeEntryDescription": "{0} (按 \"Enter\" 以确认或按 \"Esc\" 以取消)",

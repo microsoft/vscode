@@ -6,7 +6,7 @@
 {
 	"DebugConfig.failed": "無法在 '.vscode' 資料夾 ({0}) 中建立 'launch.json' 檔案。",
 	"app.launch.json.configurations": "組態清單。請加入新的組態或編輯現有的組態。",
-	"app.launch.json.title": "啟動組態",
+	"app.launch.json.title": "啟動",
 	"app.launch.json.version": "此檔案格式的版本。",
 	"debugNoType": "偵錯配接器 'type' 不能省略且必須屬於 'string' 類型。",
 	"duplicateDebuggerType": "偵錯類型 '{0}' 已註冊並具有屬性 '{1}'，即將略過屬性 '{1}'。",

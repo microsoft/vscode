@@ -11,5 +11,6 @@
 	"indentationToSpaces": "ID를 공백으로 변환",
 	"indentationToTabs": "ID를 탭으로 변환",
 	"selectTabWidth": "현재 파일의 탭 크기 선택",
+	"toggleRenderControlCharacters": "제어 문자 설정/해제",
 	"toggleRenderWhitespace": "공백 토글 및 렌더링"
 }

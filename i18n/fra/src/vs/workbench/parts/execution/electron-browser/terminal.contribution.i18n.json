@@ -11,5 +11,5 @@
 	"terminal.external.linuxExec": "Personnalise le terminal à exécuter sur Linux.",
 	"terminal.external.osxExec": "Personnalise l'application de terminal à exécuter sur OS X.",
 	"terminal.external.windowsExec": "Personnalise le terminal à exécuter sur Windows.",
-	"terminalConfigurationTitle": "Configuration du terminal"
+	"terminalConfigurationTitle": "Terminal externe"
 }
