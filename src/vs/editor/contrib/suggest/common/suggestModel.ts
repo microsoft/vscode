@@ -182,6 +182,7 @@ export class SuggestModel implements IDisposable {
 		this.context = null;
 
 		this.toDispose = [];
+		this.toDispose.push(this._onDidAccept, this._onDidCancel, this._onDidSuggest, this._onDidTrigger);
 		this.toDispose.push(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this.toDispose.push(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.cancel()));
@@ -189,7 +190,7 @@ export class SuggestModel implements IDisposable {
 		this.onEditorConfigurationChange();
 	}
 
-	cancel(silent: boolean = false, retrigger: boolean = false): boolean {
+	cancel(retrigger: boolean = false): boolean {
 		const actuallyCanceled = this.state !== State.Idle;
 
 		if (this.triggerAutoSuggestPromise) {
@@ -208,10 +209,7 @@ export class SuggestModel implements IDisposable {
 		this.incomplete = false;
 		this.context = null;
 
-		if (!silent) {
-			this._onDidCancel.fire({ retrigger });
-		}
-
+		this._onDidCancel.fire({ retrigger });
 		return actuallyCanceled;
 	}
 
@@ -295,7 +293,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		// Cancel previous requests, change state & update UI
-		this.cancel(false, retrigger);
+		this.cancel(retrigger);
 		this.state = auto ? State.Auto : State.Manual;
 		this._onDidTrigger.fire({ auto: this.isAutoSuggest() });
 
@@ -388,7 +386,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		this.cancel(true);
 		this.toDispose = dispose(this.toDispose);
+		this.cancel();
 	}
 }
