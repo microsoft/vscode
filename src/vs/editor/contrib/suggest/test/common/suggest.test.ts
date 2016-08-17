@@ -51,7 +51,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet inline', function () {
-		return provideSuggestionItems(model, new Position(1, 1), { snippetConfig: 'inline' }).then(items => {
+		return provideSuggestionItems(model, new Position(1, 1), 'inline').then(items => {
 			assert.equal(items.length, 3);
 			assert.equal(items[0].suggestion.label, 'aaa');
 			assert.equal(items[1].suggestion.label, 'fff');
@@ -60,7 +60,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet top', function () {
-		return provideSuggestionItems(model, new Position(1, 1), { snippetConfig: 'top' }).then(items => {
+		return provideSuggestionItems(model, new Position(1, 1), 'top').then(items => {
 			assert.equal(items.length, 3);
 			assert.equal(items[0].suggestion.label, 'aaa');
 			assert.equal(items[1].suggestion.label, 'zzz');
@@ -69,7 +69,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet bottom', function () {
-		return provideSuggestionItems(model, new Position(1, 1), { snippetConfig: 'bottom' }).then(items => {
+		return provideSuggestionItems(model, new Position(1, 1), 'bottom').then(items => {
 			assert.equal(items.length, 3);
 			assert.equal(items[0].suggestion.label, 'fff');
 			assert.equal(items[1].suggestion.label, 'aaa');
@@ -78,9 +78,35 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet none', function () {
-		return provideSuggestionItems(model, new Position(1, 1), { snippetConfig: 'none' }).then(items => {
+		return provideSuggestionItems(model, new Position(1, 1), 'none').then(items => {
 			assert.equal(items.length, 1);
 			assert.equal(items[0].suggestion.label, 'fff');
+		});
+	});
+
+	test('only from', function () {
+
+		const foo: any = {
+			triggerCharacters: [],
+			provideCompletionItems() {
+				return {
+					currentWord: '',
+					incomplete: false,
+					suggestions: [{
+						label: 'jjj',
+						type: 'property',
+						insertText: 'jjj'
+					}]
+				};
+			}
+		};
+		const registration = SuggestRegistry.register({ pattern: 'bar/path' }, foo);
+
+		provideSuggestionItems(model, new Position(1, 1), undefined, [foo]).then(items => {
+			registration.dispose();
+
+			assert.equal(items.length, 1);
+			assert.ok(items[0].support === foo);
 		});
 	});
 });

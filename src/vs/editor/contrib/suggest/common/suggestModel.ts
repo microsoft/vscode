@@ -21,8 +21,6 @@ export interface ICancelEvent {
 
 export interface ITriggerEvent {
 	auto: boolean;
-	characterTriggered: boolean;
-	retrigger: boolean;
 }
 
 export interface ISuggestEvent {
@@ -263,7 +261,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 		} else if (this.raw && this.incomplete) {
-			this.trigger(this.state === State.Auto, undefined, true);
+			this.trigger(this.state === State.Auto, true);
 		} else {
 			this.onNewContext(ctx);
 		}
@@ -279,20 +277,14 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		this.trigger(this.state === State.Auto, undefined, true);
+		this.trigger(this.state === State.Auto, true);
 	}
 
-	trigger(auto: boolean, triggerCharacter?: string, retrigger: boolean = false, groups?: ISuggestSupport[][]): void {
+	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[]): void {
+
 		const model = this.editor.getModel();
 
 		if (!model) {
-			return;
-		}
-
-		const characterTriggered = !!triggerCharacter;
-		groups = groups || SuggestRegistry.orderedGroups(model);
-
-		if (groups.length === 0) {
 			return;
 		}
 
@@ -304,15 +296,15 @@ export class SuggestModel implements IDisposable {
 
 		// Cancel previous requests, change state & update UI
 		this.cancel(false, retrigger);
-		this.state = (auto || characterTriggered) ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto: this.isAutoSuggest(), characterTriggered, retrigger });
+		this.state = auto ? State.Auto : State.Manual;
+		this._onDidTrigger.fire({ auto: this.isAutoSuggest() });
 
 		// Capture context when request was sent
 		this.context = ctx;
 
-		const position = this.editor.getPosition();
+		this.requestPromise = provideSuggestionItems(model, this.editor.getPosition(),
+			this.editor.getConfiguration().contribInfo.snippetSuggestions, onlyFrom).then(all => {
 
-		this.requestPromise = provideSuggestionItems(model, position, { groups, snippetConfig: this.editor.getConfiguration().contribInfo.snippetSuggestions }).then(all => {
 			this.requestPromise = null;
 
 			if (this.state === State.Idle) {
@@ -335,7 +327,7 @@ export class SuggestModel implements IDisposable {
 	private onNewContext(ctx: Context): void {
 		if (this.context && this.context.isDifferentContext(ctx)) {
 			if (this.context.shouldRetrigger(ctx)) {
-				this.trigger(this.state === State.Auto, undefined, true);
+				this.trigger(this.state === State.Auto, true);
 			} else {
 				this.cancel();
 			}
