@@ -5,6 +5,8 @@
 'use strict';
 
 import {onUnexpectedError} from 'vs/base/common/errors';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { forEach } from 'vs/base/common/collections';
 import Event, { Emitter } from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
@@ -140,8 +142,9 @@ enum State {
 
 export class SuggestModel implements IDisposable {
 
-	private toDispose: IDisposable[];
-	private autoSuggestDelay: number;
+	private toDispose: IDisposable[] = [];
+	private quickSuggestDelay: number;
+	private triggerCharacterListeners: IDisposable[] = [];
 
 	private triggerAutoSuggestPromise: TPromise<void>;
 	private state: State;
@@ -171,14 +174,82 @@ export class SuggestModel implements IDisposable {
 		this.incomplete = false;
 		this.context = null;
 
-		this.toDispose = [];
-		this.toDispose.push(this._onDidCancel, this._onDidSuggest, this._onDidTrigger);
-		this.toDispose.push(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
-		this.toDispose.push(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
-		this.toDispose.push(this.editor.onDidChangeModel(() => this.cancel()));
-		this.toDispose.push(SuggestRegistry.onDidChange(this.onSuggestRegistryChange, this));
-		this.onEditorConfigurationChange();
+		// wire up various listeners
+		this.toDispose.push(this.editor.onDidChangeModel(() => {
+			this.updateTriggerCharacters();
+			this.cancel();
+		}));
+		this.toDispose.push(editor.onDidChangeModelMode(() => {
+			this.updateTriggerCharacters();
+			this.cancel();
+		}));
+		this.toDispose.push(this.editor.onDidChangeConfiguration(() => {
+			this.updateTriggerCharacters();
+			this.updateQuickSuggest();
+		}));
+		this.toDispose.push(SuggestRegistry.onDidChange(() => {
+			this.updateTriggerCharacters();
+			this.updateActiveSuggestSession();
+		}));
+		this.toDispose.push(this.editor.onDidChangeCursorSelection(e => {
+			this.onCursorChange(e);
+		}));
+
+		this.updateTriggerCharacters();
+		this.updateQuickSuggest();
 	}
+
+	dispose(): void {
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger]);
+		this.toDispose = dispose(this.toDispose);
+		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
+		this.cancel();
+	}
+
+	// --- handle configuration & precondition changes
+
+	private updateQuickSuggest(): void {
+		this.quickSuggestDelay = this.editor.getConfiguration().contribInfo.quickSuggestionsDelay;
+
+		if (isNaN(this.quickSuggestDelay) || (!this.quickSuggestDelay && this.quickSuggestDelay !== 0) || this.quickSuggestDelay < 0) {
+			this.quickSuggestDelay = 10;
+		}
+	}
+
+	private updateTriggerCharacters(): void {
+
+		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
+
+		if (this.editor.getConfiguration().readOnly
+			|| !this.editor.getModel()
+			|| !this.editor.getConfiguration().contribInfo.suggestOnTriggerCharacters) {
+
+			return;
+		}
+
+		const supportsByTriggerCharacter: { [ch: string]: ISuggestSupport[] } = Object.create(null);
+		for (const support of SuggestRegistry.all(this.editor.getModel())) {
+			if (isFalsyOrEmpty(support.triggerCharacters)) {
+				continue;
+			}
+			for (const ch of support.triggerCharacters) {
+				const array = supportsByTriggerCharacter[ch];
+				if (!array) {
+					supportsByTriggerCharacter[ch] = [support];
+				} else {
+					array.push(support);
+				}
+			}
+		}
+
+		forEach(supportsByTriggerCharacter, entry => {
+			this.triggerCharacterListeners.push(this.editor.addTypingListener(entry.key, () => {
+				this.trigger(true, false, entry.value);
+			}));
+		});
+	}
+
+	// --- trigger/retrigger/cancel suggest
 
 	cancel(retrigger: boolean = false): boolean {
 		const actuallyCanceled = this.state !== State.Idle;
@@ -203,8 +274,14 @@ export class SuggestModel implements IDisposable {
 		return actuallyCanceled;
 	}
 
-	private isAutoSuggest(): boolean {
-		return this.state === State.Auto;
+	private updateActiveSuggestSession(): void {
+		if (this.state !== State.Idle) {
+			if (!SuggestRegistry.has(this.editor.getModel())) {
+				this.cancel();
+			} else {
+				this.trigger(this.state === State.Auto, true);
+			}
+		}
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {
@@ -241,7 +318,7 @@ export class SuggestModel implements IDisposable {
 			this.cancel();
 
 			if (ctx.shouldAutoTrigger()) {
-				this.triggerAutoSuggestPromise = TPromise.timeout(this.autoSuggestDelay);
+				this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
 				this.triggerAutoSuggestPromise.then(() => {
 					this.triggerAutoSuggestPromise = null;
 					this.trigger(true);
@@ -253,19 +330,6 @@ export class SuggestModel implements IDisposable {
 		} else {
 			this.onNewContext(ctx);
 		}
-	}
-
-	private onSuggestRegistryChange(): void {
-		if (this.state === State.Idle) {
-			return;
-		}
-
-		if (!SuggestRegistry.has(this.editor.getModel())) {
-			this.cancel();
-			return;
-		}
-
-		this.trigger(this.state === State.Auto, true);
 	}
 
 	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[]): void {
@@ -311,6 +375,10 @@ export class SuggestModel implements IDisposable {
 		}).then(null, onUnexpectedError);
 	}
 
+	private isAutoSuggest(): boolean {
+		return this.state === State.Auto;
+	}
+
 	public getTriggerPosition(): IPosition {
 		const {lineNumber, column} = this.context;
 		return { lineNumber, column };
@@ -354,18 +422,5 @@ export class SuggestModel implements IDisposable {
 				auto: this.isAutoSuggest()
 			});
 		}
-	}
-
-	private onEditorConfigurationChange(): void {
-		this.autoSuggestDelay = this.editor.getConfiguration().contribInfo.quickSuggestionsDelay;
-
-		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay < 0) {
-			this.autoSuggestDelay = 10;
-		}
-	}
-
-	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-		this.cancel();
 	}
 }
