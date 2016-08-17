@@ -27,6 +27,7 @@ export interface IEnvironmentService {
 
 	isBuilt: boolean;
 	verbose: boolean;
+	performance: boolean;
 
 	debugBrkFileWatcherPort: number;
 }

@@ -121,8 +121,6 @@ export interface IEnvironment {
 	disableExtensions: boolean;
 
 	logExtensionHostCommunication: boolean;
-	debugBrkFileWatcherPort: number;
-	enablePerformance: boolean;
 
 	userExtensionsHome: string;
 	sharedIPCHandle: string;
