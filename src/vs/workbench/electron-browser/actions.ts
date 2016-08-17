@@ -382,8 +382,8 @@ export class OpenRecentAction extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		const recentFolders = this.contextService.getConfiguration().env.recentFolders;
-		const recentFiles = this.contextService.getConfiguration().env.recentFiles;
+		const recentFolders = this.contextService.getOptions().recentFolders;
+		const recentFiles =  this.contextService.getOptions().recentFiles;
 
 		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => {
 			return {

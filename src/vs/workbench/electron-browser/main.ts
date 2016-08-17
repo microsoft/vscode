@@ -19,6 +19,7 @@ import {EventService} from 'vs/platform/event/common/eventService';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
+import {IProcessEnvironment} from 'vs/code/electron-main/env';
 import {EnvironmentService, IEnvironment} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import fs = require('fs');
@@ -45,15 +46,25 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IConfiguration extends IEnvironment {
+export interface IWindowConfiguration extends IEnvironment {
+	appRoot: string;
+	execPath: string;
+
+	userEnv: IProcessEnvironment;
+
 	workspacePath?: string;
+
+	recentFiles?: string[];
+	recentFolders?: string[];
+
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
+
 	extensionsToInstall?: string[];
 }
 
-export function startup(configuration: IConfiguration, globalSettings: IGlobalSettings): winjs.TPromise<void> {
+export function startup(configuration: IWindowConfiguration, globalSettings: IGlobalSettings): winjs.TPromise<void> {
 
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
@@ -61,11 +72,13 @@ export function startup(configuration: IConfiguration, globalSettings: IGlobalSe
 	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
 	const shellOptions: IOptions = {
 		singleFileMode: !configuration.workspacePath,
-		filesToOpen: filesToOpen,
-		filesToCreate: filesToCreate,
-		filesToDiff: filesToDiff,
+		filesToOpen,
+		filesToCreate,
+		filesToDiff,
+		recentFiles: configuration.recentFiles,
+		recentFolders: configuration.recentFolders,
 		extensionsToInstall: configuration.extensionsToInstall,
-		globalSettings: globalSettings
+		globalSettings
 	};
 
 	if (configuration.performance) {

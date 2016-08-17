@@ -89,20 +89,21 @@ export interface IPath {
 }
 
 export interface IWindowConfiguration extends ICommandLineArguments {
+	appRoot: string;
+	execPath: string;
 
-	// Used to configure the workbench when opening
+	userEnv: IProcessEnvironment;
+
 	workspacePath?: string;
+
 	recentFiles: string[];
 	recentFolders: string[];
+
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
-	extensionsToInstall: string[];
 
-	// Used to send the main process environment over to the renderer
-	appRoot: string;
-	execPath: string;
-	userEnv: IProcessEnvironment;
+	extensionsToInstall: string[];
 }
 
 export class VSCodeWindow {
