@@ -13,6 +13,7 @@ import pfs = require('vs/base/node/pfs');
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
+import pkg from 'vs/platform/package';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ExtHostAPIImplementation, defineAPI} from 'vs/workbench/api/node/extHost.api.impl';
@@ -163,7 +164,7 @@ export class ExtensionHostMain {
 		let collector = new MessagesCollector();
 		let env = this._contextService.getConfiguration().env;
 
-		return ExtensionHostMain.scanExtensions(collector, BUILTIN_EXTENSIONS_PATH, !env.disableExtensions ? env.userExtensionsHome : void 0, !env.disableExtensions ? env.extensionDevelopmentPath : void 0, env.version)
+		return ExtensionHostMain.scanExtensions(collector, BUILTIN_EXTENSIONS_PATH, !env.disableExtensions ? env.userExtensionsHome : void 0, !env.disableExtensions ? env.extensionDevelopmentPath : void 0, pkg.version)
 			.then(null, err => {
 				collector.error('', err);
 				return [];
