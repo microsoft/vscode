@@ -20,32 +20,15 @@ import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import product, { IProductConfiguration } from 'vs/platform/product';
-import { parseArgs } from 'vs/code/node/argv';
+import { parseArgs, ParsedArgs } from 'vs/code/node/argv';
 import pkg from 'vs/platform/package';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
 }
 
-export interface ICommandLineArguments {
-	verbose: boolean;
-	debugPluginHost: string;
-	debugBrkPluginHost: boolean;
-	debugBrkFileWatcherPort: string;
-	logExtensionHostCommunication: boolean;
-	'disable-extensions': boolean;
-	extensionHomePath: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-	programStart: number;
+export interface ICommandLineArguments extends ParsedArgs {
 	pathArguments?: string[];
-	performance?: boolean;
-	'new-window'?: boolean;
-	'reuse-window'?: boolean;
-	goto?: boolean;
-	diff?: boolean;
-	locale?: string;
-	wait?: boolean;
 }
 
 export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService');
@@ -168,12 +151,13 @@ export class EnvService implements IEnvService {
 		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
 
 		this._cliArgs = Object.freeze({
+			_: [],
 			pathArguments: pathArguments,
-			programStart: types.isNumber(timestamp) ? timestamp : 0,
+			timestamp: types.isNumber(timestamp) ? String(timestamp) : '0',
 			performance: argv.performance,
 			verbose: argv.verbose,
 			debugPluginHost,
-			debugBrkPluginHost: !!debugBrkExtensionHostPort,
+			debugBrkPluginHost: String(!!debugBrkExtensionHostPort),
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
 			debugBrkFileWatcherPort: debugBrkFileWatcherPort ? String(debugBrkFileWatcherPort) : void 0,
 			'new-window': argv['new-window'],

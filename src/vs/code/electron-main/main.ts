@@ -135,7 +135,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	}
 
 	// Set programStart in the global scope
-	global.programStart = envService.cliArgs.programStart;
+	global.programStart = envService.cliArgs.timestamp;
 
 	function dispose() {
 		if (mainIpcServer) {
