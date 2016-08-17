@@ -79,11 +79,11 @@ function main() {
 	var loaderConfig = {
 		nodeRequire: require,
 		nodeMain: __filename,
-		baseUrl: path.join(path.dirname(__dirname)),
+		baseUrl: path.join(path.dirname(__dirname), 'src'),
 		paths: {
-			'vs': out + '/vs',
-			'lib': out + '/lib',
-			'bootstrap': out + '/bootstrap'
+			'vs': `../${ out }/vs`,
+			'lib': `../${ out }/lib`,
+			'bootstrap': `../${ out }/bootstrap`
 		},
 		catchError: true
 	};
