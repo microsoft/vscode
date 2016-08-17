@@ -156,7 +156,7 @@ export class SuggestModel implements IDisposable {
 	private requestPromise: TPromise<void>;
 	private context: Context;
 
-	private raw: ISuggestionItem[];
+	private suggestionItems: ISuggestionItem[];
 	private completionModel: CompletionModel;
 	private incomplete: boolean;
 
@@ -176,7 +176,7 @@ export class SuggestModel implements IDisposable {
 		this.state = State.Idle;
 		this.triggerAutoSuggestPromise = null;
 		this.requestPromise = null;
-		this.raw = null;
+		this.suggestionItems = null;
 		this.completionModel = null;
 		this.incomplete = false;
 		this.context = null;
@@ -204,7 +204,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		this.state = State.Idle;
-		this.raw = null;
+		this.suggestionItems = null;
 		this.completionModel = null;
 		this.incomplete = false;
 		this.context = null;
@@ -258,7 +258,7 @@ export class SuggestModel implements IDisposable {
 				});
 			}
 
-		} else if (this.raw && this.incomplete) {
+		} else if (this.suggestionItems && this.incomplete) {
 			this.trigger(this.state === State.Auto, true);
 		} else {
 			this.onNewContext(ctx);
@@ -301,7 +301,7 @@ export class SuggestModel implements IDisposable {
 		this.context = ctx;
 
 		this.requestPromise = provideSuggestionItems(model, this.editor.getPosition(),
-			this.editor.getConfiguration().contribInfo.snippetSuggestions, onlyFrom).then(all => {
+			this.editor.getConfiguration().contribInfo.snippetSuggestions, onlyFrom).then(items => {
 
 			this.requestPromise = null;
 
@@ -309,16 +309,15 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			this.raw = all;
-			this.incomplete = all.some(result => result.container.incomplete);
-
 			const model = this.editor.getModel();
-
 			if (!model) {
 				return;
 			}
 
+			this.suggestionItems = items;
+			this.incomplete = items.some(result => result.container.incomplete);
 			this.onNewContext(new Context(model, this.editor.getPosition(), auto));
+
 		}).then(null, onUnexpectedError);
 	}
 
@@ -333,11 +332,11 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this.raw) {
+		if (this.suggestionItems) {
 			let auto = this.isAutoSuggest();
 
 			let isFrozen = false;
-			if (this.completionModel && this.completionModel.raw === this.raw) {
+			if (this.completionModel && this.completionModel.raw === this.suggestionItems) {
 				const oldLineContext = this.completionModel.lineContext;
 				this.completionModel.lineContext = {
 					leadingLineContent: ctx.lineContentBefore,
@@ -351,7 +350,7 @@ export class SuggestModel implements IDisposable {
 					isFrozen = true;
 				}
 			} else {
-				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore);
+				this.completionModel = new CompletionModel(this.suggestionItems, ctx.lineContentBefore);
 			}
 
 			this._onDidSuggest.fire({
@@ -363,7 +362,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	accept(suggestion: ISuggestion, overwriteBefore: number, overwriteAfter: number): boolean {
-		if (this.raw === null) {
+		if (this.suggestionItems === null) {
 			return false;
 		}
 
