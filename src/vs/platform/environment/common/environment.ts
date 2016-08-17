@@ -26,6 +26,8 @@ export interface IEnvironmentService {
 	debugExtensionHostPort: number;
 	debugBrkExtensionHost: boolean;
 
+	logExtensionHostCommunication: boolean;
+
 	isBuilt: boolean;
 	verbose: boolean;
 	performance: boolean;

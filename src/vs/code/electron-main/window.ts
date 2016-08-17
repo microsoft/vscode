@@ -384,7 +384,6 @@ export class VSCodeWindow {
 		// in plugin development mode. These options are all development related.
 		if (this.isPluginDevelopmentHost && cli) {
 			configuration.verbose = cli.verbose;
-			configuration.logExtensionHostCommunication = cli.logExtensionHostCommunication;
 			configuration.debugBrkFileWatcherPort = cli.debugBrkFileWatcherPort;
 			configuration.debugPluginHost = cli.debugPluginHost;
 			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;

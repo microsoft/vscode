@@ -55,7 +55,7 @@ export class MainThreadService extends AbstractThreadService implements IThreadS
 
 		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService, environmentService);
 
-		let logCommunication = logExtensionHostCommunication || contextService.getConfiguration().env.logExtensionHostCommunication;
+		let logCommunication = logExtensionHostCommunication || environmentService.logExtensionHostCommunication;
 
 		// Message: Window --> Extension Host
 		this.remoteCom = create((msg) => {

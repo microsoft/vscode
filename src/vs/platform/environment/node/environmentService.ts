@@ -56,6 +56,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this.args.verbose; }
 	get performance(): boolean { return this.args.performance; }
+	get logExtensionHostCommunication(): boolean { return this.args.logExtensionHostCommunication; }
 
 	private _debugBrkFileWatcherPort: number;
 	get debugBrkFileWatcherPort(): number { return this._debugBrkFileWatcherPort; }
