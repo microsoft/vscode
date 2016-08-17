@@ -30,7 +30,7 @@ export interface IProcessEnvironment {
 export interface ICommandLineArguments {
 	verbose: boolean;
 	debugPluginHost: string;
-	debugBrkExtensionHost: boolean;
+	debugBrkPluginHost: boolean;
 	debugBrkFileWatcherPort: number;
 	logExtensionHostCommunication: boolean;
 	disableExtensions: boolean;
@@ -173,7 +173,7 @@ export class EnvService implements IEnvService {
 			enablePerformance: argv.performance,
 			verbose: argv.verbose,
 			debugPluginHost,
-			debugBrkExtensionHost: !!debugBrkExtensionHostPort,
+			debugBrkPluginHost: !!debugBrkExtensionHostPort,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
 			debugBrkFileWatcherPort: debugBrkFileWatcherPort,
 			openNewWindow: argv['new-window'],
@@ -188,7 +188,7 @@ export class EnvService implements IEnvService {
 			waitForWindowClose: argv.wait
 		});
 
-		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
+		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkPluginHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
 		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
 

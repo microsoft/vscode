@@ -114,8 +114,8 @@ class ExtensionHostProcessManager {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		const config = this.contextService.getConfiguration();
 		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
-		this.isExtensionDevelopmentDebugging = !!config.env.debugBrkExtensionHost;
-		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!config.env.extensionTestsPath && !config.env.debugBrkExtensionHost;
+		this.isExtensionDevelopmentDebugging = !!environmentService.debugBrkExtensionHost;
+		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!config.env.extensionTestsPath && !environmentService.debugBrkExtensionHost;
 
 		this.unsentMessages = [];
 		this.extensionHostProcessReady = false;
