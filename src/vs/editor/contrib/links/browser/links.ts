@@ -73,9 +73,10 @@ class LinkOccurence {
 
 class LinkDetector implements editorCommon.IEditorContribution {
 
-	public static ID: string = 'editor.linkDetector';
+	private static ID: string = 'editor.linkDetector';
+
 	public static get(editor: editorCommon.ICommonCodeEditor): LinkDetector {
-		return <LinkDetector>editor.getContribution(LinkDetector.ID);
+		return editor.getContribution<LinkDetector>(LinkDetector.ID);
 	}
 
 	static RECOMPUTE_TIME = 1000; // ms

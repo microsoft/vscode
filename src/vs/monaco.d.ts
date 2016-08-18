@@ -3021,7 +3021,7 @@ declare module monaco.editor {
          * @id Unique identifier of the contribution.
          * @return The contribution or null if contribution not found.
          */
-        getContribution(id: string): IEditorContribution;
+        getContribution<T extends IEditorContribution>(id: string): T;
         /**
          * Type the getModel() of IEditor.
          */
