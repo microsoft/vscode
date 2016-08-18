@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// Warning: Do not use the `let` declarator in this file, it breaks our minification
+
 'use strict';
 
 /*global window,document,define*/
@@ -50,7 +52,7 @@ function createScript(src, onload) {
 }
 
 function uriFromPath(_path) {
-	let pathName = path.resolve(_path).replace(/\\/g, '/');
+	var pathName = path.resolve(_path).replace(/\\/g, '/');
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;
 	}
@@ -97,7 +99,7 @@ function main() {
 	assign(process.env, configuration.userEnv);
 
 	// Get the nls configuration into the process.env as early as possible.
-	let nlsConfig = { availableLanguages: {} };
+	var nlsConfig = { availableLanguages: {} };
 	const config = process.env['VSCODE_NLS_CONFIG'];
 	if (config) {
 		process.env['VSCODE_NLS_CONFIG'] = config;
@@ -106,7 +108,7 @@ function main() {
 		} catch (e) { /*noop*/ }
 	}
 
-	let locale = nlsConfig.availableLanguages['*'] || 'en';
+	var locale = nlsConfig.availableLanguages['*'] || 'en';
 	if (locale === 'zh-tw') {
 		locale = 'zh-Hant';
 	} else if (locale === 'zh-cn') {
