@@ -2979,10 +2979,12 @@ declare namespace vscode {
 		/**
 		 * Send text to the terminal.
 		 *
+		 * @param text The text to send to the terminal.
 		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-		 * required to run a command in the terminal. This defaults to `true`.
+		 * required to run a command in the terminal. The character(s) added are \n or \r\n
+		 * depending on the platform. This defaults to `true`.
 		 */
-		sendText(text: string, addNewLine?: boolean);
+		sendText(text: string, addNewLine?: boolean): void;
 
 		/**
 		 * Reveal this channel in the UI.
