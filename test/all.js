@@ -10,6 +10,7 @@ var assert = require('assert');
 var path = require('path');
 var glob = require('glob');
 var istanbul = require('istanbul');
+var i_remap = require('remap-istanbul/lib/remap');
 var jsdom = require('jsdom-no-contextify');
 var minimatch = require('minimatch');
 var async = require('async');
@@ -140,8 +141,40 @@ function main() {
 				});
 			}
 
+			var remappedCoverage = i_remap(global.__coverage__).getFinalCoverage();
+
+			// The remapped coverage comes out with broken paths
+			var toUpperDriveLetter = function(str) {
+				if (/^[a-z]:/.test(str)) {
+					return str.charAt(0).toUpperCase() + str.substr(1);
+				}
+				return str;
+			};
+			var toLowerDriveLetter = function(str) {
+				if (/^[A-Z]:/.test(str)) {
+					return str.charAt(0).toLowerCase() + str.substr(1);
+				}
+				return str;
+			};
+
+			var REPO_PATH = toUpperDriveLetter(path.join(__dirname, '..'));
+			var fixPath = function(brokenPath) {
+				var startIndex = brokenPath.indexOf(REPO_PATH);
+				if (startIndex === -1) {
+					return toLowerDriveLetter(brokenPath);
+				}
+				return toLowerDriveLetter(brokenPath.substr(startIndex));
+			};
+
+			var finalCoverage = {};
+			for (var entryKey in remappedCoverage) {
+				var entry = remappedCoverage[entryKey];
+				entry.path = fixPath(entry.path);
+				finalCoverage[fixPath(entryKey)] = entry;
+			}
+
 			var collector = new istanbul.Collector();
-			collector.add(global.__coverage__);
+			collector.add(finalCoverage);
 
 			var reporter = new istanbul.Reporter(null, path.join(path.dirname(__dirname), '.build', 'coverage'));
 			reporter.addAll(['json', 'lcov', 'html']);
