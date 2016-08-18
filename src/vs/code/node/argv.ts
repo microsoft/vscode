@@ -42,7 +42,9 @@ const options: minimist.Opts = {
 		'extensionTestsPath',
 		'timestamp',
 		'install-extension',
-		'uninstall-extension'
+		'uninstall-extension',
+		'debugBrkPluginHost',
+		'debugPluginHost'
 	],
 	boolean: [
 		'help',

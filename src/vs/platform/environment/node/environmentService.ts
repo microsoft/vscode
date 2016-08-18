@@ -78,12 +78,17 @@ export class EnvironmentService implements IEnvironmentService {
 
 		this._extensionDevelopmentPath = args.extensionDevelopmentPath;
 
-		if (args.debugPluginHost) {
-			this._debugExtensionHostPort = Number(args.debugPluginHost);
-		}
-
-		this._debugBrkExtensionHost = Boolean(args.debugBrkPluginHost);
+		const { port, brk } = parseExtensionHostPort(args, this.isBuilt);
+		this._debugExtensionHostPort = port;
+		this._debugBrkExtensionHost = brk;
 
 		this._debugBrkFileWatcherPort = (typeof args.debugBrkFileWatcherPort === 'string') ? Number(args.debugBrkFileWatcherPort) : void 0;
 	}
+}
+
+export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; brk: boolean; } {
+	const portStr = args.debugBrkPluginHost || args.debugPluginHost;
+	const port = Number(portStr) || (!isBuild ? 5870 : null);
+	const brk = port ? Boolean(!!args.debugBrkPluginHost) : false;
+	return { port, brk };
 }

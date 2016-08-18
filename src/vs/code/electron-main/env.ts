@@ -142,11 +142,6 @@ export class EnvService implements IEnvService {
 		}
 
 		const argv = parseArgs(args);
-
-		const debugBrkExtensionHostPort = getNumericValue(argv.debugBrkPluginHost, 5870);
-		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
-		const debugPluginHost = debugBrkExtensionHostPort ? String(debugBrkExtensionHostPort) : debugExtensionHostPort ? String(debugExtensionHostPort): void 0;
-		const debugBrkPluginHost = debugBrkExtensionHostPort ? String(true) : void 0;
 		const paths = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 		const timestamp = parseInt(argv.timestamp);
 		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
@@ -157,8 +152,8 @@ export class EnvService implements IEnvService {
 			timestamp: types.isNumber(timestamp) ? String(timestamp) : '0',
 			performance: argv.performance,
 			verbose: argv.verbose,
-			debugPluginHost,
-			debugBrkPluginHost,
+			debugPluginHost: argv.debugPluginHost,
+			debugBrkPluginHost: argv.debugBrkPluginHost,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
 			debugBrkFileWatcherPort: debugBrkFileWatcherPort ? String(debugBrkFileWatcherPort) : void 0,
 			'new-window': argv['new-window'],
@@ -293,14 +288,6 @@ function normalizePath(p?: string): string {
 	return p ? path.normalize(p) : p;
 }
 
-export function getPlatformIdentifier(): string {
-	if (process.platform === 'linux') {
-		return `linux-${process.arch}`;
-	}
-
-	return process.platform;
-}
-
 export interface IParsedPath {
 	path: string;
 	line?: number;
@@ -332,7 +319,7 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 	};
 }
 
-export function toLineAndColumnPath(parsedPath: IParsedPath): string {
+function toLineAndColumnPath(parsedPath: IParsedPath): string {
 	let segments = [parsedPath.path];
 
 	if (types.isNumber(parsedPath.line)) {
