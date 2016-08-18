@@ -50,7 +50,6 @@ import 'vs/workbench/parts/html/browser/html.contribution';
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen';
 
-
 import 'vs/workbench/parts/output/browser/output.contribution';
 
 import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';

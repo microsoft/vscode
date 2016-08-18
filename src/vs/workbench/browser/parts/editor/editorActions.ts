@@ -1087,25 +1087,6 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditor
 	}
 }
 
-export class GlobalQuickOpenAction extends Action {
-
-	public static ID = 'workbench.action.quickOpen';
-	public static LABEL = nls.localize('quickOpen', "Go to File...");
-
-	constructor(id: string, label: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
-		super(id, label);
-
-		this.order = 100; // Allow other actions to position before or after
-		this.class = 'quickopen';
-	}
-
-	public run(): TPromise<any> {
-		this.quickOpenService.show(null);
-
-		return TPromise.as(true);
-	}
-}
-
 export class OpenPreviousEditorFromHistoryAction extends Action {
 
 	public static ID = 'workbench.action.openPreviousEditorFromHistory';
@@ -1182,82 +1163,6 @@ export class RemoveFromEditorHistoryAction extends Action {
 		this.quickOpenService.show().then(() => {
 			unbind.dispose(); // make sure to unbind if quick open is closing
 		});
-
-		return TPromise.as(true);
-	}
-}
-
-export class BaseQuickOpenNavigateAction extends Action {
-	private navigateNext: boolean;
-
-	constructor(
-		id: string,
-		label: string,
-		navigateNext: boolean,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
-	) {
-		super(id, label);
-
-		this.navigateNext = navigateNext;
-	}
-
-	public run(event?: any): TPromise<any> {
-		let keys = this.keybindingService.lookupKeybindings(this.id);
-
-		this.quickOpenService.quickNavigate({
-			keybindings: keys
-		}, this.navigateNext);
-
-		return TPromise.as(true);
-	}
-}
-
-export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
-
-	public static ID = 'workbench.action.quickOpenNavigateNext';
-	public static LABEL = nls.localize('quickNavigateNext', "Navigate Next in Quick Open");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, true, quickOpenService, keybindingService);
-	}
-}
-
-export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction {
-
-	public static ID = 'workbench.action.quickOpenNavigatePrevious';
-	public static LABEL = nls.localize('quickNavigatePrevious', "Navigate Previous in Quick Open");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, false, quickOpenService, keybindingService);
-	}
-}
-
-export class QuickOpenCloseAction extends Action {
-
-	public static ID = 'workbench.action.closeQuickOpen';
-	public static LABEL = nls.localize('closeQuickOpen', "Close Quick Open");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		this.quickOpenService.close();
 
 		return TPromise.as(true);
 	}
