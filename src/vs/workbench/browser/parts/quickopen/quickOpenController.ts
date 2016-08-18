@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/quickopen';
+import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Dimension, withElementById} from 'vs/base/browser/builder';
@@ -419,14 +420,28 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		});
 	}
 
-	public close(): void {
-		if (this.quickOpenWidget) {
-			this.quickOpenWidget.hide(HideReason.CANCELED);
-		}
+	public accept(): void {
+		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
+			if (w && w.isVisible()) {
+				w.accept();
+			}
+		});
+	}
 
-		if (this.pickOpenWidget) {
-			this.pickOpenWidget.hide(HideReason.CANCELED);
-		}
+	public focus(): void {
+		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
+			if (w && w.isVisible()) {
+				w.focus();
+			}
+		});
+	}
+
+	public close(): void {
+		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
+			if (w && w.isVisible()) {
+				w.hide(HideReason.CANCELED);
+			}
+		});
 	}
 
 	private emitQuickOpenVisibilityChange(isVisible: boolean): void {

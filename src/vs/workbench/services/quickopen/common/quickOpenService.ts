@@ -122,6 +122,16 @@ export interface IQuickOpenService {
 	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
 
 	/**
+	 * Accepts the selected value in quick open if visible.
+	 */
+	accept(): void;
+
+	/**
+	 * Focus into the quick open if visible.
+	 */
+	focus(): void;
+
+	/**
 	 * Closes any opened quick open.
 	 */
 	close(): void;

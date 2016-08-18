@@ -467,8 +467,13 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return TPromise.as(null);
 	}
 
-	close(): void {
+	accept(): void {
+	}
 
+	focus(): void {
+	}
+
+	close(): void {
 	}
 
 	show(prefix?: string, options?: any): Promise {

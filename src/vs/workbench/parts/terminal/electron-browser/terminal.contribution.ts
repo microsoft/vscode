@@ -18,7 +18,7 @@ import {Registry} from 'vs/platform/platform';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {GlobalQuickOpenAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {GlobalQuickOpenAction} from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import {ShowAllCommandsAction} from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
