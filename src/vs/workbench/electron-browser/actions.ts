@@ -302,7 +302,7 @@ export class ShowStartupPerformance extends Action {
 		const table: any[] = [];
 		table.push(...this._analyzeLoaderTimes());
 
-		const start = Math.round(remote.getGlobal('programStart') || remote.getGlobal('vscodeStart'));
+		const start = Math.round(remote.getGlobal('vscodeStart'));
 		const windowShowTime = Math.round(remote.getGlobal('windowShow'));
 
 		let lastEvent: timer.ITimerEvent;

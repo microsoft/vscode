@@ -143,13 +143,11 @@ export class EnvService implements IEnvService {
 
 		const argv = parseArgs(args);
 		const paths = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
-		const timestamp = parseInt(argv.timestamp);
 		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
 
 		this._cliArgs = Object.freeze({
 			_: [],
 			paths,
-			timestamp: types.isNumber(timestamp) ? String(timestamp) : '0',
 			performance: argv.performance,
 			verbose: argv.verbose,
 			debugPluginHost: argv.debugPluginHost,
