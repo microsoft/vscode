@@ -96,9 +96,6 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 
 	workspacePath?: string;
 
-	recentFiles: string[];
-	recentFolders: string[];
-
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
