@@ -497,6 +497,8 @@ registerCommand(new CoreCommand({
 	}
 }));
 
+registerCoreAPICommand(H.RevealLine, D.RevealLine);
+
 registerCommand(new CoreCommand({
 	id: H.CursorColumnSelectLeft,
 	precondition: null,

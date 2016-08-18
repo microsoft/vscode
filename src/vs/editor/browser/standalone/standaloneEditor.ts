@@ -432,6 +432,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		CursorMovePosition: editorCommon.CursorMovePosition,
 		EditorScrollDirection: editorCommon.EditorScrollDirection,
 		EditorScrollByUnit: editorCommon.EditorScrollByUnit,
+		RevealLineAtArgument: editorCommon.RevealLineAtArgument,
 		Handler: editorCommon.Handler,
 	};
 }

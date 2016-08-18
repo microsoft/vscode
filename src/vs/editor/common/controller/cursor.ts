@@ -392,7 +392,7 @@ export class Cursor extends EventEmitter {
 				this.emitCursorPositionChanged(eventSource, cursorPositionChangeReason);
 
 				if (shouldReveal) {
-					this.emitCursorRevealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
+					this.revealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
 				}
 				this.emitCursorSelectionChanged(eventSource, cursorPositionChangeReason);
 			}
@@ -864,7 +864,7 @@ export class Cursor extends EventEmitter {
 		this.emit(editorCommon.EventType.CursorScrollRequest, e);
 	}
 
-	private emitCursorRevealRange(revealTarget: RevealTarget, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private revealRange(revealTarget: RevealTarget, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		var positions = this.cursors.getPositions();
 		var viewPositions = this.cursors.getViewPositions();
 
@@ -894,6 +894,10 @@ export class Cursor extends EventEmitter {
 
 		var range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		var viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
+		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal);
+	}
+
+	private emitCursorRevealRange(range: Range, viewRange: Range, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean) {
 		var e:editorCommon.ICursorRevealRangeEvent = {
 			range: range,
 			viewRange: viewRange,
@@ -1033,7 +1037,9 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.Redo] =						(ctx) => this._redo(ctx);
 
 		this._handlers[H.ExecuteCommand] =				(ctx) => this._externalExecuteCommand(ctx);
-		this._handlers[H.ExecuteCommands] =				(ctx) => this._externalExecuteCommands(ctx);
+		this._handlers[H.ExecuteCommands] = 			(ctx) => this._externalExecuteCommands(ctx);
+
+		this._handlers[H.RevealLine] = 					(ctx) => this._revealLine(ctx);
 	}
 
 	private _invokeForAllSorted(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
@@ -1451,6 +1457,38 @@ export class Cursor extends EventEmitter {
 		} else {
 			return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, ctx.eventData.text, ctx.eventData.pasteOnNewLine, oneCtx));
 		}
+	}
+
+	private _revealLine(ctx: IMultipleCursorOperationContext): boolean {
+		const revealLineArg: editorCommon.RevealLineArguments = ctx.eventData;
+		const lineNumber = revealLineArg.lineNumber + 1;
+		const range = this.model.validateRange({
+			startLineNumber: lineNumber,
+			startColumn: 1,
+			endLineNumber: lineNumber,
+			endColumn: 1
+		});
+		range.endColumn = this.model.getLineMaxColumn(range.endLineNumber);
+
+		let revealAt = editorCommon.VerticalRevealType.Simple;
+		if (revealLineArg.at) {
+			switch (revealLineArg.at) {
+				case editorCommon.RevealLineAtArgument.Top:
+					revealAt = editorCommon.VerticalRevealType.Top;
+					break;
+				case editorCommon.RevealLineAtArgument.Center:
+					revealAt = editorCommon.VerticalRevealType.Center;
+					break;
+				case editorCommon.RevealLineAtArgument.Bottom:
+					revealAt = editorCommon.VerticalRevealType.Bottom;
+					break;
+				default:
+					break;
+			}
+		}
+
+		this.emitCursorRevealRange(range, null, revealAt, false);
+		return true;
 	}
 
 	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {

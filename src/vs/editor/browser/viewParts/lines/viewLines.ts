@@ -451,8 +451,8 @@ export class ViewLines extends ViewLayer<ViewLine> {
 		// Have a box that includes one extra line height (for the horizontal scrollbar)
 		boxStartY = this._layoutProvider.getVerticalOffsetForLineNumber(range.startLineNumber);
 		boxEndY = this._layoutProvider.getVerticalOffsetForLineNumber(range.endLineNumber) + this._layoutProvider.heightInPxForLine(range.endLineNumber);
-		if (verticalType === editorCommon.VerticalRevealType.Simple) {
-			// Reveal one line more for the arrow down case, when the last line would be covered by the scrollbar
+		if (verticalType === editorCommon.VerticalRevealType.Simple || verticalType === editorCommon.VerticalRevealType.Bottom) {
+			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
 			boxEndY += this._lineHeight;
 		}
 
@@ -468,7 +468,7 @@ export class ViewLines extends ViewLayer<ViewLine> {
 				newScrollTop = Math.max(0, boxMiddleY - viewportHeight/2);
 			}
 		} else {
-			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY);
+			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY, verticalType === editorCommon.VerticalRevealType.Top, verticalType === editorCommon.VerticalRevealType.Bottom);
 		}
 
 		return newScrollTop;
@@ -527,17 +527,28 @@ export class ViewLines extends ViewLayer<ViewLine> {
 		};
 	}
 
-	private _computeMinimumScrolling(viewportStart: number, viewportEnd: number, boxStart: number, boxEnd: number): number {
-		viewportStart = viewportStart|0;
-		viewportEnd = viewportEnd|0;
-		boxStart = boxStart|0;
-		boxEnd = boxEnd|0;
+	private _computeMinimumScrolling(viewportStart: number, viewportEnd: number, boxStart: number, boxEnd: number, revealAtStart?: boolean, revealAtEnd?: boolean): number {
+		viewportStart = viewportStart | 0;
+		viewportEnd = viewportEnd | 0;
+		boxStart = boxStart | 0;
+		boxEnd = boxEnd | 0;
+		revealAtStart = !!revealAtStart;
+		revealAtEnd = !!revealAtEnd;
 
 		let viewportLength = viewportEnd - viewportStart;
 		let boxLength = boxEnd - boxStart;
 
 		if (boxLength < viewportLength) {
 			// The box would fit in the viewport
+
+			if (revealAtStart) {
+				return boxStart;
+			}
+
+			if (revealAtEnd) {
+				return Math.max(0, boxEnd - viewportLength);
+			}
+
 			if (boxStart < viewportStart) {
 				// The box is above the viewport
 				return boxStart;
