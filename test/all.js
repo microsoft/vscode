@@ -108,7 +108,7 @@ function main() {
 			collector.add(global.__coverage__);
 
 			var reporter = new istanbul.Reporter(null, path.join(path.dirname(__dirname), '.build', 'coverage'));
-			reporter.addAll(['lcov', 'html']);
+			reporter.addAll(['json', 'lcov', 'html']);
 			reporter.write(collector, true, function () {});
 		});
 	}

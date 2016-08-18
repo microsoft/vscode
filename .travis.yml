@@ -49,4 +49,5 @@ script:
   - ./scripts/test-integration.sh
 
 after_success:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov.info; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/remap-istanbul -i ./.build/coverage/coverage-final.json -t lcovonly > ./.build/coverage/lcov-remap.info; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov-remap.info; fi
