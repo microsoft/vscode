@@ -42,9 +42,9 @@ export class CompletionModel {
 	private _filteredItems: CompletionItem[] = undefined;
 	private _topScoreIdx: number;
 
-	constructor(raw: ISuggestionItem[], leadingLineContent: string) {
+	constructor(raw: ISuggestionItem[], lineContext: LineContext) {
 		this.raw = raw;
-		this._lineContext = { leadingLineContent, characterCountDelta: 0 };
+		this._lineContext = lineContext;
 		for (let item of raw) {
 			this._items.push(new CompletionItem(item));
 		}
