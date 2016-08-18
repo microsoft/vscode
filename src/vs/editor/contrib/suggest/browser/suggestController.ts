@@ -9,6 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -33,6 +34,7 @@ export class SuggestController implements IEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
+		@ICommandService private commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.model = new SuggestModel(this.editor);
@@ -62,8 +64,18 @@ export class SuggestController implements IEditorContribution {
 
 	private onDidSelectItem(item: CompletionItem): void {
 		if (item) {
-			const {insertText, overwriteBefore, overwriteAfter, extraEdits} = item.suggestion;
+			const {insertText, overwriteBefore, overwriteAfter, extraEdits, command} = item.suggestion;
 			const columnDelta = this.editor.getPosition().column - this.model.getTriggerPosition().column;
+
+				// todo@joh
+				// * order of stuff command/extraEdit/actual edit
+				// * failure of command?
+				// * wait for command to execute?
+			if (command) {
+				this.commandService.executeCommand(command.id, ...command.arguments).then(undefined, err => {
+					console.error(err);
+				});
+			}
 
 			if (Array.isArray(extraEdits)) {
 				this.editor.pushUndoStop();
