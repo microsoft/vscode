@@ -62,8 +62,8 @@ export interface IViewModelHelper {
 
 	viewModel:ICursorMoveHelperModel;
 
-	getCurrentVisibleViewRangeInViewPort(): Range;
-	getCurrentVisibleModelRangeInViewPort(): Range;
+	getCurrentCompletelyVisibleViewLinesRangeInViewport(): Range;
+	getCurrentVisibleModelLinesRangeInViewport(): Range;
 
 	convertModelPositionToViewPosition(lineNumber:number, column:number): Position;
 	convertModelRangeToViewRange(modelRange:Range): Range;
@@ -518,36 +518,39 @@ export class OneCursor {
 	}
 
 	// -- model
-	public getDeltaViewLinesToRevealModelLineBeforeViewPortTop(noOfLinesBeforeTop: number): number {
-		let visibleModelRange = this.viewModelHelper.getCurrentVisibleModelRangeInViewPort();
-		let visibleViewRange = this.viewModelHelper.getCurrentVisibleViewRangeInViewPort();
-		let startColumn = this.model.getLineMinColumn(visibleModelRange.startLineNumber);
-		let startViewLineOfModelLine = this.viewModelHelper.convertModelPositionToViewPosition(visibleModelRange.startLineNumber, startColumn).lineNumber;
+	public getRangeToRevealModelLinesBeforeViewPortTop(noOfLinesBeforeTop: number): Range {
+		let visibleModelRange = this.viewModelHelper.getCurrentVisibleModelLinesRangeInViewport();
 
-		// Reveal first line if it is partially visible
-		let revealLineNumber = (startViewLineOfModelLine !== visibleViewRange.startLineNumber ? visibleModelRange.startLineNumber : visibleModelRange.startLineNumber - 1) - (noOfLinesBeforeTop - 1);
-		revealLineNumber = revealLineNumber > 1 ? revealLineNumber : 1;
-		let revealLineEndColumn = this.model.getLineMinColumn(revealLineNumber);
-		let revealViewLineNumber = this.viewModelHelper.convertModelPositionToViewPosition(revealLineNumber, revealLineEndColumn).lineNumber;
+		let startLineNumber: number;
+		if (this.model.getLineMinColumn(visibleModelRange.startLineNumber) !== visibleModelRange.startColumn) {
+			// Start line is partially visible by wrapping so reveal start line
+			startLineNumber = visibleModelRange.startLineNumber;
+		} else {
+			// Reveal previous line
+			startLineNumber = visibleModelRange.startLineNumber - 1;
+		}
 
-		return visibleViewRange.startLineNumber - revealViewLineNumber;
+		startLineNumber -= (noOfLinesBeforeTop - 1);
+		startLineNumber = this.model.validateRange({ startLineNumber, startColumn: 1, endLineNumber: startLineNumber, endColumn: 1 }).startLineNumber;
+		let startColumn = this.model.getLineMinColumn(startLineNumber);
+		let endColumn = this.model.getLineMaxColumn(visibleModelRange.startLineNumber);
+
+		return new Range(startLineNumber, startColumn, startLineNumber, endColumn);
 	}
-	public getDeltaViewLinesToRevealModelLineAfteriewPortBottom(noOfLinesAfterBottom: number): number {
-		let visibleModelRange = this.viewModelHelper.getCurrentVisibleModelRangeInViewPort();
-		let visibleViewRange = this.viewModelHelper.getCurrentVisibleViewRangeInViewPort();
-		let endColumn = this.model.getLineMaxColumn(visibleModelRange.endLineNumber);
-		let endViewLineOfModelLine = this.viewModelHelper.convertModelPositionToViewPosition(visibleModelRange.endLineNumber, endColumn).lineNumber;
+	public getRangeToRevealModelLinesAfterViewPortBottom(noOfLinesAfterBottom: number): Range {
+		let visibleModelRange = this.viewModelHelper.getCurrentVisibleModelLinesRangeInViewport();
 
-		// Reveal last line if it is partially visible
-		let revealLineNumber = (endViewLineOfModelLine !== visibleViewRange.endLineNumber ? visibleModelRange.endLineNumber : visibleModelRange.endLineNumber + 1) + (noOfLinesAfterBottom - 1);
-		revealLineNumber = revealLineNumber < this.model.getLineCount() ? revealLineNumber : this.model.getLineCount();
-		let revealLineEndColumn = this.model.getLineMaxColumn(revealLineNumber);
-		let revealViewLineNumber = this.viewModelHelper.convertModelPositionToViewPosition(revealLineNumber, revealLineEndColumn).lineNumber;
+		// Last line in the view port is not considered revealed because scroll bar would cover it
+		// Hence consider last line to reveal in the range
+		let startLineNumber = visibleModelRange.endLineNumber + (noOfLinesAfterBottom - 1);
+		startLineNumber = this.model.validateRange({ startLineNumber, startColumn: 1, endLineNumber: startLineNumber, endColumn: 1 }).startLineNumber;
+		let startColumn = this.model.getLineMinColumn(startLineNumber);
+		let endColumn = this.model.getLineMaxColumn(startLineNumber);
 
-		return revealViewLineNumber - visibleViewRange.endLineNumber;
+		return new Range(startLineNumber, startColumn, startLineNumber, endColumn);
 	}
 	public getLineFromViewPortTop(lineFromTop: number = 1): number {
-		let visibleRange = this.viewModelHelper.getCurrentVisibleModelRangeInViewPort();
+		let visibleRange = this.viewModelHelper.getCurrentVisibleModelLinesRangeInViewport();
 		let startColumn = this.model.getLineMinColumn(visibleRange.startLineNumber);
 		// Use next line if the first line is partially visible
 		let visibleLineNumber = visibleRange.startColumn === startColumn ? visibleRange.startLineNumber : visibleRange.startLineNumber + 1;
@@ -558,8 +561,8 @@ export class OneCursor {
 		return Math.round((this.getLineFromViewPortTop() + this.getLineFromViewPortBottom() - 1) / 2);
 	}
 	public getLineFromViewPortBottom(lineFromBottom: number = 1): number {
-		let visibleRange = this.viewModelHelper.getCurrentVisibleModelRangeInViewPort();
-		let visibleLineNumber = visibleRange.endLineNumber - lineFromBottom + 1;
+		let visibleRange = this.viewModelHelper.getCurrentVisibleModelLinesRangeInViewport();
+		let visibleLineNumber = visibleRange.endLineNumber - (lineFromBottom - 1);
 		return visibleLineNumber > visibleRange.startLineNumber ? visibleLineNumber : this.getLineFromViewPortTop();
 	}
 	public getLineContent(lineNumber:number): string {

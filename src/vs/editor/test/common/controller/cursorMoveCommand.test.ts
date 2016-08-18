@@ -358,7 +358,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view top line moves to first visible line if it is first line', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(1, 1, 10, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 10, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -369,7 +369,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view top line moves to top visible line when first line is not visible', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(2, 1, 10, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(2, 1, 10, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
@@ -380,7 +380,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view top line moves to nth line from top', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(1, 1, 10, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 10, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
@@ -391,7 +391,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view top line moves to last line if n is greater than last visible line number', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(1, 1, 3, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 3, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -402,7 +402,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view center line moves to the center line', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(3, 1, 3, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(3, 1, 3, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -413,7 +413,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view bottom line moves to last visible line if it is last line', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(1, 1, 5, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 5, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -424,7 +424,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view bottom line moves to last visible line when last line is not visible', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(2, 1, 3, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(2, 1, 3, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
@@ -435,7 +435,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view bottom line moves to nth line from bottom', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(1, 1, 5, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 5, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
@@ -446,7 +446,7 @@ suite('Cursor move command test', () => {
 
 	test('move to view bottom line moves to first line if n is lesser than first visible line number', () => {
 		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentVisibleModelRangeInViewPort= () =>  new Range(2, 1, 5, 1);
+		viewModelHelper.getCurrentVisibleModelLinesRangeInViewport= () =>  new Range(2, 1, 5, 1);
 		thisCursor= aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
