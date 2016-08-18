@@ -15,6 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import * as semver from 'semver';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
@@ -120,23 +121,9 @@ class Extension implements IExtension {
 		const { local, gallery } = this;
 
 		if (gallery) {
-			return {
-				id: `${ gallery.publisher }.${ gallery.name }`,
-				name: gallery.name,
-				galleryId: gallery.id,
-				publisherId: gallery.publisherId,
-				publisherName: gallery.publisher,
-				publisherDisplayName: gallery.publisherDisplayName
-			};
+			return getGalleryExtensionTelemetryData(gallery);
 		} else {
-			return {
-				id: `${ local.manifest.publisher }.${ local.manifest.name }`,
-				name: local.manifest.name,
-				galleryId: local.metadata ? local.metadata.id : null,
-				publisherId: local.metadata ? local.metadata.publisherId : null,
-				publisherName: local.manifest.publisher,
-				publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
-			};
+			return getLocalExtensionTelemetryData(local);
 		}
 	}
 }

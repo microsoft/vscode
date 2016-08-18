@@ -8,6 +8,7 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -339,10 +340,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions).then(rawVersion => {
 				const url = `${ getAssetSource(rawVersion.files, AssetType.VSIX) }?install=true`;
 				const zipPath = path.join(tmpdir(), extension.id);
+				const data = getGalleryExtensionTelemetryData(extension);
+				const timer = this.telemetryService.timedPublicLog('galleryService:downloadVSIX', data);
 
 				return this.getCommonHeaders()
 					.then(headers => this._getAsset({ url, headers }))
 					.then(context => download(zipPath, context))
+					.then(() => timer.stop())
 					.then(() => zipPath);
 			});
 		});
