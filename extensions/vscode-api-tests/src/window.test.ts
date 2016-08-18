@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind} from 'vscode';
+import {workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind} from 'vscode';
 import {join} from 'path';
 import {cleanUp, pathEquals} from './utils';
 
@@ -170,6 +170,22 @@ suite('window namespace tests', () => {
 		return p.then(value => {
 			assert.equal(value, undefined);
 		});
+	});
+
+	test('showInputBox - \'\' on Enter', function () {
+		const p = window.showInputBox();
+		return Promise.all<any>([
+			commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem'),
+			p.then(value => assert.equal(value, ''))
+		]);
+	});
+
+	test('showInputBox - `undefined` on Esc', function () {
+		const p = window.showInputBox();
+		return Promise.all<any>([
+			commands.executeCommand('workbench.action.closeQuickOpen'),
+			p.then(value => assert.equal(value, undefined))
+		]);
 	});
 
 	test('showQuickPick, undefined on cancel', function () {
