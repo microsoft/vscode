@@ -50,4 +50,5 @@ script:
 
 after_success:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/remap-istanbul -i ./.build/coverage/coverage-final.json -t lcovonly > ./.build/coverage/lcov-remap.info; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov-remap.info; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sed <./.build/coverage/lcov-remap.info >./.build/coverage/lcov-remap-clean.info -e 's/^SF:.*:\(.*\)$/SF:\1/g'; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov-remap-clean.info; fi
