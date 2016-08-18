@@ -30,7 +30,7 @@ export interface ISuggestEvent {
 	auto: boolean;
 }
 
-class Context {
+export class Context {
 
 	lineNumber: number;
 	column: number;
