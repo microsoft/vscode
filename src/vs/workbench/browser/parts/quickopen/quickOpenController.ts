@@ -190,7 +190,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		return new TPromise(init).then(item => {
 			return currentValidation.then(valid => {
 				if (valid && item) {
-					return lastValue;
+					return lastValue || '';
 				}
 			});
 		});
