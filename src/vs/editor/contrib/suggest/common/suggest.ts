@@ -101,7 +101,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 		};
 	});
 
-	return sequence(factory).then(() => result.sort(createSuggesionComparator(snippetConfig)));
+	return sequence(factory).then(() => result.sort(getSuggestionComparator(snippetConfig)));
 }
 
 function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
@@ -131,7 +131,7 @@ function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: ISugge
 	}
 }
 
-function createSuggesionComparator(snippetConfig: SnippetConfig): (a: ISuggestionItem, b: ISuggestionItem) => number {
+export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: ISuggestionItem, b: ISuggestionItem) => number {
 
 	function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
