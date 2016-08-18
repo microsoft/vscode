@@ -39,8 +39,8 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 	private static ID = 'editor.contrib.defineKeybinding';
 
-	static get(editor:editorCommon.ICommonCodeEditor): DefineKeybindingController {
-		return <DefineKeybindingController>editor.getContribution(DefineKeybindingController.ID);
+	public static get(editor:editorCommon.ICommonCodeEditor): DefineKeybindingController {
+		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
 	}
 
 	private _editor: ICodeEditor;

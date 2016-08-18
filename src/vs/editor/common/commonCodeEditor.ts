@@ -551,8 +551,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public abstract isFocused(): boolean;
 	public abstract hasWidgetFocus(): boolean;
 
-	public getContribution(id: string): editorCommon.IEditorContribution {
-		return this._contributions[id] || null;
+	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
+		return <T>(this._contributions[id] || null);
 	}
 
 	public addAction(descriptor:editorCommon.IActionDescriptor): void {

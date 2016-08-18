@@ -25,7 +25,7 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
 	public static get(editor:editorCommon.ICommonCodeEditor): TabCompletionController {
-		return <TabCompletionController>editor.getContribution(TabCompletionController.ID);
+		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
 	private _snippetController: ISnippetController;

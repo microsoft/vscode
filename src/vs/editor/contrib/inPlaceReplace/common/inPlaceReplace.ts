@@ -19,7 +19,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	private static ID = 'editor.contrib.inPlaceReplaceController';
 
 	static get(editor:ICommonCodeEditor): InPlaceReplaceController {
-		return <InPlaceReplaceController>editor.getContribution(InPlaceReplaceController.ID);
+		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 
 	private static DECORATION = {

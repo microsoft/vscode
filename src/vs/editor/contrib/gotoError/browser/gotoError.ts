@@ -420,7 +420,7 @@ class MarkerNavigationAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		const telemetryService = accessor.get(ITelemetryService);
 
-		let model = MarkerController.getMarkerController(editor).getOrCreateModel();
+		let model = MarkerController.get(editor).getOrCreateModel();
 		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
 		if (model) {
 			if (this._isNext) {
@@ -437,8 +437,8 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.markerController';
 
-	static getMarkerController(editor: editorCommon.ICommonCodeEditor): MarkerController {
-		return <MarkerController>editor.getContribution(MarkerController.ID);
+	public static get(editor: editorCommon.ICommonCodeEditor): MarkerController {
+		return editor.getContribution<MarkerController>(MarkerController.ID);
 	}
 
 	private _editor: ICodeEditor;
@@ -546,7 +546,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 
 var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
 
-const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.getMarkerController);
+const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.get);
 
 CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 	id: 'closeMarkersNavigation',

@@ -25,8 +25,8 @@ export class QuickFixController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.quickFixController';
 
-	static getQuickFixController(editor:ICommonCodeEditor): QuickFixController {
-		return <QuickFixController>editor.getContribution(QuickFixController.ID);
+	public static get(editor:ICommonCodeEditor): QuickFixController {
+		return editor.getContribution<QuickFixController>(QuickFixController.ID);
 	}
 
 	private editor:ICodeEditor;
@@ -131,13 +131,13 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		QuickFixController.getQuickFixController(editor).run();
+		QuickFixController.get(editor).run();
 	}
 }
 
 var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new RawContextKey<boolean>('quickFixWidgetVisible', false);
 
-const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.getQuickFixController);
+const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.get);
 
 // register action
 CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({

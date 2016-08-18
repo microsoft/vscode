@@ -3932,7 +3932,7 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The contribution or null if contribution not found.
 	 */
-	getContribution(id: string): IEditorContribution;
+	getContribution<T extends IEditorContribution>(id: string): T;
 
 	/**
 	 * @internal

@@ -31,7 +31,7 @@ class ContextMenuController implements IEditorContribution {
 	private static ID = 'editor.contrib.contextmenu';
 
 	public static get(editor: ICommonCodeEditor): ContextMenuController {
-		return <ContextMenuController>editor.getContribution(ContextMenuController.ID);
+		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
 	}
 
 	private _toDispose: IDisposable[] = [];

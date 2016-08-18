@@ -738,7 +738,7 @@ class SnippetController implements ISnippetController {
 	private static ID = 'editor.contrib.snippetController';
 
 	public static get(editor: editorCommon.ICommonCodeEditor): ISnippetController {
-		return <ISnippetController>editor.getContribution(SnippetController.ID);
+		return editor.getContribution<ISnippetController>(SnippetController.ID);
 	}
 
 	private _editor: editorCommon.ICommonCodeEditor;

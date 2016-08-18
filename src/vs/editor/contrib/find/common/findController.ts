@@ -45,8 +45,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _state: FindReplaceState;
 	private _model: FindModelBoundToEditorModel;
 
-	static getFindController(editor:editorCommon.ICommonCodeEditor): CommonFindController {
-		return <CommonFindController>editor.getContribution(CommonFindController.ID);
+	public static get(editor:editorCommon.ICommonCodeEditor): CommonFindController {
+		return editor.getContribution<CommonFindController>(CommonFindController.ID);
 	}
 
 	constructor(editor:editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
@@ -254,7 +254,7 @@ export class StartFindAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
-		let controller = CommonFindController.getFindController(editor);
+		let controller = CommonFindController.get(editor);
 		controller.start({
 			forceRevealReplace: false,
 			seedSearchStringFromSelection: true,
@@ -266,7 +266,7 @@ export class StartFindAction extends EditorAction {
 
 export abstract class MatchFindAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
-		let controller = CommonFindController.getFindController(editor);
+		let controller = CommonFindController.get(editor);
 		if (!this._run(controller)) {
 			controller.start({
 				forceRevealReplace: false,
@@ -327,7 +327,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 
 export abstract class SelectionMatchFindAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
-		let controller = CommonFindController.getFindController(editor);
+		let controller = CommonFindController.get(editor);
 		let selectionSearchString = controller.getSelectionSearchString();
 		if (selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
@@ -410,7 +410,7 @@ export class StartFindReplaceAction extends EditorAction {
 			return;
 		}
 
-		let controller = CommonFindController.getFindController(editor);
+		let controller = CommonFindController.get(editor);
 		controller.start({
 			forceRevealReplace: true,
 			seedSearchStringFromSelection: true,
@@ -429,7 +429,7 @@ export interface IMultiCursorFindResult {
 }
 
 function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearchString:boolean): IMultiCursorFindResult {
-	let controller = CommonFindController.getFindController(editor);
+	let controller = CommonFindController.get(editor);
 	let state = controller.getState();
 	let searchText: string;
 	let currentMatch: Selection;
@@ -728,7 +728,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		this._register(editor.onDidChangeModel((e) => {
 			this.removeDecorations();
 		}));
-		this._register(CommonFindController.getFindController(editor).getState().addChangeListener((e) => {
+		this._register(CommonFindController.get(editor).getState().addChangeListener((e) => {
 			this._update();
 		}));
 	}
@@ -850,7 +850,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	}
 }
 
-const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.getFindController);
+const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 
 CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	id: FIND_IDS.CloseFindWidgetCommand,

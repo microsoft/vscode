@@ -700,7 +700,7 @@ export class ShowDebugHoverAction extends EditorAction {
 		}
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
-		return (<debug.IDebugEditorContribution>editor.getContribution(debug.EDITOR_CONTRIBUTION_ID)).showHover(range, word.word, true);
+		return editor.getContribution<debug.IDebugEditorContribution>(debug.EDITOR_CONTRIBUTION_ID).showHover(range, word.word, true);
 	}
 }
 

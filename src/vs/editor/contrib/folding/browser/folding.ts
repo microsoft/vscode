@@ -140,8 +140,8 @@ export class FoldingController implements editorCommon.IEditorContribution {
 	private static ID = 'editor.contrib.folding';
 	static MAX_FOLDING_REGIONS = 5000;
 
-	static getFoldingController(editor:editorCommon.ICommonCodeEditor): FoldingController {
-		return <FoldingController>editor.getContribution(FoldingController.ID);
+	public static get(editor:editorCommon.ICommonCodeEditor): FoldingController {
+		return editor.getContribution<FoldingController>(FoldingController.ID);
 	}
 
 	private editor: ICodeEditor;
@@ -653,7 +653,7 @@ abstract class FoldingAction extends EditorAction {
 	abstract invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor): void;
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
-		let foldingController = FoldingController.getFoldingController(editor);
+		let foldingController = FoldingController.get(editor);
 		this.invoke(foldingController, editor);
 	}
 }

@@ -24,8 +24,8 @@ import { SuggestWidget } from './suggestWidget';
 export class SuggestController implements IEditorContribution {
 	private static ID: string = 'editor.contrib.suggestController';
 
-	static getController(editor: ICommonCodeEditor): SuggestController {
-		return <SuggestController>editor.getContribution(SuggestController.ID);
+	public static get(editor: ICommonCodeEditor): SuggestController {
+		return editor.getContribution<SuggestController>(SuggestController.ID);
 	}
 
 	private model: SuggestModel;
@@ -161,13 +161,13 @@ export class TriggerSuggestAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		SuggestController.getController(editor).triggerSuggest();
+		SuggestController.get(editor).triggerSuggest();
 	}
 }
 
 const weight = CommonEditorRegistry.commandWeight(90);
 
-const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.getController);
+const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
 
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
