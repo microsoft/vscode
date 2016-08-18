@@ -162,16 +162,9 @@ function main() {
 		};
 
 		if (configuration.performance) {
-			const programStart = remote.getGlobal('programStart');
 			const vscodeStart = remote.getGlobal('vscodeStart');
-
-			if (programStart) {
-				timers.beforeProgram = new Date(programStart);
-				timers.afterProgram = new Date(vscodeStart);
-			}
-
 			timers.vscodeStart = new Date(vscodeStart);
-			timers.start = new Date(programStart || vscodeStart);
+			timers.start = new Date(vscodeStart);
 		}
 
 		timers.beforeLoad = new Date();

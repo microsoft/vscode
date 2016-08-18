@@ -134,9 +134,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 		app.setAppUserModelId(envService.product.win32AppUserModelId);
 	}
 
-	// Set programStart in the global scope
-	global.programStart = envService.cliArgs.timestamp;
-
 	function dispose() {
 		if (mainIpcServer) {
 			mainIpcServer.dispose();

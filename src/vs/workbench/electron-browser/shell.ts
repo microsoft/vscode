@@ -376,17 +376,6 @@ export class WorkbenchShell {
 		if (timers) {
 			const events: timer.IExistingTimerEvent[] = [];
 
-			// Program
-			if (timers.beforeProgram) {
-				events.push({
-					startTime: timers.beforeProgram,
-					stopTime: timers.afterProgram,
-					topic: 'Startup',
-					name: 'Program Start',
-					description: 'Time it takes to pass control to VSCodes main method'
-				});
-			}
-
 			// Window
 			if (timers.vscodeStart) {
 				events.push({

@@ -25,7 +25,6 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	extensionHomePath?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
-	timestamp?: string;
 	debugBrkPluginHost?: string;
 	debugPluginHost?: string;
 	'list-extensions'?: boolean;
@@ -40,7 +39,6 @@ const options: minimist.Opts = {
 		'extensionHomePath',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
-		'timestamp',
 		'install-extension',
 		'uninstall-extension',
 		'debugBrkPluginHost',
