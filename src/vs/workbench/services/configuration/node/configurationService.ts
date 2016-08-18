@@ -28,6 +28,8 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	public _serviceBrand: any;
 
+	protected contextService: IWorkspaceContextService;
+	
 	private toDispose: IDisposable;
 
 	constructor(

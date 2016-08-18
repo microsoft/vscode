@@ -28,8 +28,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IStorageService, NullStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspaceContextService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
@@ -244,7 +243,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		name: null,
 		uid: null,
 		mtime: null
-	}, {});
+	});
 	serviceCollection.set(IWorkspaceContextService, contextService);
 
 	let telemetryService = services.telemetryService || NullTelemetryService;

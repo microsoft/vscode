@@ -176,9 +176,8 @@ class ExtensionHostProcessManager {
 								extensionTestsPath: this.environmentService.extensionTestsPath
 							},
 							contextService: {
-								workspace: this.contextService.getWorkspace(),
-								options: this.contextService.getOptions()
-							},
+								workspace: this.contextService.getWorkspace()
+							}
 						});
 
 						this.extensionHostProcessHandle.send(initPayload);

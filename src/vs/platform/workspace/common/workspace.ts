@@ -6,6 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import paths = require('vs/base/common/paths');
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -17,11 +18,6 @@ export interface IWorkspaceContextService {
 	 * without workspace (empty);
 	 */
 	getWorkspace(): IWorkspace;
-
-	/**
-	 * Provides access to the options object the platform is running with.
-	 */
-	getOptions(): any;
 
 	/**
 	 * Returns iff the provided resource is inside the workspace or not.
@@ -70,4 +66,47 @@ export interface IWorkspace {
 	 * is just derived from the workspace name.
 	 */
 	uid?: number;
+}
+
+/**
+ * Simple IWorkspaceContextService implementation to allow sharing of this service implementation
+ * between different layers of the platform.
+ */
+export class BaseWorkspaceContextService implements IWorkspaceContextService {
+
+	public _serviceBrand: any;
+
+	private workspace: IWorkspace;
+
+	constructor(workspace: IWorkspace) {
+		this.workspace = workspace;
+	}
+
+	public getWorkspace(): IWorkspace {
+		return this.workspace;
+	}
+
+	public isInsideWorkspace(resource: URI): boolean {
+		if (resource && this.workspace) {
+			return paths.isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath);
+		}
+
+		return false;
+	}
+
+	public toWorkspaceRelativePath(resource: URI): string {
+		if (this.isInsideWorkspace(resource)) {
+			return paths.normalize(paths.relative(this.workspace.resource.fsPath, resource.fsPath));
+		}
+
+		return null;
+	}
+
+	public toResource(workspaceRelativePath: string): URI {
+		if (typeof workspaceRelativePath === 'string' && this.workspace) {
+			return URI.file(paths.join(this.workspace.resource.fsPath, workspaceRelativePath));
+		}
+
+		return null;
+	}
 }
