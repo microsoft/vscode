@@ -35,7 +35,7 @@ import 'vs/editor/contrib/smartSelect/common/smartSelect';
 import 'vs/editor/contrib/smartSelect/common/jumpToBracket';
 import 'vs/editor/contrib/snippet/common/snippet';
 import 'vs/editor/contrib/snippet/browser/snippet';
-import 'vs/editor/contrib/suggest/browser/suggest';
+import 'vs/editor/contrib/suggest/browser/suggestController';
 import 'vs/editor/contrib/suggest/browser/tabCompletion';
 import 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import 'vs/editor/contrib/toggleWordWrap/common/toggleWordWrap';
