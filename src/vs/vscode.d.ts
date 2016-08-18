@@ -2977,13 +2977,6 @@ declare namespace vscode {
 	export interface Terminal {
 
 		/**
-		 * The name of the terminal.
-		 *
-		 * @readonly
-		 */
-		name: string;
-
-		/**
 		 * Send text to the terminal.
 		 *
 		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
