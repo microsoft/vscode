@@ -50,8 +50,7 @@ function createScript(src, onload) {
 }
 
 function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
-
+	let pathName = path.resolve(_path).replace(/\\/g, '/');
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;
 	}
@@ -93,13 +92,12 @@ function main() {
 	const webFrame = require('electron').webFrame;
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
-	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
 
 	// Get the nls configuration into the process.env as early as possible.
-	var nlsConfig = { availableLanguages: {} };
+	let nlsConfig = { availableLanguages: {} };
 	const config = process.env['VSCODE_NLS_CONFIG'];
 	if (config) {
 		process.env['VSCODE_NLS_CONFIG'] = config;
@@ -108,8 +106,7 @@ function main() {
 		} catch (e) { /*noop*/ }
 	}
 
-	var locale = nlsConfig.availableLanguages['*'] || 'en';
-
+	let locale = nlsConfig.availableLanguages['*'] || 'en';
 	if (locale === 'zh-tw') {
 		locale = 'zh-Hant';
 	} else if (locale === 'zh-cn') {
@@ -118,6 +115,7 @@ function main() {
 
 	window.document.documentElement.setAttribute('lang', locale);
 
+	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
 	registerListeners(enableDeveloperTools);
 
 	// We get the global settings through a remote call from the browser
@@ -161,7 +159,7 @@ function main() {
 			start: new Date()
 		};
 
-		if (!!configuration.performance) {
+		if (configuration.performance) {
 			const programStart = remote.getGlobal('programStart');
 			const vscodeStart = remote.getGlobal('vscodeStart');
 

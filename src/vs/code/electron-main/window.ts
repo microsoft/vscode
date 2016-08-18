@@ -397,6 +397,11 @@ export class VSCodeWindow {
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
+		for (let key in config) {
+			if (!config[key]) {
+				delete config[key]; // only send over properties that have a true value
+			}
+		}
 
 		url += '?config=' + encodeURIComponent(JSON.stringify(config));
 

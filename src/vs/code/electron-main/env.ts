@@ -153,7 +153,7 @@ export class EnvService implements IEnvService {
 
 		this._cliArgs = Object.freeze({
 			_: [],
-			pathArguments: pathArguments,
+			pathArguments,
 			timestamp: types.isNumber(timestamp) ? String(timestamp) : '0',
 			performance: argv.performance,
 			verbose: argv.verbose,
