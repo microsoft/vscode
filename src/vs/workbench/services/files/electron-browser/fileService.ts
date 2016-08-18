@@ -63,12 +63,7 @@ export class FileService implements IFileService {
 			encodingOverride: encodingOverride,
 			watcherIgnoredPatterns: watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
-			debugBrkFileWatcherPort: environmentService.debugBrkFileWatcherPort
 		};
-
-		if (typeof environmentService.debugBrkFileWatcherPort === 'number') {
-			console.warn(`File Watcher STOPPED on first line for debugging on port ${environmentService.debugBrkFileWatcherPort}`);
-		}
 
 		// create service
 		let workspace = this.contextService.getWorkspace();
