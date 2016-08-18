@@ -16,6 +16,10 @@ import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes'
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {Registry} from 'vs/platform/platform';
+import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
+
 import {$} from 'vs/base/browser/builder';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -49,7 +53,6 @@ function validateThemeId(theme: string) : string {
 let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' }] }],
 	items: {
 		type: 'object',
 		defaultSnippets: [{ body: { label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' } }],
@@ -59,14 +62,43 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 				type: 'string'
 			},
 			uiTheme: {
-				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme.'),
+				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
 				enum: ['vs', 'vs-dark', 'hc-black']
 			},
 			path: {
 				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
 				type: 'string'
 			}
-		}
+		},
+		required: ['path', 'uiTheme']
+	}
+});
+
+let fileIconsExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('fileIcons', {
+	description: nls.localize('vscode.extension.contributes.fileIcons', 'Contributes file icons sets.'),
+	type: 'array',
+	items: {
+		type: 'object',
+		defaultSnippets: [{ body: { id: '{{id}}', label: '{{label}}', uiTheme: 'vs-dark', path: './fileicons/{{id}}.json' } }],
+		properties: {
+			id: {
+				description: nls.localize('vscode.extension.contributes.fileIcons.id', 'Id of the file icon set as used in the user settings.'),
+				type: 'string'
+			},
+			label: {
+				description: nls.localize('vscode.extension.contributes.fileIcons.label', 'Label of the file icon set as shown in the UI.'),
+				type: 'string'
+			},
+			uiTheme: {
+				description: nls.localize('vscode.extension.contributes.fileIcons.uiTheme', 'Base theme for which the file icon set is designed for: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme, \'hc-black\' is the dark high contrast theme.'),
+				enum: ['vs', 'vs-dark', 'hc-black']
+			},
+			path: {
+				description: nls.localize('vscode.extension.contributes.fileIcons.path', 'Path of the file icons definition file. The path is relative to the extension folder and is typically \'./fileicons/fileIconsFile.json\'.'),
+				type: 'string'
+			}
+		},
+		required: ['path', 'id', 'uiTheme']
 	}
 });
 
@@ -97,22 +129,56 @@ interface IInternalThemeData extends IThemeData {
 	extensionId: string;
 }
 
+interface ThemedFileIconSets {
+	dark?: string;
+	light?: string;
+	highContrast?: string;
+}
+
+interface FileIconDefinition {
+	iconPath: string;
+}
+
+interface FileIconsDocument {
+	definitions: { [key:string]: FileIconDefinition };
+	defaults: {[defType:string]: string; };
+	languageAssociations: {[languageId:string]: string; };
+}
+
+const defaultFileIconSets : ThemedFileIconSets = {
+	dark: 'vs-dark-standard',
+	light: 'vs-light-standard',
+	highContrast: 'vs-highcontrast-standard'
+};
+
+const baseThemeToPropertyKey = {
+	'vs': 'light',
+	'vs-dark': 'dark',
+	'hc_black': 'highContrast'
+};
+
 export class ThemeService implements IThemeService {
 	_serviceBrand: any;
 
 	private knownThemes: IInternalThemeData[];
 	private currentTheme: string;
 	private container: HTMLElement;
-	private onThemeChange: Emitter<string>;
+	private onColorThemeChange: Emitter<string>;
+
+	private knownFileIconContributions: IInternalThemeData[];
+	private currentFileIconsId: ThemedFileIconSets;
 
 	constructor(
 			@IExtensionService private extensionService: IExtensionService,
 			@IWindowService private windowService: IWindowService,
 			@IStorageService private storageService: IStorageService,
+			@IConfigurationService private configurationService: IConfigurationService,
 			@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.knownThemes = [];
-		this.onThemeChange = new Emitter<string>();
+		this.onColorThemeChange = new Emitter<string>();
+		this.knownFileIconContributions = [];
+		this.currentFileIconsId = {};
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
@@ -125,10 +191,29 @@ export class ThemeService implements IThemeService {
 				this.setColorTheme(e.payload, false);
 			}
 		});
+
+		fileIconsExtPoint.setHandler((extensions) => {
+			for (let ext of extensions) {
+				this.onFileIcons(ext.description.extensionFolderPath, ext.description.id, ext.value, ext.collector);
+			}
+		});
+
+		configurationService.loadConfiguration('files').then((settings: any) => {
+			let iconSet = settings.iconSet;
+			if (iconSet) {
+				this.setFileIcons(iconSet);
+			}
+		});
+
+		configurationService.onDidUpdateConfiguration(e => {
+			let filesConfig = e.config.files;
+			let iconSet = filesConfig && filesConfig.iconSet || {};
+			this.setFileIcons(iconSet);
+		});
 	}
 
 	public get onDidColorThemeChange(): Event<string> {
-		return this.onThemeChange.event;
+		return this.onColorThemeChange.event;
 	}
 
 	public initialize(container: HTMLElement): TPromise<boolean> {
@@ -171,7 +256,8 @@ export class ThemeService implements IThemeService {
 			} else {
 				this.sendTelemetry(newTheme);
 			}
-			this.onThemeChange.fire(newThemeId);
+			this.onColorThemeChange.fire(newThemeId);
+			this.updateFileIcons();
 		};
 
 		return this.applyThemeCSS(themeId, DEFAULT_THEME_ID, onApply);
@@ -181,7 +267,7 @@ export class ThemeService implements IThemeService {
 		return this.currentTheme || this.storageService.get(THEME_PREF, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 	}
 
-	private loadTheme(themeId: string, defaultId?: string): TPromise<IInternalThemeData> {
+	private findThemeData(themeId: string, defaultId?: string): TPromise<IInternalThemeData> {
 		return this.getColorThemes().then(allThemes => {
 			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
@@ -198,7 +284,7 @@ export class ThemeService implements IThemeService {
 	}
 
 	private applyThemeCSS(themeId: string, defaultId: string, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
-		return this.loadTheme(themeId, defaultId).then(theme => {
+		return this.findThemeData(themeId, defaultId).then(theme => {
 			if (theme) {
 				return applyTheme(theme, onApply);
 			}
@@ -248,6 +334,50 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
+	private onFileIcons(extensionFolderPath: string, extensionId: string, fileIcons: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
+		if (!Array.isArray(fileIcons)) {
+			collector.error(nls.localize(
+				'reqarray',
+				"Extension point `{0}` must be an array.",
+				themesExtPoint.name
+			));
+			return;
+		}
+		fileIcons.forEach(fileIconSet => {
+			if (!fileIconSet.path || (typeof fileIconSet.path !== 'string')) {
+				collector.error(nls.localize(
+					'reqpath',
+					"Expected string in `contributes.{0}.path`. Provided value: {1}",
+					themesExtPoint.name,
+					String(fileIconSet.path)
+				));
+				return;
+			}
+			if (!fileIconSet.id || (typeof fileIconSet.id !== 'string')) {
+				collector.error(nls.localize(
+					'reqid',
+					"Expected string in `contributes.{0}.id`. Provided value: {1}",
+					themesExtPoint.name,
+					String(fileIconSet.path)
+				));
+				return;
+			}
+			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionFolderPath, fileIconSet.path));
+
+			if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+			}
+
+			this.knownFileIconContributions.push({
+				id: fileIconSet.id,
+				label: fileIconSet.label || Paths.basename(fileIconSet.path),
+				description: fileIconSet.description,
+				path: normalizedAbsolutePath,
+				extensionId: extensionId
+			});
+		});
+	}
+
 	private themeExtensionsActivated = {};
 	private sendTelemetry(themeData: IInternalThemeData) {
 		if (!this.themeExtensionsActivated[themeData.extensionId]) {
@@ -264,8 +394,112 @@ export class ThemeService implements IThemeService {
 			}
 		}
 	}
+
+	public getFileIcons(): TPromise<IThemeData[]> {
+		return this.extensionService.onReady().then(isReady => {
+			return this.knownFileIconContributions;
+		});
+	}
+
+	private setFileIcons(iconSets: ThemedFileIconSets) : TPromise<boolean> {
+		['dark', 'light', 'highContrast'].forEach(p => {
+			this.currentFileIconsId[p] = iconSets[p];
+		});
+		return this.updateFileIcons();
+	}
+
+	private updateFileIcons() : TPromise<boolean> {
+		let baseId = getBaseThemeId(this.getColorTheme());
+		let propertyKey = baseThemeToPropertyKey[baseId];
+		return this.getFileIcons().then(allIconSets => {
+			let iconSetData = this.findFileIconSet(allIconSets, this.currentFileIconsId[propertyKey], defaultFileIconSets[propertyKey]);
+			if (iconSetData) {
+				return applyFileIcons(iconSetData);
+			}
+			return false;
+		});
+	}
+
+	private findFileIconSet(allIconSets: IThemeData[], fileSetId: string, defaultIds: string): IInternalThemeData {
+		let defaultData = void 0;
+		for (let iconSet of allIconSets) {
+			if (iconSet.id === fileSetId) {
+				return <IInternalThemeData> iconSet;
+			}
+			if (iconSet.id === defaultIds) {
+				defaultData = <IInternalThemeData> iconSet;
+			}
+		}
+		return defaultData;
+	}
 }
 
+function applyFileIcons(data: IInternalThemeData): TPromise<boolean> {
+	if (data.styleSheetContent) {
+		_applyRules(data.styleSheetContent, fileIconRulesClassName);
+		return TPromise.as(true);
+	}
+	return _loadFileIconsDocument(data.path).then(fileIconsDocument => {
+		let styleSheetContent = _processFileIconsObject(data.id, data.path, fileIconsDocument);
+		data.styleSheetContent = styleSheetContent;
+		_applyRules(styleSheetContent, fileIconRulesClassName);
+		return true;
+	}, error => {
+		return TPromise.wrapError(nls.localize('error.cannotloadfileicons', "Unable to load {0}", data.path));
+	});
+}
+
+function _loadFileIconsDocument(fileSetPath: string) : TPromise<FileIconsDocument> {
+	return pfs.readFile(fileSetPath).then(content => {
+		let errors: Json.ParseError[] = [];
+		let contentValue = <ThemeDocument> Json.parse(content.toString(), errors);
+		if (errors.length > 0) {
+			return TPromise.wrapError(new Error(nls.localize('error.cannotparsefileicons', "Problems parsing file icons file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
+		}
+		return TPromise.as(contentValue);
+	});
+}
+
+function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDocument: FileIconsDocument) : string {
+	if (!fileIconsDocument.definitions) {
+		return '';
+	}
+	let selectorByDefinitionId : {[def:string]:string[]} = {};
+	function addSelector(selector: string, defId: string) {
+		if (defId) {
+			let list = selectorByDefinitionId[defId];
+			if (!list) {
+				list = selectorByDefinitionId[defId] = [];
+			}
+			list.push(selector);
+		}
+	}
+	let defaults = fileIconsDocument.defaults;
+	if (defaults) {
+		addSelector('.show-file-icons .folder-icon', defaults['folder']);
+		addSelector('.show-file-icons .expanded .folder-icon', defaults['folder-expanded']);
+		addSelector('.show-file-icons .file-icon', defaults['file']);
+	}
+	let languageAssociations = fileIconsDocument.languageAssociations;
+	if (languageAssociations) {
+		for (let languageId in languageAssociations) {
+			addSelector(`.show-file-icons .${toCSSSelector(languageId)}-file-icon.file-icon`, languageAssociations[languageId]);
+		}
+	}
+	let cssRules: string[] = [];
+	cssRules.push('.show-file-icons .folder-icon, .show-file-icons .file-icon { background-repeat: no-repeat; padding-left: 22px; background-size: 16px !important; background-position: left center; }');
+	for (let defId in selectorByDefinitionId) {
+		let selectors = selectorByDefinitionId[defId];
+		let definition = fileIconsDocument.definitions[defId];
+		if (definition) {
+			if (definition.iconPath) {
+				let path = Paths.join(Paths.dirname(fileIconsPath), definition.iconPath);
+				cssRules.push(`${selectors.join(', ')} { background-image: url("${path}"); }`);
+			}
+		}
+	}
+	return cssRules.join('\n');
+}
 
 
 function toCSSSelector(str: string) {
@@ -278,14 +512,14 @@ function toCSSSelector(str: string) {
 
 function applyTheme(theme: IInternalThemeData, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
 	if (theme.styleSheetContent) {
-		_applyRules(theme.styleSheetContent);
+		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
 		onApply(theme);
 		return TPromise.as(true);
 	}
 	return _loadThemeDocument(theme.path).then(themeDocument => {
 		let styleSheetContent = _processThemeObject(theme.id, themeDocument);
 		theme.styleSheetContent = styleSheetContent;
-		_applyRules(styleSheetContent);
+		_applyRules(styleSheetContent, colorThemeRulesClassName);
 		onApply(theme);
 		return true;
 	}, error => {
@@ -421,14 +655,15 @@ function _settingsToStatements(settings: ThemeSettingStyle): string {
 	return statements.join(' ');
 }
 
-let className = 'contributedColorTheme';
+let colorThemeRulesClassName = 'contributedColorTheme';
+let fileIconRulesClassName = 'contributedFileIcons';
 
-function _applyRules(styleSheetContent: string) {
-	let themeStyles = document.head.getElementsByClassName(className);
+function _applyRules(styleSheetContent: string, rulesClassName: string) {
+	let themeStyles = document.head.getElementsByClassName(rulesClassName);
 	if (themeStyles.length === 0) {
 		let elStyle = document.createElement('style');
 		elStyle.type = 'text/css';
-		elStyle.className = className;
+		elStyle.className = rulesClassName;
 		elStyle.innerHTML = styleSheetContent;
 		document.head.appendChild(elStyle);
 	} else {
@@ -489,3 +724,27 @@ class Color {
 		});
 	}
 }
+
+var configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': 'files',
+	'order': 9.01,
+	'type': 'object',
+	'properties': {
+		'files.icons.dark': {
+			'type': 'string',
+			'default': defaultFileIconSets.dark,
+			'description': nls.localize('settings.icons.dark', 'The file icons to be used in dark themes.'),
+		},
+		'files.icons.light': {
+			'type': 'string',
+			'default': defaultFileIconSets.light,
+			'description': nls.localize('settings.icons.light', 'The file icons to be used in light themes.')
+		},
+		'files.icons.highContrast': {
+			'type': 'string',
+			'default': defaultFileIconSets.highContrast,
+			'description': nls.localize('settings.icons.highcontrast', 'The file icons to be used in high contrast themes.')
+		}
+	}
+});
