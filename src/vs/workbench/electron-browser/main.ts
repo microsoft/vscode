@@ -54,9 +54,6 @@ export interface IWindowConfiguration extends IEnvironment {
 
 	workspacePath?: string;
 
-	recentFiles?: string[];
-	recentFolders?: string[];
-
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
@@ -75,8 +72,6 @@ export function startup(configuration: IWindowConfiguration, globalSettings: IGl
 		filesToOpen,
 		filesToCreate,
 		filesToDiff,
-		recentFiles: configuration.recentFiles,
-		recentFolders: configuration.recentFolders,
 		extensionsToInstall: configuration.extensionsToInstall,
 		globalSettings
 	};

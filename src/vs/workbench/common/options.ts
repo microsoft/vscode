@@ -47,12 +47,6 @@ export interface IOptions {
 	editor?: IEditorOptions;
 
 	/**
-	 * Recent files and folders
-	 */
-	recentFiles?: string[];
-	recentFolders?: string[];
-
-	/**
 	 * The global application settings if any.
 	 */
 	globalSettings?: IGlobalSettings;

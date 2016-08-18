@@ -329,6 +329,17 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
+		ipc.on('vscode:openRecent', (event, windowId: number) => {
+			this.logService.log('IPC#vscode:openRecent');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				const recents = this.getRecentlyOpenedPaths(vscodeWindow.config.workspacePath, vscodeWindow.config.filesToOpen);
+
+				vscodeWindow.send('vscode:openRecent', recents.files, recents.folders);
+			}
+		});
+
 		ipc.on('vscode:focusWindow', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:focusWindow');
 
@@ -734,10 +745,6 @@ export class WindowsManager implements IWindowsService {
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.extensionsToInstall = extensionsToInstall;
-
-		const recents = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
-		configuration.recentFiles = recents.files;
-		configuration.recentFolders = recents.folders;
 
 		return configuration;
 	}
