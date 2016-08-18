@@ -14,7 +14,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
 import {ISuggestionItem, provideSuggestionItems} from './suggest';
-import {CompletionModel} from './completionModel';
+import {CompletionModel, LineContext} from './completionModel';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -396,24 +396,24 @@ export class SuggestModel implements IDisposable {
 		}
 
 		if (this.suggestionItems) {
-			let auto = this.isAutoSuggest();
+			const auto = this.isAutoSuggest();
+
+			const lineContext: LineContext = {
+				leadingLineContent: ctx.lineContentBefore,
+				characterCountDelta: this.context ? ctx.column - this.context.column : 0
+			};
 
 			let isFrozen = false;
 			if (this.completionModel && this.completionModel.raw === this.suggestionItems) {
 				const oldLineContext = this.completionModel.lineContext;
-				this.completionModel.lineContext = {
-					leadingLineContent: ctx.lineContentBefore,
-					characterCountDelta: this.context
-						? ctx.column - this.context.column
-						: 0
-				};
+				this.completionModel.lineContext = lineContext;
 
 				if (!auto && this.completionModel.items.length === 0) {
 					this.completionModel.lineContext = oldLineContext;
 					isFrozen = true;
 				}
 			} else {
-				this.completionModel = new CompletionModel(this.suggestionItems, ctx.lineContentBefore);
+				this.completionModel = new CompletionModel(this.suggestionItems, lineContext);
 			}
 
 			this._onDidSuggest.fire({
