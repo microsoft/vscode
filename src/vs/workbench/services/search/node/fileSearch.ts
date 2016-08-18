@@ -23,8 +23,8 @@ export class FileWalker {
 	private config: IRawSearch;
 	private filePattern: string;
 	private normalizedFilePatternLowercase: string;
-	private excludePattern: glob.IExpression;
-	private includePattern: glob.IExpression;
+	private excludePattern: glob.ParsedExpression;
+	private includePattern: glob.ParsedExpression;
 	private maxResults: number;
 	private maxFilesize: number;
 	private isLimitHit: boolean;
@@ -39,8 +39,8 @@ export class FileWalker {
 	constructor(config: IRawSearch) {
 		this.config = config;
 		this.filePattern = config.filePattern;
-		this.excludePattern = config.excludePattern;
-		this.includePattern = config.includePattern;
+		this.excludePattern = glob.parse(config.excludePattern);
+		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
 		this.maxFilesize = config.maxFilesize || null;
 		this.walkedPaths = Object.create(null);
@@ -86,7 +86,7 @@ export class FileWalker {
 			// For each extra file
 			if (extraFiles) {
 				extraFiles.forEach(extraFilePath => {
-					if (glob.match(this.excludePattern, extraFilePath)) {
+					if (this.excludePattern(extraFilePath)) {
 						return; // excluded
 					}
 
@@ -181,7 +181,7 @@ export class FileWalker {
 
 			// Check exclude pattern
 			let currentRelativePathWithSlashes = relativeParentPathWithSlashes ? [relativeParentPathWithSlashes, file].join('/') : file;
-			if (glob.match(this.excludePattern, currentRelativePathWithSlashes, () => siblings)) {
+			if (this.excludePattern(currentRelativePathWithSlashes, () => siblings)) {
 				return clb(null);
 			}
 
@@ -255,7 +255,7 @@ export class FileWalker {
 	}
 
 	private matchFile(onResult: (result: IRawFileMatch) => void, absolutePath: string, relativePathWithSlashes: string, size?: number): void {
-		if (this.isFilePatternMatch(relativePathWithSlashes) && (!this.includePattern || glob.match(this.includePattern, relativePathWithSlashes))) {
+		if (this.isFilePatternMatch(relativePathWithSlashes) && (!this.includePattern || this.includePattern(relativePathWithSlashes))) {
 			this.resultCount++;
 
 			if (this.maxResults && this.resultCount > this.maxResults) {
