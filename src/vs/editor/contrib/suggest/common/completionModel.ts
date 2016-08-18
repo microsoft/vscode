@@ -55,7 +55,9 @@ export class CompletionModel {
 	}
 
 	set lineContext(value: LineContext) {
-		if (this._lineContext !== value) {
+		if (this._lineContext.leadingLineContent !== value.leadingLineContent
+			|| this._lineContext.characterCountDelta !== value.characterCountDelta) {
+
 			this._filteredItems = undefined;
 			this._lineContext = value;
 		}
