@@ -13,6 +13,8 @@ var istanbul = require('istanbul');
 var jsdom = require('jsdom-no-contextify');
 var minimatch = require('minimatch');
 var async = require('async');
+var fs = require('fs');
+var vm = require('vm');
 var TEST_GLOB = '**/test/**/*.test.js';
 
 var optimist = require('optimist')
@@ -20,6 +22,7 @@ var optimist = require('optimist')
 	.describe('build', 'Run from out-build').boolean('build')
 	.describe('run', 'Run a single file').string('run')
 	.describe('coverage', 'Generate a coverage report').boolean('coverage')
+	.describe('forceLoad', 'Force loading').boolean('forceLoad')
 	.describe('browser', 'Run tests in a browser').boolean('browser')
 	.alias('h', 'help').boolean('h')
 	.describe('h', 'Show help');
@@ -91,7 +94,11 @@ function main() {
 	if (argv.coverage) {
 		var instrumenter = new istanbul.Instrumenter();
 
+		var seenSources = {};
+
 		loaderConfig.nodeInstrumenter = function (contents, source) {
+			seenSources[source] = true;
+
 			if (minimatch(source, TEST_GLOB)) {
 				return contents;
 			}
@@ -102,6 +109,35 @@ function main() {
 		process.on('exit', function (code) {
 			if (code !== 0) {
 				return;
+			}
+
+			if (argv.forceLoad) {
+				var allFiles = glob.sync(out + '/vs/**/*.js');
+				allFiles = allFiles.map(function(source) {
+					return path.join(__dirname, '..', source);
+				});
+				allFiles = allFiles.filter(function(source) {
+					if (seenSources[source]) {
+						return false;
+					}
+					if (minimatch(source, TEST_GLOB)) {
+						return false;
+					}
+					if (/fixtures/.test(source)) {
+						return false;
+					}
+					return true;
+				});
+				allFiles.forEach(function(source, index) {
+					var contents = fs.readFileSync(source).toString();
+					contents = instrumenter.instrumentSync(contents, source);
+					var stopAt = contents.indexOf('}\n__cov');
+					stopAt = contents.indexOf('}\n__cov', stopAt + 1);
+
+					var str = '(function() {' + contents.substr(0, stopAt + 1) + '});';
+					var r = vm.runInThisContext(str, source);
+					r.call(global);
+				});
 			}
 
 			var collector = new istanbul.Collector();
