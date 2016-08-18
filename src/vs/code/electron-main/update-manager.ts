@@ -8,9 +8,8 @@
 import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
-import * as platform from 'vs/base/common/platform';
 import { EventEmitter } from 'events';
-import { IEnvService, getPlatformIdentifier } from 'vs/code/electron-main/env';
+import { IEnvService } from 'vs/code/electron-main/env';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
@@ -85,11 +84,11 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		this._feedUrl = null;
 		this._channel = null;
 
-		if (platform.isWindows) {
+		if (process.platform === 'win32') {
 			this.raw = instantiationService.createInstance(Win32AutoUpdaterImpl);
-		} else if (platform.isLinux) {
+		} else if (process.platform === 'linux') {
 			this.raw = instantiationService.createInstance(LinuxAutoUpdaterImpl);
-		} else if (platform.isMacintosh) {
+		} else if (process.platform === 'darwin') {
 			this.raw = electron.autoUpdater;
 		}
 
@@ -153,7 +152,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 			// for some reason updating on Mac causes the local storage not to be flushed.
 			// we workaround this issue by forcing an explicit flush of the storage data.
 			// see also https://github.com/Microsoft/vscode/issues/172
-			if (platform.isMacintosh) {
+			if (process.platform === 'darwin') {
 				electron.session.defaultSession.flushStorageData();
 			}
 
@@ -241,7 +240,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 			return null;
 		}
 
-		if (platform.isWindows && !fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))) {
+		if (process.platform === 'win32' && !fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))) {
 			return null;
 		}
 
@@ -249,6 +248,8 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 			return null;
 		}
 
-		return `${this.envService.updateUrl}/api/update/${getPlatformIdentifier()}/${channel}/${this.envService.product.commit}`;
+		const platform = process.platform === 'linux' ? `linux-${process.arch}` : process.platform;
+
+		return `${ this.envService.updateUrl }/api/update/${ platform }/${ channel }/${ this.envService.product.commit }`;
 	}
 }
