@@ -28,7 +28,7 @@ export interface IProcessEnvironment {
 }
 
 export interface ICommandLineArguments extends ParsedArgs {
-	pathArguments?: string[];
+	paths?: string[];
 }
 
 export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService');
@@ -147,13 +147,13 @@ export class EnvService implements IEnvService {
 		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
 		const debugPluginHost = debugBrkExtensionHostPort ? String(debugBrkExtensionHostPort) : debugExtensionHostPort ? String(debugExtensionHostPort): void 0;
 		const debugBrkPluginHost = debugBrkExtensionHostPort ? String(true) : void 0;
-		const pathArguments = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
+		const paths = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 		const timestamp = parseInt(argv.timestamp);
 		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
 
 		this._cliArgs = Object.freeze({
 			_: [],
-			pathArguments,
+			paths,
 			timestamp: types.isNumber(timestamp) ? String(timestamp) : '0',
 			performance: argv.performance,
 			verbose: argv.verbose,
@@ -164,7 +164,7 @@ export class EnvService implements IEnvService {
 			'new-window': argv['new-window'],
 			'reuse-window': argv['reuse-window'],
 			goto: argv.goto,
-			diff: argv.diff && pathArguments.length === 2,
+			diff: argv.diff && paths.length === 2,
 			extensionHomePath: normalizePath(argv.extensionHomePath),
 			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
 			extensionTestsPath: normalizePath(argv.extensionTestsPath),

@@ -540,7 +540,7 @@ export class WindowsManager implements IWindowsService {
 
 		// Otherwise infer from command line arguments
 		else {
-			let ignoreFileNotFound = openConfig.cli.pathArguments.length > 0; // we assume the user wants to create this file from command line
+			let ignoreFileNotFound = openConfig.cli.paths.length > 0; // we assume the user wants to create this file from command line
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
@@ -705,23 +705,23 @@ export class WindowsManager implements IWindowsService {
 		}
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
-		if (openConfig.cli.pathArguments.length === 0 && !openConfig.cli.extensionTestsPath) {
+		if (openConfig.cli.paths.length === 0 && !openConfig.cli.extensionTestsPath) {
 			let workspaceToOpen = this.windowsState.lastPluginDevelopmentHostWindow && this.windowsState.lastPluginDevelopmentHostWindow.workspacePath;
 			if (workspaceToOpen) {
-				openConfig.cli.pathArguments = [workspaceToOpen];
+				openConfig.cli.paths = [workspaceToOpen];
 			}
 		}
 
 		// Make sure we are not asked to open a path that is already opened
-		if (openConfig.cli.pathArguments.length > 0) {
-			res = WindowsManager.WINDOWS.filter((w) => w.openedWorkspacePath && openConfig.cli.pathArguments.indexOf(w.openedWorkspacePath) >= 0);
+		if (openConfig.cli.paths.length > 0) {
+			res = WindowsManager.WINDOWS.filter((w) => w.openedWorkspacePath && openConfig.cli.paths.indexOf(w.openedWorkspacePath) >= 0);
 			if (res.length) {
-				openConfig.cli.pathArguments = [];
+				openConfig.cli.paths = [];
 			}
 		}
 
 		// Open it
-		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.pathArguments.length === 0 });
+		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.paths.length === 0 });
 	}
 
 	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
@@ -814,8 +814,8 @@ export class WindowsManager implements IWindowsService {
 
 		// Check for pass in candidate or last opened path
 		let candidates: string[] = [];
-		if (cli.pathArguments.length > 0) {
-			candidates = cli.pathArguments;
+		if (cli.paths.length > 0) {
+			candidates = cli.paths;
 		}
 
 		// No path argument, check settings for what to do now
