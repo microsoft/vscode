@@ -13,6 +13,7 @@ import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextK
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { getSnippetController, CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
@@ -61,12 +62,21 @@ export class SuggestController implements IEditorContribution {
 
 	private onDidSelectItem(item: CompletionItem): void {
 		if (item) {
-			const {insertText, overwriteBefore, overwriteAfter} = item.suggestion;
+			const {insertText, overwriteBefore, overwriteAfter, extraEdits} = item.suggestion;
 			const columnDelta = this.editor.getPosition().column - this.model.getTriggerPosition().column;
 
-			getSnippetController(this.editor).run(new CodeSnippet(insertText),
+			if (Array.isArray(extraEdits)) {
+				this.editor.pushUndoStop();
+				this.editor.executeEdits('suggestController.extraEdits', extraEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				this.editor.pushUndoStop();
+			}
+
+			getSnippetController(this.editor).run(
+				new CodeSnippet(insertText),
 				overwriteBefore + columnDelta,
-				overwriteAfter);
+				overwriteAfter,
+				undefined
+			);
 		}
 
 		this.model.cancel();
