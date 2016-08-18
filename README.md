@@ -32,7 +32,8 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 ## Feedback
 
 * Ask a question on [Stack Overflow](http://stackoverflow.com/questions/tagged/vscode).
-* Request a feature on [User Voice](https://visualstudio.uservoice.com/forums/293070-visual-studio-code).
+* Request a new feature on [Github](Contributing.md).
+* Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
 * File a bug in [GitHub Issues](https://github.com/Microsoft/vscode/issues).
 * [Tweet](https://twitter.com/code) us with other feedback.
 
