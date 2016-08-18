@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 
@@ -35,11 +34,6 @@ export interface IOptions {
 	 * Instructs the workbench to install the extensions from the provided local paths.
 	 */
 	extensionsToInstall?: string[];
-
-	/**
-	 * Editor options to be used for any editor in the workbench.
-	 */
-	editor?: IEditorOptions;
 
 	/**
 	 * The global application settings if any.

@@ -9,11 +9,10 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
-import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {IEditor, EventType, IEditorOptions} from 'vs/editor/common/editorCommon';
+import {IEditor, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {Position} from 'vs/platform/editor/common/editor';
@@ -52,9 +51,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	) {
 		super(id, telemetryService);
 
-		this.toUnbind.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, _ => this.handleConfigurationChangeEvent()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
-
 		this.toUnbind.push(_themeService.onDidColorThemeChange(_ => this.handleConfigurationChangeEvent()));
 	}
 
@@ -106,15 +103,12 @@ export abstract class BaseTextEditor extends BaseEditor {
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
-		let baseOptions: IEditorOptions = {
+		return {
 			overviewRulerLanes: 3,
 			glyphMargin: true,
 			lineNumbersMinChars: 3,
 			theme: this._themeService.getColorTheme()
 		};
-
-		// Always mixin editor options from the context into our set to allow for override
-		return objects.mixin(baseOptions, this.contextService.getOptions().editor);
 	}
 
 	public get eventService(): IEventService {

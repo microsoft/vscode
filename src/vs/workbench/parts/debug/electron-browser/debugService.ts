@@ -652,9 +652,6 @@ export class DebugService implements debug.IDebugService {
 					this.partService.addClass('debugging');
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
-				this.contextService.updateOptions('editor', {
-					glyphMargin: true
-				});
 				this.inDebugMode.set(true);
 				this.lazyTransitionToRunningState();
 
