@@ -15,7 +15,8 @@ import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEdit
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { getSnippetController, CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
+import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
+import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
 import { CompletionItem } from '../common/completionModel';
@@ -83,7 +84,7 @@ export class SuggestController implements IEditorContribution {
 				this.editor.pushUndoStop();
 			}
 
-			getSnippetController(this.editor).run(
+			SnippetController.get(this.editor).run(
 				new CodeSnippet(insertText),
 				overwriteBefore + columnDelta,
 				overwriteAfter,

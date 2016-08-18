@@ -9,6 +9,7 @@ import {IPosition, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import {Range} from 'vs/editor/common/core/range';
+import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
 
 import emmet = require('emmet');
 
@@ -88,7 +89,7 @@ export class EditorAccessor implements emmet.Editor {
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 		let snippet = snippets.CodeSnippet.convertExternalSnippet(value, snippets.ExternalSnippetType.EmmetSnippet);
 		let codeSnippet = new snippets.CodeSnippet(snippet);
-		snippets.getSnippetController(this.editor).runWithReplaceRange(codeSnippet, range, false);
+		SnippetController.get(this.editor).runWithReplaceRange(codeSnippet, range, false);
 	}
 
 	public onAfterEmmetAction(): void {
