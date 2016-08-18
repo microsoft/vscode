@@ -1,0 +1,21 @@
+{
+	"definitions": {
+		"folder": {
+			"iconPath": "./images/Folder_16x_inverse.svg"
+		},
+		"folder_open": {
+			"iconPath": "./images/FolderOpen_16x_inverse.svg"
+		},
+		"file": {
+			"iconPath": "./images/Document_16x_inverse.svg"
+		}
+	},
+	"defaults": {
+		"folder-expanded": "folder_open",
+		"folder": "folder",
+		"file": "file"
+	},
+	"languageAssociations": {
+		"text": "file"
+	}
+}
