@@ -22,7 +22,7 @@ import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
 import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
 import {SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 

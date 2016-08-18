@@ -18,7 +18,7 @@ import {ServicesAccessor, editorAction} from 'vs/editor/common/editorCommonExten
 import {EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 @editorAction
 class EncodeDecodeDataUrlAction extends EmmetEditorAction {

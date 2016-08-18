@@ -22,7 +22,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
 import PartService = require('vs/workbench/services/part/common/partService');
-import WorkspaceContextService = require('vs/workbench/services/workspace/common/contextService');
+import WorkspaceContextService = require('vs/platform/workspace/common/workspace');
 import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';

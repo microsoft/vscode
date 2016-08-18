@@ -36,7 +36,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IContextKeyService, RawContextKey, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 

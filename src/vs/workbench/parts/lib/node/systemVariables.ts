@@ -11,7 +11,7 @@ import { AbstractSystemVariables } from 'vs/base/common/parsers';
 import * as WorkbenchEditorCommon from 'vs/workbench/common/editor';
 
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class SystemVariables extends AbstractSystemVariables {

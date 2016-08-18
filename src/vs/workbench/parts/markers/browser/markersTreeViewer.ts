@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import {IDataSource, ITree, IRenderer, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
 import { IActionRunner } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';

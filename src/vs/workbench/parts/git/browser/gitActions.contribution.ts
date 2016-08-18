@@ -23,7 +23,7 @@ import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService, Parts} from 'vs/workbench/services/part/common/partService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/common/actionRegistry');

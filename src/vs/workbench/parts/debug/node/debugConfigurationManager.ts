@@ -26,7 +26,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {ConfigVariables} from 'vs/workbench/parts/lib/node/configVariables';

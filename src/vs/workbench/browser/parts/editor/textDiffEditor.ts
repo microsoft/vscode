@@ -26,7 +26,7 @@ import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorMode
 import {DelegatingWorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';

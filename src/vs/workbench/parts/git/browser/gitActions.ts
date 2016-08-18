@@ -18,7 +18,7 @@ import { TextDiffEditorOptions } from 'vs/workbench/common/editor';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
