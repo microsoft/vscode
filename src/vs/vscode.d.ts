@@ -2971,6 +2971,9 @@ declare namespace vscode {
 		dispose(): void;
 	}
 
+	/**
+	 * An individual terminal instance within the integrated terminal.
+	 */
 	export interface Terminal {
 
 		/**
@@ -3465,7 +3468,14 @@ declare namespace vscode {
 		 */
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
-		export function createTerminal(label?: string): Thenable<vscode.Terminal>;
+		/**
+		 * Creates a [Terminal](#Terminal).
+		 *
+		 * @param name The optional name of a terminal, this will override the label used in the
+		 * terminal dropdown.
+		 * @return A new Terminal.
+		 */
+		export function createTerminal(name?: string): Thenable<vscode.Terminal>;
 	}
 
 	/**
