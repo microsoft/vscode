@@ -394,7 +394,7 @@ export class Workbench implements IPartService {
 
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
-		if (!!this.workbenchParams.options.singleFileMode) {
+		if (!this.contextService.getWorkspace()) {
 			this.sideBarHidden = true; // we hide sidebar in single-file-mode
 		}
 
@@ -406,7 +406,7 @@ export class Workbench implements IPartService {
 		// Panel part visibility
 		const panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
 		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
-		if (!!this.workbenchParams.options.singleFileMode || !panelRegistry.getDefaultPanelId()) {
+		if (!this.contextService.getWorkspace() || !panelRegistry.getDefaultPanelId()) {
 			this.panelHidden = true; // we hide panel part in single-file-mode or if there is no default panel
 		}
 
