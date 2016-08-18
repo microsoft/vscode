@@ -61,9 +61,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get performance(): boolean { return this.args.performance; }
 	get logExtensionHostCommunication(): boolean { return this.args.logExtensionHostCommunication; }
 
-	private _debugBrkFileWatcherPort: number;
-	get debugBrkFileWatcherPort(): number { return this._debugBrkFileWatcherPort; }
-
 	constructor(private args: IEnvironment) {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._userDataPath = args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
@@ -81,8 +78,6 @@ export class EnvironmentService implements IEnvironmentService {
 		const { port, brk } = parseExtensionHostPort(args, this.isBuilt);
 		this._debugExtensionHostPort = port;
 		this._debugBrkExtensionHost = brk;
-
-		this._debugBrkFileWatcherPort = (typeof args.debugBrkFileWatcherPort === 'string') ? Number(args.debugBrkFileWatcherPort) : void 0;
 	}
 }
 

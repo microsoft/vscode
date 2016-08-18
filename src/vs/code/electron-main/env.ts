@@ -55,20 +55,6 @@ export interface IEnvService {
 	createPaths(): TPromise<void>;
 }
 
-function getNumericValue(value: string, defaultValue: number, fallback: number = void 0) {
-	const numericValue = parseInt(value);
-
-	if (types.isNumber(numericValue)) {
-		return numericValue;
-	}
-
-	if (value) {
-		return defaultValue;
-	}
-
-	return fallback;
-}
-
 export class EnvService implements IEnvService {
 
 	_serviceBrand: any;
@@ -143,7 +129,6 @@ export class EnvService implements IEnvService {
 
 		const argv = parseArgs(args);
 		const paths = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
-		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
 
 		this._cliArgs = Object.freeze({
 			_: [],
@@ -153,7 +138,6 @@ export class EnvService implements IEnvService {
 			debugPluginHost: argv.debugPluginHost,
 			debugBrkPluginHost: argv.debugBrkPluginHost,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
-			debugBrkFileWatcherPort: debugBrkFileWatcherPort ? String(debugBrkFileWatcherPort) : void 0,
 			'new-window': argv['new-window'],
 			'reuse-window': argv['reuse-window'],
 			goto: argv.goto,
