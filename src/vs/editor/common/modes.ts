@@ -368,6 +368,7 @@ export interface ISuggestion {
 	overwriteBefore?: number;
 	overwriteAfter?: number;
 	extraEdits?: editorCommon.ISingleEditOperation[];
+	command?: Command;
 }
 
 /**
