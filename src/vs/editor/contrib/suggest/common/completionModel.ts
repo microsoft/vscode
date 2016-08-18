@@ -78,15 +78,22 @@ export class CompletionModel {
 	private _filterAndScore(): void {
 		this._filteredItems = [];
 		this._topScoreIdx = -1;
-		let topScore = -1;
 		const {leadingLineContent, characterCountDelta} = this._lineContext;
 
-		//TODO@joh - sort by 'overwriteBefore' such that we can 'reuse' the word (wordLowerCase)
+		let word = '';
+		let topScore = -1;
+
 		for (const item of this._items) {
 
-			const start = leadingLineContent.length - (item.suggestion.overwriteBefore + characterCountDelta);
-			const word = leadingLineContent.substr(start);
 			const {filter, suggestion} = item;
+
+			// 'word' is that remainder of the current line that we
+			// filter and score against. In theory each suggestion uses a
+			// differnet word, but in practice not - that's why we cache
+			const wordLen = item.suggestion.overwriteBefore + characterCountDelta;
+			if (word.length !== wordLen) {
+				word = leadingLineContent.slice(-wordLen);
+			}
 
 			let match = false;
 
