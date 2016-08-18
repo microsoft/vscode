@@ -3,20 +3,33 @@
 <html>
 	<head>
 		<meta charset="utf-8" />
-		<style>.monaco-shell.vs-dark { background-color: #1E1E1E; }</style>
-		<script>
-			try {
-				const theme = window.localStorage.getItem('storage://global/workbench.theme');
-				const baseTheme = (theme || '').split(' ')[0];
 
-				if (baseTheme !== 'vs-dark') {
-					window.document.body.className = 'monaco-shell ' + baseTheme;
-				}
-			} catch (error) {
-				console.error(error);
+		<!-- Theming (do not remove, we want to early load it to avoid flashing background) -->
+		<style>
+			.monaco-shell.vs-dark {
+				background-color: #1E1E1E;
 			}
-		</script>
+		</style>
+
 	</head>
-	<body class="monaco-shell vs-dark" aria-label=""></body>
+	<body class="monaco-shell vs-dark" aria-label="">
+		<script>
+			(function() {
+					try {
+						var theme = window.localStorage.getItem('storage://global/workbench.theme');
+						if (theme) {
+							var baseTheme = theme.split(' ')[0];
+							if (baseTheme !== 'vs-dark') {
+								window.document.body.className = 'monaco-shell ' + baseTheme;
+							}
+						}
+					} catch (error) {
+						console.error(error);
+					}
+				})();
+		</script>
+	</body>
+
+	<!-- Startup via index.js -->
 	<script src="index.js"></script>
 </html>
