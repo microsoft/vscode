@@ -164,6 +164,7 @@
 	display: none;
 	position: absolute;
 	white-space: nowrap;
+	z-index: 1;
 }
 
 .terminal .composition-view.active {
