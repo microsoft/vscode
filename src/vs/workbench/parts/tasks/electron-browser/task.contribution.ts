@@ -362,6 +362,30 @@ class RunTaskAction extends AbstractTaskAction {
 	}
 }
 
+function getRunSpecificTaskAction(taskName: string, taskId: string, taskSystem: ITaskSystem) {
+	class RunSpecificTaskAction extends AbstractTaskAction {
+
+		public static ID = 'workbench.action.tasks.runTask/' + taskName;
+		public static TEXT = nls.localize('RunTaskAction.label', "Run Task") + ' - ' + taskName;
+		private quickOpenService: IQuickOpenService;
+
+		constructor(id: string, label: string, @IQuickOpenService quickOpenService:IQuickOpenService,
+			@ITaskService taskService: ITaskService, @ITelemetryService telemetryService: ITelemetryService,
+			@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+			super(id, label, taskService, telemetryService, messageService, contextService);
+		}
+
+		public run(event?:any): Promise {
+			if (!this.canRun()) {
+				return TPromise.as(undefined);
+			}
+			taskSystem.run(taskId);
+			return TPromise.as(null);
+		}
+	}
+
+	return RunSpecificTaskAction;
+}
 
 class StatusBarItem implements IStatusbarItem {
 
@@ -579,6 +603,8 @@ class TaskService extends EventEmitter implements ITaskService {
 	private clearTaskSystemPromise: boolean;
 	private outputChannel: IOutputChannel;
 
+	private _registeredSpecificTasks: string[];
+
 	private fileChangesListener: IDisposable;
 
 	constructor(@IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
@@ -610,6 +636,12 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
 		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
+
+		this._registeredSpecificTasks = [];
+		this.addListener2(TaskServiceEvents.ConfigChanged, () => {
+			this.tasks(); //reload tasks for keyboard shortcuts task
+		});
+
 	this.configurationService.onDidUpdateConfiguration(() => {
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._taskSystem && this._taskSystem.isActiveSync()) {
@@ -633,6 +665,26 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.fileChangesListener.dispose();
 			this.fileChangesListener = null;
 		}
+	}
+
+	private refreshTaskKeyboardShortcuts(tasks: TaskDescription[], taskSystem: ITaskSystem): void {
+		let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
+		let tasksCategory = nls.localize('tasksCategory', "Tasks");
+
+		//Remove any existing ones
+		this._registeredSpecificTasks.forEach((id) => {
+			workbenchActionsRegistry.unregisterWorkbenchAction(id);
+		});
+		this._registeredSpecificTasks = []; //clear existing
+
+		//Re-add them
+		tasks.forEach(t => {
+			let RunSpecificTaskAction = getRunSpecificTaskAction(t.name, t.id, taskSystem);
+			let actionDescriptor = new SyncActionDescriptor(RunSpecificTaskAction, RunSpecificTaskAction.ID, RunSpecificTaskAction.TEXT + ' - ' + t.name);
+
+			this._registeredSpecificTasks.push(actionDescriptor.id);
+			workbenchActionsRegistry.registerWorkbenchAction(actionDescriptor, 'Tasks: Run Task - ' + t.name, tasksCategory);
+		});
 	}
 
 	private get taskSystemPromise(): TPromise<ITaskSystem> {
@@ -699,11 +751,13 @@ class TaskService extends EventEmitter implements ITaskService {
 							this._taskSystemPromise = null;
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 						}
+						let refreshShortcuts = false;
 						let result: ITaskSystem = null;
 						if (config.buildSystem === 'service') {
 							result = new LanguageServiceTaskSystem(<LanguageServiceTaskConfiguration>config, this.telemetryService, this.modeService);
 						} else if (this.isRunnerConfig(config)) {
 							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, variables, this.markerService, this.modelService, this.telemetryService, this.outputService, TaskService.OutputChannelId, clearOutput);
+							refreshShortcuts = true;
 						}
 						if (result === null) {
 							this._taskSystemPromise = null;
@@ -712,7 +766,15 @@ class TaskService extends EventEmitter implements ITaskService {
 						this.taskSystemListeners.push(result.addListener2(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
 						this.taskSystemListeners.push(result.addListener2(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
 						this._taskSystem = result;
-						return result;
+						if (refreshShortcuts) {
+							return result.tasks().then(tasks => {
+								this.refreshTaskKeyboardShortcuts(tasks, result);
+								return result;
+							});
+						}
+						else {
+							return result;
+						}
 					}, (err: any) => {
 						this.handleError(err);
 						return Promise.wrapError(err);
