@@ -601,12 +601,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return viewModel.convertViewRangeToModelRange(currentCenteredViewRange);
 	}
 
-	public getVisibleRangeInViewport(): Range {
+	public getCompletelyVisibleLinesRangeInViewport(): Range {
 		if (this._isDisposed) {
-			throw new Error('ViewImpl.getVisibleRangeInViewport: View is disposed');
+			throw new Error('ViewImpl.getVisibleRangeInViewportExcludingPartialRenderedLines: View is disposed');
 		}
-		let visibleRange = this.layoutProvider.getLinesViewportData().visibleRange;
-		return this._context.model.convertViewRangeToModelRange(visibleRange);
+		let completelyVisibleLinesRange = this.layoutProvider.getLinesViewportData().completelyVisibleLinesRange;
+		return this._context.model.convertViewRangeToModelRange(completelyVisibleLinesRange);
 	}
 
 //	public getLineInfoProvider():view.ILineInfoProvider {

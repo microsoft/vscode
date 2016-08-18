@@ -41,12 +41,16 @@ export class ViewLinesViewportData {
 	/**
 	 * The viewport as a range (`startLineNumber`,1) -> (`endLineNumber`,maxColumn(`endLineNumber`)).
 	 */
-	visibleRange:Range;
+	visibleRange: Range;
+	/**
+	 * completely visible lines range excluding partially rendered lines. Subset of `visibleRange`.
+	 */
+	completelyVisibleLinesRange:Range;
 
 	private _decorations: IModelDecoration[];
 	private _inlineDecorations: InlineDecoration[][];
 
-	constructor(partialData:IPartialViewLinesViewportData, visibleRange:Range, decorationsData:IDecorationsViewportData) {
+	constructor(partialData:IPartialViewLinesViewportData, visibleRange:Range, completelyVisibleLinesRange: Range, decorationsData:IDecorationsViewportData) {
 		this.viewportTop = partialData.viewportTop|0;
 		this.viewportHeight = partialData.viewportHeight|0;
 		this.bigNumbersDelta = partialData.bigNumbersDelta|0;
@@ -55,6 +59,7 @@ export class ViewLinesViewportData {
 		this.endLineNumber = partialData.endLineNumber|0;
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
 		this.visibleRange = visibleRange;
+		this.completelyVisibleLinesRange = completelyVisibleLinesRange;
 		this._decorations = decorationsData.decorations;
 		this._inlineDecorations = decorationsData.inlineDecorations;
 	}

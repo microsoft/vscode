@@ -1504,20 +1504,24 @@ export class Cursor extends EventEmitter {
 
 	private _scrollUpOrDown(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
 		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
-		let noOfLines = 1;
 		let cursor: OneCursor = this.cursors.getAll()[0];
+
+		if (editorCommon.EditorScrollByUnit.Line === editorScrollArg.by) {
+			let range = up ? cursor.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : cursor.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
+			this.emitCursorRevealRange(range, null, up ? editorCommon.VerticalRevealType.Top : editorCommon.VerticalRevealType.Bottom, false);
+			return true;
+		}
+
+		let noOfLines = 1;
 		switch (editorScrollArg.by) {
 			case editorCommon.EditorScrollByUnit.WrappedLine:
 				noOfLines = editorScrollArg.value;
-				break;
-			case editorCommon.EditorScrollByUnit.Line:
-				noOfLines = (up ? cursor.getDeltaViewLinesToRevealModelLineBeforeViewPortTop(editorScrollArg.value) : cursor.getDeltaViewLinesToRevealModelLineAfteriewPortBottom(editorScrollArg.value)) || 1;
 				break;
 			case editorCommon.EditorScrollByUnit.Page:
 				noOfLines = cursor.getPageSize() * editorScrollArg.value;
 				break;
 			case editorCommon.EditorScrollByUnit.HalfPage:
-				noOfLines = Math.round(this.cursors.getAll()[0].getPageSize() / 2) * editorScrollArg.value;
+				noOfLines = Math.round(cursor.getPageSize() / 2) * editorScrollArg.value;
 				break;
 		}
 		ctx.requestScrollDeltaLines = (up ? -1 : 1) * noOfLines;
