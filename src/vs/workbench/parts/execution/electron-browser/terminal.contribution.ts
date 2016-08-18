@@ -14,7 +14,7 @@ import paths = require('vs/base/common/paths');
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import uri from 'vs/base/common/uri';
 import {asFileResource} from 'vs/workbench/parts/files/common/files';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

@@ -14,7 +14,7 @@ import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

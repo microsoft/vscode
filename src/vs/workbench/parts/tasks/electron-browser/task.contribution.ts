@@ -54,7 +54,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
 import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';

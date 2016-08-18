@@ -29,7 +29,7 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ISearchStats, ICachedSearchStats, IUncachedSearchStats} from 'vs/platform/search/common/search';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 const objects_assign: <T, U>(destination: T, source: U) => T & U = objects.assign;

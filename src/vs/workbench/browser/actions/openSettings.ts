@@ -16,7 +16,7 @@ import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRe
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';

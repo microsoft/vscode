@@ -15,7 +15,7 @@ import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInpu
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {UntitledEditorEvent, EventType} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';

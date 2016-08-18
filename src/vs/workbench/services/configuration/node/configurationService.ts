@@ -14,7 +14,8 @@ import extfs = require('vs/base/node/extfs');
 import {IConfigFile} from 'vs/platform/configuration/common/model';
 import objects = require('vs/base/common/objects');
 import {IStat, IContent, ConfigurationService as CommonConfigurationService} from 'vs/platform/configuration/common/configurationService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -29,7 +30,7 @@ export class ConfigurationService extends CommonConfigurationService {
 	public _serviceBrand: any;
 
 	protected contextService: IWorkspaceContextService;
-	
+
 	private toDispose: IDisposable;
 
 	constructor(
@@ -111,7 +112,7 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	protected loadGlobalConfiguration(): { contents: any; parseErrors?: string[]; } {
 		const defaults = super.loadGlobalConfiguration();
-		const globalSettings = this.contextService.getOptions().globalSettings;
+		const globalSettings = (<LegacyWorkspaceContextService>this.contextService).getOptions().globalSettings;
 
 		return {
 			contents: objects.mixin(

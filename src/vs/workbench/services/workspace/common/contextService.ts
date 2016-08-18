@@ -7,28 +7,9 @@
 import {IOptions} from 'vs/workbench/common/options';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspace, IWorkspaceContextService as IBaseWorkspaceContextService, BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace, BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
-
-export interface IWorkspaceContextService extends IBaseWorkspaceContextService {
-	_serviceBrand: any;
-
-	/**
-	 * Provides access to the options object the platform is running with.
-	 */
-	getOptions(): IOptions;
-
-	/**
-	 * Update options in the running instance.
-	 */
-	updateOptions(key: string, value: any): void;
-}
-
-export class WorkspaceContextService extends BaseWorkspaceContextService implements IWorkspaceContextService {
-
-	public _serviceBrand: any;
+export class LegacyWorkspaceContextService extends BaseWorkspaceContextService {
 
 	constructor(
 		private eventService: IEventService,

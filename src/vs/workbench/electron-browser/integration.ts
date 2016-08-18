@@ -21,7 +21,8 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService}from 'vs/platform/workspace/common/workspace';
+import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -79,7 +80,7 @@ export class ElectronIntegration {
 			for (let key in optionsData) {
 				if (optionsData.hasOwnProperty(key)) {
 					const value = optionsData[key];
-					this.contextService.updateOptions(key, value);
+					(<LegacyWorkspaceContextService>this.contextService).updateOptions(key, value);
 				}
 			}
 		});

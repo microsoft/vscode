@@ -13,7 +13,7 @@ import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {IEditor, IEditorOptions} from 'vs/editor/common/editorCommon';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IStorageService} from 'vs/platform/storage/common/storage';

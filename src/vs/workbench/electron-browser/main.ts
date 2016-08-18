@@ -16,7 +16,7 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {IProcessEnvironment} from 'vs/code/electron-main/env';
@@ -132,7 +132,7 @@ function getWorkspace(workspacePath: string): IWorkspace {
 function openWorkbench(environment: IEnvironment, workspace: IWorkspace, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment);
-	const contextService = new WorkspaceContextService(eventService, workspace, options);
+	const contextService = new LegacyWorkspaceContextService(eventService, workspace, options);
 	const configurationService = new ConfigurationService(contextService, eventService, environmentService);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
