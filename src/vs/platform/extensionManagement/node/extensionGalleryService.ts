@@ -361,9 +361,14 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		parsedUrl.search = undefined;
 		parsedUrl.query['redirect'] = 'true';
 
-		return this.requestService.request(assign({}, options, { url: url.format(parsedUrl) }))
+		const cdnUrl = url.format(parsedUrl);
+
+		return this.requestService.request(assign({}, options, { url: cdnUrl }))
 			.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError('expected 200'))
-			.then(null, () => this.requestService.request(options));
+			.then(null, () => {
+				this.telemetryService.publicLog('galleryService:cdnFallback', { url: cdnUrl });
+				return this.requestService.request(options);
+			});
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
