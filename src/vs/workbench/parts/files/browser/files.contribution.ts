@@ -256,6 +256,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
 			'default': true
+		},
+		'explorer.fileIcons': {
+			'type': 'boolean',
+			'description': nls.localize('fileIcons', "Controls if the explorer shows icons for files and folders. The actual icon set is controled with the 'files.iconSet' setting."),
+			'default': false
 		}
 	}
 });

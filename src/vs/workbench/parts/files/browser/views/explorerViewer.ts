@@ -341,7 +341,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 			return 'folder-icon';
 		}
 
-		return 'text-file-icon';
+		return 'file-icon';
 	}
 }
 

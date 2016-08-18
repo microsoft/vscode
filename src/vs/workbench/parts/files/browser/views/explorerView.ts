@@ -199,6 +199,9 @@ export class ExplorerView extends CollapsibleViewletView {
 	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
 
+		let showFileIcons = configuration && configuration.explorer && configuration.explorer.fileIcons;
+		DOM.toggleClass(this.treeContainer, 'show-file-icons', showFileIcons);
+
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
 		if (this.filter) {
