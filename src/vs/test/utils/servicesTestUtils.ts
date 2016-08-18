@@ -305,7 +305,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 		let inst = new InstantiationService(services);
 
-		this.stacksModel = inst.createInstance(EditorStacksModel);
+		this.stacksModel = inst.createInstance(EditorStacksModel, true);
 	}
 
 	public fireChange(): void {

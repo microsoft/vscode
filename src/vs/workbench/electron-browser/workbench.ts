@@ -8,11 +8,10 @@
 import 'vs/css!./media/workbench';
 
 import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import DOM = require('vs/base/browser/dom');
-import {Box, Builder, withElementById, $} from 'vs/base/browser/builder';
+import {Box, Builder, $} from 'vs/base/browser/builder';
 import {Delayer} from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
@@ -126,6 +125,7 @@ export class Workbench implements IPartService {
 	private editorBackgroundDelayer: Delayer<void>;
 	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
+	private hasFilesToCreateOpenOrDiff: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -142,26 +142,15 @@ export class Workbench implements IPartService {
 		@IThreadService private threadService: IThreadService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-
-		// Validate params
-		this.validateParams(container, options);
-
-		// If String passed in as container, try to find it in DOM
-		if (types.isString(container)) {
-			const element = withElementById(container.toString());
-			this.container = element.getHTMLElement();
-		}
-
-		// Otherwise use as HTMLElement
-		else {
-			this.container = container;
-		}
+		this.container = container;
 
 		this.workbenchParams = {
 			workspace: workspace,
-			options: options || {},
+			options,
 			serviceCollection
 		};
+
+		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
@@ -170,16 +159,6 @@ export class Workbench implements IPartService {
 		this.creationPromise = new TPromise<boolean>((c, e, p) => {
 			this.creationPromiseComplete = c;
 		});
-	}
-
-	private validateParams(container: HTMLElement, options: IOptions): void {
-
-		// Container
-		assert.ok(container, 'Workbench requires a container to be created with');
-		if (types.isString(container)) {
-			const element = withElementById(container.toString());
-			assert.ok(element, strings.format('Can not find HTMLElement with id \'{0}\'.', container));
-		}
 	}
 
 	/**
@@ -297,8 +276,8 @@ export class Workbench implements IPartService {
 	private resolveEditorsToOpen(): TPromise<{ input: EditorInput, options?: EditorOptions }[]> {
 
 		// Files to open, diff or create
-		const wbopt = this.workbenchParams.options;
-		if ((wbopt.filesToCreate && wbopt.filesToCreate.length) || (wbopt.filesToOpen && wbopt.filesToOpen.length) || (wbopt.filesToDiff && wbopt.filesToDiff.length)) {
+		if (this.hasFilesToCreateOpenOrDiff) {
+			const wbopt = this.workbenchParams.options;
 			const filesToCreate = wbopt.filesToCreate || [];
 			const filesToOpen = wbopt.filesToOpen || [];
 			const filesToDiff = wbopt.filesToDiff;
@@ -383,7 +362,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IActivityService, this.activitybarPart);
 
 		// Editor service (editor part)
-		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART);
+		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);
 		this.toDispose.push(this.editorPart);
 		this.toShutdown.push(this.editorPart);
 		this.editorService = this.instantiationService.createInstance(WorkbenchEditorService, this.editorPart);

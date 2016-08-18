@@ -99,6 +99,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	constructor(
 		id: string,
+		restoreFromStorage: boolean,
 		@IMessageService private messageService: IMessageService,
 		@IEventService private eventService: IEventService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -125,7 +126,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.pendingEditorInputsToClose = [];
 		this.pendingEditorInputCloseTimeout = null;
 
-		this.stacks = this.instantiationService.createInstance(EditorStacksModel);
+		this.stacks = this.instantiationService.createInstance(EditorStacksModel, restoreFromStorage);
 
 		const editorConfig = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor;
 		this.previewEditors = editorConfig.enablePreview;

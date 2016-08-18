@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService, TestWorkspace} from 'vs/test/utils/servicesTestUtils';
+import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService} from 'vs/test/utils/servicesTestUtils';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -32,7 +32,7 @@ function create(): EditorStacksModel {
 	inst.stub(IConfigurationService, config);
 
 
-	return inst.createInstance(EditorStacksModel);
+	return inst.createInstance(EditorStacksModel, true);
 }
 
 interface ModelEvents {
@@ -645,7 +645,7 @@ suite('Editor Stacks Model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
 
 
-		const model = inst.createInstance(EditorStacksModel);
+		const model = inst.createInstance(EditorStacksModel, true);
 
 		const group = model.openGroup('group');
 		const events = groupListener(group);
@@ -1180,7 +1180,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 		let group = model.openGroup('group');
 
 		const input1 = input();
@@ -1196,7 +1196,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, true);
 
 		assert.equal(model.groups.length, 1);
 
@@ -1223,7 +1223,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
 		let group1 = model.openGroup('group1');
 
@@ -1266,7 +1266,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, true);
 
 		group1 = model.groups[0];
 		group2 = model.groups[1];
@@ -1304,7 +1304,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
 		let group = model.openGroup('group1');
 
@@ -1327,7 +1327,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, true);
 
 		group = model.groups[0];
 
@@ -1353,7 +1353,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
 		let group1 = model.openGroup('group1');
 		let group2 = model.openGroup('group1');
@@ -1370,7 +1370,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, true);
 
 		group1 = model.groups[0];
 
@@ -1384,17 +1384,15 @@ suite('Editor Stacks Model', () => {
 		let inst = new TestInstantiationService();
 
 		inst.stub(IStorageService, new TestStorageService());
-		inst.stub(IWorkspaceContextService, new TestContextService(TestWorkspace, { filesToCreate: [true] }));
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, false);
 
 		let group1 = model.openGroup('group1');
 		let group2 = model.openGroup('group1');
@@ -1411,7 +1409,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should NOT load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, false);
 
 		assert.equal(model.groups.length, 0);
 	});
