@@ -68,7 +68,6 @@ export function startup(configuration: IWindowConfiguration, globalSettings: IGl
 	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
 	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
 	const shellOptions: IOptions = {
-		singleFileMode: !configuration.workspacePath,
 		filesToOpen,
 		filesToCreate,
 		filesToDiff,

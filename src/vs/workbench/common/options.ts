@@ -37,11 +37,6 @@ export interface IOptions {
 	extensionsToInstall?: string[];
 
 	/**
-	 * A boolean flag indicating if the workbench is in file mode where some UI gets hidden. Does not override an existing setting by the user.
-	 */
-	singleFileMode?: boolean;
-
-	/**
 	 * Editor options to be used for any editor in the workbench.
 	 */
 	editor?: IEditorOptions;
