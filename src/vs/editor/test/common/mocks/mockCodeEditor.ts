@@ -87,13 +87,18 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 	services.set(ICommandService, commandService);
 	let instantiationService = new InstantiationService(services);
 
-	let model = Model.createFromString(text.join('\n'));
 	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
-	editor.setModel(model);
+	let model: Model;
+	if (!options.model) {
+		model = Model.createFromString(text.join('\n'));
+		editor.setModel(model);
+	}
 
 	callback(editor, editor.getCursor());
 
 	editor.dispose();
-	model.dispose();
+	if (model) {
+		model.dispose();
+	}
 	contextKeyService.dispose();
 }

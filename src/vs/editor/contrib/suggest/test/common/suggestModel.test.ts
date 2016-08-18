@@ -5,10 +5,19 @@
 'use strict';
 
 import * as assert from 'assert';
+import Event from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Model} from 'vs/editor/common/model/model';
-import {Context} from 'vs/editor/contrib/suggest/common/suggestModel';
+// import {Handler} from 'vs/editor/common/editorCommon';
+// import {Position} from 'vs/editor/common/core/position';
+import {ISuggestSupport, ISuggestResult, SuggestRegistry} from 'vs/editor/common/modes';
+import {SuggestModel, Context} from 'vs/editor/contrib/suggest/common/suggestModel';
+import {Cursor} from 'vs/editor/common/controller/cursor';
+import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
 
-suite('SuggestModel', function () {
+suite('SuggestModel - Context', function () {
 
 	let model: Model;
 
@@ -56,4 +65,143 @@ suite('SuggestModel', function () {
 		// got longer new word -> redo
 		assert.equal(createEndContext('One Two').isDifferentContext(createEndContext('One Two ')), true);
 	});
+});
+
+suite('SuggestModel - TriggerAndCancelOracle', function () {
+
+
+	const alwaysEmptySupport: ISuggestSupport = {
+		triggerCharacters: [],
+		provideCompletionItems(doc, pos) {
+			return <ISuggestResult>{
+				currentWord: '',
+				incomplete: false,
+				suggestions: []
+			};
+		}
+	};
+
+	let disposables: IDisposable[] = [];
+	let model: Model;
+
+	setup(function () {
+		disposables = dispose(disposables);
+		model = Model.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
+		disposables.push(model);
+	});
+
+	function withOracle(callback: (model: SuggestModel, cursor: Cursor) => any): TPromise<any> {
+
+		let oracle: SuggestModel;
+		return new TPromise((resolve, reject) => {
+			withMockCodeEditor([], {}, (editor, cursor) => {
+				editor.setModel(model);
+				oracle = new SuggestModel(editor);
+				try {
+					resolve(callback(oracle, cursor));
+				} catch (err) {
+					reject(err);
+				}
+			});
+		}).then(r => {
+			oracle.dispose();
+			return r;
+		});
+	}
+
+	function assertEvent<E>(event: Event<E>, action: () => any, assert: (e: E) => any) {
+		return new TPromise((resolve, reject) => {
+			event(e => {
+				try {
+					resolve(assert(e));
+				} catch (err) {
+					reject(err);
+				}
+			});
+			try {
+				action();
+			} catch (err) {
+				reject(err);
+			}
+		});
+	}
+
+	test('events - cancel/trigger', function () {
+		return withOracle(model => {
+
+			return TPromise.join([
+				assertEvent(model.onDidCancel, function () {
+					model.cancel();
+				}, function (event) {
+					assert.equal(event.retrigger, false);
+				}),
+
+				assertEvent(model.onDidCancel, function () {
+					model.cancel(true);
+				}, function (event) {
+					assert.equal(event.retrigger, true);
+				}),
+
+				// cancel on trigger
+				assertEvent(model.onDidCancel, function () {
+					model.trigger(false);
+				}, function (event) {
+					assert.equal(event.retrigger, false);
+				}),
+
+				assertEvent(model.onDidCancel, function () {
+					model.trigger(false, true);
+				}, function (event) {
+					assert.equal(event.retrigger, true);
+				}),
+
+				assertEvent(model.onDidTrigger, function () {
+					model.trigger(true);
+				}, function (event) {
+					assert.equal(event.auto, true);
+				}),
+
+				assertEvent(model.onDidTrigger, function () {
+					model.trigger(false);
+				}, function (event) {
+					assert.equal(event.auto, false);
+				})
+			]);
+		});
+	});
+
+
+	test('events - suggest/empty', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysEmptySupport));
+
+		return withOracle(model => {
+			return TPromise.join([
+				assertEvent(model.onDidSuggest, function () {
+					model.trigger(true);
+				}, function (event) {
+					assert.equal(event.auto, true);
+					assert.equal(event.isFrozen, false);
+					assert.equal(event.completionModel.items.length, 0);
+				}),
+				assertEvent(model.onDidSuggest, function () {
+					model.trigger(false);
+				}, function (event) {
+					assert.equal(event.auto, false);
+					assert.equal(event.isFrozen, false);
+					assert.equal(event.completionModel.items.length, 0);
+				})
+			]);
+		});
+	});
+
+	// test('trigger - on type', function () {
+
+	// 	return withOracle((model, cursor) => {
+
+	// 		cursor.trigger('keyboard', Handler.MoveTo, { position: new Position(1, 4) });
+
+	// 	});
+
+	// });
 });
