@@ -16,6 +16,8 @@ export interface IThemeService {
 	getColorTheme(): string;
 	getColorThemes(): TPromise<IThemeData[]>;
 	onDidColorThemeChange: Event<string>;
+
+	getFileIcons(): TPromise<IThemeData[]>;
 }
 
 export interface IThemeData {
