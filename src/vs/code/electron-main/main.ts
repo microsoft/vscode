@@ -195,9 +195,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	updateService.initialize();
 
 	// Open our first window
-	if (envService.cliArgs['new-window'] && envService.cliArgs.pathArguments.length === 0) {
+	if (envService.cliArgs['new-window'] && envService.cliArgs.paths.length === 0) {
 		windowsService.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
-	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.pathArguments || !envService.cliArgs.pathArguments.length)) {
+	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.paths || !envService.cliArgs.paths.length)) {
 		windowsService.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
 		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs['new-window'], diffMode: envService.cliArgs.diff }); // default: read paths from cli
