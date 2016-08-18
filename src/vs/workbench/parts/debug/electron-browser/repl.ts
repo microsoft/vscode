@@ -5,7 +5,6 @@
 
 import 'vs/css!./../browser/media/repl';
 import nls = require('vs/nls');
-import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -213,7 +212,7 @@ export class Repl extends Panel {
 	}
 
 	private getReplInputOptions(): IEditorOptions {
-		let baseOptions: IEditorOptions = {
+		return {
 			overviewRulerLanes: 0,
 			glyphMargin: false,
 			lineNumbers: false,
@@ -229,9 +228,6 @@ export class Repl extends Panel {
 			lineHeight: 21,
 			theme: this.themeService.getColorTheme()
 		};
-
-		// Always mixin editor options from the context into our set to allow for override
-		return objects.mixin(baseOptions, this.contextService.getOptions().editor);
 	}
 
 	public dispose(): void {
