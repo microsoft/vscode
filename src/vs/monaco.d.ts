@@ -3218,6 +3218,23 @@ declare module monaco.editor {
     }
 
     /**
+     * Arguments for reveal line command
+     */
+    export interface RevealLineArguments {
+        lineNumber?: number;
+        at?: string;
+    }
+
+    /**
+     * Values for reveal line 'at' argument
+     */
+    export const RevealLineAtArgument: {
+        Top: string;
+        Center: string;
+        Bottom: string;
+    };
+
+    /**
      * Built-in commands.
      */
     export var Handler: {
@@ -3311,6 +3328,7 @@ declare module monaco.editor {
         ScrollLineDown: string;
         ScrollPageUp: string;
         ScrollPageDown: string;
+        RevealLine: string;
     };
 
     /**
