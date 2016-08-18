@@ -81,7 +81,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'-g, --goto': localize('goto', "Open the file at path at the line and column (add :line[:column] to path)."),
-	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
+	'--locale=<locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
 	'-r, --reuse-window': localize('reuseWindow', "Force opening a file or folder in the last active window."),
