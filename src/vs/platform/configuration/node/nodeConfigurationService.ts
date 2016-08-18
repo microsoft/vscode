@@ -130,7 +130,7 @@ export class NodeConfigurationService implements IConfigurationService, IDisposa
 
 		let content = {};
 		try {
-			content = parse(raw);
+			content = parse(raw) || {};
 		} catch (error) {
 			// noop
 		}
