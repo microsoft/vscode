@@ -80,6 +80,7 @@
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
     "queue": "3.0.6",
+    "remap-istanbul": "^0.6.4",
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
