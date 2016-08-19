@@ -4,19 +4,57 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
-import product from 'vs/platform/product';
 import * as os from 'os';
 import * as path from 'path';
 import {ParsedArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
+import pkg from 'vs/platform/package';
+import product from 'vs/platform/product';
 
 // TODO@Ben TODO@Joao this interface should be composed once the main => renderer
 // communication is also fit for that
 export interface IEnvironment extends ParsedArgs {
 	execPath: string;
 }
+
+function getUniqueUserId(): string {
+	let username: string;
+	if (process.platform === 'win32') {
+		username = process.env.USERNAME;
+	} else {
+		username = process.env.USER;
+	}
+
+	if (!username) {
+		return ''; // fail gracefully if there is no user name
+	}
+
+	// use sha256 to ensure the userid value can be used in filenames and are unique
+	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
+}
+
+function getIPCHandleBaseName(): string {
+	let name = pkg.name;
+
+	// Support to run VS Code multiple times as different user
+	// by making the socket unique over the logged in user
+	let userId = getUniqueUserId();
+	if (userId) {
+		name += `-${ userId }`;
+	}
+
+	if (process.platform === 'win32') {
+		return `\\\\.\\pipe\\${ name }`;
+	}
+
+	return path.join(os.tmpdir(), name);
+}
+
+const IPCHandlePrefix = getIPCHandleBaseName();
+const IPCHandleSuffix = process.platform === 'win32' ? '-sock' : '.sock';
 
 export class EnvironmentService implements IEnvironmentService {
 
@@ -56,6 +94,12 @@ export class EnvironmentService implements IEnvironmentService {
 	get verbose(): boolean { return this.args.verbose; }
 	get performance(): boolean { return this.args.performance; }
 	get logExtensionHostCommunication(): boolean { return this.args.logExtensionHostCommunication; }
+
+	@memoize
+	get mainIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }${ IPCHandleSuffix }`; }
+
+	@memoize
+	get sharedIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }-shared${ IPCHandleSuffix }`; }
 
 	constructor(private args: IEnvironment) {}
 }

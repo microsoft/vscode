@@ -5,7 +5,6 @@
 
 'use strict';
 
-import * as crypto from 'crypto';
 import * as fs from 'original-fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -21,7 +20,6 @@ import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import product, { IProductConfiguration } from 'vs/platform/product';
 import { parseArgs, ParsedArgs } from 'vs/code/node/argv';
-import pkg from 'vs/platform/package';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -49,8 +47,6 @@ export interface IEnvService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
 
 	createPaths(): TPromise<void>;
 }
@@ -94,12 +90,6 @@ export class EnvService implements IEnvService {
 
 	private _appKeybindingsPath: string;
 	get appKeybindingsPath(): string { return this._appKeybindingsPath; }
-
-	private _mainIPCHandle: string;
-	get mainIPCHandle(): string { return this._mainIPCHandle; }
-
-	private _sharedIPCHandle: string;
-	get sharedIPCHandle(): string { return this._sharedIPCHandle; }
 
 	constructor() {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
@@ -147,45 +137,6 @@ export class EnvService implements IEnvService {
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkPluginHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
 		this._userExtensionsHome = this.cliArgs.extensionHomePath || path.join(this._userHome, 'extensions');
-
-		const prefix = this.getIPCHandleBaseName();
-		const suffix = process.platform === 'win32' ? '-sock' : '.sock';
-
-		this._mainIPCHandle = `${ prefix }-${ pkg.version }${ suffix }`;
-		this._sharedIPCHandle = `${ prefix }-${ pkg.version }-shared${ suffix }`;
-	}
-
-	private getIPCHandleBaseName(): string {
-		let name = pkg.name;
-
-		// Support to run VS Code multiple times as different user
-		// by making the socket unique over the logged in user
-		let userId = EnvService.getUniqueUserId();
-		if (userId) {
-			name += `-${ userId }`;
-		}
-
-		if (process.platform === 'win32') {
-			return `\\\\.\\pipe\\${ name }`;
-		}
-
-		return path.join(os.tmpdir(), name);
-	}
-
-	private static getUniqueUserId(): string {
-		let username: string;
-		if (platform.isWindows) {
-			username = process.env.USERNAME;
-		} else {
-			username = process.env.USER;
-		}
-
-		if (!username) {
-			return ''; // fail gracefully if there is no user name
-		}
-
-		// use sha256 to ensure the userid value can be used in filenames and are unique
-		return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 	}
 
 	createPaths(): TPromise<void> {

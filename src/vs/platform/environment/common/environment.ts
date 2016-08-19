@@ -32,4 +32,7 @@ export interface IEnvironmentService {
 	isBuilt: boolean;
 	verbose: boolean;
 	performance: boolean;
+
+	mainIPCHandle: string;
+	sharedIPCHandle: string;
 }
