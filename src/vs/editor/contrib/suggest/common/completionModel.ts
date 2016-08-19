@@ -29,6 +29,7 @@ export class LineContext {
 export class CompletionModel {
 
 	private _lineContext: LineContext;
+	private _column: number;
 	private _items: ICompletionItem[];
 
 	private _filteredItems: ICompletionItem[];
@@ -36,9 +37,35 @@ export class CompletionModel {
 	private _incomplete: ISuggestSupport[];
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], lineContext: LineContext) {
+	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext) {
 		this._items = items;
+		this._column = column;
 		this._lineContext = lineContext;
+	}
+
+	replaceIncomplete(newItems: ISuggestionItem[], compareFn:(a:ISuggestionItem, b:ISuggestionItem) => number): void {
+		let newItemsIdx = 0;
+		for (let i = 0; i < this._items.length; i++) {
+			if (this._incomplete.indexOf(this._items[i].support) >= 0) {
+				// we found an item which support signaled 'incomplete'
+				// which means we remove the item. For perf reasons we
+				// frist replace and only then splice.
+				if (newItemsIdx < newItems.length) {
+					this._items[i] = newItems[newItemsIdx++];
+				} else {
+					this._items.splice(i, 1);
+					i--;
+				}
+			}
+		}
+		// add remaining new items
+		if (newItemsIdx < newItems.length) {
+			this._items.push(...newItems.slice(newItemsIdx));
+		}
+
+		// sort and reset cached state
+		this._items.sort(compareFn);
+		this._filteredItems = undefined;
 	}
 
 	get lineContext(): LineContext {
@@ -98,7 +125,7 @@ export class CompletionModel {
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// differnet word, but in practice not - that's why we cache
-			const wordLen = suggestion.overwriteBefore + characterCountDelta;
+			const wordLen = suggestion.overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = leadingLineContent.slice(-wordLen);
 			}

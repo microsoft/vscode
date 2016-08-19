@@ -50,7 +50,7 @@ suite('CompletionModel', function () {
 			createSuggestItem('foo', 3),
 			createSuggestItem('Foo', 3),
 			createSuggestItem('foo', 2),
-		], {
+		], 1, {
 			leadingLineContent: 'foo',
 			characterCountDelta: 0
 		});
@@ -88,7 +88,7 @@ suite('CompletionModel', function () {
 		let incompleteModel = new CompletionModel([
 			createSuggestItem('foo', 3, true),
 			createSuggestItem('foo', 2),
-		], {
+		], 1, {
 			leadingLineContent: 'foo',
 			characterCountDelta: 0
 		});
