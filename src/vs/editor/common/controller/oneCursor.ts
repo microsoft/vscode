@@ -31,7 +31,6 @@ export interface IOneCursorOperationContext {
 	executeCommand: editorCommon.ICommand;
 	isAutoWhitespaceCommand: boolean;
 	postOperationRunnable: IPostOperationRunnable;
-	requestScrollDeltaLines: number;
 }
 
 export interface IModeConfiguration {
@@ -63,7 +62,7 @@ export interface IViewModelHelper {
 	viewModel:ICursorMoveHelperModel;
 
 	getCurrentCompletelyVisibleViewLinesRangeInViewport(): Range;
-	getCurrentVisibleModelLinesRangeInViewport(): Range;
+	getCurrentCompletelyVisibleModelLinesRangeInViewport(): Range;
 
 	convertModelPositionToViewPosition(lineNumber:number, column:number): Position;
 	convertModelRangeToViewRange(modelRange:Range): Range;
@@ -519,7 +518,7 @@ export class OneCursor {
 
 	// -- model
 	public getRangeToRevealModelLinesBeforeViewPortTop(noOfLinesBeforeTop: number): Range {
-		let visibleModelRange = this.viewModelHelper.getCurrentVisibleModelLinesRangeInViewport();
+		let visibleModelRange = this.viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport();
 
 		let startLineNumber: number;
 		if (this.model.getLineMinColumn(visibleModelRange.startLineNumber) !== visibleModelRange.startColumn) {
@@ -538,7 +537,7 @@ export class OneCursor {
 		return new Range(startLineNumber, startColumn, startLineNumber, endColumn);
 	}
 	public getRangeToRevealModelLinesAfterViewPortBottom(noOfLinesAfterBottom: number): Range {
-		let visibleModelRange = this.viewModelHelper.getCurrentVisibleModelLinesRangeInViewport();
+		let visibleModelRange = this.viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport();
 
 		// Last line in the view port is not considered revealed because scroll bar would cover it
 		// Hence consider last line to reveal in the range
@@ -550,7 +549,7 @@ export class OneCursor {
 		return new Range(startLineNumber, startColumn, startLineNumber, endColumn);
 	}
 	public getLineFromViewPortTop(lineFromTop: number = 1): number {
-		let visibleRange = this.viewModelHelper.getCurrentVisibleModelLinesRangeInViewport();
+		let visibleRange = this.viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport();
 		let startColumn = this.model.getLineMinColumn(visibleRange.startLineNumber);
 		// Use next line if the first line is partially visible
 		let visibleLineNumber = visibleRange.startColumn === startColumn ? visibleRange.startLineNumber : visibleRange.startLineNumber + 1;
@@ -561,7 +560,7 @@ export class OneCursor {
 		return Math.round((this.getLineFromViewPortTop() + this.getLineFromViewPortBottom() - 1) / 2);
 	}
 	public getLineFromViewPortBottom(lineFromBottom: number = 1): number {
-		let visibleRange = this.viewModelHelper.getCurrentVisibleModelLinesRangeInViewport();
+		let visibleRange = this.viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport();
 		let visibleLineNumber = visibleRange.endLineNumber - (lineFromBottom - 1);
 		return visibleLineNumber > visibleRange.startLineNumber ? visibleLineNumber : this.getLineFromViewPortTop();
 	}
@@ -600,6 +599,17 @@ export class OneCursor {
 	}
 
 	// -- view
+	public getCompletelyVisibleViewLinesRangeInViewport(): Range {
+		return this.viewModelHelper.getCurrentCompletelyVisibleViewLinesRangeInViewport();
+	}
+	public getRevealViewLinesRangeInViewport(): Range {
+		let visibleRange = this.getCompletelyVisibleViewLinesRangeInViewport().cloneRange();
+		if (visibleRange.endLineNumber > visibleRange.startLineNumber) {
+			visibleRange.endLineNumber = visibleRange.endLineNumber - 1;
+			visibleRange.endColumn = this.viewModelHelper.viewModel.getLineLastNonWhitespaceColumn(visibleRange.endLineNumber);
+		}
+		return visibleRange;
+	}
 	public getViewLineCount(): number {
 		return this.viewModelHelper.viewModel.getLineCount();
 	}
@@ -651,6 +661,20 @@ export class OneCursor {
 			toLineNumber: toViewLineNumber,
 			toVisualColumn: toViewVisibleColumn
 		};
+	}
+	public getNearestRevealViewPositionInViewport(): Position {
+		const position = this.getViewPosition();
+		const revealRange = this.getRevealViewLinesRangeInViewport();
+
+		if (position.lineNumber < revealRange.startLineNumber) {
+			return new Position(revealRange.startLineNumber, this.viewModelHelper.viewModel.getLineFirstNonWhitespaceColumn(revealRange.startLineNumber));
+		}
+
+		if (position.lineNumber > revealRange.endLineNumber) {
+			return new Position(revealRange.endLineNumber, this.viewModelHelper.viewModel.getLineFirstNonWhitespaceColumn(revealRange.endLineNumber));
+		}
+
+		return position;
 	}
 	// -------------------- END reading API
 }
@@ -747,6 +771,11 @@ export class OneCursorOp {
 			case editorCommon.CursorMovePosition.ViewPortCenter:
 				viewLineNumber= cursor.convertModelPositionToViewPosition(cursor.getCenterLineInViewPort(), 1).lineNumber;;
 				viewColumn = cursor.getViewLineFirstNonWhiteSpaceColumn(viewLineNumber);
+				break;
+			case editorCommon.CursorMovePosition.ViewPortIfOutside:
+				const position = cursor.getNearestRevealViewPositionInViewport();
+				viewLineNumber= position.lineNumber;
+				viewColumn = position.column;
 				break;
 			default:
 				return false;
