@@ -34,11 +34,9 @@ function registerKeybindingsCompletions() : vscode.Disposable {
 }
 
 function registerSettingsCompletions() : vscode.Disposable {
-	console.log('registerSettingsCompletions');
-	return vscode.languages.registerCompletionItemProvider({ pattern: '**/settings.json' }, {
+	return vscode.languages.registerCompletionItemProvider({ language: 'json', pattern: '**/settings.json' }, {
 
 		provideCompletionItems(document, position, token) {
-			console.log('provideCompletionItems');
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			console.log(location);
 			if (!location.isAtPropertyKey && location.path[0] === 'files.iconTheme') {
@@ -49,20 +47,22 @@ function registerSettingsCompletions() : vscode.Disposable {
 					let fileIconsContributions = e.packageJSON.contributes && e.packageJSON.contributes.fileIcons;
 					if (Array.isArray(fileIconsContributions)) {
 						fileIconsContributions.forEach(contribution => {
-							result.push(newCompletionItem(contribution.id, range));
+							if (contribution.id !== 'vs-standard') {
+								result.push(newCompletionItem(contribution.id, range, contribution.label));
+							}
 						});
 					}
 				});
-				console.log(result);
 				return result;
 			}
 		}
 	});
 }
 
-function newCompletionItem(text: string, range: vscode.Range) {
+function newCompletionItem(text: string, range: vscode.Range, documentation?: string) {
 	const item = new vscode.CompletionItem(JSON.stringify(text));
 	item.kind = vscode.CompletionItemKind.Value;
+	item.documentation = documentation;
 	item.textEdit = {
 		range,
 		newText: item.label
