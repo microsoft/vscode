@@ -10,7 +10,7 @@ import {compare} from 'vs/base/common/strings';
 import {assign} from 'vs/base/common/objects';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {ISnippetsRegistry, Extensions} from 'vs/editor/common/modes/snippetsRegistry';
@@ -25,6 +25,7 @@ export const Context = {
 };
 
 export interface ISuggestionItem {
+	position: IPosition;
 	suggestion: ISuggestion;
 	container: ISuggestResult;
 	support: ISuggestSupport;
@@ -51,6 +52,8 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 
 	const result: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
+
+	position = position.clone();
 
 	// get provider groups, always add snippet suggestion provider
 	const supports = SuggestRegistry.orderedGroups(model);
@@ -83,6 +86,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 								fixOverwriteBeforeAfter(suggestion, container);
 
 								result.push({
+									position,
 									container,
 									suggestion,
 									support,

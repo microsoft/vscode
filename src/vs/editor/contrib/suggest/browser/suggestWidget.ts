@@ -23,7 +23,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
-import { CompletionItem, CompletionModel } from '../common/completionModel';
+import { ICompletionItem, CompletionModel } from '../common/completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -43,7 +43,7 @@ function matchesColor(text: string) {
 	return text && text.match(colorRegExp) ? text : null;
 }
 
-class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
+class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 	private triggerKeybindingLabel: string;
 
@@ -94,9 +94,9 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		return data;
 	}
 
-	renderElement(element: CompletionItem, index: number, templateData: ISuggestionTemplateData): void {
+	renderElement(element: ICompletionItem, index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
-		const suggestion = (<CompletionItem>element).suggestion;
+		const suggestion = (<ICompletionItem>element).suggestion;
 
 		if (suggestion.documentation) {
 			data.root.setAttribute('aria-label', nls.localize('suggestionWithDetailsAriaLabel', "{0}, suggestion, has details", suggestion.label));
@@ -115,7 +115,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			}
 		}
 
-		data.highlightedLabel.set(suggestion.label, (<CompletionItem>element).highlights);
+		data.highlightedLabel.set(suggestion.label, (<ICompletionItem>element).highlights);
 		data.typeLabel.textContent = suggestion.detail || '';
 		data.documentation.textContent = suggestion.documentation || '';
 
@@ -146,11 +146,11 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 const FocusHeight = 35;
 const UnfocusedHeight = 19;
 
-class Delegate implements IDelegate<CompletionItem> {
+class Delegate implements IDelegate<ICompletionItem> {
 
-	constructor(private listProvider: () => List<CompletionItem>) { }
+	constructor(private listProvider: () => List<ICompletionItem>) { }
 
-	getHeight(element: CompletionItem): number {
+	getHeight(element: ICompletionItem): number {
 		const focus = this.listProvider().getFocusedElements()[0];
 
 		if (element.suggestion.documentation && element === focus) {
@@ -160,7 +160,7 @@ class Delegate implements IDelegate<CompletionItem> {
 		return UnfocusedHeight;
 	}
 
-	getTemplateId(element: CompletionItem): string {
+	getTemplateId(element: ICompletionItem): string {
 		return 'suggestion';
 	}
 }
@@ -223,7 +223,7 @@ class SuggestionDetails {
 		return this.el;
 	}
 
-	render(item: CompletionItem): void {
+	render(item: ICompletionItem): void {
 		if (!item) {
 			this.title.textContent = '';
 			this.type.textContent = '';
@@ -295,21 +295,21 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private isAuto: boolean;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<void>;
-	private focusedItem: CompletionItem;
+	private focusedItem: ICompletionItem;
 	private completionModel: CompletionModel;
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
-	private delegate: IDelegate<CompletionItem>;
-	private list: List<CompletionItem>;
+	private delegate: IDelegate<ICompletionItem>;
+	private list: List<ICompletionItem>;
 
 	private suggestWidgetVisible: IContextKey<boolean>;
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
-	private onDidSelectEmitter = new Emitter<CompletionItem>();
+	private onDidSelectEmitter = new Emitter<ICompletionItem>();
 
 	private editorBlurTimeout: TPromise<void>;
 	private showTimeout: TPromise<void>;
@@ -337,7 +337,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this, this.editor);
 
-		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
+		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
 		this.delegate = new Delegate(() => this.list);
 		this.list = new List(this.listElement, this.delegate, [renderer], {
@@ -389,7 +389,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		});
 	}
 
-	private onListSelection(e: ISelectionChangeEvent<CompletionItem>): void {
+	private onListSelection(e: ISelectionChangeEvent<ICompletionItem>): void {
 		if (!e.elements.length) {
 			return;
 		}
@@ -402,7 +402,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.editor.focus();
 	}
 
-	private _getSuggestionAriaAlertLabel(item:CompletionItem): string {
+	private _getSuggestionAriaAlertLabel(item:ICompletionItem): string {
 		if (item.suggestion.documentation) {
 			return nls.localize('ariaCurrentSuggestionWithDetails',"{0}, suggestion, has details", item.suggestion.label);
 		} else {
@@ -421,7 +421,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
+	private onListFocus(e: IFocusChangeEvent<ICompletionItem>): void {
 		if (!e.elements.length) {
 			if (this.currentSuggestionDetails) {
 				this.currentSuggestionDetails.cancel();
@@ -527,7 +527,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	get onDidSelect():Event<CompletionItem> {
+	get onDidSelect():Event<ICompletionItem> {
 		return this.onDidSelectEmitter.event;
 	}
 
@@ -646,7 +646,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	getFocusedItem(): CompletionItem {
+	getFocusedItem(): ICompletionItem {
 		if (this.state !== State.Hidden
 			&& this.state !== State.Empty
 			&& this.state !== State.Loading) {
