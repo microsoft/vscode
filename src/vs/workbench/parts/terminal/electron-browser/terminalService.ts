@@ -162,8 +162,10 @@ export class TerminalService implements ITerminalService {
 		// to be stored for when createNew is called from TerminalPanel.create.
 		if (processCount === 0 && !name) {
 			name = this.nextTerminalName;
+			this.nextTerminalName = undefined;
+		} else {
+			this.nextTerminalName = name;
 		}
-		this.nextTerminalName = name;
 
 		return this.focus().then((terminalPanel) => {
 			// terminalPanel will be null if createNew is called from the command before the
@@ -175,7 +177,7 @@ export class TerminalService implements ITerminalService {
 
 			// Only create a new process if none have been created since toggling the terminal panel
 			if (processCount !== this.terminalProcesses.length) {
-				return;
+				return TPromise.as(this.terminalProcesses[this.terminalProcesses.length - 1].process.pid);
 			}
 
 			self.initConfigHelper(terminalPanel.getContainer());
@@ -189,6 +191,12 @@ export class TerminalService implements ITerminalService {
 	public close(): TPromise<any> {
 		return this.focus().then((terminalPanel) => {
 			return terminalPanel.closeActiveTerminal();
+		});
+	}
+
+	public closeById(terminalId: number): TPromise<any> {
+		return this.show(false).then((terminalPanel) => {
+			return terminalPanel.closeTerminalById(terminalId);
 		});
 	}
 

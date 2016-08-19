@@ -66,8 +66,6 @@ export class TerminalInstance {
 				event: 'input',
 				data: this.sanitizeInput(data)
 			});
-
-			console.log('this.terminalProcess.process.pid=' + this.terminalProcess.process.pid);
 			return false;
 		});
 		this.xterm.attachCustomKeydownHandler(function (event: KeyboardEvent) {

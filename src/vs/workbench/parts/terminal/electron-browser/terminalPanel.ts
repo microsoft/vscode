@@ -19,7 +19,7 @@ import {IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ITerminalFont, TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import {ITerminalProcess, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalPanel, ITerminalProcess, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
@@ -29,7 +29,7 @@ import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import {TPromise} from 'vs/base/common/winjs.base';
 
-export class TerminalPanel extends Panel {
+export class TerminalPanel extends Panel implements ITerminalPanel {
 
 	private toDispose: lifecycle.IDisposable[] = [];
 	private terminalInstances: TerminalInstance[] = [];
@@ -193,6 +193,10 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
+	public closeTerminalById(terminalId: number): TPromise<void> {
+		return this.closeTerminal(this.getTerminalIndexFromId(terminalId));
+	}
+
 	public setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
 			if (this.terminalInstances.length > 0) {
@@ -241,16 +245,21 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
-	public setActiveTerminalById(terminalId: number): void {
+	private getTerminalIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
 			if (terminalInstance.id === terminalId) {
 				terminalIndex = i;
 			}
 		});
-		if (terminalIndex !== -1) {
-			this.setActiveTerminal(terminalIndex);
+		if (terminalIndex === -1) {
+			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
+		return terminalIndex;
+	}
+
+	public setActiveTerminalById(terminalId: number): void {
+		this.setActiveTerminal(this.getTerminalIndexFromId(terminalId));
 	}
 
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
