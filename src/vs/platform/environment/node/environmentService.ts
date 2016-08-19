@@ -24,7 +24,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
-
 	get execPath(): string { return this.args.execPath; }
 
 	@memoize
@@ -51,10 +50,8 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableExtensions(): boolean { return this.args['disable-extensions'];  }
 
 	@memoize
-	private get parsedDebugExtensionHost(): { port: number; brk: boolean; } { return parseExtensionHostPort(this.args, this.isBuilt); }
+	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this.args, this.isBuilt); }
 
-	get debugExtensionHostPort(): number { return this.parsedDebugExtensionHost.port; }
-	get debugBrkExtensionHost(): boolean { return this.parsedDebugExtensionHost.brk; }
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this.args.verbose; }
 	get performance(): boolean { return this.args.performance; }
@@ -63,9 +60,9 @@ export class EnvironmentService implements IEnvironmentService {
 	constructor(private args: IEnvironment) {}
 }
 
-export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; brk: boolean; } {
+export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {
 	const portStr = args.debugBrkPluginHost || args.debugPluginHost;
 	const port = Number(portStr) || (!isBuild ? 5870 : null);
 	const brk = port ? Boolean(!!args.debugBrkPluginHost) : false;
-	return { port, brk };
+	return { port, break: brk };
 }
