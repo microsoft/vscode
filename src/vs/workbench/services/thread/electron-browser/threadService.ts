@@ -113,8 +113,8 @@ class ExtensionHostProcessManager {
 
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
-		this.isExtensionDevelopmentDebugging = !!environmentService.debugBrkExtensionHost;
-		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugBrkExtensionHost;
+		this.isExtensionDevelopmentDebugging = !!environmentService.debugExtensionHost.break;
+		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
 
 		this.unsentMessages = [];
 		this.extensionHostProcessReady = false;
@@ -139,7 +139,7 @@ class ExtensionHostProcessManager {
 		this.initializeExtensionHostProcess = new TPromise<ChildProcess>((c, e) => {
 
 			// Resolve additional execution args (e.g. debug)
-			return this.resolveDebugPort(this.environmentService.debugExtensionHostPort, port => {
+			return this.resolveDebugPort(this.environmentService.debugExtensionHost.port, port => {
 				if (port) {
 					opts.execArgv = ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port];
 				}

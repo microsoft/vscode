@@ -25,8 +25,7 @@ export interface IEnvironmentService {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	debugExtensionHostPort: number;
-	debugBrkExtensionHost: boolean;
+	debugExtensionHost: { port: number; break: boolean; };
 
 	logExtensionHostCommunication: boolean;
 
