@@ -13,8 +13,8 @@ import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
-import {ISuggestionItem, provideSuggestionItems} from './suggest';
-import {CompletionModel, LineContext} from './completionModel';
+import {provideSuggestionItems} from './suggest';
+import {CompletionModel} from './completionModel';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -152,9 +152,7 @@ export class SuggestModel implements IDisposable {
 	private requestPromise: TPromise<void>;
 	private context: Context;
 
-	private suggestionItems: ISuggestionItem[];
 	private completionModel: CompletionModel;
-	private incomplete: boolean;
 
 	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
 	get onDidCancel(): Event<ICancelEvent> { return this._onDidCancel.event; }
@@ -169,9 +167,7 @@ export class SuggestModel implements IDisposable {
 		this.state = State.Idle;
 		this.triggerAutoSuggestPromise = null;
 		this.requestPromise = null;
-		this.suggestionItems = null;
 		this.completionModel = null;
-		this.incomplete = false;
 		this.context = null;
 
 		// wire up various listeners
@@ -264,9 +260,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		this.state = State.Idle;
-		this.suggestionItems = null;
 		this.completionModel = null;
-		this.incomplete = false;
 		this.context = null;
 
 		this._onDidCancel.fire({ retrigger });
@@ -323,7 +317,7 @@ export class SuggestModel implements IDisposable {
 				});
 			}
 
-		} else if (this.suggestionItems && this.incomplete) {
+		} else if (this.completionModel && this.completionModel.incomplete.length > 0) {
 			this.trigger(this.state === State.Auto, true);
 		} else {
 			this.onNewContext(ctx);
@@ -347,7 +341,7 @@ export class SuggestModel implements IDisposable {
 		// Cancel previous requests, change state & update UI
 		this.cancel(retrigger);
 		this.state = auto ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto: this.isAutoSuggest() });
+		this._onDidTrigger.fire({ auto });
 
 		// Capture context when request was sent
 		this.context = ctx;
@@ -366,15 +360,14 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			this.suggestionItems = items;
-			this.incomplete = items.some(result => result.container.incomplete);
+			this.completionModel = new CompletionModel(items, {
+				leadingLineContent: ctx.lineContentBefore,
+				characterCountDelta: this.context ? ctx.column - this.context.column : 0
+			});
+
 			this.onNewContext(new Context(model, this.editor.getPosition(), auto));
 
 		}).then(null, onUnexpectedError);
-	}
-
-	private isAutoSuggest(): boolean {
-		return this.state === State.Auto;
 	}
 
 	public getTriggerPosition(): IPosition {
@@ -390,34 +383,28 @@ export class SuggestModel implements IDisposable {
 				this.cancel();
 			}
 
-			return;
-		}
+		} else if (this.completionModel) {
 
-		if (this.suggestionItems) {
-			const auto = this.isAutoSuggest();
+			const auto = this.state === State.Auto;
+			const oldLineContext = this.completionModel.lineContext;
+			let isFrozen = false;
 
-			const lineContext: LineContext = {
+			this.completionModel.lineContext = {
 				leadingLineContent: ctx.lineContentBefore,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0
 			};
 
-			let isFrozen = false;
-			if (this.completionModel && this.completionModel.raw === this.suggestionItems) {
-				const oldLineContext = this.completionModel.lineContext;
-				this.completionModel.lineContext = lineContext;
-
-				if (!auto && this.completionModel.items.length === 0) {
-					this.completionModel.lineContext = oldLineContext;
-					isFrozen = true;
-				}
-			} else {
-				this.completionModel = new CompletionModel(this.suggestionItems, lineContext);
+			// when explicitly request when the next context goes
+			// from 'results' to 'no results' freeze
+			if (!auto && this.completionModel.items.length === 0) {
+				this.completionModel.lineContext = oldLineContext;
+				isFrozen = this.completionModel.items.length > 0;
 			}
 
 			this._onDidSuggest.fire({
 				completionModel: this.completionModel,
-				isFrozen: isFrozen,
-				auto: this.isAutoSuggest()
+				isFrozen,
+				auto
 			});
 		}
 	}
