@@ -32,7 +32,6 @@ export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService'
 export interface IEnvService {
 	_serviceBrand: any;
 	cliArgs: ICommandLineArguments;
-	isTestingFromCli: boolean;
 	isBuilt: boolean;
 	product: IProductConfiguration;
 	updateUrl: string;
@@ -55,9 +54,6 @@ export class EnvService implements IEnvService {
 
 	private _userExtensionsHome: string;
 	get userExtensionsHome(): string { return this._userExtensionsHome; }
-
-	private _isTestingFromCli: boolean;
-	get isTestingFromCli(): boolean { return this._isTestingFromCli; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 
@@ -129,7 +125,6 @@ export class EnvService implements IEnvService {
 			wait: argv.wait
 		});
 
-		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkPluginHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
 		this._userExtensionsHome = this.cliArgs.extensionHomePath || path.join(this._userHome, 'extensions');
 	}
