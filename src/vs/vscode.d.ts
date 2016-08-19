@@ -3477,7 +3477,7 @@ declare namespace vscode {
 		 * terminal dropdown.
 		 * @return A new Terminal.
 		 */
-		export function createTerminal(name?: string): Thenable<vscode.Terminal>;
+		export function createTerminal(name?: string): Terminal;
 	}
 
 	/**

@@ -30,15 +30,14 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 	}
 
 	public $hide(terminalId: number): void {
+		// TODO: Use terminalId to hide it
 		this._terminalService.hide();
 	}
 
 	public $dispose(terminalId: number): void {
 		// TODO: This could be improved by not first showing the terminal to be disposed
-		var self = this;
 		this._terminalService.show(false).then((terminalPanel) => {
-			terminalPanel.setActiveTerminalById(terminalId);
-			self._terminalService.close();
+			terminalPanel.closeTerminalById(terminalId);
 		});;
 	}
 
