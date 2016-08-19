@@ -251,8 +251,7 @@ export class SuggestModel implements IDisposable {
 
 	// --- trigger/retrigger/cancel suggest
 
-	cancel(retrigger: boolean = false): boolean {
-		const actuallyCanceled = this.state !== State.Idle;
+	cancel(retrigger: boolean = false): void {
 
 		if (this.triggerAutoSuggestPromise) {
 			this.triggerAutoSuggestPromise.cancel();
@@ -271,7 +270,6 @@ export class SuggestModel implements IDisposable {
 		this.context = null;
 
 		this._onDidCancel.fire({ retrigger });
-		return actuallyCanceled;
 	}
 
 	private updateActiveSuggestSession(): void {
