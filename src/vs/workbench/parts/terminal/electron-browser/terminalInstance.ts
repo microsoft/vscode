@@ -48,7 +48,6 @@ export class TerminalInstance {
 		private terminalFocusContextKey: IContextKey<boolean>,
 		private onExitCallback: (TerminalInstance) => void
 	) {
-		let self = this;
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
@@ -68,11 +67,11 @@ export class TerminalInstance {
 			});
 			return false;
 		});
-		this.xterm.attachCustomKeydownHandler(function (event: KeyboardEvent) {
+		this.xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
 			// be escaped
 			let standardKeyboardEvent = new StandardKeyboardEvent(event);
-			if (self.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+			if (this.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
 				event.preventDefault();
 				return false;
 			}
@@ -112,16 +111,16 @@ export class TerminalInstance {
 		xtermHelper.insertBefore(focusTrap, this.xterm.textarea);
 
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'focus', (event: KeyboardEvent) => {
-			self.terminalFocusContextKey.set(true);
+			this.terminalFocusContextKey.set(true);
 		}));
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'blur', (event: KeyboardEvent) => {
-			self.terminalFocusContextKey.reset();
+			this.terminalFocusContextKey.reset();
 		}));
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'focus', (event: KeyboardEvent) => {
-			self.terminalFocusContextKey.set(true);
+			this.terminalFocusContextKey.set(true);
 		}));
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'blur', (event: KeyboardEvent) => {
-			self.terminalFocusContextKey.reset();
+			this.terminalFocusContextKey.reset();
 		}));
 
 		this.wrapperElement.appendChild(this.terminalDomElement);

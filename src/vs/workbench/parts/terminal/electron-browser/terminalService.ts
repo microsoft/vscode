@@ -155,7 +155,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createNew(name?: string): TPromise<number> {
-		let self = this;
 		let processCount = this.terminalProcesses.length;
 
 		// When there are 0 processes it means that the panel is not yet created, so the name needs
@@ -180,9 +179,9 @@ export class TerminalService implements ITerminalService {
 				return TPromise.as(this.terminalProcesses[this.terminalProcesses.length - 1].process.pid);
 			}
 
-			self.initConfigHelper(terminalPanel.getContainer());
-			return terminalPanel.createNewTerminalInstance(self.createTerminalProcess(name), this._terminalFocusContextKey).then((terminalId) => {
-				self._onInstancesChanged.fire();
+			this.initConfigHelper(terminalPanel.getContainer());
+			return terminalPanel.createNewTerminalInstance(this.createTerminalProcess(name), this._terminalFocusContextKey).then((terminalId) => {
+				this._onInstancesChanged.fire();
 				return TPromise.as(terminalId);
 			});
 		});
