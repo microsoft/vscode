@@ -11,6 +11,7 @@ import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { parseArgs } from 'vs/code/node/argv';
+import { mkdirp } from 'vs/base/node/pfs';
 import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
@@ -385,12 +386,17 @@ function getEnvironment(): TPromise<IEnv> {
 	});
 }
 
+function createPaths(environmentService: IEnvironmentService): TPromise<any> {
+	const paths = [environmentService.appSettingsHome, environmentService.userHome, environmentService.extensionsPath];
+	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
+}
+
 // On some platforms we need to manually read from the global environment variables
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
 getEnvironment().then(env => {
 	assign(process.env, env);
 
-	return instantiationService.invokeFunction(a => a.get(IEnvService).createPaths())
+	return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 		.then(() => instantiationService.invokeFunction(setupIPC))
 		.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
 })

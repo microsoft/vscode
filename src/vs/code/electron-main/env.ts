@@ -9,11 +9,9 @@ import * as fs from 'original-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { app } from 'electron';
-import { mkdirp } from 'vs/base/node/pfs';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
@@ -34,7 +32,6 @@ export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService'
 export interface IEnvService {
 	_serviceBrand: any;
 	cliArgs: ICommandLineArguments;
-	userExtensionsHome: string;
 	isTestingFromCli: boolean;
 	isBuilt: boolean;
 	product: IProductConfiguration;
@@ -47,8 +44,6 @@ export interface IEnvService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
-
-	createPaths(): TPromise<void>;
 }
 
 export class EnvService implements IEnvService {
@@ -137,13 +132,6 @@ export class EnvService implements IEnvService {
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkPluginHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
 		this._userExtensionsHome = this.cliArgs.extensionHomePath || path.join(this._userHome, 'extensions');
-	}
-
-	createPaths(): TPromise<void> {
-		const promises = [this.appSettingsHome, this.userHome, this.userExtensionsHome]
-			.map(p => mkdirp(p));
-
-		return TPromise.join(promises) as TPromise<any>;
 	}
 }
 
