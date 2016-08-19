@@ -199,7 +199,7 @@ export class ThemeService implements IThemeService {
 		});
 
 		configurationService.loadConfiguration('files').then((settings: any) => {
-			let iconSet = settings.iconSet;
+			let iconSet = settings && settings.iconSet;
 			if (iconSet) {
 				this.setFileIcons(iconSet);
 			}
