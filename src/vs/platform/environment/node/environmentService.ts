@@ -14,12 +14,6 @@ import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 
-// TODO@Ben TODO@Joao this interface should be composed once the main => renderer
-// communication is also fit for that
-export interface IEnvironment extends ParsedArgs {
-	execPath: string;
-}
-
 function getUniqueUserId(): string {
 	let username: string;
 	if (process.platform === 'win32') {
@@ -62,7 +56,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
-	get execPath(): string { return this.args.execPath; }
+
+	get execPath(): string { return this._execPath; }
 
 	@memoize
 	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
@@ -101,7 +96,7 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get sharedIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }-shared${ IPCHandleSuffix }`; }
 
-	constructor(private args: IEnvironment) {}
+	constructor(private args: ParsedArgs, private _execPath: string) {}
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {
