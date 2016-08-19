@@ -10,6 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import {ParsedArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
+import { memoize } from 'vs/base/common/decorators';
 
 // TODO@Ben TODO@Joao this interface should be composed once the main => renderer
 // communication is also fit for that
@@ -21,64 +22,45 @@ export class EnvironmentService implements IEnvironmentService {
 
 	_serviceBrand: any;
 
-	private _appRoot: string;
-	get appRoot(): string { return this._appRoot; }
+	@memoize
+	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
 
 	get execPath(): string { return this.args.execPath; }
 
-	private _userHome: string;
-	get userHome(): string { return this._userHome; }
+	@memoize
+	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
 
-	private _userDataPath: string;
-	get userDataPath(): string { return this._userDataPath; }
+	@memoize
+	get userDataPath(): string { return this.args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform); }
 
-	private _appSettingsHome: string;
-	get appSettingsHome(): string { return this._appSettingsHome; }
+	@memoize
+	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }
 
-	private _appSettingsPath: string;
-	get appSettingsPath(): string { return this._appSettingsPath; }
+	@memoize
+	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
-	private _appKeybindingsPath: string;
-	get appKeybindingsPath(): string { return this._appKeybindingsPath; }
+	@memoize
+	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
-	private _extensionsPath: string;
-	get extensionsPath(): string { return this._extensionsPath; }
+	@memoize
+	get extensionsPath(): string { return path.normalize(this.args.extensionHomePath || path.join(this.userHome, 'extensions')); }
 
-	private _extensionDevelopmentPath: string;
-	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
+	get extensionDevelopmentPath(): string { return this.args.extensionDevelopmentPath; }
 
 	get extensionTestsPath(): string { return this.args.extensionTestsPath; }
 	get disableExtensions(): boolean { return this.args['disable-extensions'];  }
 
-	private _debugExtensionHostPort: number;
-	get debugExtensionHostPort(): number { return this._debugExtensionHostPort; }
+	@memoize
+	private get parsedDebugExtensionHost(): { port: number; brk: boolean; } { return parseExtensionHostPort(this.args, this.isBuilt); }
 
-	private _debugBrkExtensionHost: boolean;
-	get debugBrkExtensionHost(): boolean { return this._debugBrkExtensionHost; }
-
+	get debugExtensionHostPort(): number { return this.parsedDebugExtensionHost.port; }
+	get debugBrkExtensionHost(): boolean { return this.parsedDebugExtensionHost.brk; }
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this.args.verbose; }
 	get performance(): boolean { return this.args.performance; }
 	get logExtensionHostCommunication(): boolean { return this.args.logExtensionHostCommunication; }
 
-	constructor(private args: IEnvironment) {
-		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
-		this._userDataPath = args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
-
-		this._appSettingsHome = path.join(this.userDataPath, 'User');
-		this._appSettingsPath = path.join(this.appSettingsHome, 'settings.json');
-		this._appKeybindingsPath = path.join(this.appSettingsHome, 'keybindings.json');
-
-		this._userHome = path.join(os.homedir(), product.dataFolderName);
-		this._extensionsPath = args.extensionHomePath || path.join(this._userHome, 'extensions');
-		this._extensionsPath = path.normalize(this._extensionsPath);
-
-		this._extensionDevelopmentPath = args.extensionDevelopmentPath;
-
-		const { port, brk } = parseExtensionHostPort(args, this.isBuilt);
-		this._debugExtensionHostPort = port;
-		this._debugBrkExtensionHost = brk;
-	}
+	constructor(private args: IEnvironment) {}
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; brk: boolean; } {
