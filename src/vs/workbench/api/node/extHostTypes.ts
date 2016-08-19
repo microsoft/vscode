@@ -775,6 +775,8 @@ export class CompletionItem {
 	filterText: string;
 	insertText: string;
 	textEdit: TextEdit;
+	additionalTextEdits: TextEdit[];
+	command: vscode.Command;
 
 	constructor(label: string, kind?: CompletionItemKind) {
 		this.label = label;

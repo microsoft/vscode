@@ -496,7 +496,7 @@ class SuggestAdapter {
 
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.CompletionItemProvider;
-	private _cache: { [key: string]: CompletionList } = Object.create(null);
+	private _cache: { [key: string]: { list: CompletionList; disposables: IDisposable[]; } } = Object.create(null);
 
 	constructor(documents: ExtHostDocuments, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
@@ -509,7 +509,10 @@ class SuggestAdapter {
 		const pos = TypeConverters.toPosition(position);
 
 		const key = resource.toString();
-		delete this._cache[key];
+		if (this._cache[key]) {
+			dispose(this._cache[key].disposables);
+			delete this._cache[key];
+		}
 
 		return asWinJsPromise<vscode.CompletionItem[]|vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
 
@@ -522,6 +525,7 @@ class SuggestAdapter {
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
 				.with({ end: pos });
 
+			const disposables: IDisposable[] = [];
 			let list: CompletionList;
 			if (Array.isArray(value)) {
 				list = new CompletionList(value);
@@ -540,7 +544,7 @@ class SuggestAdapter {
 			for (let i = 0; i < list.items.length; i++) {
 
 				const item = list.items[i];
-				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item);
+				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item, disposables);
 
 				if (item.textEdit) {
 
@@ -572,26 +576,24 @@ class SuggestAdapter {
 			}
 
 			// cache for details call
-			this._cache[key] = list;
+			this._cache[key] = { list, disposables };
 
 			return result;
 		});
 	}
 
 	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
-		if (typeof this._provider.resolveCompletionItem !== 'function') {
+		if (typeof this._provider.resolveCompletionItem !== 'function' || !this._cache[resource.toString()]) {
 			return TPromise.as(suggestion);
 		}
-		let list = this._cache[resource.toString()];
-		if (!list) {
-			return TPromise.as(suggestion);
-		}
-		let item = list.items[Number((<ISuggestion2> suggestion).id)];
+
+		const {list, disposables} = this._cache[resource.toString()];
+		const item = list.items[Number((<ISuggestion2> suggestion).id)];
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
 		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			return TypeConverters.Suggest.from(resolvedItem || item);
+			return TypeConverters.Suggest.from(resolvedItem || item, disposables);
 		});
 	}
 }

@@ -311,7 +311,7 @@ export const CompletionItemKind = {
 
 export const Suggest = {
 
-	from(item: vscode.CompletionItem): modes.ISuggestion {
+	from(item: vscode.CompletionItem, disposables: IDisposable[]): modes.ISuggestion {
 		const suggestion: modes.ISuggestion = {
 			label: item.label,
 			insertText: item.insertText || item.label,
@@ -319,7 +319,9 @@ export const Suggest = {
 			detail: item.detail,
 			documentation: item.documentation,
 			sortText: item.sortText,
-			filterText: item.filterText
+			filterText: item.filterText,
+			command: Command.from(item.command, disposables),
+			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(TextEdit.from)
 		};
 		return suggestion;
 	},

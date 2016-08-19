@@ -2228,14 +2228,16 @@ declare namespace vscode {
 	}
 
 	/**
-	 * A completion item represents a text snippet that is
-	 * proposed to complete text that is being typed.
+	 * A completion item represents a text snippet that is proposed to complete text that is being typed.
 	 *
-	 * It is suffient to create a completion item from just
-	 * a [label](#CompletionItem.label). In that case the completion
-	 * item will replace the [word](#TextDocument.getWordRangeAtPosition)
-	 * until the cursor with the given label.
+	 * It is suffient to create a completion item from just a [label](#CompletionItem.label). In that
+	 * case the completion item will replace the [word](#TextDocument.getWordRangeAtPosition)
+	 * until the cursor with the given label or [insertText](#CompletionItem.insertText). Otherwise the
+	 * the given [edit](#CompletionItem.textEdit) is used.
 	 *
+	 * When selecting a completion item in the editor its defined or synthesized text edit will be applied
+	 * to *all* cursors/selections whereas [additionalTextEdits](CompletionItem.additionalTextEdits) will be
+	 * applied as provided.
 	 *
 	 * @see [CompletionItemProvider.provideCompletionItems](#CompletionItemProvider.provideCompletionItems)
 	 * @see [CompletionItemProvider.resolveCompletionItem](#CompletionItemProvider.resolveCompletionItem)
@@ -2292,10 +2294,24 @@ declare namespace vscode {
 		 * this completion. When an edit is provided the value of
 		 * [insertText](#CompletionItem.insertText) is ignored.
 		 *
-		 * The [range](#Range) of the edit must be single-line and one the same
-		 * line completions where [requested](#CompletionItemProvider.provideCompletionItems) at.
+		 * The [range](#Range) of the edit must be single-line and on the same
+		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.
 		 */
 		textEdit: TextEdit;
+
+		/**
+		 * An optional array of additional [text edits](#TextEdit) that are applied when
+		 * selecting this completion. Edits must not overlap with the main [edit](#CompletionItem.textEdit)
+		 * nor with themselves.
+		 */
+		additionalTextEdits: TextEdit[];
+
+		/**
+		 * An optional [command](#Command) that is executed when selecting this completion. *Note* that additional
+		 * modifications to the current document should be described with the
+		 * [additionalTextEdits](#CompletionItem.additionalTextEdits)-property.
+		 */
+		command: Command;
 
 		/**
 		 * Creates a new completion item.

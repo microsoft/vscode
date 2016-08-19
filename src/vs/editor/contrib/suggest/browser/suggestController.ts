@@ -65,22 +65,22 @@ export class SuggestController implements IEditorContribution {
 
 	private onDidSelectItem(item: CompletionItem): void {
 		if (item) {
-			const {insertText, overwriteBefore, overwriteAfter, extraEdits, command} = item.suggestion;
+			const {insertText, overwriteBefore, overwriteAfter, additionalTextEdits, command} = item.suggestion;
 			const columnDelta = this.editor.getPosition().column - this.model.getTriggerPosition().column;
 
-				// todo@joh
-				// * order of stuff command/extraEdit/actual edit
-				// * failure of command?
-				// * wait for command to execute?
+			// todo@joh
+			// * order of stuff command/extraEdit/actual edit
+			// * failure of command?
+			// * wait for command to execute?
 			if (command) {
 				this.commandService.executeCommand(command.id, ...command.arguments).then(undefined, err => {
 					console.error(err);
 				});
 			}
 
-			if (Array.isArray(extraEdits)) {
+			if (Array.isArray(additionalTextEdits)) {
 				this.editor.pushUndoStop();
-				this.editor.executeEdits('suggestController.extraEdits', extraEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				this.editor.executeEdits('suggestController.additionalTextEdits', additionalTextEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
 				this.editor.pushUndoStop();
 			}
 
