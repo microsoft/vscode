@@ -273,7 +273,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 const services = new ServiceCollection();
 
 services.set(IEnvService, new SyncDescriptor(EnvService));
-services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv)));
+services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv), process.execPath));
 services.set(ILogService, new SyncDescriptor(MainLogService));
 services.set(IWindowsService, new SyncDescriptor(WindowsManager));
 services.set(ILifecycleService, new SyncDescriptor(LifecycleService));

@@ -10,7 +10,6 @@ import * as path from 'path';
 import { parseArgs, ParsedArgs } from 'vs/code/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
-import * as objects from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -146,7 +145,7 @@ const eventPrefix = 'monacoworkbench';
 
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, objects.assign(parseArgs(process.argv), { execPath: process.execPath })));
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv), process.execPath));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 

@@ -20,7 +20,8 @@ import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/com
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {IProcessEnvironment} from 'vs/code/electron-main/env';
-import {EnvironmentService, IEnvironment} from 'vs/platform/environment/node/environmentService';
+import {ParsedArgs} from 'vs/code/node/argv';
+import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import fs = require('fs');
 import gracefulFs = require('graceful-fs');
@@ -46,7 +47,7 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IWindowConfiguration extends IEnvironment {
+export interface IWindowConfiguration extends ParsedArgs {
 	appRoot: string;
 	execPath: string;
 
@@ -127,9 +128,9 @@ function getWorkspace(workspacePath: string): IWorkspace {
 	};
 }
 
-function openWorkbench(environment: IEnvironment, workspace: IWorkspace, options: IOptions): winjs.TPromise<void> {
+function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
-	const environmentService = new EnvironmentService(environment);
+	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new LegacyWorkspaceContextService(eventService, workspace, options);
 	const configurationService = new ConfigurationService(contextService, eventService, environmentService);
 
