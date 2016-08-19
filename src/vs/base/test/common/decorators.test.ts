@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { memoize } from 'vs/base/common/decorators';
 
 suite('Decorators', () => {
-	test('memoize should memoize', () => {
+	test('memoize should memoize methods', () => {
 		class Foo {
 			count = 0;
 
@@ -51,6 +51,51 @@ suite('Decorators', () => {
 		assert.equal(foo4.answer(), undefined);
 		assert.equal(foo4.count, 1);
 		assert.equal(foo4.answer(), undefined);
+		assert.equal(foo4.count, 1);
+	});
+
+	test('memoize should memoize getters', () => {
+		class Foo {
+			count = 0;
+
+			constructor(private _answer: number) {}
+
+			@memoize
+			get answer() {
+				this.count++;
+				return this._answer;
+			}
+		}
+
+		const foo = new Foo(42);
+		assert.equal(foo.count, 0);
+		assert.equal(foo.answer, 42);
+		assert.equal(foo.count, 1);
+		assert.equal(foo.answer, 42);
+		assert.equal(foo.count, 1);
+
+		const foo2 = new Foo(1337);
+		assert.equal(foo2.count, 0);
+		assert.equal(foo2.answer, 1337);
+		assert.equal(foo2.count, 1);
+		assert.equal(foo2.answer, 1337);
+		assert.equal(foo2.count, 1);
+
+		assert.equal(foo.answer, 42);
+		assert.equal(foo.count, 1);
+
+		const foo3 = new Foo(null);
+		assert.equal(foo3.count, 0);
+		assert.equal(foo3.answer, null);
+		assert.equal(foo3.count, 1);
+		assert.equal(foo3.answer, null);
+		assert.equal(foo3.count, 1);
+
+		const foo4 = new Foo(undefined);
+		assert.equal(foo4.count, 0);
+		assert.equal(foo4.answer, undefined);
+		assert.equal(foo4.count, 1);
+		assert.equal(foo4.answer, undefined);
 		assert.equal(foo4.count, 1);
 	});
 });
