@@ -346,7 +346,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			range: validatedRange,
 			viewRange: null,
 			verticalType: verticalType,
-			revealHorizontal: revealHorizontal
+			revealHorizontal: revealHorizontal,
+			revealCursor: false
 		};
 		this.cursor.emit(editorCommon.EventType.CursorRevealRange, revealRangeEvent);
 	}
@@ -795,7 +796,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				getCurrentCompletelyVisibleViewLinesRangeInViewport: () => {
 					return this.viewModel.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
 				},
-				getCurrentVisibleModelLinesRangeInViewport: () => {
+				getCurrentCompletelyVisibleModelLinesRangeInViewport: () => {
 					return this.getCompletelyVisibleLinesRangeInViewport();
 				},
 				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {

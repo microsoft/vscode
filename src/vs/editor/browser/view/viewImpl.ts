@@ -96,7 +96,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		commandService: ICommandService,
 		configuration:Configuration,
 		model:IViewModel,
-		triggerCursorHandler:TriggerCursorHandler
+		private triggerCursorHandler:TriggerCursorHandler
 	) {
 		super();
 		this._isDisposed = false;
@@ -478,6 +478,19 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this._editorTextFocusContextKey.reset();
 			this.outgoingEventBus.emit(editorCommon.EventType.ViewFocusLost, {});
 		}
+		return false;
+	}
+
+	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
+		return e.revealCursor ? this.revealCursor() : false;
+	}
+
+	public onCursorScrollRequest(e: editorCommon.ICursorScrollRequestEvent): boolean {
+		return e.revealCursor ? this.revealCursor() : false;
+	}
+
+	private revealCursor(): boolean {
+		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: editorCommon.CursorMovePosition.ViewPortIfOutside });
 		return false;
 	}
 	// --- end event handlers

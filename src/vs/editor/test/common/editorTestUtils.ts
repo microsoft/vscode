@@ -20,7 +20,7 @@ export function viewModelHelper(model): IViewModelHelper{
 	return {
 			viewModel: model,
 			getCurrentCompletelyVisibleViewLinesRangeInViewport: () => { return null; },
-			getCurrentVisibleModelLinesRangeInViewport: () => { return null; },
+			getCurrentCompletelyVisibleModelLinesRangeInViewport: () => { return null; },
 			convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
 				return new Position(lineNumber, column);
 			},

@@ -3168,6 +3168,7 @@ declare module monaco.editor {
         ViewPortTop: string;
         ViewPortCenter: string;
         ViewPortBottom: string;
+        ViewPortIfOutside: string;
     };
 
     /**
@@ -3215,6 +3216,7 @@ declare module monaco.editor {
         to: string;
         by?: string;
         value?: number;
+        revealCursor?: boolean;
     }
 
     /**

@@ -2622,7 +2622,11 @@ export interface ICursorRevealRangeEvent {
 	 * If true: there should be a horizontal & vertical revealing
 	 * If false: there should be just a vertical revealing
 	 */
-	revealHorizontal:boolean;
+	revealHorizontal: boolean;
+	/**
+	 * If true: cursor is revealed if outside viewport
+	 */
+	revealCursor: boolean;
 }
 
 /**
@@ -2630,6 +2634,7 @@ export interface ICursorRevealRangeEvent {
  */
 export interface ICursorScrollRequestEvent {
 	deltaLines: number;
+	revealCursor: boolean;
 }
 
 /**
@@ -3397,6 +3402,10 @@ export interface IViewRevealRangeEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	revealHorizontal: boolean;
+	/**
+	 * If true: cursor is revealed if outside viewport
+	 */
+	revealCursor: boolean;
 }
 
 /**
@@ -3404,6 +3413,7 @@ export interface IViewRevealRangeEvent {
  */
 export interface IViewScrollRequestEvent {
 	deltaLines: number;
+	revealCursor: boolean;
 }
 
 /**
@@ -4236,6 +4246,8 @@ export const CursorMovePosition = {
 	ViewPortTop: 'viewPortTop',
 	ViewPortCenter: 'viewPortCenter',
 	ViewPortBottom: 'viewPortBottom',
+
+	ViewPortIfOutside: 'viewPortIfOutside'
 };
 
 /**
@@ -4312,6 +4324,7 @@ export interface EditorScrollArguments {
 	to: string;
 	by?: string;
 	value?: number;
+	revealCursor?: boolean;
 };
 
 /**
@@ -4333,6 +4346,10 @@ const isEditorScrollArgs= function(arg): boolean  {
 	}
 
 	if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
+		return false;
+	}
+
+	if (!types.isUndefined(scrollArg.revealCursor) && !types.isBoolean(scrollArg.revealCursor)) {
 		return false;
 	}
 
@@ -4391,7 +4408,7 @@ export var CommandDescription = {
 					\`\`\`
 						'left', 'right', 'up', 'down',
 						'wrappedLineStart', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineColumnCenter', 'wrappedLineEnd' ,'wrappedLineLastNonWhitespaceCharacter',
-						'viewPortTop', 'viewPortCenter', 'viewPortBottom'
+						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
 					\`\`\`
 					'by': Unit to move. Default is computed based on 'to' value.
 					\`\`\`
@@ -4419,6 +4436,7 @@ export var CommandDescription = {
 						'line', 'wrappedLine', 'page', 'halfPage'
 					\`\`\`
 					'value': Number of units to move. Default is '1'.
+					'revealCursor': If 'true' reveals the cursor if it is outside view port.
 				`,
 				constraint: isEditorScrollArgs
 			}

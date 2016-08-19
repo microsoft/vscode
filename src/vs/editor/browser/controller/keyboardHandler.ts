@@ -253,7 +253,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let revealPositionEvent:editorCommon.IViewRevealRangeEvent = {
 				range: new Range(lineNumber, column, lineNumber, column),
 				verticalType: editorCommon.VerticalRevealType.Simple,
-				revealHorizontal: true
+				revealHorizontal: true,
+				revealCursor: false
 			};
 			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
 
