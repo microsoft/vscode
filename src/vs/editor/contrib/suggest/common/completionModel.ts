@@ -41,8 +41,6 @@ export class LineContext {
 
 export class CompletionModel {
 
-	public raw: ISuggestionItem[];
-
 	private _lineContext: LineContext;
 	private _items: CompletionItem[] = [];
 	private _incomplete: ISuggestSupport[] = [];
@@ -51,10 +49,9 @@ export class CompletionModel {
 	private _topScoreIdx: number;
 	private _stats: CompletionStats;
 
-	constructor(raw: ISuggestionItem[], lineContext: LineContext) {
-		this.raw = raw;
+	constructor(items: ISuggestionItem[], lineContext: LineContext) {
 		this._lineContext = lineContext;
-		for (const item of raw) {
+		for (const item of items) {
 			this._items.push(new CompletionItem(item));
 
 			if (item.container.incomplete
