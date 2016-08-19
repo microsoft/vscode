@@ -187,10 +187,8 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 	}
 
 	public closeTerminal(index: number): TPromise<void> {
-		let self = this;
-		return new TPromise<void>(resolve => {
-			self.onTerminalInstanceExit(self.terminalInstances[index]);
-		});
+		this.onTerminalInstanceExit(this.terminalInstances[index]);
+		return TPromise.as(void 0);
 	}
 
 	public closeTerminalById(terminalId: number): TPromise<void> {
