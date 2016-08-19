@@ -28,6 +28,7 @@ import {MainThreadQuickOpen} from './mainThreadQuickOpen';
 import {MainThreadStatusBar} from './mainThreadStatusBar';
 import {MainThreadStorage} from './mainThreadStorage';
 import {MainThreadTelemetry} from './mainThreadTelemetry';
+import {MainThreadTerminalService} from './mainThreadTerminalService';
 import {MainThreadWorkspace} from './mainThreadWorkspace';
 import {MainProcessExtensionService} from './mainThreadExtensionService';
 import {MainThreadFileSystemEventService} from './mainThreadFileSystemEventService';
@@ -72,6 +73,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadStatusBar).set(create(MainThreadStatusBar));
 		col.define(MainContext.MainThreadStorage).set(create(MainThreadStorage));
 		col.define(MainContext.MainThreadTelemetry).set(create(MainThreadTelemetry));
+		col.define(MainContext.MainThreadTerminalService).set(create(MainThreadTerminalService));
 		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
 		if (this.extensionService instanceof MainProcessExtensionService) {
 			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);

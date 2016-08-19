@@ -66,8 +66,7 @@ export interface ITerminalService {
 
 	close(): TPromise<any>;
 	copySelection(): TPromise<any>;
-	createNew(): TPromise<any>;
-	focus(): TPromise<any>;
+	createNew(name?: string): TPromise<number>;
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;
 	hide(): TPromise<any>;
@@ -75,6 +74,7 @@ export interface ITerminalService {
 	runSelectedText(): TPromise<any>;
 	scrollDown(): TPromise<any>;
 	scrollUp(): TPromise<any>;
+	show(focus: boolean): TPromise<ITerminalPanel>;
 	setActiveTerminal(index: number): TPromise<any>;
 	toggle(): TPromise<any>;
 
@@ -82,4 +82,10 @@ export interface ITerminalService {
 	getTerminalInstanceTitles(): string[];
 	initConfigHelper(panelContainer: Builder): void;
 	killTerminalProcess(terminalProcess: ITerminalProcess): void;
+}
+
+export interface ITerminalPanel {
+	closeTerminalById(terminalId: number): TPromise<void>;
+	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
+	setActiveTerminalById(terminalId: number): void;
 }
