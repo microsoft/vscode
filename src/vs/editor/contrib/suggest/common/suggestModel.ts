@@ -13,7 +13,7 @@ import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
-import {provideSuggestionItems} from './suggest';
+import {provideSuggestionItems, getSuggestionComparator} from './suggest';
 import {CompletionModel} from './completionModel';
 
 export interface ICancelEvent {
@@ -318,7 +318,8 @@ export class SuggestModel implements IDisposable {
 			}
 
 		} else if (this.completionModel && this.completionModel.incomplete.length > 0) {
-			this.trigger(this.state === State.Auto, true);
+			this.triggerFromIncomplete(this.state === State.Auto);
+
 		} else {
 			this.onNewContext(ctx);
 		}
@@ -347,27 +348,51 @@ export class SuggestModel implements IDisposable {
 		this.context = ctx;
 
 		this.requestPromise = provideSuggestionItems(model, this.editor.getPosition(),
-			this.editor.getConfiguration().contribInfo.snippetSuggestions, onlyFrom).then(items => {
+			this.editor.getConfiguration().contribInfo.snippetSuggestions,
+			onlyFrom
+		).then(items => {
 
 			this.requestPromise = null;
-
 			if (this.state === State.Idle) {
 				return;
 			}
-
 			const model = this.editor.getModel();
 			if (!model) {
 				return;
 			}
 
-			this.completionModel = new CompletionModel(items, {
+			const ctx = new Context(model, this.editor.getPosition(), auto);
+			this.completionModel = new CompletionModel(items, this.context.column, {
 				leadingLineContent: ctx.lineContentBefore,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0
 			});
-
-			this.onNewContext(new Context(model, this.editor.getPosition(), auto));
+			this.onNewContext(ctx);
 
 		}).then(null, onUnexpectedError);
+	}
+
+	private triggerFromIncomplete(auto: boolean): void {
+
+		this.requestPromise = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(),
+			this.editor.getConfiguration().contribInfo.snippetSuggestions,
+			this.completionModel.incomplete
+		).then(items => {
+
+			this.requestPromise = null;
+			if (this.state === State.Idle) {
+				return;
+			}
+			const model = this.editor.getModel();
+			if (!model) {
+				return;
+			}
+
+			this.completionModel.replaceIncomplete(
+				items,
+				getSuggestionComparator(this.editor.getConfiguration().contribInfo.snippetSuggestions)
+			);
+			this.onNewContext(new Context(model, this.editor.getPosition(), auto));
+		});
 	}
 
 	private onNewContext(ctx: Context): void {
