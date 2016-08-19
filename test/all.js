@@ -176,8 +176,17 @@ function main() {
 			var collector = new istanbul.Collector();
 			collector.add(finalCoverage);
 
-			var reporter = new istanbul.Reporter(null, path.join(path.dirname(__dirname), '.build', 'coverage'));
-			reporter.addAll(['json', 'lcov', 'html']);
+			var coveragePath = path.join(path.dirname(__dirname), '.build', 'coverage');
+			var reportTypes = [];
+			if (argv.run) {
+				// single file running
+				coveragePath += '-single';
+				reportTypes = ['lcovonly'];
+			} else {
+				reportTypes = ['json', 'lcov', 'html'];
+			}
+			var reporter = new istanbul.Reporter(null, coveragePath);
+			reporter.addAll(reportTypes);
 			reporter.write(collector, true, function () {});
 		});
 	}
