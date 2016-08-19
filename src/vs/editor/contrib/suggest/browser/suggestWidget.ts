@@ -574,28 +574,15 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.completionModel = null;
 
 		} else {
-			// TODO@joao,joh move this to a better place
-			let snippetCount = 0;
-			let textCount = 0;
-			this.completionModel.items.forEach((item, index) => {
-				switch (item.suggestion.type) {
-					case 'snippet': snippetCount++; break;
-					case 'text': textCount++; break;
-				}
-			});
+			const {stats}  = this.completionModel;
+			stats['wasAutomaticallyTriggered'] = !!isAuto;
+			this.telemetryService.publicLog('suggestWidget', stats);
 
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
 			this.list.setFocus(this.completionModel.topScoreIdx);
 			this.list.reveal(this.completionModel.topScoreIdx, 0);
 
 			this.setState(State.Open);
-
-			this.telemetryService.publicLog('suggestWidget', {
-				suggestionCount: visibleCount,
-				snippetCount,
-				textCount,
-				wasAutomaticallyTriggered: !!isAuto
-			});
 		}
 	}
 

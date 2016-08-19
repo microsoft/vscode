@@ -27,6 +27,13 @@ export class CompletionItem {
 	}
 }
 
+export interface CompletionStats {
+	suggestionCount: number;
+	snippetCount: number;
+	textCount: number;
+	[name: string]: any;
+}
+
 export class LineContext {
 	leadingLineContent: string;
 	characterCountDelta: number;
@@ -41,6 +48,7 @@ export class CompletionModel {
 
 	private _filteredItems: CompletionItem[] = undefined;
 	private _topScoreIdx: number;
+	private _stats: CompletionStats;
 
 	constructor(raw: ISuggestionItem[], lineContext: LineContext) {
 		this.raw = raw;
@@ -77,9 +85,17 @@ export class CompletionModel {
 		return this._topScoreIdx;
 	}
 
+	get stats(): CompletionStats {
+		if (!this._filteredItems) {
+			this._filterAndScore();
+		}
+		return this._stats;
+	}
+
 	private _filterAndScore(): void {
 		this._filteredItems = [];
 		this._topScoreIdx = -1;
+		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 		const {leadingLineContent, characterCountDelta} = this._lineContext;
 
 		let word = '';
@@ -120,6 +136,13 @@ export class CompletionModel {
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;
+			}
+
+			// update stats
+			this._stats.suggestionCount++;
+			switch (item.suggestion.type) {
+				case 'snippet': this._stats.snippetCount++; break;
+				case 'text': this._stats.textCount++; break;
 			}
 		}
 	}
