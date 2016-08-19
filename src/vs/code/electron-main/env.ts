@@ -121,12 +121,6 @@ export class EnvService implements IEnvService {
 			}
 		}
 
-		// Finally, prepend any extra arguments from the 'argv' file
-		if (fs.existsSync(path.join(this._appRoot, 'argv'))) {
-			const extraargs: string[] = JSON.parse(fs.readFileSync(path.join(this._appRoot, 'argv'), 'utf8'));
-			args = [...extraargs, ...args];
-		}
-
 		const argv = parseArgs(args);
 		const paths = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 
