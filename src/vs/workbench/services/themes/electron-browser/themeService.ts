@@ -487,7 +487,6 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 		}
 	}
 	let cssRules: string[] = [];
-	cssRules.push('.show-file-icons .folder-icon, .show-file-icons .file-icon { background-repeat: no-repeat; padding-left: 22px; background-size: 16px !important; background-position: left center; }');
 	for (let defId in selectorByDefinitionId) {
 		let selectors = selectorByDefinitionId[defId];
 		let definition = fileIconsDocument.definitions[defId];

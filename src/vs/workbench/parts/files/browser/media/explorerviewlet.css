@@ -25,6 +25,14 @@
 	display: flex;
 }
 
+.explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon,
+.explorer-viewlet .explorer-folders-view.show-file-icons .file-icon {
+	background-repeat: no-repeat;
+	padding-left: 22px;
+	background-size: 16px;
+	background-position: left center;
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
 	visibility: hidden;
 }
