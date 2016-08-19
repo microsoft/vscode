@@ -384,7 +384,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const url = getAssetSource(version.files, AssetType.Manifest);
 
 		return this.getCommonHeaders()
-			.then(headers => assign(headers, { 'accept-encoding': 'gzip' }))
+			.then(headers => assign(headers, { 'Accept-Encoding': 'gzip' }))
 			.then(headers => this.requestService.request({ url, headers }))
 			.then(context => asJson<IExtensionManifest>(context))
 			.then(manifest => {
