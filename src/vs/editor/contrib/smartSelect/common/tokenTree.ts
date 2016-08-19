@@ -57,6 +57,10 @@ export class NodeList extends Node {
 		return this.children && this.children.length > 0;
 	}
 
+	get isEmpty() {
+		return !this.hasChildren && !this.parent;
+	}
+
 	public append(node: Node): boolean {
 		if (!node) {
 			return false;
@@ -360,6 +364,9 @@ export function build(model: IModel): Node {
 }
 
 export function find(node: Node, position: IPosition): Node {
+	if (node instanceof NodeList && node.isEmpty) {
+		return null;
+	}
 
 	if (!Range.containsPosition(node.range, position)) {
 		return null;
