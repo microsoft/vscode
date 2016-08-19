@@ -301,6 +301,27 @@ suite('Search', () => {
 		});
 	});
 
+	test('Files: relative path matched once', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			rootFolders: rootfolders(),
+			filePattern: path.normalize(path.join('examples', 'company.js'))
+		});
+
+		let count = 0;
+		let res: IRawFileMatch;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.equal(path.basename(res.absolutePath), 'company.js');
+			done();
+		});
+	});
+
 	test('Files: relative path to file ignores excludes', function (done: () => void) {
 		let engine = new FileSearchEngine({
 			rootFolders: rootfolders(),

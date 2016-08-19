@@ -53,10 +53,15 @@ interface ITimerEventData {
 		sortedResultDuration: number;
 		resultCount: number;
 	} & ({
+		traversal: string;
+		errors: string[];
 		fileWalkStartDuration: number;
 		fileWalkResultDuration: number;
 		directoriesWalked: number;
 		filesWalked: number;
+		cmdForkStartTime?: number;
+		cmdForkResultTime?: number;
+		cmdResultCount?: number;
 	} | {
 		cacheLookupStartDuration: number;
 		cacheLookupResultDuration: number;
@@ -400,10 +405,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				cacheLookupResultDuration: cached.cacheLookupResultTime - startTime,
 				cacheEntryCount: cached.cacheEntryCount
 			} : {
+				traversal: uncached.traversal,
+				errors: uncached.errors,
 				fileWalkStartDuration: uncached.fileWalkStartTime - startTime,
 				fileWalkResultDuration: uncached.fileWalkResultTime - startTime,
 				directoriesWalked: uncached.directoriesWalked,
-				filesWalked: uncached.filesWalked
+				filesWalked: uncached.filesWalked,
+				cmdForkStartDuration: uncached.cmdForkStartTime && uncached.cmdForkStartTime - startTime,
+				cmdForkResultDuration: uncached.cmdForkResultTime && uncached.cmdForkResultTime - startTime,
+				cmdResultCount: uncached.cmdResultCount
 			})
 		};
 	}

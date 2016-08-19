@@ -27,6 +27,8 @@ suite('SearchModel', () => {
 	const testSearchStats: IUncachedSearchStats = {
 		fromCache: false,
 		resultCount: 4,
+		traversal: 'node',
+		errors: [],
 		fileWalkStartTime: 0,
 		fileWalkResultTime: 1,
 		directoriesWalked: 2,
