@@ -7,9 +7,9 @@
 import {IOptions} from 'vs/workbench/common/options';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IWorkspace, BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-export class LegacyWorkspaceContextService extends BaseWorkspaceContextService {
+export class LegacyWorkspaceContextService extends WorkspaceContextService {
 
 	constructor(
 		private eventService: IEventService,

@@ -45,10 +45,8 @@ import {EnvironmentService} from 'vs/platform/environment/node/environmentServic
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
-	id: 'testWorkspace',
 	name: 'Test Workspace',
-	uid: new Date().getTime(),
-	mtime: new Date().getTime()
+	uid: new Date().getTime()
 };
 
 export const TestEnvironmentService = new EnvironmentService(Objects.assign(parseArgs(process.argv), { execPath: process.execPath }));

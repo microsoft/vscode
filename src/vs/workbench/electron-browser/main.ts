@@ -122,10 +122,8 @@ function getWorkspace(workspacePath: string): IWorkspace {
 
 	return <IWorkspace>{
 		'resource': workspaceResource,
-		'id': platform.isLinux ? realWorkspacePath : realWorkspacePath.toLowerCase(),
 		'name': folderName,
-		'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime(), // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-		'mtime': folderStat.mtime.getTime()
+		'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
 	};
 }
 

@@ -22,7 +22,7 @@ import {ExtHostExtensionService} from 'vs/workbench/api/node/extHostExtensionSer
 import {ExtHostThreadService} from 'vs/workbench/services/thread/common/extHostThreadService';
 import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
-import {IWorkspaceContextService, BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Client} from 'vs/base/parts/ipc/node/ipc.net';
 import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
@@ -72,7 +72,7 @@ export class ExtensionHostMain {
 
 		this._environment = initData.environment;
 
-		this._contextService = new BaseWorkspaceContextService(initData.contextService.workspace);
+		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
 		const workspaceStoragePath = this._getOrCreateWorkspaceStoragePath();
 
 		const threadService = new ExtHostThreadService(remoteCom);
