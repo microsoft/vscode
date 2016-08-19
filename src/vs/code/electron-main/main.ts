@@ -203,10 +203,11 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IEnvironmentService);
 	const envService = accessor.get(IEnvService);
 
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(envService.mainIPCHandle).then(server => {
+		return serve(environmentService.mainIPCHandle).then(server => {
 			if (platform.isMacintosh) {
 				app.dock.show(); // dock might be hidden at this case due to a retry
 			}
@@ -223,7 +224,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			}
 
 			// there's a running instance, let's connect to it
-			return connect(envService.mainIPCHandle).then(
+			return connect(environmentService.mainIPCHandle).then(
 				client => {
 
 					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
@@ -252,7 +253,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// let's delete it, since we can't connect to it
 					// and the retry the whole thing
 					try {
-						fs.unlinkSync(envService.mainIPCHandle);
+						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {
 						logService.log('Fatal error deleting obsolete instance handle', e);
 						return TPromise.wrapError(e);
@@ -370,11 +371,12 @@ function getShellEnvironment(): TPromise<IEnv> {
 function getEnvironment(): TPromise<IEnv> {
 	return getShellEnvironment().then(shellEnv => {
 		return instantiationService.invokeFunction(a => {
-			const envService = a.get(IEnvService);
+			const environmentService = a.get(IEnvironmentService);
+
 			const instanceEnv = {
 				VSCODE_PID: String(process.pid),
-				VSCODE_IPC_HOOK: envService.mainIPCHandle,
-				VSCODE_SHARED_IPC_HOOK: envService.sharedIPCHandle,
+				VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
+				VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
 				VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
 			};
 
