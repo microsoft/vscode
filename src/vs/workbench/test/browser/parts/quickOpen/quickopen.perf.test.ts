@@ -7,7 +7,7 @@
 
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {ensureStaticPlatformServices, IEditorOverrideServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -44,14 +44,7 @@ suite('QuickOpen performance', () => {
 
 		const telemetryService = new TestTelemetryService();
 		const overrides: IEditorOverrideServices = {
-			contextService: new BaseWorkspaceContextService({
-				resource: URI.file(testWorkspacePath),
-				id: null,
-				name: null,
-				uid: null,
-				mtime: null
-			}),
-
+			contextService: new WorkspaceContextService({ resource: URI.file(testWorkspacePath) }),
 			telemetryService
 		};
 

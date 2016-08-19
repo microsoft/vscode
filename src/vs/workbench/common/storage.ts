@@ -49,7 +49,7 @@ export class Storage implements IStorageService {
 		this.workspaceKey = this.getWorkspaceKey(workspace);
 
 		// Make sure to delete all workspace storage if the workspace has been recreated meanwhile
-		const workspaceUniqueId: number = workspace ? workspace.uid : null;
+		const workspaceUniqueId: number = workspace ? workspace.uid : void 0;
 		if (types.isNumber(workspaceUniqueId)) {
 			this.cleanupWorkspaceScope(workspaceUniqueId, workspace.name);
 		}

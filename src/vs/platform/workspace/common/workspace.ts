@@ -46,33 +46,19 @@ export interface IWorkspace {
 	resource: URI;
 
 	/**
-	 * the identifier that uniquely identifies this workspace among others.
-	 */
-	id: string;
-
-	/**
-	 * the name of the workspace
-	 */
-	name: string;
-
-	/**
-	 * the last modified date of the workspace if known
-	 */
-	mtime?: number;
-
-	/**
 	 * the unique identifier of the workspace. if the workspace is deleted and recreated
 	 * the identifier also changes. this makes the uid more unique compared to the id which
 	 * is just derived from the workspace name.
 	 */
 	uid?: number;
+
+	/**
+	 * the name of the workspace
+	 */
+	name?: string;
 }
 
-/**
- * Simple IWorkspaceContextService implementation to allow sharing of this service implementation
- * between different layers of the platform.
- */
-export class BaseWorkspaceContextService implements IWorkspaceContextService {
+export class WorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 

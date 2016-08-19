@@ -10,7 +10,7 @@ import {Build, Builder} from 'vs/base/browser/builder';
 import {Part} from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import * as TestUtils from 'vs/test/utils/servicesTestUtils';
-import {IWorkspaceContextService, BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
 
@@ -104,7 +104,7 @@ suite('Workbench Part', () => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
-		context = new BaseWorkspaceContextService(TestUtils.TestWorkspace);
+		context = new WorkspaceContextService(TestUtils.TestWorkspace);
 		storage = new Storage(new InMemoryLocalStorage(), null, context);
 	});
 
