@@ -41,6 +41,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
@@ -49,6 +50,12 @@ import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
+
+interface ChromeWindow extends Window {
+	CSS: {
+		escape: (val: string) => string;
+	};
+}
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -261,7 +268,8 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	constructor(
 		state: FileViewletState,
 		actionRunner: IActionRunner,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IModeService private modeService: IModeService
 	) {
 		super({
 			actionProvider: state.actionProvider,
@@ -277,7 +285,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		let el = $(domElement).clearChildren();
-		let item = $('.explorer-item').addClass(this.iconClass(stat)).appendTo(el);
+		let item = $('.explorer-item').addClass(...this.iconClasses(stat)).appendTo(el);
 
 		// File/Folder label
 		let editableData: IEditableData = this.state.getEditableData(stat);
@@ -336,12 +344,32 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		return () => done(true);
 	}
 
-	private iconClass(element: FileStat): string {
+	private iconClasses(element: FileStat): string[] {
 		if (element.isDirectory) {
-			return 'folder-icon';
+			return ['folder-icon'];
 		}
 
-		return 'file-icon';
+		const ext = paths.extname(element.resource.fsPath);
+		const basename = paths.basename(element.resource.fsPath);
+		const name = basename.substring(0, basename.length - ext.length);
+		const langId = this.modeService.getModeId(element.mime);
+
+		const classes = ['file-icon'];
+		const chromeWindow = window as ChromeWindow;
+
+		if (ext && ext.length > 1) {
+			classes.push(`${chromeWindow.CSS.escape(ext.substr(1).toLowerCase())}-ext-file-icon`); // extension without dot
+		}
+
+		if (name) {
+			classes.push(`${chromeWindow.CSS.escape(name.toLowerCase())}-name-file-icon`);
+		}
+
+		if (langId) {
+			classes.push(`${chromeWindow.CSS.escape(langId)}-lang-file-icon`);
+		}
+
+		return classes;
 	}
 }
 
