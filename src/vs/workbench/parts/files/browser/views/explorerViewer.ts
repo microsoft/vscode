@@ -51,7 +51,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
 
-interface ChromeWindow extends Window {
+interface CSSEscapeSupport extends Window {
 	CSS: {
 		escape: (val: string) => string;
 	};
@@ -352,21 +352,21 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		const ext = paths.extname(element.resource.fsPath);
 		const basename = paths.basename(element.resource.fsPath);
 		const name = basename.substring(0, basename.length - ext.length);
-		const langId = this.modeService.getModeId(element.mime);
+		const langId = this.modeService.getModeIdByFilenameOrFirstLine(element.resource.fsPath);
 
 		const classes = ['file-icon'];
-		const chromeWindow = window as ChromeWindow;
+		const cssEscapeSupport = window as CSSEscapeSupport;
 
 		if (ext && ext.length > 1) {
-			classes.push(`${chromeWindow.CSS.escape(ext.substr(1).toLowerCase())}-ext-file-icon`); // extension without dot
+			classes.push(`${cssEscapeSupport.CSS.escape(ext.substr(1).toLowerCase())}-ext-file-icon`); // extension without dot
 		}
 
 		if (name) {
-			classes.push(`${chromeWindow.CSS.escape(name.toLowerCase())}-name-file-icon`);
+			classes.push(`${cssEscapeSupport.CSS.escape(name.toLowerCase())}-name-file-icon`);
 		}
 
 		if (langId) {
-			classes.push(`${chromeWindow.CSS.escape(langId)}-lang-file-icon`);
+			classes.push(`${cssEscapeSupport.CSS.escape(langId)}-lang-file-icon`);
 		}
 
 		return classes;
