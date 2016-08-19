@@ -98,4 +98,33 @@ suite('Decorators', () => {
 		assert.equal(foo4.answer, undefined);
 		assert.equal(foo4.count, 1);
 	});
+
+	test('memoized property should not be enumerable', () => {
+		class Foo {
+			@memoize
+			get answer() { return 42; }
+		}
+
+		const foo = new Foo();
+		assert.equal(foo.answer, 42);
+
+		assert(!Object.keys(foo).some(k => /\$memoize\$/.test(k)));
+	});
+
+	test('memoized property should not be writable', () => {
+		class Foo {
+			@memoize
+			get answer() { return 42; }
+		}
+
+		const foo = new Foo();
+		assert.equal(foo.answer, 42);
+
+		try {
+			foo['$memoize$answer'] = 1337;
+			assert(false);
+		} catch (e) {
+			assert.equal(foo.answer, 42);
+		}
+	});
 });
