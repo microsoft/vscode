@@ -658,6 +658,9 @@ export class FileSorter implements ISorter {
 
 // Explorer Filter
 export class FileFilter implements IFilter {
+
+	private static MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
+
 	private hiddenExpression: glob.IExpression;
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
@@ -682,8 +685,14 @@ export class FileFilter implements IFilter {
 			return true; // always visible
 		}
 
+		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
+		let siblings = stat.parent && stat.parent.children && stat.parent.children;
+		if (siblings && siblings.length > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
+			siblings = void 0;
+		}
+
 		// Hide those that match Hidden Patterns
-		const siblingsFn = () => stat.parent && stat.parent.children && stat.parent.children.map(c => c.name);
+		const siblingsFn = () => siblings && siblings.map(c => c.name);
 		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource), siblingsFn)) {
 			return false; // hidden through pattern
 		}
