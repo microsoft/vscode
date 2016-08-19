@@ -2989,6 +2989,46 @@ declare namespace vscode {
 	}
 
 	/**
+	 * An individual terminal instance within the integrated terminal.
+	 */
+	export interface Terminal {
+
+		/**
+		 * The name of the terminal.
+		 *
+		 * @readonly
+		 */
+		name: string;
+
+		/**
+		 * Send text to the terminal.
+		 *
+		 * @param text The text to send to the terminal.
+		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
+		 * required to run a command in the terminal. The character(s) added are \n or \r\n
+		 * depending on the platform. This defaults to `true`.
+		 */
+		sendText(text: string, addNewLine?: boolean): void;
+
+		/**
+		 * Reveal this channel in the UI.
+		 *
+		 * @param preserveFocus When `true` the channel will not take focus.
+		 */
+		show(preservceFocus?: boolean): void;
+
+		/**
+		 * Hide this channel from the UI.
+		 */
+		hide(): void;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
+	}
+
+	/**
 	 * Represents an extension.
 	 *
 	 * To get an instance of an `Extension` use [getExtension](#extensions.getExtension).
@@ -3446,6 +3486,15 @@ declare namespace vscode {
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+
+		/**
+		 * Creates a [Terminal](#Terminal).
+		 *
+		 * @param name The optional name of a terminal, this will override the label used in the
+		 * terminal dropdown.
+		 * @return A new Terminal.
+		 */
+		export function createTerminal(name?: string): Terminal;
 	}
 
 	/**

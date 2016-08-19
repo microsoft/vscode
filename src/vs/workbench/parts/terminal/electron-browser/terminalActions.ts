@@ -98,7 +98,7 @@ export class FocusTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.focus();
+		return this.terminalService.show(true);
 	}
 }
 
