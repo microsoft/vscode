@@ -6,15 +6,24 @@
 'use strict';
 
 export function memoize(target: any, key: string, descriptor: any) {
-	const fn = descriptor.value;
+	let fnKey: string = null;
+	let fn: Function = null;
 
-	if (typeof fn !== 'function') {
-		throw new Error('memoize works in methods only');
+	if (typeof descriptor.value === 'function') {
+		fnKey = 'value';
+		fn = descriptor.value;
+	} else if (typeof descriptor.get === 'function') {
+		fnKey = 'get';
+		fn = descriptor.get;
+	}
+
+	if (!fn) {
+		throw new Error('not supported');
 	}
 
 	const memoizeKey = `$memoize$${ key }`;
 
-	descriptor.value = function (...args) {
+	descriptor[fnKey] = function (...args) {
 		if (!this.hasOwnProperty(memoizeKey)) {
 			this[memoizeKey] = fn.apply(this, args);
 		}
