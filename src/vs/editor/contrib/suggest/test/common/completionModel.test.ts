@@ -12,7 +12,7 @@ import {CompletionModel} from 'vs/editor/contrib/suggest/common/completionModel'
 
 suite('CompletionModel', function () {
 
-	function createSuggestItem(label: string, overwriteBefore: number): ISuggestionItem {
+	function createSuggestItem(label: string, overwriteBefore: number, incomplete: boolean = false): ISuggestionItem {
 
 		return new class implements ISuggestionItem {
 
@@ -25,7 +25,7 @@ suite('CompletionModel', function () {
 
 			container: ISuggestResult = {
 				currentWord: '',
-				incomplete: false,
+				incomplete,
 				suggestions: [this.suggestion]
 			};
 
@@ -46,9 +46,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('Foo', 3),
 			createSuggestItem('foo', 2),
 		], {
-				leadingLineContent: 'foo',
-				characterCountDelta: 0
-			});
+			leadingLineContent: 'foo',
+			characterCountDelta: 0
+		});
 	});
 
 	test('filtering - cached', function () {
@@ -74,5 +74,19 @@ suite('CompletionModel', function () {
 
 		model.lineContext = { leadingLineContent: 'Foo', characterCountDelta: 0 };
 		assert.equal(model.topScoreIdx, 1);
+	});
+
+	test('complete/incomplete', function () {
+
+		assert.equal(model.incomplete.length, 0);
+
+		let incompleteModel = new CompletionModel([
+			createSuggestItem('foo', 3, true),
+			createSuggestItem('foo', 2),
+		], {
+			leadingLineContent: 'foo',
+			characterCountDelta: 0
+		});
+		assert.equal(incompleteModel.incomplete.length, 1);
 	});
 });

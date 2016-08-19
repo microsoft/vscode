@@ -8,7 +8,7 @@
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {ISuggestion} from 'vs/editor/common/modes';
+import {ISuggestion, ISuggestSupport} from 'vs/editor/common/modes';
 import {ISuggestionItem} from './suggest';
 
 export class CompletionItem {
@@ -45,6 +45,7 @@ export class CompletionModel {
 
 	private _lineContext: LineContext;
 	private _items: CompletionItem[] = [];
+	private _incomplete: ISuggestSupport[] = [];
 
 	private _filteredItems: CompletionItem[] = undefined;
 	private _topScoreIdx: number;
@@ -53,9 +54,19 @@ export class CompletionModel {
 	constructor(raw: ISuggestionItem[], lineContext: LineContext) {
 		this.raw = raw;
 		this._lineContext = lineContext;
-		for (let item of raw) {
+		for (const item of raw) {
 			this._items.push(new CompletionItem(item));
+
+			if (item.container.incomplete
+				&& this._incomplete.indexOf(item.support) < 0) {
+
+				this._incomplete.push(item.support);
+			}
 		}
+	}
+
+	get incomplete(): ISuggestSupport[] {
+		return this._incomplete;
 	}
 
 	get lineContext(): LineContext {
