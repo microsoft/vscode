@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as minimist from 'minimist';
+import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
@@ -70,6 +71,27 @@ const options: minimist.Opts = {
 	}
 };
 
+/**
+ * Use this to parse raw code process.argv such as: `Electron . --verbose --wait`
+ */
+export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
+	const [, ...args] = processArgv;
+
+	// If dev, remove the first non-option argument: it's the app location
+	if (process.env['VSCODE_DEV']) {
+		const index = firstIndex(args, a => !/^-/.test(a));
+
+		if (index > -1) {
+			args.splice(index, 1);
+		}
+	}
+
+	return parseArgs(args);
+}
+
+/**
+ * Use this to parse code arguments such as `--verbose --wait`
+ */
 export function parseArgs(args: string[]): ParsedArgs {
 	return minimist(args, options) as ParsedArgs;
 }
