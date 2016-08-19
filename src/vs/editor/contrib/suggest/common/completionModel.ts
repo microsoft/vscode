@@ -6,28 +6,15 @@
 'use strict';
 
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {ISuggestion, ISuggestSupport} from 'vs/editor/common/modes';
+import {IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
+import {ISuggestSupport} from 'vs/editor/common/modes';
 import {ISuggestionItem} from './suggest';
 
-export class CompletionItem {
-
-	suggestion: ISuggestion;
-	highlights: IMatch[];
-	filter: IFilter;
-
-	constructor(private _item: ISuggestionItem) {
-		this.suggestion = _item.suggestion;
-		this.filter = _item.support && _item.support.filter || fuzzyContiguousFilter;
-	}
-
-	resolve(): TPromise<this> {
-		return this._item.resolve().then(() => this);
-	}
+export interface ICompletionItem extends ISuggestionItem {
+	highlights?: IMatch[];
 }
 
-export interface CompletionStats {
+export interface ICompletionStats {
 	suggestionCount: number;
 	snippetCount: number;
 	textCount: number;
@@ -42,28 +29,16 @@ export class LineContext {
 export class CompletionModel {
 
 	private _lineContext: LineContext;
-	private _items: CompletionItem[] = [];
-	private _incomplete: ISuggestSupport[] = [];
+	private _items: ICompletionItem[];
 
-	private _filteredItems: CompletionItem[] = undefined;
+	private _filteredItems: ICompletionItem[];
 	private _topScoreIdx: number;
-	private _stats: CompletionStats;
+	private _incomplete: ISuggestSupport[];
+	private _stats: ICompletionStats;
 
 	constructor(items: ISuggestionItem[], lineContext: LineContext) {
+		this._items = items;
 		this._lineContext = lineContext;
-		for (const item of items) {
-			this._items.push(new CompletionItem(item));
-
-			if (item.container.incomplete
-				&& this._incomplete.indexOf(item.support) < 0) {
-
-				this._incomplete.push(item.support);
-			}
-		}
-	}
-
-	get incomplete(): ISuggestSupport[] {
-		return this._incomplete;
 	}
 
 	get lineContext(): LineContext {
@@ -74,49 +49,56 @@ export class CompletionModel {
 		if (this._lineContext.leadingLineContent !== value.leadingLineContent
 			|| this._lineContext.characterCountDelta !== value.characterCountDelta) {
 
-			this._filteredItems = undefined;
 			this._lineContext = value;
+			this._filteredItems = undefined;
 		}
 	}
 
-	get items(): CompletionItem[] {
-		if (!this._filteredItems) {
-			this._filterAndScore();
-		}
+	get items(): ICompletionItem[] {
+		this._ensureCachedState();
 		return this._filteredItems;
 	}
 
 	get topScoreIdx(): number {
-		if (!this._filteredItems) {
-			this._filterAndScore();
-		}
+		this._ensureCachedState();
 		return this._topScoreIdx;
 	}
 
-	get stats(): CompletionStats {
-		if (!this._filteredItems) {
-			this._filterAndScore();
-		}
+	get incomplete(): ISuggestSupport[] {
+		this._ensureCachedState();
+		return this._incomplete;
+	}
+
+	get stats(): ICompletionStats {
+		this._ensureCachedState();
 		return this._stats;
 	}
 
-	private _filterAndScore(): void {
+	private _ensureCachedState(): void {
+		if (!this._filteredItems) {
+			this._createCachedState();
+		}
+	}
+
+	private _createCachedState(): void {
 		this._filteredItems = [];
+		this._incomplete = [];
 		this._topScoreIdx = -1;
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
-		const {leadingLineContent, characterCountDelta} = this._lineContext;
 
+		const {leadingLineContent, characterCountDelta} = this._lineContext;
 		let word = '';
 		let topScore = -1;
 
 		for (const item of this._items) {
 
-			const {filter, suggestion} = item;
+			const {suggestion, support, container} = item;
+			const filter = support && support.filter || fuzzyContiguousFilter;
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// differnet word, but in practice not - that's why we cache
-			const wordLen = item.suggestion.overwriteBefore + characterCountDelta;
+			const wordLen = suggestion.overwriteBefore + characterCountDelta;
 			if (word.length !== wordLen) {
 				word = leadingLineContent.slice(-wordLen);
 			}
@@ -146,9 +128,15 @@ export class CompletionModel {
 				this._topScoreIdx = this._filteredItems.length - 1;
 			}
 
+			// collect those supports that signaled having
+			// an incomplete result
+			if (container.incomplete && this._incomplete.indexOf(support) < 0) {
+				this._incomplete.push(support);
+			}
+
 			// update stats
 			this._stats.suggestionCount++;
-			switch (item.suggestion.type) {
+			switch (suggestion.type) {
 				case 'snippet': this._stats.snippetCount++; break;
 				case 'text': this._stats.textCount++; break;
 			}

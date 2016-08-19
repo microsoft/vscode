@@ -16,6 +16,11 @@ suite('CompletionModel', function () {
 
 		return new class implements ISuggestionItem {
 
+			position = {
+				lineNumber: 1,
+				column: 1
+			};
+
 			suggestion: ISuggestion = {
 				label,
 				overwriteBefore,

@@ -19,7 +19,7 @@ import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
-import { CompletionItem } from '../common/completionModel';
+import { ICompletionItem } from '../common/completionModel';
 import { SuggestWidget } from './suggestWidget';
 
 export class SuggestController implements IEditorContribution {
@@ -63,10 +63,10 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	private onDidSelectItem(item: CompletionItem): void {
+	private onDidSelectItem(item: ICompletionItem): void {
 		if (item) {
 			const {insertText, overwriteBefore, overwriteAfter, additionalTextEdits, command} = item.suggestion;
-			const columnDelta = this.editor.getPosition().column - this.model.getTriggerPosition().column;
+			const columnDelta = this.editor.getPosition().column - item.position.column;
 
 			// todo@joh
 			// * order of stuff command/extraEdit/actual edit

@@ -370,11 +370,6 @@ export class SuggestModel implements IDisposable {
 		}).then(null, onUnexpectedError);
 	}
 
-	public getTriggerPosition(): IPosition {
-		const {lineNumber, column} = this.context;
-		return { lineNumber, column };
-	}
-
 	private onNewContext(ctx: Context): void {
 		if (this.context && this.context.isDifferentContext(ctx)) {
 			if (this.context.shouldRetrigger(ctx)) {
