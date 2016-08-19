@@ -10,7 +10,7 @@ import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { parseArgs } from 'vs/code/node/argv';
+import { parseMainProcessArgv } from 'vs/code/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
@@ -272,8 +272,8 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 // TODO: isolate
 const services = new ServiceCollection();
 
+services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseMainProcessArgv(process.argv), process.execPath));
 services.set(IEnvService, new SyncDescriptor(EnvService));
-services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv), process.execPath));
 services.set(ILogService, new SyncDescriptor(MainLogService));
 services.set(IWindowsService, new SyncDescriptor(WindowsManager));
 services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
