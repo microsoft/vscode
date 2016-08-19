@@ -16,6 +16,8 @@ import {DiskSearch} from 'vs/workbench/services/search/node/searchService';
 const stats: IUncachedSearchStats = {
 	fromCache: false,
 	resultCount: 4,
+	traversal: 'node',
+	errors: [],
 	fileWalkStartTime: 0,
 	fileWalkResultTime: 1,
 	directoriesWalked: 2,

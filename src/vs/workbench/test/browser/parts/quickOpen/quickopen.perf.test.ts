@@ -99,6 +99,7 @@ suite('QuickOpen performance', () => {
 					searchLength: data.searchLength,
 					sortedResultDuration: data.sortedResultDuration,
 					filesResultCount: data.files.resultCount,
+					errorCount: data.files.errors && data.files.errors.length || undefined
 				}) + ',');
 			}
 		}

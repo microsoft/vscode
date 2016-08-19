@@ -323,7 +323,7 @@ export function match(arg1: string | IExpression, path: string, siblingsFn?: () 
 		return false;
 	}
 
-	return (<any>parse(<any>arg1))(path, siblingsFn);
+	return parse(<IExpression>arg1)(path, siblingsFn);
 }
 
 /**

@@ -91,10 +91,15 @@ export interface ICachedSearchStats extends ISearchStats {
 }
 
 export interface IUncachedSearchStats extends ISearchStats {
+	traversal: string;
+	errors: string[];
 	fileWalkStartTime: number;
 	fileWalkResultTime: number;
 	directoriesWalked: number;
 	filesWalked: number;
+	cmdForkStartTime?: number;
+	cmdForkResultTime?: number;
+	cmdResultCount?: number;
 }
 
 

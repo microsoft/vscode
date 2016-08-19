@@ -5,11 +5,15 @@
 
 'use strict';
 
+import * as childProcess from 'child_process';
+import {StringDecoder} from 'string_decoder';
 import fs = require('fs');
 import paths = require('path');
+import {Readable} from "stream";
 
 import scorer = require('vs/base/common/scorer');
 import arrays = require('vs/base/common/arrays');
+import platform = require('vs/base/common/platform');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import glob = require('vs/base/common/glob');
@@ -18,6 +22,21 @@ import {IProgress, IUncachedSearchStats} from 'vs/platform/search/common/search'
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
 import {IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} from './search';
+
+enum Traversal {
+	Node = 1,
+	MacFind,
+}
+
+interface IDirectoryEntry {
+	relativePath: string;
+	basename: string;
+}
+
+interface IDirectoryTree {
+	rootEntries: IDirectoryEntry[];
+	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
+}
 
 export class FileWalker {
 	private config: IRawSearch;
@@ -33,6 +52,11 @@ export class FileWalker {
 	private fileWalkStartTime: number;
 	private directoriesWalked: number;
 	private filesWalked: number;
+	private traversal: Traversal;
+	private errors: string[];
+	private cmdForkStartTime: number;
+	private cmdForkResultTime: number;
+	private cmdResultCount: number;
 
 	private walkedPaths: { [path: string]: boolean; };
 
@@ -48,6 +72,8 @@ export class FileWalker {
 		this.isLimitHit = false;
 		this.directoriesWalked = 0;
 		this.filesWalked = 0;
+		this.traversal = Traversal.Node;
+		this.errors = [];
 
 		if (this.filePattern) {
 			this.filePattern = this.filePattern.replace(/\\/g, '/'); // Normalize file patterns to forward slashes
@@ -95,32 +121,26 @@ export class FileWalker {
 				});
 			}
 
+			let traverse = this.nodeJSTraversal;
+			if (!this.maxFilesize && platform.isMacintosh) {
+				this.traversal = Traversal.MacFind;
+				traverse = this.macFindTraversal;
+			}
+
 			// For each root folder
-			flow.parallel(rootFolders, (absolutePath, perEntryCallback) => {
-				this.directoriesWalked++;
-				extfs.readdir(absolutePath, (error: Error, files: string[]) => {
-					if (error || this.isCanceled || this.isLimitHit) {
-						return perEntryCallback(null, null);
+			flow.parallel(rootFolders, (rootFolder, rootFolderDone: (err?: Error) => void) => {
+				traverse.call(this, rootFolder, onResult, err => {
+					if (err) {
+						if (traverse === this.nodeJSTraversal) {
+							rootFolderDone(err);
+						} else {
+							// fallback
+							this.errors.push(String(err));
+							this.nodeJSTraversal(rootFolder, onResult, rootFolderDone);
+						}
+					} else {
+						rootFolderDone();
 					}
-
-					// Support relative paths to files from a root resource
-					return this.checkFilePatternRelativeMatch(absolutePath, (match, size) => {
-						if (this.isCanceled || this.isLimitHit) {
-							return perEntryCallback(null, null);
-						}
-
-						// Report result from file pattern if matching
-						if (match) {
-							this.resultCount++;
-							onResult({
-								absolutePath: match,
-								pathLabel: this.filePattern,
-								size
-							});
-						}
-
-						return this.doWalk(paths.normalize(absolutePath), '', files, onResult, perEntryCallback);
-					});
 				});
 			}, (err, result) => {
 				done(err ? err[0] : null, this.isLimitHit);
@@ -128,14 +148,173 @@ export class FileWalker {
 		});
 	}
 
+	private macFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+		this.cmdForkStartTime = Date.now();
+		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
+		this.readStdout(cmd, (err: Error, stdout?: string) => {
+			if (err) {
+				done(err);
+				return;
+			}
+
+			// Mac: uses NFD unicode form on disk, but we want NFC
+			const relativeFiles = strings.normalizeNFC(stdout).split('\n./');
+			relativeFiles[0] = relativeFiles[0].trim().substr(2);
+			const n = relativeFiles.length;
+			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
+			if (!relativeFiles[n - 1]) {
+				relativeFiles.pop();
+			}
+
+			this.cmdResultCount = relativeFiles.length;
+
+			// Support relative paths to files from a root resource (ignores excludes)
+			if (relativeFiles.indexOf(this.filePattern) !== -1) {
+				this.matchFile(onResult, [rootFolder, this.filePattern].join(paths.sep), this.filePattern);
+			}
+
+			const tree = this.buildDirectoryTree(relativeFiles);
+			this.matchDirectoryTree(rootFolder, tree, onResult);
+
+			done();
+		});
+	}
+
+	private readStdout(cmd: childProcess.ChildProcess, cb: (err: Error, stdout?: string) => void): void {
+		let done = (err: Error, stdout?: string) => {
+			done = () => {};
+			cb(err, stdout);
+		};
+
+		const stdout = this.collectData(cmd.stdout);
+		const stderr = this.collectData(cmd.stderr);
+
+		cmd.on('error', err => {
+			done(err);
+		});
+
+		cmd.on('close', code => {
+			if (code !== 0) {
+				done(new Error(`find failed with error code ${code}: ${this.decodeData(stderr)}`));
+			} else {
+				this.cmdForkResultTime = Date.now();
+				done(null, this.decodeData(stdout));
+			}
+		});
+	}
+
+	private collectData(stream: Readable): Buffer[] {
+		const buffers = [];
+		stream.on('data', data => {
+			buffers.push(data);
+		});
+		return buffers;
+	}
+
+	private decodeData(buffers: Buffer[]): string {
+		const decoder = new StringDecoder('utf8');
+		return buffers.map(data => decoder.write(data))
+			.reduce((all, current) => all + current, '');
+	}
+
+	private buildDirectoryTree(relativeFilePaths: string[]): IDirectoryTree {
+		const tree: IDirectoryTree = {
+			rootEntries: [],
+			pathToEntries: Object.create(null)
+		};
+		const {pathToEntries} = tree;
+		pathToEntries['.'] = tree.rootEntries;
+		relativeFilePaths.forEach(function add(relativePath: string) {
+			const basename = paths.basename(relativePath);
+			const dirname = paths.dirname(relativePath);
+			let entries = pathToEntries[dirname];
+			if (!entries) {
+				entries = pathToEntries[dirname] = [];
+				add(dirname);
+			}
+			entries.push({
+				relativePath,
+				basename
+			});
+		});
+		return tree;
+	}
+
+	private matchDirectoryTree(rootFolder: string, { rootEntries, pathToEntries }: IDirectoryTree, onResult: (result: IRawFileMatch) => void) {
+		const self = this;
+		const excludePattern = this.excludePattern;
+		const filePattern = this.filePattern;
+		function matchDirectory(entries: IDirectoryEntry[]) {
+			self.directoriesWalked++;
+			for (let i = 0, n = entries.length; i < n; i++) {
+				const entry = entries[i];
+				const relativePath = entry.relativePath; // assumes slashes as separator
+
+				// Check exclude pattern
+				// If the user searches for the exact file name, we adjust the glob matching
+				// to ignore filtering by siblings because the user seems to know what she
+				// is searching for and we want to include the result in that case anyway
+				if (excludePattern(relativePath, () => filePattern !== entry.basename ? entries.map(entry => entry.basename) : [])) {
+					continue;
+				}
+
+				const sub = pathToEntries[relativePath];
+				if (sub) {
+					matchDirectory(sub);
+				} else {
+					self.filesWalked++;
+					if (relativePath === filePattern) {
+						continue; // ignore file if its path matches with the file pattern because that is already matched above
+					}
+
+					self.matchFile(onResult, [rootFolder, relativePath].join(paths.sep), relativePath);
+				}
+			};
+		}
+		matchDirectory(rootEntries);
+	}
+
+	private nodeJSTraversal(absolutePath: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+		this.directoriesWalked++;
+		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
+			if (error || this.isCanceled || this.isLimitHit) {
+				return done();
+			}
+
+			// Support relative paths to files from a root resource (ignores excludes)
+			return this.checkFilePatternRelativeMatch(absolutePath, (match, size) => {
+				if (this.isCanceled || this.isLimitHit) {
+					return done();
+				}
+
+				// Report result from file pattern if matching
+				if (match) {
+					this.resultCount++;
+					onResult({
+						absolutePath: match,
+						pathLabel: this.filePattern,
+						size
+					});
+				}
+
+				return this.doWalk(paths.normalize(absolutePath), '', files, onResult, done);
+			});
+		});
+	}
+
 	public getStats(): IUncachedSearchStats {
 		return {
 			fromCache: false,
+			traversal: Traversal[this.traversal],
+			errors: this.errors,
 			fileWalkStartTime: this.fileWalkStartTime,
 			fileWalkResultTime: Date.now(),
 			directoriesWalked: this.directoriesWalked,
 			filesWalked: this.filesWalked,
-			resultCount: this.resultCount
+			resultCount: this.resultCount,
+			cmdForkStartTime: this.cmdForkStartTime,
+			cmdForkResultTime: this.cmdForkResultTime,
+			cmdResultCount: this.cmdResultCount
 		};
 	}
 
@@ -161,7 +340,7 @@ export class FileWalker {
 		});
 	}
 
-	private doWalk(absolutePath: string, relativeParentPathWithSlashes: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error, result: any) => void): void {
+	private doWalk(absolutePath: string, relativeParentPathWithSlashes: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
 
 		// Execute tasks on each file in parallel to optimize throughput
 		flow.parallel(files, (file: string, clb: (error: Error) => void): void => {
@@ -250,7 +429,7 @@ export class FileWalker {
 				error = arrays.coalesce(error); // find any error by removing null values first
 			}
 
-			return done(error && error.length > 0 ? error[0] : null, null);
+			return done(error && error.length > 0 ? error[0] : null);
 		});
 	}
 
