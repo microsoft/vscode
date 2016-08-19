@@ -36,22 +36,9 @@
 		],
 		"fileIcons": [
 			{
-				"id": "vs-dark-standard",
-				"label": "Dark Theme File Icons (Default)",
-				"uiTheme": "vs-dark",
-				"path": "./fileicons/dark_standard.json"
-			},
-			{
-				"id": "vs-light-standard",
-				"label": "Light Theme File Icons (Default)",
-				"uiTheme": "vs",
-				"path": "./fileicons/light_standard.json"
-			},
-			{
-				"id": "vs-highcontrast-standard",
-				"label": "High Contrast Theme File Icons (Default)",
-				"uiTheme": "hc-black",
-				"path": "./fileicons/light_standard.json"
+				"id": "vs-standard",
+				"label": "Visual Studio File Icons",
+				"path": "./fileicons/vs_standard.json"
 			}
 		]
 	}

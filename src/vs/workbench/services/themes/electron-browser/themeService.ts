@@ -29,6 +29,7 @@ import pfs = require('vs/base/node/pfs');
 // implementation
 
 const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
+const DEFAULT_FILE_ICONS = 'vs-standard';
 
 const THEME_CHANNEL = 'vscode:changeTheme';
 const THEME_PREF = 'workbench.theme';
@@ -89,16 +90,12 @@ let fileIconsExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 				description: nls.localize('vscode.extension.contributes.fileIcons.label', 'Label of the file icon set as shown in the UI.'),
 				type: 'string'
 			},
-			uiTheme: {
-				description: nls.localize('vscode.extension.contributes.fileIcons.uiTheme', 'Base theme for which the file icon set is designed for: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme, \'hc-black\' is the dark high contrast theme.'),
-				enum: ['vs', 'vs-dark', 'hc-black']
-			},
 			path: {
 				description: nls.localize('vscode.extension.contributes.fileIcons.path', 'Path of the file icons definition file. The path is relative to the extension folder and is typically \'./fileicons/fileIconsFile.json\'.'),
 				type: 'string'
 			}
 		},
-		required: ['path', 'id', 'uiTheme']
+		required: ['path', 'id']
 	}
 });
 
@@ -129,33 +126,24 @@ interface IInternalThemeData extends IThemeData {
 	extensionId: string;
 }
 
-interface ThemedFileIconSets {
-	dark?: string;
-	light?: string;
-	highContrast?: string;
-}
-
 interface FileIconDefinition {
 	iconPath: string;
 }
 
-interface FileIconsDocument {
-	definitions: { [key:string]: FileIconDefinition };
-	defaults: {[defType:string]: string; };
-	languageAssociations: {[languageId:string]: string; };
+interface FileIconsAssociation {
+	folder?: string;
+	file?: string;
+	folderExpanded?: string;
+	fileExtensions?: {[extension:string]: string; };
+	fileNames?: {[fileName:string]: string; };
+	languageIds?: {[languageId:string]: string; };
 }
 
-const defaultFileIconSets : ThemedFileIconSets = {
-	dark: 'vs-dark-standard',
-	light: 'vs-light-standard',
-	highContrast: 'vs-highcontrast-standard'
-};
-
-const baseThemeToPropertyKey = {
-	'vs': 'light',
-	'vs-dark': 'dark',
-	'hc_black': 'highContrast'
-};
+interface FileIconsDocument extends FileIconsAssociation {
+	iconDefinitions: { [key:string]: FileIconDefinition };
+	light?: FileIconsAssociation;
+	highContrast?: FileIconsAssociation;
+}
 
 export class ThemeService implements IThemeService {
 	_serviceBrand: any;
@@ -166,7 +154,7 @@ export class ThemeService implements IThemeService {
 	private onColorThemeChange: Emitter<string>;
 
 	private knownFileIconContributions: IInternalThemeData[];
-	private currentFileIconsId: ThemedFileIconSets;
+	private currentFileIcons: string;
 
 	constructor(
 			@IExtensionService private extensionService: IExtensionService,
@@ -178,7 +166,7 @@ export class ThemeService implements IThemeService {
 		this.knownThemes = [];
 		this.onColorThemeChange = new Emitter<string>();
 		this.knownFileIconContributions = [];
-		this.currentFileIconsId = {};
+		this.currentFileIcons = null;
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
@@ -257,7 +245,6 @@ export class ThemeService implements IThemeService {
 				this.sendTelemetry(newTheme);
 			}
 			this.onColorThemeChange.fire(newThemeId);
-			this.updateFileIcons();
 		};
 
 		return this.applyThemeCSS(themeId, DEFAULT_THEME_ID, onApply);
@@ -401,40 +388,35 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	private setFileIcons(iconSets: ThemedFileIconSets) : TPromise<boolean> {
-		['dark', 'light', 'highContrast'].forEach(p => {
-			this.currentFileIconsId[p] = iconSets[p];
-		});
-		return this.updateFileIcons();
+	private setFileIcons(fileIcons: string) : TPromise<boolean> {
+		if (fileIcons !== this.currentFileIcons) {
+			this.currentFileIcons = fileIcons;
+			return this._updateFileIcons();
+		}
+		return TPromise.as(true);
 	}
 
-	private updateFileIcons() : TPromise<boolean> {
-		let baseId = getBaseThemeId(this.getColorTheme());
-		let propertyKey = baseThemeToPropertyKey[baseId];
+	private _updateFileIcons() : TPromise<boolean> {
 		return this.getFileIcons().then(allIconSets => {
-			let iconSetData = this.findFileIconSet(allIconSets, this.currentFileIconsId[propertyKey], defaultFileIconSets[propertyKey]);
+			let iconSetData;
+			for (let iconSet of allIconSets) {
+				if (iconSet.id === this.currentFileIcons) {
+					iconSetData = <IInternalThemeData> iconSet;
+					break;
+				}
+				if (iconSet.id === DEFAULT_FILE_ICONS) {
+					iconSetData = <IInternalThemeData> iconSet;
+				}
+			}
 			if (iconSetData) {
-				return applyFileIcons(iconSetData);
+				return _applyFileIcons(iconSetData);
 			}
 			return false;
 		});
 	}
-
-	private findFileIconSet(allIconSets: IThemeData[], fileSetId: string, defaultIds: string): IInternalThemeData {
-		let defaultData = void 0;
-		for (let iconSet of allIconSets) {
-			if (iconSet.id === fileSetId) {
-				return <IInternalThemeData> iconSet;
-			}
-			if (iconSet.id === defaultIds) {
-				defaultData = <IInternalThemeData> iconSet;
-			}
-		}
-		return defaultData;
-	}
 }
 
-function applyFileIcons(data: IInternalThemeData): TPromise<boolean> {
+function _applyFileIcons(data: IInternalThemeData): TPromise<boolean> {
 	if (data.styleSheetContent) {
 		_applyRules(data.styleSheetContent, fileIconRulesClassName);
 		return TPromise.as(true);
@@ -461,35 +443,61 @@ function _loadFileIconsDocument(fileSetPath: string) : TPromise<FileIconsDocumen
 }
 
 function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDocument: FileIconsDocument) : string {
-	if (!fileIconsDocument.definitions) {
+	if (!fileIconsDocument.iconDefinitions) {
 		return '';
 	}
 	let selectorByDefinitionId : {[def:string]:string[]} = {};
-	function addSelector(selector: string, defId: string) {
-		if (defId) {
-			let list = selectorByDefinitionId[defId];
-			if (!list) {
-				list = selectorByDefinitionId[defId] = [];
+
+	function collectSelectors(associations: FileIconsAssociation, baseThemeClassName?: string) {
+		function addSelector(selector: string, defId: string) {
+			if (defId) {
+				let list = selectorByDefinitionId[defId];
+				if (!list) {
+					list = selectorByDefinitionId[defId] = [];
+				}
+				list.push(selector);
 			}
-			list.push(selector);
+		}
+		if (associations) {
+			let qualifier = '.show-file-icons';
+			if (baseThemeClassName) {
+				qualifier = baseThemeClassName + ' ' + qualifier;
+			}
+
+			addSelector(`${qualifier} .folder-icon`, associations.folder);
+			addSelector(`${qualifier} .expanded .folder-icon`, associations.folderExpanded);
+			addSelector(`${qualifier} .file-icon`, associations.file);
+
+			let fileExtensions = associations.fileExtensions;
+			if (fileExtensions) {
+				for (let fileExtension in fileExtensions) {
+					addSelector(`${qualifier} .${escapeCSS(fileExtension.toLowerCase())}-ext-file-icon.file-icon`, fileExtensions[fileExtension]);
+				}
+			}
+			let fileNames = associations.fileNames;
+			if (fileNames) {
+				for (let fileName in fileNames) {
+					let ext = Paths.extname(fileName).toLowerCase();
+					let name = fileName.substring(0, fileName.length - ext.length).toLowerCase();
+					addSelector(`${qualifier} .${escapeCSS(name)}-name-file-icon.${escapeCSS(ext)}-ext-file-icon.file-icon`, fileNames[fileName]);
+				}
+			}
+			let languageIds = associations.languageIds;
+			if (languageIds) {
+				for (let languageId in languageIds) {
+					addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon`, languageIds[languageId]);
+				}
+			}
 		}
 	}
-	let defaults = fileIconsDocument.defaults;
-	if (defaults) {
-		addSelector('.show-file-icons .folder-icon', defaults['folder']);
-		addSelector('.show-file-icons .expanded .folder-icon', defaults['folder-expanded']);
-		addSelector('.show-file-icons .file-icon', defaults['file']);
-	}
-	let languageAssociations = fileIconsDocument.languageAssociations;
-	if (languageAssociations) {
-		for (let languageId in languageAssociations) {
-			addSelector(`.show-file-icons .${toCSSSelector(languageId)}-file-icon.file-icon`, languageAssociations[languageId]);
-		}
-	}
+	collectSelectors(fileIconsDocument);
+	collectSelectors(fileIconsDocument.light, '.vs');
+	collectSelectors(fileIconsDocument.highContrast, '.hc_black');
+
 	let cssRules: string[] = [];
 	for (let defId in selectorByDefinitionId) {
 		let selectors = selectorByDefinitionId[defId];
-		let definition = fileIconsDocument.definitions[defId];
+		let definition = fileIconsDocument.iconDefinitions[defId];
 		if (definition) {
 			if (definition.iconPath) {
 				let path = Paths.join(Paths.dirname(fileIconsPath), definition.iconPath);
@@ -498,6 +506,10 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 		}
 	}
 	return cssRules.join('\n');
+}
+
+function escapeCSS(str: string) {
+	return window['CSS'].escape(str);
 }
 
 
@@ -730,20 +742,10 @@ configurationRegistry.registerConfiguration({
 	'order': 9.01,
 	'type': 'object',
 	'properties': {
-		'files.icons.dark': {
+		'files.iconTheme': {
 			'type': 'string',
-			'default': defaultFileIconSets.dark,
-			'description': nls.localize('settings.icons.dark', 'The file icons to be used in dark themes.'),
-		},
-		'files.icons.light': {
-			'type': 'string',
-			'default': defaultFileIconSets.light,
-			'description': nls.localize('settings.icons.light', 'The file icons to be used in light themes.')
-		},
-		'files.icons.highContrast': {
-			'type': 'string',
-			'default': defaultFileIconSets.highContrast,
-			'description': nls.localize('settings.icons.highcontrast', 'The file icons to be used in high contrast themes.')
+			'default': DEFAULT_FILE_ICONS,
+			'description': nls.localize('settings.icons.dark', 'The active file icons. Use \'explorer.showFileIcons\' to enable file icons in the explorer'),
 		}
 	}
 });
