@@ -217,7 +217,7 @@ export class ElectronGitService extends GitService {
 			raw = new NoOpGitService();
 		} else {
 			const gitPath = conf.path || null;
-			const encoding = filesConf.encoding || 'utf8';
+			const encoding = (filesConf && filesConf.encoding) || 'utf8';
 			const workspaceRoot = workspace.resource.fsPath;
 			const verbose = !environmentService.isBuilt || environmentService.verbose;
 
