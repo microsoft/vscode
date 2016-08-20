@@ -18,7 +18,7 @@ import {isString} from 'vs/base/common/types';
 import {IAction, ActionRunner as BaseActionRunner, IActionRunner} from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
-import {$} from 'vs/base/browser/builder';
+import {$, Builder} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -33,6 +33,7 @@ import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeD
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {DragMouseEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -263,12 +264,18 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 
 // Explorer Renderer
 export class FileRenderer extends ActionsRenderer implements IRenderer {
+
+	private static RESOURCE_PATH_KEY = '__resourcePath';
+
 	private state: FileViewletState;
+	private extensionsReady: boolean;
 
 	constructor(
 		state: FileViewletState,
 		actionRunner: IActionRunner,
+		private container: HTMLElement,
 		@IContextViewService private contextViewService: IContextViewService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IModeService private modeService: IModeService
 	) {
 		super({
@@ -277,6 +284,27 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		});
 
 		this.state = state;
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// once the extension host is up we need to reapply our CSS classes for
+		// icons because additional language associations might be present then
+		this.extensionService.onReady().then(() => {
+			this.extensionsReady = true;
+
+			const fileItems = this.container.getElementsByClassName('explorer-item file-icon');
+
+			for (let i = 0; i < fileItems.length; i++) {
+				const fileItem = $(<HTMLElement>fileItems.item(i));
+				const resourcePath = fileItem.getProperty(FileRenderer.RESOURCE_PATH_KEY);
+				if (resourcePath) {
+					fileItem.setClass(['explorer-item', ...this.fileIconClasses(resourcePath)].join(' '));
+					fileItem.removeProperty(FileRenderer.RESOURCE_PATH_KEY);
+				}
+			}
+		});
 	}
 
 	public getContentHeight(tree: ITree, element: any): number {
@@ -285,19 +313,43 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		let el = $(domElement).clearChildren();
-		let item = $('.explorer-item').addClass(...this.iconClasses(stat)).appendTo(el);
+
+		// Item Container
+		let item = $('.explorer-item');
+		if (stat.isDirectory) {
+			item.addClass('folder-icon');
+		} else {
+			item.addClass(...this.fileIconClasses(stat.resource.fsPath));
+
+			// We need to re-apply the icon CSS classes once the extension host is ready
+			if (!this.extensionsReady) {
+				item.setProperty(FileRenderer.RESOURCE_PATH_KEY, stat.resource.fsPath);
+			}
+		}
+
+		item.appendTo(el);
 
 		// File/Folder label
 		let editableData: IEditableData = this.state.getEditableData(stat);
 		if (!editableData) {
-			let label = $('.explorer-item-label').appendTo(item);
-			$('a.plain').text(stat.name).title(stat.resource.fsPath).appendTo(label);
-
-			return null;
+			return this.renderFileFolderLabel(item, stat);
 		}
 
+		// Name Input
+		return this.renderNameInput(item, tree, stat, editableData);
+	}
+
+	private renderFileFolderLabel(container: Builder, stat: IFileStat): IElementCallback {
+		let label = $('.explorer-item-label').appendTo(container);
+		$('a.plain').text(stat.name).title(stat.resource.fsPath).appendTo(label);
+
+		return null;
+	}
+
+	private renderNameInput(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
+
 		// Input field (when creating a new file or folder or renaming)
-		let inputBox = new InputBox(item.getHTMLElement(), this.contextViewService, {
+		let inputBox = new InputBox(container.getHTMLElement(), this.contextViewService, {
 			validationOptions: {
 				validation: editableData.validator,
 				showMessage: true
@@ -344,21 +396,17 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		return () => done(true);
 	}
 
-	private iconClasses(element: FileStat): string[] {
-		if (element.isDirectory) {
-			return ['folder-icon'];
-		}
-
-		const ext = paths.extname(element.resource.fsPath);
-		const basename = paths.basename(element.resource.fsPath);
+	private fileIconClasses(fsPath: string): string[] {
+		const ext = paths.extname(fsPath);
+		const basename = paths.basename(fsPath);
 		const name = basename.substring(0, basename.length - ext.length);
-		const langId = this.modeService.getModeIdByFilenameOrFirstLine(element.resource.fsPath);
+		const langId = this.modeService.getModeIdByFilenameOrFirstLine(fsPath);
 
 		const classes = ['file-icon'];
 		const cssEscapeSupport = window as CSSEscapeSupport;
 
 		if (ext && ext.length > 1) {
-			classes.push(`${cssEscapeSupport.CSS.escape(ext.substr(1).toLowerCase())}-ext-file-icon`); // extension without dot
+			classes.push(`${cssEscapeSupport.CSS.escape(ext.substr(1).toLowerCase())}-ext-file-icon`);
 		}
 
 		if (name) {
@@ -884,7 +932,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 				let revertPromise: TPromise<any> = TPromise.as(null);
 				const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath));
 				if (dirty.length) {
-					let message:string;
+					let message: string;
 					if (source.isDirectory) {
 						if (dirty.length === 1) {
 							message = nls.localize('dirtyMessageFolderOne', "You are moving a folder with unsaved changes in 1 file. Do you want to continue?");
