@@ -13,22 +13,22 @@ suite('EnvironmentService', () => {
 	test('parseExtensionHostPort when built', () => {
 		const parse = a => parseExtensionHostPort(parseArgs(a), true);
 
-		assert.deepEqual(parse([]), { port: null, brk: false });
-		assert.deepEqual(parse(['--debugPluginHost']), { port: null, brk: false });
-		assert.deepEqual(parse(['--debugPluginHost=1234']), { port: 1234, brk: false });
-		assert.deepEqual(parse(['--debugBrkPluginHost']), { port: null, brk: false });
-		assert.deepEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, brk: true });
-		assert.deepEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678']), { port: 5678, brk: true });
+		assert.deepEqual(parse([]), { port: null, break: false });
+		assert.deepEqual(parse(['--debugPluginHost']), { port: null, break: false });
+		assert.deepEqual(parse(['--debugPluginHost=1234']), { port: 1234, break: false });
+		assert.deepEqual(parse(['--debugBrkPluginHost']), { port: null, break: false });
+		assert.deepEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, break: true });
+		assert.deepEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678']), { port: 5678, break: true });
 	});
 
 	test('parseExtensionHostPort when unbuilt', () => {
 		const parse = a => parseExtensionHostPort(parseArgs(a), false);
 
-		assert.deepEqual(parse([]), { port: 5870, brk: false });
-		assert.deepEqual(parse(['--debugPluginHost']), { port: 5870, brk: false });
-		assert.deepEqual(parse(['--debugPluginHost=1234']), { port: 1234, brk: false });
-		assert.deepEqual(parse(['--debugBrkPluginHost']), { port: 5870, brk: false });
-		assert.deepEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, brk: true });
-		assert.deepEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678']), { port: 5678, brk: true });
+		assert.deepEqual(parse([]), { port: 5870, break: false });
+		assert.deepEqual(parse(['--debugPluginHost']), { port: 5870, break: false });
+		assert.deepEqual(parse(['--debugPluginHost=1234']), { port: 1234, break: false });
+		assert.deepEqual(parse(['--debugBrkPluginHost']), { port: 5870, break: false });
+		assert.deepEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, break: true });
+		assert.deepEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678']), { port: 5678, break: true });
 	});
 });
