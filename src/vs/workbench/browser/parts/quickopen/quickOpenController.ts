@@ -677,12 +677,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		let quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
 
-		// Set input and await additional results from handlers coming in later
-		this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
-
-		// If no handler present, return early
-		if (defaultHandlers.length === 0) {
-			return TPromise.as(null);
+		// If we have matching entries from history we want to show them directly and not wait for the other results to come in
+		let inputSet = false;
+		if (matchingHistoryEntries.length > 0) {
+			this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
+			inputSet = true;
 		}
 
 		// Resolve all default handlers
@@ -695,19 +694,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			let resultPromises: TPromise<void>[] = [];
 			resolvedHandlers.forEach(resolvedHandler => {
 
-				// Return early if the handler can not run in the current environment
-				let canRun = resolvedHandler.canRun();
-				if (types.isUndefinedOrNull(canRun) || (typeof canRun === 'boolean' && !canRun) || typeof canRun === 'string') {
-					return;
-				}
-
 				// Receive Results from Handler and apply
 				resultPromises.push(resolvedHandler.getResults(value).then(result => {
 					if (this.currentResultToken === currentResultToken) {
-						let handlerResults = result && result.entries;
+						let handlerResults = (result && result.entries) || [];
 
-						if (!handlerResults) {
-							handlerResults = []; // guard against handler returning nothing
+						// now is the time to show the input if we did not have set it before
+						if (!inputSet) {
+							this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
 						}
 
 						this.mergeResults(quickOpenModel, handlerResults, resolvedHandler.getGroupLabel());
