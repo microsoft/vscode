@@ -404,19 +404,18 @@ export class ThemeService implements IThemeService {
 					iconSetData = <IInternalThemeData> iconSet;
 					break;
 				}
-				if (iconSet.id === DEFAULT_FILE_ICONS) {
-					iconSetData = <IInternalThemeData> iconSet;
 			}
-			}
-			if (iconSetData) {
 			return _applyFileIcons(iconSetData);
-			}
-			return false;
 		});
 	}
 }
 
 function _applyFileIcons(data: IInternalThemeData): TPromise<boolean> {
+	if (!data) {
+		_applyRules('', fileIconRulesClassName);
+		return TPromise.as(true);
+	}
+
 	if (data.styleSheetContent) {
 		_applyRules(data.styleSheetContent, fileIconRulesClassName);
 		return TPromise.as(true);
