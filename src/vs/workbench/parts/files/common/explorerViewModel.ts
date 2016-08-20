@@ -302,12 +302,14 @@ export class NewStatPlaceholder extends FileStat {
 	private static ID = 0;
 
 	private id: number;
+	private directoryPlaceholder: boolean;
 
 	constructor(isDirectory: boolean) {
 		super(URI.file(''));
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;
+		this.directoryPlaceholder = isDirectory;
 	}
 
 	public destroy(): void {
@@ -323,6 +325,10 @@ export class NewStatPlaceholder extends FileStat {
 
 	public getId(): string {
 		return 'new-stat-placeholder:' + this.id + ':' + this.parent.resource.toString();
+	}
+
+	public isDirectoryPlaceholder(): boolean {
+		return this.directoryPlaceholder;
 	}
 
 	/**
