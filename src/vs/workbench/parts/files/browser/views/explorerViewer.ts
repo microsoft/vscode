@@ -316,7 +316,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 		// Item Container
 		let item = $('.explorer-item');
-		if (stat.isDirectory) {
+		if (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) {
 			item.addClass('folder-icon');
 		} else {
 			item.addClass(...this.fileIconClasses(stat.resource.fsPath));
