@@ -82,12 +82,23 @@
 	line-height: normal;
 }
 
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
+	height: 22px;
+}
+
 .explorer-viewlet .explorer-item .monaco-inputbox.idle {
 	border: 1px solid rgba(128, 128, 128, 0.5);
 }
 
 .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 1px 2px;
+}
+
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+	padding: 0;
+	height: 20px;
 }
 
 .explorer-viewlet-label > .badge-content {
