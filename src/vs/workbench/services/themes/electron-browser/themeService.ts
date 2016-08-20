@@ -187,16 +187,16 @@ export class ThemeService implements IThemeService {
 		});
 
 		configurationService.loadConfiguration('files').then((settings: any) => {
-			let iconSet = settings && settings.iconSet;
-			if (iconSet) {
-				this.setFileIcons(iconSet);
+			let iconTheme = settings && settings.iconTheme;
+			if (iconTheme) {
+				this.setFileIcons(iconTheme);
 			}
 		});
 
 		configurationService.onDidUpdateConfiguration(e => {
 			let filesConfig = e.config.files;
-			let iconSet = filesConfig && filesConfig.iconSet || {};
-			this.setFileIcons(iconSet);
+			let iconTheme = filesConfig && filesConfig.iconTheme;
+			this.setFileIcons(iconTheme);
 		});
 	}
 
