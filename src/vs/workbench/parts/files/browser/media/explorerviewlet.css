@@ -21,16 +21,23 @@
 	overflow: hidden;
 }
 
+.explorer-viewlet .explorer-item-label {
+	display: inline-block;
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content {
 	display: flex;
 }
 
-.explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon,
-.explorer-viewlet .explorer-folders-view.show-file-icons .file-icon {
-	background-repeat: no-repeat;
-	padding-left: 22px;
+.explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon::before,
+.explorer-viewlet .explorer-folders-view.show-file-icons .file-icon::before {
 	background-size: 16px;
 	background-position: left center;
+	background-repeat: no-repeat;
+	padding: 3px 6px 3px 0px;
+	width: 16px;
+	height: 16px;
+	display: inline-block;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
