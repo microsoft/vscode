@@ -19,7 +19,7 @@ import {ICodeSnippet, CodeSnippet} from './snippet';
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 
-class InsertSnippetController {
+export class InsertSnippetController {
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private model: editorCommon.IModel;
@@ -313,9 +313,9 @@ class InsertSnippetController {
 		if (this.isFinished) {
 			return;
 		}
-		this._onStop();
-
 		this.isFinished = true;
+
+		this._onStop();
 
 		this.listenersToRemove = dispose(this.listenersToRemove);
 
@@ -358,7 +358,7 @@ export class SnippetController {
 	}
 
 	private _editor: editorCommon.ICommonCodeEditor;
-	private _currentController: InsertSnippetController;
+	protected _currentController: InsertSnippetController;
 	private _inSnippetMode: IContextKey<boolean>;
 
 	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
@@ -393,12 +393,12 @@ export class SnippetController {
 	/**
 	 * Inserts once `snippet` at the start of `replaceRange`, after deleting `replaceRange`.
 	 */
-	public runWithReplaceRange(snippet: CodeSnippet, replaceRange:Range, undoStops:boolean): void {
+	public runWithReplaceRange(snippet: CodeSnippet, replaceRange:Range): void {
 		this._runAndRestoreController(() => {
 			this._runPreparedSnippetForPrimarySelection({
 				typeRange: replaceRange,
 				adaptedSnippet: SnippetController._getAdaptedSnippet(this._editor.getModel(), snippet, replaceRange)
-			}, undoStops);
+			}, false);
 		});
 	}
 
@@ -470,6 +470,8 @@ export class SnippetController {
 			this._inSnippetMode.set(true);
 			this._currentController = new InsertSnippetController(this._editor, prepared.adaptedSnippet, prepared.typeRange.startLineNumber, initialAlternativeVersionId, () => {
 				this._inSnippetMode.reset();
+				this._currentController.dispose();
+				this._currentController = null;
 			});
 		}
 	}

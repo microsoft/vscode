@@ -89,7 +89,7 @@ export class EditorAccessor implements emmet.Editor {
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 		let snippet = snippets.CodeSnippet.convertExternalSnippet(value, snippets.ExternalSnippetType.EmmetSnippet);
 		let codeSnippet = new snippets.CodeSnippet(snippet);
-		SnippetController.get(this.editor).runWithReplaceRange(codeSnippet, range, false);
+		SnippetController.get(this.editor).runWithReplaceRange(codeSnippet, range);
 	}
 
 	public onAfterEmmetAction(): void {
