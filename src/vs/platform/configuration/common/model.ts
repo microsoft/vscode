@@ -36,9 +36,9 @@ function setNode(root: any, key: string, value: any): void {
 		}
 		curr = obj;
 	});
+	
 	curr[last] = value;
 }
-
 
 export function newConfigFile(value: string): IConfigFile {
 	try {
@@ -255,4 +255,14 @@ function getDefaultValue(type: string | string[]): any {
 		default:
 			return null;
 	}
+}
+
+export function flatten(contents: any): any {
+	const root = Object.create(null);
+
+	for (let key in contents) {
+		setNode(root, key, contents[key]);
+	}
+
+	return root;
 }

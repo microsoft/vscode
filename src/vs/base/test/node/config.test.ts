@@ -16,6 +16,17 @@ import {ConfigWatcher} from 'vs/base/node/config';
 
 suite('Config', () => {
 
+	function testFile(callback: (path: string, cleanUp: (callback: () => void) => void) => void): void {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'config', id);
+		const testFile = path.join(newDir, 'config.json');
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			callback(testFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
+		});
+	}
+
 	test('defaults', function () {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
@@ -40,12 +51,7 @@ suite('Config', () => {
 	});
 
 	test('getConfig / getValue', function (done: () => void) {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'config', id);
-		const testFile = path.join(newDir, 'config.json');
-
-		extfs.mkdirp(newDir, 493, (error) => {
+		testFile((testFile, cleanUp) => {
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
@@ -56,20 +62,16 @@ suite('Config', () => {
 			assert.equal(watcher.getValue('foo'), 'bar');
 			assert.equal(watcher.getValue('bar'), void 0);
 			assert.equal(watcher.getValue('bar', 'fallback'), 'fallback');
+			assert.ok(!watcher.hasParseErrors);
 
 			watcher.dispose();
 
-			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+			cleanUp(done);
 		});
 	});
 
 	test('getConfig / getValue - broken JSON', function (done: () => void) {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'config', id);
-		const testFile = path.join(newDir, 'config.json');
-
-		extfs.mkdirp(newDir, 493, (error) => {
+		testFile((testFile, cleanUp) => {
 			fs.writeFileSync(testFile, '// my comment\n "foo": "bar ... ');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
@@ -78,19 +80,16 @@ suite('Config', () => {
 			assert.ok(config);
 			assert.ok(!config.foo);
 
+			assert.ok(watcher.hasParseErrors);
+
 			watcher.dispose();
 
-			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+			cleanUp(done);
 		});
 	});
 
 	test('watching', function (done: () => void) {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'config', id);
-		const testFile = path.join(newDir, 'config.json');
-
-		extfs.mkdirp(newDir, 493, (error) => {
+		testFile((testFile, cleanUp) => {
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
@@ -106,19 +105,14 @@ suite('Config', () => {
 
 				watcher.dispose();
 
-				extfs.del(parentDir, os.tmpdir(), () => { }, done);
+				cleanUp(done);
 			});
 
 		});
 	});
 
 	test('reload', function (done: () => void) {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'config', id);
-		const testFile = path.join(newDir, 'config.json');
-
-		extfs.mkdirp(newDir, 493, (error) => {
+		testFile((testFile, cleanUp) => {
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100 });
@@ -136,7 +130,7 @@ suite('Config', () => {
 					assert.equal(watcher.getConfig().foo, 'changed');
 					assert.equal(watcher.getValue('foo'), 'changed');
 
-					extfs.del(parentDir, os.tmpdir(), () => { }, done);
+					cleanUp(done);
 				});
 			}, 50);
 		});

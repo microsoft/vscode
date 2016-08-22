@@ -16,6 +16,9 @@ export interface IConfigurationChangeEvent<T> {
 }
 
 export interface IConfigWatcher<T> {
+	path: string;
+	hasParseErrors: boolean;
+
 	reload(callback: (config: T) => void): void;
 	getConfig(): T;
 	getValue<V>(key: string, fallback?: V): V;
@@ -36,12 +39,13 @@ export interface IConfigOptions<T> {
  */
 export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private cache: T;
+	private parseErrors: json.ParseError[];
 	private loaded: boolean;
 	private timeoutHandle: number;
 	private disposables: IDisposable[];
-	private _onDidUpdateConfiguration;
+	private _onDidUpdateConfiguration:Emitter<IConfigurationChangeEvent<T>>;
 
-	constructor(private path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null) }) {
+	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null) }) {
 		this.disposables = [];
 
 		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
@@ -49,6 +53,14 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 
 		this.registerWatcher();
 		this.initAsync();
+	}
+
+	public get path(): string {
+		return this._path;
+	}
+
+	public get hasParseErrors(): boolean {
+		return this.parseErrors && this.parseErrors.length > 0;
 	}
 
 	public get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
@@ -71,7 +83,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private loadSync(): T {
 		let raw: string;
 		try {
-			raw = fs.readFileSync(this.path).toString();
+			raw = fs.readFileSync(this._path).toString();
 		} catch (error) {
 			return this.options.defaultConfig;
 		}
@@ -80,7 +92,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	private loadAsync(callback: (config: T) => void): void {
-		fs.readFile(this.path, (error, raw) => {
+		fs.readFile(this._path, (error, raw) => {
 			if (error) {
 				return callback(this.options.defaultConfig);
 			}
@@ -92,7 +104,8 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private parse(raw: string): T {
 		let res: T;
 		try {
-			res = json.parse(raw);
+			this.parseErrors = [];
+			res = json.parse(raw, this.parseErrors);
 		} catch (error) {
 			// Ignore loading and parsing errors
 		}
@@ -103,14 +116,14 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private registerWatcher(): void {
 
 		// Support for watching symlinks
-		fs.lstat(this.path, (err, stat) => {
+		fs.lstat(this._path, (err, stat) => {
 			if (err || stat.isDirectory()) {
 				return; // path is not a valid file
 			}
 
 			// We found a symlink
 			if (stat.isSymbolicLink()) {
-				fs.readlink(this.path, (err, realPath) => {
+				fs.readlink(this._path, (err, realPath) => {
 					if (err) {
 						return; // path is not a valid symlink
 					}
@@ -121,7 +134,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 
 			// We found a normal file
 			else {
-				this.watch(this.path);
+				this.watch(this._path);
 			}
 		});
 	}
