@@ -22,7 +22,6 @@ const buildfile = require('../src/buildfile');
 const common = require('./gulpfile.common');
 const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
-const build = path.join(root, '.build');
 const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
