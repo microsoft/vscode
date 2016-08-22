@@ -138,7 +138,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 
 		this.timeoutHandle = global.setTimeout(() => {
-			this.loadAsync((currentConfig) => {
+			this.loadAsync(currentConfig => {
 				if (!objects.equals(currentConfig, this.cache)) {
 					this.updateCache(currentConfig);
 
