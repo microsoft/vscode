@@ -5,21 +5,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ISuggestion, ISuggestResult} from 'vs/editor/common/modes';
+import {IPosition} from 'vs/editor/common/editorCommon';
+import {ISuggestion, ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
 import {ISuggestionItem} from 'vs/editor/contrib/suggest/common/suggest';
 import {CompletionModel} from 'vs/editor/contrib/suggest/common/completionModel';
 
-
 suite('CompletionModel', function () {
 
-	function createSuggestItem(label: string, overwriteBefore: number, incomplete: boolean = false): ISuggestionItem {
+	function createSuggestItem(label: string, overwriteBefore: number, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
 
 		return new class implements ISuggestionItem {
 
-			position = {
-				lineNumber: 1,
-				column: 1
-			};
+			position = position;
 
 			suggestion: ISuggestion = {
 				label,
@@ -34,7 +31,12 @@ suite('CompletionModel', function () {
 				suggestions: [this.suggestion]
 			};
 
-			support = null;
+			support: ISuggestSupport = {
+				triggerCharacters: [],
+				provideCompletionItems(): any {
+					return;
+				}
+			};
 
 			resolve() {
 				return null;
@@ -93,5 +95,24 @@ suite('CompletionModel', function () {
 			characterCountDelta: 0
 		});
 		assert.equal(incompleteModel.incomplete.length, 1);
+	});
+
+	test('replaceIncomplete', function () {
+
+		const completeItem = createSuggestItem('foobar', 1, false, { lineNumber: 1, column: 2 });
+		const incompleteItem = createSuggestItem('foofoo', 1, true, { lineNumber: 1, column: 2 });
+
+		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'foo', characterCountDelta: 0 });
+		assert.equal(model.incomplete.length, 1);
+		assert.equal(model.incomplete[0], incompleteItem.support);
+		assert.equal(model.items.length, 2);
+
+		const newCompleteItem = [
+			createSuggestItem('foofoo', 1, false, { lineNumber: 1, column: 3 }),
+			createSuggestItem('foofoo2', 1, false, { lineNumber: 1, column: 3 })
+		];
+		model.replaceIncomplete(newCompleteItem, (a, b) => 0);
+		assert.equal(model.incomplete.length, 0);
+		assert.equal(model.items.length, 3);
 	});
 });
