@@ -101,6 +101,39 @@
 	overflow: hidden;
 }
 
-.extension-editor > .body > p {
-	margin: 20px;
+.extension-editor > .body > .navbar {
+	height: 36px;
+	text-transform: uppercase;
+	font-size: 14px;
+	line-height: 36px;
+	padding-left: 20px;
+	border-bottom: 1px solid rgba(136, 136, 136, 0.45);
+	box-sizing: border-box;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container {
+	justify-content: initial;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
+	margin-right: 16px;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
+	font-size: inherit;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item.disabled > .action-label {
+	opacity: 1;
+	text-decoration: underline;
+	font-weight: bold;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label:hover {
+	text-decoration: underline;
+}
+
+.extension-editor > .body > .content {
+	height: calc(100% - 36px);
+	overflow: hidden;
 }
