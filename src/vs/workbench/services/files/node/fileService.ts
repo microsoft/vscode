@@ -150,6 +150,13 @@ export class FileService implements IFileService {
 	private doResolveContent<T extends IBaseStat>(resource: uri, options: IResolveContentOptions, contentResolver: (resource: uri, etag?: string, enc?: string) => TPromise<T>): TPromise<T> {
 		let absolutePath = this.toAbsolutePath(resource);
 
+		// Guard early against attempts to resolve an invalid file path
+		if (resource.scheme !== 'file' || !resource.fsPath) {
+			return TPromise.wrapError(<IFileOperationResult>{
+				message: nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString())
+			});
+		}
+
 		// 1.) detect mimes
 		return nfcall(mime.detectMimesFromFile, absolutePath).then((detected: mime.IMimeAndEncoding): TPromise<T> => {
 			let isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
@@ -180,7 +187,7 @@ export class FileService implements IFileService {
 			}
 
 			// 2.) get content
-			return contentResolver(resource, options && options.etag, preferredEncoding).then((content) => {
+			return contentResolver(resource, options && options.etag, preferredEncoding).then(content => {
 
 				// set our knowledge about the mime on the content obj
 				content.mime = detected.mimes.join(', ');
@@ -195,7 +202,7 @@ export class FileService implements IFileService {
 			}
 
 			// on error check if the file does not exist or is a folder and return with proper error result
-			return pfs.exists(absolutePath).then((exists) => {
+			return pfs.exists(absolutePath).then(exists => {
 
 				// Return if file not found
 				if (!exists) {
@@ -206,7 +213,7 @@ export class FileService implements IFileService {
 				}
 
 				// Otherwise check for file being a folder?
-				return pfs.stat(absolutePath).then((stat) => {
+				return pfs.stat(absolutePath).then(stat => {
 					if (stat.isDirectory()) {
 						return TPromise.wrapError(<IFileOperationResult>{
 							message: nls.localize('fileIsDirectoryError', "File is directory ({0})", absolutePath),
@@ -225,11 +232,11 @@ export class FileService implements IFileService {
 		let limiter = new Limiter(FileService.MAX_DEGREE_OF_PARALLEL_FS_OPS);
 
 		let contentPromises = <TPromise<IContent>[]>[];
-		resources.forEach((resource) => {
-			contentPromises.push(limiter.queue(() => this.resolveFileContent(resource).then((content) => content, (error) => TPromise.as(null /* ignore errors gracefully */))));
+		resources.forEach(resource => {
+			contentPromises.push(limiter.queue(() => this.resolveFileContent(resource).then(content => content, error => TPromise.as(null /* ignore errors gracefully */))));
 		});
 
-		return TPromise.join(contentPromises).then((contents) => {
+		return TPromise.join(contentPromises).then(contents => {
 			return arrays.coalesce(contents);
 		});
 	}
@@ -238,7 +245,7 @@ export class FileService implements IFileService {
 		let absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file
-		return this.checkFile(absolutePath, options).then((exists) => {
+		return this.checkFile(absolutePath, options).then(exists => {
 			let createParentsPromise: TPromise<boolean>;
 			if (exists) {
 				createParentsPromise = TPromise.as(null);
@@ -261,12 +268,12 @@ export class FileService implements IFileService {
 					if (options.overwriteEncoding) {
 						addBomPromise = TPromise.as(false); // if we are to overwrite the encoding, we do not preserve it if found
 					} else {
-						addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then((enc) => enc === encoding.UTF8); // otherwise preserve it if found
+						addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then(enc => enc === encoding.UTF8); // otherwise preserve it if found
 					}
 				}
 
 				// 3.) check to add UTF BOM
-				return addBomPromise.then((addBom) => {
+				return addBomPromise.then(addBom => {
 					let writeFilePromise: TPromise<void>;
 
 					// Write fast if we do UTF 8 without BOM
@@ -335,7 +342,7 @@ export class FileService implements IFileService {
 	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): TPromise<boolean /* exists */> {
 
 		// 1.) check if target exists
-		return pfs.exists(targetPath).then((exists) => {
+		return pfs.exists(targetPath).then(exists => {
 			let isCaseRename = sourcePath.toLowerCase() === targetPath.toLowerCase();
 			let isSameFile = sourcePath === targetPath;
 
@@ -380,16 +387,16 @@ export class FileService implements IFileService {
 		let targetPath = this.toAbsolutePath(targetResource);
 
 		// 1.) resolve
-		return pfs.stat(sourcePath).then((stat) => {
+		return pfs.stat(sourcePath).then(stat => {
 			if (stat.isDirectory()) {
 				return TPromise.wrapError(nls.localize('foldersCopyError', "Folders cannot be copied into the workspace. Please select individual files to copy them.")); // for now we do not allow to import a folder into a workspace
 			}
 
 			// 2.) copy
-			return this.doMoveOrCopyFile(sourcePath, targetPath, true, true).then((exists) => {
+			return this.doMoveOrCopyFile(sourcePath, targetPath, true, true).then(exists => {
 
 				// 3.) resolve
-				return this.resolve(targetResource).then((stat) => <IImportResult>{ isNew: !exists, stat: stat });
+				return this.resolve(targetResource).then(stat => <IImportResult>{ isNew: !exists, stat: stat });
 			});
 		});
 	}
@@ -423,7 +430,7 @@ export class FileService implements IFileService {
 	private toStatResolver(resource: uri): TPromise<StatResolver> {
 		let absolutePath = this.toAbsolutePath(resource);
 
-		return pfs.stat(absolutePath).then((stat: fs.Stats) => {
+		return pfs.stat(absolutePath).then(stat => {
 			return new StatResolver(resource, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging);
 		});
 	}
@@ -465,11 +472,11 @@ export class FileService implements IFileService {
 				let done = false;
 				let chunks: string[] = [];
 
-				streamContent.value.on('data', (buf) => {
+				streamContent.value.on('data', buf => {
 					chunks.push(buf);
 				});
 
-				streamContent.value.on('error', (error) => {
+				streamContent.value.on('error', error => {
 					if (!done) {
 						done = true;
 						e(error);
@@ -525,9 +532,9 @@ export class FileService implements IFileService {
 	}
 
 	private checkFile(absolutePath: string, options: IUpdateContentOptions): TPromise<boolean /* exists */> {
-		return pfs.exists(absolutePath).then((exists) => {
+		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
-				return pfs.stat(absolutePath).then((stat: fs.Stats) => {
+				return pfs.stat(absolutePath).then(stat => {
 					if (stat.isDirectory()) {
 						return TPromise.wrapError(new Error('Expected file is actually a directory'));
 					}
@@ -690,7 +697,7 @@ export class StatResolver {
 			let absoluteTargetPaths: string[] = null;
 			if (options && options.resolveTo) {
 				absoluteTargetPaths = [];
-				options.resolveTo.forEach((resource) => {
+				options.resolveTo.forEach(resource => {
 					absoluteTargetPaths.push(resource.fsPath);
 				});
 			}
@@ -771,13 +778,13 @@ export class StatResolver {
 						let resolveFolderChildren = false;
 						if (files.length === 1 && resolveSingleChildDescendants) {
 							resolveFolderChildren = true;
-						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some((targetPath) => basePaths.isEqualOrParent(targetPath, fileResource.fsPath))) {
+						} else if (childCount > 0 && absoluteTargetPaths && absoluteTargetPaths.some(targetPath => basePaths.isEqualOrParent(targetPath, fileResource.fsPath))) {
 							resolveFolderChildren = true;
 						}
 
 						// Continue resolving children based on condition
 						if (resolveFolderChildren) {
-							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, (children) => {
+							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, children => {
 								children = arrays.coalesce(children);  // we don't want those null children
 								childStat.hasChildren = children && children.length > 0;
 								childStat.children = children || [];
