@@ -222,6 +222,10 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 		}
 	});
 
+	if (!path) {
+		throw new Error('Format for `--goto` should be: `FILE:LINE(:COLUMN)`');
+	}
+
 	return {
 		path: path,
 		line: line !== null ? line : void 0,
