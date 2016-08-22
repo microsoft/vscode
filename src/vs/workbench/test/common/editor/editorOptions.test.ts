@@ -37,9 +37,5 @@ suite('Workbench - EditorOptions', () => {
 		options = new TextEditorOptions();
 		options.forceOpen = true;
 		options.selection(1, 1, 2, 2);
-
-		options = new TextEditorOptions();
-		options.viewState({});
-		assert(options.hasOptionsDefined());
 	});
 });

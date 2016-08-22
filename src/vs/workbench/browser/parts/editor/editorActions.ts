@@ -57,7 +57,7 @@ export class SplitEditorAction extends Action {
 		let options: EditorOptions;
 		if (editorToSplit instanceof BaseTextEditor) {
 			options = new TextEditorOptions();
-			(<TextEditorOptions>options).viewState(editorToSplit.getControl().saveViewState());
+			(<TextEditorOptions>options).fromEditor(editorToSplit.getControl());
 		} else {
 			options = new EditorOptions();
 		}
@@ -222,7 +222,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			if (referenceEditor instanceof BaseTextEditor) {
 				options = new TextEditorOptions();
 				options.pinned = true;
-				(<TextEditorOptions>options).viewState(referenceEditor.getControl().saveViewState());
+				(<TextEditorOptions>options).fromEditor(referenceEditor.getControl());
 			} else {
 				options = EditorOptions.create({ pinned: true });
 			}
