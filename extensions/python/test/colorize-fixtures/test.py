@@ -11,6 +11,14 @@ class Monkey:
 		eat(9.25)
 		return "Yum yum"
 
+	def some_func(a:
+					lambda x=None:
+					{key: val
+						for key, val in
+							(x if x is not None else [])
+					}=42):
+		pass
+
 if 1900 < year < 2100 and 1 <= month <= 12 \
    and 1 <= day <= 31 and 0 <= hour < 24 \
    and 0 <= minute < 60 and 0 <= second < 60:   # Looks like a valid date
@@ -64,3 +72,26 @@ while True:
 
 async with EXPR as VAR:
     BLOCK
+
+# Comments in dictionary items should be colorized accordingly
+my_dictionary = {
+    'foo':23, # this should be colorized as comment
+    'bar':"foobar" #this should be colorized as comment
+}
+
+# test raw strings
+text = r"""
+interval ``[1,2)`` leads to
+"""
+highlight_error = True
+
+# highlight doctests
+r'''Module docstring
+
+    Some text followed by code sample:
+    >>> for a in foo(2, b=1,
+    ...                 c=3):
+    ...   print(a)
+    0
+    1
+'''
