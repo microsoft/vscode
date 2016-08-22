@@ -122,7 +122,7 @@ function main() {
 
 	// We get the global settings through a remote call from the browser
 	// because its value can change dynamically.
-	const rawGlobalSettings = remote.getGlobal('globalSettingsValue') || '{"settings":{},"keybindings":[]}';
+	const rawGlobalSettings = remote.getGlobal('globalSettingsValue') || '{"settings":{}}';
 	const globalSettings = JSON.parse(rawGlobalSettings);
 
 	// disable pinch zoom & apply zoom level early to avoid glitches

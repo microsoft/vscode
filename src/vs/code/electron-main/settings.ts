@@ -19,7 +19,6 @@ export const ISettingsService = createDecorator<ISettingsService>('settingsServi
 export interface ISettings {
 	settings: any;
 	settingsParseErrors?: string[];
-	keybindings: any;
 }
 
 export interface ISettingsService {
@@ -33,7 +32,6 @@ export interface ISettingsService {
 /**
  * TODO@Joao TODO@Ben - this needs to die
  *
- * We need to decouple the settings with the keybindings.
  * We need to have each participant (renderer, main, cli, shared) be able
  * to listen on changes to each of these files, independently.
  */
@@ -49,13 +47,11 @@ export class SettingsManager implements ISettingsService {
 	private timeoutHandle: number;
 	private watcher: fs.FSWatcher;
 	private appSettingsPath: string;
-	private appKeybindingsPath: string;
 
 	private _onChange: Emitter<ISettings>;
 
 	constructor(@IEnvService envService: IEnvService) {
 		this.appSettingsPath = envService.appSettingsPath;
-		this.appKeybindingsPath = envService.appKeybindingsPath;
 		this._onChange = new Emitter<ISettings>();
 
 		this.registerWatchers();
@@ -115,25 +111,21 @@ export class SettingsManager implements ISettingsService {
 		// Attach a watcher to the settings directory
 		attachSettingsChangeWatcher(path.dirname(this.appSettingsPath));
 
-		// Follow symlinks for settings and keybindings and attach watchers if they resolve
-		const followSymlinkPaths = [
-			this.appSettingsPath,
-			this.appKeybindingsPath
-		];
-		followSymlinkPaths.forEach((path) => {
-			fs.lstat(path, (err, stats) => {
-				if (err) {
-					return;
-				}
-				if (stats.isSymbolicLink() && !stats.isDirectory()) {
-					fs.readlink(path, (err, realPath) => {
-						if (err) {
-							return;
-						}
-						attachSettingsChangeWatcher(realPath);
-					});
-				}
-			});
+		// Follow symlinks and attach watchers if they resolve
+		fs.lstat(this.appSettingsPath, (err, stats) => {
+			if (err) {
+				return;
+			}
+
+			if (stats.isSymbolicLink() && !stats.isDirectory()) {
+				fs.readlink(this.appSettingsPath, (err, realPath) => {
+					if (err) {
+						return;
+					}
+
+					attachSettingsChangeWatcher(realPath);
+				});
+			}
 		});
 	}
 
@@ -163,8 +155,7 @@ export class SettingsManager implements ISettingsService {
 
 		return {
 			settings: settings.contents,
-			settingsParseErrors: settings.parseErrors,
-			keybindings: this.doLoadKeybindingsSync()
+			settingsParseErrors: settings.parseErrors
 		};
 	}
 
@@ -216,16 +207,6 @@ export class SettingsManager implements ISettingsService {
 			curr = obj;
 		});
 		curr[last] = value;
-	}
-
-	private doLoadKeybindingsSync(): any {
-		try {
-			return json.parse(fs.readFileSync(this.appKeybindingsPath).toString());
-		} catch (error) {
-			// Ignore loading and parsing errors
-		}
-
-		return [];
 	}
 
 	dispose(): void {
