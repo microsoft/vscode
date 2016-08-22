@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import objects = require('vs/base/common/objects');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
-import model = require('./model');
+import {IConfigFile, consolidate, CONFIG_DEFAULT_NAME, newConfigFile, getDefaultValues} from 'vs/platform/configuration/common/model';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import collections = require('vs/base/common/collections');
@@ -17,7 +17,7 @@ import {IConfigurationService, IConfigurationServiceEvent}  from './configuratio
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
-import {IConfigurationRegistry, Extensions} from './configurationRegistry';
+import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
 import Event, {Emitter} from 'vs/base/common/event';
 import {JSONPath} from 'vs/base/common/json';
@@ -53,7 +53,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	private cachedConfig: ILoadConfigResult;
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
-	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<model.IConfigFile> };
+	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigFile> };
 	private callOnDispose: IDisposable;
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
@@ -132,7 +132,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 		return this.loadWorkspaceConfiguration().then((values) => {
 
 			// Consolidate
-			const consolidated = model.consolidate(values);
+			const consolidated = consolidate(values);
 
 			// Override with workspace locals
 			const merged = objects.mixin(
@@ -163,15 +163,15 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 
 	protected loadGlobalConfiguration(): { contents: any; parseErrors?: string[]; } {
 		return {
-			contents: model.getDefaultValues()
+			contents: getDefaultValues()
 		};
 	}
 
 	public hasWorkspaceConfiguration(): boolean {
-		return !!this.workspaceFilePathToConfiguration['.vscode/' + model.CONFIG_DEFAULT_NAME + '.json'];
+		return !!this.workspaceFilePathToConfiguration[`.vscode/${CONFIG_DEFAULT_NAME}.json`];
 	}
 
-	protected loadWorkspaceConfiguration(section?: string): TPromise<{ [relativeWorkspacePath: string]: model.IConfigFile }> {
+	protected loadWorkspaceConfiguration(section?: string): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
 
 		// once: when invoked for the first time we fetch *all* json
 		// files using the bulk stats and content routes
@@ -187,7 +187,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 					return []; // never fail this call
 				}
 			}).then((contents: IContent[]) => {
-				contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = TPromise.as(model.newConfigFile(content.value)));
+				contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = TPromise.as(newConfigFile(content.value)));
 			}, errors.onUnexpectedError);
 		}
 
@@ -205,7 +205,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 		// configuration defaults. since we already loaded the merged set of configuration (defaults < global < workspace),
 		// we want to update the defaults with the new values. So we take our cached config and mix it into the new
 		// defaults that we got, overwriting any value present.
-		this.cachedConfig.config = objects.mixin(objects.clone(model.getDefaultValues()), this.cachedConfig.config, true /* overwrite */);
+		this.cachedConfig.config = objects.mixin(objects.clone(getDefaultValues()), this.cachedConfig.config, true /* overwrite */);
 
 		// emit this as update to listeners
 		this._onDidUpdateConfiguration.fire({ config: this.cachedConfig.config });
@@ -252,7 +252,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 					break;
 				case FileChangeType.UPDATED:
 				case FileChangeType.ADDED:
-					this.workspaceFilePathToConfiguration[workspacePath] = this.resolveContent(events[i].resource).then(content => model.newConfigFile(content.value), errors.onUnexpectedError);
+					this.workspaceFilePathToConfiguration[workspacePath] = this.resolveContent(events[i].resource).then(content => newConfigFile(content.value), errors.onUnexpectedError);
 					affectedByChanges = true;
 			}
 		}
