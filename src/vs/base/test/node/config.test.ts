@@ -63,6 +63,27 @@ suite('Config', () => {
 		});
 	});
 
+	test('getConfig / getValue - broken JSON', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'config', id);
+		const testFile = path.join(newDir, 'config.json');
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			fs.writeFileSync(testFile, '// my comment\n "foo": "bar ... ');
+
+			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
+
+			let config = watcher.getConfig();
+			assert.ok(config);
+			assert.ok(!config.foo);
+
+			watcher.dispose();
+
+			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+		});
+	});
+
 	test('watching', function (done: () => void) {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
