@@ -126,10 +126,10 @@ function main() {
 	const globalSettings = JSON.parse(rawGlobalSettings);
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
-	const windowConfiguration = globalSettings.settings && globalSettings.settings.window;
+	const zoomLevel = configuration.zoomLevel;
 	webFrame.setZoomLevelLimits(1, 1);
-	if (windowConfiguration && typeof windowConfiguration.zoomLevel === 'number' && windowConfiguration.zoomLevel !== 0) {
-		webFrame.setZoomLevel(windowConfiguration.zoomLevel);
+	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+		webFrame.setZoomLevel(zoomLevel);
 	}
 
 	// Load the loader and start loading the workbench

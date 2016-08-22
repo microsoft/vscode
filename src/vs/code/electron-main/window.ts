@@ -13,6 +13,7 @@ import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
 import { ILogService } from 'vs/code/electron-main/log';
+import { ISettingsService } from 'vs/code/electron-main/settings';
 import { parseArgs } from 'vs/code/node/argv';
 
 export interface IWindowState {
@@ -94,6 +95,8 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 
 	userEnv: IProcessEnvironment;
 
+	zoomLevel?: number;
+
 	workspacePath?: string;
 
 	filesToOpen?: IPath[];
@@ -130,6 +133,7 @@ export class VSCodeWindow {
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
 		@IEnvService private envService: IEnvService,
+		@ISettingsService private settingsService: ISettingsService,
 		@IStorageService private storageService: IStorageService
 	) {
 		this.options = config;
@@ -150,7 +154,7 @@ export class VSCodeWindow {
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
 
-		let options: Electron.BrowserWindowOptions = {
+		const options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
@@ -368,7 +372,7 @@ export class VSCodeWindow {
 	public reload(cli?: ICommandLineArguments): void {
 
 		// Inherit current properties but overwrite some
-		let configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
+		const configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
@@ -389,6 +393,12 @@ export class VSCodeWindow {
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
 		let url = require.toUrl('vs/workbench/electron-browser/bootstrap/index.html');
+
+		// Set zoomlevel
+		const zoomLevel = this.settingsService.getValue('window.zoomLevel');
+		if (typeof zoomLevel === 'number') {
+			windowConfiguration.zoomLevel = zoomLevel;
+		}
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
@@ -411,7 +421,7 @@ export class VSCodeWindow {
 			};
 		}
 
-		let state: IWindowState = Object.create(null);
+		const state: IWindowState = Object.create(null);
 		let mode: WindowMode;
 
 		// get window mode
@@ -432,8 +442,8 @@ export class VSCodeWindow {
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			let pos = this.win.getPosition();
-			let size = this.win.getSize();
+			const pos = this.win.getPosition();
+			const size = this.win.getSize();
 
 			state.x = pos[0];
 			state.y = pos[1];
@@ -482,11 +492,11 @@ export class VSCodeWindow {
 			return null;
 		}
 
-		let displays = screen.getAllDisplays();
+		const displays = screen.getAllDisplays();
 
 		// Single Monitor: be strict about x/y positioning
 		if (displays.length === 1) {
-			let displayBounds = displays[0].bounds;
+			const displayBounds = displays[0].bounds;
 
 			// Careful with maximized: in that mode x/y can well be negative!
 			if (state.mode !== WindowMode.Maximized && displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
@@ -523,11 +533,11 @@ export class VSCodeWindow {
 		}
 
 		// Multi Monitor: be less strict because metrics can be crazy
-		let bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
-		let display = screen.getDisplayMatching(bounds);
+		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
+		const display = screen.getDisplayMatching(bounds);
 		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {
 			if (state.mode === WindowMode.Maximized) {
-				let defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
+				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
 				defaults.y = state.y;
 
@@ -541,14 +551,14 @@ export class VSCodeWindow {
 	}
 
 	public getBounds(): Electron.Bounds {
-		let pos = this.win.getPosition();
-		let dimension = this.win.getSize();
+		const pos = this.win.getPosition();
+		const dimension = this.win.getSize();
 
 		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
 	}
 
 	public toggleFullScreen(): void {
-		let willBeFullScreen = !this.win.isFullScreen();
+		const willBeFullScreen = !this.win.isFullScreen();
 
 		this.win.setFullScreen(willBeFullScreen);
 
