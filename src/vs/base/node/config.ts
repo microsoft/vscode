@@ -27,6 +27,11 @@ export interface IConfigOptions<T> {
 
 /**
  * A simple helper to watch a configured file for changes and process its contents as JSON object.
+ * Supports:
+ * - comments in JSON files and errors
+ * - symlinks for the config file itself
+ * - delayed processing of changes to accomodate for lots of changes
+ * - configurable defaults
  */
 export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private cache: T;
@@ -84,13 +89,14 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	private parse(raw: string): T {
+		let res: T;
 		try {
-			return json.parse(raw) || this.options.defaultConfig;
+			res = json.parse(raw);
 		} catch (error) {
 			// Ignore loading and parsing errors
 		}
 
-		return this.options.defaultConfig;
+		return res || this.options.defaultConfig;
 	}
 
 	private registerWatcher(): void {
