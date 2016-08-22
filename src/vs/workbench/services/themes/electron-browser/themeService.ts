@@ -484,8 +484,9 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 			let fileNames = associations.fileNames;
 			if (fileNames) {
 				for (let fileName in fileNames) {
-					let ext = Paths.extname(fileName).toLowerCase();
-					let name = fileName.substring(0, fileName.length - ext.length).toLowerCase();
+					fileName = fileName.toLowerCase();
+					let idx = fileName.lastIndexOf('.');
+					let [name, ext] = idx !== -1 ? [fileName.substr(0, idx), fileName.substr(idx + 1)] : [ fileName , ''];
 					addSelector(`${qualifier} .${escapeCSS(name)}-name-file-icon.${escapeCSS(ext)}-ext-file-icon.file-icon::before`, fileNames[fileName]);
 				}
 			}
