@@ -5,12 +5,10 @@
 'use strict';
 
 import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 
 export interface IGlobalSettings {
 	settings: any;
 	settingsParseErrors?: string[];
-	keybindings: IUserFriendlyKeybinding[];
 }
 
 export interface IOptions {
