@@ -248,7 +248,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let eventService = services.eventService || new EventService();
 	serviceCollection.set(IEventService, eventService);
 
-	let configurationService = services.configurationService || new SimpleConfigurationService(contextService, eventService);
+	let configurationService = services.configurationService || new SimpleConfigurationService();
 	serviceCollection.set(IConfigurationService, configurationService);
 
 	let messageService = services.messageService || new SimpleMessageService();
