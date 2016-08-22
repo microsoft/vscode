@@ -95,13 +95,6 @@
 			"sourceMaps": true
 		},
 		{
-			"name": "Convert css-schema to browser.js",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceRoot}/src/vs/languages/css/common/buildscripts/generate_browserjs.js",
-			"stopOnEntry": false
-		},
-		{
 			"name": "Debug monaco",
 			"type": "node",
 			"request": "launch",
