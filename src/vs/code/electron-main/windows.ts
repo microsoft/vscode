@@ -14,11 +14,11 @@ import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
-import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
+import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
 import { ICommandLineArguments, IProcessEnvironment, IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { ISettingsService } from 'vs/code/electron-main/settings';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -132,8 +132,8 @@ export class WindowsManager implements IWindowsService {
 		@IEnvService private envService: IEnvService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IUpdateService private updateService: IUpdateService,
-		@ISettingsService private settingsService: ISettingsService
-	) {	}
+		@IConfigurationService private configurationService: IConfigurationService
+	) { }
 
 	onOpen(clb: (path: IPath) => void): () => void {
 		this.eventEmitter.addListener(EventTypes.OPEN, clb);
@@ -193,8 +193,9 @@ export class WindowsManager implements IWindowsService {
 			}, 100);
 		});
 
-		this.settingsService.onChange((newSettings) => {
-			this.sendToAll('vscode:optionsChange', JSON.stringify({ globalSettings: newSettings }));
+		this.configurationService.onDidUpdateConfiguration(event => {
+			global.globalSettingsValue = JSON.stringify(event.config); // Load settings (TODO@Ben remove)
+			this.sendToAll('vscode:optionsChange', JSON.stringify(event.config));
 		}, this);
 
 		ipc.on('vscode:startCrashReporter', (event: any, config: any) => {
@@ -516,7 +517,7 @@ export class WindowsManager implements IWindowsService {
 
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
-					let options:Electron.ShowMessageBoxOptions = {
+					let options: Electron.ShowMessageBoxOptions = {
 						title: this.envService.product.nameLong,
 						type: 'info',
 						buttons: [nls.localize('ok', "OK")],
@@ -589,7 +590,10 @@ export class WindowsManager implements IWindowsService {
 			} else {
 				openFilesInNewWindow = openConfig.preferNewWindow;
 				if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for PDE though!)
-					openFilesInNewWindow = this.settingsService.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
+					const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+					if (windowConfig && !windowConfig.openFilesInNewWindow) {
+						openFilesInNewWindow = false; // do not open in new window if user configured this explicitly
+					}
 				}
 			}
 
@@ -831,7 +835,8 @@ export class WindowsManager implements IWindowsService {
 			if (this.lifecycleService.wasUpdated) {
 				reopenFolders = ReopenFoldersSetting.ALL; // always reopen all folders when an update was applied
 			} else {
-				reopenFolders = this.settingsService.getValue('window.reopenFolders', ReopenFoldersSetting.ONE);
+				const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+				reopenFolders = (windowConfig && windowConfig.reopenFolders) || ReopenFoldersSetting.ONE;
 			}
 
 			let lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
@@ -877,10 +882,12 @@ export class WindowsManager implements IWindowsService {
 
 		// New window
 		if (!vscodeWindow) {
+			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
 			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				allowFullscreen: this.lifecycleService.wasUpdated || this.settingsService.getValue('window.restoreFullscreen', false)
+				allowFullscreen: this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen)
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
@@ -1000,7 +1007,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	public openFileFolderPicker(forceNewWindow?: boolean): void {
-		this.doPickAndOpen({ pickFolders: true, pickFiles: true , forceNewWindow});
+		this.doPickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow });
 	}
 
 	public openFilePicker(forceNewWindow?: boolean, path?: string): void {
@@ -1020,7 +1027,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
-		let workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
+		let workingDir = options.path ||  this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
 		let focussedWindow = this.getFocusedWindow();
 
 		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];

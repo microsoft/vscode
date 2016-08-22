@@ -13,7 +13,7 @@ import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
 import { ILogService } from 'vs/code/electron-main/log';
-import { ISettingsService } from 'vs/code/electron-main/settings';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/code/node/argv';
 
 export interface IWindowState {
@@ -106,6 +106,13 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 	extensionsToInstall: string[];
 }
 
+export interface IWindowSettings {
+	openFilesInNewWindow: boolean;
+	reopenFolders: 'all' | 'one' | 'none';
+	restoreFullscreen: boolean;
+	zoomLevel: number;
+}
+
 export class VSCodeWindow {
 
 	public static menuBarHiddenKey = 'menuBarHidden';
@@ -133,7 +140,7 @@ export class VSCodeWindow {
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
 		@IEnvService private envService: IEnvService,
-		@ISettingsService private settingsService: ISettingsService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService
 	) {
 		this.options = config;
@@ -395,7 +402,8 @@ export class VSCodeWindow {
 		let url = require.toUrl('vs/workbench/electron-browser/bootstrap/index.html');
 
 		// Set zoomlevel
-		const zoomLevel = this.settingsService.getValue('window.zoomLevel');
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const zoomLevel = windowConfig && windowConfig.zoomLevel;
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
 		}

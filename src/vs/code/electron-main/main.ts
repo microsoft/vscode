@@ -16,7 +16,6 @@ import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-m
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
-import { ISettingsService, SettingsManager } from 'vs/code/electron-main/settings';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/common/ipc.electron';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
@@ -70,7 +69,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
-	const settingsService = accessor.get(ISettingsService);
+	const configurationService = <ConfigurationService>accessor.get(IConfigurationService);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -146,6 +145,8 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 		if (windowsMutex) {
 			windowsMutex.release();
 		}
+
+		configurationService.dispose();
 	}
 
 	// Dispose on app quit
@@ -166,8 +167,8 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	// Lifecycle
 	lifecycleService.ready();
 
-	// Load settings
-	settingsService.loadSync();
+	// Load settings (TODO@Ben remove)
+	global.globalSettingsValue = JSON.stringify(configurationService.getConfiguration());
 
 	// Propagate to clients
 	windowsService.ready(userEnv);
@@ -396,7 +397,6 @@ function start(): void {
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
-	services.set(ISettingsService, new SyncDescriptor(SettingsManager));
 
 	const instantiationService = new InstantiationService(services);
 

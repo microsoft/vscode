@@ -77,12 +77,7 @@ export class ElectronIntegration {
 		// Support options change
 		ipc.on('vscode:optionsChange', (event, options: string) => {
 			const optionsData = JSON.parse(options);
-			for (let key in optionsData) {
-				if (optionsData.hasOwnProperty(key)) {
-					const value = optionsData[key];
-					(<LegacyWorkspaceContextService>this.contextService).updateOptions(key, value);
-				}
-			}
+			(<LegacyWorkspaceContextService>this.contextService).updateOptions('globalSettings', optionsData);
 		});
 
 		// Support resolve keybindings event

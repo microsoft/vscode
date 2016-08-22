@@ -6,11 +6,6 @@
 
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 
-export interface IGlobalSettings {
-	settings: any;
-	settingsParseErrors?: string[];
-}
-
 export interface IOptions {
 
 	/**
@@ -36,5 +31,5 @@ export interface IOptions {
 	/**
 	 * The global application settings if any.
 	 */
-	globalSettings?: IGlobalSettings;
+	globalSettings?: any;
 }
