@@ -64,7 +64,8 @@ export class SettingsManager implements ISettingsService {
 
 	loadSync(): boolean {
 		let settingsChanged = false;
-		let loadedSettings = this.doLoadSync();
+
+		const loadedSettings = this.doLoadSync();
 		if (!objects.equals(loadedSettings, this.globalSettings)) {
 
 			// Keep in class
@@ -85,19 +86,19 @@ export class SettingsManager implements ISettingsService {
 	}
 
 	getValue(key: string, fallback?: any): any {
-		return SettingsManager.doGetValue(this.globalSettings.settings, key, fallback);
+		return this.doGetValue(key, fallback);
 	}
 
-	private static doGetValue(globalSettings: any, key: string, fallback?: any): any {
+	private doGetValue(key: string, fallback?: any): any {
 		if (!key) {
 			return fallback;
 		}
 
-		let value = globalSettings;
+		let value = this.globalSettings.settings;
 
-		let parts = key.split('\.');
+		const parts = key.split('\.');
 		while (parts.length && value) {
-			let part = parts.shift();
+			const part = parts.shift();
 			value = value[part];
 		}
 
@@ -105,7 +106,7 @@ export class SettingsManager implements ISettingsService {
 	}
 
 	private registerWatchers(): void {
-		let self = this;
+		const self = this;
 		function attachSettingsChangeWatcher(watchPath: string): void {
 			self.watcher = fs.watch(watchPath);
 			self.watcher.on('change', () => self.onSettingsFileChange());
@@ -115,7 +116,7 @@ export class SettingsManager implements ISettingsService {
 		attachSettingsChangeWatcher(path.dirname(this.appSettingsPath));
 
 		// Follow symlinks for settings and keybindings and attach watchers if they resolve
-		let followSymlinkPaths = [
+		const followSymlinkPaths = [
 			this.appSettingsPath,
 			this.appKeybindingsPath
 		];
@@ -147,7 +148,7 @@ export class SettingsManager implements ISettingsService {
 		this.timeoutHandle = global.setTimeout(() => {
 
 			// Reload
-			let didChange = this.loadSync();
+			const didChange = this.loadSync();
 
 			// Emit event
 			if (didChange) {
@@ -158,7 +159,7 @@ export class SettingsManager implements ISettingsService {
 	}
 
 	private doLoadSync(): ISettings {
-		let settings = this.doLoadSettingsSync();
+		const settings = this.doLoadSettingsSync();
 
 		return {
 			settings: settings.contents,
@@ -168,7 +169,7 @@ export class SettingsManager implements ISettingsService {
 	}
 
 	private doLoadSettingsSync(): { contents: any; parseErrors?: string[]; } {
-		let root = Object.create(null);
+		const root = Object.create(null);
 		let content = '{}';
 		try {
 			content = fs.readFileSync(this.appSettingsPath).toString();
@@ -188,7 +189,7 @@ export class SettingsManager implements ISettingsService {
 		}
 
 		for (let key in contents) {
-			SettingsManager.setNode(root, key, contents[key]);
+			this.setNode(root, key, contents[key]);
 		}
 
 		return {
@@ -196,9 +197,9 @@ export class SettingsManager implements ISettingsService {
 		};
 	}
 
-	private static setNode(root: any, key: string, value: any): any {
-		let segments = key.split('.');
-		let last = segments.pop();
+	private setNode(root: any, key: string, value: any): any {
+		const segments = key.split('.');
+		const last = segments.pop();
 
 		let curr = root;
 		segments.forEach((s) => {
