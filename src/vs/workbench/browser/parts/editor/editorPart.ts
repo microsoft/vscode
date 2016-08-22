@@ -775,7 +775,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const activeEditor = this.getActiveEditor();
 		if (activeEditor instanceof BaseTextEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
 			options = TextEditorOptions.create({ pinned: true, index });
-			(<TextEditorOptions>options).viewState(activeEditor.getControl().saveViewState());
+			(<TextEditorOptions>options).fromEditor(activeEditor.getControl());
 		}
 
 		// A move to another group is an open first...
