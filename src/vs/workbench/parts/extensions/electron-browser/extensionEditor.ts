@@ -9,6 +9,8 @@ import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Action } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
@@ -21,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID } from './extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension } from './extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
 import { RatingsWidget, InstallWidget } from './extensionsWidgets';
@@ -44,6 +46,52 @@ function renderBody(body: string): string {
 		</html>`;
 }
 
+class NavBar {
+
+	private _onChange = new Emitter<string>();
+	get onChange(): Event<string> { return this._onChange.event; }
+
+	private actions: Action[];
+	private actionbar: ActionBar;
+
+	constructor(container: HTMLElement) {
+		const element = append(container, $('.navbar'));
+		this.actions = [];
+		this.actionbar = new ActionBar(element, { animated: false });
+	}
+
+	push(id: string, label: string): void {
+		const run = () => {
+			this._onChange.fire(id);
+			this.actions.forEach(a => a.enabled = a.id !== action.id);
+			return TPromise.as(null);
+		};
+
+		const action = new Action(id, label, null, true, run);
+
+		this.actions.push(action);
+		this.actionbar.push(action);
+
+		if (this.actions.length === 1) {
+			run();
+		}
+	}
+
+	clear(): void {
+		this.actions = dispose(this.actions);
+		this.actionbar.clear();
+	}
+
+	dispose(): void {
+		this.actionbar = dispose(this.actionbar);
+	}
+}
+
+const NavbarSection = {
+	Readme: 'readme',
+	Configuration: 'configuration'
+};
+
 export class ExtensionEditor extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extension';
@@ -55,13 +103,15 @@ export class ExtensionEditor extends BaseEditor {
 	private installCount: HTMLElement;
 	private rating: HTMLAnchorElement;
 	private description: HTMLElement;
-	private actionBar: ActionBar;
-	private body: HTMLElement;
+	private extensionActionBar: ActionBar;
+	private navbar: NavBar;
+	private content: HTMLElement;
 
 	private _highlight: ITemplateData;
 	private highlightDisposable: IDisposable;
 
-	private transientDisposables: IDisposable[];
+	private contentDisposables: IDisposable[] = [];
+	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
 
 	constructor(
@@ -111,11 +161,14 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.description = append(details, $('.description'));
 
-		const actions = append(details, $('.actions'));
-		this.actionBar = new ActionBar(actions, { animated: false });
-		this.disposables.push(this.actionBar);
+		const extensionActions = append(details, $('.actions'));
+		this.extensionActionBar = new ActionBar(extensionActions, { animated: false });
+		this.disposables.push(this.extensionActionBar);
 
-		this.body = append(root, $('.body'));
+		const body = append(root, $('.body'));
+		this.navbar = new NavBar(body);
+
+		this.content = append(body, $('.content'));
 	}
 
 	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
@@ -163,42 +216,64 @@ export class ExtensionEditor extends BaseEditor {
 		updateAction.extension = extension;
 		enableAction.extension = extension;
 
-		this.actionBar.clear();
-		this.actionBar.push([enableAction, updateAction, installAction], { icon: true, label: true });
+		this.extensionActionBar.clear();
+		this.extensionActionBar.push([enableAction, updateAction, installAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, installAction);
 
-		this.body.innerHTML = '';
-		let promise: TPromise<any> = super.setInput(input, options);
+		this.navbar.clear();
+		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
 
-		if (extension.readmeUrl) {
-			promise = promise
-				.then(() => addClass(this.body, 'loading'))
-				.then(() => this.extensionsWorkbenchService.getReadmeContents(extension))
-				.then(marked.parse)
-				.then<void>(body => {
-					const webview = new WebView(
-						this.body,
-						document.querySelector('.monaco-editor-background')
-					);
+		this.navbar.push(NavbarSection.Readme, localize('readme', "Readme"));
+		// this.navbar.push(NavbarSection.Configuration, localize('configuration', "Config"));
 
-					webview.style(this.themeService.getColorTheme());
-					webview.contents = [renderBody(body)];
+		this.content.innerHTML = '';
 
-					const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString()));
-					const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
-					this.transientDisposables.push(webview, linkListener, themeListener);
-				})
-				.then(null, () => null)
-				.then(() => removeClass(this.body, 'loading'));
-		} else {
-			promise = promise
-				.then(() => append(this.body, $('p')))
-				.then(p => p.textContent = localize('noReadme', "No README available."));
+		return super.setInput(input, options);
+	}
+
+	private onNavbarChange(extension: IExtension, id: string): void {
+		this.contentDisposables = dispose(this.contentDisposables);
+		this.content.innerHTML = '';
+
+		switch (id) {
+			case NavbarSection.Readme: return this.openReadme(extension);
+			case NavbarSection.Configuration: return this.openConfiguration(extension);
+		}
+	}
+
+	private openReadme(extension: IExtension) {
+		if (!extension.readmeUrl) {
+			const p = append(this.content, $('p'));
+			p.textContent = localize('noReadme', "No README available.");
+			return;
 		}
 
-		this.transientDisposables.push(toDisposable(() => promise.cancel()));
+		addClass(this.content, 'loading');
 
-		return TPromise.as(null);
+		const promise = this.extensionsWorkbenchService.getReadmeContents(extension)
+			.then(marked.parse)
+			.then<void>(body => {
+				const webview = new WebView(
+					this.content,
+					document.querySelector('.monaco-editor-background')
+				);
+
+				webview.style(this.themeService.getColorTheme());
+				webview.contents = [renderBody(body)];
+
+				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString()));
+				const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
+				this.contentDisposables.push(webview, linkListener, themeListener);
+			})
+			.then(null, () => null)
+			.then(() => removeClass(this.content, 'loading'));
+
+		this.contentDisposables.push(toDisposable(() => promise.cancel()));
+	}
+
+	private openConfiguration(extension: IExtension) {
+		this.content.innerHTML = '';
+		this.content.innerText = 'configuration';
 	}
 
 	layout(): void {
