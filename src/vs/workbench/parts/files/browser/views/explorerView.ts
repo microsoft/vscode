@@ -41,6 +41,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -87,6 +88,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
@@ -201,7 +203,9 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// React to file icons setting by toggling global class on tree
 		let showFileIcons = configuration && configuration.explorer && configuration.explorer.showFileIcons;
-		DOM.toggleClass(this.treeContainer, 'show-file-icons', showFileIcons);
+		this.extensionService.onReady().then(() => {
+			DOM.toggleClass(this.treeContainer, 'show-file-icons', showFileIcons); // since icons come from extensions, we wait for them to be ready
+		});
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
