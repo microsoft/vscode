@@ -2307,8 +2307,8 @@ declare namespace vscode {
 		additionalTextEdits: TextEdit[];
 
 		/**
-		 * An optional [command](#Command) that is executed when selecting this completion. *Note* that additional
-		 * modifications to the current document should be described with the
+		 * An optional [command](#Command) that is executed *after* inserting this completion. *Note* that
+		 * additional modifications to the current document should be described with the
 		 * [additionalTextEdits](#CompletionItem.additionalTextEdits)-property.
 		 */
 		command: Command;
