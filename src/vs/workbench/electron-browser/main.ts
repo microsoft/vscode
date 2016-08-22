@@ -7,7 +7,7 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import {WorkbenchShell} from 'vs/workbench/electron-browser/shell';
-import {IOptions, IGlobalSettings} from 'vs/workbench/common/options';
+import {IOptions} from 'vs/workbench/common/options';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
@@ -62,7 +62,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	extensionsToInstall?: string[];
 }
 
-export function startup(configuration: IWindowConfiguration, globalSettings: IGlobalSettings): winjs.TPromise<void> {
+export function startup(configuration: IWindowConfiguration, globalSettings: any): winjs.TPromise<void> {
 
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;

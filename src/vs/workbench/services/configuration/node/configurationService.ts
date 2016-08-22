@@ -117,10 +117,10 @@ export class ConfigurationService extends CommonConfigurationService {
 		return {
 			contents: objects.mixin(
 				objects.clone(defaults.contents),	// target: default values (but don't modify!)
-				globalSettings.settings,			// source: global configured values
+				globalSettings,						// source: global configured values
 				true								// overwrite
 			),
-			parseErrors: globalSettings.settingsParseErrors
+			parseErrors: []
 		};
 	}
 
