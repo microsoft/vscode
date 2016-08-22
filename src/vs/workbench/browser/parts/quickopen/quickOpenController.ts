@@ -586,7 +586,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Apply label to first entry
 		if (entries.length > 0) {
-			entries[0] = new QuickOpenEntryGroup(entries[0], nls.localize('historyMatches', "recently opened"), false);
+			entries[0] = new EditorHistoryEntryGroup(entries[0], nls.localize('historyMatches', "recently opened"), false);
 		}
 
 		return new QuickOpenModel(entries, this.actionProvider);
@@ -668,18 +668,20 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private handleDefaultHandlers(defaultHandlers: QuickOpenHandlerDescriptor[], value: string, currentResultToken: string): TPromise<void> {
+		const previousInput = this.quickOpenWidget.getInput();
+		const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 
 		// Fill in history results if matching
 		let matchingHistoryEntries = this.getEditorHistoryEntries(value);
 		if (matchingHistoryEntries.length > 0) {
-			matchingHistoryEntries[0] = new QuickOpenEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened"), false);
+			matchingHistoryEntries[0] = new EditorHistoryEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened"), false);
 		}
 
-		let quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
-
 		// If we have matching entries from history we want to show them directly and not wait for the other results to come in
+		// This also applies when we used to have entries from a previous run and now there are no more history results matching
 		let inputSet = false;
-		if (matchingHistoryEntries.length > 0) {
+		let quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
+		if (wasShowingHistory || matchingHistoryEntries.length > 0) {
 			this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
 			inputSet = true;
 		}
@@ -1025,6 +1027,10 @@ class PickOpenItem extends QuickOpenEntryItem {
 
 		return false;
 	}
+}
+
+export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
+	// Marker class
 }
 
 export class EditorHistoryEntry extends EditorQuickOpenEntry {
