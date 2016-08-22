@@ -67,14 +67,18 @@ export class SearchService implements IRawSearchService {
 			searchPromise = this.doSearch(engine, batchSize)
 				.then(c, e, progress => {
 					if (Array.isArray(progress)) {
-						p(progress.map(m => ({ path: m.absolutePath })));
-					} else if ((<IRawFileMatch>progress).absolutePath) {
-						p({ path: (<IRawFileMatch>progress).absolutePath });
+						p(progress.map(m => this.rawMatchToSearchItem(m)));
+					} else if ((<IRawFileMatch>progress).path) {
+						p(this.rawMatchToSearchItem(<IRawFileMatch>progress));
 					} else {
 						p(progress);
 					}
 				});
 		}, () => searchPromise.cancel());
+	}
+
+	private rawMatchToSearchItem(match: IRawFileMatch): ISerializedFileMatch {
+		return { path: match.base ? [match.base, match.path].join(paths.nativeSep) : match.path };
 	}
 
 	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, IRawProgressItem<IRawFileMatch>> {
@@ -178,7 +182,7 @@ export class SearchService implements IRawSearchService {
 		const normalizedSearchValue = strings.stripWildcards(filePattern).toLowerCase();
 		const compare = (elementA: IRawFileMatch, elementB: IRawFileMatch) => compareByScore(elementA, elementB, FileMatchAccessor, filePattern, normalizedSearchValue, cache.scorerCache);
 		const filteredWrappers = arrays.top(results, compare, config.maxResults);
-		return filteredWrappers.map(result => ({ path: result.absolutePath }));
+		return filteredWrappers.map(result => this.rawMatchToSearchItem(result));
 	}
 
 	private sendProgress(results: ISerializedFileMatch[], progressCb: (batch: ISerializedFileMatch[]) => void, batchSize?: number) {
@@ -218,13 +222,12 @@ export class SearchService implements IRawSearchService {
 
 		// Pattern match on results and adjust highlights
 		let results: IRawFileMatch[] = [];
-		const normalizedSearchValue = searchValue.replace(/\\/g, '/'); // Normalize file patterns to forward slashes
-		const normalizedSearchValueLowercase = strings.stripWildcards(normalizedSearchValue).toLowerCase();
+		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
 
 			// Check if this entry is a match for the search value
-			if (!scorer.matches(entry.pathLabel, normalizedSearchValueLowercase)) {
+			if (!scorer.matches(entry.path, normalizedSearchValueLowercase)) {
 				continue;
 			}
 
@@ -285,12 +288,12 @@ class FileMatchAccessor {
 
 	public static getLabel(match: IFileMatch): string {
 		if (!match.label) {
-			match.label = paths.basename(match.absolutePath);
+			match.label = paths.basename(match.path);
 		}
 		return match.label;
 	}
 
 	public static getResourcePath(match: IFileMatch): string {
-		return match.absolutePath;
+		return match.path;
 	}
 }

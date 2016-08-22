@@ -5,11 +5,12 @@
 
 'use strict';
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 
-import fs = require('fs');
+import * as fs from 'fs';
+import * as path from 'path';
 
-import baseMime = require('vs/base/common/mime');
+import * as baseMime from 'vs/base/common/mime';
 import {ILineMatch, IProgress} from 'vs/platform/search/common/search';
 import {detectMimeAndEncodingFromBuffer} from 'vs/base/node/mime';
 import {FileWalker} from 'vs/workbench/services/search/node/fileSearch';
@@ -110,6 +111,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				return unwind(size);
 			};
 
+			const absolutePath = result.base ? [result.base, result.path].join(path.sep) : result.path;
 			let perLineCallback = (line: string, lineNumber: number) => {
 				if (this.limitReached || this.isCanceled) {
 					return; // return early if canceled or limit reached
@@ -126,7 +128,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 					}
 
 					if (fileMatch === null) {
-						fileMatch = new FileMatch(result.absolutePath);
+						fileMatch = new FileMatch(absolutePath);
 					}
 
 					if (lineMatch === null) {
@@ -141,7 +143,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			};
 
 			// Read lines buffered to support large files
-			this.readlinesAsync(result.absolutePath, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
+			this.readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
 		}, (error, isLimitHit) => {
 			this.walkerIsDone = true;
 			this.walkerError = error;

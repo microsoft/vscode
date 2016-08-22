@@ -26,6 +26,7 @@ import {IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} fro
 enum Traversal {
 	Node = 1,
 	MacFind,
+	WindowsDir
 }
 
 interface IDirectoryEntry {
@@ -76,7 +77,6 @@ export class FileWalker {
 		this.errors = [];
 
 		if (this.filePattern) {
-			this.filePattern = this.filePattern.replace(/\\/g, '/'); // Normalize file patterns to forward slashes
 			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
 		}
 	}
@@ -98,8 +98,7 @@ export class FileWalker {
 			if (exists) {
 				this.resultCount++;
 				onResult({
-					absolutePath: this.filePattern,
-					pathLabel: this.filePattern,
+					path: this.filePattern,
 					size
 				});
 
@@ -117,21 +116,31 @@ export class FileWalker {
 					}
 
 					// File: Check for match on file pattern and include pattern
-					this.matchFile(onResult, extraFilePath, extraFilePath /* no workspace relative path */);
+					this.matchFile(onResult, null, extraFilePath /* no workspace relative path */);
 				});
 			}
 
 			let traverse = this.nodeJSTraversal;
-			if (!this.maxFilesize && platform.isMacintosh) {
-				this.traversal = Traversal.MacFind;
-				traverse = this.macFindTraversal;
+			if (!this.maxFilesize) {
+				if (platform.isMacintosh) {
+					this.traversal = Traversal.MacFind;
+					traverse = this.macFindTraversal;
+				} else if (platform.isWindows) {
+					this.traversal = Traversal.WindowsDir;
+					traverse = this.windowsDirTraversal;
+				}
+			}
+
+			const isNodeTraversal = traverse === this.nodeJSTraversal;
+			if (!isNodeTraversal) {
+				this.cmdForkStartTime = Date.now();
 			}
 
 			// For each root folder
 			flow.parallel(rootFolders, (rootFolder, rootFolderDone: (err?: Error) => void) => {
 				traverse.call(this, rootFolder, onResult, err => {
 					if (err) {
-						if (traverse === this.nodeJSTraversal) {
+						if (isNodeTraversal) {
 							rootFolderDone(err);
 						} else {
 							// fallback
@@ -149,9 +158,8 @@ export class FileWalker {
 	}
 
 	private macFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		this.cmdForkStartTime = Date.now();
 		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
-		this.readStdout(cmd, (err: Error, stdout?: string) => {
+		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
 				return;
@@ -166,23 +174,38 @@ export class FileWalker {
 				relativeFiles.pop();
 			}
 
-			this.cmdResultCount = relativeFiles.length;
-
-			// Support relative paths to files from a root resource (ignores excludes)
-			if (relativeFiles.indexOf(this.filePattern) !== -1) {
-				this.matchFile(onResult, [rootFolder, this.filePattern].join(paths.sep), this.filePattern);
-			}
-
-			const tree = this.buildDirectoryTree(relativeFiles);
-			this.matchDirectoryTree(rootFolder, tree, onResult);
+			this.matchFiles(rootFolder, relativeFiles, onResult);
 
 			done();
 		});
 	}
 
-	private readStdout(cmd: childProcess.ChildProcess, cb: (err: Error, stdout?: string) => void): void {
+	private windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+		const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d'], { cwd: rootFolder });
+		this.readStdout(cmd, 'ucs2', (err: Error, stdout?: string) => {
+			if (err) {
+				done(err);
+				return;
+			}
+
+			const relativeFiles = stdout.split(`\r\n${rootFolder}\\`);
+			relativeFiles[0] = relativeFiles[0].trim().substr(rootFolder.length + 1);
+			const n = relativeFiles.length;
+			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
+			if (!relativeFiles[n - 1]) {
+				relativeFiles.pop();
+			}
+
+			this.matchFiles(rootFolder, relativeFiles, onResult);
+
+			done();
+		});
+	}
+
+	private readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
 		let done = (err: Error, stdout?: string) => {
 			done = () => {};
+			this.cmdForkResultTime = Date.now();
 			cb(err, stdout);
 		};
 
@@ -195,10 +218,9 @@ export class FileWalker {
 
 		cmd.on('close', code => {
 			if (code !== 0) {
-				done(new Error(`find failed with error code ${code}: ${this.decodeData(stderr)}`));
+				done(new Error(`find failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
-				this.cmdForkResultTime = Date.now();
-				done(null, this.decodeData(stdout));
+				done(null, this.decodeData(stdout, encoding));
 			}
 		});
 	}
@@ -211,10 +233,21 @@ export class FileWalker {
 		return buffers;
 	}
 
-	private decodeData(buffers: Buffer[]): string {
-		const decoder = new StringDecoder('utf8');
-		return buffers.map(data => decoder.write(data))
-			.reduce((all, current) => all + current, '');
+	private decodeData(buffers: Buffer[], encoding: string): string {
+		const decoder = new StringDecoder(encoding);
+		return buffers.map(buffer => decoder.write(buffer)).join('');
+	}
+
+	private matchFiles(rootFolder: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
+		this.cmdResultCount = relativeFiles.length;
+
+		// Support relative paths to files from a root resource (ignores excludes)
+		if (relativeFiles.indexOf(this.filePattern) !== -1) {
+			this.matchFile(onResult, rootFolder, this.filePattern);
+		}
+
+		const tree = this.buildDirectoryTree(relativeFiles);
+		this.matchDirectoryTree(rootFolder, tree, onResult);
 	}
 
 	private buildDirectoryTree(relativeFilePaths: string[]): IDirectoryTree {
@@ -248,7 +281,7 @@ export class FileWalker {
 			self.directoriesWalked++;
 			for (let i = 0, n = entries.length; i < n; i++) {
 				const entry = entries[i];
-				const relativePath = entry.relativePath; // assumes slashes as separator
+				const relativePath = entry.relativePath;
 
 				// Check exclude pattern
 				// If the user searches for the exact file name, we adjust the glob matching
@@ -267,22 +300,22 @@ export class FileWalker {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
 
-					self.matchFile(onResult, [rootFolder, relativePath].join(paths.sep), relativePath);
+					self.matchFile(onResult, rootFolder, relativePath);
 				}
 			};
 		}
 		matchDirectory(rootEntries);
 	}
 
-	private nodeJSTraversal(absolutePath: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+	private nodeJSTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
 		this.directoriesWalked++;
-		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
+		extfs.readdir(rootFolder, (error: Error, files: string[]) => {
 			if (error || this.isCanceled || this.isLimitHit) {
 				return done();
 			}
 
 			// Support relative paths to files from a root resource (ignores excludes)
-			return this.checkFilePatternRelativeMatch(absolutePath, (match, size) => {
+			return this.checkFilePatternRelativeMatch(rootFolder, (match, size) => {
 				if (this.isCanceled || this.isLimitHit) {
 					return done();
 				}
@@ -291,13 +324,13 @@ export class FileWalker {
 				if (match) {
 					this.resultCount++;
 					onResult({
-						absolutePath: match,
-						pathLabel: this.filePattern,
+						base: rootFolder,
+						path: this.filePattern,
 						size
 					});
 				}
 
-				return this.doWalk(paths.normalize(absolutePath), '', files, onResult, done);
+				return this.doWalk(rootFolder, '', files, onResult, done);
 			});
 		});
 	}
@@ -340,7 +373,7 @@ export class FileWalker {
 		});
 	}
 
-	private doWalk(absolutePath: string, relativeParentPathWithSlashes: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
+	private doWalk(rootFolder: string, relativeParentPath: string, files: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error) => void): void {
 
 		// Execute tasks on each file in parallel to optimize throughput
 		flow.parallel(files, (file: string, clb: (error: Error) => void): void => {
@@ -359,13 +392,13 @@ export class FileWalker {
 			}
 
 			// Check exclude pattern
-			let currentRelativePathWithSlashes = relativeParentPathWithSlashes ? [relativeParentPathWithSlashes, file].join('/') : file;
-			if (this.excludePattern(currentRelativePathWithSlashes, () => siblings)) {
+			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(paths.sep) : file;
+			if (this.excludePattern(currentRelativePath, () => siblings)) {
 				return clb(null);
 			}
 
 			// Use lstat to detect links
-			let currentAbsolutePath = [absolutePath, file].join(paths.sep);
+			let currentAbsolutePath = [rootFolder, currentRelativePath].join(paths.sep);
 			fs.lstat(currentAbsolutePath, (error, lstat) => {
 				if (error || this.isCanceled || this.isLimitHit) {
 					return clb(null);
@@ -401,7 +434,7 @@ export class FileWalker {
 									return clb(null);
 								}
 
-								this.doWalk(currentAbsolutePath, currentRelativePathWithSlashes, children, onResult, clb);
+								this.doWalk(rootFolder, currentRelativePath, children, onResult, clb);
 							});
 						});
 					}
@@ -409,7 +442,7 @@ export class FileWalker {
 					// File: Check for match on file pattern and include pattern
 					else {
 						this.filesWalked++;
-						if (currentRelativePathWithSlashes === this.filePattern) {
+						if (currentRelativePath === this.filePattern) {
 							return clb(null); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
 						}
 
@@ -417,7 +450,7 @@ export class FileWalker {
 							return clb(null); // ignore file if max file size is hit
 						}
 
-						this.matchFile(onResult, currentAbsolutePath, currentRelativePathWithSlashes, stat.size);
+						this.matchFile(onResult, rootFolder, currentRelativePath, stat.size);
 					}
 
 					// Unwind
@@ -433,8 +466,8 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: IRawFileMatch) => void, absolutePath: string, relativePathWithSlashes: string, size?: number): void {
-		if (this.isFilePatternMatch(relativePathWithSlashes) && (!this.includePattern || this.includePattern(relativePathWithSlashes))) {
+	private matchFile(onResult: (result: IRawFileMatch) => void, base: string, path: string, size?: number): void {
+		if (this.isFilePatternMatch(path) && (!this.includePattern || this.includePattern(path))) {
 			this.resultCount++;
 
 			if (this.maxResults && this.resultCount > this.maxResults) {
@@ -443,8 +476,8 @@ export class FileWalker {
 
 			if (!this.isLimitHit) {
 				onResult({
-					absolutePath,
-					pathLabel: relativePathWithSlashes,
+					base,
+					path,
 					size
 				});
 			}
