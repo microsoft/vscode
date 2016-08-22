@@ -8,9 +8,8 @@ import {toErrorMessage} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
+import {IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
@@ -20,11 +19,10 @@ import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IEventService} from 'vs/platform/event/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export class SimpleEditor implements IEditor {
 
@@ -277,38 +275,34 @@ export class SimpleExtensionService extends AbstractExtensionService<ActivatedEx
 
 }
 
-export class SimpleConfigurationService extends ConfigurationService {
+export class SimpleConfigurationService implements IConfigurationService {
 
-	constructor(contextService: IWorkspaceContextService, eventService: IEventService) {
-		super(contextService, eventService);
-		this.initialize();
+	_serviceBrand: any;
+
+	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
+
+	constructor(
+	) {
+		this._onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
 	}
 
-	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(resources.map((resource) => {
-			return {
-				resource: resource,
-				value: ''
-			};
-		}));
+	public get onDidUpdateConfiguration(): Event<IConfigurationServiceEvent> {
+		return this._onDidUpdateConfiguration.event;
 	}
 
-	protected resolveContent(resource: URI): TPromise<IContent> {
-		return TPromise.as({
-			resource: resource,
-			value: ''
-		});
+	public getConfiguration<T>(section?: string): T {
+		return Object.create(null);
 	}
 
-	protected resolveStat(resource: URI): TPromise<IStat> {
-		return TPromise.as({
-			resource: resource,
-			isDirectory: false
-		});
+	public loadConfiguration<T>(section?: string): TPromise<T> {
+		return TPromise.as(this.getConfiguration(section));
 	}
 
-	setUserConfiguration(key: any, value: any) : Thenable<void> {
+	public hasWorkspaceConfiguration(): boolean {
+		return false;
+	}
+
+	public setUserConfiguration(key: any, value: any): TPromise<void> {
 		return TPromise.as(null);
 	}
-
 }
