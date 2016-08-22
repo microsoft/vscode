@@ -6,6 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -68,16 +69,6 @@ export class SuggestController implements IEditorContribution {
 			const {insertText, overwriteBefore, overwriteAfter, additionalTextEdits, command} = item.suggestion;
 			const columnDelta = this.editor.getPosition().column - item.position.column;
 
-			// todo@joh
-			// * order of stuff command/extraEdit/actual edit
-			// * failure of command?
-			// * wait for command to execute?
-			if (command) {
-				this.commandService.executeCommand(command.id, ...command.arguments).then(undefined, err => {
-					console.error(err);
-				});
-			}
-
 			if (Array.isArray(additionalTextEdits)) {
 				this.editor.pushUndoStop();
 				this.editor.executeEdits('suggestController.additionalTextEdits', additionalTextEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
@@ -87,9 +78,12 @@ export class SuggestController implements IEditorContribution {
 			SnippetController.get(this.editor).run(
 				new CodeSnippet(insertText),
 				overwriteBefore + columnDelta,
-				overwriteAfter,
-				undefined
+				overwriteAfter
 			);
+
+			if (command) {
+				this.commandService.executeCommand(command.id, ...command.arguments).done(undefined, onUnexpectedError);
+			}
 		}
 
 		this.model.cancel();
