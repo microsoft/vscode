@@ -40,6 +40,7 @@ export interface IConfigOptions<T> {
 export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private cache: T;
 	private parseErrors: json.ParseError[];
+	private disposed: boolean;
 	private loaded: boolean;
 	private timeoutHandle: number;
 	private disposables: IDisposable[];
@@ -140,6 +141,10 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	private watch(path: string): void {
+		if (this.disposed) {
+			return; // avoid watchers that will never get disposed by checking for being disposed
+		}
+
 		const watcher = fs.watch(path);
 		watcher.on('change', () => this.onConfigFileChange());
 
@@ -201,6 +206,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	public dispose(): void {
+		this.disposed = true;
 		this.disposables = dispose(this.disposables);
 	}
 }
