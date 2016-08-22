@@ -19,6 +19,7 @@ import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
+import URI from 'vs/base/common/uri';
 
 function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
 	return new Promise((c, e) => {
@@ -144,7 +145,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(({ manifest }) => {
 				return pfs.readdir(extensionPath).then(children => {
 					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-					const readmeUrl = readme ? `file://${ extensionPath }/${ readme }` : null;
+					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
 
 					const local: ILocalExtension = { id, manifest, metadata, path: extensionPath, readmeUrl };
 					const rawManifest = assign(manifest, { __metadata: metadata });
@@ -196,7 +197,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 						const each = () => pfs.readdir(extensionPath).then(children => {
 							const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-							const readmeUrl = readme ? `file://${ extensionPath }/${ readme }` : null;
+							const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
 
 							return pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 								.then(raw => parseManifest(raw))
