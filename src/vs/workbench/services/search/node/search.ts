@@ -30,9 +30,9 @@ export interface IRawSearchService {
 }
 
 export interface IRawFileMatch {
-	absolutePath: string;
-	pathLabel: string;
-	size: number;
+	base?: string;
+	path: string;
+	size?: number;
 }
 
 export interface ISearchEngine<T> {
