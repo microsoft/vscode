@@ -95,7 +95,7 @@ suite('Config', () => {
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
 
-			setTimeout(function() {
+			setTimeout(function () {
 				fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
 			}, 50);
 
@@ -109,6 +109,36 @@ suite('Config', () => {
 				extfs.del(parentDir, os.tmpdir(), () => { }, done);
 			});
 
+		});
+	});
+
+	test('reload', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'config', id);
+		const testFile = path.join(newDir, 'config.json');
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
+
+			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100 });
+
+			setTimeout(function () {
+				fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
+
+				// still old values because change is not bubbling yet
+				assert.equal(watcher.getConfig().foo, 'bar');
+				assert.equal(watcher.getValue('foo'), 'bar');
+
+				// force a load from disk
+				watcher.reload(config => {
+					assert.equal(config.foo, 'changed');
+					assert.equal(watcher.getConfig().foo, 'changed');
+					assert.equal(watcher.getValue('foo'), 'changed');
+
+					extfs.del(parentDir, os.tmpdir(), () => { }, done);
+				});
+			}, 50);
 		});
 	});
 });

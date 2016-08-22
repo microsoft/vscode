@@ -11,11 +11,12 @@ import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 
-export interface IConfigurationServiceEvent<T> {
+export interface IConfigurationChangeEvent<T> {
 	config: T;
 }
 
 export interface IConfigWatcher<T> {
+	reload(callback: (config: T) => void): void;
 	getConfig(): T;
 	getValue<V>(key: string, fallback?: V): V;
 }
@@ -43,14 +44,14 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	constructor(private path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null) }) {
 		this.disposables = [];
 
-		this._onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent<T>>();
+		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
 		this.disposables.push(this._onDidUpdateConfiguration);
 
 		this.registerWatcher();
 		this.initAsync();
 	}
 
-	public get onDidUpdateConfiguration(): Event<IConfigurationServiceEvent<T>> {
+	public get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
 		return this._onDidUpdateConfiguration.event;
 	}
 
@@ -144,14 +145,22 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 
 		this.timeoutHandle = global.setTimeout(() => {
-			this.loadAsync(currentConfig => {
-				if (!objects.equals(currentConfig, this.cache)) {
-					this.updateCache(currentConfig);
-
-					this._onDidUpdateConfiguration.fire({ config: this.cache });
-				}
-			});
+			this.reload();
 		}, this.options.changeBufferDelay);
+	}
+
+	public reload(callback?: (config: T) => void): void {
+		this.loadAsync(currentConfig => {
+			if (!objects.equals(currentConfig, this.cache)) {
+				this.updateCache(currentConfig);
+
+				this._onDidUpdateConfiguration.fire({ config: this.cache });
+			}
+
+			if (callback) {
+				return callback(currentConfig);
+			}
+		});
 	}
 
 	public getConfig(): T {
