@@ -28,7 +28,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import {mkdirp} from 'vs/base/node/pfs';
 
@@ -157,7 +157,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 
 			const services = new ServiceCollection();
 			services.set(IEventService, new SyncDescriptor(EventService));
-			services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));

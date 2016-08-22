@@ -22,7 +22,7 @@ import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platfo
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -59,7 +59,7 @@ function main(server: Server): void {
 
 	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv), process.execPath));
-	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
 	const instantiationService = new InstantiationService(services);

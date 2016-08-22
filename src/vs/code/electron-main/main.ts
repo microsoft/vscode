@@ -35,7 +35,7 @@ import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import * as cp from 'child_process';
@@ -393,7 +393,7 @@ function start(): void {
 	services.set(IWindowsService, new SyncDescriptor(WindowsManager));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
-	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
 	services.set(ISettingsService, new SyncDescriptor(SettingsManager));
