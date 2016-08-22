@@ -125,7 +125,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	constructor(
 		domElement: IContextKeyServiceTarget,
-		options:editorCommon.IEditorOptions,
+		options: editorCommon.IEditorOptions,
 		instantiationService: IInstantiationService,
 		codeEditorService: ICodeEditorService,
 		commandService: ICommandService,
@@ -145,7 +145,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._lifetimeDispose = [];
 
 		this._commandService = commandService;
-		this._contextKeyService = contextKeyService;
+		this._contextKeyService = contextKeyService.createScoped(this.domElement);
 		this._editorIdContextKey = this._contextKeyService.createKey('editorId', this.getId());
 		this._editorFocusContextKey = EditorContextKeys.Focus.bindTo(this._contextKeyService);
 		this._editorTabMovesFocusKey = EditorContextKeys.TabMovesFocus.bindTo(this._contextKeyService);

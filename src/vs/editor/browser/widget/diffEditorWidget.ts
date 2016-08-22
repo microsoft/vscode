@@ -15,7 +15,6 @@ import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {ISashEvent, IVerticalSashLayoutProvider, Sash} from 'vs/base/browser/ui/sash/sash';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -357,7 +356,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	}
 
 	private _createLeftHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
-		instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService.createScoped(this._originalDomNode)]));
 		this.originalEditor = instantiationService.createInstance(CodeEditorWidget, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
 		this._toDispose.push(this.originalEditor.addBulkListener2((events) => this._onOriginalEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.originalEditor));

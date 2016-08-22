@@ -15,6 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {RunOnceScheduler} from 'vs/base/common/async';
+import {isCommonCodeEditor, isCommonDiffEditor} from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
 import {IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IWorkbenchEditorConfiguration, IStacksModelChangeEvent, getResource} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
@@ -34,7 +35,7 @@ import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {createActionItem, fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
-import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
+import {IMenuService, MenuId} from 'vs/platform/actions/common/actions';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
 
 export interface IToolbarActions {
@@ -86,8 +87,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 	private refreshScheduled: boolean;
 
 	private resourceContext: ResourceContextKey;
-
-	private contributedTitleBarMenu: IMenu;
+	private disposeOnEditorActions: IDisposable[] = [];
 
 	constructor(
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -112,10 +112,6 @@ export abstract class TitleControl implements ITitleAreaControl {
 		this.toDispose.push(this.scheduler);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
-
-		this.contributedTitleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, this.contextKeyService);
-		this.toDispose.push(this.contributedTitleBarMenu);
-		this.toDispose.push(this.contributedTitleBarMenu.onDidChange(e => this.update()));
 
 		this.initActions();
 		this.registerListeners();
@@ -319,7 +315,17 @@ export abstract class TitleControl implements ITitleAreaControl {
 			secondary.push(...editorInputActions.secondary);
 
 			// MenuItems
-			fillInActions(this.contributedTitleBarMenu, { primary, secondary });
+			// TODO This isn't very proper but needed as we have failed to
+			// use the correct context key service per editor only once. Don't
+			// take this code as sample of how to work with menus
+			this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
+			const widget = control.getControl();
+			const codeEditor = isCommonCodeEditor(widget) && widget || isCommonDiffEditor(widget) && widget.getModifiedEditor();
+			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
+			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
+			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => this.update()));
+
+			fillInActions(titleBarMenu, { primary, secondary });
 		}
 
 		return { primary, secondary };
