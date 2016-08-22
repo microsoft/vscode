@@ -242,15 +242,9 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openReadme(extension: IExtension) {
-		if (!extension.readmeUrl) {
-			const p = append(this.content, $('p'));
-			p.textContent = localize('noReadme', "No README available.");
-			return;
-		}
-
 		addClass(this.content, 'loading');
 
-		const promise = this.extensionsWorkbenchService.getReadmeContents(extension)
+		const promise = extension.getReadme()
 			.then(marked.parse)
 			.then<void>(body => {
 				const webview = new WebView(
@@ -264,6 +258,10 @@ export class ExtensionEditor extends BaseEditor {
 				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString()));
 				const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
 				this.contentDisposables.push(webview, linkListener, themeListener);
+			})
+			.then(null, () => {
+				const p = append(this.content, $('p'));
+				p.textContent = localize('noReadme', "No README available.");
 			})
 			.then(null, () => null)
 			.then(() => removeClass(this.content, 'loading'));
