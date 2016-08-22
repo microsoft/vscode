@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import Event from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -32,7 +32,6 @@ export interface IExtension {
 	version: string;
 	latestVersion: string;
 	description: string;
-	readmeUrl: string;
 	iconUrl: string;
 	licenseUrl: string;
 	installCount: number;
@@ -40,6 +39,8 @@ export interface IExtension {
 	ratingCount: number;
 	outdated: boolean;
 	telemetryData: any;
+	getManifest(): TPromise<IExtensionManifest>;
+	getReadme(): TPromise<string>;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -56,5 +57,4 @@ export interface IExtensionsWorkbenchService {
 	canInstall(extension: IExtension): boolean;
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
-	getReadmeContents(extension: IExtension): TPromise<string>;
 }
