@@ -356,12 +356,49 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
-		/* See https://github.com/Microsoft/TypeScript/issues/10384
+		// See https://github.com/Microsoft/TypeScript/issues/10384
+		/* https://github.com/Microsoft/TypeScript/issues/10473
 		const body = event.body;
 		if (body.diagnostics) {
 			const language = this.findLanguage(body.triggerFile);
 			if (language) {
-				language.configFileDiagnosticsReceived(body.configFile, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+				if (body.diagnostics.length === 0) {
+					language.configFileDiagnosticsReceived(body.configFile, []);
+				} else if (body.diagnostics.length >= 1) {
+					workspace.openTextDocument(Uri.file(body.configFile)).then((document) => {
+						let curly: [number, number, number] = undefined;
+						let nonCurly: [number, number, number] = undefined;
+						let diagnostic: Diagnostic;
+						for (let index = 0; index < document.lineCount; index++) {
+							let line = document.lineAt(index);
+							let text = line.text;
+							let firstNonWhitespaceCharacterIndex = line.firstNonWhitespaceCharacterIndex;
+							if (firstNonWhitespaceCharacterIndex < text.length) {
+								if (text.charAt(firstNonWhitespaceCharacterIndex) === '{') {
+									curly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + 1];
+									break;
+								} else {
+									let matches = /\s*([^\s]*)(?:\s*|$)/.exec(text.substr(firstNonWhitespaceCharacterIndex));
+									if (matches.length >= 1) {
+										nonCurly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + matches[1].length];
+									}
+								}
+							}
+						}
+						let match = curly || nonCurly;
+						if (match) {
+							diagnostic = new Diagnostic(new Range(match[0], match[1], match[0], match[2]), body.diagnostics[0].text);
+						} else {
+							diagnostic = new Diagnostic(new Range(0,0,0,0), body.diagnostics[0].text);
+						}
+						if (diagnostic) {
+							diagnostic.source = language.diagnosticSource;
+							language.configFileDiagnosticsReceived(body.configFile, [diagnostic]);
+						}
+					}, (error) => {
+						language.configFileDiagnosticsReceived(body.configFile, [new Diagnostic(new Range(0,0,0,0), body.diagnostics[0].text)]);
+					});
+				}
 			}
 		}
 		*/
