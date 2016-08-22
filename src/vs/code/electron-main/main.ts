@@ -10,7 +10,7 @@ import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { parseMainProcessArgv } from 'vs/code/node/argv';
+import { parseMainProcessArgv, ParsedArgs } from 'vs/code/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
@@ -269,22 +269,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-// TODO: isolate
-const services = new ServiceCollection();
-
-services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseMainProcessArgv(process.argv), process.execPath));
-services.set(IEnvService, new SyncDescriptor(EnvService));
-services.set(ILogService, new SyncDescriptor(MainLogService));
-services.set(IWindowsService, new SyncDescriptor(WindowsManager));
-services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-services.set(IStorageService, new SyncDescriptor(StorageService));
-services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
-services.set(IRequestService, new SyncDescriptor(RequestService));
-services.set(IUpdateService, new SyncDescriptor(UpdateManager));
-services.set(ISettingsService, new SyncDescriptor(SettingsManager));
-
-const instantiationService = new InstantiationService(services);
-
 interface IEnv {
 	[key: string]: string;
 }
@@ -369,20 +353,18 @@ function getShellEnvironment(): TPromise<IEnv> {
  * Such environment needs to be propagated to the renderer/shared
  * processes.
  */
-function getEnvironment(): TPromise<IEnv> {
+function getEnvironment(accessor: ServicesAccessor): TPromise<IEnv> {
+	const environmentService = accessor.get(IEnvironmentService);
+
 	return getShellEnvironment().then(shellEnv => {
-		return instantiationService.invokeFunction(a => {
-			const environmentService = a.get(IEnvironmentService);
+		const instanceEnv = {
+			VSCODE_PID: String(process.pid),
+			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
+			VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
+			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
+		};
 
-			const instanceEnv = {
-				VSCODE_PID: String(process.pid),
-				VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-				VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
-				VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
-			};
-
-			return assign({}, shellEnv, instanceEnv);
-		});
+		return assign({}, shellEnv, instanceEnv);
 	});
 }
 
@@ -391,13 +373,45 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
 }
 
-// On some platforms we need to manually read from the global environment variables
-// and assign them to the process environment (e.g. when doubleclick app on Mac)
-getEnvironment().then(env => {
-	assign(process.env, env);
+function start(): void {
+	let args: ParsedArgs;
 
-	return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
-		.then(() => instantiationService.invokeFunction(setupIPC))
-		.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
-})
-.done(null, err => instantiationService.invokeFunction(quit, err));
+	try {
+		args = parseMainProcessArgv(process.argv);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(1);
+		return;
+	}
+
+	// TODO: isolate
+	const services = new ServiceCollection();
+
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
+	services.set(IEnvService, new SyncDescriptor(EnvService));
+	services.set(ILogService, new SyncDescriptor(MainLogService));
+	services.set(IWindowsService, new SyncDescriptor(WindowsManager));
+	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+	services.set(IStorageService, new SyncDescriptor(StorageService));
+	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
+	services.set(ISettingsService, new SyncDescriptor(SettingsManager));
+
+	const instantiationService = new InstantiationService(services);
+
+	// On some platforms we need to manually read from the global environment variables
+	// and assign them to the process environment (e.g. when doubleclick app on Mac)
+	return instantiationService.invokeFunction(accessor => {
+		return getEnvironment(accessor).then(env => {
+			assign(process.env, env);
+
+			return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
+				.then(() => instantiationService.invokeFunction(setupIPC))
+				.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
+		});
+	})
+	.done(null, err => instantiationService.invokeFunction(quit, err));
+}
+
+start();

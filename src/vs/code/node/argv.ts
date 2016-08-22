@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as minimist from 'minimist';
+import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 
@@ -71,22 +72,47 @@ const options: minimist.Opts = {
 	}
 };
 
+function validate(args: ParsedArgs): ParsedArgs {
+	if (args.goto) {
+		args._.forEach(arg => assert(/^[^:]+(:\d+){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:COLUMN))`.")));
+	}
+
+	return args;
+}
+
+function stripAppPath(argv: string[]): string[] {
+	const index = firstIndex(argv, a => !/^-/.test(a));
+
+	if (index > -1) {
+		return [...argv.slice(0, index), ...argv.slice(index + 1)];
+	}
+}
+
 /**
  * Use this to parse raw code process.argv such as: `Electron . --verbose --wait`
  */
 export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
-	const [, ...args] = processArgv;
+	let [, ...args] = processArgv;
 
 	// If dev, remove the first non-option argument: it's the app location
 	if (process.env['VSCODE_DEV']) {
-		const index = firstIndex(args, a => !/^-/.test(a));
-
-		if (index > -1) {
-			args.splice(index, 1);
-		}
+		args = stripAppPath(args);
 	}
 
-	return parseArgs(args);
+	return validate(parseArgs(args));
+}
+
+/**
+ * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
+ */
+export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
+	let [,, ...args] = processArgv;
+
+	if (process.env['VSCODE_DEV']) {
+		args = stripAppPath(args);
+	}
+
+	return validate(parseArgs(args));
 }
 
 /**
