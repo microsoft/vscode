@@ -55,4 +55,4 @@ function buildWin32Setup(cb) {
 }
 
 gulp.task('clean-vscode-win32-setup', util.rimraf('.build/win32/setup'));
-gulp.task('vscode-win32-setup', ['clean-vscode-win32-setup', 'vscode-win32-min'], buildWin32Setup);
+gulp.task('vscode-win32-setup', ['clean-vscode-win32-setup'], buildWin32Setup);
