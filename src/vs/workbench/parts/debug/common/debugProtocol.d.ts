@@ -708,6 +708,8 @@ declare module DebugProtocol {
 	}
 	/** Arguments for "completions" request. */
 	export interface CompletionsArguments {
+		/** Returns completions in the scope of this stack frame. If not specified, the completions are returned for the global scope. */
+		frameId?: number;
 		/** One or more source lines. Typically this is the text a user has typed into the debug console before he asked for completion. */
 		text: string;
 		/** The character position for which to determine the completion proposals. */
