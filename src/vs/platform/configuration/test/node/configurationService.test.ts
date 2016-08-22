@@ -28,7 +28,7 @@ class SettingsTestEnvironmentService extends EnvironmentService {
 	get appSettingsPath(): string { return this.customAppSettingsHome; }
 }
 
-suite('pasero', () => {
+suite('ConfigurationService - Node', () => {
 
 	function testFile(callback: (path: string, cleanUp: (callback: () => void) => void) => void): void {
 		const id = uuid.generateUuid();

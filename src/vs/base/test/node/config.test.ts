@@ -130,6 +130,8 @@ suite('Config', () => {
 					assert.equal(watcher.getConfig().foo, 'changed');
 					assert.equal(watcher.getValue('foo'), 'changed');
 
+					watcher.dispose();
+
 					cleanUp(done);
 				});
 			}, 50);
