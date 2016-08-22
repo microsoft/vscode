@@ -9,6 +9,7 @@ import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
+import { always } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Action } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -222,9 +223,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
-
 		this.navbar.push(NavbarSection.Readme, localize('readme', "Readme"));
-		// this.navbar.push(NavbarSection.Configuration, localize('configuration', "Config"));
+		this.navbar.push(NavbarSection.Configuration, localize('configuration', "Config"));
 
 		this.content.innerHTML = '';
 
@@ -232,9 +232,6 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private onNavbarChange(extension: IExtension, id: string): void {
-		this.contentDisposables = dispose(this.contentDisposables);
-		this.content.innerHTML = '';
-
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme(extension);
 			case NavbarSection.Configuration: return this.openConfiguration(extension);
@@ -242,9 +239,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openReadme(extension: IExtension) {
-		addClass(this.content, 'loading');
-
-		const promise = extension.getReadme()
+		return this.loadContents(() => extension.getReadme()
 			.then(marked.parse)
 			.then<void>(body => {
 				const webview = new WebView(
@@ -262,16 +257,29 @@ export class ExtensionEditor extends BaseEditor {
 			.then(null, () => {
 				const p = append(this.content, $('p'));
 				p.textContent = localize('noReadme', "No README available.");
-			})
-			.then(null, () => null)
-			.then(() => removeClass(this.content, 'loading'));
-
-		this.contentDisposables.push(toDisposable(() => promise.cancel()));
+			}));
 	}
 
 	private openConfiguration(extension: IExtension) {
+		return this.loadContents(() => {
+			return new TPromise(c => {
+				this.content.innerHTML = '';
+				this.content.innerText = 'configuration';
+				c(null);
+			});
+		});
+	}
+
+	private loadContents(loadingTask: ()=>TPromise<any>): void {
+		this.contentDisposables = dispose(this.contentDisposables);
+
 		this.content.innerHTML = '';
-		this.content.innerText = 'configuration';
+		addClass(this.content, 'loading');
+
+		let promise = loadingTask();
+		promise = always(promise, () => removeClass(this.content, 'loading'));
+
+		this.contentDisposables.push(toDisposable(() => promise.cancel()));
 	}
 
 	layout(): void {
