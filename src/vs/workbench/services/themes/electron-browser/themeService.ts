@@ -128,6 +128,9 @@ interface IInternalThemeData extends IThemeData {
 
 interface FileIconDefinition {
 	iconPath: string;
+	color: string;
+	content: string;
+	fontSize: string;
 }
 
 interface FileIconsAssociation {
@@ -141,6 +144,7 @@ interface FileIconsAssociation {
 
 interface FileIconsDocument extends FileIconsAssociation {
 	iconDefinitions: { [key:string]: FileIconDefinition };
+	font: { family: string; weight: string; style: string; src: {path:string, format:string}[] };
 	light?: FileIconsAssociation;
 	highContrast?: FileIconsAssociation;
 }
@@ -447,6 +451,10 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 	}
 	let selectorByDefinitionId : {[def:string]:string[]} = {};
 
+	function resolvePath(path: string) {
+		return Paths.join(Paths.dirname(fileIconsPath), path);
+	}
+
 	function collectSelectors(associations: FileIconsAssociation, baseThemeClassName?: string) {
 		function addSelector(selector: string, defId: string) {
 			if (defId) {
@@ -494,13 +502,34 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 	collectSelectors(fileIconsDocument.highContrast, '.hc_black');
 
 	let cssRules: string[] = [];
+
+	let font = fileIconsDocument.font;
+	if (font) {
+		let src = font.src.map(l => `url('${resolvePath(l.path)}') format('${l.format}')`).join(', ');
+		cssRules.push(`@font-face { src: ${src}; font-family: '${font.family}'; font-weigth: ${font.weight}; font-style: ${font.style}; }`);
+
+		cssRules.push(`.file-icon::before, .folder-icon::before { font-family: '${font.family}';}`);
+	}
+
 	for (let defId in selectorByDefinitionId) {
 		let selectors = selectorByDefinitionId[defId];
 		let definition = fileIconsDocument.iconDefinitions[defId];
 		if (definition) {
 			if (definition.iconPath) {
-				let path = Paths.join(Paths.dirname(fileIconsPath), definition.iconPath);
-				cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: url("${path}");}`);
+				cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: url("${resolvePath(definition.iconPath)}"); }`);
+			}
+			if (definition.content || definition.color) {
+				let body = '';
+				if (definition.color) {
+					body += ` color: ${definition.color};`;
+				}
+				if (definition.content) {
+					body += ` content: '${definition.content}';`;
+				}
+				if (definition.fontSize) {
+					body += ` font-size: ${definition.fontSize};`;
+				}
+				cssRules.push(`${selectors.join(', ')} { ${body} }`);
 			}
 		}
 	}

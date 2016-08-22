@@ -31,13 +31,20 @@
 
 .explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon::before,
 .explorer-viewlet .explorer-folders-view.show-file-icons .file-icon::before {
+	/* svg icons rendered as background image */
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
-	padding: 3px 6px 3px 0px;
+	padding-right: 4px;
 	width: 16px;
-	height: 16px;
+	height: 22px;
 	display: inline-block;
+
+	/* fonts icons */
+	vertical-align: top;
+	font-size: 16px;
+	-webkit-font-smoothing: antialiased;
+
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
