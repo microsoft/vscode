@@ -36,14 +36,13 @@
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
-	padding-right: 4px;
+	padding-right: 6px;
 	width: 16px;
 	height: 22px;
 	display: inline-block;
 
 	/* fonts icons */
 	vertical-align: top;
-	font-size: 16px;
 	-webkit-font-smoothing: antialiased;
 
 }
