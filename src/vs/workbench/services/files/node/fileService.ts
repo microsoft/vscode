@@ -153,7 +153,8 @@ export class FileService implements IFileService {
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== 'file' || !resource.fsPath) {
 			return TPromise.wrapError(<IFileOperationResult>{
-				message: nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString())
+				message: nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString()),
+				fileOperationResult: FileOperationResult.FILE_INVALID_PATH
 			});
 		}
 
