@@ -36,7 +36,7 @@
 	"miFind": "検索(&&F)",
 	"miFindInFiles": "ファイル内を検索(&&I)",
 	"miFocusFirstGroup": "左のグループ(&&L)",
-	"miFocusSecondGroup": "横のグループ(&&S)",
+	"miFocusSecondGroup": "センター グループ(&&C)",
 	"miFocusThirdGroup": "右のグループ(&&R)",
 	"miForward": "転送(&&F)",
 	"miGotoDefinition": "定義に移動(&&D)",

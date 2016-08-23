@@ -36,7 +36,7 @@
 	"miFind": "尋找(&&F)",
 	"miFindInFiles": "在檔案中尋找(&&I)",
 	"miFocusFirstGroup": "左側群組(&&L)",
-	"miFocusSecondGroup": "側邊群組(&&S)",
+	"miFocusSecondGroup": "置中群組(&&C)",
 	"miFocusThirdGroup": "右側群組(&&R)",
 	"miForward": "轉寄(&&F)",
 	"miGotoDefinition": "移至定義(&&D)",
