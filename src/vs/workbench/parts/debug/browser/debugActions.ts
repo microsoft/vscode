@@ -243,16 +243,9 @@ export class StepBackAction extends AbstractDebugAction {
 export class StopAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stop';
 	static LABEL = nls.localize('stopDebug', "Stop");
-	static DISCONNECT_LABEL = nls.localize('disconnectDebug', "Disconnect");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action stop', debugService, keybindingService);
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			const session = this.debugService.getActiveSession();
-			if (session) {
-				this.updateLabel(session.configuration.isAttach ? StopAction.DISCONNECT_LABEL : StopAction.LABEL);
-			}
-		}));
 	}
 
 	public run(): TPromise<any> {
@@ -262,6 +255,25 @@ export class StopAction extends AbstractDebugAction {
 
 	protected isEnabled(state: debug.State): boolean {
 		return super.isEnabled(state) && state !== debug.State.Inactive;
+	}
+}
+
+export class DisconnectAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.disconnect';
+	static LABEL = nls.localize('disconnectDebug', "Disconnect");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action disconnect', debugService, keybindingService);
+	}
+
+	public run(): TPromise<any> {
+		const session = this.debugService.getActiveSession();
+		return session ? session.disconnect(false, true) : TPromise.as(null);
+	}
+
+	protected isEnabled(state: debug.State): boolean {
+		const session = this.debugService.getActiveSession();
+		return super.isEnabled(state) && state !== debug.State.Inactive && session && session.configuration.isAttach;
 	}
 }
 
