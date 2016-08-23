@@ -5,7 +5,6 @@
 'use strict';
 
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ICommandService, NullCommandService} from 'vs/platform/commands/common/commands';
@@ -16,7 +15,6 @@ import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorCon
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import {MockCodeEditorService} from 'vs/editor/test/common/mocks/mockCodeEditorService';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {Range} from 'vs/editor/common/core/range';
 
@@ -52,6 +50,10 @@ export class MockCodeEditor extends CommonCodeEditor {
 	protected _createView(): void { }
 	protected _getViewInternalEventBus(): IEventEmitter { return new EventEmitter(); }
 
+	protected _registerDecorationType(key:string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void { throw new Error('NotImplemented'); }
+	protected _removeDecorationType(key:string): void { throw new Error('NotImplemented'); }
+	protected _resolveDecorationOptions(typeKey:string, writable: boolean): editorCommon.IModelDecorationOptions { throw new Error('NotImplemented'); }
+
 	// --- test utils
 	getCursor(): Cursor {
 		return this.cursor;
@@ -74,17 +76,15 @@ export class MockScopeLocation implements IContextKeyServiceTarget {
 
 export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEditorWidgetCreationOptions, callback:(editor:MockCodeEditor, cursor:Cursor)=>void): void {
 
-	let codeEditorService = new MockCodeEditorService();
 	let contextKeyService = new MockKeybindingService();
 	let commandService = NullCommandService;
 
 	let services = new ServiceCollection();
-	services.set(ICodeEditorService, codeEditorService);
 	services.set(IContextKeyService, contextKeyService);
 	services.set(ICommandService, commandService);
 	let instantiationService = new InstantiationService(services);
 
-	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, commandService, contextKeyService);
+	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, commandService, contextKeyService);
 	let model: Model;
 	if (!options.model) {
 		model = Model.createFromString(text.join('\n'));

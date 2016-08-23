@@ -24,7 +24,6 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {DynamicEditorAction} from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
 import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
@@ -111,7 +110,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[]};
 	private _decorationTypeSubtypes: {[decorationTypeKey:string]:{ [subtype:string]:boolean}};
 
-	private _codeEditorService: ICodeEditorService;
 	private _editorIdContextKey: IContextKey<string>;
 	protected _editorFocusContextKey: IContextKey<boolean>;
 	private _editorTabMovesFocusKey: IContextKey<boolean>;
@@ -124,7 +122,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		domElement: IContextKeyServiceTarget,
 		options: editorCommon.IEditorOptions,
 		instantiationService: IInstantiationService,
-		codeEditorService: ICodeEditorService,
 		commandService: ICommandService,
 		contextKeyService: IContextKeyService
 	) {
@@ -133,7 +130,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this.domElement = domElement;
 
 		this.id = (++EDITOR_ID);
-		this._codeEditorService = codeEditorService;
 
 		var timerEvent = timer.start(timer.Topic.EDITOR, 'CodeEditor.ctor');
 
@@ -181,8 +177,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._actions = {};
 
 		timerEvent.stop();
-
-		this._codeEditorService.addCodeEditor(this);
 	}
 
 	protected abstract _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration;
@@ -200,7 +194,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	}
 
 	public dispose(): void {
-		this._codeEditorService.removeCodeEditor(this);
 		this._lifetimeDispose = dispose(this._lifetimeDispose);
 
 		let keys = Object.keys(this._contributions);
@@ -691,11 +684,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				typeKey = decorationTypeKey + '-' + subType;
 				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
 					// decoration type did not exist before, register new one
-					this._codeEditorService.registerDecorationType(typeKey, decorationOption.renderOptions, decorationTypeKey);
+					this._registerDecorationType(typeKey, decorationOption.renderOptions, decorationTypeKey);
 				}
 				newDecorationsSubTypes[subType] = true;
 			}
-			let opts = this._codeEditorService.resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
+			let opts = this._resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
 			if (decorationOption.hoverMessage) {
 				opts.hoverMessage = decorationOption.hoverMessage;
 			}
@@ -705,7 +698,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
 		for (let subType in oldDecorationsSubTypes) {
 			if (!newDecorationsSubTypes[subType]) {
-				this._codeEditorService.removeDecorationType(decorationTypeKey + '-' + subType);
+				this._removeDecorationType(decorationTypeKey + '-' + subType);
 			}
 		}
 
@@ -1000,7 +993,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				for (let decorationType in this._decorationTypeSubtypes) {
 					let subTypes = this._decorationTypeSubtypes[decorationType];
 					for (let subType in subTypes) {
-						this._codeEditorService.removeDecorationType(decorationType + '-' + subType);
+						this._removeDecorationType(decorationType + '-' + subType);
 					}
 				}
 				this._decorationTypeSubtypes = {};
@@ -1035,4 +1028,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 		return result;
 	}
+
+	protected abstract _registerDecorationType(key:string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
+	protected abstract _removeDecorationType(key:string): void;
+	protected abstract _resolveDecorationOptions(typeKey:string, writable: boolean): editorCommon.IModelDecorationOptions;
 }

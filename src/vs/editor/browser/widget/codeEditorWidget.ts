@@ -60,6 +60,8 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		return this.addListener2('scroll', listener);
 	}
 
+	private _codeEditorService: ICodeEditorService;
+
 	protected domElement:HTMLElement;
 	private _focusTracker: CodeEditorWidgetFocusTracker;
 
@@ -78,7 +80,8 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+		super(domElement, options, instantiationService, commandService, contextKeyService);
+		this._codeEditorService = codeEditorService;
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChage(() => {
@@ -110,6 +113,8 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 			let internalAction = new InternalEditorAction(action, this, this._instantiationService, this._contextKeyService);
 			this._actions[internalAction.id] = internalAction;
 		});
+
+		this._codeEditorService.addCodeEditor(this);
 	}
 
 	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
@@ -117,6 +122,8 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 	}
 
 	public dispose(): void {
+		this._codeEditorService.removeCodeEditor(this);
+
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
@@ -539,6 +546,22 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 		return result;
 	}
+
+	// BEGIN decorations
+
+	protected _registerDecorationType(key:string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
+		this._codeEditorService.registerDecorationType(key, options, parentTypeKey);
+	}
+
+	protected _removeDecorationType(key:string): void {
+		this._codeEditorService.removeDecorationType(key);
+	}
+
+	protected _resolveDecorationOptions(typeKey:string, writable: boolean): editorCommon.IModelDecorationOptions {
+		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
+	}
+
+	// END decorations
 }
 
 class CodeEditorWidgetFocusTracker extends Disposable {
