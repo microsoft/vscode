@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import Event, { Emitter, once } from 'vs/base/common/event';
+import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -22,7 +23,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension } from './extensions';
@@ -112,6 +113,9 @@ export class ExtensionEditor extends BaseEditor {
 	private _highlight: ITemplateData;
 	private highlightDisposable: IDisposable;
 
+	private extensionReadme: Cache<string>;
+	private extensionManifest: Cache<IExtensionManifest>;
+
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
@@ -130,6 +134,8 @@ export class ExtensionEditor extends BaseEditor {
 		this._highlight = null;
 		this.highlightDisposable = empty;
 		this.disposables = [];
+		this.extensionReadme = null;
+		this.extensionManifest = null;
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
@@ -178,6 +184,9 @@ export class ExtensionEditor extends BaseEditor {
 
 		const extension = input.extension;
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
+
+		this.extensionReadme = new Cache(() => extension.getReadme());
+		this.extensionManifest = new Cache(() => extension.getManifest());
 
 		const onError = once(domEvent(this.icon, 'error'));
 		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
@@ -243,8 +252,9 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openReadme(extension: IExtension) {
-		return this.loadContents(() => extension.getReadme()
+		return this.loadContents(() => this.extensionReadme.get()
 			.then(marked.parse)
+			.then(renderBody)
 			.then<void>(body => {
 				const webview = new WebView(
 					this.content,
@@ -252,7 +262,7 @@ export class ExtensionEditor extends BaseEditor {
 				);
 
 				webview.style(this.themeService.getColorTheme());
-				webview.contents = [renderBody(body)];
+				webview.contents = [body];
 
 				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString()));
 				const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
@@ -265,7 +275,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openContributions(extension: IExtension) {
-		return this.loadContents(() => extension.getManifest()
+		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
 				this.content.innerHTML = '';
 				const content = append(this.content, $('div', { class: 'subcontent' }));
