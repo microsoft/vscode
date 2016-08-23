@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, {Emitter, fromEventEmitter, debounceEvent, EventBufferer} from 'vs/base/common/event';
+import Event, {Emitter, fromEventEmitter, debounceEvent, EventBufferer, once} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
@@ -253,5 +253,33 @@ suite('EventBufferer', () => {
 		assert.equal(counter.count, 4);
 
 		listener.dispose();
+	});
+
+	test('once', () => {
+		const emitter = new Emitter<void>();
+
+		let counter1 = 0, counter2 = 0, counter3 = 0;
+
+		const listener1 = emitter.event(() => counter1++);
+		const listener2 = once(emitter.event)(() => counter2++);
+		const listener3 = once(emitter.event)(() => counter3++);
+
+		assert.equal(counter1, 0);
+		assert.equal(counter2, 0);
+		assert.equal(counter3, 0);
+
+		listener3.dispose();
+		emitter.fire();
+		assert.equal(counter1, 1);
+		assert.equal(counter2, 1);
+		assert.equal(counter3, 0);
+
+		emitter.fire();
+		assert.equal(counter1, 2);
+		assert.equal(counter2, 1);
+		assert.equal(counter3, 0);
+
+		listener1.dispose();
+		listener2.dispose();
 	});
 });
