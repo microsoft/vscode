@@ -66,6 +66,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private viewZones: ViewZones;
 	private contentWidgets: ViewContentWidgets;
 	private overlayWidgets: ViewOverlayWidgets;
+	private viewCursors: ViewCursors;
 	private viewParts: ViewPart[];
 
 	private keyboardHandler: KeyboardHandler;
@@ -251,8 +252,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.contentWidgets = new ViewContentWidgets(this._context, this.domNode);
 		this.viewParts.push(this.contentWidgets);
 
-		var viewCursors = new ViewCursors(this._context);
-		this.viewParts.push(viewCursors);
+		this.viewCursors = new ViewCursors(this._context);
+		this.viewParts.push(this.viewCursors);
 
 		// Overlay widgets
 		this.overlayWidgets = new ViewOverlayWidgets(this._context);
@@ -276,7 +277,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.linesContent.appendChild(this.viewZones.domNode);
 		this.linesContent.appendChild(this.viewLines.getDomNode());
 		this.linesContent.appendChild(this.contentWidgets.domNode);
-		this.linesContent.appendChild(viewCursors.getDomNode());
+		this.linesContent.appendChild(this.viewCursors.getDomNode());
 		this.overflowGuardContainer.appendChild(marginViewOverlays.getDomNode());
 		this.overflowGuardContainer.appendChild(this.linesContentContainer);
 		this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
@@ -351,6 +352,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					throw new Error('ViewImpl.pointerHandler.getWhitespaceAtVerticalOffset: View is disposed');
 				}
 				return this.layoutProvider.getWhitespaceAtVerticalOffset(verticalOffset);
+			},
+			getLastViewCursorsRenderData: () => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.pointerHandler.getLastViewCursorsRenderData: View is disposed');
+				}
+				return this.viewCursors.getLastRenderData() || [];
 			},
 			shouldSuppressMouseDownOnViewZone: (viewZoneId: number) => {
 				if (this._isDisposed) {
