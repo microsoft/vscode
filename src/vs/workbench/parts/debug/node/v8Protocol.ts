@@ -55,21 +55,65 @@ export abstract class V8Protocol {
 		}, () => errorCallback(canceled()));
 	}
 
+	protected dispatchRequest(request: DebugProtocol.Request): void {
+
+		const response: DebugProtocol.Response = {
+			type: 'response',
+			seq: 0,
+			command: request.command,
+			request_seq: request.seq,
+			success: true
+		};
+
+		try {
+			if (request.command === 'runInTerminal') {
+
+				// Todo: launch command in terminal
+
+				(<DebugProtocol.RunInTerminalResponse> response).body = {
+					processId: 12345	// send back process id
+				};
+
+				this.sendResponse(response);
+			}
+		} catch (e) {
+			response.success = false;
+			response.message = 'error while handling request';
+			this.sendResponse(response);
+		}
+	}
+
+	public sendResponse(response: DebugProtocol.Response): void {
+		if (response.seq > 0) {
+			console.error(`attempt to send more than one response for command ${response.command}`);
+		} else {
+			this.sendMessage('response', response);
+		}
+	}
+
 	private doSend(command: string, args: any, clb: (result: DebugProtocol.Response) => void): void {
 
-		const request: DebugProtocol.Request = {
-			type: 'request',
-			seq: this.sequence++,
+		const request: any = {
 			command: command
 		};
 		if (args && Object.keys(args).length > 0) {
 			request.arguments = args;
 		}
 
-		// store callback for this request
-		this.pendingRequests[request.seq] = clb;
+		this.sendMessage('request', request);
 
-		const json = JSON.stringify(request);
+		if (clb) {
+			// store callback for this request
+			this.pendingRequests[request.seq] = clb;
+		}
+	}
+
+	private sendMessage(typ: 'request' | 'response' | 'event', message: DebugProtocol.ProtocolMessage): void {
+
+		message.type = typ;
+		message.seq = this.sequence++;
+
+		const json = JSON.stringify(message);
 		const length = Buffer.byteLength(json, 'utf8');
 
 		this.outputStream.write('Content-Length: ' + length.toString() + V8Protocol.TWO_CRLF, 'utf8');
@@ -110,15 +154,21 @@ export abstract class V8Protocol {
 	private dispatch(body: string): void {
 		try {
 			const rawData = JSON.parse(body);
-			if (typeof rawData.event !== 'undefined') {
-				this.onEvent(rawData);
-			} else {
-				const response = <DebugProtocol.Response>rawData;
-				const clb = this.pendingRequests[response.request_seq];
-				if (clb) {
-					delete this.pendingRequests[response.request_seq];
-					clb(response);
-				}
+			switch (rawData.type) {
+				case 'event':
+					this.onEvent(<DebugProtocol.Event>rawData);
+					break;
+				case 'response':
+					const response = <DebugProtocol.Response>rawData;
+					const clb = this.pendingRequests[response.request_seq];
+					if (clb) {
+						delete this.pendingRequests[response.request_seq];
+						clb(response);
+					}
+					break;
+				case 'request':
+					this.dispatchRequest(<DebugProtocol.Request>rawData);
+					break;
 			}
 		} catch (e) {
 			this.onServerError(new Error(e.message || e));

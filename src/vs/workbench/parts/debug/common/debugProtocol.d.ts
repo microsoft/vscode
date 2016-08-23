@@ -165,7 +165,36 @@ declare module DebugProtocol {
 		}
 	}
 
-	//---- Requests
+	//---- Frontend Requests
+
+	/** runInTerminal request; value of command field is "runInTerminal".
+		With this request a debug adapter can run a command in a terminal.
+	*/
+	export interface RunInTerminalRequest extends Request {
+		arguments: RunInTerminalRequestArguments;
+	}
+	/** Arguments for "runInTerminal" request. */
+	export interface RunInTerminalRequestArguments {
+		/** What kind of terminal to launch. */
+		kind?: 'integrated' | 'external';
+		/** Optional title of the terminal. */
+		title?: string;
+		/** Working directory of the command. */
+		cwd: string;
+		/** List of arguments. The first argument is the command to run. */
+		args: string[];
+		/** Environment key-value pairs that are added to the default environment. */
+		env?: { [key: string]: string; }
+	}
+	/** Response to Initialize request. */
+	export interface RunInTerminalResponse extends Response {
+		body: {
+			/** The process ID */
+			processId?: number;
+		};
+	}
+
+	//---- Debug Adapter Requests
 
 	/** On error that is whenever 'success' is false, the body can provide more details.
 	 */
@@ -196,6 +225,8 @@ declare module DebugProtocol {
 		supportsVariableType?: boolean;
 		/** Client supports the paging of variables. */
 		supportsVariablePaging?: boolean;
+		/** Client supports the runInTerminal request. */
+		supportsRunInTerminalRequest?: boolean;
 	}
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
