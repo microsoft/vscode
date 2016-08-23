@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
+import {Selection} from 'vs/editor/common/core/selection';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
 import {MockCodeEditor, withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
@@ -217,6 +218,23 @@ suite('SnippetController', () => {
 			snippetController.dispose();
 
 			assert.equal(snippetController.isInSnippetMode(), false);
+		});
+	});
+
+	test('Final tabstop with multiple selection', () => {
+		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1),
+				new Selection(2, 1, 2, 1),
+			]);
+
+			codeSnippet = new CodeSnippet('foo{{}}');
+			snippetController.run(codeSnippet, 0, 0, false);
+
+			assert.equal(editor.getSelections().length, 2);
+			const [first, second] = editor.getSelections();
+			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }));
+			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }));
 		});
 	});
 });
