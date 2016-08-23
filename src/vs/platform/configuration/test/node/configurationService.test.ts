@@ -59,15 +59,15 @@ suite('ConfigurationService - Node', () => {
 
 	test('config gets flattened', (done: () => void) => {
 		testFile((testFile, cleanUp) => {
-			fs.writeFileSync(testFile, '{ "workbench.editor.tabs": true }');
+			fs.writeFileSync(testFile, '{ "testworkbench.editor.tabs": true }');
 
 			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
 
-			const config = service.getConfiguration<{ workbench: { editor: { tabs: boolean } } }>();
+			const config = service.getConfiguration<{ testworkbench: { editor: { tabs: boolean } } }>();
 			assert.ok(config);
-			assert.ok(config.workbench);
-			assert.ok(config.workbench.editor);
-			assert.equal(config.workbench.editor.tabs, true);
+			assert.ok(config.testworkbench);
+			assert.ok(config.testworkbench.editor);
+			assert.equal(config.testworkbench.editor.tabs, true);
 
 			service.dispose();
 
@@ -135,24 +135,24 @@ suite('ConfigurationService - Node', () => {
 
 	test('configuration change event', (done: () => void) => {
 		testFile((testFile, cleanUp) => {
-			fs.writeFileSync(testFile, '{ "workbench.editor.tabs": true }');
+			fs.writeFileSync(testFile, '{ "testworkbench.editor.tabs": true }');
 
 			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
 			service.reloadConfiguration().then(() => { // ensure loaded
 				service.onDidUpdateConfiguration(event => {
-					const config = <{ workbench: { editor: { tabs: boolean } } }>event.config;
+					const config = <{ testworkbench: { editor: { tabs: boolean } } }>event.config;
 
 					assert.ok(config);
-					assert.ok(config.workbench);
-					assert.ok(config.workbench.editor);
-					assert.equal(config.workbench.editor.tabs, false);
+					assert.ok(config.testworkbench);
+					assert.ok(config.testworkbench.editor);
+					assert.equal(config.testworkbench.editor.tabs, false);
 
 					service.dispose();
 
 					cleanUp(done);
 				});
 
-				fs.writeFileSync(testFile, '{ "workbench.editor.tabs": false }');
+				fs.writeFileSync(testFile, '{ "testworkbench.editor.tabs": false }');
 			});
 		});
 	});
@@ -185,7 +185,7 @@ suite('ConfigurationService - Node', () => {
 		assert.equal(setting.configuration.service.testSetting, 'isSet');
 
 		testFile((testFile, cleanUp) => {
-			fs.writeFileSync(testFile, '{ "workbench.editor.tabs": true }');
+			fs.writeFileSync(testFile, '{ "testworkbench.editor.tabs": true }');
 
 			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
 

@@ -6,7 +6,7 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';

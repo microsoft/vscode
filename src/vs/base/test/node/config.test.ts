@@ -115,8 +115,6 @@ suite('Config', () => {
 		testFile((testFile, cleanUp) => {
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
 
-			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
-
 			setTimeout(function () {
 				fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
 			}, 50);
