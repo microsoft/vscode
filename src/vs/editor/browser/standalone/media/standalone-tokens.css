@@ -10,6 +10,22 @@
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 }
 
+.monaco-menu .monaco-action-bar.vertical .action-item [tabindex="0"]:focus {
+	color: deepskyblue;
+}
+
+/*.monaco-editor.vs [tabindex="0"]:focus {
+	outline: 1px solid rgba(0, 122, 204, 0.4);
+	outline-offset: -1px;
+	opacity: 1 !important;
+}
+
+.monaco-editor.vs-dark [tabindex="0"]:focus {
+	outline: 1px solid rgba(14, 99, 156, 0.6);
+	outline-offset: -1px;
+	opacity: 1 !important;
+}*/
+
 .monaco-editor.vs .token.terminal					{ color: #e00000; }
 .monaco-editor.vs .token.terminal.code1				{ font-weight: bold; }
 .monaco-editor.vs .token.variable					{ color: #001188; }
