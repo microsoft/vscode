@@ -20,6 +20,8 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {Registry} from 'vs/platform/platform';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
+import {Extensions as JSONExtensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
 import {$} from 'vs/base/browser/builder';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -77,22 +79,22 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 });
 
 let fileIconsExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('fileIcons', {
-	description: nls.localize('vscode.extension.contributes.fileIcons', 'Contributes file icons sets.'),
+	description: nls.localize('vscode.extension.contributes.fileIcons', 'Contributes icon themes.'),
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { id: '{{id}}', label: '{{label}}', path: './fileicons/{{id}}.json' } }],
+		defaultSnippets: [{ body: { id: '{{id}}', label: '{{label}}', path: './fileicons/{{id}}-icon-theme.json' } }],
 		properties: {
 			id: {
-				description: nls.localize('vscode.extension.contributes.fileIcons.id', 'Id of the file icon set as used in the user settings.'),
+				description: nls.localize('vscode.extension.contributes.fileIcons.id', 'Id of the icon theme as used in the user settings.'),
 				type: 'string'
 			},
 			label: {
-				description: nls.localize('vscode.extension.contributes.fileIcons.label', 'Label of the file icon set as shown in the UI.'),
+				description: nls.localize('vscode.extension.contributes.fileIcons.label', 'Label of the icon theme as shown in the UI.'),
 				type: 'string'
 			},
 			path: {
-				description: nls.localize('vscode.extension.contributes.fileIcons.path', 'Path of the file icons definition file. The path is relative to the extension folder and is typically \'./fileicons/fileIconsFile.json\'.'),
+				description: nls.localize('vscode.extension.contributes.fileIcons.path', 'Path of the icon theme definition file. The path is relative to the extension folder and is typically \'./icons/awesome-icon-theme.json\'.'),
 				type: 'string'
 			}
 		},
@@ -791,3 +793,204 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+const schemaId = 'vscode://schemas/icon-theme';
+const schema: IJSONSchema = {
+	type: 'object',
+	definitions: {
+		folderExpanded: {
+			type: 'string',
+			description: nls.localize('schema.folderExpanded', 'The folder icon for expanded folders. The expanded folder icon is optional. If not set, the icon defined for folder will be shown.')
+		},
+		folder: {
+			type: 'string',
+			description: nls.localize('schema.folder', 'The folder icon for collapsed folders, and if folderExpanded is not set, also for expanded folders.')
+
+		},
+		file: {
+			type: 'string',
+			description: nls.localize('schema.file', 'The default file icon, shown for all files that don\'t match any extension, filename or language id.')
+
+		},
+		fileExtensions: {
+			type: 'object',
+			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive.'),
+
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.fileExtension', 'The ID of the icon definition for the association.')
+			}
+		},
+		fileNames: {
+			type: 'object',
+			description: nls.localize('schema.fileNames', 'Associates file names to icons. The object key is is the full file name, but not including any path segments. File name can include dots and a possible file extension. No patterns or wildcards are allowed. File name matching is case insensitive.'),
+
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.fileName', 'The ID of the icon definition for the association.')
+			}
+		},
+		languageIds: {
+			type: 'object',
+			description: nls.localize('schema.languageIds', 'Associates languages to icons. The object key is the language id as defined in the language contribution point.'),
+
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.languageId', 'The ID of the icon definition for the association.')
+			}
+		}
+	},
+	properties: {
+		fonts: {
+			type: 'array',
+			description: nls.localize('schema.fonts', 'Fonts that are used in the icon definitions.'),
+			items: {
+				type: 'object',
+				properties: {
+					id: {
+						type: 'string',
+						description: nls.localize('schema.id', 'The ID of the font.')
+					},
+					src: {
+						type: 'array',
+						description: nls.localize('schema.src', 'The locations of the font.'),
+						items: {
+							type: 'object',
+							properties: {
+								path: {
+									type: 'string',
+									description: nls.localize('schema.font-path', 'The font path, relative to the current icon theme file.'),
+								},
+								format: {
+									type: 'string',
+									description: nls.localize('schema.font-format', 'The format of the font.')
+								}
+							},
+							required: [
+								'path',
+								'format'
+							]
+						}
+					},
+					weight: {
+						type: 'string',
+						description: nls.localize('schema.font-weight', 'The weight of the font.')
+					},
+					style: {
+						type: 'string',
+						description: nls.localize('schema.font-sstyle', 'The style of the font.')
+					},
+					size: {
+						type: 'string',
+						description: nls.localize('schema.font-size', 'The default size of the font.')
+					}
+				},
+				required: [
+					'family',
+					'src'
+				]
+			}
+		},
+		iconDefinitions: {
+			type: 'object',
+			description: nls.localize('schema.iconDefinitions', 'Description of all icons that can be used when associating files to icons.'),
+			additionalProperties: {
+				type: 'object',
+				description: nls.localize('schema.iconDefinition', 'An icon definition. The object key is the ID of the definition.'),
+				properties: {
+					iconPath: {
+						type: 'string',
+						description: nls.localize('schema.iconPath', 'When using a SVG or PNG: The path to the image. The path is relative to the icon set file.')
+					},
+					fontCharacter: {
+						type: 'string',
+						description: nls.localize('schema.fontCharacter', 'When using a glyph font: The character in the font to use.')
+					},
+					fontColor: {
+						type: 'string',
+						description: nls.localize('schema.fontColor', 'When using a glyph font: The color to use.')
+					},
+					fontSize: {
+						type: 'string',
+						description: nls.localize('schema.fontSize', 'When using a font: The font size in percentage to the text font. If not set, defaults to the size in the font definition.')
+					},
+					fontId: {
+						type: 'string',
+						description: nls.localize('schema.fontId', 'When using a font: The id of the font. If not set, defaults to the first font definition.')
+					}
+				}
+			}
+		},
+		folderExpanded: {
+			$ref: '#/definitions/folderExpanded'
+		},
+		folder: {
+			$ref: '#/definitions/folder'
+		},
+		file: {
+			$ref: '#/definitions/file'
+		},
+		fileExtensions: {
+			$ref: '#/definitions/fileExtensions'
+		},
+		fileNames: {
+			$ref: '#/definitions/fileNames'
+		},
+		languageIds: {
+			$ref: '#/definitions/languageIds'
+		},
+		light: {
+			type: 'object',
+			properties: {
+				folderExpanded: {
+					$ref: '#/definitions/folderExpanded'
+				},
+				folder: {
+					$ref: '#/definitions/folder'
+				},
+				file: {
+					$ref: '#/definitions/file'
+				},
+				fileExtensions: {
+					$ref: '#/definitions/fileExtensions'
+				},
+				fileNames: {
+					$ref: '#/definitions/fileNames'
+				},
+				languageIds: {
+					$ref: '#/definitions/languageIds'
+				}
+			}
+		},
+		highContrast: {
+			type: 'object',
+			properties: {
+				folderExpanded: {
+					$ref: '#/definitions/folderExpanded'
+				},
+				folder: {
+					$ref: '#/definitions/folder'
+				},
+				file: {
+					$ref: '#/definitions/file'
+				},
+				fileExtensions: {
+					$ref: '#/definitions/fileExtensions'
+				},
+				fileNames: {
+					$ref: '#/definitions/fileNames'
+				},
+				languageIds: {
+					$ref: '#/definitions/languageIds'
+				}
+			}
+		}
+	},
+	required: [
+		'iconDefinitions',
+		'file'
+	]
+};
+
+let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+schemaRegistry.registerSchema(schemaId, schema);
