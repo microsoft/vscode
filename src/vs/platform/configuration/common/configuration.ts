@@ -6,7 +6,6 @@
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {JSONPath} from 'vs/base/common/json';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -26,20 +25,9 @@ export interface IConfigurationService {
 	loadConfiguration<T>(section?: string): TPromise<T>;
 
 	/**
-	 * Returns iff the workspace has configuration or not.
-	 */
-	hasWorkspaceConfiguration(): boolean;
-
-	/**
 	 * Event that fires when the configuration changes.
 	 */
 	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
-
-	/**
-	 * Sets a user configuration. An the setting does not yet exist in the settings, it will be
-	 * added.
-	 */
-	setUserConfiguration(key: string | JSONPath, value: any): Thenable<void>;
 }
 
 export interface IConfigurationServiceEvent {
@@ -60,6 +48,6 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 
 	const path = settingPath.split('.');
 	const result = accessSetting(config, path);
-	
+
 	return typeof result === 'undefined' ? defaultValue : result;
 }

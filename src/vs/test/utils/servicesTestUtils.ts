@@ -551,10 +551,6 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 		return this.configuration;
 	}
 
-	public hasWorkspaceConfiguration(): boolean {
-		return false;
-	}
-
 	public setUserConfiguration(key: any, value: any): Thenable<void> {
 		this.configuration[key] = value;
 		return TPromise.as(null);
