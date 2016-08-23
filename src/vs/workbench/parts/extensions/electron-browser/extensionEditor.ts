@@ -280,32 +280,43 @@ export class ExtensionEditor extends BaseEditor {
 				this.content.innerHTML = '';
 				const content = append(this.content, $('div', { class: 'subcontent' }));
 
-				const configuration = manifest.contributes.configuration;
-				const properties = configuration && configuration.properties;
-				const settings = properties ? Object.keys(properties) : [];
-
-				if (settings.length) {
-					append(content, $('details', { open: true },
-						$('summary', null, localize('settings', "Settings ({0})", settings.length)),
-						$('table', { class: 'settings' },
-							$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
-							...settings.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
-						)
-					));
-				}
-
-				const debuggers = manifest.contributes.debuggers || [];
-
-				if (debuggers.length) {
-					append(content, $('details', null,
-						$('summary', null, localize('debuggers', "Debuggers ({0})", debuggers.length)),
-						$('table', { class: 'settings' },
-							$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
-							...debuggers.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
-						)
-					));
-				}
+				ExtensionEditor.renderSettings(content, manifest);
+				ExtensionEditor.renderDebuggers(content, manifest);
 			}));
+	}
+
+	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest): void {
+		const configuration = manifest.contributes.configuration;
+		const properties = configuration && configuration.properties;
+		const settings = properties ? Object.keys(properties) : [];
+
+		if (!settings.length) {
+			return;
+		}
+
+		append(container, $('details', { open: true },
+			$('summary', null, localize('settings', "Settings ({0})", settings.length)),
+			$('table', { class: 'settings' },
+				$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
+				...settings.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
+			)
+		));
+	}
+
+	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest): void {
+		const debuggers = manifest.contributes.debuggers || [];
+
+		if (!debuggers.length) {
+			return;
+		}
+
+		append(container, $('details', { open: true },
+			$('summary', null, localize('debuggers', "Debuggers ({0})", debuggers.length)),
+			$('table', { class: 'settings' },
+				$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
+				...debuggers.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
+			)
+		));
 	}
 
 	private loadContents(loadingTask: ()=>TPromise<any>): void {
