@@ -139,17 +139,16 @@ suite('Config', () => {
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
 
 			setTimeout(function () {
+				watcher.onDidUpdateConfiguration(event => {
+					assert.ok(event);
+
+					watcher.dispose();
+
+					cleanUp(done);
+				});
+
 				fs.unlinkSync(testFile);
 			}, 50);
-
-			watcher.onDidUpdateConfiguration(event => {
-				assert.ok(event);
-
-				watcher.dispose();
-
-				cleanUp(done);
-			});
-
 		});
 	});
 
