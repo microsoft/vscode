@@ -81,7 +81,7 @@ export class MarkersPanel extends Panel {
 		const conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
 		this.onConfigurationsUpdated(conf);
 
-		let container = dom.append(parent.getHTMLElement(), dom.emmet('.markers-panel-container'));
+		let container = dom.append(parent.getHTMLElement(), dom.$('.markers-panel-container'));
 
 		this.createMessageBox(container);
 		this.createTree(container);
@@ -147,13 +147,13 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
-		this.messageBoxContainer = dom.append(parent, dom.emmet('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.emmet('span'));
+		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
+		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
 		this.messageBox.setAttribute('tabindex', '0');
 	}
 
 	private createTree(parent: HTMLElement): void {
-		this.treeContainer = dom.append(parent, dom.emmet('.tree-container'));
+		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
 		var controller = this.instantiationService.createInstance(Controller);

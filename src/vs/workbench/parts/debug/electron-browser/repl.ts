@@ -33,7 +33,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 const replTreeOptions: tree.ITreeOptions = {
 	indentPixels: 8,

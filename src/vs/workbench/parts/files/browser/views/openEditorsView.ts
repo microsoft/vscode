@@ -27,7 +27,7 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IEventService} from 'vs/platform/event/common/event';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 

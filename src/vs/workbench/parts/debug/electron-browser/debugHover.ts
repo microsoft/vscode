@@ -22,7 +22,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 
-const $ = dom.emmet;
+const $ = dom.$;
 const debugTreeOptions = {
 	indentPixels: 6,
 	twistiePixels: 15,
