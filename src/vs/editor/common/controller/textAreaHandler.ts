@@ -21,7 +21,7 @@ enum ReadFromTextArea {
 export interface IBrowser {
 	isIPad: boolean;
 	isChrome: boolean;
-	isIE11orEarlier: boolean;
+	isEdgeOrIE: boolean;
 	isFirefox: boolean;
 	enableEmptySelectionClipboard: boolean;
 }
@@ -122,7 +122,7 @@ export class TextAreaHandler extends Disposable {
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
 			let shouldEmptyTextArea = true;
 			if (shouldEmptyTextArea) {
-				if (!this.Browser.isIE11orEarlier) {
+				if (!this.Browser.isEdgeOrIE) {
 					this.setTextAreaState('compositionstart', this.textAreaState.toEmpty());
 				}
 			}
@@ -131,7 +131,7 @@ export class TextAreaHandler extends Disposable {
 			let showAtColumn: number;
 
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (this.Browser.isIE11orEarlier) {
+			if (this.Browser.isEdgeOrIE) {
 				// Ensure selection start is in viewport
 				showAtLineNumber = this.selection.startLineNumber;
 				showAtColumn = (this.selection.startColumn - this.textAreaState.getSelectionStart());
@@ -171,6 +171,10 @@ export class TextAreaHandler extends Disposable {
 			this.textAreaState = this.textAreaState.fromText(e.data);
 			let typeInput = this.textAreaState.updateComposition();
 			this._onType.fire(typeInput);
+
+			// Due to isEdgeOrIE (where the textarea was not cleared initially)
+			// we cannot assume the text at the end consists only of the composited text
+			this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
 
 			this.lastCompositionEndTime = (new Date()).getTime();
 			if (!this.textareaIsShownAtCursor) {

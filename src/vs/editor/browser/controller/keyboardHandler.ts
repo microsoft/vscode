@@ -90,10 +90,6 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 				StyleMutator.setLeft(this.textArea.actual, this.contentLeft + this.visibleRange.left - this.scrollLeft);
 			}
 
-			if (browser.isIE11orEarlier) {
-				StyleMutator.setWidth(this.textArea.actual, this.contentWidth);
-			}
-
 			// Show the textarea
 			StyleMutator.setHeight(this.textArea.actual, this._context.configuration.editor.lineHeight);
 			dom.addClass(this.viewHelper.viewDomNode, 'ime-input');
@@ -102,12 +98,18 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		}));
 
 		this._toDispose.push(this.textAreaHandler.onCompositionUpdate((e) => {
-			// adjust width by its size
-			let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
-			let context = canvasElem.getContext('2d');
-			context.font = window.getComputedStyle(this.textArea.actual).font;
-			let metrics = context.measureText(e.data);
-			StyleMutator.setWidth(this.textArea.actual, metrics.width);
+			if (browser.isEdgeOrIE) {
+				// Due to isEdgeOrIE (where the textarea was not cleared initially)
+				// we cannot assume the text consists only of the composited text
+				StyleMutator.setWidth(this.textArea.actual, 0);
+			} else {
+				// adjust width by its size
+				let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
+				let context = canvasElem.getContext('2d');
+				context.font = window.getComputedStyle(this.textArea.actual).font;
+				let metrics = context.measureText(e.data);
+				StyleMutator.setWidth(this.textArea.actual, metrics.width);
+			}
 		}));
 
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
