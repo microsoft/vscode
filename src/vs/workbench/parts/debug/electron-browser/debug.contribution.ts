@@ -24,7 +24,7 @@ import {VariablesView, WatchExpressionsView, CallStackView, BreakpointsView} fro
 import wbext = require('vs/workbench/common/contributions');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import {DebugEditorModelManager} from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
-import {ToggleBreakpointAction, EditorConditionalBreakpointAction, ShowDebugHoverAction, SelectionToReplAction, RunToCursorAction, StepOverAction,
+import {ToggleBreakpointAction, EditorConditionalBreakpointAction, ShowDebugHoverAction, SelectionToReplAction, RunToCursorAction, StepOverAction, ClearReplAction,
 	StepIntoAction, StepOutAction, StartAction, StepBackAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
 	ConfigureAction, ToggleReplAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction} from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
@@ -113,6 +113,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RunAction, RunAction.I
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL), 'Debug: Remove All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL), 'Debug: Enable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Console', debugCategory);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: '_workbench.startDebug',
