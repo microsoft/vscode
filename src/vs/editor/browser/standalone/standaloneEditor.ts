@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import './standaloneSchemas';
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
