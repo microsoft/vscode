@@ -239,7 +239,13 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
 				if (this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
-					this.session.configurationDone().done(null, errors.onUnexpectedError);
+					this.session.configurationDone().done(null, e => {
+						// Disconnect the debug session on configuration done error #10596
+						if (this.session) {
+							this.session.disconnect().done(null, errors.onUnexpectedError);
+						}
+						this.messageService.show(severity.Error, e.message);
+					});
 				}
 			});
 		}));
@@ -672,7 +678,7 @@ export class DebugService implements debug.IDebugService {
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 				this.setStateAndEmit(debug.State.Inactive);
 				if (this.session) {
-					this.session.disconnect();
+					this.session.disconnect().done(null, errors.onUnexpectedError);
 				}
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
