@@ -348,7 +348,7 @@ export class AutoFetcher implements git.IAutoFetcher, lifecycle.IDisposable
 
 	private loop(): void {
 		var model = this.gitService ? this.gitService.getModel() : null;
-		var remotes = model ? model.getRemotes() : null
+		var remotes = model ? model.getRemotes() : null;
 
 		if(remotes && remotes.length !== 0){
 			this._state = git.AutoFetcherState.Fetching;
