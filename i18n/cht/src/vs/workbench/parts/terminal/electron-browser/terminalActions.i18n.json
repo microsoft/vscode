@@ -14,6 +14,8 @@
 	"workbench.action.terminal.new.short": "新增終端機",
 	"workbench.action.terminal.paste": "終端機: 貼入使用中的終端機",
 	"workbench.action.terminal.runSelectedText": "終端機: 在使用中的終端機執行選取的文字",
+	"workbench.action.terminal.scrollDown": "終端機: 向下捲動",
+	"workbench.action.terminal.scrollUp": "終端機: 向上捲動",
 	"workbench.action.terminal.switchTerminalInstance": "終端機: 切換終端機執行個體",
 	"workbench.action.terminal.toggleTerminal": "切換整合式終端機"
 }

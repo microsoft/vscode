@@ -14,6 +14,8 @@
 	"workbench.action.terminal.new.short": "新的终端",
 	"workbench.action.terminal.paste": "终端: 粘贴到活动终端",
 	"workbench.action.terminal.runSelectedText": "终端: 在活动终端运行所选文本",
+	"workbench.action.terminal.scrollDown": "终端: 向下滚动",
+	"workbench.action.terminal.scrollUp": "终端: 向上滚动",
 	"workbench.action.terminal.switchTerminalInstance": "终端: 切换终端实例",
 	"workbench.action.terminal.toggleTerminal": "切换集成终端"
 }
