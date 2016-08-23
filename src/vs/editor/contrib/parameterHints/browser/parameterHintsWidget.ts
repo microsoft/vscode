@@ -20,7 +20,7 @@ import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/commo
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export interface IHintEvent {
 	hints: SignatureHelp;

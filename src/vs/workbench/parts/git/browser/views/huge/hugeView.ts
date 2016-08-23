@@ -17,7 +17,7 @@ import { IGitService } from 'vs/workbench/parts/git/common/git';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import {Button} from 'vs/base/browser/ui/button/button';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export class HugeView extends ee.EventEmitter implements view.IView {
 

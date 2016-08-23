@@ -33,7 +33,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
-const $ = dom.emmet;
+const $ = dom.$;
 const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;

@@ -176,7 +176,7 @@ export class SearchWidget extends Widget {
 			placeholder: nls.localize('search.placeHolder', "Search")
 		};
 
-		let searchInputContainer= dom.append(parent, dom.emmet('.search-container.input-box'));
+		let searchInputContainer= dom.append(parent, dom.$('.search-container.input-box'));
 		this.searchInput = this._register(new FindInput(searchInputContainer, this.contextViewService, inputOptions));
 		this.searchInput.onKeyUp((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyUp(keyboardEvent));
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
@@ -187,8 +187,8 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderReplaceInput(parent: HTMLElement): void {
-		this.replaceContainer = dom.append(parent, dom.emmet('.replace-container.disabled'));
-		let replaceBox= dom.append(this.replaceContainer, dom.emmet('.input-box'));
+		this.replaceContainer = dom.append(parent, dom.$('.replace-container.disabled'));
+		let replaceBox= dom.append(this.replaceContainer, dom.$('.input-box'));
 		this.replaceInput = this._register(new InputBox(replaceBox, this.contextViewService, {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace")
