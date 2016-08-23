@@ -385,8 +385,8 @@ export class DebugService implements debug.IDebugService {
 	private loadWatchExpressions(): model.Expression[] {
 		let result: model.Expression[];
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watch: any) => {
-				return new model.Expression(watch.name, false, watch.id);
+			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string } ) => {
+				return new model.Expression(watchStoredData.name, false, watchStoredData.id);
 			});
 		} catch (e) { }
 
@@ -1069,7 +1069,7 @@ export class DebugService implements debug.IDebugService {
 		this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getFunctionBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getExceptionBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.configurationManager.configurationName, StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions()), StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions().map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
 	}
 
 	public dispose(): void {
