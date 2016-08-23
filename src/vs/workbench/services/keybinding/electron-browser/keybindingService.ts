@@ -9,6 +9,7 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
+import {toDisposable} from 'vs/base/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -131,6 +132,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		super(contextKeyService, commandService, messageService, statusBarService);
 
 		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [] });
+		this.toDispose.push(toDisposable(() => this.userKeybindings.dispose()));
 
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;
@@ -166,12 +168,6 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		}
 
 		return extraUserKeybindings.map((k, i) => IOSupport.readKeybindingItem(k, i));
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-		this.userKeybindings.dispose();
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {

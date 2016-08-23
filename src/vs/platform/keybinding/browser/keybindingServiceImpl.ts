@@ -25,7 +25,7 @@ export abstract class KeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
 
 	protected toDispose: IDisposable[] = [];
-	
+
 	private _cachedResolver: KeybindingResolver;
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
@@ -181,6 +181,4 @@ export abstract class KeybindingService implements IKeybindingService {
 			});
 		}
 	}
-
-
 }

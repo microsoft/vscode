@@ -16,14 +16,14 @@ import {IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/co
 import Event, {Emitter} from 'vs/base/common/event';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
-export class ConfigurationService implements IConfigurationService, IDisposable {
+export class ConfigurationService<T> implements IConfigurationService, IDisposable {
 
 	_serviceBrand: any;
 
 	private disposables: IDisposable[];
 
-	private rawConfig: ConfigWatcher<any>;
-	private cache: any;
+	private rawConfig: ConfigWatcher<T>;
+	private cache: T;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
 
@@ -53,17 +53,17 @@ export class ConfigurationService implements IConfigurationService, IDisposable 
 		return this._onDidUpdateConfiguration.event;
 	}
 
-	public loadConfiguration<T>(section?: string): TPromise<T> {
-		return new TPromise<T>(c => {
+	public loadConfiguration<C>(section?: string): TPromise<C> {
+		return new TPromise<C>(c => {
 			this.rawConfig.reload(() => {
 				this.cache = void 0; // reset our caches
 
-				c(this.getConfiguration<T>(section));
+				c(this.getConfiguration<C>(section));
 			});
 		});
 	}
 
-	public getConfiguration<T>(section?: string): T {
+	public getConfiguration<C>(section?: string): C {
 		let consolidatedConfig = this.cache;
 		if (!consolidatedConfig) {
 			consolidatedConfig = this.getConsolidatedConfig();
@@ -73,7 +73,7 @@ export class ConfigurationService implements IConfigurationService, IDisposable 
 		return section ? consolidatedConfig[section] : consolidatedConfig;
 	}
 
-	private getConsolidatedConfig(): any {
+	private getConsolidatedConfig(): T {
 		const defaults = getDefaultValues();				// defaults coming from contributions to registries
 		const user = flatten(this.rawConfig.getConfig());	// user configured settings
 

@@ -44,7 +44,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private loaded: boolean;
 	private timeoutHandle: number;
 	private disposables: IDisposable[];
-	private _onDidUpdateConfiguration:Emitter<IConfigurationChangeEvent<T>>;
+	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null) }) {
 		this.disposables = [];
@@ -82,14 +82,11 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	private loadSync(): T {
-		let raw: string;
 		try {
-			raw = fs.readFileSync(this._path).toString();
+			return this.parse(fs.readFileSync(this._path).toString());
 		} catch (error) {
 			return this.options.defaultConfig;
 		}
-
-		return this.parse(raw);
 	}
 
 	private loadAsync(callback: (config: T) => void): void {
@@ -108,7 +105,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			this.parseErrors = [];
 			res = json.parse(raw, this.parseErrors);
 		} catch (error) {
-			// Ignore loading and parsing errors
+			// Ignore parsing errors
 		}
 
 		return res || this.options.defaultConfig;
@@ -155,16 +152,13 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	private onConfigFileChange(): void {
-
-		// we can get multiple change events for one change, so we buffer through a timeout
 		if (this.timeoutHandle) {
 			global.clearTimeout(this.timeoutHandle);
 			this.timeoutHandle = null;
 		}
 
-		this.timeoutHandle = global.setTimeout(() => {
-			this.reload();
-		}, this.options.changeBufferDelay);
+		// we can get multiple change events for one change, so we buffer through a timeout
+		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay);
 	}
 
 	public reload(callback?: (config: T) => void): void {
