@@ -13,9 +13,7 @@ import objects = require('vs/base/common/objects');
 import {RunOnceScheduler} from 'vs/base/common/async';
 import collections = require('vs/base/common/collections');
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {readFile, writeFile} from 'vs/base/node/pfs';
@@ -23,13 +21,11 @@ import {JSONPath} from 'vs/base/common/json';
 import {applyEdits} from 'vs/base/common/jsonFormatter';
 import {setProperty} from 'vs/base/common/jsonEdit';
 import errors = require('vs/base/common/errors');
-import {getDefaultValues} from 'vs/platform/configuration/common/model';
 import {IConfigFile, consolidate, CONFIG_DEFAULT_NAME, newConfigFile} from 'vs/workbench/services/configuration/common/model';
 import {IConfigurationServiceEvent}  from 'vs/platform/configuration/common/configuration';
+import {ConfigurationService as BaseConfigurationService}  from 'vs/platform/configuration/node/configurationService';
 import {IWorkbenchConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {EventType as FileEventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
-import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {Registry} from 'vs/platform/platform';
 import Event, {Emitter} from 'vs/base/common/event';
 
 interface IStat {
@@ -43,11 +39,6 @@ interface IContent {
 	value: string;
 }
 
-interface ILoadConfigResult {
-	config: any;
-	parseErrors?: string[];
-}
-
 export class ConfigurationService implements IWorkbenchConfigurationService, IDisposable {
 
 	public _serviceBrand: any;
@@ -55,12 +46,14 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 	private static RELOAD_CONFIGURATION_DELAY = 50;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
+	private toDispose: IDisposable[];
+	private baseConfigurationService: BaseConfigurationService<any>;
 
-	private cachedConfig: ILoadConfigResult;
+	private cachedConfig: any;
+	private cachedWorkspaceConfig: any;
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigFile> };
-	private toDispose: IDisposable[];
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(
@@ -70,14 +63,19 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 		private workspaceSettingsRootFolder: string = '.vscode'
 	) {
 		this.toDispose = [];
+		this.workspaceFilePathToConfiguration = Object.create(null);
+
+		this.cachedConfig = Object.create(null);
+		this.cachedWorkspaceConfig = Object.create(null);
 
 		this._onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
 		this.toDispose.push(this._onDidUpdateConfiguration);
 
-		this.workspaceFilePathToConfiguration = Object.create(null);
-		this.cachedConfig = {
-			config: Object.create(null)
-		};
+		this.baseConfigurationService = new BaseConfigurationService(environmentService);
+		this.toDispose.push(this.baseConfigurationService);
+
+		this.reloadConfigurationScheduler = new RunOnceScheduler(() => this.doLoadConfiguration().then(config => this._onDidUpdateConfiguration.fire({ config })).done(null, errors.onUnexpectedError), ConfigurationService.RELOAD_CONFIGURATION_DELAY);
+		this.toDispose.push(this.reloadConfigurationScheduler);
 
 		this.registerListeners();
 	}
@@ -87,14 +85,23 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, events => this.handleFileEvents(events)));
-		this.toDispose.push(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration()));
-		this.toDispose.push(this.eventService.addListener2(EventType.WORKBENCH_OPTIONS_CHANGED, e => this.onOptionsChanged(e)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, events => this.handleWorkspaceFileEvents(events)));
+		this.toDispose.push(this.baseConfigurationService.onDidUpdateConfiguration(() => this.onBaseConfigurationChanged()));
 	}
 
-	private onOptionsChanged(e: OptionsChangeEvent): void {
-		if (e.key === 'globalSettings') {
-			this.handleConfigurationChange();
+	private onBaseConfigurationChanged(): void {
+
+		// update cached config when base config changes
+		const newConfig = objects.mixin(
+			objects.clone(this.baseConfigurationService.getConfiguration()),	// target: global/default values (do NOT modify)
+			this.cachedWorkspaceConfig,											// source: workspace configured values
+			true																// overwrite
+		);
+
+		// emit this as update to listeners if changed
+		if (!objects.equals(this.cachedConfig, newConfig)) {
+			this.cachedConfig = newConfig;
+			this._onDidUpdateConfiguration.fire({ config: this.cachedConfig });
 		}
 	}
 
@@ -103,17 +110,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 	}
 
 	public getConfiguration<T>(section?: string): T {
-		let result = section ? this.cachedConfig.config[section] : this.cachedConfig.config;
-
-		const parseErrors = this.cachedConfig.parseErrors;
-		if (parseErrors && parseErrors.length > 0) {
-			if (!result) {
-				result = Object.create(null);
-			}
-			result.$parseErrors = parseErrors;
-		}
-
-		return result;
+		return section ? this.cachedConfig[section] : this.cachedConfig;
 	}
 
 	public reloadConfiguration(section?: string): TPromise<any> {
@@ -123,69 +120,62 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 		this.workspaceFilePathToConfiguration = Object.create(null);
 
 		// Load configuration
-		return this.doLoadConfiguration(section);
+		return this.baseConfigurationService.reloadConfiguration().then(() => this.doLoadConfiguration(section));
 	}
 
 	private doLoadConfiguration(section?: string): TPromise<any> {
 
-		// Load globals
-		const globals = this.loadGlobalConfiguration();
-
 		// Load workspace locals
-		return this.loadWorkspaceConfiguration().then(values => {
+		return this.loadWorkspaceConfigFiles().then(workspaceConfigFiles => {
 
-			// Consolidate
-			const consolidated = consolidate(values);
+			// Consolidate (support *.json files in the workspace settings folder)
+			const workspaceConfig = consolidate(workspaceConfigFiles).contents;
+			this.cachedWorkspaceConfig = workspaceConfig;
 
-			// Override with workspace locals
-			const merged = objects.mixin(
-				objects.clone(globals.contents), 	// target: global/default values (but dont modify!)
-				consolidated.contents,				// source: workspace configured values
-				true								// overwrite
+			// Override base (global < user) with workspace locals (global < user < workspace)
+			return objects.mixin(
+				objects.clone(this.baseConfigurationService.getConfiguration()), 	// target: global/default values (do NOT modify)
+				this.cachedWorkspaceConfig,											// source: workspace configured values
+				true																// overwrite
 			);
-
-			let parseErrors = [];
-			if (consolidated.parseErrors) {
-				parseErrors = consolidated.parseErrors;
-			}
-
-			if (globals.parseErrors) {
-				parseErrors.push.apply(parseErrors, globals.parseErrors);
-			}
-
-			return {
-				config: merged,
-				parseErrors
-			};
-		}).then((res: ILoadConfigResult) => {
-			this.cachedConfig = res;
+		}).then(result => {
+			this.cachedConfig = result;
 
 			return this.getConfiguration(section);
 		});
 	}
 
-	private loadGlobalConfiguration(): { contents: any; parseErrors?: string[]; } {
-		const globalSettings = (<LegacyWorkspaceContextService>this.contextService).getOptions().globalSettings;
-
-		return {
-			contents: objects.mixin(
-				objects.clone(getDefaultValues()),	// target: default values (but don't modify!)
-				globalSettings,						// source: global configured values
-				true								// overwrite
-			),
-			parseErrors: []
-		};
+	public hasWorkspaceConfiguration(): boolean {
+		return !!this.workspaceFilePathToConfiguration[`${this.workspaceSettingsRootFolder}/${CONFIG_DEFAULT_NAME}.json`];
 	}
 
-	private loadWorkspaceConfiguration(section?: string): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
+
+	// TODO implement
+	public setUserConfiguration(key: any, value: any): Thenable<void> {
+		const appSettingsPath = this.environmentService.appSettingsPath;
+
+		return readFile(appSettingsPath, 'utf8').then(content => {
+			const {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
+			const path: JSONPath = typeof key === 'string' ? (<string>key).split('.') : <JSONPath>key;
+			const edits = setProperty(content, path, value, { insertSpaces, tabSize, eol: '\n' });
+
+			content = applyEdits(content, edits);
+
+			return writeFile(appSettingsPath, content, 'utf8');
+		});
+	}
+
+	private loadWorkspaceConfigFiles(): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
 
 		// Return early if we don't have a workspace
 		if (!this.contextService.getWorkspace()) {
 			return TPromise.as(Object.create(null));
 		}
 
-		// once: when invoked for the first time we fetch *all* json
-		// files using the bulk stats and content routes
+		// once: when invoked for the first time we fetch *all* json files using the bulk stats and content routes
 		if (!this.bulkFetchFromWorkspacePromise) {
 			this.bulkFetchFromWorkspacePromise = resolveStat(this.contextService.toResource(this.workspaceSettingsRootFolder)).then(stat => {
 				if (!stat.isDirectory) {
@@ -202,44 +192,16 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 			}, errors.onUnexpectedError);
 		}
 
-		// on change: join on *all* configuration file promises so that
-		// we can merge them into a single configuration object. this
+		// on change: join on *all* configuration file promises so that we can merge them into a single configuration object. this
 		// happens whenever a config file changes, is deleted, or added
-		return this.bulkFetchFromWorkspacePromise.then(() => {
-			return TPromise.join(this.workspaceFilePathToConfiguration);
-		});
+		return this.bulkFetchFromWorkspacePromise.then(() => TPromise.join(this.workspaceFilePathToConfiguration));
 	}
 
-	private onDidRegisterConfiguration(): void {
-
-		// a new configuration was registered (e.g. from an extension) and this means we do have a new set of
-		// configuration defaults. since we already loaded the merged set of configuration (defaults < global < workspace),
-		// we want to update the defaults with the new values. So we take our cached config and mix it into the new
-		// defaults that we got, overwriting any value present.
-		this.cachedConfig.config = objects.mixin(objects.clone(getDefaultValues()), this.cachedConfig.config, true /* overwrite */);
-
-		// emit this as update to listeners
-		this._onDidUpdateConfiguration.fire({ config: this.cachedConfig.config });
-	}
-
-	private handleConfigurationChange(): void {
-		if (!this.reloadConfigurationScheduler) {
-			this.reloadConfigurationScheduler = new RunOnceScheduler(() => {
-				this.doLoadConfiguration().then(config => this._onDidUpdateConfiguration.fire({ config: config })).done(null, errors.onUnexpectedError);
-			}, ConfigurationService.RELOAD_CONFIGURATION_DELAY);
-
-			this.toDispose.push(this.reloadConfigurationScheduler);
-		}
-
-		if (!this.reloadConfigurationScheduler.isScheduled()) {
-			this.reloadConfigurationScheduler.schedule();
-		}
-	}
-
-	private handleFileEvents(event: FileChangesEvent): void {
+	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
 		const events = event.changes;
 		let affectedByChanges = false;
 
+		// Find changes that affect workspace configuration files
 		for (let i = 0, len = events.length; i < len; i++) {
 			const workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
 			if (!workspacePath) {
@@ -270,32 +232,10 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 			}
 		}
 
-		if (affectedByChanges) {
-			this.handleConfigurationChange();
+		// trigger reload of the configuration if we are affected by changes
+		if (affectedByChanges && !this.reloadConfigurationScheduler.isScheduled()) {
+			this.reloadConfigurationScheduler.schedule();
 		}
-	}
-
-	public hasWorkspaceConfiguration(): boolean {
-		return !!this.workspaceFilePathToConfiguration[`${this.workspaceSettingsRootFolder}/${CONFIG_DEFAULT_NAME}.json`];
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-	}
-
-	// TODO implement
-	public setUserConfiguration(key: any, value: any): Thenable<void> {
-		const appSettingsPath = this.environmentService.appSettingsPath;
-
-		return readFile(appSettingsPath, 'utf8').then(content => {
-			const {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-			const path: JSONPath = typeof key === 'string' ? (<string>key).split('.') : <JSONPath>key;
-			const edits = setProperty(content, path, value, { insertSpaces, tabSize, eol: '\n' });
-
-			content = applyEdits(content, edits);
-
-			return writeFile(appSettingsPath, content, 'utf8');
-		});
 	}
 }
 
