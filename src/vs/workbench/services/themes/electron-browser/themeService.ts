@@ -504,9 +504,15 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 			if (fileNames) {
 				for (let fileName in fileNames) {
 					fileName = fileName.toLowerCase();
-					let idx = fileName.lastIndexOf('.');
-					let [name, ext] = idx !== -1 ? [fileName.substr(0, idx), fileName.substr(idx + 1)] : [ fileName , ''];
-					addSelector(`${qualifier} .${escapeCSS(name)}-name-file-icon.${escapeCSS(ext)}-ext-file-icon.file-icon::before`, fileNames[fileName]);
+					let selectors = [];
+					let segments = fileName.split('.');
+					if (segments[0]) {
+						selectors.push(`.${escapeCSS(segments[0])}-name-file-icon`);
+					}
+					for (let i = 1; i < segments.length; i++) {
+						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+					}
+					addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[fileName]);
 				}
 			}
 			let languageIds = associations.languageIds;
