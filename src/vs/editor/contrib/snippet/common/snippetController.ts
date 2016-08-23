@@ -479,19 +479,47 @@ export class SnippetController {
 	}
 
 	private _runForAllSelections(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
-		let selections = this._editor.getSelections(),
-			edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
+
+		const edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		const selections = this._editor.getSelections();
+		let lineDelta = 0;
+		let columnDelta = 0;
 
 		for (let i = 0; i < selections.length; i++) {
-			let prepared = SnippetController._prepareSnippet(this._editor, selections[i], snippet, overwriteBefore, overwriteAfter, stripPrefix);
-			SnippetController._addCommandForSnippet(this._editor.getModel(), prepared.adaptedSnippet, prepared.typeRange, edits);
+			let {adaptedSnippet, typeRange} = SnippetController._prepareSnippet(this._editor, selections[i], snippet, overwriteBefore, overwriteAfter, stripPrefix);
+			SnippetController._addCommandForSnippet(this._editor.getModel(), adaptedSnippet, typeRange, edits);
+
+			if (i === 0 && snippet.isSingleTabstopOnly) {
+				const finalCursorPos = SnippetController._getSnippetCursorOnly(adaptedSnippet);
+				const editEnd = typeRange.getEndPosition();
+				editEnd.lineNumber += adaptedSnippet.lines.length - 1;
+				editEnd.column = adaptedSnippet.lines[adaptedSnippet.lines.length - 1].length + 1;
+
+				lineDelta = finalCursorPos.lineNumber - editEnd.lineNumber;
+				columnDelta = finalCursorPos.column - editEnd.column;
+			}
 		}
 
-		if (edits.length > 0) {
-			this._editor.pushUndoStop();
-			this._editor.executeEdits('editor.contrib.insertSnippetHelper', edits);
-			this._editor.pushUndoStop();
+		if (edits.length === 0) {
+			return;
 		}
+
+		const cursorStateComputer: editorCommon.ICursorStateComputer = function (inverseEdits) {
+
+			return inverseEdits.map((edit, i) => {
+
+				let {endLineNumber, endColumn} = edit.range;
+				endLineNumber += lineDelta;
+				endColumn += columnDelta;
+
+				return new Selection(endLineNumber, endColumn, endLineNumber, endColumn);
+			});
+		};
+
+		const model = this._editor.getModel();
+		model.pushStackElement();
+		this._editor.setSelections(model.pushEditOperations(selections, edits, cursorStateComputer));
+		model.pushStackElement();
 	}
 
 	private static _prepareSnippet(editor: editorCommon.ICommonCodeEditor, selection: Selection, snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix = true): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
