@@ -5,6 +5,11 @@
 
 /* -------------------------------- Begin vs tokens -------------------------------- */
 
+/* Default standalone editor font */
+.monaco-editor {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+}
+
 .monaco-editor.vs .token.terminal					{ color: #e00000; }
 .monaco-editor.vs .token.terminal.code1				{ font-weight: bold; }
 .monaco-editor.vs .token.variable					{ color: #001188; }
