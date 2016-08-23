@@ -1,5 +1,5 @@
 {
-	"name": "MagicRegExp",
+	"name": "PythonRegExp",
 	"scopeName": "source.regexp.python",
 	"fileTypes": [
 		"re"
