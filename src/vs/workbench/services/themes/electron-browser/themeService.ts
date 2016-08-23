@@ -26,7 +26,7 @@ import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {$} from 'vs/base/browser/builder';
 import Event, {Emitter} from 'vs/base/common/event';
 
-import plist = require('vs/base/node/plist');
+import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
 
 // implementation
@@ -611,12 +611,11 @@ function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
 				});
 			}
 			return TPromise.as(contentValue);
-		} else {
-			let parseResult = plist.parse(content.toString());
-			if (parseResult.errors && parseResult.errors.length) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", parseResult.errors.join(', '))));
-			}
-			return TPromise.as(parseResult.value);
+		}
+		try {
+			TPromise.as(plist.parse(content.toString()));
+		} catch (e) {
+			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", e.message)));
 		}
 	});
 }
