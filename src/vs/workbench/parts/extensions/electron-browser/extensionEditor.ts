@@ -37,6 +37,8 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -128,7 +130,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService private themeService: IThemeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -281,7 +284,7 @@ export class ExtensionEditor extends BaseEditor {
 				const content = append(this.content, $('div', { class: 'subcontent' }));
 
 				ExtensionEditor.renderSettings(content, manifest);
-				ExtensionEditor.renderCommands(content, manifest);
+				this.renderCommands(content, manifest);
 				ExtensionEditor.renderThemes(content, manifest);
 				ExtensionEditor.renderJSONValidation(content, manifest);
 				ExtensionEditor.renderDebuggers(content, manifest);
@@ -352,16 +355,18 @@ export class ExtensionEditor extends BaseEditor {
 		));
 	}
 
-	private static renderCommands(container: HTMLElement, manifest: IExtensionManifest): void {
+	private renderCommands(container: HTMLElement, manifest: IExtensionManifest): void {
 		interface Command {
 			id: string;
 			title: string;
+			keybindings: string[];
 			menus: string[];
 		}
 
 		const commands: Command[] = (manifest.contributes.commands || []).map(c => ({
 			id: c.command,
 			title: c.title,
+			keybindings: [],
 			menus: []
 		}));
 
@@ -373,13 +378,27 @@ export class ExtensionEditor extends BaseEditor {
 				let command = allCommands[menu.command];
 
 				if (!command) {
-					command = { id: menu.command, title: '', menus: [context] };
+					command = { id: menu.command, title: '', keybindings: [], menus: [context] };
 					allCommands[command.id] = command;
 					commands.push(command);
 				} else {
 					command.menus.push(context);
 				}
 			});
+		});
+
+		(manifest.contributes.keybindings || []).forEach(userString => {
+			let command = allCommands[userString.command];
+			const keybinding = new Keybinding(Keybinding.fromUserSettingsLabel(userString.key));
+			const key = this.keybindingService.getLabelFor(keybinding);
+
+			if (!command) {
+				command = { id: userString.command, title: '', keybindings: [key], menus: [] };
+				allCommands[command.id] = command;
+				commands.push(command);
+			} else {
+				command.keybindings.push(key);
+			}
 		});
 
 		if (!commands.length) {
@@ -392,11 +411,13 @@ export class ExtensionEditor extends BaseEditor {
 				$('tr', null,
 					$('th', null, localize('command name', "Name")),
 					$('th', null, localize('description', "Description")),
+					$('th', null, localize('keyboard shortcuts', "Keyboard Shortcuts")),
 					$('th', null, localize('menuContexts', "Menu Contexts"))
 				),
 				...commands.map(c => $('tr', null,
 					$('td', null, c.id),
 					$('td', null, c.title),
+					$('td', null, ...c.keybindings.map(keybinding => $('code', null, keybinding))),
 					$('td', null, ...c.menus.map(context => $('code', null, context)))
 				))
 			)
