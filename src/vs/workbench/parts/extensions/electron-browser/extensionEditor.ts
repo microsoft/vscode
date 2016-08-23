@@ -281,6 +281,7 @@ export class ExtensionEditor extends BaseEditor {
 				const content = append(this.content, $('div', { class: 'subcontent' }));
 
 				ExtensionEditor.renderSettings(content, manifest);
+				ExtensionEditor.renderThemes(content, manifest);
 				ExtensionEditor.renderDebuggers(content, manifest);
 			}));
 	}
@@ -296,7 +297,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		append(container, $('details', { open: true },
 			$('summary', null, localize('settings', "Settings ({0})", settings.length)),
-			$('table', { class: 'settings' },
+			$('table', null,
 				$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
 				...settings.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
 			)
@@ -312,9 +313,24 @@ export class ExtensionEditor extends BaseEditor {
 
 		append(container, $('details', { open: true },
 			$('summary', null, localize('debuggers', "Debuggers ({0})", debuggers.length)),
-			$('table', { class: 'settings' },
+			$('table', null,
 				$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
 				...debuggers.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
+			)
+		));
+	}
+
+	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest): void {
+		const themes = manifest.contributes.themes || [];
+
+		if (!themes.length) {
+			return;
+		}
+
+		append(container, $('details', { open: true },
+			$('summary', null, localize('themes', "Themes ({0})", themes.length)),
+			$('ul', null,
+				...themes.map(theme => $('li', null, theme.label))
 			)
 		));
 	}

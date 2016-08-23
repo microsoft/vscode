@@ -67,6 +67,10 @@ export interface ISnippet {
 	language: string;
 }
 
+export interface ITheme {
+	label: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration;
@@ -77,6 +81,7 @@ export interface IExtensionContributions {
 	languages?: ILanguage[];
 	menus?: { [context: string]: IMenu[] };
 	snippets?: ISnippet[];
+	themes?: ITheme[];
 }
 
 export interface IExtensionManifest {
