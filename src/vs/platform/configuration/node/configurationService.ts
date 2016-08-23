@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {JSONPath} from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import {getDefaultValues, flatten} from 'vs/platform/configuration/common/model';
 import {ConfigWatcher} from 'vs/base/node/config';
@@ -82,14 +81,6 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 			user,						// source: user settings
 			true						// overwrite
 		);
-	}
-
-	public setUserConfiguration(key: string | JSONPath, value: any): Thenable<void> {
-		return TPromise.as(null);
-	}
-
-	public hasWorkspaceConfiguration(): boolean {
-		return false;
 	}
 
 	public dispose(): void {

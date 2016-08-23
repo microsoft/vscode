@@ -297,12 +297,4 @@ export class SimpleConfigurationService implements IConfigurationService {
 	public loadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration(section));
 	}
-
-	public hasWorkspaceConfiguration(): boolean {
-		return false;
-	}
-
-	public setUserConfiguration(key: any, value: any): TPromise<void> {
-		return TPromise.as(null);
-	}
 }

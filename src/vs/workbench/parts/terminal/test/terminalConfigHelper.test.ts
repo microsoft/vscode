@@ -19,9 +19,7 @@ class MockConfigurationService implements IConfigurationService {
 	public constructor(private configuration: any = {}) {}
 	public loadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
 	public getConfiguration(): any { return this.configuration; }
-	public hasWorkspaceConfiguration(): boolean { return false; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
-	public setUserConfiguration(key: any, value: any): Thenable<void> { return TPromise.as(null); }
 }
 
 suite('Workbench - TerminalConfigHelper', () => {

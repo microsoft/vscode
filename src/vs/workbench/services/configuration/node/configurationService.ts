@@ -26,7 +26,8 @@ import {applyEdits} from 'vs/base/common/jsonFormatter';
 import {setProperty} from 'vs/base/common/jsonEdit';
 import errors = require('vs/base/common/errors');
 import {IConfigFile, consolidate, CONFIG_DEFAULT_NAME, newConfigFile, getDefaultValues} from 'vs/platform/configuration/common/model';
-import {IConfigurationService, IConfigurationServiceEvent}  from 'vs/platform/configuration/common/configuration';
+import {IConfigurationServiceEvent}  from 'vs/platform/configuration/common/configuration';
+import {IWorkbenchConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {EventType as FileEventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -48,7 +49,7 @@ interface ILoadConfigResult {
 	parseErrors?: string[];
 }
 
-export class ConfigurationService implements IConfigurationService, IDisposable {
+export class ConfigurationService implements IWorkbenchConfigurationService, IDisposable {
 
 	public _serviceBrand: any;
 
@@ -347,7 +348,7 @@ export class ConfigurationService implements IConfigurationService, IDisposable 
 		if (this.reloadConfigurationScheduler) {
 			this.reloadConfigurationScheduler.dispose();
 		}
-		
+
 		this.callOnDispose.dispose();
 		this._onDidUpdateConfiguration.dispose();
 	}
