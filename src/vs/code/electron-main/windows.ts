@@ -193,11 +193,6 @@ export class WindowsManager implements IWindowsService {
 			}, 100);
 		});
 
-		this.configurationService.onDidUpdateConfiguration(event => {
-			global.globalSettingsValue = JSON.stringify(event.config); // Load settings (TODO@Ben remove)
-			this.sendToAll('vscode:optionsChange', JSON.stringify(event.config));
-		}, this);
-
 		ipc.on('vscode:startCrashReporter', (event: any, config: any) => {
 			this.logService.log('IPC#vscode:startCrashReporter');
 

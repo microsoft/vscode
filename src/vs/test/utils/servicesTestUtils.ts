@@ -57,9 +57,7 @@ export class TestContextService implements WorkspaceContextService.IWorkspaceCon
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
-		this.options = options || {
-			globalSettings: {}
-		};
+		this.options = options || Object.create(null);
 	}
 
 	public getWorkspace(): IWorkspace {

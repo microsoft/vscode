@@ -27,9 +27,4 @@ export interface IOptions {
 	 * Instructs the workbench to install the extensions from the provided local paths.
 	 */
 	extensionsToInstall?: string[];
-
-	/**
-	 * The global application settings if any.
-	 */
-	globalSettings?: any;
 }

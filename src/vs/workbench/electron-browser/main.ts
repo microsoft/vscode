@@ -62,7 +62,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	extensionsToInstall?: string[];
 }
 
-export function startup(configuration: IWindowConfiguration, globalSettings: any): winjs.TPromise<void> {
+export function startup(configuration: IWindowConfiguration): winjs.TPromise<void> {
 
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
@@ -72,8 +72,7 @@ export function startup(configuration: IWindowConfiguration, globalSettings: any
 		filesToOpen,
 		filesToCreate,
 		filesToDiff,
-		extensionsToInstall: configuration.extensionsToInstall,
-		globalSettings
+		extensionsToInstall: configuration.extensionsToInstall
 	};
 
 	if (configuration.performance) {
@@ -131,7 +130,7 @@ function getWorkspace(workspacePath: string): IWorkspace {
 function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment, environment.execPath);
-	const contextService = new LegacyWorkspaceContextService(eventService, workspace, options);
+	const contextService = new LegacyWorkspaceContextService(workspace, options);
 	const configurationService = new ConfigurationService(contextService, eventService, environmentService);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it

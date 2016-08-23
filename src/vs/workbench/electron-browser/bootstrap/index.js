@@ -120,11 +120,6 @@ function main() {
 	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
 	registerListeners(enableDeveloperTools);
 
-	// We get the global settings through a remote call from the browser
-	// because its value can change dynamically.
-	const rawGlobalSettings = remote.getGlobal('globalSettingsValue') || '{}';
-	const globalSettings = JSON.parse(rawGlobalSettings);
-
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
 	webFrame.setZoomLevelLimits(1, 1);
@@ -177,7 +172,7 @@ function main() {
 			timers.afterLoad = new Date();
 
 			require('vs/workbench/electron-browser/main')
-				.startup(configuration, globalSettings)
+				.startup(configuration)
 				.done(null, function (error) { onError(error, enableDeveloperTools); });
 		});
 	});
