@@ -15,7 +15,7 @@ import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import constants = require('vs/workbench/common/constants');
 import wbext = require('vs/workbench/common/contributions');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import dbgactions = require('vs/workbench/parts/debug/browser/debugActions');
+import {PauseAction, ContinueAction, StepBackAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction} from 'vs/workbench/parts/debug/browser/debugActions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -34,9 +34,11 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	private toDispose: lifecycle.IDisposable[];
 	private actionBar: actionbar.ActionBar;
 	private actions: actions.IAction[];
-	private pauseAction: dbgactions.PauseAction;
-	private continueAction: dbgactions.ContinueAction;
-	private stepBackAction: dbgactions.StepBackAction;
+	private pauseAction: PauseAction;
+	private continueAction: ContinueAction;
+	private stepBackAction: StepBackAction;
+	private stopAction: StopAction;
+	private disconnectAction: DisconnectAction;
 	private isVisible: boolean;
 	private isBuilt: boolean;
 
@@ -159,29 +161,33 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 
 	private getActions(instantiationService: IInstantiationService, state: debug.State): actions.IAction[] {
 		if (!this.actions) {
-			this.continueAction = instantiationService.createInstance(dbgactions.ContinueAction, dbgactions.ContinueAction.ID, dbgactions.ContinueAction.LABEL);
-			this.pauseAction = instantiationService.createInstance(dbgactions.PauseAction, dbgactions.PauseAction.ID, dbgactions.PauseAction.LABEL);
+			this.continueAction = instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL);
+			this.pauseAction = instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL);
+			this.stopAction = instantiationService.createInstance(StopAction, StopAction.ID, StopAction.LABEL);
+			this.disconnectAction = instantiationService.createInstance(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL);
 			this.actions = [
 				this.continueAction,
-				instantiationService.createInstance(dbgactions.StepOverAction, dbgactions.StepOverAction.ID, dbgactions.StepOverAction.LABEL),
-				instantiationService.createInstance(dbgactions.StepIntoAction, dbgactions.StepIntoAction.ID, dbgactions.StepIntoAction.LABEL),
-				instantiationService.createInstance(dbgactions.StepOutAction, dbgactions.StepOutAction.ID, dbgactions.StepOutAction.LABEL),
-				instantiationService.createInstance(dbgactions.RestartAction, dbgactions.RestartAction.ID, dbgactions.RestartAction.LABEL),
-				instantiationService.createInstance(dbgactions.StopAction, dbgactions.StopAction.ID, dbgactions.StopAction.LABEL)
+				instantiationService.createInstance(StepOverAction, StepOverAction.ID, StepOverAction.LABEL),
+				instantiationService.createInstance(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL),
+				instantiationService.createInstance(StepOutAction, StepOutAction.ID, StepOutAction.LABEL),
+				instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL),
+				this.stopAction
 			];
 
 			this.actions.forEach(a => {
 				this.toDispose.push(a);
 			});
 			this.toDispose.push(this.pauseAction);
-			this.toDispose.push(this.continueAction);
+			this.toDispose.push(this.disconnectAction);
 		}
+		
 		this.actions[0] = state === debug.State.Running ? this.pauseAction : this.continueAction;
+		const session = this.debugService.getActiveSession();
+		this.actions[5] = session && session.configuration.isAttach ? this.disconnectAction : this.stopAction;
 
-		const activeSession = this.debugService.getActiveSession();
-		if (activeSession && activeSession.configuration.capabilities.supportsStepBack) {
+		if (session && session.configuration.capabilities.supportsStepBack) {
 			if (!this.stepBackAction) {
-				this.stepBackAction = instantiationService.createInstance(dbgactions.StepBackAction, dbgactions.StepBackAction.ID, dbgactions.StepBackAction.LABEL);
+				this.stepBackAction = instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL);
 				this.toDispose.push(this.stepBackAction);
 			}
 
