@@ -944,7 +944,7 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
 // Similar to builder, but much more lightweight
-export function emmet<T extends HTMLElement>(description: string): T {
+export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: (HTMLElement | string)[]): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
@@ -959,6 +959,17 @@ export function emmet<T extends HTMLElement>(description: string): T {
 	if (match[4]) {
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
+
+	Object.keys(attrs || {})
+		.forEach(name => result.setAttribute(name, attrs[name]));
+
+	children.forEach(child => {
+		if (child instanceof HTMLElement) {
+			result.appendChild(child);
+		} else {
+			result.appendChild(document.createTextNode(child));
+		}
+	});
 
 	return result as T;
 }

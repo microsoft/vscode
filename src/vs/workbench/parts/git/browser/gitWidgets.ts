@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { Delayer } from 'vs/base/common/async';
-import { emmet as $, append, show, hide, toggleClass } from 'vs/base/browser/dom';
+import { $, append, show, hide, toggleClass } from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IGitService, ServiceState, IBranch, ServiceOperations, IRemote } from 'vs/workbench/parts/git/common/git';

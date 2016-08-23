@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

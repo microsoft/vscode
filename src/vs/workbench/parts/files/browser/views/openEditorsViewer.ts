@@ -30,7 +30,7 @@ import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction,
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export class OpenEditor {
 

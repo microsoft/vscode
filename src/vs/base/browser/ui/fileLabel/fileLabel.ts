@@ -23,9 +23,9 @@ export class FileLabel {
 	private labelHighlights: IMatch[]= [];
 
 	constructor(container: HTMLElement, arg2?: uri | string, arg3?: uri | string | IWorkspaceProvider) {
-		this.domNode = dom.append(container, dom.emmet('.monaco-file-label'));
-		this.labelNode= new HighlightedLabel(dom.append(this.domNode, dom.emmet('span.file-name')));
-		this.directoryNode= dom.append(this.domNode, dom.emmet('span.file-path'));
+		this.domNode = dom.append(container, dom.$('.monaco-file-label'));
+		this.labelNode= new HighlightedLabel(dom.append(this.domNode, dom.$('span.file-name')));
+		this.directoryNode= dom.append(this.domNode, dom.$('span.file-path'));
 
 		if (arg3) {
 			this.basepath = getPath(arg3);

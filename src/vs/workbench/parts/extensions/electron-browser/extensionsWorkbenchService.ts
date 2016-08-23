@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import * as semver from 'semver';
 import * as path from 'path';
@@ -32,6 +32,7 @@ class Extension implements IExtension {
 	public needsRestart = false;
 
 	constructor(
+		private galleryService: IExtensionGalleryService,
 		private stateProvider: IExtensionStateProvider,
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension = null
@@ -143,6 +144,32 @@ class Extension implements IExtension {
 			return getLocalExtensionTelemetryData(local);
 		}
 	}
+
+	getManifest(): TPromise<IExtensionManifest> {
+		if (this.local) {
+			return TPromise.as(this.local.manifest);
+		}
+
+		return this.galleryService.getAsset(this.gallery.assets.manifest)
+			.then(asText)
+			.then(raw => JSON.parse(raw) as IExtensionManifest);
+	}
+
+	getReadme(): TPromise<string> {
+		const readmeUrl = this.local && this.local.readmeUrl ? this.local.readmeUrl : this.gallery && this.gallery.assets.readme;
+
+		if (!readmeUrl) {
+			return TPromise.wrapError('not available');
+		}
+
+		const uri = URI.parse(readmeUrl);
+
+		if (uri.scheme === 'file') {
+			return readFile(uri.fsPath, 'utf8');
+		}
+
+		return this.galleryService.getAsset(readmeUrl).then(asText);
+	}
 }
 
 function stripVersion(id: string): string {
@@ -218,7 +245,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			const installedById = index(this.installed, e => e.local.id);
 
 			this.installed = result.map(local => {
-				const extension = installedById[local.id] || new Extension(this.stateProvider, local);
+				const extension = installedById[local.id] || new Extension(this.galleryService, this.stateProvider, local);
 				extension.local = local;
 				return extension;
 			});
@@ -259,7 +286,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return installed;
 		}
 
-		return new Extension(this.stateProvider, null, gallery);
+		return new Extension(this.galleryService, this.stateProvider, null, gallery);
 	}
 
 	private syncWithGallery(immediate = false): void {
@@ -327,7 +354,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		let extension = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === gallery.id)[0];
 
 		if (!extension) {
-			extension = new Extension(this.stateProvider, null, gallery);
+			extension = new Extension(this.galleryService, this.stateProvider, null, gallery);
 		}
 
 		extension.gallery = gallery;
@@ -419,21 +446,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const eventName = toTelemetryEventName(active.operation);
 
 		this.telemetryService.publicLog(eventName, assign(data, { success, duration }));
-	}
-
-	getReadmeContents(extension: IExtension): TPromise<string> {
-		if (!extension.readmeUrl) {
-			return TPromise.as('');
-		}
-
-		const uri = URI.parse(extension.readmeUrl);
-
-		if (uri.scheme === 'file') {
-			return readFile(uri.fsPath, 'utf8');
-		}
-
-		return this.galleryService.getAsset(extension.readmeUrl)
-			.then(asText);
 	}
 
 	dispose(): void {

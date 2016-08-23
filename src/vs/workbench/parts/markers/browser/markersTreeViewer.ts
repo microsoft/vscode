@@ -100,12 +100,12 @@ export class Renderer implements IRenderer {
 
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		var data: IResourceTemplateData = Object.create(null);
-		const resourceLabelContainer = dom.append(container, dom.emmet('.resource-label-container'));
+		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
 		data.file = new FileLabel(resourceLabelContainer, null, this.contextService);
 
 		// data.statistics= new MarkersStatisticsWidget(dom.append(container, dom.emmet('.marker-stats')));
 
-		const badgeWrapper = dom.append(container, dom.emmet('.count-badge-wrapper'));
+		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
 
 		return data;
@@ -113,10 +113,10 @@ export class Renderer implements IRenderer {
 
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		var data: IMarkerTemplateData = Object.create(null);
-		data.icon = dom.append(container, dom.emmet('.marker-icon'));
-		data.source = new HighlightedLabel(dom.append(container, dom.emmet('')));
-		data.description = new HighlightedLabel(dom.append(container, dom.emmet('.marker-description')));
-		data.lnCol = dom.append(container, dom.emmet('span.marker-line'));
+		data.icon = dom.append(container, dom.$('.marker-icon'));
+		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 		return data;
 	}
 
