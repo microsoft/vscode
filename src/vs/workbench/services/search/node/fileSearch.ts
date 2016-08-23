@@ -26,7 +26,8 @@ import {IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} fro
 enum Traversal {
 	Node = 1,
 	MacFind,
-	WindowsDir
+	WindowsDir,
+	LinuxFind
 }
 
 interface IDirectoryEntry {
@@ -128,6 +129,9 @@ export class FileWalker {
 				} else if (platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
+				} else if (platform.isLinux) {
+					this.traversal = Traversal.LinuxFind;
+					traverse = this.linuxFindTraversal;
 				}
 			}
 
@@ -190,6 +194,28 @@ export class FileWalker {
 
 			const relativeFiles = stdout.split(`\r\n${rootFolder}\\`);
 			relativeFiles[0] = relativeFiles[0].trim().substr(rootFolder.length + 1);
+			const n = relativeFiles.length;
+			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
+			if (!relativeFiles[n - 1]) {
+				relativeFiles.pop();
+			}
+
+			this.matchFiles(rootFolder, relativeFiles, onResult);
+
+			done();
+		});
+	}
+
+	private linuxFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
+		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
+			if (err) {
+				done(err);
+				return;
+			}
+
+			const relativeFiles = stdout.split('\n./');
+			relativeFiles[0] = relativeFiles[0].trim().substr(2);
 			const n = relativeFiles.length;
 			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
 			if (!relativeFiles[n - 1]) {
