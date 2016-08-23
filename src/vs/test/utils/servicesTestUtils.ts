@@ -543,7 +543,7 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 	private configuration = Object.create(null);
 
-	public loadConfiguration<T>(section?: string): TPromise<T> {
+	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());
 	}
 

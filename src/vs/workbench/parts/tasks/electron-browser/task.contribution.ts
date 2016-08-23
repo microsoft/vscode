@@ -774,7 +774,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskRunResult): TPromise<ITaskSummary> {
 		return this.textFileService.saveAll().then((value) => { 				// make sure all dirty files are saved
-			return this.configurationService.loadConfiguration().then(() => { 	// make sure configuration is up to date
+			return this.configurationService.reloadConfiguration().then(() => { 	// make sure configuration is up to date
 				return this.taskSystemPromise.
 					then((taskSystem) => {
 						return taskSystem.isActive().then((active) => {
