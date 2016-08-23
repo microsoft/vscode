@@ -309,9 +309,9 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 			const thread = <model.Thread>element;
 			if (thread.stopped) {
 				actions.push(this.instantiationService.createInstance(debugactions.ContinueAction, debugactions.ContinueAction.ID, debugactions.ContinueAction.LABEL));
-				actions.push(this.instantiationService.createInstance(debugactions.StepOverDebugAction, debugactions.StepOverDebugAction.ID, debugactions.StepOverDebugAction.LABEL));
-				actions.push(this.instantiationService.createInstance(debugactions.StepIntoDebugAction, debugactions.StepIntoDebugAction.ID, debugactions.StepIntoDebugAction.LABEL));
-				actions.push(this.instantiationService.createInstance(debugactions.StepOutDebugAction, debugactions.StepOutDebugAction.ID, debugactions.StepOutDebugAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepOverAction, debugactions.StepOverAction.ID, debugactions.StepOverAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepIntoAction, debugactions.StepIntoAction.ID, debugactions.StepIntoAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepOutAction, debugactions.StepOutAction.ID, debugactions.StepOutAction.LABEL));
 			} else {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}

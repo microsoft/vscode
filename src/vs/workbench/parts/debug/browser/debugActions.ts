@@ -117,7 +117,7 @@ export class SelectConfigAction extends AbstractDebugAction {
 	}
 }
 
-export class StartDebugAction extends AbstractDebugAction {
+export class StartAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
 	static LABEL = nls.localize('startDebug', "Start Debugging");
 
@@ -134,7 +134,7 @@ export class StartDebugAction extends AbstractDebugAction {
 	}
 }
 
-export class RestartDebugAction extends AbstractDebugAction {
+export class RestartAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.restart';
 	static LABEL = nls.localize('restartDebug', "Restart");
 	static RECONNECT_LABEL = nls.localize('reconnectDebug', "Reconnect");
@@ -144,7 +144,7 @@ export class RestartDebugAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
-				this.updateLabel(session.configuration.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL);
+				this.updateLabel(session.configuration.isAttach ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 			}
 		}));
 	}
@@ -158,7 +158,7 @@ export class RestartDebugAction extends AbstractDebugAction {
 	}
 }
 
-export class StepOverDebugAction extends AbstractDebugAction {
+export class StepOverAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stepOver';
 	static LABEL = nls.localize('stepOverDebug', "Step Over");
 
@@ -178,7 +178,7 @@ export class StepOverDebugAction extends AbstractDebugAction {
 	}
 }
 
-export class StepIntoDebugAction extends AbstractDebugAction {
+export class StepIntoAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stepInto';
 	static LABEL = nls.localize('stepIntoDebug', "Step Into");
 
@@ -198,7 +198,7 @@ export class StepIntoDebugAction extends AbstractDebugAction {
 	}
 }
 
-export class StepOutDebugAction extends AbstractDebugAction {
+export class StepOutAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stepOut';
 	static LABEL = nls.localize('stepOutDebug', "Step Out");
 
@@ -218,7 +218,7 @@ export class StepOutDebugAction extends AbstractDebugAction {
 	}
 }
 
-export class StepBackDebugAction extends AbstractDebugAction {
+export class StepBackAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stepBack';
 	static LABEL = nls.localize('stepBackDebug', "Step Back");
 
@@ -240,7 +240,7 @@ export class StepBackDebugAction extends AbstractDebugAction {
 	}
 }
 
-export class StopDebugAction extends AbstractDebugAction {
+export class StopAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.stop';
 	static LABEL = nls.localize('stopDebug', "Stop");
 	static DISCONNECT_LABEL = nls.localize('disconnectDebug', "Disconnect");
@@ -250,7 +250,7 @@ export class StopDebugAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
-				this.updateLabel(session.configuration.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL);
+				this.updateLabel(session.configuration.isAttach ? StopAction.DISCONNECT_LABEL : StopAction.LABEL);
 			}
 		}));
 	}
