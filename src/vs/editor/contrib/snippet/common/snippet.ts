@@ -29,13 +29,13 @@ export interface IPlaceHolder {
 }
 
 export interface IIndentationNormalizer {
-	normalizeIndentation(str:string): string;
+	normalizeIndentation(str: string): string;
 }
 
 export interface ICodeSnippet {
-	lines:string[];
-	placeHolders:IPlaceHolder[];
-	finishPlaceHolderIndex:number;
+	lines: string[];
+	placeHolders: IPlaceHolder[];
+	finishPlaceHolderIndex: number;
 }
 
 export enum ExternalSnippetType {
@@ -46,11 +46,11 @@ export enum ExternalSnippetType {
 export class CodeSnippet implements ICodeSnippet {
 
 	private _lastGeneratedId: number;
-	public lines:string[];
-	public placeHolders:IPlaceHolder[];
-	public finishPlaceHolderIndex:number;
+	public lines: string[];
+	public placeHolders: IPlaceHolder[];
+	public finishPlaceHolderIndex: number;
 
-	constructor(snippetTemplate:string) {
+	constructor(snippetTemplate: string) {
 		this.lines = [];
 		this.placeHolders = [];
 		this._lastGeneratedId = 0;
@@ -65,7 +65,7 @@ export class CodeSnippet implements ICodeSnippet {
 		var i: number, len: number, j: number, lenJ: number, templateLines = template.split('\n');
 
 		for (i = 0, len = templateLines.length; i < len; i++) {
-			var parsedLine = this.parseLine(templateLines[i], (id:string) => {
+			var parsedLine = this.parseLine(templateLines[i], (id: string) => {
 				if (collections.contains(placeHoldersMap, id)) {
 					return placeHoldersMap[id].value;
 				}
@@ -128,7 +128,7 @@ export class CodeSnippet implements ICodeSnippet {
 		}
 	}
 
-	private parseLine(line:string, findDefaultValueForId:(id:string)=>string) : IParsedLine {
+	private parseLine(line: string, findDefaultValueForId: (id: string) => string): IParsedLine {
 
 		// Placeholder 0 is the entire line
 		var placeHolderStack: { placeHolderId: string; placeHolderText: string; }[] = [{ placeHolderId: '', placeHolderText: '' }];
@@ -211,7 +211,7 @@ export class CodeSnippet implements ICodeSnippet {
 		}
 
 		// Sort the placeholder in order of apperance:
-		placeHolders.sort( (a, b) => {
+		placeHolders.sort((a, b) => {
 			if (a.startColumn < b.startColumn) {
 				return -1;
 			}
@@ -234,7 +234,7 @@ export class CodeSnippet implements ICodeSnippet {
 	}
 
 	// This is used for both TextMate and Emmet
-	public static convertExternalSnippet(snippet: string, snippetType: ExternalSnippetType) : string {
+	public static convertExternalSnippet(snippet: string, snippetType: ExternalSnippetType): string {
 		var openBraces = 0;
 		var convertedSnippet = '';
 		var i = 0;
@@ -251,7 +251,7 @@ export class CodeSnippet implements ICodeSnippet {
 			}
 			if (/^\$\{0\}/.test(restOfLine)) {
 				i += 4;
-				convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' :'{{}}';
+				convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' : '{{}}';
 				continue;
 			}
 
@@ -311,7 +311,7 @@ export class CodeSnippet implements ICodeSnippet {
 		return convertedSnippet;
 	}
 
-	private extractLineIndentation(str:string, maxColumn:number=Number.MAX_VALUE): string {
+	private extractLineIndentation(str: string, maxColumn: number = Number.MAX_VALUE): string {
 		var fullIndentation = strings.getLeadingWhitespace(str);
 
 		if (fullIndentation.length > maxColumn - 1) {
@@ -321,13 +321,13 @@ export class CodeSnippet implements ICodeSnippet {
 		return fullIndentation;
 	}
 
-	public bind(referenceLine:string, deltaLine:number, firstLineDeltaColumn:number, config:IIndentationNormalizer):ICodeSnippet {
+	public bind(referenceLine: string, deltaLine: number, firstLineDeltaColumn: number, config: IIndentationNormalizer): ICodeSnippet {
 		var resultLines: string[] = [];
 		var resultPlaceHolders: IPlaceHolder[] = [];
 
 		var referenceIndentation = this.extractLineIndentation(referenceLine, firstLineDeltaColumn + 1);
 		var originalLine: string, originalLineIndentation: string, remainingLine: string, indentation: string;
-		var i:number, len:number, j: number, lenJ: number;
+		var i: number, len: number, j: number, lenJ: number;
 
 		// Compute resultLines & keep deltaColumns as a reference for adjusting placeholders
 		var deltaColumns: number[] = [];

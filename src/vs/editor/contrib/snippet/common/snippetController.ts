@@ -23,19 +23,19 @@ export class InsertSnippetController {
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private model: editorCommon.IModel;
-	private finishPlaceHolderIndex:number;
+	private finishPlaceHolderIndex: number;
 
-	private listenersToRemove:IDisposable[];
-	private trackedPlaceHolders:ITrackedPlaceHolder[];
+	private listenersToRemove: IDisposable[];
+	private trackedPlaceHolders: ITrackedPlaceHolder[];
 	private placeHolderDecorations: string[];
-	private currentPlaceHolderIndex:number;
-	private highlightDecorationId:string;
-	private isFinished:boolean;
+	private currentPlaceHolderIndex: number;
+	private highlightDecorationId: string;
+	private isFinished: boolean;
 
 	private _onStop: () => void;
 	private _initialAlternativeVersionId: number;
 
-	constructor(editor: editorCommon.ICommonCodeEditor, adaptedSnippet:ICodeSnippet, startLineNumber:number, initialAlternativeVersionId: number, onStop: () => void) {
+	constructor(editor: editorCommon.ICommonCodeEditor, adaptedSnippet: ICodeSnippet, startLineNumber: number, initialAlternativeVersionId: number, onStop: () => void) {
 		this.editor = editor;
 		this._onStop = onStop;
 		this.model = editor.getModel();
@@ -56,13 +56,13 @@ export class InsertSnippetController {
 		this.stopAll();
 	}
 
-	private initialize(adaptedSnippet:ICodeSnippet, startLineNumber:number): void {
-		var i:number, len:number;
+	private initialize(adaptedSnippet: ICodeSnippet, startLineNumber: number): void {
+		var i: number, len: number;
 
 		for (i = 0, len = adaptedSnippet.placeHolders.length; i < len; i++) {
 			var placeHolder = adaptedSnippet.placeHolders[i];
 
-			var trackedRanges:string[] = [];
+			var trackedRanges: string[] = [];
 			for (var j = 0, lenJ = placeHolder.occurences.length; j < lenJ; j++) {
 				trackedRanges.push(this.model.addTrackedRange(placeHolder.occurences[j], editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges));
 			}
@@ -72,7 +72,7 @@ export class InsertSnippetController {
 			});
 		}
 
-		this.editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor) => {
+		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 
 			let endLineNumber = startLineNumber + adaptedSnippet.lines.length - 1;
@@ -101,7 +101,7 @@ export class InsertSnippetController {
 		});
 
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.onDidChangeModelRawContent((e:editorCommon.IModelContentChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
@@ -143,7 +143,7 @@ export class InsertSnippetController {
 			}
 		}));
 
-		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
@@ -222,7 +222,7 @@ export class InsertSnippetController {
 					var needsChanging = Number(finishPlaceHolderRangeIsEmpty) ^ Number(finishPlaceHolderClassNameIsForEmpty);
 
 					if (needsChanging) {
-						this.editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor) => {
+						this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 							var className = finishPlaceHolderRangeIsEmpty ? 'finish-snippet-placeholder' : 'snippet-placeholder';
 							changeAccessor.changeDecorationOptions(finishPlaceHolderDecorationId, {
 								className: className
@@ -236,11 +236,11 @@ export class InsertSnippetController {
 		this.doLinkEditing();
 	}
 
-	public onNextPlaceHolder():boolean {
+	public onNextPlaceHolder(): boolean {
 		return this.changePlaceHolder(true);
 	}
 
-	public onPrevPlaceHolder():boolean {
+	public onPrevPlaceHolder(): boolean {
 		return this.changePlaceHolder(false);
 	}
 
@@ -269,7 +269,7 @@ export class InsertSnippetController {
 		return true;
 	}
 
-	public onAccept():boolean {
+	public onAccept(): boolean {
 		if (this.isFinished) {
 			return false;
 		}
@@ -285,7 +285,7 @@ export class InsertSnippetController {
 		return true;
 	}
 
-	public onEscape():boolean {
+	public onEscape(): boolean {
 		if (this.isFinished) {
 			return false;
 		}
@@ -327,7 +327,7 @@ export class InsertSnippetController {
 		}
 		this.trackedPlaceHolders = [];
 
-		this.editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor) => {
+		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			let toRemove: string[] = [];
 			toRemove.push(this.highlightDecorationId);
 			for (let i = 0; i < this.placeHolderDecorations.length; i++) {
@@ -378,7 +378,7 @@ export class SnippetController {
 		return SnippetController.ID;
 	}
 
-	public run(snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix?:boolean): void {
+	public run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
 		this._runAndRestoreController(() => {
 			if (snippet.placeHolders.length === 0) {
 				// No placeholders => execute for all editor selections
@@ -393,7 +393,7 @@ export class SnippetController {
 	/**
 	 * Inserts once `snippet` at the start of `replaceRange`, after deleting `replaceRange`.
 	 */
-	public runWithReplaceRange(snippet: CodeSnippet, replaceRange:Range): void {
+	public runWithReplaceRange(snippet: CodeSnippet, replaceRange: Range): void {
 		this._runAndRestoreController(() => {
 			this._runPreparedSnippetForPrimarySelection({
 				typeRange: replaceRange,
@@ -402,7 +402,7 @@ export class SnippetController {
 		});
 	}
 
-	private _runAndRestoreController(callback:()=>void): void {
+	private _runAndRestoreController(callback: () => void): void {
 		let prevController = this._currentController;
 		this._currentController = null;
 
@@ -419,8 +419,8 @@ export class SnippetController {
 		}
 	}
 
-	private static _getTypeRangeForSelection(model:editorCommon.IModel, selection:Selection, overwriteBefore:number, overwriteAfter:number): Range {
-		var typeRange:Range;
+	private static _getTypeRangeForSelection(model: editorCommon.IModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Range {
+		var typeRange: Range;
 		if (overwriteBefore || overwriteAfter) {
 			typeRange = model.validateRange(Range.plusRange(selection, {
 				startLineNumber: selection.positionLineNumber,
@@ -434,11 +434,11 @@ export class SnippetController {
 		return typeRange;
 	}
 
-	private static _getAdaptedSnippet(model:editorCommon.IModel, snippet:CodeSnippet, typeRange:Range): ICodeSnippet {
+	private static _getAdaptedSnippet(model: editorCommon.IModel, snippet: CodeSnippet, typeRange: Range): ICodeSnippet {
 		return snippet.bind(model.getLineContent(typeRange.startLineNumber), typeRange.startLineNumber - 1, typeRange.startColumn - 1, model);
 	}
 
-	private static _addCommandForSnippet(model:editorCommon.ITextModel, adaptedSnippet:ICodeSnippet, typeRange:Range, out:editorCommon.IIdentifiedSingleEditOperation[]): void {
+	private static _addCommandForSnippet(model: editorCommon.ITextModel, adaptedSnippet: ICodeSnippet, typeRange: Range, out: editorCommon.IIdentifiedSingleEditOperation[]): void {
 		let insertText = adaptedSnippet.lines.join('\n');
 		let currentText = model.getValueInRange(typeRange, editorCommon.EndOfLinePreference.LF);
 		if (insertText !== currentText) {
@@ -446,7 +446,7 @@ export class SnippetController {
 		}
 	}
 
-	private _runPreparedSnippetForPrimarySelection(prepared: IPreparedSnippet, undoStops:boolean): void {
+	private _runPreparedSnippetForPrimarySelection(prepared: IPreparedSnippet, undoStops: boolean): void {
 		let initialAlternativeVersionId = this._editor.getModel().getAlternativeVersionId();
 
 		let edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
@@ -476,9 +476,9 @@ export class SnippetController {
 		}
 	}
 
-	private _runForAllSelections(snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix?:boolean): void {
+	private _runForAllSelections(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
 		let selections = this._editor.getSelections(),
-			edits:editorCommon.IIdentifiedSingleEditOperation[] = [];
+			edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		for (let i = 0; i < selections.length; i++) {
 			let prepared = SnippetController._prepareSnippet(this._editor, selections[i], snippet, overwriteBefore, overwriteAfter, stripPrefix);
@@ -492,7 +492,7 @@ export class SnippetController {
 		}
 	}
 
-	private static _prepareSnippet(editor:editorCommon.ICommonCodeEditor, selection:Selection, snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number, stripPrefix = true): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
+	private static _prepareSnippet(editor: editorCommon.ICommonCodeEditor, selection: Selection, snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix = true): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
 		var model = editor.getModel();
 
 		var typeRange = SnippetController._getTypeRangeForSelection(model, selection, overwriteBefore, overwriteAfter);
@@ -513,7 +513,7 @@ export class SnippetController {
 		};
 	}
 
-	private static _getSnippetCursorOnly(snippet:ICodeSnippet):editorCommon.IPosition {
+	private static _getSnippetCursorOnly(snippet: ICodeSnippet): editorCommon.IPosition {
 
 		if (snippet.placeHolders.length !== 1) {
 			return null;
