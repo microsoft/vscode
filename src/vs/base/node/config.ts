@@ -6,6 +6,7 @@
 'use strict';
 
 import * as fs from 'fs';
+import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -113,7 +114,15 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 
 	private registerWatcher(): void {
 
-		// Support for watching symlinks
+		// Watch the parent of the path so that we detect ADD and DELETES
+		const parentFolder = path.dirname(this._path);
+		fs.exists(parentFolder, exists => {
+			if (exists) {
+				this.watch(parentFolder);
+			}
+		});
+
+		// Check if the path is a symlink and watch its target if so
 		fs.lstat(this._path, (err, stat) => {
 			if (err || stat.isDirectory()) {
 				return; // path is not a valid file
@@ -129,11 +138,6 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 					this.watch(realPath);
 				});
 			}
-
-			// We found a normal file
-			else {
-				this.watch(this._path);
-			}
 		});
 	}
 
@@ -142,13 +146,17 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		const watcher = fs.watch(path);
-		watcher.on('change', () => this.onConfigFileChange());
+		try {
+			const watcher = fs.watch(path);
+			watcher.on('change', () => this.onConfigFileChange());
 
-		this.disposables.push(toDisposable(() => {
-			watcher.removeAllListeners();
-			watcher.close();
-		}));
+			this.disposables.push(toDisposable(() => {
+				watcher.removeAllListeners();
+				watcher.close();
+			}));
+		} catch (error) {
+			console.warn(`Failed to watch ${path} for configuration changes (${error.toString()})`);
+		}
 	}
 
 	private onConfigFileChange(): void {

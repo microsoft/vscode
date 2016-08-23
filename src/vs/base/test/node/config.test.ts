@@ -111,6 +111,50 @@ suite('Config', () => {
 		});
 	});
 
+	test('watching also works when file created later', function (done: () => void) {
+		testFile((testFile, cleanUp) => {
+			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
+
+			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
+
+			setTimeout(function () {
+				fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
+			}, 50);
+
+			watcher.onDidUpdateConfiguration(event => {
+				assert.ok(event);
+				assert.equal(event.config.foo, 'changed');
+				assert.equal(watcher.getValue('foo'), 'changed');
+
+				watcher.dispose();
+
+				cleanUp(done);
+			});
+
+		});
+	});
+
+	test('watching detects the config file getting deleted', function (done: () => void) {
+		testFile((testFile, cleanUp) => {
+			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
+
+			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
+
+			setTimeout(function () {
+				fs.unlinkSync(testFile);
+			}, 50);
+
+			watcher.onDidUpdateConfiguration(event => {
+				assert.ok(event);
+
+				watcher.dispose();
+
+				cleanUp(done);
+			});
+
+		});
+	});
+
 	test('reload', function (done: () => void) {
 		testFile((testFile, cleanUp) => {
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
