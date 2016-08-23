@@ -38,7 +38,6 @@ function registerSettingsCompletions() : vscode.Disposable {
 
 		provideCompletionItems(document, position, token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
-			console.log(location);
 			if (!location.isAtPropertyKey && location.path[0] === 'files.iconTheme') {
 				let result: vscode.CompletionItem[] = [];
 				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
