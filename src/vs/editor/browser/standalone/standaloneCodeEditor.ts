@@ -12,7 +12,6 @@ import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -72,11 +71,10 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		options = options || {};
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;

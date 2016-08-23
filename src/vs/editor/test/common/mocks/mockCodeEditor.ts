@@ -11,7 +11,6 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {ICommandService, NullCommandService} from 'vs/platform/commands/common/commands';
 import {IContextKeyService, IContextKeyServiceTarget} from 'vs/platform/contextkey/common/contextkey';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {Cursor} from 'vs/editor/common/controller/cursor';
@@ -77,17 +76,15 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 
 	let codeEditorService = new MockCodeEditorService();
 	let contextKeyService = new MockKeybindingService();
-	let telemetryService = NullTelemetryService;
 	let commandService = NullCommandService;
 
 	let services = new ServiceCollection();
 	services.set(ICodeEditorService, codeEditorService);
 	services.set(IContextKeyService, contextKeyService);
-	services.set(ITelemetryService, telemetryService);
 	services.set(ICommandService, commandService);
 	let instantiationService = new InstantiationService(services);
 
-	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
+	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, commandService, contextKeyService);
 	let model: Model;
 	if (!options.model) {
 		model = Model.createFromString(text.join('\n'));
