@@ -52,7 +52,7 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 		return this._onDidUpdateConfiguration.event;
 	}
 
-	public loadConfiguration<C>(section?: string): TPromise<C> {
+	public reloadConfiguration<C>(section?: string): TPromise<C> {
 		return new TPromise<C>(c => {
 			this.rawConfig.reload(() => {
 				this.cache = void 0; // reset our caches

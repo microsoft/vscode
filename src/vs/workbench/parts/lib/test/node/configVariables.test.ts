@@ -125,7 +125,7 @@ class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
-	public loadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
+	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
 	public getConfiguration(): any { return this.configuration; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
 }

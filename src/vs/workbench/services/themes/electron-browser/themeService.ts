@@ -19,6 +19,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {Registry} from 'vs/platform/platform';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
+import {IFilesConfiguration} from 'vs/platform/files/common/files';
 
 import {$} from 'vs/base/browser/builder';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -190,12 +191,11 @@ export class ThemeService implements IThemeService {
 			}
 		});
 
-		configurationService.loadConfiguration('files').then((settings: any) => {
-			let iconTheme = settings && settings.iconTheme;
-			if (iconTheme) {
-				this.setFileIcons(iconTheme);
-			}
-		});
+		const settings = configurationService.getConfiguration<IFilesConfiguration>();
+		let iconTheme = settings && settings.files && settings.files.iconTheme;
+		if (iconTheme) {
+			this.setFileIcons(iconTheme);
+		}
 
 		configurationService.onDidUpdateConfiguration(e => {
 			let filesConfig = e.config.files;

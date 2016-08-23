@@ -526,7 +526,7 @@ export class DebugService implements debug.IDebugService {
 		this.removeReplExpressions();
 
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
-			.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
+			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
 			.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
 			.then(() => this.configurationManager.resolveInteractiveVariables())

@@ -116,7 +116,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 		return result;
 	}
 
-	public loadConfiguration(section?: string): TPromise<any> {
+	public reloadConfiguration(section?: string): TPromise<any> {
 
 		// Reset caches to ensure we are hitting the disk
 		this.bulkFetchFromWorkspacePromise = null;

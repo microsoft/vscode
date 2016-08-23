@@ -22,7 +22,7 @@ export interface IConfigurationService {
 	 * Similar to #getConfiguration() but ensures that the latest configuration
 	 * from disk is fetched.
 	 */
-	loadConfiguration<T>(section?: string): TPromise<T>;
+	reloadConfiguration<T>(section?: string): TPromise<T>;
 
 	/**
 	 * Event that fires when the configuration changes.

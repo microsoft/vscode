@@ -104,7 +104,7 @@ suite('ConfigurationService - Node', () => {
 		service.dispose();
 	});
 
-	test('loadConfiguration', (done: () => void) => {
+	test('reloadConfiguration', (done: () => void) => {
 		testFile((testFile, cleanUp) => {
 			fs.writeFileSync(testFile, '{ "foo": "bar" }');
 
@@ -122,7 +122,7 @@ suite('ConfigurationService - Node', () => {
 			assert.equal(config.foo, 'bar');
 
 			// force a reload to get latest
-			service.loadConfiguration<{ foo: string }>().then(config => {
+			service.reloadConfiguration<{ foo: string }>().then(config => {
 				assert.ok(config);
 				assert.equal(config.foo, 'changed');
 
@@ -138,7 +138,7 @@ suite('ConfigurationService - Node', () => {
 			fs.writeFileSync(testFile, '{ "workbench.editor.tabs": true }');
 
 			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
-			service.loadConfiguration().then(() => { // ensure loaded
+			service.reloadConfiguration().then(() => { // ensure loaded
 				service.onDidUpdateConfiguration(event => {
 					const config = <{ workbench: { editor: { tabs: boolean } } }>event.config;
 
@@ -196,7 +196,7 @@ suite('ConfigurationService - Node', () => {
 
 			fs.writeFileSync(testFile, '{ "configuration.service.testSetting": "isChanged" }');
 
-			service.loadConfiguration().then(() => {
+			service.reloadConfiguration().then(() => {
 				let setting = service.getConfiguration<ITestSetting>();
 
 				assert.ok(setting);

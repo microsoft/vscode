@@ -651,7 +651,7 @@ suite('TelemetryService', () => {
 						enableTelemetry
 					};
 				},
-				loadConfiguration() {
+				reloadConfiguration() {
 					return TPromise.as(this.getConfiguration());
 				},
 				onDidUpdateConfiguration: emitter.event

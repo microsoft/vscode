@@ -294,7 +294,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return Object.create(null);
 	}
 
-	public loadConfiguration<T>(section?: string): TPromise<T> {
+	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration(section));
 	}
 }
