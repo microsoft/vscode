@@ -12,6 +12,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
+import { once } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import { IExtension } from './extensions';
 import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
@@ -27,6 +29,7 @@ export interface ITemplateData {
 	description: HTMLElement;
 	extension: IExtension;
 	disposables: IDisposable[];
+	extensionDisposables: IDisposable[];
 }
 
 export class Delegate implements IDelegate<IExtension> {
@@ -74,6 +77,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		return {
 			element, icon, name, installCount, ratings, author, description, disposables,
+			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				versionWidget.extension = extension;
 				installCountWidget.extension = extension;
@@ -87,6 +91,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
 		addClass(data.element, 'loading');
+
+		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.icon.src = '';
 		data.name.textContent = '';
 		data.author.textContent = '';
@@ -98,6 +104,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
 		removeClass(data.element, 'loading');
+
+		data.extensionDisposables = dispose(data.extensionDisposables);
+
+		const onError = once(domEvent(data.icon, 'error'));
+		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
 		data.icon.src = extension.iconUrl;
 
 		if (!data.icon.complete) {

@@ -86,11 +86,28 @@ class Extension implements IExtension {
 	}
 
 	get iconUrl(): string {
-		if (this.local && this.local.manifest.icon) {
-			return URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
-		}
+		return this.localIconUrl || this.galleryIconUrl || this.defaultIconUrl;
+	}
 
-		return this.gallery ? this.gallery.assets.icon : require.toUrl('./media/defaultIcon.png');
+	get iconUrlFallback(): string {
+		return this.localIconUrl || this.galleryIconUrlFallback || this.defaultIconUrl;
+	}
+
+	private get localIconUrl(): string {
+		return this.local && this.local.manifest.icon
+			&& URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
+	}
+
+	private get galleryIconUrl(): string {
+		return this.gallery && this.gallery.assets.icon;
+	}
+
+	private get galleryIconUrlFallback(): string {
+		return this.gallery && this.gallery.assets.iconFallback;
+	}
+
+	private get defaultIconUrl(): string {
+		return require.toUrl('./media/defaultIcon.png');
 	}
 
 	get licenseUrl(): string {

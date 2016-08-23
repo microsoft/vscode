@@ -181,11 +181,25 @@ function getAssetSource(files: IRawGalleryExtensionFile[], type: string): string
 
 function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: { [key: string]: string; }): IGalleryExtension {
 	const [version] = galleryExtension.versions;
+
+	let iconFallback = getAssetSource(version.files, AssetType.Icon);
+	let icon: string;
+
+	if (iconFallback) {
+		const parsedUrl = url.parse(iconFallback, true);
+		parsedUrl.search = undefined;
+		parsedUrl.query['redirect'] = 'true';
+		icon = url.format(parsedUrl);
+	} else {
+		iconFallback = icon = require.toUrl('./media/defaultIcon.png');
+	}
+
 	const assets = {
 		manifest: getAssetSource(version.files, AssetType.Manifest),
 		readme: getAssetSource(version.files, AssetType.Details),
 		download: `${ getAssetSource(version.files, AssetType.VSIX) }?install=true`,
-		icon: getAssetSource(version.files, AssetType.Icon) || require.toUrl('./media/defaultIcon.png'),
+		icon,
+		iconFallback,
 		license: getAssetSource(version.files, AssetType.License)
 	};
 
