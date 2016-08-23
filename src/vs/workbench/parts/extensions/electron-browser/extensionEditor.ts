@@ -281,6 +281,7 @@ export class ExtensionEditor extends BaseEditor {
 				const content = append(this.content, $('div', { class: 'subcontent' }));
 
 				ExtensionEditor.renderSettings(content, manifest);
+				ExtensionEditor.renderCommands(content, manifest);
 				ExtensionEditor.renderThemes(content, manifest);
 				ExtensionEditor.renderJSONValidation(content, manifest);
 				ExtensionEditor.renderDebuggers(content, manifest);
@@ -347,6 +348,57 @@ export class ExtensionEditor extends BaseEditor {
 			$('summary', null, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
 			$('ul', null,
 				...contrib.map(v => $('li', null, v.fileMatch))
+			)
+		));
+	}
+
+	private static renderCommands(container: HTMLElement, manifest: IExtensionManifest): void {
+		interface Command {
+			id: string;
+			title: string;
+			menus: string[];
+		}
+
+		const commands: Command[] = (manifest.contributes.commands || []).map(c => ({
+			id: c.command,
+			title: c.title,
+			menus: []
+		}));
+
+		const allCommands = commands.reduce<{ [id: string]: Command }>((r, c) => { r[c.id] = c; return r; }, {});
+
+		const menus = manifest.contributes.menus || {};
+		Object.keys(menus).forEach(context => {
+			menus[context].forEach(menu => {
+				let command = allCommands[menu.command];
+
+				if (!command) {
+					command = { id: menu.command, title: '', menus: [context] };
+					allCommands[command.id] = command;
+					commands.push(command);
+				} else {
+					command.menus.push(context);
+				}
+			});
+		});
+
+		if (!commands.length) {
+			return;
+		}
+
+		append(container, $('details', { open: true },
+			$('summary', null, localize('commands', "Commands ({0})", commands.length)),
+			$('table', null,
+				$('tr', null,
+					$('th', null, localize('command name', "Name")),
+					$('th', null, localize('description', "Description")),
+					$('th', null, localize('menuContexts', "Menu Contexts"))
+				),
+				...commands.map(c => $('tr', null,
+					$('td', null, c.id),
+					$('td', null, c.title),
+					$('td', null, ...c.menus.map(context => $('code', null, context)))
+				))
 			)
 		));
 	}
