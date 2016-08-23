@@ -69,6 +69,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 				return result;
 			}
 		}, (err) => {
+			this.client.error(`'navbar' request failed with error.`, err);
 			return [];
 		});
 	}

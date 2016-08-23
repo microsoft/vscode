@@ -46,6 +46,10 @@ export interface ITypescriptServiceClient {
 	asAbsolutePath(resource: Uri): string;
 	asUrl(filepath: string): Uri;
 
+	info(message: string, data?: any): void;
+	warn(message: string, data?: any): void;
+	error(message: string, data?: any): void;
+
 	logTelemetry(eventName: string, properties?: { [prop: string]: string });
 
 	experimentalAutoBuild: boolean;
