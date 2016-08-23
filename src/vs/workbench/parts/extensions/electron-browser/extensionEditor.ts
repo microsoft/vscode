@@ -293,6 +293,18 @@ export class ExtensionEditor extends BaseEditor {
 						)
 					));
 				}
+
+				const debuggers = manifest.contributes.debuggers || [];
+
+				if (debuggers.length) {
+					append(content, $('details', null,
+						$('summary', null, localize('debuggers', "Debuggers ({0})", debuggers.length)),
+						$('table', { class: 'settings' },
+							$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
+							...debuggers.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
+						)
+					));
+				}
 			}));
 	}
 

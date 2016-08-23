@@ -146,6 +146,10 @@
 	border-collapse: separate;
 }
 
+.extension-editor > .body > .content details:not(:first-child) {
+	margin-top: 20px;
+}
+
 .extension-editor > .body > .content details > summary {
 	cursor: pointer;
 	margin-bottom: 10px;
