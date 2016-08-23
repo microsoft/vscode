@@ -423,9 +423,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				if (token) {
 					token.onCancellationRequested(() => {
 						this.tryCancelRequest(request.seq);
-						let err = new Error('Canceled');
-						err.message = 'Canceled';
-						reject(err);
+						resolve(undefined);
 					});
 				}
 			});
