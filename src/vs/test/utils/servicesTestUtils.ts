@@ -16,7 +16,6 @@ import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
@@ -543,29 +542,6 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 	public _serviceBrand: any;
 
 	private configuration = Object.create(null);
-
-	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(resources.map((resource) => {
-			return {
-				resource: resource,
-				value: ''
-			};
-		}));
-	}
-
-	protected resolveContent(resource: URI): TPromise<IContent> {
-		return TPromise.as({
-			resource: resource,
-			value: ''
-		});
-	}
-
-	protected resolveStat(resource: URI): TPromise<IStat> {
-		return TPromise.as({
-			resource: resource,
-			isDirectory: false
-		});
-	}
 
 	public loadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());
