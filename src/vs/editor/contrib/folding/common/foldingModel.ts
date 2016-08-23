@@ -134,7 +134,7 @@ export class CollapsibleRegion {
 	}
 }
 
-export function getCollapsibleRegionsToFoldAtLine(allRegions: CollapsibleRegion[], model: editorCommon.IModel, lineNumber: number, levels: number): CollapsibleRegion[] {
+export function getCollapsibleRegionsToFoldAtLine(allRegions: CollapsibleRegion[], model: editorCommon.IModel, lineNumber: number, levels: number, up: boolean): CollapsibleRegion[] {
 	let surroundingRegion: CollapsibleRegion = getCollapsibleRegionAtLine(allRegions, model, lineNumber);
 	if (!surroundingRegion) {
 		return [];
@@ -142,7 +142,7 @@ export function getCollapsibleRegionsToFoldAtLine(allRegions: CollapsibleRegion[
 	if (levels === 1) {
 		return [surroundingRegion];
 	}
-	let result = new CollapsibleRegionsTree(surroundingRegion, allRegions, model).getRegionsTill(levels);
+	let result = getCollapsibleRegionsFor(surroundingRegion, allRegions, model, levels, up);
 	return result.filter(collapsibleRegion => !collapsibleRegion.isCollapsed);
 }
 
@@ -155,7 +155,7 @@ export function getCollapsibleRegionsToUnfoldAtLine(allRegions: CollapsibleRegio
 		let regionToUnfold = surroundingRegion.isCollapsed ? surroundingRegion : getFoldedCollapsibleRegionAfterLine(allRegions, model, surroundingRegion, lineNumber);
 		return regionToUnfold ? [regionToUnfold] : [];
 	}
-	let result = new CollapsibleRegionsTree(surroundingRegion, allRegions, model).getRegionsTill(levels);
+	let result = getCollapsibleRegionsFor(surroundingRegion, allRegions, model, levels, false);
 	return result.filter(collapsibleRegion => collapsibleRegion.isCollapsed);
 }
 
@@ -202,17 +202,29 @@ export function doesLineBelongsToCollapsibleRegion(range: IFoldingRange | Range,
 function doesCollapsibleRegionIsAfterLine(range: IFoldingRange | Range, lineNumber: number): boolean {
 	return lineNumber < range.startLineNumber;
 }
+function doesCollapsibleRegionIsBeforeLine(range: IFoldingRange | Range, lineNumber: number): boolean {
+	return lineNumber > range.endLineNumber;
+}
 
-function doesCollapsibleRegionContains(range1: IFoldingRange | Range, range2: Range): boolean {
-	if (range1 instanceof Range) {
+function doesCollapsibleRegionContains(range1: IFoldingRange | Range, range2: IFoldingRange | Range): boolean {
+	if (range1 instanceof Range && range2 instanceof Range) {
 		return range1.containsRange(range2);
 	}
 	return range1.startLineNumber <= range2.startLineNumber && range1.endLineNumber >= range2.endLineNumber;
 }
 
-class CollapsibleRegionsTree {
+function getCollapsibleRegionsFor(surroundingRegion: CollapsibleRegion, allRegions: CollapsibleRegion[], model: editorCommon.IModel, levels: number, up: boolean): CollapsibleRegion[] {
+	let collapsibleRegionsHierarchy: CollapsibleRegionsHierarchy = up ? new CollapsibleRegionsParentHierarchy(surroundingRegion, allRegions, model) : new CollapsibleRegionsChildrenHierarchy(surroundingRegion, allRegions, model);
+	return collapsibleRegionsHierarchy.getRegionsTill(levels);
+}
 
-	children: CollapsibleRegionsTree[] = [];
+interface CollapsibleRegionsHierarchy {
+	getRegionsTill(level: number): CollapsibleRegion[];
+}
+
+class CollapsibleRegionsChildrenHierarchy implements CollapsibleRegionsHierarchy{
+
+	children: CollapsibleRegionsChildrenHierarchy[] = [];
 	lastChildIndex: number;
 
 	constructor(private region: CollapsibleRegion, allRegions: CollapsibleRegion[], model: editorCommon.IModel) {
@@ -231,7 +243,7 @@ class CollapsibleRegionsTree {
 	}
 
 	private processChildRegion(dec: CollapsibleRegion, allRegions: CollapsibleRegion[], model: editorCommon.IModel, index : number): number {
-		let childRegion = new CollapsibleRegionsTree(dec, allRegions, model);
+		let childRegion = new CollapsibleRegionsChildrenHierarchy(dec, allRegions, model);
 		this.children.push(childRegion);
 		this.lastChildIndex = index;
 		return childRegion.children.length > 0 ? childRegion.lastChildIndex : index;
@@ -241,6 +253,35 @@ class CollapsibleRegionsTree {
 		let result = [this.region];
 		if (level > 1) {
 			this.children.forEach(region => result = result.concat(region.getRegionsTill(level - 1)));
+		}
+		return result;
+	}
+}
+class CollapsibleRegionsParentHierarchy  implements CollapsibleRegionsHierarchy {
+
+	parent: CollapsibleRegionsParentHierarchy;
+	lastChildIndex: number;
+
+	constructor(private region: CollapsibleRegion, allRegions: CollapsibleRegion[], model: editorCommon.IModel) {
+		for (let index = allRegions.indexOf(region) - 1; index >= 0; index--) {
+			let dec = allRegions[index];
+			let decRange = dec.getDecorationRange(model);
+			if (decRange) {
+				if (doesCollapsibleRegionContains(decRange, region.foldingRange)) {
+					this.parent = new CollapsibleRegionsParentHierarchy(dec, allRegions, model);
+					break;
+				}
+				if (doesCollapsibleRegionIsBeforeLine(decRange, region.foldingRange.endLineNumber)) {
+					break;
+				}
+			}
+		}
+	}
+
+	public getRegionsTill(level: number): CollapsibleRegion[] {
+		let result = [this.region];
+		if (this.parent && level > 1) {
+			result = result.concat(this.parent.getRegionsTill(level - 1));
 		}
 		return result;
 	}
