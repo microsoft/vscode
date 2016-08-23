@@ -23,6 +23,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Selection} from 'vs/editor/common/core/selection';
 import Event, {Emitter} from 'vs/base/common/event';
+import {getDefaultValues as getDefaultConfiguration} from 'vs/platform/configuration/common/model';
 
 export class SimpleEditor implements IEditor {
 
@@ -279,19 +280,17 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: any;
 
-	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
+	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
+	public onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
 
-	constructor(
-	) {
-		this._onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
-	}
+	private _config: any;
 
-	public get onDidUpdateConfiguration(): Event<IConfigurationServiceEvent> {
-		return this._onDidUpdateConfiguration.event;
+	constructor() {
+		this._config = getDefaultConfiguration();
 	}
 
 	public getConfiguration<T>(section?: string): T {
-		return Object.create(null);
+		return this._config;
 	}
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
