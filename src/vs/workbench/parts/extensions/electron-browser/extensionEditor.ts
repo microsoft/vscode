@@ -12,6 +12,8 @@ import { marked } from 'vs/base/common/marked/marked';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
+import { once } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import { append, emmet as $, addClass, removeClass, finalHandler } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewlet } from 'vs/workbench/common/viewlet';
@@ -48,7 +50,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extension';
 
-	private icon: HTMLElement;
+	private icon: HTMLImageElement;
 	private name: HTMLAnchorElement;
 	private license: HTMLAnchorElement;
 	private publisher: HTMLAnchorElement;
@@ -88,7 +90,7 @@ export class ExtensionEditor extends BaseEditor {
 		const root = append(container, $('.extension-editor'));
 		const header = append(root, $('.header'));
 
-		this.icon = append(header, $('.icon'));
+		this.icon = append(header, $<HTMLImageElement>('img.icon'));
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
@@ -124,7 +126,10 @@ export class ExtensionEditor extends BaseEditor {
 		const extension = input.extension;
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
-		this.icon.style.backgroundImage = `url("${ extension.iconUrl }")`;
+		const onError = once(domEvent(this.icon, 'error'));
+		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
+		this.icon.src = extension.iconUrl;
+
 		this.name.textContent = extension.displayName;
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;

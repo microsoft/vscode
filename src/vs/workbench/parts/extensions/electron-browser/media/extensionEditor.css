@@ -24,10 +24,7 @@
 .extension-editor > .header > .icon {
 	height: 128px;
 	width: 128px;
-	min-width: 128px;
-	background-size: 128px;
-	background-repeat: no-repeat;
-	background-position: center center;
+	object-fit: contain;
 }
 
 .extension-editor > .header > .details {

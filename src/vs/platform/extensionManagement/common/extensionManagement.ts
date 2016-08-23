@@ -33,6 +33,7 @@ export interface IGalleryExtensionAssets {
 	readme: string;
 	download: string;
 	icon: string;
+	iconFallback: string;
 	license: string;
 }
 
