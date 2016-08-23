@@ -371,7 +371,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		this.editor.revealPositionInCenterIfOutsideViewport(revealPosition);
 	}
 
-	public unfold(levels: number = 1): void {
+	public unfold(levels: number): void {
 		let model = this.editor.getModel();
 		let hasChanges = false;
 		let selections = this.editor.getSelections();
@@ -400,12 +400,12 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		}
 	}
 
-	public fold(levels: number = 1): void {
+	public fold(levels: number, up: boolean): void {
 		let hasChanges = false;
 		let selections = this.editor.getSelections();
 		selections.forEach(selection => {
 			let lineNumber = selection.startLineNumber;
-			let toFold: CollapsibleRegion[] = getCollapsibleRegionsToFoldAtLine(this.decorations, this.editor.getModel(), lineNumber, levels);
+			let toFold: CollapsibleRegion[] = getCollapsibleRegionsToFoldAtLine(this.decorations, this.editor.getModel(), lineNumber, levels, up);
 			toFold.forEach(collapsibleRegion => this.editor.changeDecorations(changeAccessor => {
 				collapsibleRegion.setCollapsed(true, changeAccessor);
 				hasChanges = true;
@@ -511,8 +511,29 @@ abstract class FoldingAction<T> extends EditorAction {
 	}
 }
 
+interface FoldingArguments {
+	levels?: number;
+	direction?: 'up' | 'down';
+}
+
+function foldingArgumentsConstraint(args) {
+	if (!types.isUndefined(args)) {
+		if (!types.isObject(args)) {
+			return false;
+		}
+		const foldingArgs: FoldingArguments = args;
+		if (!types.isUndefined(foldingArgs.levels) && !types.isNumber(foldingArgs.levels)) {
+			return false;
+		}
+		if (!types.isUndefined(foldingArgs.direction) && !types.isString(foldingArgs.direction)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 @editorAction
-class UnfoldAction extends FoldingAction<{levels?: number}> {
+class UnfoldAction extends FoldingAction<FoldingArguments> {
 
 	constructor() {
 		super({
@@ -532,14 +553,14 @@ class UnfoldAction extends FoldingAction<{levels?: number}> {
 						description: `Property-value pairs that can be passed through this argument:
 							'level': Number of levels to unfold
 						`,
-						constraint: args => types.isUndefined(args) || (types.isObject(args) && (types.isUndefined(args.level) || types.isNumber(args.level)))
+						constraint: foldingArgumentsConstraint
 					}
 				]
 			}
 		});
 	}
 
-	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor, args: {levels?: number}): void {
+	invoke(foldingController: FoldingController, editor: editorCommon.ICommonCodeEditor, args: FoldingArguments): void {
 		foldingController.unfold(args ? args.levels || 1 : 1);
 	}
 }
@@ -566,7 +587,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 }
 
 @editorAction
-class FoldAction extends FoldingAction<{levels?: number}> {
+class FoldAction extends FoldingAction<FoldingArguments> {
 
 	constructor() {
 		super({
@@ -585,16 +606,18 @@ class FoldAction extends FoldingAction<{levels?: number}> {
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
 							'levels': Number of levels to fold
+							'up': If 'true' folds given number of levels up otherwise folds down
 						`,
-						constraint: args => types.isUndefined(args) || (types.isObject(args) && (types.isUndefined(args.level) || types.isNumber(args.level)))
+						constraint: foldingArgumentsConstraint
 					}
 				]
 			}
 		});
 	}
 
-	invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor, args: {levels?: number}): void {
-		foldingController.fold(args ? args.levels || 1 : 1);
+	invoke(foldingController: FoldingController, editor: editorCommon.ICommonCodeEditor, args: FoldingArguments): void {
+		args = args ? args : { levels: 1, direction: 'up' };
+		foldingController.fold(args.levels || 1, args.direction === 'up');
 	}
 }
 
