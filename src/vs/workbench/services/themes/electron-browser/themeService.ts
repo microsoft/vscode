@@ -108,6 +108,7 @@ interface ThemeSettingStyle {
 	fontStyle?: string;
 	caret?: string;
 	invisibles?: string;
+	guide?: string;
 	lineHighlight?: string;
 	selection?: string;
 }
@@ -616,6 +617,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 		foreground: void 0,
 		caret: void 0,
 		invisibles: void 0,
+		guide: void 0,
 		lineHighlight: void 0,
 		selection: void 0
 	};
@@ -669,9 +671,11 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	if (editorSettings.invisibles) {
 		let invisibles = new Color(editorSettings.invisibles);
 		cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
-		cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${invisibles}; }`);
 	}
-
+	if (editorSettings.guide) {
+		let guide = new Color(editorSettings.guide);
+		cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${guide}; }`);
+	}
 	return cssRules.join('\n');
 }
 
