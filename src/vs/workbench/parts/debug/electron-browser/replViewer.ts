@@ -18,7 +18,7 @@ import mouse = require('vs/base/browser/mouseEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debugviewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
@@ -479,7 +479,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 		debugService: debug.IDebugService,
 		contextMenuService: IContextMenuService,
 		actionProvider: renderer.IActionProvider,
-		private replInput: CodeEditorWidget,
+		private replInput: CodeEditor,
 		focusOnContextMenu = true
 	) {
 		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);

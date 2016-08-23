@@ -16,7 +16,7 @@ import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
@@ -56,7 +56,7 @@ export class Repl extends Panel {
 	private renderer: viewer.ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: CodeEditorWidget;
+	private replInput: CodeEditor;
 	private refreshTimeoutHandle: number;
 	private actions: actions.IAction[];
 
@@ -125,7 +125,7 @@ export class Repl extends Panel {
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
 		this.treeContainer = dom.append(container, $('.repl-tree'));
 		const replInputContainer = dom.append(container, $('.repl-input-wrapper'));
-		this.replInput = this.instantiationService.createInstance(CodeEditorWidget, replInputContainer, this.getReplInputOptions());
+		this.replInput = this.instantiationService.createInstance(CodeEditor, replInputContainer, this.getReplInputOptions());
 		this.replInput.setModel(Model.createFromString(''));
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.replInput.getDomNode(), 'keydown', (e: IKeyboardEvent) => {

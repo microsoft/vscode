@@ -18,7 +18,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 import {IEditorContextViewService, IEditorOverrideServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 
@@ -56,7 +56,7 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 	addAction(descriptor:IActionDescriptor): void;
 }
 
-export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
+export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _contextViewService:IEditorContextViewService;
