@@ -145,7 +145,7 @@ interface FileIconsAssociation {
 
 interface FileIconsDocument extends FileIconsAssociation {
 	iconDefinitions: { [key:string]: FileIconDefinition };
-	font: { family: string; weight: string; style: string; src: {path:string, format:string}[] };
+	font: { family: string; weight: string; style: string; size: string, src: {path:string, format:string}[] };
 	light?: FileIconsAssociation;
 	highContrast?: FileIconsAssociation;
 }
@@ -509,7 +509,7 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 		let src = font.src.map(l => `url('${resolvePath(l.path)}') format('${l.format}')`).join(', ');
 		cssRules.push(`@font-face { src: ${src}; font-family: '${font.family}'; font-weigth: ${font.weight}; font-style: ${font.style}; }`);
 
-		cssRules.push(`.file-icon::before, .folder-icon::before { font-family: '${font.family}';}`);
+		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before { font-family: '${font.family}'; font-size: ${font.size || '150%'}}`);
 	}
 
 	for (let defId in selectorByDefinitionId) {
