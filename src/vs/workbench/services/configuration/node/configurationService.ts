@@ -39,7 +39,10 @@ interface IContent {
 	value: string;
 }
 
-export class ConfigurationService implements IWorkbenchConfigurationService, IDisposable {
+/**
+ * Wraps around the basic configuration service and adds knowledge about workspace settings.
+ */
+export class WorkspaceConfigurationService implements IWorkbenchConfigurationService, IDisposable {
 
 	public _serviceBrand: any;
 
@@ -74,7 +77,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 		this.baseConfigurationService = new BaseConfigurationService(environmentService);
 		this.toDispose.push(this.baseConfigurationService);
 
-		this.reloadConfigurationScheduler = new RunOnceScheduler(() => this.doLoadConfiguration().then(config => this._onDidUpdateConfiguration.fire({ config })).done(null, errors.onUnexpectedError), ConfigurationService.RELOAD_CONFIGURATION_DELAY);
+		this.reloadConfigurationScheduler = new RunOnceScheduler(() => this.doLoadConfiguration().then(config => this._onDidUpdateConfiguration.fire({ config })).done(null, errors.onUnexpectedError), WorkspaceConfigurationService.RELOAD_CONFIGURATION_DELAY);
 		this.toDispose.push(this.reloadConfigurationScheduler);
 
 		this.registerListeners();

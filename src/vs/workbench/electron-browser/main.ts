@@ -18,7 +18,7 @@ import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
+import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {IProcessEnvironment} from 'vs/code/electron-main/env';
 import {ParsedArgs} from 'vs/code/node/argv';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
@@ -131,7 +131,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new LegacyWorkspaceContextService(workspace, options);
-	const configurationService = new ConfigurationService(contextService, eventService, environmentService);
+	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
