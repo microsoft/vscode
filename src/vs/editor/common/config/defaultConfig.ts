@@ -107,4 +107,4 @@ class ConfigClass implements IConfiguration {
 	}
 }
 
-export var DefaultConfig: IConfiguration = new ConfigClass();
+export const DefaultConfig: IConfiguration = new ConfigClass();

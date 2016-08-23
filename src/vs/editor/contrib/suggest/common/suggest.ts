@@ -17,11 +17,13 @@ import {ISnippetsRegistry, Extensions} from 'vs/editor/common/modes/snippetsRegi
 import {Position} from 'vs/editor/common/core/position';
 import {Registry} from 'vs/platform/platform';
 import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
-	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true)
+	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true),
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', DefaultConfig.editor.acceptSuggestionOnEnter)
 };
 
 export interface ISuggestionItem {

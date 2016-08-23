@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -37,12 +37,21 @@ export class SuggestController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@ICommandService private commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.model = new SuggestModel(this.editor);
 		this.toDispose.push(this.model.onDidTrigger(e => this.widget.showTriggered(e.auto)));
 		this.toDispose.push(this.model.onDidSuggest(e => this.widget.showSuggestions(e.completionModel, e.isFrozen, e.auto)));
 		this.toDispose.push(this.model.onDidCancel(e => !e.retrigger && this.widget.hideWidget()));
+
+		// Manage the acceptSuggestionsOnEnter context key
+		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(contextKeyService);
+		let updateFromConfig = () => {
+			acceptSuggestionsOnEnter.set(this.editor.getConfiguration().contribInfo.acceptSuggestionOnEnter);
+		};
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e) => updateFromConfig()));
+		updateFromConfig();
 
 		this.widget = instantiationService.createInstance(SuggestWidget, this.editor);
 		this.toDispose.push(this.widget.onDidSelect(this.onDidSelectItem, this));
@@ -182,7 +191,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, ContextKeyExpr.has('config.editor.acceptSuggestionOnEnter')),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, SuggestContext.AcceptSuggestionsOnEnter),
 		primary: KeyCode.Enter
 	}
 }));
