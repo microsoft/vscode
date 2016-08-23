@@ -19,5 +19,17 @@
 	},
 	"dependencies": {
 		"typescript": "^1.8.10"
+	},
+	"contributes": {
+		"jsonValidation": [
+			{
+				"fileMatch": "package.json",
+				"url": "vscode://schemas/vscode-extensions"
+			},
+			{
+				"fileMatch": "*language-configuration.json",
+				"url": "vscode://schemas/language-configuration"
+			}
+		]
 	}
 }
