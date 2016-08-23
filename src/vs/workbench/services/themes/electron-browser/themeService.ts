@@ -81,7 +81,7 @@ let fileIconsExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { id: '{{id}}', label: '{{label}}', uiTheme: 'vs-dark', path: './fileicons/{{id}}.json' } }],
+		defaultSnippets: [{ body: { id: '{{id}}', label: '{{label}}', path: './fileicons/{{id}}.json' } }],
 		properties: {
 			id: {
 				description: nls.localize('vscode.extension.contributes.fileIcons.id', 'Id of the file icon set as used in the user settings.'),
@@ -127,11 +127,20 @@ interface IInternalThemeData extends IThemeData {
 	extensionId: string;
 }
 
-interface FileIconDefinition {
+interface IconDefinition {
 	iconPath: string;
-	color: string;
-	content: string;
+	fontColor: string;
+	fontCharacter: string;
 	fontSize: string;
+	fontId: string;
+}
+
+interface FontDefinition {
+	id: string;
+	weight: string;
+	style: string;
+	size: string;
+	src: { path:string; format:string; }[];
 }
 
 interface FileIconsAssociation {
@@ -144,8 +153,8 @@ interface FileIconsAssociation {
 }
 
 interface FileIconsDocument extends FileIconsAssociation {
-	iconDefinitions: { [key:string]: FileIconDefinition };
-	font: { family: string; weight: string; style: string; size: string, src: {path:string, format:string}[] };
+	iconDefinitions: { [key:string]: IconDefinition };
+	fonts: FontDefinition[];
 	light?: FileIconsAssociation;
 	highContrast?: FileIconsAssociation;
 }
@@ -504,12 +513,13 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 
 	let cssRules: string[] = [];
 
-	let font = fileIconsDocument.font;
-	if (font) {
-		let src = font.src.map(l => `url('${resolvePath(l.path)}') format('${l.format}')`).join(', ');
-		cssRules.push(`@font-face { src: ${src}; font-family: '${font.family}'; font-weigth: ${font.weight}; font-style: ${font.style}; }`);
-
-		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before { font-family: '${font.family}'; font-size: ${font.size || '150%'}}`);
+	let fonts = fileIconsDocument.fonts;
+	if (Array.isArray(fonts)) {
+		fonts.forEach(font => {
+			let src = font.src.map(l => `url('${resolvePath(l.path)}') format('${l.format}')`).join(', ');
+			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weigth: ${font.weight}; font-style: ${font.style}; }`);
+		});
+		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}}`);
 	}
 
 	for (let defId in selectorByDefinitionId) {
@@ -519,16 +529,19 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 			if (definition.iconPath) {
 				cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: url("${resolvePath(definition.iconPath)}"); }`);
 			}
-			if (definition.content || definition.color) {
+			if (definition.fontCharacter || definition.fontColor) {
 				let body = '';
-				if (definition.color) {
-					body += ` color: ${definition.color};`;
+				if (definition.fontColor) {
+					body += ` color: ${definition.fontColor};`;
 				}
-				if (definition.content) {
-					body += ` content: '${definition.content}';`;
+				if (definition.fontCharacter) {
+					body += ` content: '${definition.fontCharacter}';`;
 				}
 				if (definition.fontSize) {
 					body += ` font-size: ${definition.fontSize};`;
+				}
+				if (definition.fontId) {
+					body += ` font-family: ${definition.fontId};`;
 				}
 				cssRules.push(`${selectors.join(', ')} { ${body} }`);
 			}
