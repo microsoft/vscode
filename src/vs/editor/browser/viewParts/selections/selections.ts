@@ -61,7 +61,7 @@ function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
 // Unfortunately, this auto-zooming is buggy around dealing with rounded borders
 const isIEWithZoomingIssuesNearRoundedBorders = (
 	(navigator.userAgent.indexOf('Trident/7.0') >= 0)
-	|| (navigator.userAgent.indexOf('Edge/12') >= 0)
+	|| (navigator.userAgent.indexOf('Edge/') >= 0)
 );
 
 
