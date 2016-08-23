@@ -268,7 +268,7 @@
 			]
 		},
 		{
-			"begin": "^\\s+",
+			"begin": "^\\s*",
 			"comment": "All constructs that generally span a single line starting with any number of white-spaces.",
 			"end": "$",
 			"patterns": [

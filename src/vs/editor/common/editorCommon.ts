@@ -2599,7 +2599,9 @@ export interface ICursorSelectionChangedEvent {
 export enum VerticalRevealType {
 	Simple = 0,
 	Center = 1,
-	CenterIfOutsideViewport = 2
+	CenterIfOutsideViewport = 2,
+	Top = 3,
+	Bottom = 4
 }
 /**
  * An event describing a request to reveal a specific range in the view of the editor.
@@ -2620,7 +2622,11 @@ export interface ICursorRevealRangeEvent {
 	 * If true: there should be a horizontal & vertical revealing
 	 * If false: there should be just a vertical revealing
 	 */
-	revealHorizontal:boolean;
+	revealHorizontal: boolean;
+	/**
+	 * If true: cursor is revealed if outside viewport
+	 */
+	revealCursor: boolean;
 }
 
 /**
@@ -2628,6 +2634,7 @@ export interface ICursorRevealRangeEvent {
  */
 export interface ICursorScrollRequestEvent {
 	deltaLines: number;
+	revealCursor: boolean;
 }
 
 /**
@@ -3395,6 +3402,10 @@ export interface IViewRevealRangeEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	revealHorizontal: boolean;
+	/**
+	 * If true: cursor is revealed if outside viewport
+	 */
+	revealCursor: boolean;
 }
 
 /**
@@ -3402,6 +3413,7 @@ export interface IViewRevealRangeEvent {
  */
 export interface IViewScrollRequestEvent {
 	deltaLines: number;
+	revealCursor: boolean;
 }
 
 /**
@@ -3930,7 +3942,7 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The contribution or null if contribution not found.
 	 */
-	getContribution(id: string): IEditorContribution;
+	getContribution<T extends IEditorContribution>(id: string): T;
 
 	/**
 	 * @internal
@@ -4153,6 +4165,28 @@ export var EditorType = {
 };
 
 /**
+ *@internal
+ */
+export function isCommonCodeEditor(thing: any): thing is ICommonCodeEditor {
+	if (thing && typeof (<ICommonCodeEditor>thing).getEditorType === 'function') {
+		return (<ICommonCodeEditor>thing).getEditorType() === EditorType.ICodeEditor;
+	} else {
+		return false;
+	}
+}
+
+/**
+ *@internal
+ */
+export function isCommonDiffEditor(thing: any): thing is ICommonDiffEditor {
+	if (thing && typeof (<ICommonDiffEditor>thing).getEditorType === 'function') {
+		return (<ICommonDiffEditor>thing).getEditorType() === EditorType.ICodeEditor;
+	} else {
+		return false;
+	}
+}
+
+/**
  * @internal
  */
 export var ClassName = {
@@ -4234,6 +4268,8 @@ export const CursorMovePosition = {
 	ViewPortTop: 'viewPortTop',
 	ViewPortCenter: 'viewPortCenter',
 	ViewPortBottom: 'viewPortBottom',
+
+	ViewPortIfOutside: 'viewPortIfOutside'
 };
 
 /**
@@ -4259,7 +4295,7 @@ export interface CursorMoveArguments {
 /**
  * @internal
  */
-let isCursorMoveArgs= function(arg): boolean  {
+const isCursorMoveArgs= function(arg): boolean  {
 	if (!types.isObject(arg)) {
 		return false;
 	}
@@ -4310,12 +4346,13 @@ export interface EditorScrollArguments {
 	to: string;
 	by?: string;
 	value?: number;
+	revealCursor?: boolean;
 };
 
 /**
  * @internal
  */
-let isEditorScrollArgs= function(arg): boolean  {
+const isEditorScrollArgs= function(arg): boolean  {
 	if (!types.isObject(arg)) {
 		return false;
 	}
@@ -4331,6 +4368,48 @@ let isEditorScrollArgs= function(arg): boolean  {
 	}
 
 	if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
+		return false;
+	}
+
+	if (!types.isUndefined(scrollArg.revealCursor) && !types.isBoolean(scrollArg.revealCursor)) {
+		return false;
+	}
+
+	return true;
+};
+
+/**
+ * Arguments for reveal line command
+ */
+export interface RevealLineArguments {
+	lineNumber?: number;
+	at?: string;
+};
+
+/**
+ * Values for reveal line 'at' argument
+ */
+export const RevealLineAtArgument = {
+	Top: 'top',
+	Center: 'center',
+	Bottom: 'bottom'
+};
+
+/**
+ * @internal
+ */
+const isRevealLineArgs= function(arg): boolean  {
+	if (!types.isObject(arg)) {
+		return false;
+	}
+
+	let reveaLineArg: RevealLineArguments = arg;
+
+	if (!types.isNumber(reveaLineArg.lineNumber)) {
+		return false;
+	}
+
+	if (!types.isUndefined(reveaLineArg.at) && !types.isString(reveaLineArg.at)) {
 		return false;
 	}
 
@@ -4351,7 +4430,7 @@ export var CommandDescription = {
 					\`\`\`
 						'left', 'right', 'up', 'down',
 						'wrappedLineStart', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineColumnCenter', 'wrappedLineEnd' ,'wrappedLineLastNonWhitespaceCharacter',
-						'viewPortTop', 'viewPortCenter', 'viewPortBottom'
+						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
 					\`\`\`
 					'by': Unit to move. Default is computed based on 'to' value.
 					\`\`\`
@@ -4376,11 +4455,28 @@ export var CommandDescription = {
 					\`\`\`
 					'by': Unit to move. Default is computed based on 'to' value.
 					\`\`\`
-						'line', 'wrappedLine', page', 'halfPage'
+						'line', 'wrappedLine', 'page', 'halfPage'
 					\`\`\`
 					'value': Number of units to move. Default is '1'.
+					'revealCursor': If 'true' reveals the cursor if it is outside view port.
 				`,
 				constraint: isEditorScrollArgs
+			}
+		]
+	},
+	RevealLine: <ICommandHandlerDescription>{
+		description: 'Reveal the given line at the given logical position',
+		args: [
+			{
+				name: 'Reveal line argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					'lineNumber': A mandatory line number value.
+					'at': Logical position at which line has to be revealed .
+					\`\`\`
+						'top', 'center', 'bottom'
+					\`\`\`
+				`,
+				constraint: isRevealLineArgs
 			}
 		]
 	}
@@ -4510,7 +4606,9 @@ export var Handler = {
 	ScrollLineDown:				'scrollLineDown',
 
 	ScrollPageUp:				'scrollPageUp',
-	ScrollPageDown:				'scrollPageDown'
+	ScrollPageDown:				'scrollPageDown',
+
+	RevealLine:					'revealLine'
 };
 
 /**

@@ -4,59 +4,104 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
 import * as os from 'os';
 import * as path from 'path';
 import {ParsedArgs} from 'vs/code/node/argv';
 import URI from 'vs/base/common/uri';
+import { memoize } from 'vs/base/common/decorators';
+import pkg from 'vs/platform/package';
+import product from 'vs/platform/product';
+
+function getUniqueUserId(): string {
+	let username: string;
+	if (process.platform === 'win32') {
+		username = process.env.USERNAME;
+	} else {
+		username = process.env.USER;
+	}
+
+	if (!username) {
+		return ''; // fail gracefully if there is no user name
+	}
+
+	// use sha256 to ensure the userid value can be used in filenames and are unique
+	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
+}
+
+function getIPCHandleBaseName(): string {
+	let name = pkg.name;
+
+	// Support to run VS Code multiple times as different user
+	// by making the socket unique over the logged in user
+	let userId = getUniqueUserId();
+	if (userId) {
+		name += `-${ userId }`;
+	}
+
+	if (process.platform === 'win32') {
+		return `\\\\.\\pipe\\${ name }`;
+	}
+
+	return path.join(os.tmpdir(), name);
+}
+
+const IPCHandlePrefix = getIPCHandleBaseName();
+const IPCHandleSuffix = process.platform === 'win32' ? '-sock' : '.sock';
 
 export class EnvironmentService implements IEnvironmentService {
 
 	_serviceBrand: any;
 
-	private _appRoot: string;
-	get appRoot(): string { return this._appRoot; }
+	@memoize
+	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
 
-	private _userHome: string;
-	get userHome(): string { return this._userHome; }
+	get execPath(): string { return this._execPath; }
 
-	private _userDataPath: string;
-	get userDataPath(): string { return this._userDataPath; }
+	@memoize
+	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
 
-	private _appSettingsHome: string;
-	get appSettingsHome(): string { return this._appSettingsHome; }
+	@memoize
+	get userDataPath(): string { return this.args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform); }
 
-	private _appSettingsPath: string;
-	get appSettingsPath(): string { return this._appSettingsPath; }
+	@memoize
+	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }
 
-	private _appKeybindingsPath: string;
-	get appKeybindingsPath(): string { return this._appKeybindingsPath; }
+	@memoize
+	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
-	private _extensionsPath: string;
-	get extensionsPath(): string { return this._extensionsPath; }
+	@memoize
+	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
-	private _extensionDevelopmentPath: string;
-	get extensionDevelopmentPath(): string { return this._extensionDevelopmentPath; }
+	@memoize
+	get extensionsPath(): string { return path.normalize(this.args.extensionHomePath || path.join(this.userHome, 'extensions')); }
+
+	get extensionDevelopmentPath(): string { return this.args.extensionDevelopmentPath; }
+
+	get extensionTestsPath(): string { return this.args.extensionTestsPath; }
+	get disableExtensions(): boolean { return this.args['disable-extensions'];  }
+
+	@memoize
+	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this.args, this.isBuilt); }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
-	get verbose(): boolean { return this.parsedArgs.verbose; }
+	get verbose(): boolean { return this.args.verbose; }
+	get performance(): boolean { return this.args.performance; }
+	get logExtensionHostCommunication(): boolean { return this.args.logExtensionHostCommunication; }
 
-	get debugBrkFileWatcherPort(): number { return typeof this.parsedArgs.debugBrkFileWatcherPort === 'string' ? Number(this.parsedArgs.debugBrkFileWatcherPort) : void 0; }
+	@memoize
+	get mainIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }${ IPCHandleSuffix }`; }
 
-	constructor(private parsedArgs: ParsedArgs) {
-		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
-		this._userDataPath = paths.getUserDataPath(process.platform, pkg.name, parsedArgs['user-data-dir']);
+	@memoize
+	get sharedIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }-shared${ IPCHandleSuffix }`; }
 
-		this._appSettingsHome = path.join(this.userDataPath, 'User');
-		this._appSettingsPath = path.join(this.appSettingsHome, 'settings.json');
-		this._appKeybindingsPath = path.join(this.appSettingsHome, 'keybindings.json');
+	constructor(private args: ParsedArgs, private _execPath: string) {}
+}
 
-		this._userHome = path.join(os.homedir(), product.dataFolderName);
-		this._extensionsPath = parsedArgs.extensionHomePath || path.join(this._userHome, 'extensions');
-		this._extensionsPath = path.normalize(this._extensionsPath);
-
-		this._extensionDevelopmentPath = parsedArgs.extensionDevelopmentPath;
-	}
+export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {
+	const portStr = args.debugBrkPluginHost || args.debugPluginHost;
+	const port = Number(portStr) || (!isBuild ? 5870 : null);
+	const brk = port ? Boolean(!!args.debugBrkPluginHost) : false;
+	return { port, break: brk };
 }

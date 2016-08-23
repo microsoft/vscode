@@ -18,7 +18,7 @@ import {IContextViewProvider, AnchorAlignment} from 'vs/base/browser/ui/contextv
 import Event, {Emitter} from 'vs/base/common/event';
 import {Widget} from 'vs/base/browser/ui/widget';
 
-let $ = dom.emmet;
+const $ = dom.$;
 
 export interface IInputOptions {
 	placeholder?: string;

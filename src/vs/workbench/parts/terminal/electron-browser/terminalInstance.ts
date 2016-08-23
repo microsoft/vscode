@@ -23,6 +23,8 @@ import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
 
 export class TerminalInstance {
 
+	public id: number;
+
 	private static eolRegex = /\r?\n/g;
 
 	private isExiting: boolean = false;
@@ -46,13 +48,13 @@ export class TerminalInstance {
 		private terminalFocusContextKey: IContextKey<boolean>,
 		private onExitCallback: (TerminalInstance) => void
 	) {
-		let self = this;
 		this.toDispose = [];
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.terminalDomElement = document.createElement('div');
 		this.xterm = xterm();
 
+		this.id = this.terminalProcess.process.pid;
 		this.terminalProcess.process.on('message', (message) => {
 			if (message.type === 'data') {
 				this.xterm.write(message.content);
@@ -65,11 +67,11 @@ export class TerminalInstance {
 			});
 			return false;
 		});
-		this.xterm.attachCustomKeydownHandler(function (event: KeyboardEvent) {
+		this.xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
 			// be escaped
 			let standardKeyboardEvent = new StandardKeyboardEvent(event);
-			if (self.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+			if (this.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
 				event.preventDefault();
 				return false;
 			}
@@ -109,16 +111,16 @@ export class TerminalInstance {
 		xtermHelper.insertBefore(focusTrap, this.xterm.textarea);
 
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'focus', (event: KeyboardEvent) => {
-			self.terminalFocusContextKey.set(true);
+			this.terminalFocusContextKey.set(true);
 		}));
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'blur', (event: KeyboardEvent) => {
-			self.terminalFocusContextKey.reset();
+			this.terminalFocusContextKey.reset();
 		}));
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'focus', (event: KeyboardEvent) => {
-			self.terminalFocusContextKey.set(true);
+			this.terminalFocusContextKey.set(true);
 		}));
 		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'blur', (event: KeyboardEvent) => {
-			self.terminalFocusContextKey.reset();
+			this.terminalFocusContextKey.reset();
 		}));
 
 		this.wrapperElement.appendChild(this.terminalDomElement);
@@ -173,6 +175,16 @@ export class TerminalInstance {
 			return this.keybindingService.lookupKeybindings(c);
 		}).reduce((prev, curr) => {
 			return prev.concat(curr);
+		});
+	}
+
+	public sendText(text: string, addNewLine: boolean): void {;
+		if (addNewLine && text.substr(text.length - os.EOL.length) !== os.EOL) {
+			text += os.EOL;
+		}
+		this.terminalProcess.process.send({
+			event: 'input',
+			data: text
 		});
 	}
 

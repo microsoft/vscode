@@ -36,7 +36,7 @@
 	"miFind": "查找(&&F)",
 	"miFindInFiles": "在文件中查找(&&I)",
 	"miFocusFirstGroup": "左侧组(&&L)",
-	"miFocusSecondGroup": "侧面组(&&S)",
+	"miFocusSecondGroup": "中心组(&&C)",
 	"miFocusThirdGroup": "右侧组(&&R)",
 	"miForward": "前进(&&F)",
 	"miGotoDefinition": "转到定义(&&D)...",

@@ -21,8 +21,30 @@
 	overflow: hidden;
 }
 
+.explorer-viewlet .explorer-item-label,
+.explorer-viewlet .explorer-item .monaco-inputbox {
+	display: inline-block; /* required for icons support :before rule */
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content {
 	display: flex;
+}
+
+.explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon::before,
+.explorer-viewlet .explorer-folders-view.show-file-icons .file-icon::before {
+	/* svg icons rendered as background image */
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	display: inline-block;
+
+	/* fonts icons */
+	vertical-align: top;
+	-webkit-font-smoothing: antialiased;
+
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
@@ -74,12 +96,27 @@
 	line-height: normal;
 }
 
+.explorer-viewlet .explorer-folders-view.show-file-icons .explorer-item .monaco-inputbox {
+	width: calc(100% - 20px); /* accomodate for icons pushing (16px width + 4px padding) */
+}
+
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
+	height: 22px;
+}
+
 .explorer-viewlet .explorer-item .monaco-inputbox.idle {
 	border: 1px solid rgba(128, 128, 128, 0.5);
 }
 
 .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 1px 2px;
+}
+
+.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
+.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+	padding: 0;
+	height: 20px;
 }
 
 .explorer-viewlet-label > .badge-content {

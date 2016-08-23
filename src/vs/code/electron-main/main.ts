@@ -10,11 +10,12 @@ import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { IProcessEnvironment, IEnvironmentService, EnvService } from 'vs/code/electron-main/env';
+import { parseMainProcessArgv, ParsedArgs } from 'vs/code/node/argv';
+import { mkdirp } from 'vs/base/node/pfs';
+import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
-import { ISettingsService, SettingsManager } from 'vs/code/electron-main/settings';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/common/ipc.electron';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
@@ -30,6 +31,12 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/platform/request/node/requestService';
 import * as cp from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
@@ -58,11 +65,11 @@ function quit(accessor: ServicesAccessor, arg?: any) {
 function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProcessEnvironment): void {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
-	const envService = accessor.get(IEnvironmentService);
+	const envService = accessor.get(IEnvService);
 	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
-	const settingsService = accessor.get(ISettingsService);
+	const configurationService = <ConfigurationService<any>>accessor.get(IConfigurationService);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -115,7 +122,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 	// Spawn shared process
 	const sharedProcess = spawnSharedProcess({
-		allowOutput: !envService.isBuilt || envService.cliArgs.verboseLogging,
+		allowOutput: !envService.isBuilt || envService.cliArgs.verbose,
 		debugPort: envService.isBuilt ? null : 5871
 	});
 
@@ -126,9 +133,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	if (platform.isWindows && envService.product.win32AppUserModelId) {
 		app.setAppUserModelId(envService.product.win32AppUserModelId);
 	}
-
-	// Set programStart in the global scope
-	global.programStart = envService.cliArgs.programStart;
 
 	function dispose() {
 		if (mainIpcServer) {
@@ -141,6 +145,8 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 		if (windowsMutex) {
 			windowsMutex.release();
 		}
+
+		configurationService.dispose();
 	}
 
 	// Dispose on app quit
@@ -160,9 +166,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 	// Lifecycle
 	lifecycleService.ready();
-
-	// Load settings
-	settingsService.loadSync();
 
 	// Propagate to clients
 	windowsService.ready(userEnv);
@@ -188,21 +191,22 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	updateService.initialize();
 
 	// Open our first window
-	if (envService.cliArgs.openNewWindow && envService.cliArgs.pathArguments.length === 0) {
+	if (envService.cliArgs['new-window'] && envService.cliArgs.paths.length === 0) {
 		windowsService.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
-	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.pathArguments || !envService.cliArgs.pathArguments.length)) {
+	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.paths || !envService.cliArgs.paths.length)) {
 		windowsService.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
-		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs.openNewWindow, diffMode: envService.cliArgs.diffMode }); // default: read paths from cli
+		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs['new-window'], diffMode: envService.cliArgs.diff }); // default: read paths from cli
 	}
 }
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
-	const envService = accessor.get(IEnvironmentService);
+	const environmentService = accessor.get(IEnvironmentService);
+	const envService = accessor.get(IEnvService);
 
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(envService.mainIPCHandle).then(server => {
+		return serve(environmentService.mainIPCHandle).then(server => {
 			if (platform.isMacintosh) {
 				app.dock.show(); // dock might be hidden at this case due to a retry
 			}
@@ -219,11 +223,11 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			}
 
 			// there's a running instance, let's connect to it
-			return connect(envService.mainIPCHandle).then(
+			return connect(environmentService.mainIPCHandle).then(
 				client => {
 
 					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
-					if (envService.isTestingFromCli) {
+					if (environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						console.error(msg);
 						client.dispose();
@@ -248,7 +252,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// let's delete it, since we can't connect to it
 					// and the retry the whole thing
 					try {
-						fs.unlinkSync(envService.mainIPCHandle);
+						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {
 						logService.log('Fatal error deleting obsolete instance handle', e);
 						return TPromise.wrapError(e);
@@ -262,19 +266,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 	return setup(true);
 }
-
-// TODO: isolate
-const services = new ServiceCollection();
-
-services.set(IEnvironmentService, new SyncDescriptor(EnvService));
-services.set(ILogService, new SyncDescriptor(MainLogService));
-services.set(IWindowsService, new SyncDescriptor(WindowsManager));
-services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-services.set(IStorageService, new SyncDescriptor(StorageService));
-services.set(IUpdateService, new SyncDescriptor(UpdateManager));
-services.set(ISettingsService, new SyncDescriptor(SettingsManager));
-
-const instantiationService = new InstantiationService(services);
 
 interface IEnv {
 	[key: string]: string;
@@ -360,29 +351,64 @@ function getShellEnvironment(): TPromise<IEnv> {
  * Such environment needs to be propagated to the renderer/shared
  * processes.
  */
-function getEnvironment(): TPromise<IEnv> {
-	return getShellEnvironment().then(shellEnv => {
-		return instantiationService.invokeFunction(a => {
-			const envService = a.get(IEnvironmentService);
-			const instanceEnv = {
-				VSCODE_PID: String(process.pid),
-				VSCODE_IPC_HOOK: envService.mainIPCHandle,
-				VSCODE_SHARED_IPC_HOOK: envService.sharedIPCHandle,
-				VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
-			};
+function getEnvironment(accessor: ServicesAccessor): TPromise<IEnv> {
+	const environmentService = accessor.get(IEnvironmentService);
 
-			return assign({}, shellEnv, instanceEnv);
-		});
+	return getShellEnvironment().then(shellEnv => {
+		const instanceEnv = {
+			VSCODE_PID: String(process.pid),
+			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
+			VSCODE_SHARED_IPC_HOOK: environmentService.sharedIPCHandle,
+			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
+		};
+
+		return assign({}, shellEnv, instanceEnv);
 	});
 }
 
-// On some platforms we need to manually read from the global environment variables
-// and assign them to the process environment (e.g. when doubleclick app on Mac)
-getEnvironment().then(env => {
-	assign(process.env, env);
+function createPaths(environmentService: IEnvironmentService): TPromise<any> {
+	const paths = [environmentService.appSettingsHome, environmentService.userHome, environmentService.extensionsPath];
+	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
+}
 
-	return instantiationService.invokeFunction(a => a.get(IEnvironmentService).createPaths())
-		.then(() => instantiationService.invokeFunction(setupIPC))
-		.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
-})
-.done(null, err => instantiationService.invokeFunction(quit, err));
+function start(): void {
+	let args: ParsedArgs;
+
+	try {
+		args = parseMainProcessArgv(process.argv);
+	} catch (err) {
+		console.error(err.message);
+		process.exit(1);
+		return;
+	}
+
+	// TODO: isolate
+	const services = new ServiceCollection();
+
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
+	services.set(IEnvService, new SyncDescriptor(EnvService));
+	services.set(ILogService, new SyncDescriptor(MainLogService));
+	services.set(IWindowsService, new SyncDescriptor(WindowsManager));
+	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+	services.set(IStorageService, new SyncDescriptor(StorageService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
+
+	const instantiationService = new InstantiationService(services);
+
+	// On some platforms we need to manually read from the global environment variables
+	// and assign them to the process environment (e.g. when doubleclick app on Mac)
+	return instantiationService.invokeFunction(accessor => {
+		return getEnvironment(accessor).then(env => {
+			assign(process.env, env);
+
+			return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
+				.then(() => instantiationService.invokeFunction(setupIPC))
+				.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
+		});
+	})
+	.done(null, err => instantiationService.invokeFunction(quit, err));
+}
+
+start();

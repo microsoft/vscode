@@ -646,21 +646,15 @@ suite('TelemetryService', () => {
 			appender: testAppender
 		}, {
 				_serviceBrand: undefined,
-				hasWorkspaceConfiguration() {
-					return false;
-				},
 				getConfiguration() {
 					return {
 						enableTelemetry
 					};
 				},
-				loadConfiguration() {
+				reloadConfiguration() {
 					return TPromise.as(this.getConfiguration());
 				},
-				onDidUpdateConfiguration: emitter.event,
-				setUserConfiguration(key: any, value: any) {
-					return TPromise.as(null);
-				}
+				onDidUpdateConfiguration: emitter.event
 		});
 
 		assert.equal(service.isOptedIn, false);

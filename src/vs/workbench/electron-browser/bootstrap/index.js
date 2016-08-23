@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// Warning: Do not use the `let` declarator in this file, it breaks our minification
+
 'use strict';
 
 /*global window,document,define*/
@@ -51,7 +53,6 @@ function createScript(src, onload) {
 
 function uriFromPath(_path) {
 	var pathName = path.resolve(_path).replace(/\\/g, '/');
-
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;
 	}
@@ -90,21 +91,9 @@ function registerListeners(enableDeveloperTools) {
 }
 
 function main() {
-	try {
-		const theme = window.localStorage.getItem('storage://global/workbench.theme');
-		const baseTheme = (theme || '').split(' ')[0];
-
-		if (baseTheme !== 'vs-dark') {
-			window.document.body.className = 'monaco-shell ' + baseTheme;
-		}
-	} catch (error) {
-		console.error(error);
-	}
-
 	const webFrame = require('electron').webFrame;
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
-	const enableDeveloperTools = !configuration.isBuilt || !!configuration.extensionDevelopmentPath;
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
@@ -120,7 +109,6 @@ function main() {
 	}
 
 	var locale = nlsConfig.availableLanguages['*'] || 'en';
-
 	if (locale === 'zh-tw') {
 		locale = 'zh-Hant';
 	} else if (locale === 'zh-cn') {
@@ -129,34 +117,33 @@ function main() {
 
 	window.document.documentElement.setAttribute('lang', locale);
 
+	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
 	registerListeners(enableDeveloperTools);
 
-	// We get the global settings through a remote call from the browser
-	// because its value can change dynamically.
-	const rawGlobalSettings = remote.getGlobal('globalSettingsValue') || '{"settings":{},"keybindings":[]}';
-	const globalSettings = JSON.parse(rawGlobalSettings);
-
 	// disable pinch zoom & apply zoom level early to avoid glitches
-	const windowConfiguration = globalSettings.settings && globalSettings.settings.window;
+	const zoomLevel = configuration.zoomLevel;
 	webFrame.setZoomLevelLimits(1, 1);
-	if (windowConfiguration && typeof windowConfiguration.zoomLevel === 'number' && windowConfiguration.zoomLevel !== 0) {
-		webFrame.setZoomLevel(windowConfiguration.zoomLevel);
+	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+		webFrame.setZoomLevel(zoomLevel);
 	}
 
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
+
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
 	// loads as soon as the loader loads. To be able to have pseudo translation
 	createScript(rootUrl + '/vs/loader.js', function () {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
-			recordStats: configuration.enablePerformance,
+			recordStats: !!configuration.performance,
 			ignoreDuplicateModules: [
 				'vs/workbench/parts/search/common/searchQuery'
 			]
 		});
+
 		if (nlsConfig.pseudo) {
 			require(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
@@ -164,21 +151,15 @@ function main() {
 		}
 
 		window.MonacoEnvironment = {};
+
 		const timers = window.MonacoEnvironment.timers = {
 			start: new Date()
 		};
 
-		if (configuration.enablePerformance) {
-			const programStart = remote.getGlobal('programStart');
+		if (configuration.performance) {
 			const vscodeStart = remote.getGlobal('vscodeStart');
-
-			if (programStart) {
-				timers.beforeProgram = new Date(programStart);
-				timers.afterProgram = new Date(vscodeStart);
-			}
-
 			timers.vscodeStart = new Date(vscodeStart);
-			timers.start = new Date(programStart || vscodeStart);
+			timers.start = new Date(vscodeStart);
 		}
 
 		timers.beforeLoad = new Date();
@@ -191,7 +172,7 @@ function main() {
 			timers.afterLoad = new Date();
 
 			require('vs/workbench/electron-browser/main')
-				.startup(configuration, globalSettings)
+				.startup(configuration)
 				.done(null, function (error) { onError(error, enableDeveloperTools); });
 		});
 	});

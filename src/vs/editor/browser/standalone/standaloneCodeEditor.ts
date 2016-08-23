@@ -76,7 +76,7 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		options = options || {};
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService.createScoped(domElement), telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;

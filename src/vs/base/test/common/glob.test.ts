@@ -401,10 +401,10 @@ suite('Glob', () => {
 			}
 		};
 
-		assert.equal('**/*.js', glob.match(expression, 'test.js', () => siblings));
-		assert(!glob.match(expression, 'test.js', () => []));
-		assert(!glob.match(expression, 'test.js', () => ['te.ts']));
-		assert(!glob.match(expression, 'test.js'));
+		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', () => siblings));
+		assert.strictEqual(glob.match(expression, 'test.js', () => []), null);
+		assert.strictEqual(glob.match(expression, 'test.js', () => ['te.ts']), null);
+		assert.strictEqual(glob.match(expression, 'test.js'), null);
 
 		expression = {
 			'**/*.js': {
@@ -412,18 +412,18 @@ suite('Glob', () => {
 			}
 		};
 
-		assert(!glob.match(expression, 'test.js', () => siblings));
+		assert.strictEqual(glob.match(expression, 'test.js', () => siblings), null);
 
 		expression = <any>{
 			'**/*.js': {
 			}
 		};
 
-		assert.equal('**/*.js', glob.match(expression, 'test.js', () => siblings));
+		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', () => siblings));
 
 		expression = {};
 
-		assert(!glob.match(expression, 'test.js', () => siblings));
+		assert.strictEqual(glob.match(expression, 'test.js', () => siblings), null);
 	});
 
 	test('expression support (multiple)', function () {
@@ -437,11 +437,11 @@ suite('Glob', () => {
 			'**/*.bananas': { bananas: true }
 		};
 
-		assert.equal('**/*.js', glob.match(expression, 'test.js', () => siblings));
-		assert.equal('**/*.as', glob.match(expression, 'test.as', () => siblings));
-		assert.equal('**/*.bananas', glob.match(expression, 'test.bananas', () => siblings));
-		assert.equal('**/*.bananas', glob.match(expression, 'test.bananas'));
-		assert(!glob.match(expression, 'test.foo', () => siblings));
+		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', () => siblings));
+		assert.strictEqual('**/*.as', glob.match(expression, 'test.as', () => siblings));
+		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas', () => siblings));
+		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas'));
+		assert.strictEqual(glob.match(expression, 'test.foo', () => siblings), null);
 	});
 
 	test('brackets', function () {
@@ -588,5 +588,98 @@ suite('Glob', () => {
 		assert.deepEqual(glob.splitGlobAware('[foo,bar]', ','), ['[foo,bar]']);
 		assert.deepEqual(glob.splitGlobAware('foo,bar,[foo,bar]', ','), ['foo', 'bar', '[foo,bar]']);
 		assert.deepEqual(glob.splitGlobAware('[foo,bar],foo,bar,[foo,bar]', ','), ['[foo,bar]', 'foo', 'bar', '[foo,bar]']);
+	});
+
+	test('expression with disabled glob', function () {
+		var expr = { '**/*.js': false };
+
+		assert.strictEqual(glob.match(expr, 'foo.js'), null);
+	});
+
+	test('expression with two non-trivia globs', function () {
+		var expr = {
+			'**/*.j?': true,
+			'**/*.t?': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.j?');
+		assert.strictEqual(glob.match(expr, 'foo.as'), null);
+	});
+
+	test('expression with empty glob', function () {
+		var expr = { '': true };
+
+		assert.strictEqual(glob.match(expr, 'foo.js'), null);
+	});
+
+	test('expression with other falsy value', function () {
+		var expr = { '**/*.js': 0 };
+
+		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.js');
+	});
+
+	test('expression with two basename globs', function () {
+		var expr = {
+			'**/bar': true,
+			'**/baz': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'bar'), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo'), null);
+		assert.strictEqual(glob.match(expr, 'foo/bar'), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo\\bar'), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo/foo'), null);
+	});
+
+	test('expression with two basename globs and a siblings expression', function () {
+		var expr = {
+			'**/bar': true,
+			'**/baz': true,
+			'**/*.js': { when: '$(basename).ts' }
+		};
+
+		var sibilings = () => [ 'foo.ts', 'foo.js', 'foo', 'bar' ];
+
+		assert.strictEqual(glob.match(expr, 'bar', sibilings), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo', sibilings), null);
+		assert.strictEqual(glob.match(expr, 'foo/bar', sibilings), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo\\bar', sibilings), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo/foo', sibilings), null);
+		assert.strictEqual(glob.match(expr, 'foo.js', sibilings), '**/*.js');
+		assert.strictEqual(glob.match(expr, 'bar.js', sibilings), null);
+	});
+
+	test('expression with multipe basename globs', function () {
+		var expr = {
+			'**/bar': true,
+			'{**/baz,**/foo}': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'bar'), '**/bar');
+		assert.strictEqual(glob.match(expr, 'foo'), '{**/baz,**/foo}');
+		assert.strictEqual(glob.match(expr, 'baz'), '{**/baz,**/foo}');
+		assert.strictEqual(glob.match(expr, 'abc'), null);
+	});
+
+	test('falsy expression/pattern', function () {
+		assert.strictEqual(glob.match(null, 'foo'), false);
+		assert.strictEqual(glob.match('', 'foo'), false);
+		assert.strictEqual(glob.parse(null)('foo'), false);
+		assert.strictEqual(glob.parse('')('foo'), false);
+	});
+
+	test('expression falsy path', function () {
+		assert.strictEqual(glob.parse('foo')(null), false);
+		assert.strictEqual(glob.parse('foo')(''), false);
+		assert.strictEqual(glob.parse('**/*.j?')(null), false);
+		assert.strictEqual(glob.parse('**/*.j?')(''), false);
+		assert.strictEqual(glob.parse('**/*.foo')(null), false);
+		assert.strictEqual(glob.parse('**/*.foo')(''), false);
+		assert.strictEqual(glob.parse('**/foo')(null), false);
+		assert.strictEqual(glob.parse('**/foo')(''), false);
+		assert.strictEqual(glob.parse('{**/baz,**/foo}')(null), false);
+		assert.strictEqual(glob.parse('{**/baz,**/foo}')(''), false);
+		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(null), false);
+		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(''), false);
 	});
 });

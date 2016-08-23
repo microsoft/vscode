@@ -6,10 +6,12 @@
 'use strict';
 
 import nls = require('vs/nls');
+import paths = require('vs/base/common/paths');
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
 import Severity from 'vs/base/common/severity';
+import {isMacintosh} from 'vs/base/common/platform';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IAction, Action} from 'vs/base/common/actions';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -19,12 +21,14 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService}from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ElectronWindow} from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
+import {IQuickOpenService, IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {KeyMod} from 'vs/base/common/keyCodes';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -53,6 +57,7 @@ export class ElectronIntegration {
 		@ICommandService private commandService: ICommandService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 	}
@@ -66,17 +71,6 @@ export class ElectronIntegration {
 		// Support runAction event
 		ipc.on('vscode:runAction', (event, actionId: string) => {
 			this.commandService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
-		});
-
-		// Support options change
-		ipc.on('vscode:optionsChange', (event, options: string) => {
-			const optionsData = JSON.parse(options);
-			for (let key in optionsData) {
-				if (optionsData.hasOwnProperty(key)) {
-					const value = optionsData[key];
-					this.contextService.updateOptions(key, value);
-				}
-			}
 		});
 
 		// Support resolve keybindings event
@@ -116,6 +110,11 @@ export class ElectronIntegration {
 		// Message support
 		ipc.on('vscode:showInfoMessage', (event, message: string) => {
 			this.messageService.show(Severity.Info, message);
+		});
+
+		// Recent files / folders
+		ipc.on('vscode:openRecent', (event, files: string[], folders: string[]) => {
+			this.openRecent(files, folders);
 		});
 
 		// Ensure others can listen to zoom level changes
@@ -167,6 +166,34 @@ export class ElectronIntegration {
 				}
 			}
 		});
+	}
+
+	private openRecent(recentFiles: string[], recentFolders: string[]): void {
+		function toPick(path: string, separator: ISeparator): IPickOpenEntry {
+			return {
+				label: paths.basename(path),
+				description: paths.dirname(path),
+				separator,
+				run: (context) => runPick(path, context)
+			};
+		}
+
+		function runPick(path: string, context): void {
+			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+
+			ipc.send('vscode:windowOpen', [path], newWindow);
+		}
+
+		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0));
+		const filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0));
+
+		const hasWorkspace = !!this.contextService.getWorkspace();
+
+		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
+			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
+			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
+			matchOnDescription: true
+		}).done(null, errors.onUnexpectedError);
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {

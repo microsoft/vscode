@@ -159,7 +159,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.strictEqual(path.basename(res.absolutePath), 'site.less');
+			assert.strictEqual(path.basename(res.path), 'site.less');
 			done();
 		});
 	});
@@ -256,7 +256,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.absolutePath), '汉语.txt');
+			assert.equal(path.basename(res.path), '汉语.txt');
 			done();
 		});
 	});
@@ -296,7 +296,28 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.absolutePath), 'site.css');
+			assert.equal(path.basename(res.path), 'site.css');
+			done();
+		});
+	});
+
+	test('Files: relative path matched once', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			rootFolders: rootfolders(),
+			filePattern: path.normalize(path.join('examples', 'company.js'))
+		});
+
+		let count = 0;
+		let res: IRawFileMatch;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+			res = result;
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			assert.equal(path.basename(res.path), 'company.js');
 			done();
 		});
 	});
@@ -318,7 +339,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.absolutePath), 'company.js');
+			assert.equal(path.basename(res.path), 'company.js');
 			done();
 		});
 	});
@@ -344,7 +365,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.absolutePath), 'company.js');
+			assert.equal(path.basename(res.path), 'company.js');
 			done();
 		});
 	});
@@ -371,7 +392,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.absolutePath), 'site.css');
+			assert.equal(path.basename(res.path), 'site.css');
 			done();
 		});
 	});

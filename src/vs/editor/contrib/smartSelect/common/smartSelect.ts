@@ -42,7 +42,7 @@ class SmartSelectController implements IEditorContribution {
 	private static ID = 'editor.contrib.smartSelectController';
 
 	public static get(editor:ICommonCodeEditor): SmartSelectController {
-		return <SmartSelectController>editor.getContribution(SmartSelectController.ID);
+		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 
 	private _tokenSelectionSupport: TokenSelectionSupport;

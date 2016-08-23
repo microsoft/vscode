@@ -14,6 +14,8 @@
 	"workbench.action.terminal.new.short": "Новый терминал",
 	"workbench.action.terminal.paste": "Терминал: вставить в активный терминал",
 	"workbench.action.terminal.runSelectedText": "Терминал: запуск выбранного текста в активном терминале",
+	"workbench.action.terminal.scrollDown": "Терминал: прокрутка вниз",
+	"workbench.action.terminal.scrollUp": "Терминал: прокрутка вверх",
 	"workbench.action.terminal.switchTerminalInstance": "Терминал: переключить экземпляр терминала",
 	"workbench.action.terminal.toggleTerminal": "Переключить интегрированный терминал"
 }

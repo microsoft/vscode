@@ -23,7 +23,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {CodeSnippet, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
+import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
+import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
 import {SmartSnippetInserter} from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -39,8 +40,8 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 	private static ID = 'editor.contrib.defineKeybinding';
 
-	static get(editor:editorCommon.ICommonCodeEditor): DefineKeybindingController {
-		return <DefineKeybindingController>editor.getContribution(DefineKeybindingController.ID);
+	public static get(editor:editorCommon.ICommonCodeEditor): DefineKeybindingController {
+		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
 	}
 
 	private _editor: ICodeEditor;
@@ -116,7 +117,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
 		this._editor.setPosition(smartInsertInfo.position);
 
-		getSnippetController(this._editor).run(new CodeSnippet(snippetText), 0, 0);
+		SnippetController.get(this._editor).run(new CodeSnippet(snippetText), 0, 0);
 	}
 
 	private _onModel(): void {

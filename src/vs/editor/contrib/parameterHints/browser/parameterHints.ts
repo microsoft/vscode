@@ -20,8 +20,8 @@ class ParameterHintsController implements IEditorContribution {
 
 	private static ID = 'editor.controller.parameterHints';
 
-	static get(editor:ICommonCodeEditor): ParameterHintsController {
-		return <ParameterHintsController>editor.getContribution(ParameterHintsController.ID);
+	public static get(editor:ICommonCodeEditor): ParameterHintsController {
+		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 
 	private editor:ICodeEditor;

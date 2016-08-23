@@ -43,7 +43,6 @@ interface IMultipleCursorOperationContext {
 	executeCommands: editorCommon.ICommand[];
 	isAutoWhitespaceCommand: boolean[];
 	postOperationRunnables: IPostOperationRunnable[];
-	requestScrollDeltaLines: number;
 	setColumnSelectToLineNumber: number;
 	setColumnSelectToVisualColumn: number;
 }
@@ -296,7 +295,6 @@ export class Cursor extends EventEmitter {
 			postOperationRunnables: [],
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false,
-			requestScrollDeltaLines: 0,
 			setColumnSelectToLineNumber: 0,
 			setColumnSelectToVisualColumn: 0
 		};
@@ -328,7 +326,6 @@ export class Cursor extends EventEmitter {
 			var shouldRevealHorizontal: boolean;
 			var shouldRevealTarget: RevealTarget;
 			var isCursorUndo: boolean;
-			var requestScrollDeltaLines: number;
 
 			var hasExecutedCommands = this._createAndInterpretHandlerCtx(eventSource, data, (currentHandlerCtx:IMultipleCursorOperationContext) => {
 				handled = handler(currentHandlerCtx);
@@ -339,7 +336,6 @@ export class Cursor extends EventEmitter {
 				shouldRevealVerticalInCenter = currentHandlerCtx.shouldRevealVerticalInCenter;
 				shouldRevealHorizontal = currentHandlerCtx.shouldRevealHorizontal;
 				isCursorUndo = currentHandlerCtx.isCursorUndo;
-				requestScrollDeltaLines = currentHandlerCtx.requestScrollDeltaLines;
 			});
 
 			if (hasExecutedCommands) {
@@ -392,14 +388,11 @@ export class Cursor extends EventEmitter {
 				this.emitCursorPositionChanged(eventSource, cursorPositionChangeReason);
 
 				if (shouldReveal) {
-					this.emitCursorRevealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
+					this.revealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
 				}
 				this.emitCursorSelectionChanged(eventSource, cursorPositionChangeReason);
 			}
 
-			if (requestScrollDeltaLines) {
-				this.emitCursorScrollRequest(requestScrollDeltaLines);
-			}
 		} catch (err) {
 			onUnexpectedError(err);
 		}
@@ -857,14 +850,15 @@ export class Cursor extends EventEmitter {
 		this.emit(editorCommon.EventType.CursorSelectionChanged, e);
 	}
 
-	private emitCursorScrollRequest(lineScrollOffset: number): void {
+	private emitCursorScrollRequest(deltaLines: number, revealCursor: boolean): void {
 		var e:editorCommon.ICursorScrollRequestEvent = {
-			deltaLines: lineScrollOffset
+			deltaLines,
+			revealCursor
 		};
 		this.emit(editorCommon.EventType.CursorScrollRequest, e);
 	}
 
-	private emitCursorRevealRange(revealTarget: RevealTarget, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private revealRange(revealTarget: RevealTarget, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		var positions = this.cursors.getPositions();
 		var viewPositions = this.cursors.getViewPositions();
 
@@ -894,11 +888,16 @@ export class Cursor extends EventEmitter {
 
 		var range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		var viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
+		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal, false);
+	}
+
+	private emitCursorRevealRange(range: Range, viewRange: Range, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean, revealCursor: boolean) {
 		var e:editorCommon.ICursorRevealRangeEvent = {
 			range: range,
 			viewRange: viewRange,
 			verticalType: verticalType,
-			revealHorizontal: revealHorizontal
+			revealHorizontal: revealHorizontal,
+			revealCursor: revealCursor
 		};
 		this.emit(editorCommon.EventType.CursorRevealRange, e);
 	}
@@ -1033,7 +1032,9 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.Redo] =						(ctx) => this._redo(ctx);
 
 		this._handlers[H.ExecuteCommand] =				(ctx) => this._externalExecuteCommand(ctx);
-		this._handlers[H.ExecuteCommands] =				(ctx) => this._externalExecuteCommands(ctx);
+		this._handlers[H.ExecuteCommands] = 			(ctx) => this._externalExecuteCommands(ctx);
+
+		this._handlers[H.RevealLine] = 					(ctx) => this._revealLine(ctx);
 	}
 
 	private _invokeForAllSorted(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
@@ -1069,8 +1070,7 @@ export class Cursor extends EventEmitter {
 				isAutoWhitespaceCommand: false,
 				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: false,
-				requestScrollDeltaLines: 0
+				shouldPushStackElementAfter: false
 			};
 
 			result = callable(i, cursors[i], context) || result;
@@ -1080,7 +1080,6 @@ export class Cursor extends EventEmitter {
 				ctx.shouldRevealHorizontal = context.shouldRevealHorizontal;
 				ctx.shouldReveal = context.shouldReveal;
 				ctx.shouldRevealVerticalInCenter = context.shouldRevealVerticalInCenter;
-				ctx.requestScrollDeltaLines = context.requestScrollDeltaLines;
 			}
 
 			ctx.shouldPushStackElementBefore = ctx.shouldPushStackElementBefore || context.shouldPushStackElementBefore;
@@ -1453,6 +1452,38 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
+	private _revealLine(ctx: IMultipleCursorOperationContext): boolean {
+		const revealLineArg: editorCommon.RevealLineArguments = ctx.eventData;
+		const lineNumber = revealLineArg.lineNumber + 1;
+		const range = this.model.validateRange({
+			startLineNumber: lineNumber,
+			startColumn: 1,
+			endLineNumber: lineNumber,
+			endColumn: 1
+		});
+		range.endColumn = this.model.getLineMaxColumn(range.endLineNumber);
+
+		let revealAt = editorCommon.VerticalRevealType.Simple;
+		if (revealLineArg.at) {
+			switch (revealLineArg.at) {
+				case editorCommon.RevealLineAtArgument.Top:
+					revealAt = editorCommon.VerticalRevealType.Top;
+					break;
+				case editorCommon.RevealLineAtArgument.Center:
+					revealAt = editorCommon.VerticalRevealType.Center;
+					break;
+				case editorCommon.RevealLineAtArgument.Bottom:
+					revealAt = editorCommon.VerticalRevealType.Bottom;
+					break;
+				default:
+					break;
+			}
+		}
+
+		this.emitCursorRevealRange(range, null, revealAt, false, false);
+		return true;
+	}
+
 	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {
 		let editorScrollArg: editorCommon.EditorScrollArguments = ctx.eventData;
 		editorScrollArg.value = editorScrollArg.value || 1;
@@ -1466,23 +1497,27 @@ export class Cursor extends EventEmitter {
 
 	private _scrollUpOrDown(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
 		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
-		let noOfLines = 1;
 		let cursor: OneCursor = this.cursors.getAll()[0];
+
+		if (editorCommon.EditorScrollByUnit.Line === editorScrollArg.by) {
+			let range = up ? cursor.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : cursor.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
+			this.emitCursorRevealRange(range, null, up ? editorCommon.VerticalRevealType.Top : editorCommon.VerticalRevealType.Bottom, false, true);
+			return true;
+		}
+
+		let noOfLines = 1;
 		switch (editorScrollArg.by) {
 			case editorCommon.EditorScrollByUnit.WrappedLine:
 				noOfLines = editorScrollArg.value;
-				break;
-			case editorCommon.EditorScrollByUnit.Line:
-				noOfLines = (up ? cursor.getDeltaViewLinesToRevealModelLineBeforeViewPortTop(editorScrollArg.value) : cursor.getDeltaViewLinesToRevealModelLineAfteriewPortBottom(editorScrollArg.value)) || 1;
 				break;
 			case editorCommon.EditorScrollByUnit.Page:
 				noOfLines = cursor.getPageSize() * editorScrollArg.value;
 				break;
 			case editorCommon.EditorScrollByUnit.HalfPage:
-				noOfLines = Math.round(this.cursors.getAll()[0].getPageSize() / 2) * editorScrollArg.value;
+				noOfLines = Math.round(cursor.getPageSize() / 2) * editorScrollArg.value;
 				break;
 		}
-		ctx.requestScrollDeltaLines = (up ? -1 : 1) * noOfLines;
+		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, !!editorScrollArg.revealCursor);
 		return true;
 	}
 

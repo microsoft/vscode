@@ -75,7 +75,10 @@ export class ExplorerViewlet extends Viewlet {
 		super.create(parent);
 
 		this.viewletContainer = parent.div().addClass('explorer-viewlet');
-		return this.configurationService.loadConfiguration().then((config: IFilesConfiguration) => this.onConfigurationUpdated(config));
+
+		const settings = this.configurationService.getConfiguration<IFilesConfiguration>();
+
+		return this.onConfigurationUpdated(settings);
 	}
 
 	public getActions(): IAction[] {

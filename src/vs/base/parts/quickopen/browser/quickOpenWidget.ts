@@ -410,7 +410,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
-			const context: IEntryRunContext = { event: event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
+			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 			hide = this.model.runner.run(value, Mode.OPEN, context);
 		}
 
@@ -786,14 +786,19 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public runFocus(): boolean {
-		let focus = this.tree.getFocus();
-		if (focus) {
-			this.elementSelected(focus);
-			return true;
+	public focus(): void {
+		if (this.isVisible() && this.inputBox) {
+			this.inputBox.focus();
 		}
+	}
 
-		return false;
+	public accept(): void {
+		if (this.isVisible()) {
+			let focus = this.tree.getFocus();
+			if (focus) {
+				this.elementSelected(focus);
+			}
+		}
 	}
 
 	public getProgressBar(): ProgressBar {

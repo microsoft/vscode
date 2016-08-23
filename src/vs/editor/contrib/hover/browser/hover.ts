@@ -33,8 +33,8 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	private _contentWidget: ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHoverWidget;
 
-	static getModesHoverController(editor: editorCommon.ICommonCodeEditor): ModesHoverController {
-		return <ModesHoverController>editor.getContribution(ModesHoverController.ID);
+	static get(editor: editorCommon.ICommonCodeEditor): ModesHoverController {
+		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
 	}
 
 	constructor(editor: ICodeEditor,
@@ -162,7 +162,7 @@ class ShowHoverAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		ModesHoverController.getModesHoverController(editor).showContentHover(range, true);
+		ModesHoverController.get(editor).showContentHover(range, true);
 	}
 }
 

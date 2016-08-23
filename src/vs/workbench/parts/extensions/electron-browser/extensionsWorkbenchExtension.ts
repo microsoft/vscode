@@ -13,7 +13,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IExtensionsWorkbenchService, ExtensionState, VIEWLET_ID } from './extensions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { LegacyWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ipcRenderer as ipc } from 'electron';
@@ -35,7 +36,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 	) {
 		this.registerListeners();
 
-		const options = contextService.getOptions();
+		const options = (<LegacyWorkspaceContextService>contextService).getOptions();
 
 		if (options.extensionsToInstall && options.extensionsToInstall.length) {
 			this.install(options.extensionsToInstall).done(null, onUnexpectedError);

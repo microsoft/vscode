@@ -14,6 +14,8 @@
 	"workbench.action.terminal.new.short": "新しい端末",
 	"workbench.action.terminal.paste": "Terminal: Paste into Active Terminal",
 	"workbench.action.terminal.runSelectedText": "端末: アクティブな端末で選択したテキストを実行",
+	"workbench.action.terminal.scrollDown": "ターミナル: 下へスクロール",
+	"workbench.action.terminal.scrollUp": "ターミナル: 上へスクロール",
 	"workbench.action.terminal.switchTerminalInstance": "端末: スイッチ端末インスタンス",
 	"workbench.action.terminal.toggleTerminal": "統合端末の切り替え"
 }

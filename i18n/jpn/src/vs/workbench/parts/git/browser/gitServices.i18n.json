@@ -25,6 +25,6 @@
 	"showOutput": "出力の表示",
 	"unmergedChanges": "変更をコミットする前に、まずマージされていない変更を解決する必要があります。",
 	"updateGit": "git {0} がインストールされているようです。Code は 2.0.0 以上の git で最適に動作します。",
-	"workingTreeChanges": "{0} (見出し) ↔ {1}",
+	"workingTreeChanges": "{0} (HEAD) ↔ {1}",
 	"workingTreeChangesDesc": "{0} - 作業ツリーでの変更"
 }

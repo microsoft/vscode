@@ -9,7 +9,7 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import Event, {Emitter} from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import {IEditor, IEditorViewState} from 'vs/editor/common/editorCommon';
+import {IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions} from 'vs/editor/common/editorCommon';
 import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Event as BaseEvent} from 'vs/base/common/events';
@@ -495,6 +495,7 @@ export class TextEditorOptions extends EditorOptions {
 	protected endColumn: number;
 
 	private editorViewState: IEditorViewState;
+	private editorOptions: ICodeEditorOptions;
 
 	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
@@ -579,8 +580,22 @@ export class TextEditorOptions extends EditorOptions {
 	/**
 	 * Sets the view state to be used when the editor is opening.
 	 */
-	public viewState(viewState: IEditorViewState): void {
-		this.editorViewState = viewState;
+	public fromEditor(editor: IEditor): void {
+
+		// View state
+		this.editorViewState = editor.saveViewState();
+
+		// Selected editor options
+		const codeEditor = <ICommonCodeEditor>editor;
+		if (typeof codeEditor.getConfiguration === 'function') {
+			const config = codeEditor.getConfiguration();
+			if (config && config.viewInfo && config.wrappingInfo) {
+				this.editorOptions = Object.create(null);
+				this.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
+				this.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
+				this.editorOptions.wrappingColumn = config.wrappingInfo.isViewportWrapping ? 0 : -1;
+			}
+		}
 	}
 
 	/**
@@ -588,12 +603,23 @@ export class TextEditorOptions extends EditorOptions {
 	 *
 	 * @return if something was applied
 	 */
-	public apply(textEditor: IEditor): boolean {
+	public apply(editor: IEditor): boolean {
+
+		// Editor options
+		if (this.editorOptions) {
+			editor.updateOptions(this.editorOptions);
+		}
+
+		// View state
+		return this.applyViewState(editor);
+	}
+
+	private applyViewState(editor: IEditor): boolean {
 		let gotApplied = false;
 
 		// First try viewstate
 		if (this.editorViewState) {
-			textEditor.restoreViewState(this.editorViewState);
+			editor.restoreViewState(this.editorViewState);
 			gotApplied = true;
 		}
 
@@ -608,8 +634,8 @@ export class TextEditorOptions extends EditorOptions {
 					endLineNumber: this.endLineNumber,
 					endColumn: this.endColumn
 				};
-				textEditor.setSelection(range);
-				textEditor.revealRangeInCenter(range);
+				editor.setSelection(range);
+				editor.revealRangeInCenter(range);
 			}
 
 			// Reveal
@@ -618,8 +644,8 @@ export class TextEditorOptions extends EditorOptions {
 					lineNumber: this.startLineNumber,
 					column: this.startColumn
 				};
-				textEditor.setPosition(pos);
-				textEditor.revealPositionInCenter(pos);
+				editor.setPosition(pos);
+				editor.revealPositionInCenter(pos);
 			}
 
 			gotApplied = true;

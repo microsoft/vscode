@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import * as path from 'path';
-import { parseArgs, ParsedArgs } from 'vs/code/node/argv';
+import { ParsedArgs } from 'vs/code/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { IPager } from 'vs/base/common/paging';
@@ -28,7 +28,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import {mkdirp} from 'vs/base/node/pfs';
 
@@ -145,19 +145,19 @@ const eventPrefix = 'monacoworkbench';
 
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv)));
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, argv, process.execPath));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	return instantiationService.invokeFunction(accessor => {
 		const envService = accessor.get(IEnvironmentService);
 
-		return TPromise.join([envService.userHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
+		return TPromise.join([envService.appSettingsHome, envService.userHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
 			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = envService;
 
 			const services = new ServiceCollection();
 			services.set(IEventService, new SyncDescriptor(EventService));
-			services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
+			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));

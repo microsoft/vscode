@@ -41,6 +41,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -87,6 +88,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
@@ -141,7 +143,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	public create(): TPromise<void> {
-
+		
 		// Update configuration
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.onConfigurationUpdated(configuration);
@@ -198,6 +200,14 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
+
+		// React to file icons setting by toggling global class on tree
+		let showFileIcons = configuration && configuration.explorer && configuration.explorer.showFileIcons;
+		this.extensionService.onReady().then(() => {
+			if (this.treeContainer) {
+				DOM.toggleClass(this.treeContainer, 'show-file-icons', showFileIcons); // since icons come from extensions, we wait for them to be ready
+			}
+		});
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
@@ -309,7 +319,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public createViewer(container: Builder): ITree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
 		const sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);

@@ -7,7 +7,7 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import {WorkbenchShell} from 'vs/workbench/electron-browser/shell';
-import {IOptions, IGlobalSettings} from 'vs/workbench/common/options';
+import {IOptions} from 'vs/workbench/common/options';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
@@ -16,10 +16,11 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {ParsedArgs, parseArgs} from 'vs/code/node/argv';
-import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
-import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
+import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
+import {IProcessEnvironment} from 'vs/code/electron-main/env';
+import {ParsedArgs} from 'vs/code/node/argv';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import fs = require('fs');
@@ -46,47 +47,40 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IMainEnvironment extends IEnvironment {
+export interface IWindowConfiguration extends ParsedArgs {
+	appRoot: string;
+	execPath: string;
+
+	userEnv: IProcessEnvironment;
+
 	workspacePath?: string;
+
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
+
 	extensionsToInstall?: string[];
-	userEnv: { [key: string]: string; };
 }
 
-export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
-
-	// Args (TODO@Ben clean up explicit overwrite of args)
-	const parsedArgs = parseArgs(process.argv);
-	if (typeof environment.extensionDevelopmentPath === 'string') {
-		parsedArgs.extensionDevelopmentPath = environment.extensionDevelopmentPath;
-	}
-
-	// Shell Configuration
-	const shellConfiguration: IConfiguration = {
-		env: environment
-	};
+export function startup(configuration: IWindowConfiguration): winjs.TPromise<void> {
 
 	// Shell Options
-	const filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
-	const filesToCreate = environment.filesToCreate && environment.filesToCreate.length ? toInputs(environment.filesToCreate) : null;
-	const filesToDiff = environment.filesToDiff && environment.filesToDiff.length ? toInputs(environment.filesToDiff) : null;
+	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
+	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
+	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
 	const shellOptions: IOptions = {
-		singleFileMode: !environment.workspacePath,
-		filesToOpen: filesToOpen,
-		filesToCreate: filesToCreate,
-		filesToDiff: filesToDiff,
-		extensionsToInstall: environment.extensionsToInstall,
-		globalSettings: globalSettings
+		filesToOpen,
+		filesToCreate,
+		filesToDiff,
+		extensionsToInstall: configuration.extensionsToInstall
 	};
 
-	if (environment.enablePerformance) {
+	if (configuration.performance) {
 		timer.ENABLE_TIMER = true;
 	}
 
 	// Open workbench
-	return openWorkbench(parsedArgs, getWorkspace(environment), shellConfiguration, shellOptions);
+	return openWorkbench(configuration, getWorkspace(configuration.workspacePath), shellOptions);
 }
 
 function toInputs(paths: IPath[]): IResourceInput[] {
@@ -108,12 +102,12 @@ function toInputs(paths: IPath[]): IResourceInput[] {
 	});
 }
 
-function getWorkspace(environment: IMainEnvironment): IWorkspace {
-	if (!environment.workspacePath) {
+function getWorkspace(workspacePath: string): IWorkspace {
+	if (!workspacePath) {
 		return null;
 	}
 
-	let realWorkspacePath = path.normalize(fs.realpathSync(environment.workspacePath));
+	let realWorkspacePath = path.normalize(fs.realpathSync(workspacePath));
 	if (paths.isUNC(realWorkspacePath) && strings.endsWith(realWorkspacePath, paths.nativeSep)) {
 		// for some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
@@ -128,18 +122,16 @@ function getWorkspace(environment: IMainEnvironment): IWorkspace {
 
 	return <IWorkspace>{
 		'resource': workspaceResource,
-		'id': platform.isLinux ? realWorkspacePath : realWorkspacePath.toLowerCase(),
 		'name': folderName,
-		'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime(), // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-		'mtime': folderStat.mtime.getTime()
+		'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
 	};
 }
 
-function openWorkbench(args: ParsedArgs, workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
+function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): winjs.TPromise<void> {
 	const eventService = new EventService();
-	const environmentService = new EnvironmentService(args);
-	const contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
-	const configurationService = new ConfigurationService(contextService, eventService, environmentService);
+	const environmentService = new EnvironmentService(environment, environment.execPath);
+	const contextService = new LegacyWorkspaceContextService(workspace, options);
+	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
@@ -156,7 +148,7 @@ function openWorkbench(args: ParsedArgs, workspace: IWorkspace, configuration: I
 				eventService,
 				contextService,
 				environmentService
-			}, configuration, options);
+			}, options);
 			shell.open();
 
 			shell.joinCreation().then(() => {

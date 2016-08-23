@@ -8,19 +8,16 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
-import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorInput} from 'vs/workbench/common/editor';
-import {isMacintosh} from 'vs/base/common/platform';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {KeyMod} from 'vs/base/common/keyCodes';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
@@ -262,11 +259,11 @@ export class ShowStartupPerformance extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 
-		this.enabled = contextService.getConfiguration().env.enablePerformance;
+		this.enabled = environmentService.performance;
 	}
 
 	private _analyzeLoaderTimes(): any[] {
@@ -305,7 +302,7 @@ export class ShowStartupPerformance extends Action {
 		const table: any[] = [];
 		table.push(...this._analyzeLoaderTimes());
 
-		const start = Math.round(remote.getGlobal('programStart') || remote.getGlobal('vscodeStart'));
+		const start = Math.round(remote.getGlobal('vscodeStart'));
 		const windowShowTime = Math.round(remote.getGlobal('windowShow'));
 
 		let lastEvent: timer.ITimerEvent;
@@ -374,49 +371,15 @@ export class OpenRecentAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		const recentFolders = this.contextService.getConfiguration().env.recentFolders;
-		const recentFiles = this.contextService.getConfiguration().env.recentFiles;
+		ipc.send('vscode:openRecent', this.windowService.getWindowId());
 
-		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => {
-			return {
-				label: paths.basename(p),
-				description: paths.dirname(p),
-				path: p,
-				separator: index === 0 ? { label: nls.localize('folders', "folders") } : void 0,
-				run: (context) => this.runPick(p, context)
-			};
-		});
-
-		const filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => {
-			return {
-				label: paths.basename(p),
-				description: paths.dirname(p),
-				path: p,
-				separator: index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0,
-				run: (context) => this.runPick(p, context)
-			};
-		});
-
-		const hasWorkspace = !!this.contextService.getWorkspace();
-
-		return this.quickOpenService.pick(folderPicks.concat(...filePicks), {
-			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
-			matchOnDescription: true
-		}).then(p => true);
-	}
-
-	private runPick(path, context): void {
-		const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-
-		ipc.send('vscode:windowOpen', [path], newWindow);
+		return TPromise.as(true);
 	}
 }
 

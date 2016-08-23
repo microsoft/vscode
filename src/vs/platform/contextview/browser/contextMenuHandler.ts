@@ -109,7 +109,7 @@ export class ContextMenuHandler {
 
 					menu.focus();
 
-					return combinedDisposable(listener1, listener2, menu);
+					return combinedDisposable([listener1, listener2, menu]);
 				},
 
 				onHide: (didCancel?: boolean) => {

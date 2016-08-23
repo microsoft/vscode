@@ -74,6 +74,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			}
 
 		}, (err) => {
+			this.client.error(`'navto' request failed with error.`, err);
 			return [];
 		});
 	}

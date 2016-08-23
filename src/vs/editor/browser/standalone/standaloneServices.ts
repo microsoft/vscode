@@ -28,8 +28,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IStorageService, NullStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspaceContextService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
@@ -238,13 +237,9 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let serviceCollection = new ServiceCollection();
 	const instantiationService = new InstantiationService(serviceCollection, true);
 
-	let contextService = services.contextService || new BaseWorkspaceContextService({
-		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' }),
-		id: null,
-		name: null,
-		uid: null,
-		mtime: null
-	}, {});
+	let contextService = services.contextService || new WorkspaceContextService({
+		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
+	});
 	serviceCollection.set(IWorkspaceContextService, contextService);
 
 	let telemetryService = services.telemetryService || NullTelemetryService;
@@ -253,7 +248,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let eventService = services.eventService || new EventService();
 	serviceCollection.set(IEventService, eventService);
 
-	let configurationService = services.configurationService || new SimpleConfigurationService(contextService, eventService);
+	let configurationService = services.configurationService || new SimpleConfigurationService();
 	serviceCollection.set(IConfigurationService, configurationService);
 
 	let messageService = services.messageService || new SimpleMessageService();

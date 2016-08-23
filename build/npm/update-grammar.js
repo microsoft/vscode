@@ -8,7 +8,7 @@
 var download = require('../lib/download');
 var path = require('path');
 var fs = require('fs');
-var plist = require('plist');
+var plist = require('fast-plist');
 var cson = require('cson-parser');
 
 function getCommitSha(repoId, repoPath) {

@@ -12,7 +12,7 @@ import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEdito
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEventService} from 'vs/platform/event/common/event';

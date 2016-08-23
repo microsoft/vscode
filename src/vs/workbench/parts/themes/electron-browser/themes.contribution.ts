@@ -14,7 +14,6 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {Registry} from 'vs/platform/platform';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {VIEWLET_ID, IExtensionsViewlet} from 'vs/workbench/parts/extensions/electron-browser/extensions';
 import {IExtensionGalleryService} from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -29,7 +28,6 @@ class SelectThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
 		@IThemeService private themeService: IThemeService,
@@ -40,8 +38,8 @@ class SelectThemeAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		return this.themeService.getThemes().then(themes => {
-			const currentThemeId = this.themeService.getTheme();
+		return this.themeService.getColorThemes().then(themes => {
+			const currentThemeId = this.themeService.getColorTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
 
 			const picks: IPickOpenEntry[] = themes
@@ -49,7 +47,7 @@ class SelectThemeAction extends Action {
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
 			const selectTheme = (theme, broadcast) => {
-				this.themeService.setTheme(theme.id, broadcast)
+				this.themeService.setColorTheme(theme.id, broadcast)
 					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem loading theme: {0}", err.message)));
 			};
 

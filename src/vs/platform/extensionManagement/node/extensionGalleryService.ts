@@ -8,16 +8,18 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { download, json } from 'vs/base/node/request';
+import { IRequestOptions, IRequestContext, download, asJson } from 'vs/base/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
+import * as url from 'url';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -179,11 +181,25 @@ function getAssetSource(files: IRawGalleryExtensionFile[], type: string): string
 
 function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: { [key: string]: string; }): IGalleryExtension {
 	const [version] = galleryExtension.versions;
+
+	let iconFallback = getAssetSource(version.files, AssetType.Icon);
+	let icon: string;
+
+	if (iconFallback) {
+		const parsedUrl = url.parse(iconFallback, true);
+		parsedUrl.search = undefined;
+		parsedUrl.query['redirect'] = 'true';
+		icon = url.format(parsedUrl);
+	} else {
+		iconFallback = icon = require.toUrl('./media/defaultIcon.png');
+	}
+
 	const assets = {
 		manifest: getAssetSource(version.files, AssetType.Manifest),
 		readme: getAssetSource(version.files, AssetType.Details),
 		download: `${ getAssetSource(version.files, AssetType.VSIX) }?install=true`,
-		icon: getAssetSource(version.files, AssetType.Icon) || require.toUrl('./media/defaultIcon.png'),
+		icon,
+		iconFallback,
 		license: getAssetSource(version.files, AssetType.License)
 	};
 
@@ -309,7 +325,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					headers
 				});
 			})
-			.then(context => json<IRawGalleryQueryResult>(context))
+			.then(context => asJson<IRawGalleryQueryResult>(context))
 			.then(result => {
 				const r = result.results[0];
 				const galleryExtensions = r.extensions;
@@ -338,13 +354,39 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions).then(rawVersion => {
 				const url = `${ getAssetSource(rawVersion.files, AssetType.VSIX) }?install=true`;
 				const zipPath = path.join(tmpdir(), extension.id);
+				const data = getGalleryExtensionTelemetryData(extension);
+				const timer = this.telemetryService.timedPublicLog('galleryService:downloadVSIX', data);
 
 				return this.getCommonHeaders()
-					.then(headers => this.requestService.request({ url, headers }))
+					.then(headers => this._getAsset({ url, headers }))
 					.then(context => download(zipPath, context))
+					.then(() => timer.stop())
 					.then(() => zipPath);
 			});
 		});
+	}
+
+	getAsset(url: string): TPromise<IRequestContext> {
+		return this._getAsset({ url });
+	}
+
+	/**
+	 * Always try with the `redirect=true` query string.
+	 * If that does not return 200, try without it.
+	 */
+	private _getAsset(options: IRequestOptions): TPromise<IRequestContext> {
+		const parsedUrl = url.parse(options.url, true);
+		parsedUrl.search = undefined;
+		parsedUrl.query['redirect'] = 'true';
+
+		const cdnUrl = url.format(parsedUrl);
+
+		return this.requestService.request(assign({}, options, { url: cdnUrl }))
+			.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError('expected 200'))
+			.then(null, () => {
+				this.telemetryService.publicLog('galleryService:cdnFallback', { url: cdnUrl });
+				return this.requestService.request(options);
+			});
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
@@ -356,9 +398,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const url = getAssetSource(version.files, AssetType.Manifest);
 
 		return this.getCommonHeaders()
-			.then(headers => assign(headers, { 'accept-encoding': 'gzip' }))
-			.then(headers => this.requestService.request({ url, headers }))
-			.then(context => json<IExtensionManifest>(context))
+			.then(headers => assign(headers, { 'Accept-Encoding': 'gzip' }))
+			.then(headers => this._getAsset({ url, headers }))
+			.then(context => asJson<IExtensionManifest>(context))
 			.then(manifest => {
 				const desc = {
 					isBuiltin: false,

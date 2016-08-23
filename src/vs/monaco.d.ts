@@ -3021,7 +3021,7 @@ declare module monaco.editor {
          * @id Unique identifier of the contribution.
          * @return The contribution or null if contribution not found.
          */
-        getContribution(id: string): IEditorContribution;
+        getContribution<T extends IEditorContribution>(id: string): T;
         /**
          * Type the getModel() of IEditor.
          */
@@ -3168,6 +3168,7 @@ declare module monaco.editor {
         ViewPortTop: string;
         ViewPortCenter: string;
         ViewPortBottom: string;
+        ViewPortIfOutside: string;
     };
 
     /**
@@ -3215,7 +3216,25 @@ declare module monaco.editor {
         to: string;
         by?: string;
         value?: number;
+        revealCursor?: boolean;
     }
+
+    /**
+     * Arguments for reveal line command
+     */
+    export interface RevealLineArguments {
+        lineNumber?: number;
+        at?: string;
+    }
+
+    /**
+     * Values for reveal line 'at' argument
+     */
+    export const RevealLineAtArgument: {
+        Top: string;
+        Center: string;
+        Bottom: string;
+    };
 
     /**
      * Built-in commands.
@@ -3311,6 +3330,7 @@ declare module monaco.editor {
         ScrollLineDown: string;
         ScrollPageUp: string;
         ScrollPageDown: string;
+        RevealLine: string;
     };
 
     /**

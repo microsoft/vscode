@@ -20,6 +20,7 @@ import {VisibleRange} from 'vs/editor/common/view/renderingContext';
 import {EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent} from 'vs/editor/browser/editorDom';
 import {StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {EditorZoom} from 'vs/editor/common/config/commonEditorConfig';
+import {IViewCursorRenderData} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -102,6 +103,12 @@ export interface IPointerHandlerHelper {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData;
+
+	/**
+	 * Get the last rendered information of the cursors.
+	 */
+	getLastViewCursorsRenderData(): IViewCursorRenderData[];
+
 	shouldSuppressMouseDownOnViewZone(viewZoneId: number): boolean;
 	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
@@ -210,7 +217,8 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	// --- end event handlers
 
 	protected _createMouseTarget(e:EditorMouseEvent, testEventTarget:boolean): editorBrowser.IMouseTarget {
-		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, e, testEventTarget);
+		let lastViewCursorsRenderData = this.viewHelper.getLastViewCursorsRenderData();
+		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, lastViewCursorsRenderData, e, testEventTarget);
 	}
 
 	private _getMouseColumn(e:EditorMouseEvent): number {

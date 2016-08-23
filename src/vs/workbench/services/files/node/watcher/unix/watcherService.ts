@@ -25,8 +25,7 @@ export class FileWatcher {
 		private ignored: string[],
 		private eventEmitter: IEventService,
 		private errorLogger: (msg: string) => void,
-		private verboseLogging: boolean,
-		private debugBrkFileWatcherPort: number
+		private verboseLogging: boolean
 	) {
 		this.isDisposed = false;
 		this.restartCounter = 0;
@@ -34,9 +33,6 @@ export class FileWatcher {
 
 	public startWatching(): () => void {
 		const args = ['--type=watcherService'];
-		if (typeof this.debugBrkFileWatcherPort === 'number') {
-			args.push(`--debug-brk=${this.debugBrkFileWatcherPort}`);
-		}
 
 		const client = new Client(
 			uri.parse(require.toUrl('bootstrap')).fsPath,

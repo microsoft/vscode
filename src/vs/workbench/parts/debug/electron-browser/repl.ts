@@ -5,7 +5,6 @@
 
 import 'vs/css!./../browser/media/repl';
 import nls = require('vs/nls');
-import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -29,12 +28,12 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 const replTreeOptions: tree.ITreeOptions = {
 	indentPixels: 8,
@@ -90,7 +89,7 @@ export class Repl extends Panel {
 				}
 			}
 		}));
-		this.toDispose.push(this.themeService.onDidThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
+		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
 	}
 
 	private onReplElementsUpdated(): void {
@@ -213,7 +212,7 @@ export class Repl extends Panel {
 	}
 
 	private getReplInputOptions(): IEditorOptions {
-		let baseOptions: IEditorOptions = {
+		return {
 			overviewRulerLanes: 0,
 			glyphMargin: false,
 			lineNumbers: false,
@@ -227,11 +226,8 @@ export class Repl extends Panel {
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
 			lineHeight: 21,
-			theme: this.themeService.getTheme()
+			theme: this.themeService.getColorTheme()
 		};
-
-		// Always mixin editor options from the context into our set to allow for override
-		return objects.mixin(baseOptions, this.contextService.getOptions().editor);
 	}
 
 	public dispose(): void {

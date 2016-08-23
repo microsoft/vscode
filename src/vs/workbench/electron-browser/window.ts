@@ -16,7 +16,6 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import {ipcRenderer as ipc, shell, remote} from 'electron';
@@ -48,7 +47,6 @@ export class ElectronWindow {
 	constructor(
 		win: Electron.BrowserWindow,
 		shellContainer: HTMLElement,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
 		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,

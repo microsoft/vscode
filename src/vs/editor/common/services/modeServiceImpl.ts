@@ -545,7 +545,10 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		// Register based on settings
 		if (configuration.files && configuration.files.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
-				mime.registerTextMime({ mime: this.getMimeForMode(configuration.files.associations[pattern]), filepattern: pattern, userConfigured: true });
+				const langId = configuration.files.associations[pattern];
+				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
+				
+				mime.registerTextMime({ mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}
 	}

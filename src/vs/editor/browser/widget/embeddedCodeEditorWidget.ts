@@ -29,7 +29,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService.createScoped(domElement), telemetryService);
+		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

@@ -58,7 +58,10 @@ export interface IView extends IDisposable {
 	getCodeEditorHelper(): ICodeEditorHelper;
 
 	getCenteredRangeInViewport(): Range;
-	getVisibleRangeInViewport(): Range;
+	/**
+	 * Returns the range of lines in the view port which are completely visible.
+	 */
+	getCompletelyVisibleLinesRangeInViewport(): Range;
 
 	change(callback:(changeAccessor:IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];

@@ -28,6 +28,7 @@ test -f "$CODE" || ./node_modules/.bin/gulp electron
 test -d out || ./node_modules/.bin/gulp compile
 
 # Unit Tests
+export VSCODE_DEV=1
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
 		"$CODE" \

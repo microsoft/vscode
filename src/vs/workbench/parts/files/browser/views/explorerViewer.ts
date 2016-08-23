@@ -18,7 +18,7 @@ import {isString} from 'vs/base/common/types';
 import {IAction, ActionRunner as BaseActionRunner, IActionRunner} from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
-import {$} from 'vs/base/browser/builder';
+import {$, Builder} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -33,14 +33,16 @@ import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeD
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {DragMouseEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
@@ -49,6 +51,7 @@ import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
+
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -256,12 +259,19 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 
 // Explorer Renderer
 export class FileRenderer extends ActionsRenderer implements IRenderer {
+
+	private static RESOURCE_PATH_KEY = '__resourcePath';
+
 	private state: FileViewletState;
+	private extensionsReady: boolean;
 
 	constructor(
 		state: FileViewletState,
 		actionRunner: IActionRunner,
-		@IContextViewService private contextViewService: IContextViewService
+		private container: HTMLElement,
+		@IContextViewService private contextViewService: IContextViewService,
+		@IExtensionService private extensionService: IExtensionService,
+		@IModeService private modeService: IModeService
 	) {
 		super({
 			actionProvider: state.actionProvider,
@@ -269,6 +279,27 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		});
 
 		this.state = state;
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// once the extension host is up we need to reapply our CSS classes for
+		// icons because additional language associations might be present then
+		this.extensionService.onReady().then(() => {
+			this.extensionsReady = true;
+
+			const fileItems = this.container.getElementsByClassName('explorer-item file-icon');
+
+			for (let i = 0; i < fileItems.length; i++) {
+				const fileItem = $(<HTMLElement>fileItems.item(i));
+				const resourcePath = fileItem.getProperty(FileRenderer.RESOURCE_PATH_KEY);
+				if (resourcePath) {
+					fileItem.setClass(['explorer-item', ...this.fileIconClasses(resourcePath)].join(' '));
+					fileItem.removeProperty(FileRenderer.RESOURCE_PATH_KEY);
+				}
+			}
+		});
 	}
 
 	public getContentHeight(tree: ITree, element: any): number {
@@ -277,19 +308,43 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		let el = $(domElement).clearChildren();
-		let item = $('.explorer-item').addClass(this.iconClass(stat)).appendTo(el);
+
+		// Item Container
+		let item = $('.explorer-item');
+		if (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) {
+			item.addClass(...this.folderIconClasses(stat.resource.fsPath));
+		} else {
+			item.addClass(...this.fileIconClasses(stat.resource.fsPath));
+
+			// We need to re-apply the icon CSS classes once the extension host is ready
+			if (!this.extensionsReady) {
+				item.setProperty(FileRenderer.RESOURCE_PATH_KEY, stat.resource.fsPath);
+			}
+		}
+
+		item.appendTo(el);
 
 		// File/Folder label
 		let editableData: IEditableData = this.state.getEditableData(stat);
 		if (!editableData) {
-			let label = $('.explorer-item-label').appendTo(item);
-			$('a.plain').text(stat.name).title(stat.resource.fsPath).appendTo(label);
-
-			return null;
+			return this.renderFileFolderLabel(item, stat);
 		}
 
+		// Name Input
+		return this.renderNameInput(item, tree, stat, editableData);
+	}
+
+	private renderFileFolderLabel(container: Builder, stat: IFileStat): IElementCallback {
+		let label = $('.explorer-item-label').appendTo(container);
+		$('a.plain').text(stat.name).title(stat.resource.fsPath).appendTo(label);
+
+		return null;
+	}
+
+	private renderNameInput(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
+
 		// Input field (when creating a new file or folder or renaming)
-		let inputBox = new InputBox(item.getHTMLElement(), this.contextViewService, {
+		let inputBox = new InputBox(container.getHTMLElement(), this.contextViewService, {
 			validationOptions: {
 				validation: editableData.validator,
 				showMessage: true
@@ -336,12 +391,42 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		return () => done(true);
 	}
 
-	private iconClass(element: FileStat): string {
-		if (element.isDirectory) {
-			return 'folder-icon';
+	private fileIconClasses(fsPath: string): string[] {
+		const classes = ['file-icon'];
+
+		const basename = paths.basename(fsPath);
+		const dotSegments = basename.split('.');
+
+		const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
+		if (name) {
+			classes.push(`${name.toLowerCase()}-name-file-icon`);
 		}
 
-		return 'text-file-icon';
+		const extensions = dotSegments.splice(1);
+		if (extensions.length > 0) {
+			for (let i = 0; i < extensions.length; i++) {
+				classes.push(`${extensions.slice(i).join('.').toLowerCase()}-ext-file-icon`); // add each combination of all found extensions if more than one
+			}
+		}
+
+		const langId = this.modeService.getModeIdByFilenameOrFirstLine(fsPath);
+		if (langId) {
+			classes.push(`${langId}-lang-file-icon`);
+		}
+
+		return classes;
+	}
+
+	private folderIconClasses(fsPath: string): string[] {
+		const basename = paths.basename(fsPath);
+
+		const classes = ['folder-icon'];
+
+		if (basename) {
+			classes.push(`${basename.toLowerCase()}-name-folder-icon`);
+		}
+
+		return classes;
 	}
 }
 
@@ -373,7 +458,7 @@ export class FileController extends DefaultController {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
@@ -658,6 +743,9 @@ export class FileSorter implements ISorter {
 
 // Explorer Filter
 export class FileFilter implements IFilter {
+
+	private static MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
+
 	private hiddenExpression: glob.IExpression;
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
@@ -682,8 +770,14 @@ export class FileFilter implements IFilter {
 			return true; // always visible
 		}
 
+		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
+		let siblings = stat.parent && stat.parent.children && stat.parent.children;
+		if (siblings && siblings.length > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
+			siblings = void 0;
+		}
+
 		// Hide those that match Hidden Patterns
-		const siblingsFn = () => stat.parent && stat.parent.children && stat.parent.children.map(c => c.name);
+		const siblingsFn = () => siblings && siblings.map(c => c.name);
 		if (glob.match(this.hiddenExpression, this.contextService.toWorkspaceRelativePath(stat.resource), siblingsFn)) {
 			return false; // hidden through pattern
 		}
@@ -847,7 +941,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 				let revertPromise: TPromise<any> = TPromise.as(null);
 				const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath));
 				if (dirty.length) {
-					let message:string;
+					let message: string;
 					if (source.isDirectory) {
 						if (dirty.length === 1) {
 							message = nls.localize('dirtyMessageFolderOne', "You are moving a folder with unsaved changes in 1 file. Do you want to continue?");

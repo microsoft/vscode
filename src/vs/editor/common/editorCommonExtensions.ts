@@ -62,8 +62,12 @@ export abstract class EditorAction extends ConfigEditorCommand {
 	}
 
 	public runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
-		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
+		this.reportTelemetry(accessor);
 		return this.run(accessor, editor);
+	}
+
+	protected reportTelemetry(accessor:ServicesAccessor){
+		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
 	}
 
 	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;

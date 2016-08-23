@@ -8,7 +8,7 @@
 import * as path from 'path';
 import * as fs from 'original-fs';
 import { EventEmitter } from 'events';
-import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { IEnvService } from 'vs/code/electron-main/env';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
@@ -33,7 +33,7 @@ export class StorageService implements IStorageService {
 	private database: any = null;
 	private eventEmitter = new EventEmitter();
 
-	constructor(@IEnvironmentService private envService: IEnvironmentService) {
+	constructor(@IEnvService private envService: IEnvService) {
 		this.dbPath = path.join(envService.appHome, 'storage.json');
 	}
 
@@ -93,7 +93,7 @@ export class StorageService implements IStorageService {
 		try {
 			return JSON.parse(fs.readFileSync(this.dbPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
-			if (this.envService.cliArgs.verboseLogging) {
+			if (this.envService.cliArgs.verbose) {
 				console.error(error);
 			}
 
@@ -105,7 +105,7 @@ export class StorageService implements IStorageService {
 		try {
 			fs.writeFileSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
 		} catch (error) {
-			if (this.envService.cliArgs.verboseLogging) {
+			if (this.envService.cliArgs.verbose) {
 				console.error(error);
 			}
 		}
