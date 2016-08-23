@@ -317,7 +317,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		// Item Container
 		let item = $('.explorer-item');
 		if (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) {
-			item.addClass('folder-icon');
+			item.addClass(...this.folderIconClasses(stat.resource.fsPath));
 		} else {
 			item.addClass(...this.fileIconClasses(stat.resource.fsPath));
 
@@ -403,21 +403,38 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		const langId = this.modeService.getModeIdByFilenameOrFirstLine(fsPath);
 
 		const classes = ['file-icon'];
-		const cssEscapeSupport = window as CSSEscapeSupport;
 
 		if (ext && ext.length > 1) {
-			classes.push(`${cssEscapeSupport.CSS.escape(ext.substr(1).toLowerCase())}-ext-file-icon`);
+			classes.push(`${this.cssEscape(ext.substr(1).toLowerCase())}-ext-file-icon`);
 		}
 
 		if (name) {
-			classes.push(`${cssEscapeSupport.CSS.escape(name.toLowerCase())}-name-file-icon`);
+			classes.push(`${this.cssEscape(name.toLowerCase())}-name-file-icon`);
 		}
 
 		if (langId) {
-			classes.push(`${cssEscapeSupport.CSS.escape(langId)}-lang-file-icon`);
+			classes.push(`${this.cssEscape(langId)}-lang-file-icon`);
 		}
 
 		return classes;
+	}
+
+	private folderIconClasses(fsPath: string): string[] {
+		const basename = paths.basename(fsPath);
+
+		const classes = ['folder-icon'];
+
+		if (basename) {
+			classes.push(`${this.cssEscape(basename.toLowerCase())}-name-folder-icon`);
+		}
+
+		return classes;
+	}
+
+	private cssEscape(val: string): string {
+		const cssEscapeSupport = window as CSSEscapeSupport;
+
+		return cssEscapeSupport.CSS.escape(val);
 	}
 }
 
