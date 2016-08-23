@@ -59,6 +59,27 @@ export class CodeSnippet implements ICodeSnippet {
 		this.parseTemplate(snippetTemplate);
 	}
 
+	get isInsertOnly(): boolean {
+		return this.placeHolders.length === 0;
+	}
+
+	get isSingleTabstopOnly(): boolean {
+		if (this.placeHolders.length !== 1) {
+			return false;
+		}
+
+		const [placeHolder] = this.placeHolders;
+		if (placeHolder.value !== '' || placeHolder.occurences.length !== 1) {
+			return false;
+		}
+
+		const [placeHolderRange] = placeHolder.occurences;
+		if (!Range.isEmpty(placeHolderRange)) {
+			return false;
+		}
+		return true;
+	}
+
 	private parseTemplate(template: string): void {
 
 		var placeHoldersMap: collections.IStringDictionary<IPlaceHolder> = {};

@@ -380,9 +380,11 @@ export class SnippetController {
 
 	public run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
 		this._runAndRestoreController(() => {
-			if (snippet.placeHolders.length === 0) {
-				// No placeholders => execute for all editor selections
+			if (snippet.isInsertOnly || snippet.isSingleTabstopOnly) {
+				// Only inserts text, not placeholders, tabstops etc
+				// Only cursor endposition
 				this._runForAllSelections(snippet, overwriteBefore, overwriteAfter, stripPrefix);
+
 			} else {
 				let prepared = SnippetController._prepareSnippet(this._editor, this._editor.getSelection(), snippet, overwriteBefore, overwriteAfter, stripPrefix);
 				this._runPreparedSnippetForPrimarySelection(prepared, true);
