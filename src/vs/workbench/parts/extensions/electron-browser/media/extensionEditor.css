@@ -142,6 +142,7 @@
 }
 
 .extension-editor > .body > .content table {
+	width: 100%;
 	border-spacing: 0;
 	border-collapse: separate;
 }
@@ -155,6 +156,8 @@
 	margin-bottom: 10px;
 	font-weight: bold;
 	font-size: 120%;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+	padding-bottom: 6px;
 }
 
 .extension-editor > .body > .content details > summary:focus {
@@ -171,10 +174,6 @@
 
 .extension-editor > .body > .content table tr:not(:first-child):hover {
 	background-color: rgba(128, 128, 128, 0.15);
-}
-
-.extension-editor > .body > .content table th {
-	border-bottom: 1px solid rgba(144, 144, 144, 0.5);
 }
 
 .extension-editor > .body > .content table th,
