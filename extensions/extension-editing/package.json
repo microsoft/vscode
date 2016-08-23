@@ -29,6 +29,10 @@
 			{
 				"fileMatch": "*language-configuration.json",
 				"url": "vscode://schemas/language-configuration"
+			},
+			{
+				"fileMatch": "*icon-theme.json",
+				"url": "vscode://schemas/icon-theme"
 			}
 		]
 	}
