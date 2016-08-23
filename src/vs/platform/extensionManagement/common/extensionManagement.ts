@@ -12,6 +12,72 @@ import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestContext } from 'vs/base/node/request';
 
+export interface ICommand {
+	command: string;
+	title: string;
+	category?: string;
+}
+
+export interface IConfigurationProperty {
+	description: string;
+	type: string | string[];
+}
+
+export interface IConfiguration {
+	properties: { [key: string]: IConfigurationProperty; };
+}
+
+export interface IDebugger {
+	label: string;
+	runtime: string;
+}
+
+export interface IGrammar {
+	language: string;
+}
+
+export interface IJSONValidation {
+	fileMatch: string;
+}
+
+export interface IKeyBindings {
+	command: string;
+	key: string;
+	when?: string;
+	mac?: string;
+	linux?: string;
+	win?: string;
+}
+
+export interface ILanguage {
+	id: string;
+	extensions: string[];
+	aliases: string[];
+}
+
+export interface IMenu {
+	command: string;
+	alt?: string;
+	when?: string;
+	group?: string;
+}
+
+export interface ISnippet {
+	language: string;
+}
+
+export interface IExtensionContributions {
+	commands?: ICommand[];
+	configuration?: IConfiguration;
+	debuggers?: IDebugger[];
+	grammars?: IGrammar[];
+	jsonValidation?: IJSONValidation[];
+	keybindings?: IKeyBindings[];
+	languages?: ILanguage[];
+	menus?: { [context: string]: IMenu[] };
+	snippets?: ISnippet[];
+}
+
 export interface IExtensionManifest {
 	name: string;
 	publisher: string;
@@ -21,6 +87,9 @@ export interface IExtensionManifest {
 	description?: string;
 	main?: string;
 	icon?: string;
+	categories?: string[];
+	activationEvents?: string[];
+	contributes?: IExtensionContributions;
 }
 
 export interface IExtensionIdentity {

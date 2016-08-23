@@ -90,7 +90,7 @@ class NavBar {
 
 const NavbarSection = {
 	Readme: 'readme',
-	Configuration: 'configuration'
+	Contributions: 'contributions'
 };
 
 export class ExtensionEditor extends BaseEditor {
@@ -223,8 +223,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
-		this.navbar.push(NavbarSection.Readme, localize('readme', "Readme"));
-		this.navbar.push(NavbarSection.Configuration, localize('configuration', "Config"));
+		this.navbar.push(NavbarSection.Readme, localize('details', "Details"));
+		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
 
 		this.content.innerHTML = '';
 
@@ -234,7 +234,7 @@ export class ExtensionEditor extends BaseEditor {
 	private onNavbarChange(extension: IExtension, id: string): void {
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme(extension);
-			case NavbarSection.Configuration: return this.openConfiguration(extension);
+			case NavbarSection.Contributions: return this.openContributions(extension);
 		}
 	}
 
@@ -260,14 +260,26 @@ export class ExtensionEditor extends BaseEditor {
 			}));
 	}
 
-	private openConfiguration(extension: IExtension) {
-		return this.loadContents(() => {
-			return new TPromise(c => {
+	private openContributions(extension: IExtension) {
+		return this.loadContents(() => extension.getManifest()
+			.then(manifest => {
 				this.content.innerHTML = '';
-				this.content.innerText = 'configuration';
-				c(null);
-			});
-		});
+				const content = append(this.content, $('div', { class: 'subcontent' }));
+
+				const configuration = manifest.contributes.configuration;
+				const properties = configuration && configuration.properties;
+				const settings = properties ? Object.keys(properties) : [];
+
+				if (settings.length) {
+					append(content, $('details', { open: true },
+						$('summary', null, localize('settings', "Settings ({0})", settings.length)),
+						$('table', { class: 'settings' },
+							$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
+							...settings.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
+						)
+					));
+				}
+			}));
 	}
 
 	private loadContents(loadingTask: ()=>TPromise<any>): void {
