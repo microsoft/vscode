@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -34,6 +34,9 @@ export interface IConfigurationServiceEvent {
 	config: any;
 }
 
+/**
+ * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
+ */
 export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T {
 	function accessSetting(config: any, path: string[]): any {
 		let current = config;

@@ -4,21 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import objects = require('vs/base/common/objects');
-import platform = require('vs/platform/platform');
+import {Registry} from 'vs/platform/platform';
 import types = require('vs/base/common/types');
-import json = require('vs/base/common/json');
+import {IConfigurationNode, IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 
-import configurationRegistry = require('./configurationRegistry');
-
-export const CONFIG_DEFAULT_NAME = 'settings';
-
-export interface IConfigFile {
-	contents: any;
-	parseError?: any;
-}
-
-function setNode(root: any, key: string, value: any): void {
+export function setNode(root: any, key: string, value: any): void {
 	const segments = key.split('.');
 	const last = segments.pop();
 
@@ -36,92 +26,14 @@ function setNode(root: any, key: string, value: any): void {
 		}
 		curr = obj;
 	});
-	
+
 	curr[last] = value;
 }
 
-export function newConfigFile(value: string): IConfigFile {
-	try {
-		const root: any = Object.create(null);
-		const contents = json.parse(value) || {};
-		for (let key in contents) {
-			setNode(root, key, contents[key]);
-		}
+function processDefaultValues(withConfig: (config: IConfigurationNode, isTop?: boolean) => boolean): void {
+	const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
 
-		return {
-			contents: root
-		};
-	} catch (e) {
-		return {
-			contents: {},
-			parseError: e
-		};
-	}
-}
-
-export function merge(base: any, add: any, overwrite: boolean): void {
-	Object.keys(add).forEach((key) => {
-		if (key in base) {
-			if (types.isObject(base[key]) && types.isObject(add[key])) {
-				merge(base[key], add[key], overwrite);
-			} else if (overwrite) {
-				base[key] = add[key];
-			}
-		} else {
-			base[key] = add[key];
-		}
-	});
-}
-
-export function consolidate(configMap: { [key: string]: IConfigFile; }): { contents: any; parseErrors: string[]; } {
-	const finalConfig: any = Object.create(null);
-	const parseErrors: string[] = [];
-	const regexp = /\/(team\.)?([^\.]*)*\.json/;
-
-	// For each config file in .vscode folder
-	Object.keys(configMap).forEach((configFileName) => {
-		const config = objects.clone(configMap[configFileName]);
-		const matches = regexp.exec(configFileName);
-		if (!matches || !config) {
-			return;
-		}
-
-		// If a file is team.foo.json, it indicates team settings, strip this away
-		const isTeamSetting = !!matches[1];
-
-		// Extract the config key from the file name (except for settings.json which is the default)
-		let configElement: any = finalConfig;
-		if (matches && matches[2] && matches[2] !== CONFIG_DEFAULT_NAME) {
-
-			// Use the name of the file as top level config section for all settings inside
-			const configSection = matches[2];
-			let element = configElement[configSection];
-			if (!element) {
-				element = Object.create(null);
-				configElement[configSection] = element;
-			}
-			configElement = element;
-		}
-
-		merge(configElement, config.contents, !isTeamSetting /* user settings overrule team settings */);
-		if (config.parseError) {
-			parseErrors.push(configFileName);
-		}
-
-	});
-
-	return {
-		contents: finalConfig,
-		parseErrors: parseErrors
-	};
-}
-
-// defaults...
-
-function processDefaultValues(withConfig: (config: configurationRegistry.IConfigurationNode, isTop?: boolean) => boolean): void {
-	const configurations = (<configurationRegistry.IConfigurationRegistry>platform.Registry.as(configurationRegistry.Extensions.Configuration)).getConfigurations();
-
-	const visit = (config: configurationRegistry.IConfigurationNode, level: number) => {
+	const visit = (config: IConfigurationNode, level: number) => {
 		const handled = withConfig(config, level === 0);
 
 		if (Array.isArray(config.allOf)) {
@@ -151,11 +63,10 @@ function processDefaultValues(withConfig: (config: configurationRegistry.IConfig
 	});
 }
 
-
 export function getDefaultValues(): any {
 	const ret: any = Object.create(null);
 
-	const handleConfig = (config: configurationRegistry.IConfigurationNode, isTop: boolean): boolean => {
+	const handleConfig = (config: IConfigurationNode, isTop: boolean): boolean => {
 		if (config.properties) {
 			Object.keys(config.properties).forEach((key) => {
 				const prop = config.properties[key];
@@ -177,13 +88,12 @@ export function getDefaultValues(): any {
 	return ret;
 }
 
-
 export function getDefaultValuesContent(indent: string): string {
 	let lastEntry = -1;
 	const result: string[] = [];
 	result.push('{');
 
-	const handleConfig = (config: configurationRegistry.IConfigurationNode, isTop: boolean): boolean => {
+	const handleConfig = (config: IConfigurationNode, isTop: boolean): boolean => {
 		let handled = false;
 		if (config.title) {
 			handled = true;

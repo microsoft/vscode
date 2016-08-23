@@ -6,11 +6,11 @@
 
 import nls = require('vs/nls');
 import Event, {Emitter} from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import platform = require('vs/platform/platform');
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {Registry} from 'vs/platform/platform';
 import objects = require('vs/base/common/objects');
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import {IJSONContributionRegistry, Extensions as JSONExtensions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -48,7 +48,7 @@ export interface IConfigurationNode {
 }
 
 const schemaId = 'vscode://schemas/settings';
-const contributionRegistry = <JSONContributionRegistry.IJSONContributionRegistry>platform.Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationContributors: IConfigurationNode[];
@@ -86,7 +86,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 }
 
 const configurationRegistry = new ConfigurationRegistry();
-platform.Registry.add(Extensions.Configuration, configurationRegistry);
+Registry.add(Extensions.Configuration, configurationRegistry);
 
 const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),

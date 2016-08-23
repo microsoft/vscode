@@ -5,7 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import model = require('vs/platform/configuration/common/model');
+import model = require('vs/workbench/services/configuration/common/model');
 
 suite('ConfigurationService - Model', () => {
 
