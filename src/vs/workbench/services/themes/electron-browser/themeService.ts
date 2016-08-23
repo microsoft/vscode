@@ -150,6 +150,7 @@ interface FileIconsAssociation {
 	folder?: string;
 	file?: string;
 	folderExpanded?: string;
+	folderNames?: {[folderName:string]: string; };
 	fileExtensions?: {[extension:string]: string; };
 	fileNames?: {[fileName:string]: string; };
 	languageIds?: {[languageId:string]: string; };
@@ -487,6 +488,12 @@ function _processFileIconsObject(id: string, fileIconsPath: string, fileIconsDoc
 			addSelector(`${qualifier} .expanded .folder-icon::before`, associations.folderExpanded);
 			addSelector(`${qualifier} .file-icon::before`, associations.file);
 
+			let folderNames = associations.folderNames;
+			if (folderNames) {
+				for (let folderName in folderNames) {
+					addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
+				}
+			}
 			let fileExtensions = associations.fileExtensions;
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
@@ -816,6 +823,14 @@ const schema: IJSONSchema = {
 			description: nls.localize('schema.file', 'The default file icon, shown for all files that don\'t match any extension, filename or language id.')
 
 		},
+		folderNames: {
+			type: 'object',
+			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
+			}
+		},
 		fileExtensions: {
 			type: 'object',
 			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive.'),
@@ -841,6 +856,32 @@ const schema: IJSONSchema = {
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.languageId', 'The ID of the icon definition for the association.')
+			}
+		},
+		associations: {
+			type: 'object',
+			properties: {
+				folderExpanded: {
+					$ref: '#/definitions/folderExpanded'
+				},
+				folder: {
+					$ref: '#/definitions/folder'
+				},
+				file: {
+					$ref: '#/definitions/file'
+				},
+				folderNames: {
+					$ref: '#/definitions/folderNames'
+				},
+				fileExtensions: {
+					$ref: '#/definitions/fileExtensions'
+				},
+				fileNames: {
+					$ref: '#/definitions/fileNames'
+				},
+				languageIds: {
+					$ref: '#/definitions/languageIds'
+				}
 			}
 		}
 	},
@@ -890,7 +931,7 @@ const schema: IJSONSchema = {
 					}
 				},
 				required: [
-					'family',
+					'id',
 					'src'
 				]
 			}
@@ -934,6 +975,9 @@ const schema: IJSONSchema = {
 		file: {
 			$ref: '#/definitions/file'
 		},
+		folderNames: {
+			$ref: '#/definitions/folderNames'
+		},
 		fileExtensions: {
 			$ref: '#/definitions/fileExtensions'
 		},
@@ -944,50 +988,10 @@ const schema: IJSONSchema = {
 			$ref: '#/definitions/languageIds'
 		},
 		light: {
-			type: 'object',
-			properties: {
-				folderExpanded: {
-					$ref: '#/definitions/folderExpanded'
-				},
-				folder: {
-					$ref: '#/definitions/folder'
-				},
-				file: {
-					$ref: '#/definitions/file'
-				},
-				fileExtensions: {
-					$ref: '#/definitions/fileExtensions'
-				},
-				fileNames: {
-					$ref: '#/definitions/fileNames'
-				},
-				languageIds: {
-					$ref: '#/definitions/languageIds'
-				}
-			}
+			$ref: '#/definitions/associations'
 		},
 		highContrast: {
-			type: 'object',
-			properties: {
-				folderExpanded: {
-					$ref: '#/definitions/folderExpanded'
-				},
-				folder: {
-					$ref: '#/definitions/folder'
-				},
-				file: {
-					$ref: '#/definitions/file'
-				},
-				fileExtensions: {
-					$ref: '#/definitions/fileExtensions'
-				},
-				fileNames: {
-					$ref: '#/definitions/fileNames'
-				},
-				languageIds: {
-					$ref: '#/definitions/languageIds'
-				}
-			}
+			$ref: '#/definitions/associations'
 		}
 	},
 	required: [
