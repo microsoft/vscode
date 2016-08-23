@@ -61,6 +61,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 	}
 
 	private _codeEditorService: ICodeEditorService;
+	private _commandService: ICommandService;
 
 	protected domElement:HTMLElement;
 	private _focusTracker: CodeEditorWidgetFocusTracker;
@@ -80,8 +81,9 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(domElement, options, instantiationService, commandService, contextKeyService);
+		super(domElement, options, instantiationService, contextKeyService);
 		this._codeEditorService = codeEditorService;
+		this._commandService = commandService;
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChage(() => {

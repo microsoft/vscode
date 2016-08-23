@@ -16,7 +16,6 @@ import {SuggestModel, Context} from 'vs/editor/contrib/suggest/common/suggestMod
 import {MockCodeEditor, MockScopeLocation} from 'vs/editor/test/common/mocks/mockCodeEditor';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {ICommandService, NullCommandService} from 'vs/platform/commands/common/commands';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -24,14 +23,12 @@ import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/com
 function createMockEditor(model: Model): MockCodeEditor {
 	const contextKeyService = new MockKeybindingService();
 	const telemetryService = NullTelemetryService;
-	const commandService = NullCommandService;
 	const instantiationService = new InstantiationService(new ServiceCollection(
 		[IContextKeyService, contextKeyService],
-		[ITelemetryService, telemetryService],
-		[ICommandService, commandService]
+		[ITelemetryService, telemetryService]
 	));
 
-	const editor = new MockCodeEditor(new MockScopeLocation(), {}, instantiationService, commandService, contextKeyService);
+	const editor = new MockCodeEditor(new MockScopeLocation(), {}, instantiationService, contextKeyService);
 	editor.setModel(model);
 	return editor;
 }
