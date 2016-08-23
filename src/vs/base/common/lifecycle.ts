@@ -27,9 +27,7 @@ export function dispose<T extends IDisposable>(...disposables: T[]): T[] {
 	return [];
 }
 
-export function combinedDisposable(disposables: IDisposable[]): IDisposable;
-export function combinedDisposable(...disposables: IDisposable[]): IDisposable;
-export function combinedDisposable(disposables: any): IDisposable {
+export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 	return { dispose: () => dispose(disposables) };
 }
 
