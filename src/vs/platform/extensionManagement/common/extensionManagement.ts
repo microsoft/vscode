@@ -28,7 +28,8 @@ export interface IConfiguration {
 }
 
 export interface IDebugger {
-	label: string;
+	label?: string;
+	type: string;
 	runtime: string;
 }
 
