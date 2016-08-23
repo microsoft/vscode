@@ -282,6 +282,7 @@ export class ExtensionEditor extends BaseEditor {
 
 				ExtensionEditor.renderSettings(content, manifest);
 				ExtensionEditor.renderThemes(content, manifest);
+				ExtensionEditor.renderJSONValidation(content, manifest);
 				ExtensionEditor.renderDebuggers(content, manifest);
 			}));
 	}
@@ -289,48 +290,63 @@ export class ExtensionEditor extends BaseEditor {
 	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest): void {
 		const configuration = manifest.contributes.configuration;
 		const properties = configuration && configuration.properties;
-		const settings = properties ? Object.keys(properties) : [];
+		const contrib = properties ? Object.keys(properties) : [];
 
-		if (!settings.length) {
+		if (!contrib.length) {
 			return;
 		}
 
 		append(container, $('details', { open: true },
-			$('summary', null, localize('settings', "Settings ({0})", settings.length)),
+			$('summary', null, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', null,
 				$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
-				...settings.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
+				...contrib.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
 			)
 		));
 	}
 
 	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest): void {
-		const debuggers = manifest.contributes.debuggers || [];
+		const contrib = manifest.contributes.debuggers || [];
 
-		if (!debuggers.length) {
+		if (!contrib.length) {
 			return;
 		}
 
 		append(container, $('details', { open: true },
-			$('summary', null, localize('debuggers', "Debuggers ({0})", debuggers.length)),
+			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', null,
 				$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
-				...debuggers.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
+				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
 			)
 		));
 	}
 
 	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest): void {
-		const themes = manifest.contributes.themes || [];
+		const contrib = manifest.contributes.themes || [];
 
-		if (!themes.length) {
+		if (!contrib.length) {
 			return;
 		}
 
 		append(container, $('details', { open: true },
-			$('summary', null, localize('themes', "Themes ({0})", themes.length)),
+			$('summary', null, localize('themes', "Themes ({0})", contrib.length)),
 			$('ul', null,
-				...themes.map(theme => $('li', null, theme.label))
+				...contrib.map(theme => $('li', null, theme.label))
+			)
+		));
+	}
+
+	private static renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest): void {
+		const contrib = manifest.contributes.jsonValidation || [];
+
+		if (!contrib.length) {
+			return;
+		}
+
+		append(container, $('details', { open: true },
+			$('summary', null, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
+			$('ul', null,
+				...contrib.map(v => $('li', null, v.fileMatch))
 			)
 		));
 	}
