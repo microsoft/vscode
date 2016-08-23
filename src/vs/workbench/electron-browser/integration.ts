@@ -22,7 +22,6 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IWorkspaceContextService}from 'vs/platform/workspace/common/workspace';
-import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -72,12 +71,6 @@ export class ElectronIntegration {
 		// Support runAction event
 		ipc.on('vscode:runAction', (event, actionId: string) => {
 			this.commandService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
-		});
-
-		// Support options change
-		ipc.on('vscode:optionsChange', (event, options: string) => {
-			const optionsData = JSON.parse(options);
-			(<LegacyWorkspaceContextService>this.contextService).updateOptions('globalSettings', optionsData);
 		});
 
 		// Support resolve keybindings event

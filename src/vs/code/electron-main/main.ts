@@ -167,9 +167,6 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	// Lifecycle
 	lifecycleService.ready();
 
-	// Load settings (TODO@Ben remove)
-	global.globalSettingsValue = JSON.stringify(configurationService.getConfiguration());
-
 	// Propagate to clients
 	windowsService.ready(userEnv);
 
