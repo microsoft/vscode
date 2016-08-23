@@ -7,7 +7,6 @@
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {ICommandService, NullCommandService} from 'vs/platform/commands/common/commands';
 import {IContextKeyService, IContextKeyServiceTarget} from 'vs/platform/contextkey/common/contextkey';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
@@ -77,14 +76,12 @@ export class MockScopeLocation implements IContextKeyServiceTarget {
 export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEditorWidgetCreationOptions, callback:(editor:MockCodeEditor, cursor:Cursor)=>void): void {
 
 	let contextKeyService = new MockKeybindingService();
-	let commandService = NullCommandService;
 
 	let services = new ServiceCollection();
 	services.set(IContextKeyService, contextKeyService);
-	services.set(ICommandService, commandService);
 	let instantiationService = new InstantiationService(services);
 
-	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, commandService, contextKeyService);
+	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, contextKeyService);
 	let model: Model;
 	if (!options.model) {
 		model = Model.createFromString(text.join('\n'));

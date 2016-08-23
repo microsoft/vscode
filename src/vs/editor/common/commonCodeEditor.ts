@@ -11,7 +11,6 @@ import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IContextKey, IContextKeyServiceTarget, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
@@ -101,7 +100,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	protected cursor:Cursor;
 
 	protected _instantiationService: IInstantiationService;
-	protected _commandService: ICommandService;
 	protected _contextKeyService: IContextKeyService;
 
 	/**
@@ -122,7 +120,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		domElement: IContextKeyServiceTarget,
 		options: editorCommon.IEditorOptions,
 		instantiationService: IInstantiationService,
-		commandService: ICommandService,
 		contextKeyService: IContextKeyService
 	) {
 		super();
@@ -136,7 +133,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		// listeners that are kept during the whole editor lifetime
 		this._lifetimeDispose = [];
 
-		this._commandService = commandService;
 		this._contextKeyService = contextKeyService.createScoped(this.domElement);
 		this._editorIdContextKey = this._contextKeyService.createKey('editorId', this.getId());
 		this._editorFocusContextKey = EditorContextKeys.Focus.bindTo(this._contextKeyService);
