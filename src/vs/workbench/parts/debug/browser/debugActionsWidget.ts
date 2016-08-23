@@ -36,7 +36,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	private actions: actions.IAction[];
 	private pauseAction: dbgactions.PauseAction;
 	private continueAction: dbgactions.ContinueAction;
-	private stepBackAction: dbgactions.StepBackDebugAction;
+	private stepBackAction: dbgactions.StepBackAction;
 	private isVisible: boolean;
 	private isBuilt: boolean;
 
@@ -163,11 +163,11 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 			this.pauseAction = instantiationService.createInstance(dbgactions.PauseAction, dbgactions.PauseAction.ID, dbgactions.PauseAction.LABEL);
 			this.actions = [
 				this.continueAction,
-				instantiationService.createInstance(dbgactions.StepOverDebugAction, dbgactions.StepOverDebugAction.ID, dbgactions.StepOverDebugAction.LABEL),
-				instantiationService.createInstance(dbgactions.StepIntoDebugAction, dbgactions.StepIntoDebugAction.ID, dbgactions.StepIntoDebugAction.LABEL),
-				instantiationService.createInstance(dbgactions.StepOutDebugAction, dbgactions.StepOutDebugAction.ID, dbgactions.StepOutDebugAction.LABEL),
-				instantiationService.createInstance(dbgactions.RestartDebugAction, dbgactions.RestartDebugAction.ID, dbgactions.RestartDebugAction.LABEL),
-				instantiationService.createInstance(dbgactions.StopDebugAction, dbgactions.StopDebugAction.ID, dbgactions.StopDebugAction.LABEL)
+				instantiationService.createInstance(dbgactions.StepOverAction, dbgactions.StepOverAction.ID, dbgactions.StepOverAction.LABEL),
+				instantiationService.createInstance(dbgactions.StepIntoAction, dbgactions.StepIntoAction.ID, dbgactions.StepIntoAction.LABEL),
+				instantiationService.createInstance(dbgactions.StepOutAction, dbgactions.StepOutAction.ID, dbgactions.StepOutAction.LABEL),
+				instantiationService.createInstance(dbgactions.RestartAction, dbgactions.RestartAction.ID, dbgactions.RestartAction.LABEL),
+				instantiationService.createInstance(dbgactions.StopAction, dbgactions.StopAction.ID, dbgactions.StopAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
@@ -181,7 +181,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		const activeSession = this.debugService.getActiveSession();
 		if (activeSession && activeSession.configuration.capabilities.supportsStepBack) {
 			if (!this.stepBackAction) {
-				this.stepBackAction = instantiationService.createInstance(dbgactions.StepBackDebugAction, dbgactions.StepBackDebugAction.ID, dbgactions.StepBackDebugAction.LABEL);
+				this.stepBackAction = instantiationService.createInstance(dbgactions.StepBackAction, dbgactions.StepBackAction.ID, dbgactions.StepBackAction.LABEL);
 				this.toDispose.push(this.stepBackAction);
 			}
 
