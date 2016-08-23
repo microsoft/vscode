@@ -6,7 +6,7 @@
 import { spawn } from 'child_process';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import { parseArgs, buildHelpMessage, ParsedArgs } from 'vs/code/node/argv';
+import { parseCLIProcessArgv, buildHelpMessage, ParsedArgs } from 'vs/code/node/argv';
 import pkg from 'vs/platform/package';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
@@ -17,16 +17,23 @@ interface IMainCli {
 	main: (argv: ParsedArgs) => TPromise<void>;
 }
 
-export function main(args: string[]): TPromise<void> {
-	const argv = parseArgs(args);
+export function main(argv: string[]): TPromise<void> {
+	let args: ParsedArgs;
 
-	if (argv.help) {
+	try {
+		args = parseCLIProcessArgv(argv);
+	} catch (err) {
+		console.error(err.message);
+		return TPromise.as(null);
+	}
+
+	if (args.help) {
 		console.log(buildHelpMessage(pkg.version));
-	} else if (argv.version) {
+	} else if (args.version) {
 		console.log(pkg.version);
-	} else if (shouldSpawnCliProcess(argv)) {
+	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
-		return mainCli.then(cli => cli.main(argv));
+		return mainCli.then(cli => cli.main(args));
 	} else {
 		const env = assign({}, process.env, {
 			// this will signal Code that it was spawned from this module
@@ -39,18 +46,18 @@ export function main(args: string[]): TPromise<void> {
 			detached: true,
 			env,
 		};
-		if (!argv.verbose) {
+		if (!args.verbose) {
 			options['stdio'] = 'ignore';
 		}
 
-		const child = spawn(process.execPath, args, options);
+		const child = spawn(process.execPath, argv.slice(2), options);
 
-		if (argv.verbose) {
+		if (args.verbose) {
 			child.stdout.on('data', (data) => console.log(data.toString('utf8').trim()));
 			child.stderr.on('data', (data) => console.log(data.toString('utf8').trim()));
 		}
 
-		if (argv.wait || argv.verbose) {
+		if (args.wait || args.verbose) {
 			return new TPromise<void>(c => child.once('exit', () => c(null)));
 		}
 	}
@@ -58,7 +65,7 @@ export function main(args: string[]): TPromise<void> {
 	return TPromise.as(null);
 }
 
-main(process.argv.slice(2))
+main(process.argv)
 	.then(() => process.exit(0))
 	.then(null, err => {
 		console.error(err.stack ? err.stack : err);

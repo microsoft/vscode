@@ -2228,14 +2228,16 @@ declare namespace vscode {
 	}
 
 	/**
-	 * A completion item represents a text snippet that is
-	 * proposed to complete text that is being typed.
+	 * A completion item represents a text snippet that is proposed to complete text that is being typed.
 	 *
-	 * It is suffient to create a completion item from just
-	 * a [label](#CompletionItem.label). In that case the completion
-	 * item will replace the [word](#TextDocument.getWordRangeAtPosition)
-	 * until the cursor with the given label.
+	 * It is suffient to create a completion item from just a [label](#CompletionItem.label). In that
+	 * case the completion item will replace the [word](#TextDocument.getWordRangeAtPosition)
+	 * until the cursor with the given label or [insertText](#CompletionItem.insertText). Otherwise the
+	 * the given [edit](#CompletionItem.textEdit) is used.
 	 *
+	 * When selecting a completion item in the editor its defined or synthesized text edit will be applied
+	 * to *all* cursors/selections whereas [additionalTextEdits](CompletionItem.additionalTextEdits) will be
+	 * applied as provided.
 	 *
 	 * @see [CompletionItemProvider.provideCompletionItems](#CompletionItemProvider.provideCompletionItems)
 	 * @see [CompletionItemProvider.resolveCompletionItem](#CompletionItemProvider.resolveCompletionItem)
@@ -2292,10 +2294,24 @@ declare namespace vscode {
 		 * this completion. When an edit is provided the value of
 		 * [insertText](#CompletionItem.insertText) is ignored.
 		 *
-		 * The [range](#Range) of the edit must be single-line and one the same
-		 * line completions where [requested](#CompletionItemProvider.provideCompletionItems) at.
+		 * The [range](#Range) of the edit must be single-line and on the same
+		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.
 		 */
 		textEdit: TextEdit;
+
+		/**
+		 * An optional array of additional [text edits](#TextEdit) that are applied when
+		 * selecting this completion. Edits must not overlap with the main [edit](#CompletionItem.textEdit)
+		 * nor with themselves.
+		 */
+		additionalTextEdits: TextEdit[];
+
+		/**
+		 * An optional [command](#Command) that is executed *after* inserting this completion. *Note* that
+		 * additional modifications to the current document should be described with the
+		 * [additionalTextEdits](#CompletionItem.additionalTextEdits)-property.
+		 */
+		command: Command;
 
 		/**
 		 * Creates a new completion item.
@@ -2747,6 +2763,7 @@ declare namespace vscode {
 		 * The name of this diagnostic collection, for instance `typescript`. Every diagnostic
 		 * from this collection will be associated with this name. Also, the task framework uses this
 		 * name when defining [problem matchers](https://code.visualstudio.com/docs/editor/tasks#_defining-a-problem-matcher).
+		 * @readonly
 		 */
 		name: string;
 
@@ -2967,6 +2984,46 @@ declare namespace vscode {
 		/**
 		 * Dispose and free associated resources. Call
 		 * [hide](#StatusBarItem.hide).
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * An individual terminal instance within the integrated terminal.
+	 */
+	export interface Terminal {
+
+		/**
+		 * The name of the terminal.
+		 *
+		 * @readonly
+		 */
+		name: string;
+
+		/**
+		 * Send text to the terminal.
+		 *
+		 * @param text The text to send to the terminal.
+		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
+		 * required to run a command in the terminal. The character(s) added are \n or \r\n
+		 * depending on the platform. This defaults to `true`.
+		 */
+		sendText(text: string, addNewLine?: boolean): void;
+
+		/**
+		 * Reveal this channel in the UI.
+		 *
+		 * @param preserveFocus When `true` the channel will not take focus.
+		 */
+		show(preservceFocus?: boolean): void;
+
+		/**
+		 * Hide this channel from the UI.
+		 */
+		hide(): void;
+
+		/**
+		 * Dispose and free associated resources.
 		 */
 		dispose(): void;
 	}
@@ -3429,6 +3486,15 @@ declare namespace vscode {
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+
+		/**
+		 * Creates a [Terminal](#Terminal).
+		 *
+		 * @param name The optional name of a terminal, this will override the label used in the
+		 * terminal dropdown.
+		 * @return A new Terminal.
+		 */
+		export function createTerminal(name?: string): Terminal;
 	}
 
 	/**

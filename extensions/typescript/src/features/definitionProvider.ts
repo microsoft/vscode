@@ -42,7 +42,8 @@ export default class TypeScriptDefinitionProvider implements DefinitionProvider 
 					return new Location(resource, new Range(location.start.line - 1, location.start.offset - 1, location.end.line - 1, location.end.offset - 1));
 				}
 			});
-		}, () => {
+		}, (error) => {
+			this.client.error(`'definition' request failed with error.`, error);
 			return null;
 		});
 	}

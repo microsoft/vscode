@@ -45,7 +45,7 @@ export class Menu extends EventEmitter {
 	}
 
 	public focus() {
-		this.actionBar.focus();
+		this.actionBar.focus(true);
 	}
 
 	public dispose() {

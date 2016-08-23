@@ -15,7 +15,7 @@ import { LineProcess } from 'vs/base/node/processes';
 import { IFileService } from 'vs/platform/files/common/files';
 
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import * as FileConfig from './processRunnerConfiguration';
 

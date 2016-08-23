@@ -14,6 +14,8 @@
 	"workbench.action.terminal.new.short": "새 터미널",
 	"workbench.action.terminal.paste": "터미널: 활성 터미널로 붙여넣기",
 	"workbench.action.terminal.runSelectedText": "터미널: 활성 터미널에서 선택한 텍스트 실행",
+	"workbench.action.terminal.scrollDown": "터미널: 아래로 스크롤",
+	"workbench.action.terminal.scrollUp": "터미널: 위로 스크롤",
 	"workbench.action.terminal.switchTerminalInstance": "터미널: 터미널 인스턴스 전환",
 	"workbench.action.terminal.toggleTerminal": "통합 터미널 설정/해제"
 }

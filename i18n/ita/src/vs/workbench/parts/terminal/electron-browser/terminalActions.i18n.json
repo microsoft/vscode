@@ -14,6 +14,8 @@
 	"workbench.action.terminal.new.short": "Nuovo terminale",
 	"workbench.action.terminal.paste": "Terminale: Incolla nel terminale attivo",
 	"workbench.action.terminal.runSelectedText": "Terminale: Esegui testo selezionato nel terminale attivo",
+	"workbench.action.terminal.scrollDown": "Terminale: Scorri verso il basso",
+	"workbench.action.terminal.scrollUp": "Terminale: Scorri verso l'alto",
 	"workbench.action.terminal.switchTerminalInstance": "Terminale: Cambia istanza del terminale",
 	"workbench.action.terminal.toggleTerminal": "Attiva/Disattiva terminale integrato"
 }

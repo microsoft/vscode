@@ -46,7 +46,7 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWindowService, IBroadcast} from 'vs/workbench/services/window/electron-browser/windowService';
 import {ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL} from 'vs/workbench/services/thread/electron-browser/threadService';
@@ -239,7 +239,13 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
 				if (this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
-					this.session.configurationDone().done(null, errors.onUnexpectedError);
+					this.session.configurationDone().done(null, e => {
+						// Disconnect the debug session on configuration done error #10596
+						if (this.session) {
+							this.session.disconnect().done(null, errors.onUnexpectedError);
+						}
+						this.messageService.show(severity.Error, e.message);
+					});
 				}
 			});
 		}));
@@ -379,8 +385,8 @@ export class DebugService implements debug.IDebugService {
 	private loadWatchExpressions(): model.Expression[] {
 		let result: model.Expression[];
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watch: any) => {
-				return new model.Expression(watch.name, false, watch.id);
+			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string } ) => {
+				return new model.Expression(watchStoredData.name, false, watchStoredData.id);
 			});
 		} catch (e) { }
 
@@ -526,7 +532,7 @@ export class DebugService implements debug.IDebugService {
 		this.removeReplExpressions();
 
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
-			.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
+			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
 			.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
 			.then(() => this.configurationManager.resolveInteractiveVariables())
@@ -652,9 +658,6 @@ export class DebugService implements debug.IDebugService {
 					this.partService.addClass('debugging');
 				}
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
-				this.contextService.updateOptions('editor', {
-					glyphMargin: true
-				});
 				this.inDebugMode.set(true);
 				this.lazyTransitionToRunningState();
 
@@ -675,7 +678,7 @@ export class DebugService implements debug.IDebugService {
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 				this.setStateAndEmit(debug.State.Inactive);
 				if (this.session) {
-					this.session.disconnect();
+					this.session.disconnect().done(null, errors.onUnexpectedError);
 				}
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
@@ -1066,7 +1069,7 @@ export class DebugService implements debug.IDebugService {
 		this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getFunctionBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getExceptionBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.configurationManager.configurationName, StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions()), StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions().map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
 	}
 
 	public dispose(): void {

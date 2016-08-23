@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import {IDataSource, ITree, IRenderer, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
 import { IActionRunner } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
@@ -100,12 +100,12 @@ export class Renderer implements IRenderer {
 
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		var data: IResourceTemplateData = Object.create(null);
-		const resourceLabelContainer = dom.append(container, dom.emmet('.resource-label-container'));
+		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
 		data.file = new FileLabel(resourceLabelContainer, null, this.contextService);
 
 		// data.statistics= new MarkersStatisticsWidget(dom.append(container, dom.emmet('.marker-stats')));
 
-		const badgeWrapper = dom.append(container, dom.emmet('.count-badge-wrapper'));
+		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
 
 		return data;
@@ -113,10 +113,10 @@ export class Renderer implements IRenderer {
 
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		var data: IMarkerTemplateData = Object.create(null);
-		data.icon = dom.append(container, dom.emmet('.marker-icon'));
-		data.source = new HighlightedLabel(dom.append(container, dom.emmet('')));
-		data.description = new HighlightedLabel(dom.append(container, dom.emmet('.marker-description')));
-		data.lnCol = dom.append(container, dom.emmet('span.marker-line'));
+		data.icon = dom.append(container, dom.$('.marker-icon'));
+		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 		return data;
 	}
 

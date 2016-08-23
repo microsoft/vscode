@@ -26,29 +26,6 @@ export class EventType {
 	 * Event type for when a resources encoding changes.
 	 */
 	static RESOURCE_ENCODING_CHANGED = 'resourceEncodingChanged';
-
-	/**
-	 * Event type for when the workbench options change. Listeners should refresh their
-	 * assumption on workbench options after this event is emitted.
-	 */
-	static WORKBENCH_OPTIONS_CHANGED = 'workbenchOptionsChanged';
-}
-
-/**
- * Option change events are send when the options in the running instance change.
- */
-export class OptionsChangeEvent extends Event {
-	public key: string;
-	public before: any;
-	public after: any;
-
-	constructor(key: string, before: any, after: any, originalEvent?: any) {
-		super(originalEvent);
-
-		this.key = key;
-		this.before = before;
-		this.after = after;
-	}
 }
 
 export class ResourceEvent extends Event {

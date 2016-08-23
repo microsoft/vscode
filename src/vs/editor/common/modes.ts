@@ -367,6 +367,8 @@ export interface ISuggestion {
 	noAutoAccept?: boolean;
 	overwriteBefore?: number;
 	overwriteAfter?: number;
+	additionalTextEdits?: editorCommon.ISingleEditOperation[];
+	command?: Command;
 }
 
 /**

@@ -24,7 +24,8 @@ import {IMessageService} from 'vs/platform/message/common/message';
 export abstract class KeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
 
-	private _toDispose: IDisposable[] = [];
+	protected toDispose: IDisposable[] = [];
+
 	private _cachedResolver: KeybindingResolver;
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
@@ -53,11 +54,11 @@ export abstract class KeybindingService implements IKeybindingService {
 	}
 
 	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 
 	protected _beginListening(domNode: HTMLElement): void {
-		this._toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this.toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			this._dispatch(keyEvent);
 		}));
@@ -180,6 +181,4 @@ export abstract class KeybindingService implements IKeybindingService {
 			});
 		}
 	}
-
-
 }

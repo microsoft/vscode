@@ -45,8 +45,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 	private _referenceSearchVisible: IContextKey<boolean>;
 
-	static getController(editor:editorCommon.ICommonCodeEditor): ReferencesController {
-		return <ReferencesController> editor.getContribution(ReferencesController.ID);
+	public static getController(editor:editorCommon.ICommonCodeEditor): ReferencesController {
+		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
 	public constructor(

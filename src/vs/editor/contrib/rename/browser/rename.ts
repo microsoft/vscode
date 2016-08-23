@@ -32,7 +32,7 @@ class RenameController implements IEditorContribution {
 	private static ID = 'editor.contrib.renameController';
 
 	public static get(editor:ICommonCodeEditor): RenameController {
-		return <RenameController>editor.getContribution(RenameController.ID);
+		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
 	private _renameInputField: RenameInputField;

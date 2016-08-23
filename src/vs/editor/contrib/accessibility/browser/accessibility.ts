@@ -32,8 +32,8 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 	private static ID = 'editor.contrib.accessibilityHelpController';
 
-	static get(editor:ICommonCodeEditor): AccessibilityHelpController {
-		return <AccessibilityHelpController>editor.getContribution(AccessibilityHelpController.ID);
+	public static get(editor:ICommonCodeEditor): AccessibilityHelpController {
+		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
 	}
 
 	private _editor: ICodeEditor;

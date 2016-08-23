@@ -18,7 +18,7 @@ export interface IGrammarLocator {
  */
 export class Registry {
 
-	constructor(locator?:IGrammarLocator, useExperimentalParser?:boolean);
+	constructor(locator?:IGrammarLocator);
 
 	/**
 	 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.

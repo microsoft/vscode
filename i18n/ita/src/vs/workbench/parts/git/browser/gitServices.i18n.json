@@ -25,6 +25,6 @@
 	"showOutput": "Mostra output",
 	"unmergedChanges": "Prima di eseguire il commit delle modifiche, è necessario risolvere le modifiche non sottoposte a merge.",
 	"updateGit": "La versione installata di GIT è la {0}. Per il corretto funzionamento di Code è consigliabile usare una versione di GIT non inferiore alla 2.0.0.",
-	"workingTreeChanges": "{0} (INTESTAZIONE) ↔ {1}",
+	"workingTreeChanges": "{0} (HEAD) ↔ {1}",
 	"workingTreeChangesDesc": "{0} - Modifiche nell'albero di lavoro"
 }

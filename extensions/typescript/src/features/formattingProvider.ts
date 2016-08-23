@@ -102,6 +102,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			return this.client.execute('format', args, token).then((response): TextEdit[] => {
 				return response.body.map(this.codeEdit2SingleEditOperation);
 			}, (err: any) => {
+				this.client.error(`'format' request failed with error.`, err);
 				return [];
 			});
 		});
@@ -149,6 +150,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 				}
 				return result;
 			}, (err: any) => {
+				this.client.error(`'formatonkey' request failed with error.`, err);
 				return [];
 			});
 		});

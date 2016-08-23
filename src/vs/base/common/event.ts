@@ -179,6 +179,17 @@ export function fromPromise<T>(promise: TPromise<Event<T>>): Event<T> {
 	return emitter.event;
 }
 
+export function once<T>(event: Event<T>): Event<T> {
+	return (listener, thisArgs = null, disposables?) => {
+		const result = event(e => {
+			result.dispose();
+			return listener.call(thisArgs, e);
+		}, null, disposables);
+
+		return result;
+	};
+}
+
 export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
 	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }

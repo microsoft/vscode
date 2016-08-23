@@ -7,7 +7,7 @@
 
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/workspaceContextService';
+import {WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {ensureStaticPlatformServices, IEditorOverrideServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -21,7 +21,7 @@ import {QuickOpenHandler, IQuickOpenRegistry, Extensions} from 'vs/workbench/bro
 import {Registry} from 'vs/platform/platform';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {TestEnvironmentService, TestConfiguration, TestEditorService, TestEditorGroupService} from 'vs/test/utils/servicesTestUtils';
+import {TestEnvironmentService, TestEditorService, TestEditorGroupService} from 'vs/test/utils/servicesTestUtils';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import * as Timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -44,14 +44,7 @@ suite('QuickOpen performance', () => {
 
 		const telemetryService = new TestTelemetryService();
 		const overrides: IEditorOverrideServices = {
-			contextService: new BaseWorkspaceContextService({
-				resource: URI.file(testWorkspacePath),
-				id: null,
-				name: null,
-				uid: null,
-				mtime: null
-			}, TestConfiguration),
-
+			contextService: new WorkspaceContextService({ resource: URI.file(testWorkspacePath) }),
 			telemetryService
 		};
 
@@ -106,6 +99,7 @@ suite('QuickOpen performance', () => {
 					searchLength: data.searchLength,
 					sortedResultDuration: data.sortedResultDuration,
 					filesResultCount: data.files.resultCount,
+					errorCount: data.files.errors && data.files.errors.length || undefined
 				}) + ',');
 			}
 		}

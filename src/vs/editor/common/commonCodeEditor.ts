@@ -125,7 +125,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	constructor(
 		domElement: IContextKeyServiceTarget,
-		options:editorCommon.IEditorOptions,
+		options: editorCommon.IEditorOptions,
 		instantiationService: IInstantiationService,
 		codeEditorService: ICodeEditorService,
 		commandService: ICommandService,
@@ -145,7 +145,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._lifetimeDispose = [];
 
 		this._commandService = commandService;
-		this._contextKeyService = contextKeyService;
+		this._contextKeyService = contextKeyService.createScoped(this.domElement);
 		this._editorIdContextKey = this._contextKeyService.createKey('editorId', this.getId());
 		this._editorFocusContextKey = EditorContextKeys.Focus.bindTo(this._contextKeyService);
 		this._editorTabMovesFocusKey = EditorContextKeys.TabMovesFocus.bindTo(this._contextKeyService);
@@ -295,7 +295,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public abstract getCenteredRangeInViewport(): Range;
 
-	public abstract getVisibleRangeInViewport(): Range;
+	public abstract getCompletelyVisibleLinesRangeInViewport(): Range;
 
 	public getVisibleColumnFromPosition(rawPosition:editorCommon.IPosition): number {
 		if (!this.model) {
@@ -346,7 +346,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			range: validatedRange,
 			viewRange: null,
 			verticalType: verticalType,
-			revealHorizontal: revealHorizontal
+			revealHorizontal: revealHorizontal,
+			revealCursor: false
 		};
 		this.cursor.emit(editorCommon.EventType.CursorRevealRange, revealRangeEvent);
 	}
@@ -551,8 +552,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public abstract isFocused(): boolean;
 	public abstract hasWidgetFocus(): boolean;
 
-	public getContribution(id: string): editorCommon.IEditorContribution {
-		return this._contributions[id] || null;
+	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
+		return <T>(this._contributions[id] || null);
 	}
 
 	public addAction(descriptor:editorCommon.IActionDescriptor): void {
@@ -792,11 +793,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 			var viewModelHelper:IViewModelHelper = {
 				viewModel: this.viewModel,
-				getCurrentVisibleViewRangeInViewPort: () => {
-					return this.viewModel.convertModelRangeToViewRange(this.getVisibleRangeInViewport());
+				getCurrentCompletelyVisibleViewLinesRangeInViewport: () => {
+					return this.viewModel.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
 				},
-				getCurrentVisibleModelRangeInViewPort: () => {
-					return this.getVisibleRangeInViewport();
+				getCurrentCompletelyVisibleModelLinesRangeInViewport: () => {
+					return this.getCompletelyVisibleLinesRangeInViewport();
 				},
 				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
 					return this.viewModel.convertModelPositionToViewPosition(lineNumber, column);

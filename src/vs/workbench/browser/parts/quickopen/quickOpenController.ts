@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/quickopen';
+import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Dimension, withElementById} from 'vs/base/browser/builder';
@@ -36,7 +37,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IContextKeyService, RawContextKey, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
@@ -190,7 +191,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		return new TPromise(init).then(item => {
 			return currentValidation.then(valid => {
 				if (valid && item) {
-					return lastValue;
+					return lastValue || '';
 				}
 			});
 		});
@@ -419,14 +420,28 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		});
 	}
 
-	public close(): void {
-		if (this.quickOpenWidget) {
-			this.quickOpenWidget.hide(HideReason.CANCELED);
-		}
+	public accept(): void {
+		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
+			if (w && w.isVisible()) {
+				w.accept();
+			}
+		});
+	}
 
-		if (this.pickOpenWidget) {
-			this.pickOpenWidget.hide(HideReason.CANCELED);
-		}
+	public focus(): void {
+		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
+			if (w && w.isVisible()) {
+				w.focus();
+			}
+		});
+	}
+
+	public close(): void {
+		[this.quickOpenWidget, this.pickOpenWidget].forEach(w => {
+			if (w && w.isVisible()) {
+				w.hide(HideReason.CANCELED);
+			}
+		});
 	}
 
 	private emitQuickOpenVisibilityChange(isVisible: boolean): void {
@@ -571,7 +586,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Apply label to first entry
 		if (entries.length > 0) {
-			entries[0] = new QuickOpenEntryGroup(entries[0], nls.localize('historyMatches', "recently opened"), false);
+			entries[0] = new EditorHistoryEntryGroup(entries[0], nls.localize('historyMatches', "recently opened"), false);
 		}
 
 		return new QuickOpenModel(entries, this.actionProvider);
@@ -653,21 +668,22 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private handleDefaultHandlers(defaultHandlers: QuickOpenHandlerDescriptor[], value: string, currentResultToken: string): TPromise<void> {
+		const previousInput = this.quickOpenWidget.getInput();
+		const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 
 		// Fill in history results if matching
 		let matchingHistoryEntries = this.getEditorHistoryEntries(value);
 		if (matchingHistoryEntries.length > 0) {
-			matchingHistoryEntries[0] = new QuickOpenEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened"), false);
+			matchingHistoryEntries[0] = new EditorHistoryEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened"), false);
 		}
 
+		// If we have matching entries from history we want to show them directly and not wait for the other results to come in
+		// This also applies when we used to have entries from a previous run and now there are no more history results matching
+		let inputSet = false;
 		let quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
-
-		// Set input and await additional results from handlers coming in later
-		this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
-
-		// If no handler present, return early
-		if (defaultHandlers.length === 0) {
-			return TPromise.as(null);
+		if (wasShowingHistory || matchingHistoryEntries.length > 0) {
+			this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
+			inputSet = true;
 		}
 
 		// Resolve all default handlers
@@ -680,19 +696,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			let resultPromises: TPromise<void>[] = [];
 			resolvedHandlers.forEach(resolvedHandler => {
 
-				// Return early if the handler can not run in the current environment
-				let canRun = resolvedHandler.canRun();
-				if (types.isUndefinedOrNull(canRun) || (typeof canRun === 'boolean' && !canRun) || typeof canRun === 'string') {
-					return;
-				}
-
 				// Receive Results from Handler and apply
 				resultPromises.push(resolvedHandler.getResults(value).then(result => {
 					if (this.currentResultToken === currentResultToken) {
-						let handlerResults = result && result.entries;
+						let handlerResults = (result && result.entries) || [];
 
-						if (!handlerResults) {
-							handlerResults = []; // guard against handler returning nothing
+						// now is the time to show the input if we did not have set it before
+						if (!inputSet) {
+							this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
 						}
 
 						this.mergeResults(quickOpenModel, handlerResults, resolvedHandler.getGroupLabel());
@@ -1016,6 +1027,10 @@ class PickOpenItem extends QuickOpenEntryItem {
 
 		return false;
 	}
+}
+
+export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
+	// Marker class
 }
 
 export class EditorHistoryEntry extends EditorQuickOpenEntry {

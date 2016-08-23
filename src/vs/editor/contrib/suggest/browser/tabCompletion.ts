@@ -13,7 +13,8 @@ import {Registry} from 'vs/platform/platform';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
-import {CodeSnippet, ISnippetController, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
+import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
+import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -25,10 +26,10 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
 	public static get(editor:editorCommon.ICommonCodeEditor): TabCompletionController {
-		return <TabCompletionController>editor.getContribution(TabCompletionController.ID);
+		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
-	private _snippetController: ISnippetController;
+	private _snippetController: SnippetController;
 	private _cursorChangeSubscription: IDisposable;
 	private _currentSnippets: ISnippet[] = [];
 
@@ -36,7 +37,7 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 		editor: editorCommon.ICommonCodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		this._snippetController = getSnippetController(editor);
+		this._snippetController = SnippetController.get(editor);
 		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
 		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
 

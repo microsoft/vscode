@@ -24,7 +24,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 	private static ID = 'editor.controller.quickOpenController';
 
 	public static get(editor:editorCommon.ICommonCodeEditor): QuickOpenController {
-		return <QuickOpenController>editor.getContribution(QuickOpenController.ID);
+		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
 	}
 
 	private editor:ICodeEditor;

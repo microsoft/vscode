@@ -4,31 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter, EmitterEvent, ListenerCallback} from 'vs/base/common/eventEmitter';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {IMirrorModel} from 'vs/editor/common/editorCommon';
-import {IResourceAddedEvent, IResourceChangedEvent, IResourceRemovedEvent, IResourceService, ResourceEvents} from 'vs/editor/common/services/resourceService';
+import {IResourceService} from 'vs/editor/common/services/resourceService';
 
-export class ResourceService extends EventEmitter implements IResourceService {
-	public _serviceBrand: any;
-	private data:{[url:string]:IMirrorModel;};
-	private unbinds:{[url:string]:IDisposable[];};
+class MirrorModelMap {
+
+	private _data: {[key:string]:IMirrorModel};
 
 	constructor() {
-		super();
-		this.data = {};
-		this.unbinds = {};
+		this._data = {};
 	}
 
-	public addListener2_(eventType: string, listener: ListenerCallback): IDisposable {
-		return super.addListener2(eventType, listener);
+	public set(key:string, data:IMirrorModel): void {
+		this._data[key] = data;
 	}
 
-	private _anonymousModelId(input:string): string {
-		var r = '';
-		for (var i = 0; i < input.length; i++) {
-			var ch = input[i];
+	public get(key:string): IMirrorModel {
+		return this._data[key] || null;
+	}
+
+	public contains(key:string): boolean {
+		return !!this._data[key];
+	}
+
+	public remove(key:string): void {
+		delete this._data[key];
+	}
+}
+
+export class ResourceService implements IResourceService {
+	public _serviceBrand: any;
+
+	private _map:MirrorModelMap;
+
+	constructor() {
+		this._map = new MirrorModelMap();
+	}
+
+	private static _anonymousModelId(input:string): string {
+		let r = '';
+		for (let i = 0; i < input.length; i++) {
+			let ch = input[i];
 			if (ch >= '0' && ch <= '9') {
 				r += '0';
 				continue;
@@ -46,59 +63,25 @@ export class ResourceService extends EventEmitter implements IResourceService {
 		return r;
 	}
 
-	public insert(url:URI, element:IMirrorModel): void {
-		// console.log('INSERT: ' + url.toString());
-		if (this.contains(url)) {
+	public insert(uri:URI, element:IMirrorModel): void {
+		let key = uri.toString();
+
+		if (this._map.contains(key)) {
 			// There already exists a model with this id => this is a programmer error
-			throw new Error('ResourceService: Cannot add model ' + this._anonymousModelId(url.toString()) + ' because it already exists!');
+			throw new Error('ResourceService: Cannot add model ' + ResourceService._anonymousModelId(key) + ' because it already exists!');
 		}
-
-		// add resource
-		var key = url.toString();
-		this.data[key] = element;
-		this.unbinds[key] = [];
-		this.unbinds[key].push(element.addBulkListener2((value:EmitterEvent[]) => {
-			this.emit(ResourceEvents.CHANGED, <IResourceChangedEvent>{ url: url, originalEvents: value });
-		}));
-
-		// event
-		this.emit(ResourceEvents.ADDED, <IResourceAddedEvent>{ url: url, addedElement: element });
+		this._map.set(key, element);
 	}
 
-	public get(url:URI):IMirrorModel {
-		if(!this.data[url.toString()]) {
-			return null;
-		}
-		return this.data[url.toString()];
+	public get(uri:URI):IMirrorModel {
+		let key = uri.toString();
+
+		return this._map.get(key);
 	}
 
-	public all():IMirrorModel[] {
-		return Object.keys(this.data).map((key) => {
-			return this.data[key];
-		});
-	}
+	public remove(uri:URI):void {
+		let key = uri.toString();
 
-	public contains(url:URI):boolean {
-		return !!this.data[url.toString()];
-	}
-
-	public remove(url:URI):void {
-		// console.log('REMOVE: ' + url.toString());
-		if(!this.contains(url)) {
-			return;
-		}
-
-		var key = url.toString(),
-			element = this.data[key];
-
-		// stop listen
-		this.unbinds[key] = dispose(this.unbinds[key]);
-
-		// removal
-		delete this.unbinds[key];
-		delete this.data[key];
-
-		// event
-		this.emit(ResourceEvents.REMOVED, <IResourceRemovedEvent>{ url: url, removedElement: element });
+		this._map.remove(key);
 	}
 }

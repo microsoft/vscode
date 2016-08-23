@@ -107,6 +107,10 @@
 	background: url('stop.svg') center center no-repeat;
 }
 
+.monaco-workbench .debug-action.disconnect {
+	background: url('disconnect.svg') center center no-repeat;
+}
+
 .monaco-workbench .debug-action.clear-repl {
 	background: url('clear-repl.svg') center center no-repeat;
 }
@@ -137,7 +141,7 @@
 	cursor: -webkit-grabbing;
 }
 
-.monaco-workbench  .debug-actions-widget .monaco-action-bar .action-label {
+.monaco-workbench  .debug-actions-widget .monaco-action-bar .action-item > .action-label {
 	width: 32px;
 	height: 32px;
 	margin-right: 0;
@@ -321,6 +325,11 @@
 .vs-dark .monaco-workbench .debug-action.stop,
 .hc-black .monaco-workbench .debug-action.stop {
 	background: url('stop-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .debug-action.disconnect,
+.hc-black .monaco-workbench .debug-action.disconnect {
+	background: url('disconnect-inverse.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .debug-action.clear-repl,

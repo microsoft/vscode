@@ -47,7 +47,13 @@
 					"description": "%configuration.validate.run%"
 				}
 			}
-		}
+		},
+		"jsonValidation": [
+			{
+				"fileMatch": "composer.json",
+				"url": "https://getcomposer.org/schema.json"
+			}
+		]
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:php",

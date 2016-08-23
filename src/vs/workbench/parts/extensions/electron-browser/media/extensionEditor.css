@@ -24,10 +24,7 @@
 .extension-editor > .header > .icon {
 	height: 128px;
 	width: 128px;
-	min-width: 128px;
-	background-size: 128px;
-	background-repeat: no-repeat;
-	background-position: center center;
+	object-fit: contain;
 }
 
 .extension-editor > .header > .details {
@@ -101,6 +98,99 @@
 	overflow: hidden;
 }
 
-.extension-editor > .body > p {
-	margin: 20px;
+.extension-editor > .body > .navbar {
+	height: 36px;
+	text-transform: uppercase;
+	font-size: 14px;
+	line-height: 36px;
+	padding-left: 20px;
+	border-bottom: 1px solid rgba(136, 136, 136, 0.45);
+	box-sizing: border-box;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container {
+	justify-content: initial;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
+	margin-right: 16px;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
+	font-size: inherit;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item.disabled > .action-label {
+	opacity: 1;
+	text-decoration: underline;
+	font-weight: bold;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label:hover {
+	text-decoration: underline;
+}
+
+.extension-editor > .body > .content {
+	height: calc(100% - 36px);
+}
+
+.extension-editor > .body > .content > .subcontent {
+	height: 100%;
+	padding: 20px;
+	overflow-y: scroll;
+	box-sizing: border-box;
+}
+
+.extension-editor > .body > .content table {
+	border-spacing: 0;
+	border-collapse: separate;
+}
+
+.extension-editor > .body > .content details > summary {
+	cursor: pointer;
+	margin-bottom: 10px;
+	font-weight: bold;
+	font-size: 120%;
+}
+
+.extension-editor > .body > .content details > summary:focus {
+	outline: none;
+}
+
+.extension-editor > .body > .content details > summary::-webkit-details-marker {
+	color: rgba(128, 128, 128, 0.5);
+}
+
+.extension-editor > .body > .content table tr:nth-child(odd) {
+	background-color: rgba(130, 130, 130, 0.04);
+}
+
+.extension-editor > .body > .content table tr:not(:first-child):hover {
+	background-color: rgba(128, 128, 128, 0.15);
+}
+
+.extension-editor > .body > .content table th {
+	border-bottom: 1px solid rgba(144, 144, 144, 0.5);
+}
+
+.extension-editor > .body > .content table th,
+.extension-editor > .body > .content table td {
+	padding: 2px 16px 2px 4px;
+}
+
+.extension-editor > .body > .content table th:last-child,
+.extension-editor > .body > .content table td:last-child {
+	padding: 2px 4px;
+}
+
+.extension-editor > .body > .content table th {
+	text-align: left;
+}
+
+.extension-editor table.settings code {
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 80%;
+	background-color: rgba(128, 128, 128, 0.17);
+	border-radius: 4px;
+	padding: 1px 4px;
 }

@@ -36,7 +36,7 @@
 	"miFind": "찾기(&&F)",
 	"miFindInFiles": "파일에서 찾기(&&I)",
 	"miFocusFirstGroup": "왼쪽 그룹(&&L)",
-	"miFocusSecondGroup": "측면 그룹(&&S)",
+	"miFocusSecondGroup": "센터 그룹(&&C)",
 	"miFocusThirdGroup": "오른쪽 그룹(&&R)",
 	"miForward": "앞으로(&&F)",
 	"miGotoDefinition": "정의로 이동(&&D)",

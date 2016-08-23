@@ -8,7 +8,7 @@
 import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService } from './extensions';
-import { append, emmet as $, addClass } from 'vs/base/browser/dom';
+import { append, $, addClass } from 'vs/base/browser/dom';
 
 export interface IOptions {
 	extension?: IExtension;

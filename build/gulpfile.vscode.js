@@ -22,7 +22,6 @@ const buildfile = require('../src/buildfile');
 const common = require('./gulpfile.common');
 const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
-const build = path.join(root, '.build');
 const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
@@ -119,9 +118,7 @@ const config = {
 	token: process.env['GITHUB_TOKEN'] || void 0
 };
 
-const electronPath = path.join(build, 'electron');
-
-gulp.task('clean-electron', util.rimraf(electronPath));
+gulp.task('clean-electron', util.rimraf('.build/electron'));
 
 gulp.task('electron', ['clean-electron'], () => {
 	const platform = process.platform;
@@ -133,7 +130,7 @@ gulp.task('electron', ['clean-electron'], () => {
 		.pipe(json({ name }))
 		.pipe(electron(opts))
 		.pipe(filter(['**', '!**/app/package.json']))
-		.pipe(symdest(electronPath));
+		.pipe(symdest('.build/electron'));
 });
 
 const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];

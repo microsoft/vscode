@@ -12,7 +12,6 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
@@ -667,9 +666,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
 	constructor(
+		private restoreFromStorage: boolean,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.toDispose = [];
@@ -997,8 +996,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private load(): void {
-		const options = this.contextService.getOptions();
-		if ((options.filesToCreate && options.filesToCreate.length) || (options.filesToOpen && options.filesToOpen.length) || (options.filesToDiff && options.filesToDiff.length)) {
+		if (!this.restoreFromStorage) {
 			return; // do not load from last session if the user explicitly asks to open a set of files
 		}
 

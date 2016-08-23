@@ -4,15 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
-
-export interface IGlobalSettings {
-	settings: any;
-	settingsParseErrors?: string[];
-	keybindings: IUserFriendlyKeybinding[];
-}
 
 export interface IOptions {
 
@@ -35,19 +27,4 @@ export interface IOptions {
 	 * Instructs the workbench to install the extensions from the provided local paths.
 	 */
 	extensionsToInstall?: string[];
-
-	/**
-	 * A boolean flag indicating if the workbench is in file mode where some UI gets hidden. Does not override an existing setting by the user.
-	 */
-	singleFileMode?: boolean;
-
-	/**
-	 * Editor options to be used for any editor in the workbench.
-	 */
-	editor?: IEditorOptions;
-
-	/**
-	 * The global application settings if any.
-	 */
-	globalSettings?: IGlobalSettings;
 }

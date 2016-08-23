@@ -12,7 +12,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { addClass, append, emmet as $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
+import { addClass, append, $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -23,8 +23,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
-import { CompletionItem, CompletionModel } from '../common/completionModel';
-import { ICancelEvent, ISuggestEvent, ITriggerEvent } from '../common/suggestModel';
+import { ICompletionItem, CompletionModel } from '../common/completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -44,7 +43,7 @@ function matchesColor(text: string) {
 	return text && text.match(colorRegExp) ? text : null;
 }
 
-class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
+class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 	private triggerKeybindingLabel: string;
 
@@ -95,9 +94,9 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		return data;
 	}
 
-	renderElement(element: CompletionItem, index: number, templateData: ISuggestionTemplateData): void {
+	renderElement(element: ICompletionItem, index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
-		const suggestion = (<CompletionItem>element).suggestion;
+		const suggestion = (<ICompletionItem>element).suggestion;
 
 		if (suggestion.documentation) {
 			data.root.setAttribute('aria-label', nls.localize('suggestionWithDetailsAriaLabel', "{0}, suggestion, has details", suggestion.label));
@@ -116,7 +115,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			}
 		}
 
-		data.highlightedLabel.set(suggestion.label, (<CompletionItem>element).highlights);
+		data.highlightedLabel.set(suggestion.label, (<ICompletionItem>element).highlights);
 		data.typeLabel.textContent = suggestion.detail || '';
 		data.documentation.textContent = suggestion.documentation || '';
 
@@ -147,11 +146,11 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 const FocusHeight = 35;
 const UnfocusedHeight = 19;
 
-class Delegate implements IDelegate<CompletionItem> {
+class Delegate implements IDelegate<ICompletionItem> {
 
-	constructor(private listProvider: () => List<CompletionItem>) { }
+	constructor(private listProvider: () => List<ICompletionItem>) { }
 
-	getHeight(element: CompletionItem): number {
+	getHeight(element: ICompletionItem): number {
 		const focus = this.listProvider().getFocusedElements()[0];
 
 		if (element.suggestion.documentation && element === focus) {
@@ -161,7 +160,7 @@ class Delegate implements IDelegate<CompletionItem> {
 		return UnfocusedHeight;
 	}
 
-	getTemplateId(element: CompletionItem): string {
+	getTemplateId(element: ICompletionItem): string {
 		return 'suggestion';
 	}
 }
@@ -224,7 +223,7 @@ class SuggestionDetails {
 		return this.el;
 	}
 
-	render(item: CompletionItem): void {
+	render(item: ICompletionItem): void {
 		if (!item) {
 			this.title.textContent = '';
 			this.type.textContent = '';
@@ -296,21 +295,21 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private isAuto: boolean;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<void>;
-	private focusedItem: CompletionItem;
+	private focusedItem: ICompletionItem;
 	private completionModel: CompletionModel;
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
-	private delegate: IDelegate<CompletionItem>;
-	private list: List<CompletionItem>;
+	private delegate: IDelegate<ICompletionItem>;
+	private list: List<ICompletionItem>;
 
 	private suggestWidgetVisible: IContextKey<boolean>;
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
-	private onDidSelectEmitter = new Emitter<CompletionItem>();
+	private onDidSelectEmitter = new Emitter<ICompletionItem>();
 
 	private editorBlurTimeout: TPromise<void>;
 	private showTimeout: TPromise<void>;
@@ -338,7 +337,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this, this.editor);
 
-		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
+		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
 		this.delegate = new Delegate(() => this.list);
 		this.list = new List(this.listElement, this.delegate, [renderer], {
@@ -390,7 +389,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		});
 	}
 
-	private onListSelection(e: ISelectionChangeEvent<CompletionItem>): void {
+	private onListSelection(e: ISelectionChangeEvent<ICompletionItem>): void {
 		if (!e.elements.length) {
 			return;
 		}
@@ -403,7 +402,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.editor.focus();
 	}
 
-	private _getSuggestionAriaAlertLabel(item:CompletionItem): string {
+	private _getSuggestionAriaAlertLabel(item:ICompletionItem): string {
 		if (item.suggestion.documentation) {
 			return nls.localize('ariaCurrentSuggestionWithDetails',"{0}, suggestion, has details", item.suggestion.label);
 		} else {
@@ -422,7 +421,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
+	private onListFocus(e: IFocusChangeEvent<ICompletionItem>): void {
 		if (!e.elements.length) {
 			if (this.currentSuggestionDetails) {
 				this.currentSuggestionDetails.cancel();
@@ -528,16 +527,16 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	get onDidSelect():Event<CompletionItem> {
+	get onDidSelect():Event<ICompletionItem> {
 		return this.onDidSelectEmitter.event;
 	}
 
-	showTriggered(e: ITriggerEvent) {
+	showTriggered(auto: boolean) {
 		if (this.state !== State.Hidden) {
 			return;
 		}
 
-		this.isAuto = !!e.auto;
+		this.isAuto = !!auto;
 
 		if (!this.isAuto) {
 			this.loadingTimeout = setTimeout(() => {
@@ -547,15 +546,15 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	showSuggestions(e: ISuggestEvent): void {
+	showSuggestions(completionModel: CompletionModel, isFrozen: boolean, isAuto: boolean): void {
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;
 		}
 
-		this.completionModel = e.completionModel;
+		this.completionModel = completionModel;
 
-		if (e.isFrozen && this.state !== State.Empty) {
+		if (isFrozen && this.state !== State.Empty) {
 			this.setState(State.Frozen);
 			return;
 		}
@@ -566,7 +565,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.suggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
 		if (isEmpty) {
-			if (e.auto) {
+			if (isAuto) {
 				this.setState(State.Hidden);
 			} else {
 				this.setState(State.Empty);
@@ -575,39 +574,15 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.completionModel = null;
 
 		} else {
-			// TODO@joao,joh move this to a better place
-			let snippetCount = 0;
-			let textCount = 0;
-			this.completionModel.items.forEach((item, index) => {
-				switch (item.suggestion.type) {
-					case 'snippet': snippetCount++; break;
-					case 'text': textCount++; break;
-				}
-			});
+			const {stats}  = this.completionModel;
+			stats['wasAutomaticallyTriggered'] = !!isAuto;
+			this.telemetryService.publicLog('suggestWidget', stats);
 
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
 			this.list.setFocus(this.completionModel.topScoreIdx);
 			this.list.reveal(this.completionModel.topScoreIdx, 0);
 
 			this.setState(State.Open);
-
-			this.telemetryService.publicLog('suggestWidget', {
-				suggestionCount: visibleCount,
-				snippetCount,
-				textCount,
-				wasAutomaticallyTriggered: !!e.auto
-			});
-		}
-	}
-
-	showDidCancel(e: ICancelEvent) {
-		if (this.loadingTimeout) {
-			clearTimeout(this.loadingTimeout);
-			this.loadingTimeout = null;
-		}
-
-		if (!e.retrigger) {
-			this.setState(State.Hidden);
 		}
 	}
 
@@ -671,7 +646,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	getFocusedItem(): CompletionItem {
+	getFocusedItem(): ICompletionItem {
 		if (this.state !== State.Hidden
 			&& this.state !== State.Empty
 			&& this.state !== State.Loading) {
@@ -715,11 +690,16 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		removeClass(this.element, 'visible');
 	}
 
-	cancel(): void {
+	hideWidget(): void {
+		clearTimeout(this.loadingTimeout);
+		this.setState(State.Hidden);
+	}
+
+	hideDetailsOrHideWidget(): void {
 		if (this.state === State.Details) {
 			this.toggleDetails();
 		} else {
-			this.showDidCancel({ retrigger: false });
+			this.hideWidget();
 		}
 	}
 

@@ -25,6 +25,6 @@
 	"showOutput": "显示输出",
 	"unmergedChanges": "提交更改前，你应首先解决未合并的更改。",
 	"updateGit": "你似乎已安装 git {0}。在 git >=2.0.0 情况下代码工作最佳。",
-	"workingTreeChanges": "{0} (标头) ↔ {1}",
+	"workingTreeChanges": "{0} (HEAD) ↔ {1}",
 	"workingTreeChangesDesc": "{0} - 对工作树的更改"
 }

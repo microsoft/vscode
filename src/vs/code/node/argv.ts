@@ -5,32 +5,32 @@
 
 import * as os from 'os';
 import * as minimist from 'minimist';
+import * as assert from 'assert';
+import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
-	help: boolean;
-	version: boolean;
-	wait: boolean;
-	diff: boolean;
-	goto: boolean;
-	'new-window': boolean;
-	'reuse-window': boolean;
-	locale: string;
-	'user-data-dir': string;
-	performance: boolean;
-	verbose: boolean;
-	logExtensionHostCommunication: boolean;
-	debugBrkFileWatcherPort: string;
-	'disable-extensions': boolean;
-	extensionHomePath: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-	timestamp: string;
-	debugBrkPluginHost: string;
-	debugPluginHost: string;
-	'list-extensions': boolean;
-	'install-extension': string | string[];
-	'uninstall-extension': string | string[];
+	help?: boolean;
+	version?: boolean;
+	wait?: boolean;
+	diff?: boolean;
+	goto?: boolean;
+	'new-window'?: boolean;
+	'reuse-window'?: boolean;
+	locale?: string;
+	'user-data-dir'?: string;
+	performance?: boolean;
+	verbose?: boolean;
+	logExtensionHostCommunication?: boolean;
+	'disable-extensions'?: boolean;
+	extensionHomePath?: string;
+	extensionDevelopmentPath?: string;
+	extensionTestsPath?: string;
+	debugBrkPluginHost?: string;
+	debugPluginHost?: string;
+	'list-extensions'?: boolean;
+	'install-extension'?: string | string[];
+	'uninstall-extension'?: string | string[];
 }
 
 const options: minimist.Opts = {
@@ -40,9 +40,10 @@ const options: minimist.Opts = {
 		'extensionHomePath',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
-		'timestamp',
 		'install-extension',
-		'uninstall-extension'
+		'uninstall-extension',
+		'debugBrkPluginHost',
+		'debugPluginHost'
 	],
 	boolean: [
 		'help',
@@ -71,6 +72,52 @@ const options: minimist.Opts = {
 	}
 };
 
+function validate(args: ParsedArgs): ParsedArgs {
+	if (args.goto) {
+		args._.forEach(arg => assert(/^[^:]+(:\d+){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:COLUMN))`.")));
+	}
+
+	return args;
+}
+
+function stripAppPath(argv: string[]): string[] {
+	const index = firstIndex(argv, a => !/^-/.test(a));
+
+	if (index > -1) {
+		return [...argv.slice(0, index), ...argv.slice(index + 1)];
+	}
+}
+
+/**
+ * Use this to parse raw code process.argv such as: `Electron . --verbose --wait`
+ */
+export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
+	let [, ...args] = processArgv;
+
+	// If dev, remove the first non-option argument: it's the app location
+	if (process.env['VSCODE_DEV']) {
+		args = stripAppPath(args);
+	}
+
+	return validate(parseArgs(args));
+}
+
+/**
+ * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
+ */
+export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
+	let [,, ...args] = processArgv;
+
+	if (process.env['VSCODE_DEV']) {
+		args = stripAppPath(args);
+	}
+
+	return validate(parseArgs(args));
+}
+
+/**
+ * Use this to parse code arguments such as `--verbose --wait`
+ */
 export function parseArgs(args: string[]): ParsedArgs {
 	return minimist(args, options) as ParsedArgs;
 }
@@ -81,7 +128,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'-g, --goto': localize('goto', "Open the file at path at the line and column (add :line[:column] to path)."),
-	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
+	'--locale=<locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
 	'-r, --reuse-window': localize('reuseWindow', "Force opening a file or folder in the last active window."),

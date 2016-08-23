@@ -14,10 +14,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import * as semver from 'semver';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
+import { readFile } from 'vs/base/node/pfs';
+import { asText } from 'vs/base/node/request';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService } from './extensions';
 
 interface IExtensionStateProvider {
@@ -29,6 +32,7 @@ class Extension implements IExtension {
 	public needsRestart = false;
 
 	constructor(
+		private galleryService: IExtensionGalleryService,
 		private stateProvider: IExtensionStateProvider,
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension = null
@@ -83,11 +87,28 @@ class Extension implements IExtension {
 	}
 
 	get iconUrl(): string {
-		if (this.local && this.local.manifest.icon) {
-			return URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
-		}
+		return this.localIconUrl || this.galleryIconUrl || this.defaultIconUrl;
+	}
 
-		return this.gallery ? this.gallery.assets.icon : require.toUrl('./media/defaultIcon.png');
+	get iconUrlFallback(): string {
+		return this.localIconUrl || this.galleryIconUrlFallback || this.defaultIconUrl;
+	}
+
+	private get localIconUrl(): string {
+		return this.local && this.local.manifest.icon
+			&& URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
+	}
+
+	private get galleryIconUrl(): string {
+		return this.gallery && this.gallery.assets.icon;
+	}
+
+	private get galleryIconUrlFallback(): string {
+		return this.gallery && this.gallery.assets.iconFallback;
+	}
+
+	private get defaultIconUrl(): string {
+		return require.toUrl('./media/defaultIcon.png');
 	}
 
 	get licenseUrl(): string {
@@ -118,24 +139,36 @@ class Extension implements IExtension {
 		const { local, gallery } = this;
 
 		if (gallery) {
-			return {
-				id: `${ gallery.publisher }.${ gallery.name }`,
-				name: gallery.name,
-				galleryId: gallery.id,
-				publisherId: gallery.publisherId,
-				publisherName: gallery.publisher,
-				publisherDisplayName: gallery.publisherDisplayName
-			};
+			return getGalleryExtensionTelemetryData(gallery);
 		} else {
-			return {
-				id: `${ local.manifest.publisher }.${ local.manifest.name }`,
-				name: local.manifest.name,
-				galleryId: local.metadata ? local.metadata.id : null,
-				publisherId: local.metadata ? local.metadata.publisherId : null,
-				publisherName: local.manifest.publisher,
-				publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
-			};
+			return getLocalExtensionTelemetryData(local);
 		}
+	}
+
+	getManifest(): TPromise<IExtensionManifest> {
+		if (this.local) {
+			return TPromise.as(this.local.manifest);
+		}
+
+		return this.galleryService.getAsset(this.gallery.assets.manifest)
+			.then(asText)
+			.then(raw => JSON.parse(raw) as IExtensionManifest);
+	}
+
+	getReadme(): TPromise<string> {
+		const readmeUrl = this.local && this.local.readmeUrl ? this.local.readmeUrl : this.gallery && this.gallery.assets.readme;
+
+		if (!readmeUrl) {
+			return TPromise.wrapError('not available');
+		}
+
+		const uri = URI.parse(readmeUrl);
+
+		if (uri.scheme === 'file') {
+			return readFile(uri.fsPath, 'utf8');
+		}
+
+		return this.galleryService.getAsset(readmeUrl).then(asText);
 	}
 }
 
@@ -212,7 +245,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			const installedById = index(this.installed, e => e.local.id);
 
 			this.installed = result.map(local => {
-				const extension = installedById[local.id] || new Extension(this.stateProvider, local);
+				const extension = installedById[local.id] || new Extension(this.galleryService, this.stateProvider, local);
 				extension.local = local;
 				return extension;
 			});
@@ -253,7 +286,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return installed;
 		}
 
-		return new Extension(this.stateProvider, null, gallery);
+		return new Extension(this.galleryService, this.stateProvider, null, gallery);
 	}
 
 	private syncWithGallery(immediate = false): void {
@@ -321,7 +354,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		let extension = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === gallery.id)[0];
 
 		if (!extension) {
-			extension = new Extension(this.stateProvider, null, gallery);
+			extension = new Extension(this.galleryService, this.stateProvider, null, gallery);
 		}
 
 		extension.gallery = gallery;

@@ -8,11 +8,10 @@
 import 'vs/css!./media/workbench';
 
 import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import DOM = require('vs/base/browser/dom');
-import {Box, Builder, withElementById, $} from 'vs/base/browser/builder';
+import {Box, Builder, $} from 'vs/base/browser/builder';
 import {Delayer} from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
@@ -41,12 +40,12 @@ import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
-import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
-import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
@@ -68,6 +67,7 @@ import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -75,7 +75,6 @@ export const NoEditorsVisibleContext:ContextKeyExpr = EditorsVisibleContext.toNe
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;
-	configuration: IConfiguration;
 	options: IOptions;
 	serviceCollection: ServiceCollection;
 }
@@ -126,43 +125,32 @@ export class Workbench implements IPartService {
 	private editorBackgroundDelayer: Delayer<void>;
 	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
+	private hasFilesToCreateOpenOrDiff: boolean;
 
 	constructor(
 		container: HTMLElement,
 		workspace: IWorkspace,
-		configuration: IConfiguration,
 		options: IOptions,
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEventService private eventService: IEventService,
-		@IWorkbenchWorkspaceContextService private contextService: IWorkbenchWorkspaceContextService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IThreadService private threadService: IThreadService
+		@IThreadService private threadService: IThreadService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-
-		// Validate params
-		this.validateParams(container, configuration, options);
-
-		// If String passed in as container, try to find it in DOM
-		if (types.isString(container)) {
-			const element = withElementById(container.toString());
-			this.container = element.getHTMLElement();
-		}
-
-		// Otherwise use as HTMLElement
-		else {
-			this.container = container;
-		}
+		this.container = container;
 
 		this.workbenchParams = {
 			workspace: workspace,
-			configuration: configuration,
-			options: options || {},
+			options,
 			serviceCollection
 		};
+
+		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
@@ -171,16 +159,6 @@ export class Workbench implements IPartService {
 		this.creationPromise = new TPromise<boolean>((c, e, p) => {
 			this.creationPromiseComplete = c;
 		});
-	}
-
-	private validateParams(container: HTMLElement, configuration: IConfiguration, options: IOptions): void {
-
-		// Container
-		assert.ok(container, 'Workbench requires a container to be created with');
-		if (types.isString(container)) {
-			const element = withElementById(container.toString());
-			assert.ok(element, strings.format('Can not find HTMLElement with id \'{0}\'.', container));
-		}
 	}
 
 	/**
@@ -229,7 +207,7 @@ export class Workbench implements IPartService {
 			// Load Viewlet
 			const viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletId = viewletRegistry.getDefaultViewletId();
-			if (!this.workbenchParams.configuration.env.isBuilt) {
+			if (!this.environmentService.isBuilt) {
 				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
 			}
 
@@ -298,8 +276,8 @@ export class Workbench implements IPartService {
 	private resolveEditorsToOpen(): TPromise<{ input: EditorInput, options?: EditorOptions }[]> {
 
 		// Files to open, diff or create
-		const wbopt = this.workbenchParams.options;
-		if ((wbopt.filesToCreate && wbopt.filesToCreate.length) || (wbopt.filesToOpen && wbopt.filesToOpen.length) || (wbopt.filesToDiff && wbopt.filesToDiff.length)) {
+		if (this.hasFilesToCreateOpenOrDiff) {
+			const wbopt = this.workbenchParams.options;
 			const filesToCreate = wbopt.filesToCreate || [];
 			const filesToOpen = wbopt.filesToOpen || [];
 			const filesToDiff = wbopt.filesToDiff;
@@ -384,7 +362,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IActivityService, this.activitybarPart);
 
 		// Editor service (editor part)
-		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART);
+		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, !this.hasFilesToCreateOpenOrDiff);
 		this.toDispose.push(this.editorPart);
 		this.toShutdown.push(this.editorPart);
 		this.editorService = this.instantiationService.createInstance(WorkbenchEditorService, this.editorPart);
@@ -416,7 +394,7 @@ export class Workbench implements IPartService {
 
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
-		if (!!this.workbenchParams.options.singleFileMode) {
+		if (!this.contextService.getWorkspace()) {
 			this.sideBarHidden = true; // we hide sidebar in single-file-mode
 		}
 
@@ -428,7 +406,7 @@ export class Workbench implements IPartService {
 		// Panel part visibility
 		const panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
 		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
-		if (!!this.workbenchParams.options.singleFileMode || !panelRegistry.getDefaultPanelId()) {
+		if (!this.contextService.getWorkspace() || !panelRegistry.getDefaultPanelId()) {
 			this.panelHidden = true; // we hide panel part in single-file-mode or if there is no default panel
 		}
 

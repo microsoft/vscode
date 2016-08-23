@@ -6,29 +6,26 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import {NullTelemetryService, ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
 import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
-import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
-import http = require('vs/base/common/http');
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
 import PartService = require('vs/workbench/services/part/common/partService');
-import WorkspaceContextService = require('vs/workbench/services/workspace/common/contextService');
+import WorkspaceContextService = require('vs/platform/workspace/common/workspace');
 import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -46,41 +43,25 @@ import {EnvironmentService} from 'vs/platform/environment/node/environmentServic
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
-	id: 'testWorkspace',
 	name: 'Test Workspace',
-	uid: new Date().getTime(),
-	mtime: new Date().getTime()
+	uid: new Date().getTime()
 };
 
-export const TestConfiguration: IConfiguration = {
-	env: Object.create(null)
-};
-
-export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv));
+export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public _serviceBrand: any;
 
 	private workspace: any;
-	private configuration: any;
 	private options: any;
 
-	constructor(workspace: any = TestWorkspace, configuration: any = TestConfiguration, options: any = null) {
+	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
-		this.configuration = configuration;
-		this.options = options || {
-			globalSettings: {
-				settings: {}
-			}
-		};
+		this.options = options || Object.create(null);
 	}
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
-	}
-
-	public getConfiguration(): IConfiguration {
-		return this.configuration;
 	}
 
 	public getOptions() {
@@ -316,7 +297,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 		let inst = new InstantiationService(services);
 
-		this.stacksModel = inst.createInstance(EditorStacksModel);
+		this.stacksModel = inst.createInstance(EditorStacksModel, true);
 	}
 
 	public fireChange(): void {
@@ -478,8 +459,13 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return TPromise.as(null);
 	}
 
-	close(): void {
+	accept(): void {
+	}
 
+	focus(): void {
+	}
+
+	close(): void {
 	}
 
 	show(prefix?: string, options?: any): Promise {
@@ -555,39 +541,12 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 	private configuration = Object.create(null);
 
-	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(resources.map((resource) => {
-			return {
-				resource: resource,
-				value: ''
-			};
-		}));
-	}
-
-	protected resolveContent(resource: URI): TPromise<IContent> {
-		return TPromise.as({
-			resource: resource,
-			value: ''
-		});
-	}
-
-	protected resolveStat(resource: URI): TPromise<IStat> {
-		return TPromise.as({
-			resource: resource,
-			isDirectory: false
-		});
-	}
-
-	public loadConfiguration<T>(section?: string): TPromise<T> {
+	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());
 	}
 
 	public getConfiguration(): any {
 		return this.configuration;
-	}
-
-	public hasWorkspaceConfiguration(): boolean {
-		return false;
 	}
 
 	public setUserConfiguration(key: any, value: any): Thenable<void> {

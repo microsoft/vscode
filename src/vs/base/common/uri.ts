@@ -126,7 +126,7 @@ export default class URI {
 	get fsPath() {
 		if (!this._fsPath) {
 			var value: string;
-			if (this._authority && this.scheme === 'file') {
+			if (this._authority && this._path && this.scheme === 'file') {
 				// unc path: file://shares/c$/far/boo
 				value = `//${this._authority}${this._path}`;
 			} else if (URI._driveLetterPath.test(this._path)) {

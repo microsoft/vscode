@@ -19,8 +19,8 @@ export function withEditorModel(text:string[], callback:(model:Model) => void): 
 export function viewModelHelper(model): IViewModelHelper{
 	return {
 			viewModel: model,
-			getCurrentVisibleViewRangeInViewPort: () => { return null; },
-			getCurrentVisibleModelRangeInViewPort: () => { return null; },
+			getCurrentCompletelyVisibleViewLinesRangeInViewport: () => { return null; },
+			getCurrentCompletelyVisibleModelLinesRangeInViewport: () => { return null; },
 			convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
 				return new Position(lineNumber, column);
 			},

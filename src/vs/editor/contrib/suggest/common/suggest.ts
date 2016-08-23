@@ -10,21 +10,24 @@ import {compare} from 'vs/base/common/strings';
 import {assign} from 'vs/base/common/objects';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {ISnippetsRegistry, Extensions} from 'vs/editor/common/modes/snippetsRegistry';
 import {Position} from 'vs/editor/common/core/position';
 import {Registry} from 'vs/platform/platform';
 import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
-	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true)
+	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true),
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', DefaultConfig.editor.acceptSuggestionOnEnter)
 };
 
 export interface ISuggestionItem {
+	position: IPosition;
 	suggestion: ISuggestion;
 	container: ISuggestResult;
 	support: ISuggestSupport;
@@ -51,6 +54,8 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 
 	const result: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
+
+	position = position.clone();
 
 	// get provider groups, always add snippet suggestion provider
 	const supports = SuggestRegistry.orderedGroups(model);
@@ -83,6 +88,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 								fixOverwriteBeforeAfter(suggestion, container);
 
 								result.push({
+									position,
 									container,
 									suggestion,
 									support,
@@ -101,7 +107,7 @@ export function provideSuggestionItems(model: IReadOnlyModel, position: Position
 		};
 	});
 
-	return sequence(factory).then(() => result.sort(createSuggesionComparator(snippetConfig)));
+	return sequence(factory).then(() => result.sort(getSuggestionComparator(snippetConfig)));
 }
 
 function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
@@ -131,7 +137,7 @@ function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: ISugge
 	}
 }
 
-function createSuggesionComparator(snippetConfig: SnippetConfig): (a: ISuggestionItem, b: ISuggestionItem) => number {
+export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: ISuggestionItem, b: ISuggestionItem) => number {
 
 	function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 

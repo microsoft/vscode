@@ -22,7 +22,7 @@ import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contex
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
-const $ = dom.emmet;
+const $ = dom.$;
 const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
 

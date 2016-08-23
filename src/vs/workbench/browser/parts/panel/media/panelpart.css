@@ -5,10 +5,8 @@
 
 .monaco-workbench > .part.panel .title {
 	padding-right: 0px;
-}
-
-.monaco-workbench > .part.panel > .title {
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
+	height: 36px;
 }
 
 .monaco-workbench > .part.panel > .title > .title-label > span {

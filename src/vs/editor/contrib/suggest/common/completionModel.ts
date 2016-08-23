@@ -6,25 +6,19 @@
 'use strict';
 
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {ISuggestion} from 'vs/editor/common/modes';
+import {IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
+import {ISuggestSupport} from 'vs/editor/common/modes';
 import {ISuggestionItem} from './suggest';
 
-export class CompletionItem {
+export interface ICompletionItem extends ISuggestionItem {
+	highlights?: IMatch[];
+}
 
-	suggestion: ISuggestion;
-	highlights: IMatch[];
-	filter: IFilter;
-
-	constructor(private _item: ISuggestionItem) {
-		this.suggestion = _item.suggestion;
-		this.filter = _item.support && _item.support.filter || fuzzyContiguousFilter;
-	}
-
-	resolve(): TPromise<this> {
-		return this._item.resolve().then(() => this);
-	}
+export interface ICompletionStats {
+	suggestionCount: number;
+	snippetCount: number;
+	textCount: number;
+	[name: string]: any;
 }
 
 export class LineContext {
@@ -34,20 +28,44 @@ export class LineContext {
 
 export class CompletionModel {
 
-	public raw: ISuggestionItem[];
-
 	private _lineContext: LineContext;
-	private _items: CompletionItem[] = [];
+	private _column: number;
+	private _items: ICompletionItem[];
 
-	private _filteredItems: CompletionItem[] = undefined;
+	private _filteredItems: ICompletionItem[];
 	private _topScoreIdx: number;
+	private _incomplete: ISuggestSupport[];
+	private _stats: ICompletionStats;
 
-	constructor(raw: ISuggestionItem[], leadingLineContent: string) {
-		this.raw = raw;
-		this._lineContext = { leadingLineContent, characterCountDelta: 0 };
-		for (let item of raw) {
-			this._items.push(new CompletionItem(item));
+	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext) {
+		this._items = items;
+		this._column = column;
+		this._lineContext = lineContext;
+	}
+
+	replaceIncomplete(newItems: ISuggestionItem[], compareFn:(a:ISuggestionItem, b:ISuggestionItem) => number): void {
+		let newItemsIdx = 0;
+		for (let i = 0; i < this._items.length; i++) {
+			if (this._incomplete.indexOf(this._items[i].support) >= 0) {
+				// we found an item which support signaled 'incomplete'
+				// which means we remove the item. For perf reasons we
+				// frist replace and only then splice.
+				if (newItemsIdx < newItems.length) {
+					this._items[i] = newItems[newItemsIdx++];
+				} else {
+					this._items.splice(i, 1);
+					i--;
+				}
+			}
 		}
+		// add remaining new items
+		if (newItemsIdx < newItems.length) {
+			this._items.push(...newItems.slice(newItemsIdx));
+		}
+
+		// sort and reset cached state
+		this._items.sort(compareFn);
+		this._filteredItems = undefined;
 	}
 
 	get lineContext(): LineContext {
@@ -55,38 +73,62 @@ export class CompletionModel {
 	}
 
 	set lineContext(value: LineContext) {
-		if (this._lineContext !== value) {
-			this._filteredItems = undefined;
+		if (this._lineContext.leadingLineContent !== value.leadingLineContent
+			|| this._lineContext.characterCountDelta !== value.characterCountDelta) {
+
 			this._lineContext = value;
+			this._filteredItems = undefined;
 		}
 	}
 
-	get items(): CompletionItem[] {
-		if (!this._filteredItems) {
-			this._filterAndScore();
-		}
+	get items(): ICompletionItem[] {
+		this._ensureCachedState();
 		return this._filteredItems;
 	}
 
 	get topScoreIdx(): number {
-		if (!this._filteredItems) {
-			this._filterAndScore();
-		}
+		this._ensureCachedState();
 		return this._topScoreIdx;
 	}
 
-	private _filterAndScore(): void {
-		this._filteredItems = [];
-		this._topScoreIdx = -1;
-		let topScore = -1;
-		const {leadingLineContent, characterCountDelta} = this._lineContext;
+	get incomplete(): ISuggestSupport[] {
+		this._ensureCachedState();
+		return this._incomplete;
+	}
 
-		//TODO@joh - sort by 'overwriteBefore' such that we can 'reuse' the word (wordLowerCase)
+	get stats(): ICompletionStats {
+		this._ensureCachedState();
+		return this._stats;
+	}
+
+	private _ensureCachedState(): void {
+		if (!this._filteredItems) {
+			this._createCachedState();
+		}
+	}
+
+	private _createCachedState(): void {
+		this._filteredItems = [];
+		this._incomplete = [];
+		this._topScoreIdx = -1;
+		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
+
+		const {leadingLineContent, characterCountDelta} = this._lineContext;
+		let word = '';
+		let topScore = -1;
+
 		for (const item of this._items) {
 
-			const start = leadingLineContent.length - (item.suggestion.overwriteBefore + characterCountDelta);
-			const word = leadingLineContent.substr(start);
-			const {filter, suggestion} = item;
+			const {suggestion, support, container} = item;
+			const filter = support && support.filter || fuzzyContiguousFilter;
+
+			// 'word' is that remainder of the current line that we
+			// filter and score against. In theory each suggestion uses a
+			// differnet word, but in practice not - that's why we cache
+			const wordLen = suggestion.overwriteBefore + characterCountDelta - (item.position.column - this._column);
+			if (word.length !== wordLen) {
+				word = leadingLineContent.slice(-wordLen);
+			}
 
 			let match = false;
 
@@ -111,6 +153,19 @@ export class CompletionModel {
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;
+			}
+
+			// collect those supports that signaled having
+			// an incomplete result
+			if (container.incomplete && this._incomplete.indexOf(support) < 0) {
+				this._incomplete.push(support);
+			}
+
+			// update stats
+			this._stats.suggestionCount++;
+			switch (suggestion.type) {
+				case 'snippet': this._stats.snippetCount++; break;
+				case 'text': this._stats.textCount++; break;
 			}
 		}
 	}

@@ -4,6 +4,7 @@
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
+	"typescript.tsdk_version.desc": "Specifies the version of the tsserver. Only necessary if the tsserver is not installed using npm.",
 	"typescript.tsserver.trace": "Enables tracing of messages send to the TS server",
 	"typescript.tsserver.experimentalAutoBuild": "Enables experimental auto build. Requires 1.9 dev or 2.x tsserver version and a restart of VS Code after changing it.",
 	"typescript.validate.enable": "Enable / disable TypeScript validation",

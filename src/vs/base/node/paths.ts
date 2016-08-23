@@ -7,10 +7,10 @@ import uri from 'vs/base/common/uri';
 
 interface IPaths {
 	getAppDataPath(platform: string): string;
-	getUserDataPath(platform: string, appName: string, userDataDir: string): string;
+	getDefaultUserDataPath(platform: string): string;
 }
 
 const pathsPath = uri.parse(require.toUrl('paths')).fsPath;
 const paths = require.__$__nodeRequire<IPaths>(pathsPath);
 export const getAppDataPath = paths.getAppDataPath;
-export const getUserDataPath = paths.getUserDataPath;
+export const getDefaultUserDataPath = paths.getDefaultUserDataPath;
