@@ -143,7 +143,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	public create(): TPromise<void> {
-
+		
 		// Update configuration
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.onConfigurationUpdated(configuration);
@@ -204,7 +204,9 @@ export class ExplorerView extends CollapsibleViewletView {
 		// React to file icons setting by toggling global class on tree
 		let showFileIcons = configuration && configuration.explorer && configuration.explorer.showFileIcons;
 		this.extensionService.onReady().then(() => {
-			DOM.toggleClass(this.treeContainer, 'show-file-icons', showFileIcons); // since icons come from extensions, we wait for them to be ready
+			if (this.treeContainer) {
+				DOM.toggleClass(this.treeContainer, 'show-file-icons', showFileIcons); // since icons come from extensions, we wait for them to be ready
+			}
 		});
 
 		// Push down config updates to components of viewer
