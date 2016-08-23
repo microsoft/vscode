@@ -613,7 +613,7 @@ function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
 			return TPromise.as(contentValue);
 		}
 		try {
-			TPromise.as(plist.parse(content.toString()));
+			return TPromise.as(plist.parse(content.toString()));
 		} catch (e) {
 			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", e.message)));
 		}
