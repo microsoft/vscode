@@ -304,14 +304,6 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this._view.focus();
 	}
 
-	public beginForcedWidgetFocus(): void {
-		this._focusTracker.beginForcedFocus();
-	}
-
-	public endForcedWidgetFocus(): void {
-		this._focusTracker.endForcedFocus();
-	}
-
 	public isFocused(): boolean {
 		return this.hasView && this._view.isFocused();
 	}
@@ -568,10 +560,8 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 class CodeEditorWidgetFocusTracker extends Disposable {
 
-	private _forcedWidgetFocusCount: number;
-	private _focusTrackerHasFocus: boolean;
-	private _focusTracker: dom.IFocusTracker;
-	private _actualHasFocus: boolean;
+	private _hasFocus: boolean;
+	private _domFocusTracker: dom.IFocusTracker;
 
 	private _onChange: Emitter<void> = this._register(new Emitter<void>());
 	public onChage: Event<void> = this._onChange.event;
@@ -579,48 +569,21 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	constructor(domElement:HTMLElement) {
 		super();
 
-		this._focusTrackerHasFocus = false;
-		this._forcedWidgetFocusCount = 0;
-		this._actualHasFocus = false;
-		this._focusTracker = this._register(dom.trackFocus(domElement));
+		this._hasFocus = false;
+		this._domFocusTracker = this._register(dom.trackFocus(domElement));
 
-		this._focusTracker.addFocusListener(() => {
-			this._focusTrackerHasFocus = true;
-			this._update();
+		this._domFocusTracker.addFocusListener(() => {
+			this._hasFocus = true;
+			this._onChange.fire(void 0);
 		});
-		this._focusTracker.addBlurListener(() => {
-			this._focusTrackerHasFocus = false;
-			this._update();
+		this._domFocusTracker.addBlurListener(() => {
+			this._hasFocus = false;
+			this._onChange.fire(void 0);
 		});
 	}
 
 	public hasFocus(): boolean {
-		return this._actualHasFocus;
-	}
-
-	public beginForcedFocus(): void {
-		this._forcedWidgetFocusCount++;
-		this._update();
-	}
-
-	public endForcedFocus(): void {
-		this._forcedWidgetFocusCount--;
-		this._update();
-	}
-
-	private _update(): void {
-		let newActualHasFocus = this._focusTrackerHasFocus;
-		if (this._forcedWidgetFocusCount > 0) {
-			newActualHasFocus = true;
-		}
-
-		if (this._actualHasFocus === newActualHasFocus) {
-			// no change
-			return;
-		}
-
-		this._actualHasFocus = newActualHasFocus;
-		this._onChange.fire(void 0);
+		return this._hasFocus;
 	}
 }
 

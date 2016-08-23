@@ -4074,20 +4074,6 @@ export interface ICommonCodeEditor extends IEditor {
 	getLayoutInfo(): EditorLayoutInfo;
 
 	/**
-	 * Prevent the editor from sending a widgetFocusLost event,
-	 * set it in a state where it believes that focus is in one of its widgets.
-	 * Use this method with care and always add a matching `endForcedWidgetFocus`
-	 * @internal
-	 */
-	beginForcedWidgetFocus(): void;
-
-	/**
-	 * End the preventing of sending a widgetFocusLost event.
-	 * @internal
-	 */
-	endForcedWidgetFocus(): void;
-
-	/**
 	 * This listener is notified when a keypress produces a visible character.
 	 * The callback should not do operations on the view, as the view might not be updated to reflect previous typed characters.
 	 * @param character Character to listen to.

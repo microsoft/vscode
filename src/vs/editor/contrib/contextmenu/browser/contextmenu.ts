@@ -121,28 +121,19 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	private _getMenuActions(): IAction[] {
-		this._editor.beginForcedWidgetFocus();
-		try {
-			const result: IAction[] = [];
-			const groups = this._contextMenu.getActions();
+		const result: IAction[] = [];
+		const groups = this._contextMenu.getActions();
 
-			for (let group of groups) {
-				const [, actions] = group;
-				result.push(...actions);
-				result.push(new Separator());
-			}
-			result.pop(); // remove last separator
-			return result;
-
-		} finally {
-			this._editor.endForcedWidgetFocus();
+		for (let group of groups) {
+			const [, actions] = group;
+			result.push(...actions);
+			result.push(new Separator());
 		}
+		result.pop(); // remove last separator
+		return result;
 	}
 
 	private _doShowContextMenu(actions: IAction[], forcedPosition: IPosition = null): void {
-
-		// Make the editor believe one of its widgets is focused
-		this._editor.beginForcedWidgetFocus();
 
 		// Disable hover
 		var oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
@@ -195,7 +186,6 @@ class ContextMenuController implements IEditorContribution {
 			onHide: (wasCancelled: boolean) => {
 				this._contextMenuIsBeingShownCount--;
 				this._editor.focus();
-				this._editor.endForcedWidgetFocus();
 				this._editor.updateOptions({
 					hover: oldHoverSetting
 				});

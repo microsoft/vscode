@@ -7,7 +7,6 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -128,8 +127,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 		this.id = (++EDITOR_ID);
 
-		var timerEvent = timer.start(timer.Topic.EDITOR, 'CodeEditor.ctor');
-
 		// listeners that are kept during the whole editor lifetime
 		this._lifetimeDispose = [];
 
@@ -171,8 +168,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 		this._contributions = {};
 		this._actions = {};
-
-		timerEvent.stop();
 	}
 
 	protected abstract _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration;
@@ -261,8 +256,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			return;
 		}
 
-		var timerEvent = timer.start(timer.Topic.EDITOR, 'CodeEditor.setModel');
-
 		var detachedModel = this._detachModel();
 		this._attachModel(model);
 
@@ -270,8 +263,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			oldModelUrl: detachedModel ? detachedModel.uri : null,
 			newModelUrl: model ? model.uri : null
 		};
-
-		timerEvent.stop();
 
 		this.emit(editorCommon.EventType.ModelChanged, e);
 		this._postDetachModelCleanup(detachedModel);
@@ -531,8 +522,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public abstract layout(dimension?:editorCommon.IDimension): void;
 
 	public abstract focus(): void;
-	public abstract beginForcedWidgetFocus(): void;
-	public abstract endForcedWidgetFocus(): void;
 	public abstract isFocused(): boolean;
 	public abstract hasWidgetFocus(): boolean;
 

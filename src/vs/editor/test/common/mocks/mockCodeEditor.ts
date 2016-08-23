@@ -40,8 +40,6 @@ export class MockCodeEditor extends CommonCodeEditor {
 	public layout(dimension?:editorCommon.IDimension): void { }
 
 	public focus(): void { }
-	public beginForcedWidgetFocus(): void { }
-	public endForcedWidgetFocus(): void { }
 	public isFocused(): boolean { return true; }
 	public hasWidgetFocus(): boolean { return true; };
 
