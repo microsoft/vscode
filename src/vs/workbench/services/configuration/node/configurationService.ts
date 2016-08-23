@@ -19,7 +19,7 @@ import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/com
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {readFile, writeFile} from 'vs/base/node/pfs';
 import {JSONPath} from 'vs/base/common/json';
 import {applyEdits} from 'vs/base/common/jsonFormatter';
@@ -55,24 +55,26 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 
 	private static RELOAD_CONFIGURATION_DELAY = 50;
 
-	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
-
-	private workspaceSettingsRootFolder: string;
+	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
 
 	private cachedConfig: ILoadConfigResult;
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IConfigFile> };
-	private callOnDispose: IDisposable;
+	private toDispose: IDisposable[];
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		workspaceSettingsRootFolder: string = '.vscode'
+		private workspaceSettingsRootFolder: string = '.vscode'
 	) {
-		this.workspaceSettingsRootFolder = workspaceSettingsRootFolder;
+		this.toDispose = [];
+
+		this._onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
+		this.toDispose.push(this._onDidUpdateConfiguration);
+
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.cachedConfig = {
 			config: {}
@@ -86,18 +88,9 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 	}
 
 	private registerListeners(): void {
-		const unbind = this.eventService.addListener2(FileEventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
-		const subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration());
-
-		const unbind2 = this.eventService.addListener2(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
-
-		this.callOnDispose = {
-			dispose: () => {
-				unbind.dispose();
-				subscription.dispose();
-				unbind2.dispose();
-			}
-		};
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (events) => this.handleFileEvents(events)));
+		this.toDispose.push(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration()));
+		this.toDispose.push(this.eventService.addListener2(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e)));
 	}
 
 	private onOptionsChanged(e: OptionsChangeEvent): void {
@@ -130,7 +123,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 				if (error) {
 					if ((<any>error).code === 'ENOTDIR') {
 						c({
-							resource: resource,
+							resource,
 							isDirectory: false
 						});
 					} else {
@@ -138,7 +131,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 					}
 				} else {
 					c({
-						resource: resource,
+						resource,
 						isDirectory: true,
 						children: children.map((child) => {
 							if (platform.isMacintosh) {
@@ -298,6 +291,8 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 			this.reloadConfigurationScheduler = new RunOnceScheduler(() => {
 				this.doLoadConfiguration().then((config) => this._onDidUpdateConfiguration.fire({ config: config })).done(null, errors.onUnexpectedError);
 			}, ConfigurationService.RELOAD_CONFIGURATION_DELAY);
+
+			this.toDispose.push(this.reloadConfigurationScheduler);
 		}
 
 		if (!this.reloadConfigurationScheduler.isScheduled()) {
@@ -345,11 +340,6 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 	}
 
 	public dispose(): void {
-		if (this.reloadConfigurationScheduler) {
-			this.reloadConfigurationScheduler.dispose();
-		}
-
-		this.callOnDispose.dispose();
-		this._onDidUpdateConfiguration.dispose();
+		this.toDispose = dispose(this.toDispose);
 	}
 }
