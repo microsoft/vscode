@@ -167,7 +167,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 			return (data as Error).message;
 		}
-		if (is.boolean(data.success) && data.success && is.string(data.message)) {
+		if (is.boolean(data.success) && !data.success && is.string(data.message)) {
 			return data.message;
 		}
 		if (is.string(data)) {
@@ -191,6 +191,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	public error(message: string, data?: any): void {
+		// See https://github.com/Microsoft/TypeScript/issues/10496
+		if (data && data.message === 'No content available.') {
+			return;
+		}
 		this.output.appendLine(`[Error - ${(new Date().toLocaleTimeString())}] ${message}`);
 		if (data) {
 			this.output.appendLine(this.data2String(data));
