@@ -52,11 +52,6 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
 
-interface CSSEscapeSupport extends Window {
-	CSS: {
-		escape: (val: string) => string;
-	};
-}
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -404,19 +399,19 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 		const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
 		if (name) {
-			classes.push(`${this.cssEscape(name.toLowerCase())}-name-file-icon`);
+			classes.push(`${name.toLowerCase()}-name-file-icon`);
 		}
 
 		const extensions = dotSegments.splice(1);
 		if (extensions.length > 0) {
 			for (let i = 0; i < extensions.length; i++) {
-				classes.push(`${this.cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
+				classes.push(`${extensions.slice(i).join('.').toLowerCase()}-ext-file-icon`); // add each combination of all found extensions if more than one
 			}
 		}
 
 		const langId = this.modeService.getModeIdByFilenameOrFirstLine(fsPath);
 		if (langId) {
-			classes.push(`${this.cssEscape(langId)}-lang-file-icon`);
+			classes.push(`${langId}-lang-file-icon`);
 		}
 
 		return classes;
@@ -428,16 +423,10 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		const classes = ['folder-icon'];
 
 		if (basename) {
-			classes.push(`${this.cssEscape(basename.toLowerCase())}-name-folder-icon`);
+			classes.push(`${basename.toLowerCase()}-name-folder-icon`);
 		}
 
 		return classes;
-	}
-
-	private cssEscape(val: string): string {
-		const cssEscapeSupport = window as CSSEscapeSupport;
-
-		return cssEscapeSupport.CSS.escape(val);
 	}
 }
 
