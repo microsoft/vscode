@@ -13,7 +13,6 @@ import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IContextKey, IContextKeyServiceTarget, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Cursor} from 'vs/editor/common/controller/cursor';
@@ -91,8 +90,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	_lifetimeDispose: IDisposable[];
 	_configuration:CommonEditorConfiguration;
 
-	_telemetryService:ITelemetryService;
-
 	protected _contributions:{ [key:string]:editorCommon.IEditorContribution; };
 	protected _actions:{ [key:string]:editorCommon.IEditorAction; };
 
@@ -129,8 +126,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		instantiationService: IInstantiationService,
 		codeEditorService: ICodeEditorService,
 		commandService: ICommandService,
-		contextKeyService: IContextKeyService,
-		telemetryService: ITelemetryService
+		contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -177,7 +173,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this.emit(editorCommon.EventType.ConfigurationChanged, e);
 		}));
 
-		this._telemetryService = telemetryService;
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
 		this._attachModel(null);

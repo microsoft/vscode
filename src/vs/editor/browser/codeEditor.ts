@@ -7,7 +7,6 @@
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
@@ -20,10 +19,9 @@ export class CodeEditor extends CodeEditorWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
 	}
 
 }
