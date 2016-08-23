@@ -28,7 +28,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export class ReplExpressionsDataSource implements tree.IDataSource {
 

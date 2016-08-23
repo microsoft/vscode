@@ -26,7 +26,7 @@ import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
