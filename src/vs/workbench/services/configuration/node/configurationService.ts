@@ -7,8 +7,6 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import extfs = require('vs/base/node/extfs');
 import objects = require('vs/base/common/objects');
@@ -36,7 +34,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 
 interface IStat {
 	resource: uri;
-	isDirectory: boolean;
+	isDirectory?: boolean;
 	children?: { resource: uri; }[];
 }
 
@@ -78,7 +76,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.cachedConfig = {
-			config: {}
+			config: Object.create(null)
 		};
 
 		this.registerListeners();
@@ -89,9 +87,9 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (events) => this.handleFileEvents(events)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, events => this.handleFileEvents(events)));
 		this.toDispose.push(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration()));
-		this.toDispose.push(this.eventService.addListener2(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.WORKBENCH_OPTIONS_CHANGED, e => this.onOptionsChanged(e)));
 	}
 
 	private onOptionsChanged(e: OptionsChangeEvent): void {
@@ -104,72 +102,13 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 		return this.doLoadConfiguration().then(() => null);
 	}
 
-	private resolveContents(resources: uri[]): TPromise<IContent[]> {
-		const contents: IContent[] = [];
-
-		return TPromise.join(resources.map((resource) => {
-			return this.resolveContent(resource).then((content) => {
-				contents.push(content);
-			});
-		})).then(() => contents);
-	}
-
-	private resolveContent(resource: uri): TPromise<IContent> {
-		return readFile(resource.fsPath).then(contents => ({ resource, value: contents.toString() }));
-	}
-
-	private resolveStat(resource: uri): TPromise<IStat> {
-		return new TPromise<IStat>((c, e) => {
-			extfs.readdir(resource.fsPath, (error, children) => {
-				if (error) {
-					if ((<any>error).code === 'ENOTDIR') {
-						c({
-							resource,
-							isDirectory: false
-						});
-					} else {
-						e(error);
-					}
-				} else {
-					c({
-						resource,
-						isDirectory: true,
-						children: children.map((child) => {
-							if (platform.isMacintosh) {
-								child = strings.normalizeNFC(child); // Mac: uses NFD unicode form on disk, but we want NFC
-							}
-
-							return {
-								resource: uri.file(paths.join(resource.fsPath, child))
-							};
-						})
-					});
-				}
-			});
-		});
-	}
-
-	public setUserConfiguration(key: any, value: any): Thenable<void> {
-		const appSettingsPath = this.environmentService.appSettingsPath;
-
-		return readFile(appSettingsPath, 'utf8').then(content => {
-			const {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-			const path: JSONPath = typeof key === 'string' ? (<string>key).split('.') : <JSONPath>key;
-			const edits = setProperty(content, path, value, { insertSpaces, tabSize, eol: '\n' });
-
-			content = applyEdits(content, edits);
-
-			return writeFile(appSettingsPath, content, 'utf8');
-		});
-	}
-
 	public getConfiguration<T>(section?: string): T {
 		let result = section ? this.cachedConfig.config[section] : this.cachedConfig.config;
 
 		const parseErrors = this.cachedConfig.parseErrors;
 		if (parseErrors && parseErrors.length > 0) {
 			if (!result) {
-				result = {};
+				result = Object.create(null);
 			}
 			result.$parseErrors = parseErrors;
 		}
@@ -193,7 +132,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 		const globals = this.loadGlobalConfiguration();
 
 		// Load workspace locals
-		return this.loadWorkspaceConfiguration().then((values) => {
+		return this.loadWorkspaceConfiguration().then(values => {
 
 			// Consolidate
 			const consolidated = consolidate(values);
@@ -238,26 +177,22 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 		};
 	}
 
-	public hasWorkspaceConfiguration(): boolean {
-		return !!this.workspaceFilePathToConfiguration[`.vscode/${CONFIG_DEFAULT_NAME}.json`];
-	}
-
 	private loadWorkspaceConfiguration(section?: string): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
 
 		// Return early if we don't have a workspace
 		if (!this.contextService.getWorkspace()) {
-			return TPromise.as({});
+			return TPromise.as(Object.create(null));
 		}
 
 		// once: when invoked for the first time we fetch *all* json
 		// files using the bulk stats and content routes
 		if (!this.bulkFetchFromWorkspacePromise) {
-			this.bulkFetchFromWorkspacePromise = this.resolveStat(this.contextService.toResource(this.workspaceSettingsRootFolder)).then((stat) => {
+			this.bulkFetchFromWorkspacePromise = resolveStat(this.contextService.toResource(this.workspaceSettingsRootFolder)).then(stat => {
 				if (!stat.isDirectory) {
 					return TPromise.as([]);
 				}
 
-				return this.resolveContents(stat.children.filter((stat) => paths.extname(stat.resource.fsPath) === '.json').map(stat => stat.resource));
+				return resolveContents(stat.children.filter(stat => paths.extname(stat.resource.fsPath) === '.json').map(stat => stat.resource));
 			}, (err) => {
 				if (err) {
 					return []; // never fail this call
@@ -290,7 +225,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 	private handleConfigurationChange(): void {
 		if (!this.reloadConfigurationScheduler) {
 			this.reloadConfigurationScheduler = new RunOnceScheduler(() => {
-				this.doLoadConfiguration().then((config) => this._onDidUpdateConfiguration.fire({ config: config })).done(null, errors.onUnexpectedError);
+				this.doLoadConfiguration().then(config => this._onDidUpdateConfiguration.fire({ config: config })).done(null, errors.onUnexpectedError);
 			}, ConfigurationService.RELOAD_CONFIGURATION_DELAY);
 
 			this.toDispose.push(this.reloadConfigurationScheduler);
@@ -330,7 +265,7 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 					break;
 				case FileChangeType.UPDATED:
 				case FileChangeType.ADDED:
-					this.workspaceFilePathToConfiguration[workspacePath] = this.resolveContent(events[i].resource).then(content => newConfigFile(content.value), errors.onUnexpectedError);
+					this.workspaceFilePathToConfiguration[workspacePath] = resolveContent(events[i].resource).then(content => newConfigFile(content.value), errors.onUnexpectedError);
 					affectedByChanges = true;
 			}
 		}
@@ -340,7 +275,62 @@ export class ConfigurationService implements IWorkbenchConfigurationService, IDi
 		}
 	}
 
+	public hasWorkspaceConfiguration(): boolean {
+		return !!this.workspaceFilePathToConfiguration[`${this.workspaceSettingsRootFolder}/${CONFIG_DEFAULT_NAME}.json`];
+	}
+
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
+
+	// TODO implement
+	public setUserConfiguration(key: any, value: any): Thenable<void> {
+		const appSettingsPath = this.environmentService.appSettingsPath;
+
+		return readFile(appSettingsPath, 'utf8').then(content => {
+			const {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
+			const path: JSONPath = typeof key === 'string' ? (<string>key).split('.') : <JSONPath>key;
+			const edits = setProperty(content, path, value, { insertSpaces, tabSize, eol: '\n' });
+
+			content = applyEdits(content, edits);
+
+			return writeFile(appSettingsPath, content, 'utf8');
+		});
+	}
+}
+
+// node.hs helper functions
+
+function resolveContents(resources: uri[]): TPromise<IContent[]> {
+	const contents: IContent[] = [];
+
+	return TPromise.join(resources.map(resource => {
+		return resolveContent(resource).then(content => {
+			contents.push(content);
+		});
+	})).then(() => contents);
+}
+
+function resolveContent(resource: uri): TPromise<IContent> {
+	return readFile(resource.fsPath).then(contents => ({ resource, value: contents.toString() }));
+}
+
+function resolveStat(resource: uri): TPromise<IStat> {
+	return new TPromise<IStat>((c, e) => {
+		extfs.readdir(resource.fsPath, (error, children) => {
+			if (error) {
+				if ((<any>error).code === 'ENOTDIR') {
+					c({ resource });
+				} else {
+					e(error);
+				}
+			} else {
+				c({
+					resource,
+					isDirectory: true,
+					children: children.map(child => { return { resource: uri.file(paths.join(resource.fsPath, child)) }; })
+				});
+			}
+		});
+	});
 }
