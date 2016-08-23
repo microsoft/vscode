@@ -687,7 +687,11 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	if (editorSettings.guide) {
 		let guide = new Color(editorSettings.guide);
 		cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${guide}; }`);
+	} else if (editorSettings.invisibles) {
+		let invisibles = new Color(editorSettings.invisibles);
+		cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${invisibles}; }`);
 	}
+
 	return cssRules.join('\n');
 }
 
