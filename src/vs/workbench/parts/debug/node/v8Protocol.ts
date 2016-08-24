@@ -65,21 +65,17 @@ export abstract class V8Protocol {
 			success: true
 		};
 
-		try {
-			if (request.command === 'runInTerminal') {
-
-				// Todo: launch command in terminal
-
-				(<DebugProtocol.RunInTerminalResponse> response).body = {
+		if (request.command === 'runInTerminal') {
+			this.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(() => {
+				(<DebugProtocol.RunInTerminalResponse>response).body = {
 					processId: 12345	// send back process id
 				};
-
 				this.sendResponse(response);
-			}
-		} catch (e) {
-			response.success = false;
-			response.message = 'error while handling request';
-			this.sendResponse(response);
+			}, e => {
+				response.success = false;
+				response.message = 'error while handling request';
+				this.sendResponse(response);
+			});
 		}
 	}
 
@@ -148,6 +144,7 @@ export abstract class V8Protocol {
 		}
 	}
 
+	protected abstract runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void>;
 	protected abstract onServerError(err: Error): void;
 	protected abstract onEvent(event: DebugProtocol.Event): void;
 
