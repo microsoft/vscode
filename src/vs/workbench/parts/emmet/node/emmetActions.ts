@@ -61,9 +61,9 @@ class LazyEmmet {
 				_emmet.preferences.define(key, preferences[key]);
 			}
 		}
-		let syntaxProfile = configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
+		let syntaxProfiles = configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
 		_emmet.profile.reset();
-		_emmet.loadProfiles(syntaxProfile);
+		_emmet.loadProfiles(syntaxProfiles);
 	}
 
 	private resetEmmetPreferences(configurationService:IConfigurationService, _emmet: typeof emmet) {
@@ -110,7 +110,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const configurationService = accessor.get(IConfigurationService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		let editorAccessor = new EditorAccessor(editor);
+		let editorAccessor = new EditorAccessor(editor, configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles);
 		if (!editorAccessor.isEmmetEnabledMode()) {
 			this.noExpansionOccurred(editor);
 			return ;
