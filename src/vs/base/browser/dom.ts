@@ -963,13 +963,15 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 	Object.keys(attrs || {})
 		.forEach(name => result.setAttribute(name, attrs[name]));
 
-	children.forEach(child => {
-		if (child instanceof Node) {
-			result.appendChild(child);
-		} else {
-			result.appendChild(document.createTextNode(child as string));
-		}
-	});
+	children
+		.filter(child => !!child)
+		.forEach(child => {
+			if (child instanceof Node) {
+				result.appendChild(child);
+			} else {
+				result.appendChild(document.createTextNode(child as string));
+			}
+		});
 
 	return result as T;
 }
