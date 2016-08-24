@@ -3490,8 +3490,7 @@ declare namespace vscode {
 		/**
 		 * Creates a [Terminal](#Terminal).
 		 *
-		 * @param name The optional name of a terminal, this will override the label used in the
-		 * terminal dropdown.
+		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
 		 * @return A new Terminal.
 		 */
 		export function createTerminal(name?: string): Terminal;
