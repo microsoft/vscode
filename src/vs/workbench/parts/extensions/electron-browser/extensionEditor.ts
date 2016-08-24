@@ -366,17 +366,17 @@ export class ExtensionEditor extends BaseEditor {
 			menus: []
 		}));
 
-		const allCommands = arrays.index(commands, c => c.id);
+		const byId = arrays.index(commands, c => c.id);
 
 		const menus = manifest.contributes.menus || {};
 
 		Object.keys(menus).forEach(context => {
 			menus[context].forEach(menu => {
-				let command = allCommands[menu.command];
+				let command = byId[menu.command];
 
 				if (!command) {
 					command = { id: menu.command, title: '', keybindings: [], menus: [context] };
-					allCommands[command.id] = command;
+					byId[command.id] = command;
 					commands.push(command);
 				} else {
 					command.menus.push(context);
@@ -388,11 +388,11 @@ export class ExtensionEditor extends BaseEditor {
 
 		rawKeybindings.forEach(rawKeybinding => {
 			const keyLabel = this.keybindingToLabel(rawKeybinding);
-			let command = allCommands[rawKeybinding.command];
+			let command = byId[rawKeybinding.command];
 
 			if (!command) {
 				command = { id: rawKeybinding.command, title: '', keybindings: [keyLabel], menus: [] };
-				allCommands[command.id] = command;
+				byId[command.id] = command;
 				commands.push(command);
 			} else {
 				command.keybindings.push(keyLabel);
@@ -426,9 +426,26 @@ export class ExtensionEditor extends BaseEditor {
 		const rawLanguages = manifest.contributes.languages || [];
 		const languages = rawLanguages.map(l => ({
 			id: l.id,
-			name: l.aliases[0] || l.id,
-			extensions: l.extensions
+			name: (l.aliases || [])[0] || l.id,
+			extensions: l.extensions,
+			hasGrammar: false
 		}));
+
+		const byId = arrays.index(languages, l => l.id);
+
+		const grammars = manifest.contributes.grammars || [];
+
+		grammars.forEach(grammar => {
+			let language = byId[grammar.language];
+
+			if (!language) {
+				language = { id: grammar.language, name: grammar.language, extensions: [], hasGrammar: true };
+				byId[language.id] = language;
+				languages.push(language);
+			} else {
+				language.hasGrammar = true;
+			}
+		});
 
 		if (!languages.length) {
 			return;
@@ -439,11 +456,13 @@ export class ExtensionEditor extends BaseEditor {
 			$('table', null,
 				$('tr', null,
 					$('th', null, localize('command name', "Name")),
-					$('th', null, localize('file extensions', "File Extensions"))
+					$('th', null, localize('file extensions', "File Extensions")),
+					$('th', null, localize('grammar', "Grammar"))
 				),
 				...languages.map(l => $('tr', null,
 					$('td', null, l.name),
-					$('td', null, ...join(l.extensions.map(ext => $('code', null, ext)), ' '))
+					$('td', null, ...join(l.extensions.map(ext => $('code', null, ext)), ' ')),
+					$('td', null, document.createTextNode(l.hasGrammar ? '✔︎' : '—'))
 				))
 			)
 		));
