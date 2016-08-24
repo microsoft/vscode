@@ -10,6 +10,7 @@ import {RawContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/con
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {Registry} from 'vs/platform/platform';
+import {endsWith} from 'vs/base/common/strings';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
@@ -49,7 +50,7 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 
 			if (prefix) {
 				snippetsRegistry.visitSnippets(editor.getModel().getModeId(), s => {
-					if (prefix === s.prefix) {
+					if (endsWith(prefix, s.prefix)) {
 						this._currentSnippets.push(s);
 					}
 					return true;
