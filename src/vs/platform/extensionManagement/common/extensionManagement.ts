@@ -41,7 +41,7 @@ export interface IJSONValidation {
 	fileMatch: string;
 }
 
-export interface IKeyBindings {
+export interface IKeyBinding {
 	command: string;
 	key: string;
 	when?: string;
@@ -77,7 +77,7 @@ export interface IExtensionContributions {
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
-	keybindings?: IKeyBindings[];
+	keybindings?: IKeyBinding[];
 	languages?: ILanguage[];
 	menus?: { [context: string]: IMenu[] };
 	snippets?: ISnippet[];

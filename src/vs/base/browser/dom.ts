@@ -944,7 +944,7 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
 // Similar to builder, but much more lightweight
-export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: (HTMLElement | string)[]): T {
+export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: (Node | string)[]): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
@@ -964,14 +964,32 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		.forEach(name => result.setAttribute(name, attrs[name]));
 
 	children.forEach(child => {
-		if (child instanceof HTMLElement) {
+		if (child instanceof Node) {
 			result.appendChild(child);
 		} else {
-			result.appendChild(document.createTextNode(child));
+			result.appendChild(document.createTextNode(child as string));
 		}
 	});
 
 	return result as T;
+}
+
+export function join(nodes: Node[], separator: Node | string): Node[] {
+	const result: Node[] = [];
+
+	nodes.forEach((node, index) => {
+		if (index > 0) {
+			if (separator instanceof Node) {
+				result.push(separator.cloneNode());
+			} else {
+				result.push(document.createTextNode(separator));
+			}
+		}
+
+		result.push(node);
+	});
+
+	return result;
 }
 
 export function show(...elements: HTMLElement[]): void {
