@@ -51,6 +51,10 @@ class MultiLineStream {
 		return this.len <= this.position;
 	}
 
+	public getSource(): string {
+		return this.source;
+	}
+
 	public pos(): number {
 		return this.position;
 	}
@@ -220,6 +224,10 @@ export class Scanner {
 
 	public get tokenLength(): number {
 		return this._stream.pos() - this._tokenOffset;
+	}
+
+	public get tokenText(): string {
+		return this._stream.getSource().substring(this._tokenOffset, this._stream.pos());
 	}
 
 	private nextElementName(): string {
