@@ -511,8 +511,6 @@ export class DebugService implements debug.IDebugService {
 			return this.setFocusedStackFrameAndEvaluate(this.viewModel.getFocusedStackFrame());
 		}, err => {
 			(<model.Variable>variable).errorMessage = err.message;
-			// On error still show bad value so the user can fix it #8055
-			(<model.Variable>variable).value = value;
 		});
 	}
 
