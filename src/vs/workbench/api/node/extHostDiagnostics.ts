@@ -115,7 +115,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					// add 'signal' marker for showing omitted errors/warnings
 					marker.push({
 						severity: Severity.Error,
-						message: localize('limitHit', "Not showing {0} further errors and warnings.", diagnostics.length - DiagnosticCollection._maxDiagnosticsPerFile),
+						message: localize({ key: 'limitHit', comment: ['amount of errors/warning skipped due to limits'] }, "Not showing {0} further errors and warnings.", diagnostics.length - DiagnosticCollection._maxDiagnosticsPerFile),
 						startLineNumber: marker[marker.length - 1].startLineNumber,
 						startColumn: marker[marker.length - 1].startColumn,
 						endLineNumber: marker[marker.length - 1].endLineNumber,
