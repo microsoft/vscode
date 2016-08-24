@@ -370,6 +370,7 @@ export abstract class TitleControl implements ITitleAreaControl {
 			const editorActions = this.getEditorActions({ group, editor });
 			primaryEditorActions = prepareActions(editorActions.primary);
 			if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
+				this.updateSplitActionEnablement();
 				primaryEditorActions.push(this.splitEditorAction);
 			}
 			secondaryEditorActions = prepareActions(editorActions.secondary);
