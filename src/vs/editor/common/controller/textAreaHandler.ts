@@ -8,10 +8,9 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import Event, {Emitter} from 'vs/base/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {IClipboardEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
-import {Position} from 'vs/editor/common/core/position';
+import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorPosition, IEditorRange} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IEditorRange} from 'vs/editor/common/editorCommon';
 
 enum ReadFromTextArea {
 	Type,
@@ -21,7 +20,7 @@ enum ReadFromTextArea {
 export interface IBrowser {
 	isIPad: boolean;
 	isChrome: boolean;
-	isIE11orEarlier: boolean;
+	isEdgeOrIE: boolean;
 	isFirefox: boolean;
 	enableEmptySelectionClipboard: boolean;
 }
@@ -56,12 +55,16 @@ export class TextAreaHandler extends Disposable {
 	private _onCompositionStart = this._register(new Emitter<ICompositionStartData>());
 	public onCompositionStart: Event<ICompositionStartData> = this._onCompositionStart.event;
 
-	private _onCompositionEnd = this._register(new Emitter<void>());
-	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+	private _onCompositionUpdate = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionUpdate: Event<ICompositionEvent> = this._onCompositionUpdate.event;
+
+	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
 
 	private Browser:IBrowser;
 	private textArea:ITextAreaWrapper;
 	private model:ISimpleModel;
+	private flushAnyAccumulatedEvents:()=>void;
 
 	private selection:IEditorRange;
 	private selections:IEditorRange[];
@@ -70,7 +73,6 @@ export class TextAreaHandler extends Disposable {
 	private asyncTriggerCut: RunOnceScheduler;
 
 	private lastCompositionEndTime:number;
-	private cursorPosition:IEditorPosition;
 
 	private textAreaState:TextAreaState;
 	private textareaIsShownAtCursor: boolean;
@@ -80,14 +82,14 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(Browser:IBrowser, strategy:TextAreaStrategy, textArea:ITextAreaWrapper, model:ISimpleModel) {
+	constructor(Browser:IBrowser, strategy:TextAreaStrategy, textArea:ITextAreaWrapper, model:ISimpleModel, flushAnyAccumulatedEvents:()=>void) {
 		super();
 		this.Browser = Browser;
 		this.textArea = textArea;
 		this.model = model;
+		this.flushAnyAccumulatedEvents = flushAnyAccumulatedEvents;
 		this.selection = new Range(1, 1, 1, 1);
 		this.selections = [new Range(1, 1, 1, 1)];
-		this.cursorPosition = new Position(1, 1);
 		this._nextCommand = ReadFromTextArea.Type;
 
 		this.asyncTriggerCut = new RunOnceScheduler(() => this._onCut.fire(), 0);
@@ -106,8 +108,8 @@ export class TextAreaHandler extends Disposable {
 
 		this.textareaIsShownAtCursor = false;
 
-		this._register(this.textArea.onCompositionStart(() => {
-			let timeSinceLastCompositionEnd = (new Date().getTime()) - this.lastCompositionEndTime;
+		this._register(this.textArea.onCompositionStart((e) => {
+
 			if (this.textareaIsShownAtCursor) {
 				return;
 			}
@@ -115,30 +117,24 @@ export class TextAreaHandler extends Disposable {
 			this.textareaIsShownAtCursor = true;
 
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			let shouldEmptyTextArea = (timeSinceLastCompositionEnd >= 100);
+			let shouldEmptyTextArea = true;
 			if (shouldEmptyTextArea) {
-				if (!this.Browser.isIE11orEarlier) {
+				if (!this.Browser.isEdgeOrIE) {
 					this.setTextAreaState('compositionstart', this.textAreaState.toEmpty());
 				}
 			}
 
-			let showAtLineNumber: number;
-			let showAtColumn: number;
-
-			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (this.Browser.isIE11orEarlier) {
-				// Ensure selection start is in viewport
-				showAtLineNumber = this.selection.startLineNumber;
-				showAtColumn = (this.selection.startColumn - this.textAreaState.getSelectionStart());
-			} else {
-				showAtLineNumber = this.cursorPosition.lineNumber;
-				showAtColumn = this.cursorPosition.column;
-			}
-
 			this._onCompositionStart.fire({
-				showAtLineNumber: showAtLineNumber,
-				showAtColumn: showAtColumn
+				showAtLineNumber: this.selection.startLineNumber,
+				showAtColumn: this.selection.startColumn
 			});
+		}));
+
+		this._register(this.textArea.onCompositionUpdate((e) => {
+			this.textAreaState = this.textAreaState.fromText(e.data);
+			let typeInput = this.textAreaState.updateComposition();
+			this._onType.fire(typeInput);
+			this._onCompositionUpdate.fire(e);
 		}));
 
 		let readFromTextArea = () => {
@@ -155,9 +151,15 @@ export class TextAreaHandler extends Disposable {
 			}
 		};
 
-		this._register(this.textArea.onCompositionEnd(() => {
-			// console.log('onCompositionEnd: ' + this.textArea.getValue());
-			// readFromTextArea();
+		this._register(this.textArea.onCompositionEnd((e) => {
+			// console.log('onCompositionEnd: ' + e.data);
+			this.textAreaState = this.textAreaState.fromText(e.data);
+			let typeInput = this.textAreaState.updateComposition();
+			this._onType.fire(typeInput);
+
+			// Due to isEdgeOrIE (where the textarea was not cleared initially)
+			// we cannot assume the text at the end consists only of the composited text
+			this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
 
 			this.lastCompositionEndTime = (new Date()).getTime();
 			if (!this.textareaIsShownAtCursor) {
@@ -181,11 +183,15 @@ export class TextAreaHandler extends Disposable {
 		// --- Clipboard operations
 
 		this._register(this.textArea.onCut((e) => {
+			// Ensure we have the latest selection => ask all pending events to be sent
+			this.flushAnyAccumulatedEvents();
 			this._ensureClipboardGetsEditorSelection(e);
 			this.asyncTriggerCut.schedule();
 		}));
 
 		this._register(this.textArea.onCopy((e) => {
+			// Ensure we have the latest selection => ask all pending events to be sent
+			this.flushAnyAccumulatedEvents();
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
@@ -230,10 +236,6 @@ export class TextAreaHandler extends Disposable {
 		this.selection = primary;
 		this.selections = [primary].concat(secondary);
 		this._writePlaceholderAndSelectTextArea('selection changed');
-	}
-
-	public setCursorPosition(primary: IEditorPosition): void {
-		this.cursorPosition = primary;
 	}
 
 	// --- end event handlers

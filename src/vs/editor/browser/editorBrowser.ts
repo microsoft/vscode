@@ -42,6 +42,7 @@ export interface IKeyboardHandlerHelper {
 	viewDomNode:HTMLElement;
 	textArea:HTMLTextAreaElement;
 	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): editorCommon.VisibleRange;
+	flushAnyAccumulatedEvents(): void;
 }
 
 export interface IPointerHandlerHelper {

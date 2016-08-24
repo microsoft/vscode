@@ -15,6 +15,11 @@ export interface IClipboardEvent {
 	getTextData(): string;
 }
 
+export interface ICompositionEvent {
+	data: string;
+	locale: string;
+}
+
 export interface IKeyboardEventWrapper {
 	_actual: any;
 	equals(keybinding:number): boolean;
@@ -26,8 +31,9 @@ export interface ITextAreaWrapper {
 	onKeyDown: Event<IKeyboardEventWrapper>;
 	onKeyUp: Event<IKeyboardEventWrapper>;
 	onKeyPress: Event<IKeyboardEventWrapper>;
-	onCompositionStart: Event<void>;
-	onCompositionEnd: Event<void>;
+	onCompositionStart: Event<ICompositionEvent>;
+	onCompositionUpdate: Event<ICompositionEvent>;
+	onCompositionEnd: Event<ICompositionEvent>;
 	onInput: Event<void>;
 	onCut: Event<IClipboardEvent>;
 	onCopy: Event<IClipboardEvent>;
@@ -104,6 +110,21 @@ export abstract class TextAreaState {
 	public abstract fromEditorSelection(model:ISimpleModel, selection:IEditorRange);
 
 	public abstract fromText(text:string): TextAreaState;
+
+	public updateComposition(): ITypeData {
+		if (!this.previousState) {
+			// This is the EMPTY state
+			return {
+				text: '',
+				replaceCharCnt: 0
+			};
+		}
+
+		return {
+			text: this.value,
+			replaceCharCnt: this.previousState.selectionEnd - this.previousState.selectionStart
+		};
+	}
 
 	public abstract resetSelection(): TextAreaState;
 
@@ -378,7 +399,7 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
 		let text:string = null;
-		if (selectionStartPage <= selectionEndPage) {
+		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection
 			text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		} else {
@@ -389,6 +410,19 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 				+ String.fromCharCode(8230)
 				+ model.getValueInRange(selectionRange2, EndOfLinePreference.LF)
 			);
+		}
+
+		// Chromium handles very poorly text even of a few thousand chars
+		// Cut text to avoid stalling the entire UI
+		const LIMIT_CHARS = 500;
+		if (pretext.length > LIMIT_CHARS) {
+			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
+		}
+		if (posttext.length > LIMIT_CHARS) {
+			posttext = posttext.substring(0, LIMIT_CHARS);
+		}
+		if (text.length > 2 * LIMIT_CHARS) {
+			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
 		return new NVDAPagedTextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false);
