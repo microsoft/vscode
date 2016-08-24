@@ -32,7 +32,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import session = require('vs/workbench/parts/debug/node/rawDebugSession');
+import session = require('vs/workbench/parts/debug/electron-browser/rawDebugSession');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
@@ -630,7 +630,8 @@ export class DebugService implements debug.IDebugService {
 				linesStartAt1: true,
 				columnsStartAt1: true,
 				supportsVariableType: true, // #8858
-				supportsVariablePaging: true // #9537
+				supportsVariablePaging: true, // #9537
+				supportsRunInTerminalRequest: true // #10574
 			}).then((result: DebugProtocol.InitializeResponse) => {
 				if (!this.session) {
 					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));

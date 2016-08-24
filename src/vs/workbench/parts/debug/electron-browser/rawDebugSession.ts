@@ -17,6 +17,7 @@ import severity from 'vs/base/common/severity';
 import stdfork = require('vs/base/node/stdFork');
 import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
@@ -70,7 +71,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		private customTelemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@ITerminalService private terminalService: ITerminalService
 	) {
 		super();
 		this.emittedStopped = false;
@@ -336,6 +338,15 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public getLengthInSeconds(): number {
 		return (new Date().getTime() - this.startTime) / 1000;
+	}
+
+	protected runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
+		return this.terminalService.createNew(args.title || nls.localize('debuggee', "debuggee")).then(id => {
+			return this.terminalService.show(false).then(terminalPanel => {
+				terminalPanel.setActiveTerminalById(id);
+				terminalPanel.sendTextToActiveTerminal(args.args.join(' '), true);
+			});
+		});
 	}
 
 	private connectServer(port: number): TPromise<void> {
