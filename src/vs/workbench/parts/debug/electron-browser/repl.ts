@@ -146,6 +146,9 @@ export class Repl extends Panel {
 					// always leave cursor at the end.
 					this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
 				}
+			} else if (e.equals(CommonKeybindings.TAB)) {
+				// Tab needs to move focus, stop propagating to the editor so it does not get eaten up #10326
+				e.stopPropagation();
 			}
 		}));
 		this.toDispose.push(dom.addStandardDisposableListener(replInputContainer, dom.EventType.FOCUS, () => dom.addClass(replInputContainer, 'synthetic-focus')));
