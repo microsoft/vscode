@@ -2882,20 +2882,20 @@ declare namespace vscode {
 		/**
 		 * Reveal this channel in the UI.
 		 *
+		 * @param preserveFocus When `true` the channel will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
+
+		/**
+		 * Reveal this channel in the UI.
+		 *
 		 * @deprecated This method is **deprecated** and the overload with
-		 * just one parameter should be used (`show(preservceFocus?: boolean): void`).
+		 * just one parameter should be used (`show(preserveFocus?: boolean): void`).
 		 *
 		 * @param column This argument is **deprecated** and will be ignored.
 		 * @param preserveFocus When `true` the channel will not take focus.
 		 */
 		show(column?: ViewColumn, preserveFocus?: boolean): void;
-
-		/**
-		 * Reveal this channel in the UI.
-		 *
-		 * @param preserveFocus When `true` the channel will not take focus.
-		 */
-		show(preservceFocus?: boolean): void;
 
 		/**
 		 * Hide this channel from the UI.
