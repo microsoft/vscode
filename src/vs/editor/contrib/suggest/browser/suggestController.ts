@@ -9,6 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
@@ -18,7 +19,7 @@ import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
+import { Context as SuggestContext, snippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
 import { SuggestModel } from '../common/suggestModel';
 import { ICompletionItem } from '../common/completionModel';
 import { SuggestWidget } from './suggestWidget';
@@ -37,6 +38,7 @@ export class SuggestController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@ICommandService private commandService: ICommandService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -84,14 +86,24 @@ export class SuggestController implements IEditorContribution {
 				this.editor.pushUndoStop();
 			}
 
+			const snippet = suggestion.isTMSnippet
+				? CodeSnippet.fromTextmate(suggestion.insertText)
+				: CodeSnippet.fromInternal(suggestion.insertText);
+
 			SnippetController.get(this.editor).run(
-				!suggestion.isTMSnippet ? CodeSnippet.fromInternal(suggestion.insertText) : CodeSnippet.fromTextmate(suggestion.insertText),
+				snippet,
 				suggestion.overwriteBefore + columnDelta,
 				suggestion.overwriteAfter
 			);
 
 			if (suggestion.command) {
 				this.commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
+			}
+
+			if (item.support !== snippetSuggestSupport) {
+				this.telemetryService.publicLog('suggestSnippetInsert', {
+					hasPlaceholders: snippet.placeHolders.length > 0
+				});
 			}
 		}
 
