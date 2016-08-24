@@ -156,7 +156,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}
 
 		const session = this.debugService.getActiveSession();
-		const canEvaluateForHovers: boolean = session.configuration.capabilities.supportsEvaluateForHovers;
+		const canEvaluateForHovers = session.configuration.capabilities.supportsEvaluateForHovers;
 
 		const lineContent = model.getLineContent(pos.lineNumber);
 		let evaluatedExpression = undefined;
@@ -167,9 +167,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			let expressionRange = this.getHoveredExpression(lineContent, range);
 			startOffset = expressionRange.startColumn;
 			let matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
-			evaluatedExpression = this.getExpressionSupportingEvaluate(session, matchingExpression);
-		}
-		else {
+			evaluatedExpression = evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression, true), 'hover');
+		} else {
 			// string magic to get the parents of the variable (a and b for a.b.foo)
 			const namesToFind = lineContent.substring(0, lineContent.indexOf('.' + hoveringOver))
 				.split('.').map(word => word.trim()).filter(word => !!word);
@@ -184,9 +183,9 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				return;
 			}
 
-			let hoverRange: Range = canEvaluateForHovers ?
+			let hoverRange = canEvaluateForHovers ?
 						new Range(pos.lineNumber, startOffset, pos.lineNumber, startOffset + matchingExpression.length) :
-						new Range(pos.lineNumber, lineContent.indexOf(hoveringOver) + 1, pos.lineNumber, lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length)
+						new Range(pos.lineNumber, lineContent.indexOf(hoveringOver) + 1, pos.lineNumber, lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length);
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
 				range: hoverRange,
@@ -197,11 +196,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 			return this.doShow(pos, expression, focus);
 		});
-	}
-
-	private getExpressionSupportingEvaluate(session: debug.IRawDebugSession, expression: string) : TPromise<Expression> {
-		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		return evaluateExpression(session, focusedStackFrame, new Expression(expression, true), 'hover');
 	}
 
 	private getExpression(namesToFind: string[]): TPromise<Expression> {
