@@ -20,15 +20,15 @@ suite('HTML Scanner', () => {
 		let scannerState = ScannerState.Content;
 		for (let t of tests) {
 			scanner.setSource(t.input, scannerState);
-			let token = scanner.scan();
+			let tokenType = scanner.scan();
 			let actual : Token[] = [];
-			while (token.type !== TokenType.EOS) {
-				let actualToken : Token= {offset: token.offset, type: token.type};
-				if (token.type == TokenType.Tag) {
-					actualToken.content = t.input.substr(token.offset, token.len);
+			while (tokenType !== TokenType.EOS) {
+				let actualToken : Token= { offset: scanner.tokenOffset, type: tokenType };
+				if (tokenType == TokenType.StartTag || tokenType == TokenType.EndTag) {
+					actualToken.content = t.input.substr(scanner.tokenOffset, scanner.tokenLength);
 				}
 				actual.push(actualToken);
-				token = scanner.scan();
+				tokenType = scanner.scan();
 			}
 			assert.deepEqual(actual, t.tokens);
 			scannerState = scanner.scannerState;
@@ -39,8 +39,8 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' }
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' }
 			]}
 		]);
 	});
@@ -49,8 +49,8 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<input',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'input' }
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'input' }
 			]}
 		]);
 	});
@@ -59,7 +59,7 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '< abc',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
+				{ offset:0, type: TokenType.StartTagOpen },
 				{ offset:1, type: TokenType.Unknown },
 				{ offset:2, type: TokenType.Content }
 			]}
@@ -70,7 +70,7 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '< abc>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
+				{ offset:0, type: TokenType.StartTagOpen },
 				{ offset:1, type: TokenType.Unknown },
 				{ offset:2, type: TokenType.Content }
 			]}
@@ -82,8 +82,8 @@ suite('HTML Scanner', () => {
 			input: 'i <len;',
 			tokens: [
 				{ offset:0, type: TokenType.Content },
-				{ offset:2, type: TokenType.TagStart },
-				{ offset:3, type: TokenType.Tag, content: 'len' },
+				{ offset:2, type: TokenType.StartTagOpen },
+				{ offset:3, type: TokenType.StartTag, content: 'len' },
 				{ offset:6, type: TokenType.Unknown }
 			]}
 		]);
@@ -93,7 +93,7 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart }
+				{ offset:0, type: TokenType.StartTagOpen }
 			]}
 		]);
 	});
@@ -102,8 +102,8 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '</a',
 			tokens: [
-				{ offset:0, type: TokenType.TagEnd },
-				{ offset:2, type: TokenType.Tag, content: 'a' }
+				{ offset:0, type: TokenType.EndTagOpen },
+				{ offset:2, type: TokenType.EndTag, content: 'a' }
 			]}
 		]);
 	});
@@ -112,9 +112,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
-				{ offset:4, type: TokenType.TagStart }
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
+				{ offset:4, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -123,10 +123,10 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc >',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
-				{ offset:5, type: TokenType.TagStart }
+				{ offset:5, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -135,9 +135,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<foo:bar>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'foo:bar' },
-				{ offset:8, type: TokenType.TagStart }
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'foo:bar' },
+				{ offset:8, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -146,9 +146,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '</abc>',
 			tokens: [
-				{ offset:0, type: TokenType.TagEnd },
-				{ offset:2, type: TokenType.Tag, content: 'abc' },
-				{ offset:5, type: TokenType.TagEnd }
+				{ offset:0, type: TokenType.EndTagOpen },
+				{ offset:2, type: TokenType.EndTag, content: 'abc' },
+				{ offset:5, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -157,10 +157,10 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '</abc  >',
 			tokens: [
-				{ offset:0, type: TokenType.TagEnd },
-				{ offset:2, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.EndTagOpen },
+				{ offset:2, type: TokenType.EndTag, content: 'abc' },
 				{ offset:5, type: TokenType.Whitespace },
-				{ offset:7, type: TokenType.TagEnd }
+				{ offset:7, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -169,10 +169,10 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc />',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
-				{ offset:5, type: TokenType.TagStart }
+				{ offset:5, type: TokenType.StartTagSelfClose }
 			]}
 		]);
 	});
@@ -181,17 +181,17 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script type="text/javascript">var i= 10;</script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
 				{ offset:7, type: TokenType.Whitespace },
 				{ offset:8, type: TokenType.AttributeName },
 				{ offset:12, type: TokenType.DelimiterAssign },
 				{ offset:13, type: TokenType.AttributeValue },
-				{ offset:30, type: TokenType.TagStart },
+				{ offset:30, type: TokenType.StartTagClose },
 				{ offset:31, type: TokenType.Script },
-				{ offset:41, type: TokenType.TagEnd },
-				{ offset:43, type: TokenType.Tag, content: 'script' },
-				{ offset:49, type: TokenType.TagEnd }
+				{ offset:41, type: TokenType.EndTagOpen },
+				{ offset:43, type: TokenType.EndTag, content: 'script' },
+				{ offset:49, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -200,13 +200,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script type="text/javascript">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
 				{ offset:7, type: TokenType.Whitespace },
 				{ offset:8, type: TokenType.AttributeName },
 				{ offset:12, type: TokenType.DelimiterAssign },
 				{ offset:13, type: TokenType.AttributeValue },
-				{ offset:30, type: TokenType.TagStart }
+				{ offset:30, type: TokenType.StartTagClose }
 			]}, {
 			input: 'var i= 10;',
 			tokens: [
@@ -214,9 +214,9 @@ suite('HTML Scanner', () => {
 			]}, {
 			input: '</script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagEnd },
-				{ offset:2, type: TokenType.Tag, content: 'script' },
-				{ offset:8, type: TokenType.TagEnd }
+				{ offset:0, type: TokenType.EndTagOpen },
+				{ offset:2, type: TokenType.EndTag, content: 'script' },
+				{ offset:8, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -225,20 +225,20 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script type="text/javascript">var i= 10;',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
 				{ offset:7, type: TokenType.Whitespace },
 				{ offset:8, type: TokenType.AttributeName },
 				{ offset:12, type: TokenType.DelimiterAssign },
 				{ offset:13, type: TokenType.AttributeValue },
-				{ offset:30, type: TokenType.TagStart },
+				{ offset:30, type: TokenType.StartTagClose },
 				{ offset:31, type: TokenType.Script }
 			]}, {
 			input: '</script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagEnd },
-				{ offset:2, type: TokenType.Tag, content: 'script' },
-				{ offset:8, type: TokenType.TagEnd }
+				{ offset:0, type: TokenType.EndTagOpen },
+				{ offset:2, type: TokenType.EndTag, content: 'script' },
+				{ offset:8, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -247,20 +247,20 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script type="text/javascript">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
 				{ offset:7, type: TokenType.Whitespace },
 				{ offset:8, type: TokenType.AttributeName },
 				{ offset:12, type: TokenType.DelimiterAssign },
 				{ offset:13, type: TokenType.AttributeValue },
-				{ offset:30, type: TokenType.TagStart }
+				{ offset:30, type: TokenType.StartTagClose }
 			]}, {
 			input: 'var i= 10;</script>',
 			tokens: [
 				{ offset:0, type: TokenType.Script },
-				{ offset:10, type: TokenType.TagEnd },
-				{ offset:12, type: TokenType.Tag, content: 'script' },
-				{ offset:18, type: TokenType.TagEnd }
+				{ offset:10, type: TokenType.EndTagOpen },
+				{ offset:12, type: TokenType.EndTag, content: 'script' },
+				{ offset:18, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -269,17 +269,17 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script type="text/plain">a\n<a</script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
 				{ offset:7, type: TokenType.Whitespace },
 				{ offset:8, type: TokenType.AttributeName },
 				{ offset:12, type: TokenType.DelimiterAssign },
 				{ offset:13, type: TokenType.AttributeValue },
-				{ offset:25, type: TokenType.TagStart },
+				{ offset:25, type: TokenType.StartTagClose },
 				{ offset:26, type: TokenType.Script },
-				{ offset:30, type: TokenType.TagEnd },
-				{ offset:32, type: TokenType.Tag, content: 'script' },
-				{ offset:38, type: TokenType.TagEnd }
+				{ offset:30, type: TokenType.EndTagOpen },
+				{ offset:32, type: TokenType.EndTag, content: 'script' },
+				{ offset:38, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -288,20 +288,20 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script>a</script><script>b</script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
-				{ offset:7, type: TokenType.TagStart },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
+				{ offset:7, type: TokenType.StartTagClose },
 				{ offset:8, type: TokenType.Script },
-				{ offset:9, type: TokenType.TagEnd },
-				{ offset:11, type: TokenType.Tag, content: 'script' },
-				{ offset:17, type: TokenType.TagEnd },
-				{ offset:18, type: TokenType.TagStart },
-				{ offset:19, type: TokenType.Tag, content: 'script' },
-				{ offset:25, type: TokenType.TagStart },
+				{ offset:9, type: TokenType.EndTagOpen },
+				{ offset:11, type: TokenType.EndTag, content: 'script' },
+				{ offset:17, type: TokenType.EndTagClose },
+				{ offset:18, type: TokenType.StartTagOpen },
+				{ offset:19, type: TokenType.StartTag, content: 'script' },
+				{ offset:25, type: TokenType.StartTagClose },
 				{ offset:26, type: TokenType.Script },
-				{ offset:27, type: TokenType.TagEnd },
-				{ offset:29, type: TokenType.Tag, content: 'script' },
-				{ offset:35, type: TokenType.TagEnd }
+				{ offset:27, type: TokenType.EndTagOpen },
+				{ offset:29, type: TokenType.EndTag, content: 'script' },
+				{ offset:35, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -310,16 +310,16 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script type="text/javascript"></script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
 				{ offset:7, type: TokenType.Whitespace },
 				{ offset:8, type: TokenType.AttributeName },
 				{ offset:12, type: TokenType.DelimiterAssign },
 				{ offset:13, type: TokenType.AttributeValue },
-				{ offset:30, type: TokenType.TagStart },
-				{ offset:31, type: TokenType.TagEnd },
-				{ offset:33, type: TokenType.Tag, content: 'script' },
-				{ offset:39, type: TokenType.TagEnd }
+				{ offset:30, type: TokenType.StartTagClose },
+				{ offset:31, type: TokenType.EndTagOpen },
+				{ offset:33, type: TokenType.EndTag, content: 'script' },
+				{ offset:39, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -328,13 +328,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script>var i= 10;</script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
-				{ offset:7, type: TokenType.TagStart },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
+				{ offset:7, type: TokenType.StartTagClose },
 				{ offset:8, type: TokenType.Script },
-				{ offset:18, type: TokenType.TagEnd },
-				{ offset:20, type: TokenType.Tag, content: 'script' },
-				{ offset:26, type: TokenType.TagEnd }
+				{ offset:18, type: TokenType.EndTagOpen },
+				{ offset:20, type: TokenType.EndTag, content: 'script' },
+				{ offset:26, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -343,8 +343,8 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script type="text/javascript" src="main.js"></script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
 				{ offset:7, type: TokenType.Whitespace },
 				{ offset:8, type: TokenType.AttributeName },
 				{ offset:12, type: TokenType.DelimiterAssign },
@@ -353,10 +353,10 @@ suite('HTML Scanner', () => {
 				{ offset:31, type: TokenType.AttributeName },
 				{ offset:34, type: TokenType.DelimiterAssign },
 				{ offset:35, type: TokenType.AttributeValue },
-				{ offset:44, type: TokenType.TagStart },
-				{ offset:45, type: TokenType.TagEnd },
-				{ offset:47, type: TokenType.Tag, content: 'script' },
-				{ offset:53, type: TokenType.TagEnd }
+				{ offset:44, type: TokenType.StartTagClose },
+				{ offset:45, type: TokenType.EndTagOpen },
+				{ offset:47, type: TokenType.EndTag, content: 'script' },
+				{ offset:53, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -365,13 +365,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script><!-- alert("<script></script>"); --></script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
-				{ offset:7, type: TokenType.TagStart },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
+				{ offset:7, type: TokenType.StartTagClose },
 				{ offset:8, type: TokenType.Script },
-				{ offset:44, type: TokenType.TagEnd },
-				{ offset:46, type: TokenType.Tag, content: 'script' },
-				{ offset:52, type: TokenType.TagEnd }
+				{ offset:44, type: TokenType.EndTagOpen },
+				{ offset:46, type: TokenType.EndTag, content: 'script' },
+				{ offset:52, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -380,13 +380,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script><!-- alert("<script></script>"); </script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
-				{ offset:7, type: TokenType.TagStart },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
+				{ offset:7, type: TokenType.StartTagClose },
 				{ offset:8, type: TokenType.Script },
-				{ offset:41, type: TokenType.TagEnd },
-				{ offset:43, type: TokenType.Tag, content: 'script' },
-				{ offset:49, type: TokenType.TagEnd }
+				{ offset:41, type: TokenType.EndTagOpen },
+				{ offset:43, type: TokenType.EndTag, content: 'script' },
+				{ offset:49, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -396,17 +396,17 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script><!-- alert("</script>"); </script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
-				{ offset:7, type: TokenType.TagStart },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
+				{ offset:7, type: TokenType.StartTagClose },
 				{ offset:8, type: TokenType.Script },
-				{ offset:20, type: TokenType.TagEnd },
-				{ offset:22, type: TokenType.Tag, content: 'script' },
-				{ offset:28, type: TokenType.TagEnd },
+				{ offset:20, type: TokenType.EndTagOpen },
+				{ offset:22, type: TokenType.EndTag, content: 'script' },
+				{ offset:28, type: TokenType.EndTagClose },
 				{ offset:29, type: TokenType.Content },
-				{ offset:33, type: TokenType.TagEnd },
-				{ offset:35, type: TokenType.Tag, content: 'script' },
-				{ offset:41, type: TokenType.TagEnd }
+				{ offset:33, type: TokenType.EndTagOpen },
+				{ offset:35, type: TokenType.EndTag, content: 'script' },
+				{ offset:41, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -415,17 +415,17 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<script> alert("<script></script>"); </script>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'script' },
-				{ offset:7, type: TokenType.TagStart },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'script' },
+				{ offset:7, type: TokenType.StartTagClose },
 				{ offset:8, type: TokenType.Script },
-				{ offset:24, type: TokenType.TagEnd },
-				{ offset:26, type: TokenType.Tag, content: 'script' },
-				{ offset:32, type: TokenType.TagEnd },
+				{ offset:24, type: TokenType.EndTagOpen },
+				{ offset:26, type: TokenType.EndTag, content: 'script' },
+				{ offset:32, type: TokenType.EndTagClose },
 				{ offset:33, type: TokenType.Content },
-				{ offset:37, type: TokenType.TagEnd },
-				{ offset:39, type: TokenType.Tag, content: 'script' },
-				{ offset:45, type: TokenType.TagEnd }
+				{ offset:37, type: TokenType.EndTagOpen },
+				{ offset:39, type: TokenType.EndTag, content: 'script' },
+				{ offset:45, type: TokenType.EndTagClose }
 			]}
 		]);
 	});
@@ -434,13 +434,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo="bar">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.DelimiterAssign },
 				{ offset:9, type: TokenType.AttributeValue },
-				{ offset:14, type: TokenType.TagStart }
+				{ offset:14, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -449,13 +449,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo=\'bar\'>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.DelimiterAssign },
 				{ offset:9, type: TokenType.AttributeValue },
-				{ offset:14, type: TokenType.TagStart }
+				{ offset:14, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -464,13 +464,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo="">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.DelimiterAssign },
 				{ offset:9, type: TokenType.AttributeValue },
-				{ offset:11, type: TokenType.TagStart }
+				{ offset:11, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -479,8 +479,8 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo="bar" bar=\'foo\'>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.DelimiterAssign },
@@ -489,7 +489,7 @@ suite('HTML Scanner', () => {
 				{ offset:15, type: TokenType.AttributeName },
 				{ offset:18, type: TokenType.DelimiterAssign },
 				{ offset:19, type: TokenType.AttributeValue },
-				{ offset:24, type: TokenType.TagStart }
+				{ offset:24, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -498,8 +498,8 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo=bar bar=help-me>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.DelimiterAssign },
@@ -508,7 +508,7 @@ suite('HTML Scanner', () => {
 				{ offset:13, type: TokenType.AttributeName },
 				{ offset:16, type: TokenType.DelimiterAssign },
 				{ offset:17, type: TokenType.AttributeValue },
-				{ offset:24, type: TokenType.TagStart }
+				{ offset:24, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -517,14 +517,14 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo=  "bar">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.DelimiterAssign },
 				{ offset:9, type: TokenType.Whitespace },
 				{ offset:11, type: TokenType.AttributeValue },
-				{ offset:16, type: TokenType.TagStart }
+				{ offset:16, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -533,15 +533,15 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo = "bar">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.Whitespace },
 				{ offset:9, type: TokenType.DelimiterAssign },
 				{ offset:10, type: TokenType.Whitespace },
 				{ offset:11, type: TokenType.AttributeValue },
-				{ offset:16, type: TokenType.TagStart }
+				{ offset:16, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -550,11 +550,11 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
-				{ offset:8, type: TokenType.TagStart }
+				{ offset:8, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -563,13 +563,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo bar>',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.Whitespace },
 				{ offset:9, type: TokenType.AttributeName },
-				{ offset:12, type: TokenType.TagStart }
+				{ offset:12, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -578,13 +578,13 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo!@#="bar">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:11, type: TokenType.DelimiterAssign },
 				{ offset:12, type: TokenType.AttributeValue },
-				{ offset:17, type: TokenType.TagStart }
+				{ offset:17, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -593,8 +593,8 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc #myinput (click)="bar" [value]="someProperty" *ngIf="someCondition">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:13, type: TokenType.Whitespace },
@@ -609,7 +609,7 @@ suite('HTML Scanner', () => {
 				{ offset:51, type: TokenType.AttributeName },
 				{ offset:56, type: TokenType.DelimiterAssign },
 				{ offset:57, type: TokenType.AttributeValue },
-				{ offset:72, type: TokenType.TagStart }
+				{ offset:72, type: TokenType.StartTagClose }
 			]}
 		]);
 	});
@@ -618,8 +618,8 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<abc foo=">',
 			tokens: [
-				{ offset:0, type: TokenType.TagStart },
-				{ offset:1, type: TokenType.Tag, content: 'abc' },
+				{ offset:0, type: TokenType.StartTagOpen },
+				{ offset:1, type: TokenType.StartTag, content: 'abc' },
 				{ offset:4, type: TokenType.Whitespace },
 				{ offset:5, type: TokenType.AttributeName },
 				{ offset:8, type: TokenType.DelimiterAssign },
@@ -632,9 +632,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<!--a-->',
 			tokens: [
-				{ offset:0, type: TokenType.CommentStart },
+				{ offset:0, type: TokenType.StartCommentTag },
 				{ offset:4, type: TokenType.Comment },
-				{ offset:5, type: TokenType.CommentEnd }
+				{ offset:5, type: TokenType.EndCommentTag }
 			]}
 		]);
 	});
@@ -643,9 +643,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<!--a>foo bar</a -->',
 			tokens: [
-				{ offset:0, type: TokenType.CommentStart },
+				{ offset:0, type: TokenType.StartCommentTag },
 				{ offset:4, type: TokenType.Comment },
-				{ offset:17, type: TokenType.CommentEnd }
+				{ offset:17, type: TokenType.EndCommentTag }
 			]}
 		]);
 	});
@@ -654,9 +654,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<!--a>\nfoo \nbar</a -->',
 			tokens: [
-				{ offset:0, type: TokenType.CommentStart },
+				{ offset:0, type: TokenType.StartCommentTag },
 				{ offset:4, type: TokenType.Comment },
-				{ offset:19, type: TokenType.CommentEnd }
+				{ offset:19, type: TokenType.EndCommentTag }
 			]}
 		]);
 	});
@@ -665,9 +665,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<!Doctype a>',
 			tokens: [
-				{ offset:0, type: TokenType.DoctypeStart },
+				{ offset:0, type: TokenType.StartDoctypeTag },
 				{ offset:9, type: TokenType.Doctype },
-				{ offset:11, type: TokenType.DoctypeEnd }
+				{ offset:11, type: TokenType.EndDoctypeTag }
 			]}
 		]);
 	});
@@ -676,9 +676,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<!doctype a>',
 			tokens: [
-				{ offset:0, type: TokenType.DoctypeStart },
+				{ offset:0, type: TokenType.StartDoctypeTag },
 				{ offset:9, type: TokenType.Doctype },
-				{ offset:11, type: TokenType.DoctypeEnd }
+				{ offset:11, type: TokenType.EndDoctypeTag }
 			]}
 		]);
 	});
@@ -687,9 +687,9 @@ suite('HTML Scanner', () => {
 		assertTokens([{
 			input: '<!DOCTYPE a\n"foo" \'bar\'>',
 			tokens: [
-				{ offset:0, type: TokenType.DoctypeStart },
+				{ offset:0, type: TokenType.StartDoctypeTag },
 				{ offset:9, type: TokenType.Doctype },
-				{ offset:23, type: TokenType.DoctypeEnd }
+				{ offset:23, type: TokenType.EndDoctypeTag }
 			]}
 		]);
 	});
