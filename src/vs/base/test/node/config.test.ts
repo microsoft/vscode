@@ -93,10 +93,9 @@ suite('Config', () => {
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
+			watcher.getConfig(); // ensure we are in sync
 
-			setTimeout(function () {
-				fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
-			}, 50);
+			fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
 
 			watcher.onDidUpdateConfiguration(event => {
 				assert.ok(event);
@@ -114,10 +113,9 @@ suite('Config', () => {
 	test('watching also works when file created later', function (done: () => void) {
 		testFile((testFile, cleanUp) => {
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
+			watcher.getConfig(); // ensure we are in sync
 
-			setTimeout(function () {
-				fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
-			}, 50);
+			fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
 
 			watcher.onDidUpdateConfiguration(event => {
 				assert.ok(event);
@@ -137,18 +135,17 @@ suite('Config', () => {
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
+			watcher.getConfig(); // ensure we are in sync
 
-			setTimeout(function () {
-				watcher.onDidUpdateConfiguration(event => {
-					assert.ok(event);
+			watcher.onDidUpdateConfiguration(event => {
+				assert.ok(event);
 
-					watcher.dispose();
+				watcher.dispose();
 
-					cleanUp(done);
-				});
+				cleanUp(done);
+			});
 
-				fs.unlinkSync(testFile);
-			}, 50);
+			fs.unlinkSync(testFile);
 		});
 	});
 
@@ -157,25 +154,24 @@ suite('Config', () => {
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100 });
+			watcher.getConfig(); // ensure we are in sync
 
-			setTimeout(function () {
-				fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
+			fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');
 
-				// still old values because change is not bubbling yet
-				assert.equal(watcher.getConfig().foo, 'bar');
-				assert.equal(watcher.getValue('foo'), 'bar');
+			// still old values because change is not bubbling yet
+			assert.equal(watcher.getConfig().foo, 'bar');
+			assert.equal(watcher.getValue('foo'), 'bar');
 
-				// force a load from disk
-				watcher.reload(config => {
-					assert.equal(config.foo, 'changed');
-					assert.equal(watcher.getConfig().foo, 'changed');
-					assert.equal(watcher.getValue('foo'), 'changed');
+			// force a load from disk
+			watcher.reload(config => {
+				assert.equal(config.foo, 'changed');
+				assert.equal(watcher.getConfig().foo, 'changed');
+				assert.equal(watcher.getValue('foo'), 'changed');
 
-					watcher.dispose();
+				watcher.dispose();
 
-					cleanUp(done);
-				});
-			}, 50);
+				cleanUp(done);
+			});
 		});
 	});
 });
