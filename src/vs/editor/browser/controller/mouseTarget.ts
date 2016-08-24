@@ -12,6 +12,7 @@ import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 import {EditorMouseEvent} from 'vs/editor/browser/editorDom';
 import * as dom from 'vs/base/browser/dom';
+import * as browser from 'vs/base/browser/browser';
 import {IViewCursorRenderData} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
 interface IHitTestResult {
@@ -359,7 +360,7 @@ export class MouseTargetFactory {
 	}
 
 	/**
-	 * Most probably WebKit browsers
+	 * Most probably WebKit browsers and Edge
 	 */
 	private _doHitTestWithCaretRangeFromPoint(e: EditorMouseEvent, mouseVerticalOffset: number): IHitTestResult {
 
@@ -519,6 +520,11 @@ export class MouseTargetFactory {
 		// IE:
 		//    - they have a proprietary method on ranges, moveToPoint: https://msdn.microsoft.com/en-us/library/ie/ms536632(v=vs.85).aspx
 
+		// 24.08.2016: Edge has added WebKit's document.caretRangeFromPoint, but it is quite buggy
+		//    - when hit testing the cursor it returns the first or the last line in the viewport
+		//    - it inconsistently hits text nodes or span nodes, while WebKit only hits text nodes
+		//    - when toggling render whitespace on, and hit testing in the empty content after a line, it always hits offset 0 of the first span of the line
+
 		// Thank you browsers for making this so 'easy' :)
 
 		if ((<any>document).caretRangeFromPoint) {
@@ -632,6 +638,10 @@ export class MouseTargetFactory {
 		let lineWidth = this._viewHelper.getLineWidth(lineNumber);
 
 		if (mouseHorizontalOffset > lineWidth) {
+			if (browser.isEdge && pos.column === 1) {
+				// See https://github.com/Microsoft/vscode/issues/10875
+				return new MouseTarget(target, MouseTargetType.CONTENT_EMPTY, mouseColumn, new Position(lineNumber, this._context.model.getLineMaxColumn(lineNumber)));
+			}
 			return new MouseTarget(target, MouseTargetType.CONTENT_EMPTY, mouseColumn, pos);
 		}
 
