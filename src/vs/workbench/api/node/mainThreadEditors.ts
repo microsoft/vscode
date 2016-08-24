@@ -182,7 +182,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 		const input = {
 			resource,
-			options: { preserveFocus }
+			options: { preserveFocus, pinned: true }
 		};
 
 		return this._workbenchEditorService.openEditor(input, position).then(editor => {
