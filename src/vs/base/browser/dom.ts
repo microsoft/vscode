@@ -960,8 +960,13 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	Object.keys(attrs || {})
-		.forEach(name => result.setAttribute(name, attrs[name]));
+	Object.keys(attrs || {}).forEach(name => {
+		if (/^on\w+$/.test(name)) {
+			result[name] = attrs[name];
+		} else {
+			result.setAttribute(name, attrs[name]);
+		}
+	});
 
 	children
 		.filter(child => !!child)
