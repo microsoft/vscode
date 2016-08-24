@@ -66,8 +66,10 @@ suite('HTML Parser', () => {
 		assertNodeBefore(str, 40, 'hr');
 		assertNodeBefore(str, 41, 'hr');
 		assertNodeBefore(str, 41, 'hr');
-		assertNodeBefore(str, 47, 'hr');
+		assertNodeBefore(str, 47, 'span');
 		assertNodeBefore(str, 48, 'span');
+		assertNodeBefore(str, 52, 'span');
+		assertNodeBefore(str, 53, 'div');
 	});
 
 });
