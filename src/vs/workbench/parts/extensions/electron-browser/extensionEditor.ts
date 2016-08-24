@@ -286,6 +286,7 @@ export class ExtensionEditor extends BaseEditor {
 
 				ExtensionEditor.renderSettings(content, manifest);
 				this.renderCommands(content, manifest);
+				ExtensionEditor.renderLanguages(content, manifest);
 				ExtensionEditor.renderThemes(content, manifest);
 				ExtensionEditor.renderJSONValidation(content, manifest);
 				ExtensionEditor.renderDebuggers(content, manifest);
@@ -416,6 +417,33 @@ export class ExtensionEditor extends BaseEditor {
 					$('td', null, c.title),
 					$('td', null, ...join(c.keybindings.map(keybinding => $('code', null, keybinding)), ' ')),
 					$('td', null, ...c.menus.map(context => $('code', null, context)))
+				))
+			)
+		));
+	}
+
+	private static renderLanguages(container: HTMLElement, manifest: IExtensionManifest): void {
+		const rawLanguages = manifest.contributes.languages || [];
+		const languages = rawLanguages.map(l => ({
+			id: l.id,
+			name: l.aliases[0] || l.id,
+			extensions: l.extensions
+		}));
+
+		if (!languages.length) {
+			return;
+		}
+
+		append(container, $('details', { open: true },
+			$('summary', null, localize('languages', "Languages ({0})", languages.length)),
+			$('table', null,
+				$('tr', null,
+					$('th', null, localize('command name', "Name")),
+					$('th', null, localize('file extensions', "File Extensions"))
+				),
+				...languages.map(l => $('tr', null,
+					$('td', null, l.name),
+					$('td', null, ...join(l.extensions.map(ext => $('code', null, ext)), ' '))
 				))
 			)
 		));
