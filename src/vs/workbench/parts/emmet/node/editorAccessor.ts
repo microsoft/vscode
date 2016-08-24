@@ -16,18 +16,20 @@ import emmet = require('emmet');
 export class EditorAccessor implements emmet.Editor {
 
 	editor: ICommonCodeEditor;
+	syntaxProfiles: any;
+
 	private _hasMadeEdits: boolean;
 
 	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'scss', 'stylus', 'xml', 'xsl', 'jade', 'handlebars', 'ejs', 'hbs', 'jsx', 'tsx', 'erb', 'php', 'twig'];
 
-	constructor(editor: ICommonCodeEditor) {
+	constructor(editor: ICommonCodeEditor, syntaxProfiles: any) {
 		this.editor = editor;
+		this.syntaxProfiles = syntaxProfiles;
 		this._hasMadeEdits = false;
 	}
 
 	public isEmmetEnabledMode(): boolean {
-		let syntax = this.getSyntax();
-		return (this.emmetSupportedModes.indexOf(syntax) !== -1);
+		return this.emmetSupportedModes.indexOf(this.getSyntax()) !== -1;
 	}
 
 	public getSelectionRange(): emmet.Range {
@@ -119,6 +121,13 @@ export class EditorAccessor implements emmet.Editor {
 		let position = this.editor.getSelection().getStartPosition();
 		let modeId = this.editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
 		let syntax = modeId.split('.').pop();
+
+		// user can overwrite the syntax using the emmet syntaxProfiles setting
+		let profile = this.getSyntaxProfile(syntax);
+		if (profile) {
+			return profile;
+		}
+ 
 		if (/\b(razor|handlebars|erb|php|hbs|ejs|twig)\b/.test(syntax)) { // treat like html
 			return 'html';
 		}
@@ -129,6 +138,13 @@ export class EditorAccessor implements emmet.Editor {
 			return 'sass';
 		}
 		return syntax;
+	}
+
+	private getSyntaxProfile(syntax: string): string {
+		const profile = this.syntaxProfiles[syntax];
+		if (profile && typeof profile === 'string') {
+			return profile;
+		}
 	}
 
 	public getProfileName(): string {
