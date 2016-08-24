@@ -176,3 +176,16 @@ export function flatten(contents: any): any {
 
 	return root;
 }
+
+export function getConfigurationKeys(): string[] {
+	const keys: string[] = [];
+
+	const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
+	configurations.forEach(config => {
+		if (config.properties) {
+			keys.push(...Object.keys(config.properties));
+		}
+	});
+
+	return keys;
+}
