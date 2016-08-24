@@ -61,11 +61,13 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		return true;
 	}
 	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
-		if (!this._relativeLineNumbers || this._currentLineNumber === e.position.lineNumber) {
+		let modelPosition = this._context.model.convertViewPositionToModelPosition(e.position.lineNumber, e.position.column);
+
+		if (!this._relativeLineNumbers || this._currentLineNumber === modelPosition.lineNumber) {
 			return false;
 		}
 
-		this._currentLineNumber = e.position.lineNumber;
+		this._currentLineNumber = modelPosition.lineNumber;
 
 		return true;
 	}
@@ -121,25 +123,26 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			let lineIndex = lineNumber - visibleStartLineNumber;
-			let relativeLineNumber = lineNumber;
+			let position = this._context.model.convertViewPositionToModelPosition(lineNumber, 1);
+			let relativeLineNumber = position.lineNumber;
 
-			if (this._relativeLineNumbers) {
-				if (lineNumber !== this._currentLineNumber) {
-					relativeLineNumber = Math.abs(lineNumber - this._currentLineNumber);
+			if (position.column === 1) {
+				if (this._relativeLineNumbers) {
+					if (relativeLineNumber !== this._currentLineNumber) {
+						relativeLineNumber = Math.abs(relativeLineNumber - this._currentLineNumber);
+					}
 				}
-			}
 
-			let renderLineNumber = this._context.model.getLineRenderLineNumber(relativeLineNumber);
-			if (renderLineNumber) {
 				output[lineIndex] = (
-					(lineNumber !== this._currentLineNumber ? common : commonLeft)
-					+ renderLineNumber
+					(position.lineNumber === this._currentLineNumber && this._relativeLineNumbers ? commonLeft : common)
+					+ relativeLineNumber
 					+ '</div>'
 				);
 			} else {
 				output[lineIndex] = '';
 			}
-		}
+
+	}
 
 		this._renderResult = output;
 	}
