@@ -10,8 +10,16 @@ import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import {Range} from 'vs/editor/common/core/range';
 import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
+import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+
 
 import emmet = require('emmet');
+
+interface ModeScopeMap {
+    [key: string]: string;
+}
+
+let modeScopesMap: ModeScopeMap = null;
 
 export class EditorAccessor implements emmet.Editor {
 
@@ -127,7 +135,7 @@ export class EditorAccessor implements emmet.Editor {
 		if (profile) {
 			return profile;
 		}
- 
+
 		if (/\b(razor|handlebars|erb|php|hbs|ejs|twig)\b/.test(syntax)) { // treat like html
 			return 'html';
 		}
@@ -137,6 +145,8 @@ export class EditorAccessor implements emmet.Editor {
 		if (syntax === 'sass-indented') { // map sass-indented to sass
 			return 'sass';
 		}
+		syntax = this.checkParentMode(syntax);
+
 		return syntax;
 	}
 
@@ -145,6 +155,43 @@ export class EditorAccessor implements emmet.Editor {
 		if (profile && typeof profile === 'string') {
 			return profile;
 		}
+	}
+
+	private checkParentMode(syntax: string): string {
+		if (!modeScopesMap) {
+			modeScopesMap = this.getModeScopeMap();
+		}
+		let languageGrammar = modeScopesMap[syntax];
+		if (!languageGrammar) {
+			return syntax;
+		}
+		let languages = languageGrammar.split('.');
+		let thisLanguage = languages[languages.length-1];
+		if (syntax !== thisLanguage || languages.length < 2) {
+			return syntax;
+		}
+		let parentMode = languages[languages.length-2];
+		if (this.emmetSupportedModes.indexOf(parentMode) !== -1) {
+			return parentMode;
+		}
+		return syntax;
+	}
+
+	private getModeScopeMap(): ModeScopeMap {
+		let map: ModeScopeMap = {};
+		ExtensionsRegistry.getAllExtensionDescriptions().forEach((desc) => {
+			if (desc.contributes) {
+				let grammars = (<any>desc.contributes).grammars;
+				if (grammars) {
+					grammars.forEach((grammar) => {
+						if (grammar.language && grammar.scopeName) {
+							map[grammar.language] = grammar.scopeName;
+						}
+					});
+				}
+			}
+		});
+		return map;
 	}
 
 	public getProfileName(): string {
