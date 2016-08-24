@@ -189,11 +189,6 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
-		this.textAreaHandler.setCursorPosition(e.position);
-		return false;
-	}
-
 	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this.contentLeft = layoutInfo.contentLeft;
 		this.contentWidth = layoutInfo.contentWidth;

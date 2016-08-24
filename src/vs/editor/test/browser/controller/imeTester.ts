@@ -123,7 +123,6 @@ function doCreateTest(strategy:TextAreaStrategy, description:string, inputStr:st
 	let updatePosition = (off:number, len:number) => {
 		cursorOffset = off;
 		cursorLength = len;
-		handler.setCursorPosition(new Position(1, 1 + cursorOffset + cursorLength));
 		handler.setCursorSelections(new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength), []);
 		handler.writePlaceholderAndSelectTextAreaSync();
 	};
