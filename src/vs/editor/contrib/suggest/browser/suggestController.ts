@@ -85,7 +85,7 @@ export class SuggestController implements IEditorContribution {
 			}
 
 			SnippetController.get(this.editor).run(
-				new CodeSnippet(insertText),
+				CodeSnippet.fromInternal(insertText),
 				overwriteBefore + columnDelta,
 				overwriteAfter
 			);

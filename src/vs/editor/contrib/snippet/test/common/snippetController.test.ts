@@ -35,7 +35,7 @@ suite('SnippetController', () => {
 				insertSpaces: false
 			});
 			let snippetController = editor.registerAndInstantiateContribution<TestSnippetController>(TestSnippetController);
-			let codeSnippet = new CodeSnippet([
+			let codeSnippet = CodeSnippet.fromInternal([
 				'for (var {{index}}; {{index}} < {{array}}.length; {{index}}++) {',
 				'\tvar element = {{array}}[{{index}}];',
 				'\t{{}}',
@@ -228,7 +228,7 @@ suite('SnippetController', () => {
 				new Selection(2, 1, 2, 1),
 			]);
 
-			codeSnippet = new CodeSnippet('foo{{}}');
+			codeSnippet = CodeSnippet.fromInternal('foo{{}}');
 			snippetController.run(codeSnippet, 0, 0, false);
 
 			assert.equal(editor.getSelections().length, 2);
@@ -243,7 +243,7 @@ suite('SnippetController', () => {
 				new Selection(2, 1, 2, 1),
 			]);
 
-			codeSnippet = new CodeSnippet('foo{{}}bar');
+			codeSnippet = CodeSnippet.fromInternal('foo{{}}bar');
 			snippetController.run(codeSnippet, 0, 0, false);
 
 			assert.equal(editor.getSelections().length, 2);
@@ -258,7 +258,7 @@ suite('SnippetController', () => {
 				new Selection(1, 5, 1, 5),
 			]);
 
-			codeSnippet = new CodeSnippet('foo{{}}bar');
+			codeSnippet = CodeSnippet.fromInternal('foo{{}}bar');
 			snippetController.run(codeSnippet, 0, 0, false);
 
 			assert.equal(editor.getSelections().length, 2);
@@ -273,7 +273,7 @@ suite('SnippetController', () => {
 				new Selection(1, 5, 1, 5),
 			]);
 
-			codeSnippet = new CodeSnippet('foo\n{{}}\nbar');
+			codeSnippet = CodeSnippet.fromInternal('foo\n{{}}\nbar');
 			snippetController.run(codeSnippet, 0, 0, false);
 
 			assert.equal(editor.getSelections().length, 2);

@@ -20,8 +20,6 @@ export interface ISnippetsRegistry {
 	 */
 	registerSnippets(modeId: string, snippets: ISnippet[], owner?: string): void;
 
-
-
 	/**
 	 * Visit all snippets
 	 */
