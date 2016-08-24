@@ -30,7 +30,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
 		this._relativeLineNumbers = this._context.configuration.editor.viewInfo.relativeLineNumbers;
-		this._currentLineNumber = 0;
+		this._currentLineNumber = 1;
 		this._lineNumbersLeft = 0;
 		this._lineNumbersWidth = 0;
 		this._renderResult = null;
@@ -61,7 +61,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		return true;
 	}
 	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
-		if (!this._relativeLineNumbers) {
+		if (!this._relativeLineNumbers || this._currentLineNumber === e.position.lineNumber) {
 			return false;
 		}
 
