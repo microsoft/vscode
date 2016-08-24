@@ -1063,6 +1063,11 @@ declare module monaco.editor {
          */
         lineNumbers?: any;
         /**
+         * Renders line numbers relative to cursor position.
+         * Line with a cursor will have absolute number.
+         */
+        relativeLineNumbers?: boolean;
+        /**
          * Should the corresponding line be selected when clicking on the line number?
          * Defaults to true.
          */
@@ -1368,6 +1373,7 @@ declare module monaco.editor {
         rulers: number[];
         ariaLabel: string;
         lineNumbers: any;
+        relativeLineNumbers: boolean;
         selectOnLineNumbers: boolean;
         glyphMargin: boolean;
         revealHorizontalRightPadding: number;
@@ -1393,6 +1399,7 @@ declare module monaco.editor {
         rulers: boolean;
         ariaLabel: boolean;
         lineNumbers: boolean;
+        relativeLineNumbers: boolean;
         selectOnLineNumbers: boolean;
         glyphMargin: boolean;
         revealHorizontalRightPadding: boolean;

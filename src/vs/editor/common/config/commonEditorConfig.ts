@@ -164,6 +164,7 @@ class InternalEditorOptionsHelper {
 
 		let glyphMargin = toBoolean(opts.glyphMargin);
 		let lineNumbers = opts.lineNumbers;
+		let relativeLineNumbers = opts.relativeLineNumbers;
 		let lineNumbersMinChars = toInteger(opts.lineNumbersMinChars, 1);
 		let lineDecorationsWidth = toInteger(opts.lineDecorationsWidth, 0);
 		if (opts.folding) {
@@ -175,6 +176,7 @@ class InternalEditorOptionsHelper {
 			showGlyphMargin: glyphMargin,
 			lineHeight: fontInfo.lineHeight,
 			showLineNumbers: !!lineNumbers,
+			relativeLineNumbers: relativeLineNumbers,
 			lineNumbersMinChars: lineNumbersMinChars,
 			lineDecorationsWidth: lineDecorationsWidth,
 			maxDigitWidth: fontInfo.maxDigitWidth,
@@ -232,6 +234,7 @@ class InternalEditorOptionsHelper {
 			rulers: toSortedIntegerArray(opts.rulers),
 			ariaLabel: String(opts.ariaLabel),
 			lineNumbers: lineNumbers,
+			relativeLineNumbers: relativeLineNumbers,
 			selectOnLineNumbers: toBoolean(opts.selectOnLineNumbers),
 			glyphMargin: glyphMargin,
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
@@ -601,6 +604,11 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.lineNumbers,
 			'description': nls.localize('lineNumbers', "Controls visibility of line numbers")
+		},
+		'editor.relativeLineNumbers': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.relativeLineNumbers,
+			'description': nls.localize('relativeLineNumbers', "Controls behaviour of relative line numbers")
 		},
 		'editor.glyphMargin' : {
 			'type': 'boolean',
