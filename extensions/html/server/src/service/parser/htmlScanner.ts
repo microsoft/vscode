@@ -5,18 +5,22 @@
 'use strict';
 
 export enum TokenType {
-	CommentStart,
+	StartCommentTag,
 	Comment,
-	CommentEnd,
-	TagStart,
-	Tag,
-	TagEnd,
+	EndCommentTag,
+	StartTagOpen,
+	StartTagClose,
+	StartTagSelfClose,
+	StartTag,
+	EndTagOpen,
+	EndTagClose,
+	EndTag,
 	DelimiterAssign,
 	AttributeName,
 	AttributeValue,
-	DoctypeStart,
+	StartDoctypeTag,
 	Doctype,
-	DoctypeEnd,
+	EndDoctypeTag,
 	Content,
 	Whitespace,
 	Unknown,
@@ -226,17 +230,13 @@ export class Scanner {
 		return this._stream.advanceIfRegExp(/^[^\s"'>/=\x00-\x0F\x7F\x80-\x9F]*/).toLowerCase();
 	}
 
-	private finishToken(offset: number, type: TokenType): IToken {
+	private finishToken(offset: number, type: TokenType): TokenType {
 		this._tokenType = type;
 		this._tokenOffset = offset;
-		return {
-			offset: offset,
-			len: this._stream.pos() - offset,
-			type: type
-		};
+		return type;
 	}
 
-	public scan(): IToken {
+	public scan(): TokenType {
 		let offset = this._stream.pos();
 		if (this._stream.eos()) {
 			return this.finishToken(offset, TokenType.EOS);
@@ -246,14 +246,14 @@ export class Scanner {
 			case ScannerState.WithinComment:
 				if (this._stream.advanceIfChars([_MIN, _MIN, _RAN])) { // -->
 					this._state = ScannerState.Content;
-					return this.finishToken(offset, TokenType.CommentEnd);
+					return this.finishToken(offset, TokenType.EndCommentTag);
 				}
 				this._stream.advanceUntilChars([_MIN, _MIN, _RAN]);  // -->
 				return this.finishToken(offset, TokenType.Comment);
 			case ScannerState.WithinDoctype:
 				if (this._stream.advanceIfChar(_RAN)) {
 					this._state = ScannerState.Content;
-					return this.finishToken(offset, TokenType.DoctypeEnd);
+					return this.finishToken(offset, TokenType.EndDoctypeTag);
 				}
 				this._stream.advanceUntilChar(_RAN); // >
 				return this.finishToken(offset, TokenType.Doctype);
@@ -262,29 +262,29 @@ export class Scanner {
 					if (!this._stream.eos() && this._stream.peekChar() === _BNG) { // !
 						if (this._stream.advanceIfChars([_BNG, _MIN, _MIN])) { // <!--
 							this._state = ScannerState.WithinComment;
-							return this.finishToken(offset, TokenType.CommentStart);
+							return this.finishToken(offset, TokenType.StartCommentTag);
 						}
 						if (this._stream.advanceIfRegExp(/^!doctype/i)) {
 							this._state = ScannerState.WithinDoctype;
-							return this.finishToken(offset, TokenType.DoctypeStart);
+							return this.finishToken(offset, TokenType.StartDoctypeTag);
 						}
 					}
 					if (this._stream.advanceIfChar(_FSL)) { // /
 						this._state = ScannerState.OpeningEndTag;
-						return this.finishToken(offset, TokenType.TagEnd);
+						return this.finishToken(offset, TokenType.EndTagOpen);
 					}
 					this._state = ScannerState.OpeningStartTag;
-					return this.finishToken(offset, TokenType.TagStart);
+					return this.finishToken(offset, TokenType.StartTagOpen);
 				}
 				this._stream.advanceUntilChar(_LAN);
 				return this.finishToken(offset, TokenType.Content);
 			case ScannerState.OpeningEndTag:
 				let tagName = this.nextElementName();
 				if (tagName.length > 0) {
-					return this.finishToken(offset, TokenType.Tag);
+					return this.finishToken(offset, TokenType.EndTag);
 				} else if (this._stream.advanceIfChar(_RAN)) { // >
 					this._state = ScannerState.Content;
-					return this.finishToken(offset, TokenType.TagEnd);
+					return this.finishToken(offset, TokenType.EndTagClose);
 				}
 				this._stream.advanceUntilChar(_RAN);
 				return this.finishToken(offset, TokenType.Whitespace);
@@ -293,7 +293,7 @@ export class Scanner {
 				if (this._lastTag.length > 0) {
 					this._hasSpaceAfterTag = false;
 					this._state = ScannerState.WithinTag;
-					return this.finishToken(offset, TokenType.Tag);
+					return this.finishToken(offset, TokenType.StartTag);
 				}
 				break;
 			case ScannerState.WithinTag:
@@ -311,7 +311,7 @@ export class Scanner {
 				}
 				if (this._stream.advanceIfChars([_FSL, _RAN])) { // />
 					this._state = ScannerState.Content;
-					return this.finishToken(offset, TokenType.TagStart);
+					return this.finishToken(offset, TokenType.StartTagSelfClose);
 				}
 				if (this._stream.advanceIfChar(_RAN)) { // >
 					if (this._lastTag === 'script') {
@@ -321,7 +321,7 @@ export class Scanner {
 					} else {
 						this._state = ScannerState.Content;
 					}
-					return this.finishToken(offset, TokenType.TagStart);
+					return this.finishToken(offset, TokenType.StartTagClose);
 				}
 				this._stream.advance(1);
 				return this.finishToken(offset, TokenType.Unknown);
