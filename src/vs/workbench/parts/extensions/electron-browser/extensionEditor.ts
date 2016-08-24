@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
+import * as arrays from 'vs/base/common/arrays';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
@@ -356,23 +357,18 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderCommands(container: HTMLElement, manifest: IExtensionManifest): void {
-		interface Command {
-			id: string;
-			title: string;
-			keybindings: string[];
-			menus: string[];
-		}
-
-		const commands: Command[] = (manifest.contributes.commands || []).map(c => ({
+		const rawCommands = manifest.contributes.commands || [];
+		const commands = rawCommands.map(c => ({
 			id: c.command,
 			title: c.title,
 			keybindings: [],
 			menus: []
 		}));
 
-		const allCommands = commands.reduce<{ [id: string]: Command }>((r, c) => { r[c.id] = c; return r; }, {});
+		const allCommands = arrays.index(commands, c => c.id);
 
 		const menus = manifest.contributes.menus || {};
+
 		Object.keys(menus).forEach(context => {
 			menus[context].forEach(menu => {
 				let command = allCommands[menu.command];
@@ -387,7 +383,9 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		});
 
-		(manifest.contributes.keybindings || []).forEach(userString => {
+		const rawKeybindings = manifest.contributes.keybindings || [];
+
+		rawKeybindings.forEach(userString => {
 			let command = allCommands[userString.command];
 			const keybinding = new Keybinding(Keybinding.fromUserSettingsLabel(userString.key));
 			const key = this.keybindingService.getLabelFor(keybinding);
