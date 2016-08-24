@@ -192,7 +192,7 @@
 
 .extension-editor > .body > .content table code {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
-	font-size: 80%;
+	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);
 	border-radius: 4px;
 	padding: 1px 4px;
