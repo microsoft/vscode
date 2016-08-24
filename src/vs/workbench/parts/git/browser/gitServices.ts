@@ -347,11 +347,14 @@ export class AutoFetcher implements git.IAutoFetcher, lifecycle.IDisposable
 	}
 
 	private loop(): void {
-		var model = this.gitService ? this.gitService.getModel() : null;
-		var remotes = model ? model.getRemotes() : null;
+		this._state = git.AutoFetcherState.Fetching;
 
-		if(remotes && remotes.length !== 0){
-			this._state = git.AutoFetcherState.Fetching;
+		const remotes = this.gitService.getModel().getRemotes();
+
+		if (remotes.length === 0) {
+			this.timeout = AutoFetcher.MIN_TIMEOUT;
+			this.currentRequest = winjs.TPromise.as(null);
+		} else {
 			this.currentRequest = this.gitService.fetch().then(() => {
 				this.timeout = AutoFetcher.MIN_TIMEOUT;
 			}, (err) => {
@@ -363,13 +366,13 @@ export class AutoFetcher implements git.IAutoFetcher, lifecycle.IDisposable
 					this.timeout = Math.min(Math.round(this.timeout * 1.2), AutoFetcher.MAX_TIMEOUT); // backoff
 				}
 			});
-
-			this.currentRequest.then(() => {
-				this._state = git.AutoFetcherState.Active;
-				this.currentRequest = winjs.TPromise.timeout(this.timeout);
-				return this.currentRequest;
-			}).then(() => this.loop(), (err) => this.deactivate());
 		}
+
+		this.currentRequest.then(() => {
+			this._state = git.AutoFetcherState.Active;
+			this.currentRequest = winjs.TPromise.timeout(this.timeout);
+			return this.currentRequest;
+		}).then(() => this.loop(), (err) => this.deactivate());
 	}
 
 	public dispose(): void {
