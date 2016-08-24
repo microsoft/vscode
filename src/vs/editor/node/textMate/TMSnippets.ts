@@ -12,7 +12,6 @@ import {readFile} from 'vs/base/node/pfs';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ISnippetsRegistry, Extensions, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {CodeSnippet, ExternalSnippetType} from 'vs/editor/contrib/snippet/common/snippet';
 import platform = require('vs/platform/platform');
 
 export interface ISnippetsExtensionPoint {
@@ -106,14 +105,11 @@ function parseSnippetFile(snippetFileContent: string): ISnippet[] {
 		}
 
 		if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
-			let codeSnippet = CodeSnippet.convertExternalSnippet(bodyStringOrArray, ExternalSnippetType.TextMateSnippet);
-			if (codeSnippet !== null) {
-				result.push({
-					prefix,
-					description: snippet['description'] || description,
-					codeSnippet
-				});
-			}
+			result.push({
+				prefix,
+				description: snippet['description'] || description,
+				codeSnippet: bodyStringOrArray
+			});
 		}
 	};
 

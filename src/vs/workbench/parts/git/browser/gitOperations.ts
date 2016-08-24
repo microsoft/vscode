@@ -4,38 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import git = require('vs/workbench/parts/git/common/git');
-import winjs = require('vs/base/common/winjs.base');
+import { IGitOperation, IRawStatus } from 'vs/workbench/parts/git/common/git';
+import { TPromise } from 'vs/base/common/winjs.base';
 
-export class GitOperation implements git.IGitOperation {
+export class GitOperation implements IGitOperation {
 
-	constructor(public id: string, private fn: () => winjs.Promise) {
-		// noop
+	id: string;
+
+	constructor(id: string, private fn: () => TPromise<IRawStatus>) {
+		this.id = id;
 	}
 
-	public run(): winjs.Promise {
+	run(): TPromise<IRawStatus> {
 		return this.fn();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		// noop
-	}
-}
-
-export class CommandOperation implements git.IGitOperation {
-
-	public id: string = git.ServiceOperations.COMMAND;
-
-	constructor(public input:string) {
-		// noop
-	}
-
-	public run(): winjs.Promise {
-		return winjs.TPromise.as(null);
-	}
-
-	public dispose(): void {
-		this.id = null;
-		this.input = null;
 	}
 }

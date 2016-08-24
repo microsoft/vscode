@@ -542,9 +542,9 @@ export class FileController extends DefaultController {
 				event.preventDefault(); // focus moves to editor, we need to prevent default
 			}
 
-			if (!stat.isDirectory) {
-				tree.setSelection([stat], payload);
+			tree.setSelection([stat], payload);
 
+			if (!stat.isDirectory) {
 				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
 			}
 		}

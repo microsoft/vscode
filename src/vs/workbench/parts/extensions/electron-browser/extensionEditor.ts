@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
+import * as arrays from 'vs/base/common/arrays';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
@@ -17,13 +18,13 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
-import { append, $, addClass, removeClass, finalHandler } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionGalleryService, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension } from './extensions';
@@ -356,23 +357,18 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderCommands(container: HTMLElement, manifest: IExtensionManifest): void {
-		interface Command {
-			id: string;
-			title: string;
-			keybindings: string[];
-			menus: string[];
-		}
-
-		const commands: Command[] = (manifest.contributes.commands || []).map(c => ({
+		const rawCommands = manifest.contributes.commands || [];
+		const commands = rawCommands.map(c => ({
 			id: c.command,
 			title: c.title,
 			keybindings: [],
 			menus: []
 		}));
 
-		const allCommands = commands.reduce<{ [id: string]: Command }>((r, c) => { r[c.id] = c; return r; }, {});
+		const allCommands = arrays.index(commands, c => c.id);
 
 		const menus = manifest.contributes.menus || {};
+
 		Object.keys(menus).forEach(context => {
 			menus[context].forEach(menu => {
 				let command = allCommands[menu.command];
@@ -387,17 +383,18 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		});
 
-		(manifest.contributes.keybindings || []).forEach(userString => {
-			let command = allCommands[userString.command];
-			const keybinding = new Keybinding(Keybinding.fromUserSettingsLabel(userString.key));
-			const key = this.keybindingService.getLabelFor(keybinding);
+		const rawKeybindings = manifest.contributes.keybindings || [];
+
+		rawKeybindings.forEach(rawKeybinding => {
+			const keyLabel = this.keybindingToLabel(rawKeybinding);
+			let command = allCommands[rawKeybinding.command];
 
 			if (!command) {
-				command = { id: userString.command, title: '', keybindings: [key], menus: [] };
+				command = { id: rawKeybinding.command, title: '', keybindings: [keyLabel], menus: [] };
 				allCommands[command.id] = command;
 				commands.push(command);
 			} else {
-				command.keybindings.push(key);
+				command.keybindings.push(keyLabel);
 			}
 		});
 
@@ -415,13 +412,26 @@ export class ExtensionEditor extends BaseEditor {
 					$('th', null, localize('menuContexts', "Menu Contexts"))
 				),
 				...commands.map(c => $('tr', null,
-					$('td', null, c.id),
+					$('td', null, $('code', null, c.id)),
 					$('td', null, c.title),
-					$('td', null, ...c.keybindings.map(keybinding => $('code', null, keybinding))),
+					$('td', null, ...join(c.keybindings.map(keybinding => $('code', null, keybinding)), ' ')),
 					$('td', null, ...c.menus.map(context => $('code', null, context)))
 				))
 			)
 		));
+	}
+
+	private keybindingToLabel(rawKeyBinding: IKeyBinding): string {
+		let key: string;
+
+		switch(process.platform) {
+			case 'win32': key = rawKeyBinding.win; break;
+			case 'linux': key = rawKeyBinding.linux; break;
+			case 'darwin': key = rawKeyBinding.mac; break;
+		}
+
+		const keyBinding = new Keybinding(Keybinding.fromUserSettingsLabel(key || rawKeyBinding.key));
+		return this.keybindingService.getLabelFor(keyBinding);
 	}
 
 	private loadContents(loadingTask: ()=>TPromise<any>): void {
