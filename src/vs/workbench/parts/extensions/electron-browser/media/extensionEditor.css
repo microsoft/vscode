@@ -100,7 +100,7 @@
 
 .extension-editor > .body > .navbar {
 	height: 36px;
-	text-transform: uppercase;
+	font-weight: bold;
 	font-size: 14px;
 	line-height: 36px;
 	padding-left: 20px;
@@ -118,12 +118,12 @@
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-size: inherit;
+	opacity: 0.7;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item.disabled > .action-label {
 	opacity: 1;
 	text-decoration: underline;
-	font-weight: bold;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label:hover {
