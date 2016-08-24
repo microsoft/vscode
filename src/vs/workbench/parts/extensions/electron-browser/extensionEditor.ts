@@ -320,7 +320,7 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		const details = $('details', { open: true },
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', null,
 				$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
@@ -328,7 +328,6 @@ export class ExtensionEditor extends BaseEditor {
 			)
 		);
 
-		(<any> details).ontoggle = onDetailsToggle;
 		append(container, details);
 	}
 
@@ -340,7 +339,7 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		const details = $('details', { open: true },
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', null,
 				$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
@@ -348,7 +347,6 @@ export class ExtensionEditor extends BaseEditor {
 			)
 		);
 
-		(<any> details).ontoggle = onDetailsToggle;
 		append(container, details);
 	}
 
@@ -360,12 +358,11 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		const details = $('details', { open: true },
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('themes', "Themes ({0})", contrib.length)),
 			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
 		);
 
-		(<any> details).ontoggle = onDetailsToggle;
 		append(container, details);
 	}
 
@@ -377,12 +374,11 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		const details = $('details', { open: true },
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
 			$('ul', null, ...contrib.map(v => $('li', null, v.fileMatch)))
 		);
 
-		(<any> details).ontoggle = onDetailsToggle;
 		append(container, details);
 	}
 
@@ -433,7 +429,7 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		const details = $('details', { open: true },
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('commands', "Commands ({0})", commands.length)),
 			$('table', null,
 				$('tr', null,
@@ -451,7 +447,6 @@ export class ExtensionEditor extends BaseEditor {
 			)
 		);
 
-		(<any> details).ontoggle = onDetailsToggle;
 		append(container, details);
 	}
 
@@ -500,7 +495,7 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		const details = $('details', { open: true },
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('languages', "Languages ({0})", languages.length)),
 			$('table', null,
 				$('tr', null,
@@ -518,7 +513,6 @@ export class ExtensionEditor extends BaseEditor {
 			)
 		);
 
-		(<any> details).ontoggle = onDetailsToggle;
 		append(container, details);
 	}
 
