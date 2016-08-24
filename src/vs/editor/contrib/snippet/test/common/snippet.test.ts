@@ -86,6 +86,30 @@ suite('Editor Contrib - Snippets', () => {
 		);
 	});
 
+	test('nested placeholder', () => {
+		let snippet = CodeSnippet.fromTextmate([
+			'<div${1: id="${2:some_id}"}>',
+			'\t$0',
+			'</div>'
+		].join('\n'));
+
+		assert.equal(snippet.placeHolders.length, 3);
+		assert.equal(snippet.finishPlaceHolderIndex, 2);
+		let [first, second, third] = snippet.placeHolders;
+
+		assert.equal(third.id, 0);
+		assert.equal(third.occurences.length, 1);
+		assert.deepEqual(third.occurences[0], new Range(2, 2, 2, 2));
+
+		assert.equal(second.id, 2);
+		assert.equal(second.occurences.length, 1);
+		assert.deepEqual(second.occurences[0], new Range(1, 10, 1, 17));
+
+		assert.equal(first.id, '1');
+		assert.equal(first.occurences.length, 1);
+		assert.deepEqual(first.occurences[0], new Range(1, 5, 1, 18));
+	});
+
 	test('bug #17541:[snippets] Support default text in mirrors', () => {
 
 		var external = [
