@@ -49,7 +49,7 @@ class ShowSnippetsActions extends EditorAction {
 
 		return quickOpenService.pick(picks).then(pick => {
 			if (pick) {
-				SnippetController.get(editor).run(new CodeSnippet(pick.snippet.codeSnippet), 0, 0);
+				SnippetController.get(editor).run(CodeSnippet.fromTextmate(pick.snippet.codeSnippet), 0, 0);
 			}
 		});
 	}

@@ -117,7 +117,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
 		this._editor.setPosition(smartInsertInfo.position);
 
-		SnippetController.get(this._editor).run(new CodeSnippet(snippetText), 0, 0);
+		SnippetController.get(this._editor).run(CodeSnippet.fromInternal(snippetText), 0, 0);
 	}
 
 	private _onModel(): void {

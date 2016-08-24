@@ -66,7 +66,7 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 	performSnippetCompletions(): void {
 		if (this._currentSnippets.length === 1) {
 			const snippet = this._currentSnippets[0];
-			const codeSnippet = new CodeSnippet(snippet.codeSnippet);
+			const codeSnippet = CodeSnippet.fromTextmate(snippet.codeSnippet);
 			this._snippetController.run(codeSnippet, snippet.prefix.length, 0);
 		// } else {
 			// todo@joh - show suggest widget with proposals
