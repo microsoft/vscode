@@ -143,7 +143,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	public create(): TPromise<void> {
-		
+
 		// Update configuration
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.onConfigurationUpdated(configuration);
@@ -199,6 +199,10 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
+		if (this.isDisposed) {
+			return; // guard against possible race condition when config change causes recreate of views
+		}
+
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
 
 		// React to file icons setting by toggling global class on tree
