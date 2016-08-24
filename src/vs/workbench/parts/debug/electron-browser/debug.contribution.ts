@@ -25,7 +25,7 @@ import wbext = require('vs/workbench/common/contributions');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import {DebugEditorModelManager} from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {ToggleBreakpointAction, EditorConditionalBreakpointAction, ShowDebugHoverAction, SelectionToReplAction, RunToCursorAction, StepOverAction, ClearReplAction, FocusReplAction,
-	StepIntoAction, StepOutAction, StartAction, StepBackAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
+	StepIntoAction, StepOutAction, StartAction, StepBackAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction, SelectionToWatchExpressionsAction,
 	ConfigureAction, ToggleReplAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction} from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
@@ -55,6 +55,7 @@ CommonEditorRegistry.registerEditorAction(new ShowDebugHoverAction());
 CommonEditorRegistry.registerEditorAction(new EditorConditionalBreakpointAction());
 CommonEditorRegistry.registerEditorAction(new SelectionToReplAction());
 CommonEditorRegistry.registerEditorAction(new RunToCursorAction());
+CommonEditorRegistry.registerEditorAction(new SelectionToWatchExpressionsAction());
 
 // register viewlet
 (<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
