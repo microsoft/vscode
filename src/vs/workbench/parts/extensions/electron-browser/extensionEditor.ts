@@ -294,7 +294,8 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest): void {
-		const configuration = manifest.contributes.configuration;
+		const contributes = manifest.contributes;
+		const configuration = contributes && contributes.configuration;
 		const properties = configuration && configuration.properties;
 		const contrib = properties ? Object.keys(properties) : [];
 
@@ -312,7 +313,8 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest): void {
-		const contrib = manifest.contributes.debuggers || [];
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.debuggers || [];
 
 		if (!contrib.length) {
 			return;
@@ -328,7 +330,8 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest): void {
-		const contrib = manifest.contributes.themes || [];
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.themes || [];
 
 		if (!contrib.length) {
 			return;
@@ -343,7 +346,8 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private static renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest): void {
-		const contrib = manifest.contributes.jsonValidation || [];
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.jsonValidation || [];
 
 		if (!contrib.length) {
 			return;
@@ -358,7 +362,8 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderCommands(container: HTMLElement, manifest: IExtensionManifest): void {
-		const rawCommands = manifest.contributes.commands || [];
+		const contributes = manifest.contributes;
+		const rawCommands = contributes && contributes.commands || [];
 		const commands = rawCommands.map(c => ({
 			id: c.command,
 			title: c.title,
@@ -368,7 +373,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		const byId = arrays.index(commands, c => c.id);
 
-		const menus = manifest.contributes.menus || {};
+		const menus = contributes && contributes.menus || {};
 
 		Object.keys(menus).forEach(context => {
 			menus[context].forEach(menu => {
@@ -384,7 +389,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		});
 
-		const rawKeybindings = manifest.contributes.keybindings || [];
+		const rawKeybindings = contributes && contributes.keybindings || [];
 
 		rawKeybindings.forEach(rawKeybinding => {
 			const keyLabel = this.keybindingToLabel(rawKeybinding);
@@ -423,27 +428,43 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private static renderLanguages(container: HTMLElement, manifest: IExtensionManifest): void {
-		const rawLanguages = manifest.contributes.languages || [];
+		const contributes = manifest.contributes;
+		const rawLanguages = contributes && contributes.languages || [];
 		const languages = rawLanguages.map(l => ({
 			id: l.id,
 			name: (l.aliases || [])[0] || l.id,
-			extensions: l.extensions,
-			hasGrammar: false
+			extensions: l.extensions || [],
+			hasGrammar: false,
+			hasSnippets: false
 		}));
 
 		const byId = arrays.index(languages, l => l.id);
 
-		const grammars = manifest.contributes.grammars || [];
+		const grammars = contributes && contributes.grammars || [];
 
 		grammars.forEach(grammar => {
 			let language = byId[grammar.language];
 
 			if (!language) {
-				language = { id: grammar.language, name: grammar.language, extensions: [], hasGrammar: true };
+				language = { id: grammar.language, name: grammar.language, extensions: [], hasGrammar: true, hasSnippets: false };
 				byId[language.id] = language;
 				languages.push(language);
 			} else {
 				language.hasGrammar = true;
+			}
+		});
+
+		const snippets = contributes && contributes.snippets || [];
+
+		snippets.forEach(snippet => {
+			let language = byId[snippet.language];
+
+			if (!language) {
+				language = { id: snippet.language, name: snippet.language, extensions: [], hasGrammar: false, hasSnippets: true };
+				byId[language.id] = language;
+				languages.push(language);
+			} else {
+				language.hasSnippets = true;
 			}
 		});
 
@@ -457,12 +478,14 @@ export class ExtensionEditor extends BaseEditor {
 				$('tr', null,
 					$('th', null, localize('command name', "Name")),
 					$('th', null, localize('file extensions', "File Extensions")),
-					$('th', null, localize('grammar', "Grammar"))
+					$('th', null, localize('grammar', "Grammar")),
+					$('th', null, localize('snippets', "Snippets"))
 				),
 				...languages.map(l => $('tr', null,
 					$('td', null, l.name),
 					$('td', null, ...join(l.extensions.map(ext => $('code', null, ext)), ' ')),
-					$('td', null, document.createTextNode(l.hasGrammar ? '✔︎' : '—'))
+					$('td', null, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
+					$('td', null, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
 				))
 			)
 		));
