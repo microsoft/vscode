@@ -127,21 +127,9 @@ export class TextAreaHandler extends Disposable {
 				}
 			}
 
-			let showAtLineNumber: number;
-			let showAtColumn: number;
-
-			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (this.Browser.isEdgeOrIE) {
-				// Ensure selection start is in viewport
-				showAtLineNumber = this.selection.startLineNumber;
-				showAtColumn = (this.selection.startColumn - this.textAreaState.getSelectionStart());
-			} else {
-				showAtLineNumber = this.cursorPosition.lineNumber;
-				showAtColumn = this.cursorPosition.column;
-			}
 			this._onCompositionStart.fire({
-				showAtLineNumber: showAtLineNumber,
-				showAtColumn: showAtColumn
+				showAtLineNumber: this.selection.startLineNumber,
+				showAtColumn: this.selection.startColumn
 			});
 		}));
 
