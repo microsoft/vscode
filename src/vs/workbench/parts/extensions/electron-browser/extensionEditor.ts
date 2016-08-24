@@ -40,6 +40,7 @@ import WebView from 'vs/workbench/parts/html/browser/webview';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Keybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -98,6 +99,10 @@ const NavbarSection = {
 	Contributions: 'contributions'
 };
 
+interface ILayoutParticipant {
+	layout(): void;
+}
+
 export class ExtensionEditor extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extension';
@@ -119,6 +124,7 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionReadme: Cache<string>;
 	private extensionManifest: Cache<IExtensionManifest>;
 
+	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
@@ -184,9 +190,10 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
+		const extension = input.extension;
+
 		this.transientDisposables = dispose(this.transientDisposables);
 
-		const extension = input.extension;
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
 		this.extensionReadme = new Cache(() => extension.getReadme());
@@ -282,18 +289,28 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
 				this.content.innerHTML = '';
-				const content = append(this.content, $('div', { class: 'subcontent' }));
 
-				ExtensionEditor.renderSettings(content, manifest);
-				this.renderCommands(content, manifest);
-				ExtensionEditor.renderLanguages(content, manifest);
-				ExtensionEditor.renderThemes(content, manifest);
-				ExtensionEditor.renderJSONValidation(content, manifest);
-				ExtensionEditor.renderDebuggers(content, manifest);
+				const content = $('div', { class: 'subcontent' });
+				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+				append(this.content, scrollableContent.getDomNode());
+				this.contentDisposables.push(scrollableContent);
+
+				const layout = () => scrollableContent.scanDomNode();
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+				ExtensionEditor.renderSettings(content, manifest, layout);
+				this.renderCommands(content, manifest, layout);
+				ExtensionEditor.renderLanguages(content, manifest, layout);
+				ExtensionEditor.renderThemes(content, manifest, layout);
+				ExtensionEditor.renderJSONValidation(content, manifest, layout);
+				ExtensionEditor.renderDebuggers(content, manifest, layout);
+
+				scrollableContent.scanDomNode();
 			}));
 	}
 
-	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest): void {
+	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
 		const contributes = manifest.contributes;
 		const configuration = contributes && contributes.configuration;
 		const properties = configuration && configuration.properties;
@@ -303,16 +320,19 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		append(container, $('details', { open: true },
+		const details = $('details', { open: true },
 			$('summary', null, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', null,
 				$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
 				...contrib.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
 			)
-		));
+		);
+
+		(<any> details).ontoggle = onDetailsToggle;
+		append(container, details);
 	}
 
-	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest): void {
+	private static renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.debuggers || [];
 
@@ -320,16 +340,19 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		append(container, $('details', { open: true },
+		const details = $('details', { open: true },
 			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', null,
 				$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
 				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
 			)
-		));
+		);
+
+		(<any> details).ontoggle = onDetailsToggle;
+		append(container, details);
 	}
 
-	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest): void {
+	private static renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
@@ -337,15 +360,16 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		append(container, $('details', { open: true },
+		const details = $('details', { open: true },
 			$('summary', null, localize('themes', "Themes ({0})", contrib.length)),
-			$('ul', null,
-				...contrib.map(theme => $('li', null, theme.label))
-			)
-		));
+			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
+		);
+
+		(<any> details).ontoggle = onDetailsToggle;
+		append(container, details);
 	}
 
-	private static renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest): void {
+	private static renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.jsonValidation || [];
 
@@ -353,15 +377,16 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		append(container, $('details', { open: true },
+		const details = $('details', { open: true },
 			$('summary', null, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
-			$('ul', null,
-				...contrib.map(v => $('li', null, v.fileMatch))
-			)
-		));
+			$('ul', null, ...contrib.map(v => $('li', null, v.fileMatch)))
+		);
+
+		(<any> details).ontoggle = onDetailsToggle;
+		append(container, details);
 	}
 
-	private renderCommands(container: HTMLElement, manifest: IExtensionManifest): void {
+	private renderCommands(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
 		const contributes = manifest.contributes;
 		const rawCommands = contributes && contributes.commands || [];
 		const commands = rawCommands.map(c => ({
@@ -408,7 +433,7 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		append(container, $('details', { open: true },
+		const details = $('details', { open: true },
 			$('summary', null, localize('commands', "Commands ({0})", commands.length)),
 			$('table', null,
 				$('tr', null,
@@ -424,10 +449,13 @@ export class ExtensionEditor extends BaseEditor {
 					$('td', null, ...c.menus.map(context => $('code', null, context)))
 				))
 			)
-		));
+		);
+
+		(<any> details).ontoggle = onDetailsToggle;
+		append(container, details);
 	}
 
-	private static renderLanguages(container: HTMLElement, manifest: IExtensionManifest): void {
+	private static renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
 		const contributes = manifest.contributes;
 		const rawLanguages = contributes && contributes.languages || [];
 		const languages = rawLanguages.map(l => ({
@@ -472,7 +500,7 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		append(container, $('details', { open: true },
+		const details = $('details', { open: true },
 			$('summary', null, localize('languages', "Languages ({0})", languages.length)),
 			$('table', null,
 				$('tr', null,
@@ -488,7 +516,10 @@ export class ExtensionEditor extends BaseEditor {
 					$('td', null, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
 				))
 			)
-		));
+		);
+
+		(<any> details).ontoggle = onDetailsToggle;
+		append(container, details);
 	}
 
 	private keybindingToLabel(rawKeyBinding: IKeyBinding): string {
@@ -517,7 +548,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	layout(): void {
-		return;
+		this.layoutParticipants.forEach(p => p.layout());
 	}
 
 	private onViewletOpen(viewlet: IViewlet): void {
