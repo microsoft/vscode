@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import actions = require('vs/base/common/actions');
+import {Action} from 'vs/base/common/actions';
 import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
@@ -25,7 +25,7 @@ import IDebugService = debug.IDebugService;
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
-export class AbstractDebugAction extends actions.Action {
+export class AbstractDebugAction extends Action {
 
 	protected toDispose: lifecycle.IDisposable[];
 	private keybinding: string;
@@ -681,7 +681,6 @@ export class SelectionToReplAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
 
-
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		return debugService.addReplExpression(text)
 			.then(() => panelService.openPanel(debug.REPL_ID, true))
@@ -838,6 +837,23 @@ export class ToggleReplAction extends AbstractDebugAction {
 	private isReplVisible(): boolean {
 		const panel = this.panelService.getActivePanel();
 		return panel && panel.getId() === debug.REPL_ID;
+	}
+}
+
+export class FocusReplAction extends Action {
+
+	static ID = 'workbench.debug.action.focusRepl';
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus Debug Console');
+
+
+	constructor(id: string, label: string,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.panelService.openPanel(debug.REPL_ID, true);
 	}
 }
 
