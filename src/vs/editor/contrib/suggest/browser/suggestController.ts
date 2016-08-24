@@ -75,23 +75,23 @@ export class SuggestController implements IEditorContribution {
 
 	private onDidSelectItem(item: ICompletionItem): void {
 		if (item) {
-			const {insertText, overwriteBefore, overwriteAfter, additionalTextEdits, command} = item.suggestion;
-			const columnDelta = this.editor.getPosition().column - item.position.column;
+			const {suggestion, position} = item;
+			const columnDelta = this.editor.getPosition().column - position.column;
 
-			if (Array.isArray(additionalTextEdits)) {
+			if (Array.isArray(suggestion.additionalTextEdits)) {
 				this.editor.pushUndoStop();
-				this.editor.executeEdits('suggestController.additionalTextEdits', additionalTextEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(edit.range, edit.text)));
 				this.editor.pushUndoStop();
 			}
 
 			SnippetController.get(this.editor).run(
-				CodeSnippet.fromInternal(insertText),
-				overwriteBefore + columnDelta,
-				overwriteAfter
+				!suggestion.isTMSnippet ? CodeSnippet.fromInternal(suggestion.insertText) : CodeSnippet.fromTextmate(suggestion.insertText),
+				suggestion.overwriteBefore + columnDelta,
+				suggestion.overwriteAfter
 			);
 
-			if (command) {
-				this.commandService.executeCommand(command.id, ...command.arguments).done(undefined, onUnexpectedError);
+			if (suggestion.command) {
+				this.commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
 			}
 		}
 
