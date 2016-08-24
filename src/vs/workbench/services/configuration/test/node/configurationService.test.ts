@@ -198,9 +198,7 @@ suite('WorkspaceConfigurationService - Node', () => {
 					cleanUp(done);
 				});
 
-				setTimeout(function () {
-					fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.icons": true }');
-				}, 50);
+				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.icons": true }');
 			});
 		});
 	});
@@ -223,13 +221,11 @@ suite('WorkspaceConfigurationService - Node', () => {
 					cleanUp(done);
 				});
 
-				setTimeout(function () {
-					const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
-					fs.writeFileSync(settingsFile, '{ "testworkbench.editor.icons": true }');
+				const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
+				fs.writeFileSync(settingsFile, '{ "testworkbench.editor.icons": true }');
 
-					const event = new FileChangesEvent([{ resource: URI.file(settingsFile), type: FileChangeType.ADDED }]);
-					eventService.emit(FileEventType.FILE_CHANGES, event);
-				}, 50);
+				const event = new FileChangesEvent([{ resource: URI.file(settingsFile), type: FileChangeType.ADDED }]);
+				eventService.emit(FileEventType.FILE_CHANGES, event);
 			});
 		});
 	});
