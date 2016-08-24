@@ -266,3 +266,18 @@ export function index<T,R>(array: T[], indexer: (t: T) => string, merger: (t: T,
 		return r;
 	}, Object.create(null));
 }
+
+/**
+ * Inserts an element into an array. Returns a function which, when
+ * called, will remove that element from the array.
+ */
+export function insert<T>(array: T[], element: T): () => void {
+	array.push(element);
+
+	return () => {
+		const index = array.indexOf(element);
+		if (index > -1) {
+			array.splice(index, 1);
+		}
+	};
+}
