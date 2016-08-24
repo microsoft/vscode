@@ -71,13 +71,13 @@ class TestView {
 	}
 }
 
-function doCreateTest(strategy:TextAreaStrategy, inputStr:string, expectedStr:string): HTMLElement {
+function doCreateTest(strategy:TextAreaStrategy, description:string, inputStr:string, expectedStr:string): HTMLElement {
 	let container = document.createElement('div');
 	container.className = 'container';
 
 	let title = document.createElement('div');
 	title.className = 'title';
-	title.innerHTML = 'Type <strong>' + inputStr + '</strong>';
+	title.innerHTML = TextAreaStrategy[strategy] + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
 	container.appendChild(title);
 
 	let startBtn = document.createElement('button');
@@ -111,6 +111,10 @@ function doCreateTest(strategy:TextAreaStrategy, inputStr:string, expectedStr:st
 	check.className = 'check';
 	container.appendChild(check);
 
+	let br = document.createElement('br');
+	br.style.clear = 'both';
+	container.appendChild(br);
+
 	let view = new TestView(model);
 
 
@@ -132,8 +136,10 @@ function doCreateTest(strategy:TextAreaStrategy, inputStr:string, expectedStr:st
 		let expected = 'some ' + expectedStr + ' text';
 		if (text === expected) {
 			check.innerHTML = '[GOOD]';
+			check.className = 'check good';
 		} else {
 			check.innerHTML = '[BAD]';
+			check.className = 'check bad';
 		}
 		check.innerHTML += expected;
 	};
@@ -158,6 +164,17 @@ function doCreateTest(strategy:TextAreaStrategy, inputStr:string, expectedStr:st
 	return container;
 }
 
-export function createTest(): void {
-	document.body.appendChild(doCreateTest(TextAreaStrategy.NVDA, 'sennsei', 'せんせい'));
-}
+const TESTS = [
+	{ description: 'Japanese IME 1', in: 'sennsei [Enter]', out: 'せんせい' },
+	{ description: 'Japanese IME 2', in: 'konnichiha [Enter]', out: 'こんいちは' },
+	{ description: 'Japanese IME 3', in: 'mikann [Enter]', out: 'みかん' },
+	{ description: 'Korean IME 1', in: 'gksrmf [Space]', out: '한글 ' },
+	{ description: 'Chinese IME 1', in: '.,', out: '。，' },
+	{ description: 'Chinese IME 2', in: 'ni [Space] hao [Space]', out: '你好' },
+	{ description: 'Chinese IME 3', in: 'hazni [Space]', out: '哈祝你' },
+];
+
+TESTS.forEach((t) => {
+	document.body.appendChild(doCreateTest(TextAreaStrategy.NVDA, t.description, t.in, t.out));
+	document.body.appendChild(doCreateTest(TextAreaStrategy.IENarrator, t.description, t.in, t.out));
+});
