@@ -166,7 +166,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		if (canEvaluateForHovers) {
 			let expressionRange = this.getHoveredExpression(lineContent, range);
 			startOffset = expressionRange.startColumn;
-			let matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
+			matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 			evaluatedExpression = evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression, true), 'hover');
 		} else {
 			// string magic to get the parents of the variable (a and b for a.b.foo)
