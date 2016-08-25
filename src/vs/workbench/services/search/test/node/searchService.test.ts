@@ -75,6 +75,7 @@ suite('SearchService', () => {
 	const rawMatch: IRawFileMatch = {
 		base: normalize('/some'),
 		relativePath: 'where',
+		basename: 'where',
 		size: 123
 	};
 
@@ -144,6 +145,7 @@ suite('SearchService', () => {
 		const matches: IRawFileMatch[] = paths.map(relativePath => ({
 			base: normalize('/some/where'),
 			relativePath,
+			basename: relativePath,
 			size: 3
 		}));
 		const Engine = TestSearchEngine.bind(null, () => matches.shift());
@@ -198,6 +200,7 @@ suite('SearchService', () => {
 		const matches: IRawFileMatch[] = paths.map(relativePath => ({
 			base: normalize('/some/where'),
 			relativePath,
+			basename: relativePath,
 			size: 3
 		}));
 		const Engine = TestSearchEngine.bind(null, () => matches.shift());
@@ -241,6 +244,7 @@ suite('SearchService', () => {
 			matches.push({
 				base: normalize('/some/where'),
 				relativePath: 'bc',
+				basename: 'bc',
 				size: 3
 			});
 			const results = [];

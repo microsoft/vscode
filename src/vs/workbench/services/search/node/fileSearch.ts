@@ -31,6 +31,7 @@ enum Traversal {
 }
 
 interface IDirectoryEntry {
+	base: string;
 	relativePath: string;
 	basename: string;
 }
@@ -100,6 +101,7 @@ export class FileWalker {
 				this.resultCount++;
 				onResult({
 					relativePath: this.filePattern,
+					basename: paths.basename(this.filePattern),
 					size
 				});
 
@@ -118,7 +120,7 @@ export class FileWalker {
 					}
 
 					// File: Check for match on file pattern and include pattern
-					this.matchFile(onResult, null, extraFilePath /* no workspace relative path */, basename);
+					this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
 				});
 			}
 
@@ -271,14 +273,14 @@ export class FileWalker {
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
 			const basename = paths.basename(this.filePattern);
-			this.matchFile(onResult, rootFolder, this.filePattern, basename);
+			this.matchFile(onResult, { base: rootFolder, relativePath: this.filePattern, basename });
 		}
 
-		const tree = this.buildDirectoryTree(relativeFiles);
+		const tree = this.buildDirectoryTree(rootFolder, relativeFiles);
 		this.matchDirectoryTree(rootFolder, tree, onResult);
 	}
 
-	private buildDirectoryTree(relativeFilePaths: string[]): IDirectoryTree {
+	private buildDirectoryTree(base: string, relativeFilePaths: string[]): IDirectoryTree {
 		const tree: IDirectoryTree = {
 			rootEntries: [],
 			pathToEntries: Object.create(null)
@@ -294,6 +296,7 @@ export class FileWalker {
 				add(dirname);
 			}
 			entries.push({
+				base,
 				relativePath,
 				basename
 			});
@@ -308,7 +311,8 @@ export class FileWalker {
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
 			for (let i = 0, n = entries.length; i < n; i++) {
-				const {relativePath, basename} = entries[i];
+				const entry = entries[i];
+				const {relativePath, basename} = entry;
 
 				// Check exclude pattern
 				// If the user searches for the exact file name, we adjust the glob matching
@@ -327,7 +331,7 @@ export class FileWalker {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
 
-					self.matchFile(onResult, rootFolder, relativePath, basename);
+					self.matchFile(onResult, entry);
 				}
 			};
 		}
@@ -353,6 +357,7 @@ export class FileWalker {
 					onResult({
 						base: rootFolder,
 						relativePath: this.filePattern,
+						basename: paths.basename(this.filePattern),
 						size
 					});
 				}
@@ -477,7 +482,7 @@ export class FileWalker {
 							return clb(null); // ignore file if max file size is hit
 						}
 
-						this.matchFile(onResult, rootFolder, currentRelativePath, file, stat.size);
+						this.matchFile(onResult, { base: rootFolder, relativePath: currentRelativePath, basename: file, size: stat.size });
 					}
 
 					// Unwind
@@ -493,8 +498,8 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: IRawFileMatch) => void, base: string, relativePath: string, basename: string, size?: number): void {
-		if (this.isFilePatternMatch(relativePath) && (!this.includePattern || this.includePattern(relativePath, basename))) {
+	private matchFile(onResult: (result: IRawFileMatch) => void, candidate: IRawFileMatch): void {
+		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
 			this.resultCount++;
 
 			if (this.maxResults && this.resultCount > this.maxResults) {
@@ -502,11 +507,7 @@ export class FileWalker {
 			}
 
 			if (!this.isLimitHit) {
-				onResult({
-					base,
-					relativePath,
-					size
-				});
+				onResult(candidate);
 			}
 		}
 	}
