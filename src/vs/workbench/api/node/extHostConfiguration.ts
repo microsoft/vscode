@@ -8,16 +8,19 @@ import {clone} from 'vs/base/common/objects';
 import {illegalState} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';
-import {ExtHostConfigurationShape} from './extHost.protocol';
+import {ExtHostConfigurationShape, MainContext, MainThreadConfigurationShape} from './extHost.protocol';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
-	private _config: any;
+	private _proxy: MainThreadConfigurationShape;
 	private _hasConfig: boolean;
+	private _config: any;
 	private _onDidChangeConfiguration: Emitter<void>;
 
-	constructor() {
+	constructor(threadService: IThreadService) {
 		super();
+		this._proxy = threadService.get(MainContext.MainThreadConfiguration);
 		this._onDidChangeConfiguration = new Emitter<void>();
 	}
 
