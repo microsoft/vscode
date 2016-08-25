@@ -959,11 +959,13 @@ export class DebugService implements debug.IDebugService {
 			text,
 			column: position.column,
 			line: position.lineNumber
-		}).then(response => response.body.targets.map(item => ({
-			label: item.label,
-			insertText: item.text || item.label,
-			type: 'property'
-		})), err => []);
+		}).then(response => {
+			return !response ? [] : response.body.targets.map(item => ({
+				label: item.label,
+				insertText: item.text || item.label,
+				type: item.type
+			}));
+		}, err => []);
 	}
 
 	private lazyTransitionToRunningState(threadId?: number): void {
