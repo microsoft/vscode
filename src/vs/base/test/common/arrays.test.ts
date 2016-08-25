@@ -62,7 +62,11 @@ suite('Arrays', () => {
 	});
 
 	test('top', function () {
-		const cmp = (a, b) => a - b;
+		const cmp = (a, b) => {
+			assert.strictEqual(typeof a, 'number', 'typeof a');
+			assert.strictEqual(typeof b, 'number', 'typeof b');
+			return a - b;
+		};
 
 		assert.deepEqual(arrays.top([], cmp, 1), []);
 		assert.deepEqual(arrays.top([1], cmp, 0), []);
