@@ -41,10 +41,10 @@ class MultiLineStream {
 	private len: number;
 	private position: number;
 
-	constructor(source: string) {
+	constructor(source: string, position: number) {
 		this.source = source;
 		this.len = source.length;
-		this.position = 0;
+		this.position = position;
 	}
 
 	public eos(): boolean {
@@ -201,9 +201,9 @@ export interface Scanner {
 	getScannerState(): ScannerState;
 }
 
-export function createScanner(input: string, initialState: ScannerState = ScannerState.Content) : Scanner {
+export function createScanner(input: string, initialOffset = 0, initialState: ScannerState = ScannerState.Content) : Scanner {
 
-	let stream = new MultiLineStream(input);
+	let stream = new MultiLineStream(input, initialOffset);
 	let state = initialState;
 	let tokenOffset: number = 0;
 	let tokenType: number = void 0;

@@ -19,7 +19,7 @@ suite('HTML Scanner', () => {
 		
 		let scannerState = ScannerState.Content;
 		for (let t of tests) {
-			let scanner = createScanner(t.input, scannerState);
+			let scanner = createScanner(t.input, 0, scannerState);
 			let tokenType = scanner.scan();
 			let actual : Token[] = [];
 			while (tokenType !== TokenType.EOS) {
