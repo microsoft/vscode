@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, { mapEvent, filterEvent, Emitter } from 'vs/base/common/event';
+import EventOf, { mapEvent, filterEvent } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -33,11 +33,14 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IURLService } from 'vs/platform/url/common/url';
 import URI from 'vs/base/common/uri';
 
+interface SearchInputEvent extends Event {
+	target: HTMLInputElement;
+	immediate?: boolean;
+}
+
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
-	private _onSearchChange = new Emitter<string>();
-	onSearchChange: Event<string> = this._onSearchChange.event;
-
+	private onSearchChange: EventOf<string>;
 	private searchDelayer: ThrottledDelayer<any>;
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
@@ -97,8 +100,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		onPageUpArrow(this.onPageUpArrow, this, this.disposables);
 		onPageDownArrow(this.onPageDownArrow, this, this.disposables);
 
-		const onInput = domEvent(this.searchBox, 'input');
-		onInput(() => this.triggerSearch(), null, this.disposables);
+		const onSearchInput = domEvent(this.searchBox, 'input') as EventOf<SearchInputEvent>;
+		onSearchInput(e => this.triggerSearch(e.target.value, e.immediate), null, this.disposables);
+
+		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
 		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
 		onSelectedExtension(this.openExtension, this, this.disposables);
@@ -110,8 +115,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return super.setVisible(visible).then(() => {
 			if (visible) {
 				this.searchBox.focus();
-				this.searchBox.setSelectionRange(0,this.searchBox.value.length);
-				this.triggerSearch(true, true);
+				this.searchBox.setSelectionRange(0, this.searchBox.value.length);
+				this.triggerSearch(this.searchBox.value, true, true);
 			} else {
 				this.list.model = new PagedModel([]);
 			}
@@ -154,22 +159,23 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return this.secondaryActions;
 	}
 
-	search(text: string, immediate = false): void {
-		this.searchBox.value = text;
-		this.triggerSearch(immediate);
+	search(value: string, immediate = false): void {
+		const event = new Event('input', { bubbles: true }) as SearchInputEvent;
+		event.immediate = immediate;
+
+		this.searchBox.value = value;
+		this.searchBox.dispatchEvent(event);
 	}
 
-	private triggerSearch(immediate = false, suggestPopular = false): void {
-		const text = this.searchBox.value;
-		this._onSearchChange.fire(text);
-		this.searchDelayer.trigger(() => this.doSearch(text, suggestPopular), immediate || !text ? 0 : 500);
+	private triggerSearch(value: string, immediate = false, suggestPopular = false): void {
+		this.searchDelayer.trigger(() => this.doSearch(value, suggestPopular), immediate || !value ? 0 : 500);
 	}
 
-	private doSearch(text: string = '', suggestPopular = false): TPromise<any> {
+	private doSearch(value: string = '', suggestPopular = false): TPromise<any> {
 		const progressRunner = this.progressService.show(true);
 		let promise: TPromise<IPager<IExtension> | IExtension[]>;
 
-		if (!text) {
+		if (!value) {
 			promise = this.extensionsWorkbenchService.queryLocal()
 				.then(result => {
 					if (result.length === 0 && suggestPopular) {
@@ -178,15 +184,15 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 					return result;
 				});
-		} else if (/@outdated/i.test(text)) {
+		} else if (/@outdated/i.test(value)) {
 			promise = this.extensionsWorkbenchService.queryLocal()
 				.then(result => result.filter(e => e.outdated));
-		} else if (/@popular/i.test(text)) {
+		} else if (/@popular/i.test(value)) {
 			promise = this.extensionsWorkbenchService.queryGallery({ sortBy: SortBy.InstallCount });
-		} else if (/@recommended/i.test(text)) {
+		} else if (/@recommended/i.test(value)) {
 			promise = this.extensionsWorkbenchService.getRecommendations();
 		} else {
-			promise = this.extensionsWorkbenchService.queryGallery({ text });
+			promise = this.extensionsWorkbenchService.queryGallery({ text: value });
 		}
 
 		return always(promise, () => progressRunner.done())
@@ -207,8 +213,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private onEscape(): void {
-		this.searchBox.value = '';
-		this.triggerSearch(true);
+		this.search('', true);
 	}
 
 	private onUpArrow(): void {
