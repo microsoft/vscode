@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {clone} from 'vs/base/common/objects';
+import {mixin} from 'vs/base/common/objects';
 import {illegalState} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';
@@ -43,24 +43,22 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 			? ExtHostConfiguration._lookUp(section, this._config)
 			: this._config;
 
-		let result: any;
-		if (typeof config !== 'object') {
-			// this catches missing config and accessing values
-			result = {};
-		} else {
-			result = clone(config);
-		}
-
-		result.has = function(key: string): boolean {
-			return typeof ExtHostConfiguration._lookUp(key, config) !== 'undefined';
-		};
-		result.get = function <T>(key: string, defaultValue?: T): T {
-			let result = ExtHostConfiguration._lookUp(key, config);
-			if (typeof result === 'undefined') {
-				result = defaultValue;
+		const result: WorkspaceConfiguration = {
+			has(key: string): boolean {
+				return typeof ExtHostConfiguration._lookUp(key, config) !== 'undefined';
+			},
+			get<T>(key: string, defaultValue?: T): T {
+				let result = ExtHostConfiguration._lookUp(key, config);
+				if (typeof result === 'undefined') {
+					result = defaultValue;
+				}
+				return result;
 			}
-			return result;
 		};
+
+		if (typeof config === 'object') {
+			mixin(result, config, false);
+		}
 
 		return Object.freeze(result);
 	}
