@@ -11,7 +11,7 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Range} from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
+import {ServicesAccessor, editorAction, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -532,7 +532,8 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-export class ToggleBreakpointAction extends EditorAction {
+@editorAction
+class ToggleBreakpointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.toggleBreakpoint',
@@ -561,7 +562,8 @@ export class ToggleBreakpointAction extends EditorAction {
 	}
 }
 
-export class EditorConditionalBreakpointAction extends EditorAction {
+@editorAction
+class EditorConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -605,7 +607,8 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 }
 
-export class RunToCursorAction extends EditorAction {
+@editorAction
+class RunToCursorAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -665,7 +668,8 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
-export class SelectionToReplAction extends EditorAction {
+@editorAction
+class SelectionToReplAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -691,7 +695,8 @@ export class SelectionToReplAction extends EditorAction {
 	}
 }
 
-export class SelectionToWatchExpressionsAction extends EditorAction {
+@editorAction
+class SelectionToWatchExpressionsAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -715,7 +720,8 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 	}
 }
 
-export class ShowDebugHoverAction extends EditorAction {
+@editorAction
+class ShowDebugHoverAction extends EditorAction {
 
 	constructor() {
 		super({
