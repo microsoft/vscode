@@ -104,6 +104,49 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
+	private getHoveredExpression(lineContent: string, range: Range) : Range {
+		let matchingExpression = undefined;
+		let startOffset = 0;
+
+		// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
+		// Match any character except a set of characters which often break interesting sub-expressions
+		let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+		let result = undefined;
+
+		// First find the full expression under the cursor
+		while (result = expression.exec(lineContent)) {
+			let start = result.index + 1;
+			let end = start + result[0].length;
+
+			if (start <= range.startColumn && end >= range.endColumn) {
+				matchingExpression = result[0];
+				startOffset = start;
+				break;
+			}
+		}
+
+		// If there are non-word characters after the cursor, we want to truncate the expression then.
+		// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
+		if (matchingExpression) {
+			let subExpression: RegExp = /\w+/g;
+			let subExpressionResult = undefined;
+			while (subExpressionResult = subExpression.exec(matchingExpression)) {
+				let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
+				if (subEnd >= range.endColumn) {
+					break;
+				}
+			}
+
+			if (subExpressionResult) {
+				matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
+			}
+		}
+
+		return matchingExpression ?
+			new Range(range.startLineNumber, startOffset, range.endLineNumber, startOffset + matchingExpression.length - 1) :
+			new Range(range.startLineNumber, 0, range.endLineNumber, 0);
+	}
+
 	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
 		const model = this.editor.getModel();
@@ -112,27 +155,40 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 
-		// string magic to get the parents of the variable (a and b for a.b.foo)
-		const lineContent = model.getLineContent(pos.lineNumber);
-		const namesToFind = lineContent.substring(0, lineContent.indexOf('.' + hoveringOver))
-			.split('.').map(word => word.trim()).filter(word => !!word);
-		namesToFind.push(hoveringOver);
-		namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
+		const session = this.debugService.getActiveSession();
+		const canEvaluateForHovers = session.configuration.capabilities.supportsEvaluateForHovers;
 
-		return this.getExpression(namesToFind).then(expression => {
+		const lineContent = model.getLineContent(pos.lineNumber);
+		let evaluatedExpression = undefined;
+		let matchingExpression = undefined;
+		let startOffset = 0;
+
+		if (canEvaluateForHovers) {
+			let expressionRange = this.getHoveredExpression(lineContent, range);
+			startOffset = expressionRange.startColumn;
+			matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
+			evaluatedExpression = evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression, true), 'hover');
+		} else {
+			// string magic to get the parents of the variable (a and b for a.b.foo)
+			const namesToFind = lineContent.substring(0, lineContent.indexOf('.' + hoveringOver))
+				.split('.').map(word => word.trim()).filter(word => !!word);
+			namesToFind.push(hoveringOver);
+			namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
+			evaluatedExpression = this.getExpression(namesToFind);
+		}
+
+		return evaluatedExpression.then(expression => {
 			if (!expression || !expression.available) {
 				this.hide();
 				return;
 			}
 
-			// show it
+			let hoverRange = canEvaluateForHovers ?
+						new Range(pos.lineNumber, startOffset, pos.lineNumber, startOffset + matchingExpression.length) :
+						new Range(pos.lineNumber, lineContent.indexOf(hoveringOver) + 1, pos.lineNumber, lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length);
+
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-				range: {
-					startLineNumber: pos.lineNumber,
-					endLineNumber: pos.lineNumber,
-					startColumn: lineContent.indexOf(hoveringOver) + 1,
-					endColumn: lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length
-				},
+				range: hoverRange,
 				options: {
 					className: 'hoverHighlight'
 				}
@@ -143,11 +199,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	private getExpression(namesToFind: string[]): TPromise<Expression> {
-		const session = this.debugService.getActiveSession();
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (session.configuration.capabilities.supportsEvaluateForHovers) {
-			return evaluateExpression(session, focusedStackFrame, new Expression(namesToFind.join('.'), true), 'hover');
-		}
 
 		const variables: debug.IExpression[] = [];
 		return focusedStackFrame.getScopes(this.debugService).then(scopes => {
