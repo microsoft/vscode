@@ -171,7 +171,8 @@ const TESTS = [
 	{ description: 'Chinese IME 1', in: '.,', out: '。，' },
 	{ description: 'Chinese IME 2', in: 'ni [Space] hao [Space]', out: '你好' },
 	{ description: 'Chinese IME 3', in: 'hazni [Space]', out: '哈祝你' },
-	{ description: 'Mac hold 1', in: '`.', out: '`.' },
+	{ description: 'Mac dead key 1', in: '`.', out: '`.' },
+	{ description: 'Mac hold key 1', in: 'e long press and 1', out: 'é' }
 ];
 
 TESTS.forEach((t) => {
