@@ -158,7 +158,9 @@ export class TerminalService implements ITerminalService {
 		let processCount = this.terminalProcesses.length;
 
 		// When there are 0 processes it means that the panel is not yet created, so the name needs
-		// to be stored for when createNew is called from TerminalPanel.create.
+		// to be stored for when createNew is called from TerminalPanel.create. This has to work
+		// like this as TerminalPanel.setVisible must create a terminal if there is none due to how
+		// the TerminalPanel is restored on launch if it was open previously.
 		if (processCount === 0 && !name) {
 			name = this.nextTerminalName;
 			this.nextTerminalName = undefined;
@@ -167,14 +169,9 @@ export class TerminalService implements ITerminalService {
 		}
 
 		return this.focus().then((terminalPanel) => {
-			// terminalPanel will be null if createNew is called from the command before the
-			// TerminalPanel has been initialized. In this case, skip creating the terminal here
-			// data rely on TerminalPanel's constructor creating the new instance.
-			if (!terminalPanel) {
-				return TPromise.as(void 0);
-			}
-
-			// Only create a new process if none have been created since toggling the terminal panel
+			// Only create a new process if none have been created since toggling the terminal
+			// panel. This happens when createNew is called when the panel is either empty or no yet
+			// created.
 			if (processCount !== this.terminalProcesses.length) {
 				return TPromise.as(this.terminalProcesses[this.terminalProcesses.length - 1].process.pid);
 			}
