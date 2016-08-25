@@ -324,7 +324,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						editorModel = <editorCommon.IModel>model.textEditorModel;
 
 						// if we have a range, take that into consideration for the "to" position, otherwise fallback to MAX_SOURCE_PREVIEW_LINES
-						if (result.range.startLineNumber !== result.range.endLineNumber || result.range.startColumn !== result.range.endColumn) {
+						if (!Range.isEmpty(result.range)) {
 							to = Math.min(result.range.endLineNumber, result.range.startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES, editorModel.getLineCount());
 						} else {
 							to = Math.min(from + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES, editorModel.getLineCount());
@@ -355,7 +355,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 						source = source.replace(new RegExp(`^([ \\t]{${min}})`, 'gm'), strings.empty);
 
-						if (result.range.endLineNumber - result.range.startLineNumber > GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
+						if (to < editorModel.getLineCount()) {
 							source += '\n\u2026';
 						}
 					}
