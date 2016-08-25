@@ -256,10 +256,6 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 		return terminalIndex;
 	}
 
-	public setActiveTerminalById(terminalId: number): void {
-		this.setActiveTerminal(this.getTerminalIndexFromId(terminalId));
-	}
-
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
 		let index = this.terminalInstances.indexOf(terminalInstance);
 		if (index !== -1) {

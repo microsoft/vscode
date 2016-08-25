@@ -347,7 +347,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	protected runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
 		return this.terminalService.createNew(args.title || nls.localize('debuggee', "debuggee")).then(id => {
 			return this.terminalService.show(false).then(terminalPanel => {
-				terminalPanel.setActiveTerminalById(id);
+				this.terminalService.setActiveTerminalById(id);
 				terminalPanel.sendTextToActiveTerminal(args.args.join(' '), true);
 			});
 		});

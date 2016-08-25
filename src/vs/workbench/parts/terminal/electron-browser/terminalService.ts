@@ -66,12 +66,29 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setActiveTerminal(index: number): TPromise<any> {
-		return this.focus().then((terminalPanel) => {
+		return this.show(false).then((terminalPanel) => {
 			this.activeTerminalIndex = index;
 			terminalPanel.setActiveTerminal(this.activeTerminalIndex);
 			terminalPanel.focus();
 			this._onActiveInstanceChanged.fire();
 		});
+	}
+
+	public setActiveTerminalById(terminalId: number): void {
+		this.setActiveTerminal(this.getTerminalIndexFromId(terminalId));
+	}
+
+	private getTerminalIndexFromId(terminalId: number): number {
+		let terminalIndex = -1;
+		this.terminalProcesses.forEach((terminalProcess, i) => {
+			if (terminalProcess.process.pid === terminalId) {
+				terminalIndex = i;
+			}
+		});
+		if (terminalIndex === -1) {
+			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
+		}
+		return terminalIndex;
 	}
 
 	public focusNext(): TPromise<any> {
@@ -142,7 +159,17 @@ export class TerminalService implements ITerminalService {
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
 			this.partService.setPanelHidden(true);
 		}
-		return TPromise.as(null);
+		return TPromise.as(void 0);
+	}
+
+	public hideTerminalInstance(terminalId: number): TPromise<any> {
+		const panel = this.panelService.getActivePanel();
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			if (this.terminalProcesses[this.getActiveTerminalIndex()].process.pid === terminalId) {
+				this.partService.setPanelHidden(true);
+			}
+		}
+		return TPromise.as(void 0);
 	}
 
 	public toggle(): TPromise<any> {
