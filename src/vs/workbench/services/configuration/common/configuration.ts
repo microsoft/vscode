@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {JSONPath} from 'vs/base/common/json';
 import {IConfigurationService, IConfigurationValue}  from 'vs/platform/configuration/common/configuration';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+
+export const CONFIG_DEFAULT_NAME = 'settings';
+export const WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME = '.vscode';
+export const WORKSPACE_CONFIG_DEFAULT_PATH = '.vscode/settings.json';
 
 export const IWorkbenchConfigurationService = createDecorator<IWorkbenchConfigurationService>('configurationService');
 
@@ -20,12 +23,6 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.
 	 */
 	lookup<T>(key: string): IWorkbenchConfigurationValue<T>;
-
-	/**
-	 * Sets a user configuration. An the setting does not yet exist in the settings, it will be
-	 * added.
-	 */
-	setUserConfiguration(key: string | JSONPath, value: any): Thenable<void>;
 }
 
 export interface IWorkbenchConfigurationValue<T> extends IConfigurationValue<T> {
