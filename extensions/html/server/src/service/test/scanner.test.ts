@@ -16,8 +16,8 @@ suite('HTML Scanner', () => {
 	}
 
 	function assertTokens(tests: {input: string; tokens: Token[]; }[]) {
-		
-		let scannerState = ScannerState.Content;
+
+		let scannerState = ScannerState.WithinContent;
 		for (let t of tests) {
 			let scanner = createScanner(t.input, 0, scannerState);
 			let tokenType = scanner.scan();
