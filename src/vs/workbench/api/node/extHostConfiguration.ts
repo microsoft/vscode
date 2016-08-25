@@ -8,8 +8,7 @@ import {mixin} from 'vs/base/common/objects';
 import {illegalState} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';
-import {ExtHostConfigurationShape, MainContext, MainThreadConfigurationShape} from './extHost.protocol';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import {ExtHostConfigurationShape, MainThreadConfigurationShape} from './extHost.protocol';
 import {ConfigurationTarget, ConfigurationEditingResult} from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
@@ -17,12 +16,11 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 	private _proxy: MainThreadConfigurationShape;
 	private _hasConfig: boolean;
 	private _config: any;
-	private _onDidChangeConfiguration: Emitter<void>;
+	private _onDidChangeConfiguration = new Emitter<void>();
 
-	constructor(threadService: IThreadService) {
+	constructor(proxy: MainThreadConfigurationShape) {
 		super();
-		this._proxy = threadService.get(MainContext.MainThreadConfiguration);
-		this._onDidChangeConfiguration = new Emitter<void>();
+		this._proxy = proxy;
 	}
 
 	get onDidChangeConfiguration(): Event<void> {
@@ -56,6 +54,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 				return result;
 			},
 			update: (key: string, value: any, global: boolean) => {
+				key = section ? `${section}.${key}` : key;
 				const target = global ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
 				return this._proxy.$updateConfigurationOption(target, key, value).then(value => {
 					if (value !== ConfigurationEditingResult.OK) {
