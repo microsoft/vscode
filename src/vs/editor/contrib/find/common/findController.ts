@@ -256,9 +256,11 @@ export class StartFindAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (controller) {
+			let isSearchStringEmpty = controller.getState().searchString.length === 0;
+			let isManualSelection = !editor.getSelection().isEmpty();
 			controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: true,
+				seedSearchStringFromSelection: (isSearchStringEmpty || isManualSelection),
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true
 			});
@@ -417,9 +419,11 @@ export class StartFindReplaceAction extends EditorAction {
 
 		let controller = CommonFindController.get(editor);
 		if (controller) {
+			let isSearchStringEmpty = controller.getState().searchString.length === 0;
+			let isManualSelection = !editor.getSelection().isEmpty();
 			controller.start({
 				forceRevealReplace: true,
-				seedSearchStringFromSelection: true,
+				seedSearchStringFromSelection: (isSearchStringEmpty || isManualSelection),
 				shouldFocus: FindStartFocusAction.FocusReplaceInput,
 				shouldAnimate: true
 			});
