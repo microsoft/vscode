@@ -5,9 +5,11 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import errors = require('vs/base/common/errors');
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
+import uuid = require('vs/base/common/uuid');
 import URI from 'vs/base/common/uri';
 import {IRange} from 'vs/editor/common/editorCommon';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
@@ -86,7 +88,12 @@ export class FileEntry extends EditorQuickOpenEntry {
 }
 
 export class OpenFileHandler extends QuickOpenHandler {
+
+	public isCacheWarm = false;
+
 	private queryBuilder: QueryBuilder;
+	private cacheKey: string;
+	private cacheWarmUp: TPromise<any>;
 
 	constructor(
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
@@ -104,7 +111,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			.then(result => result[0]);
 	}
 
-	public getResultsWithStats(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<[QuickOpenModel, ISearchStats]> {
+	public getResultsWithStats(searchValue: string, maxSortedResults?: number): TPromise<[QuickOpenModel, ISearchStats]> {
 		searchValue = searchValue.trim();
 		let promise: TPromise<[QuickOpenEntry[], ISearchStats]>;
 
@@ -112,7 +119,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		if (!searchValue) {
 			promise = TPromise.as(<[QuickOpenEntry[], ISearchStats]>[[], undefined]);
 		} else {
-			promise = this.doFindResults(searchValue, cacheKey, maxSortedResults);
+			promise = this.doFindResults(searchValue, this.cacheKey, maxSortedResults);
 		}
 
 		return promise.then(result => [new QuickOpenModel(result[0]), result[1]]);
@@ -125,7 +132,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			filePattern: searchValue,
 			cacheKey: cacheKey
 		};
-		if (maxSortedResults) {
+		if (typeof maxSortedResults === 'number') {
 			query.maxResults = maxSortedResults;
 			query.sortByScore = true;
 		}
@@ -145,8 +152,32 @@ export class OpenFileHandler extends QuickOpenHandler {
 		});
 	}
 
-	public clearCache(cacheKey: string): TPromise<void> {
-		return this.searchService.clearCache(cacheKey);
+	public onOpen(): void {
+		const cacheKey = this.cacheKey = uuid.generateUuid();
+		this.cacheWarmUp = this.doFindResults('', cacheKey, 0)
+			.then(() => {
+				if (cacheKey === this.cacheKey) {
+					this.isCacheWarm = true;
+				}
+			}, err => {
+				if (!errors.isPromiseCanceledError(err)) {
+					console.error(errors.toErrorMessage(err));
+				}
+			});
+	}
+
+	public onClose(canceled: boolean): void {
+		const cacheKey = this.cacheKey; // might change in between if onOpen() is called again soon
+		if (cacheKey) {
+			this.cacheKey = null;
+			this.isCacheWarm = false;
+			this.cacheWarmUp.then(null, () => {})
+				.then(() => {
+					return this.searchService.clearCache(cacheKey);
+				});
+			this.cacheWarmUp.cancel();
+			this.cacheWarmUp = null;
+		}
 	}
 
 	public getGroupLabel(): string {

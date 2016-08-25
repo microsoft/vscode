@@ -86,8 +86,10 @@ export interface ISearchStats {
 
 export interface ICachedSearchStats extends ISearchStats {
 	cacheLookupStartTime: number;
+	cacheFilterStartTime: number;
 	cacheLookupResultTime: number;
 	cacheEntryCount: number;
+	joined?: ISearchStats;
 }
 
 export interface IUncachedSearchStats extends ISearchStats {

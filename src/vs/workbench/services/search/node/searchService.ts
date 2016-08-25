@@ -267,7 +267,7 @@ export class DiskSearch {
 
 				// Match
 				else if ((<ISerializedFileMatch>data).path) {
-					const fileMatch = this.createFileMatch(data);
+					const fileMatch = this.createFileMatch(<ISerializedFileMatch>data);
 					result.push(fileMatch);
 					p(fileMatch);
 				}

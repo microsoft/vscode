@@ -89,7 +89,10 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
  * @param n The number of elements to return.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number) {
+export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): T[] {
+	if (n === 0) {
+		return [];
+	}
 	const result = array.slice(0, n).sort(compare);
 	for (let i = n, m = array.length; i < m; i++) {
 		const element = array[i];

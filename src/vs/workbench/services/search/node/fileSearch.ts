@@ -99,7 +99,7 @@ export class FileWalker {
 			if (exists) {
 				this.resultCount++;
 				onResult({
-					path: this.filePattern,
+					relativePath: this.filePattern,
 					size
 				});
 
@@ -351,7 +351,7 @@ export class FileWalker {
 					this.resultCount++;
 					onResult({
 						base: rootFolder,
-						path: this.filePattern,
+						relativePath: this.filePattern,
 						size
 					});
 				}
@@ -492,8 +492,8 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: IRawFileMatch) => void, base: string, path: string, size?: number): void {
-		if (this.isFilePatternMatch(path) && (!this.includePattern || this.includePattern(path))) {
+	private matchFile(onResult: (result: IRawFileMatch) => void, base: string, relativePath: string, size?: number): void {
+		if (this.isFilePatternMatch(relativePath) && (!this.includePattern || this.includePattern(relativePath))) {
 			this.resultCount++;
 
 			if (this.maxResults && this.resultCount > this.maxResults) {
@@ -503,7 +503,7 @@ export class FileWalker {
 			if (!this.isLimitHit) {
 				onResult({
 					base,
-					path,
+					relativePath,
 					size
 				});
 			}

@@ -68,6 +68,13 @@ export class QuickOpenHandler {
 	}
 
 	/**
+	 * Indicates to the handler that the quick open widget has been opened.
+	 */
+	public onOpen(): void {
+		return;
+	}
+
+	/**
 	 * Indicates to the handler that the quick open widget has been closed. Allows to free up any resources as needed.
 	 * The parameter canceled indicates if the quick open widget was closed with an entry being run or not.
 	 */
