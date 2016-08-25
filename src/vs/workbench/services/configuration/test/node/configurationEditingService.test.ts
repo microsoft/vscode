@@ -168,6 +168,7 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 					const parsed = json.parse(contents);
 					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
+					assert.equal(services.configurationService.lookup('configurationEditing.service.testSetting').value, 'value');
 
 					services.configurationService.dispose();
 					cleanUp(done);
@@ -188,6 +189,9 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					const parsed = json.parse(contents);
 					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
 					assert.equal(parsed['my.super.setting'], 'my.super.value');
+
+					assert.equal(services.configurationService.lookup('configurationEditing.service.testSetting').value, 'value');
+					assert.equal(services.configurationService.lookup('my.super.setting').value, 'my.super.value');
 
 					services.configurationService.dispose();
 					cleanUp(done);
@@ -211,6 +215,9 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
 					assert.equal(parsed['configurationEditing.service.testSettingTwo'].complex.value, true);
 					assert.equal(parsed['configurationEditing.service.testSettingThree'], 55);
+
+					assert.equal(services.configurationService.lookup('configurationEditing.service.testSetting').value, 'value');
+					assert.equal(services.configurationService.lookup('configurationEditing.service.testSettingThree').value, 55);
 
 					services.configurationService.dispose();
 					cleanUp(done);
@@ -238,6 +245,10 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					assert.equal(parsed['configurationEditing.service.testSettingThree'], 55);
 
 					assert.equal(parsed['my.super.setting'], 'my.super.value');
+
+					assert.equal(services.configurationService.lookup('my.super.setting').value, 'my.super.value');
+					assert.equal(services.configurationService.lookup('configurationEditing.service.testSetting').value, 'value');
+					assert.equal(services.configurationService.lookup('configurationEditing.service.testSettingThree').value, 55);
 
 					services.configurationService.dispose();
 					cleanUp(done);
