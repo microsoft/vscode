@@ -200,7 +200,7 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getRecommendations(): TPromise<IGalleryExtension[]>;
+	getRecommendations(): string[];
 }
 
 export const ExtensionsLabel = nls.localize('extensions', "Extensions");
