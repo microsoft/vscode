@@ -8,8 +8,7 @@ import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
 import json = require('vs/base/common/json');
 import model = require('vs/platform/configuration/common/model');
-
-export const CONFIG_DEFAULT_NAME = 'settings';
+import {CONFIG_DEFAULT_NAME} from 'vs/workbench/services/configuration/common/configuration';
 
 export interface IConfigFile {
 	contents: any;

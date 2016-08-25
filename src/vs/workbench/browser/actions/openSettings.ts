@@ -17,7 +17,7 @@ import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IWorkbenchConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
+import {IWorkbenchConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -157,7 +157,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 					new Action('open.workspaceSettings', nls.localize('openWorkspaceSettings', "Open Workspace Settings"), null, true, () => {
 						let editorCount = this.editorService.getVisibleEditors().length;
 
-						return this.editorService.createInput({ resource: this.contextService.toResource('.vscode/settings.json') }).then((typedInput) => {
+						return this.editorService.createInput({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) }).then((typedInput) => {
 							return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
 						});
 					})
