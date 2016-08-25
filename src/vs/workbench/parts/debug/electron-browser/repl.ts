@@ -72,8 +72,10 @@ export class Repl extends Panel implements IPrivateReplService {
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
 	private replInput: CodeEditor;
+	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
 	private actions: actions.IAction[];
+	private dimension: builder.Dimension;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -126,15 +128,15 @@ export class Repl extends Panel implements IPrivateReplService {
 		super.create(parent);
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
 		this.treeContainer = dom.append(container, $('.repl-tree'));
-		const replInputContainer = dom.append(container, $('.repl-input-wrapper'));
+		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 
-		const scopedContextKeyService = this.contextKeyService.createScoped(replInputContainer);
+		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
 		this.toDispose.push(scopedContextKeyService);
 		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 
-		this.replInput = scopedInstantiationService.createInstance(CodeEditor, replInputContainer, this.getReplInputOptions());
+		this.replInput = scopedInstantiationService.createInstance(CodeEditor, this.replInputContainer, this.getReplInputOptions());
 		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
 		this.replInput.setModel(model);
 
@@ -152,8 +154,15 @@ export class Repl extends Panel implements IPrivateReplService {
 			true
 		);
 
-		this.toDispose.push(dom.addStandardDisposableListener(replInputContainer, dom.EventType.FOCUS, () => dom.addClass(replInputContainer, 'synthetic-focus')));
-		this.toDispose.push(dom.addStandardDisposableListener(replInputContainer, dom.EventType.BLUR, () => dom.removeClass(replInputContainer, 'synthetic-focus')));
+		this.toDispose.push(this.replInput.onDidScrollChange(e => {
+			if (!e.scrollHeightChanged) {
+				return;
+			}
+			this.layout(this.dimension, Math.min(170, e.scrollHeight));
+		}));
+
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
 
 		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
 		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
@@ -191,17 +200,21 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.debugService.addReplExpression(this.replInput.getValue());
 		Repl.HISTORY.evaluated(this.replInput.getValue());
 		this.replInput.setValue('');
+		// Trigger a layout to shrink a potential multi line input
+		this.layout(this.dimension);
 	}
 
-	public layout(dimension: builder.Dimension): void {
+	public layout(dimension: builder.Dimension, replInputHeight = 22): void {
+		this.dimension = dimension;
 		if (this.tree) {
 			this.renderer.setWidth(dimension.width - 25, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
-			this.tree.layout(dimension.height - 22);
-			// refresh the tree because layout might require some elements be word wrapped differently
-			this.tree.refresh().done(undefined, errors.onUnexpectedError);
+			const treeHeight = dimension.height - replInputHeight;
+			this.treeContainer.style.height = `${treeHeight}px`;
+			this.tree.layout(treeHeight);
 		}
+		this.replInputContainer.style.height = `${replInputHeight}px`;
 
-		this.replInput.layout({ width: dimension.width - 20, height: 21 });
+		this.replInput.layout({ width: dimension.width - 20, height: replInputHeight });
 	}
 
 	public focus(): void {

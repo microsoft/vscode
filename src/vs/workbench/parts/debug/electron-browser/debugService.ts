@@ -953,9 +953,10 @@ export class DebugService implements debug.IDebugService {
 		if (!this.session) {
 			return TPromise.as([]);
 		}
+		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
 
 		return this.session.completions({
-			frameId: this.viewModel.getFocusedStackFrame().frameId,
+			frameId: focussedStackFrame ? focussedStackFrame.frameId : undefined,
 			text,
 			column: position.column,
 			line: position.lineNumber
