@@ -22,9 +22,9 @@ import {applyEdits} from 'vs/base/common/jsonFormatter';
 import {setProperty} from 'vs/base/common/jsonEdit';
 import errors = require('vs/base/common/errors');
 import {IConfigFile, consolidate, CONFIG_DEFAULT_NAME, newConfigFile} from 'vs/workbench/services/configuration/common/model';
-import {IConfigurationServiceEvent}  from 'vs/platform/configuration/common/configuration';
+import {IConfigurationServiceEvent, getConfigurationValue}  from 'vs/platform/configuration/common/configuration';
 import {ConfigurationService as BaseConfigurationService}  from 'vs/platform/configuration/node/configurationService';
-import {IWorkbenchConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
+import {IWorkbenchConfigurationService, IWorkbenchConfigurationValue} from 'vs/workbench/services/configuration/common/configuration';
 import {EventType as FileEventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -114,6 +114,17 @@ export class WorkspaceConfigurationService implements IWorkbenchConfigurationSer
 
 	public getConfiguration<T>(section?: string): T {
 		return section ? this.cachedConfig[section] : this.cachedConfig;
+	}
+
+	public lookup<C>(key: string): IWorkbenchConfigurationValue<C> {
+		const configurationValue = this.baseConfigurationService.lookup<C>(key);
+
+		return {
+			default: configurationValue.default,
+			user: configurationValue.user,
+			workspace: getConfigurationValue<C>(this.cachedWorkspaceConfig, key),
+			value: getConfigurationValue<C>(this.getConfiguration(), key)
+		};
 	}
 
 	public reloadConfiguration(section?: string): TPromise<any> {

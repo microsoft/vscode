@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as Platform from 'vs/base/common/platform';
-import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import {ConfigVariables} from 'vs/workbench/parts/lib/node/configVariables';
+import {IConfigurationService, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {TestEnvironmentService} from 'vs/test/utils/servicesTestUtils';
 import {TPromise} from 'vs/base/common/winjs.base';
 
@@ -126,6 +126,7 @@ class MockConfigurationService implements IConfigurationService {
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public reloadConfiguration<T>(section?: string): TPromise<T> { return TPromise.as(this.getConfiguration()); }
+	public lookup(key: string) { return { value: getConfigurationValue(this.getConfiguration(), key), default: getConfigurationValue(this.getConfiguration(), key), user: getConfigurationValue(this.getConfiguration(), key) }; }
 	public getConfiguration(): any { return this.configuration; }
 	public onDidUpdateConfiguration() { return { dispose() { } }; }
 }
