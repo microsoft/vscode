@@ -148,16 +148,6 @@ class ModelMarkerHandler {
 				message = nls.localize('sourceAndDiagMessage', "[{0}] {1}", source, message);
 			}
 			hoverMessage = [textAsCodeBlock(message)];
-		} else if (message) {
-			// this some old undocumented trick to get
-			// formatted error messages. no clue if we still
-			// have a need for that
-			hoverMessage = source ? [`[${marker.source}] `] : [];
-			if (Array.isArray(message)) {
-				hoverMessage.push(...(<any> message));
-			} else {
-				hoverMessage.push(message);
-			}
 		}
 
 		return {
