@@ -62,7 +62,11 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				// Apply all edits to the configuration file
 				const result = this.applyEdits(contents, values);
 
-				return pfs.writeFile(resource.fsPath, result, encoding.UTF8).then(() => ConfigurationEditingResult.OK);
+				return pfs.writeFile(resource.fsPath, result, encoding.UTF8).then(() => {
+
+					// Reload the configuration so that we make sure all parties are updated
+					return this.configurationService.reloadConfiguration().then(() => ConfigurationEditingResult.OK);
+				});
 			});
 		});
 	}
