@@ -10,6 +10,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';
 import {ExtHostConfigurationShape, MainContext, MainThreadConfigurationShape} from './extHost.protocol';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import {ConfigurationTarget, ConfigurationEditingResult} from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
@@ -53,6 +54,14 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 					result = defaultValue;
 				}
 				return result;
+			},
+			update: (key: string, value: any, global: boolean) => {
+				const target = global ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
+				return this._proxy.$updateConfigurationOption(target, key, value).then(value => {
+					if (value !== ConfigurationEditingResult.OK) {
+						throw new Error(ConfigurationEditingResult[value]);
+					}
+				});
 			}
 		};
 
