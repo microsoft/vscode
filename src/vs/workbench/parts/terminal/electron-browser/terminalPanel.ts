@@ -122,7 +122,7 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, parent);
 
-		return this.terminalService.createNew();
+		return TPromise.as(void 0);
 	}
 
 	private attachEventListeners(): void {
