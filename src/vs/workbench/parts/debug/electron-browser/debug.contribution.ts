@@ -8,7 +8,6 @@ import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
@@ -24,8 +23,7 @@ import {VariablesView, WatchExpressionsView, CallStackView, BreakpointsView} fro
 import wbext = require('vs/workbench/common/contributions');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import {DebugEditorModelManager} from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
-import {ToggleBreakpointAction, EditorConditionalBreakpointAction, ShowDebugHoverAction, SelectionToReplAction, RunToCursorAction, StepOverAction, ClearReplAction, FocusReplAction,
-	StepIntoAction, StepOutAction, StartAction, StepBackAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction, SelectionToWatchExpressionsAction,
+import {StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, StepBackAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
 	ConfigureAction, ToggleReplAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction} from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
@@ -50,12 +48,6 @@ class OpenDebugViewletAction extends viewlet.ToggleViewletAction {
 }
 
 EditorBrowserRegistry.registerEditorContribution(DebugEditorContribution);
-CommonEditorRegistry.registerEditorAction(new ToggleBreakpointAction());
-CommonEditorRegistry.registerEditorAction(new ShowDebugHoverAction());
-CommonEditorRegistry.registerEditorAction(new EditorConditionalBreakpointAction());
-CommonEditorRegistry.registerEditorAction(new SelectionToReplAction());
-CommonEditorRegistry.registerEditorAction(new RunToCursorAction());
-CommonEditorRegistry.registerEditorAction(new SelectionToWatchExpressionsAction());
 
 // register viewlet
 (<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
