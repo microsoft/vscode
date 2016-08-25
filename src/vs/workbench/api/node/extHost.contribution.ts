@@ -83,7 +83,6 @@ export class ExtHostContribution implements IWorkbenchContribution {
 
 		// Other interested parties
 		create(MainProcessTextMateSyntax);
-		create(MainThreadConfiguration);
 		create(MainProcessTextMateSnippet);
 		create(JSONValidationExtensionPoint);
 		create(LanguageConfigurationFileHandler);
