@@ -19,14 +19,14 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { IPager, PagedModel } from 'vs/base/common/paging';
+import { PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
 import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
-import { IExtensionManagementService, IExtensionGalleryService, SortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -36,6 +36,54 @@ import URI from 'vs/base/common/uri';
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
 	immediate?: boolean;
+}
+
+interface IContext {
+	query(): TPromise<PagedModel<IExtension>>;
+}
+
+class LocalContext implements IContext {
+
+	constructor(private value: string, private extensionsWorkbenchService: IExtensionsWorkbenchService) {}
+
+	query(): TPromise<PagedModel<IExtension>> {
+		let local = this.extensionsWorkbenchService.queryLocal();
+
+		if (/@outdated/i.test(this.value)) {
+			local = local.then(result => result.filter(e => e.outdated));
+		}
+
+		return local.then(result => new PagedModel(result));
+	}
+}
+
+class GalleryContext implements IContext {
+
+	constructor(
+		private value: string,
+		private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		private tipsService: IExtensionTipsService
+	) {}
+
+	query(): TPromise<PagedModel<IExtension>> {
+		let options: TPromise<IQueryOptions> = null;
+
+		if (/@popular/i.test(this.value)) {
+			options = TPromise.as({ sortBy: SortBy.InstallCount });
+		} else if (/@recommended/i.test(this.value)) {
+			options = this.extensionsWorkbenchService.queryLocal().then(local => {
+				const names = this.tipsService.getRecommendations()
+					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name));
+
+				return { names, pageSize: names.length };
+			});
+		} else {
+			options = TPromise.as({ text: this.value });
+		}
+
+		return this.extensionsWorkbenchService.queryGallery(options)
+			.then(result => new PagedModel(result));
+	}
 }
 
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
@@ -58,7 +106,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IURLService urlService: IURLService
+		@IURLService urlService: IURLService,
+		@IExtensionTipsService private tipsService: IExtensionTipsService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -172,35 +221,25 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private doSearch(value: string = '', suggestPopular = false): TPromise<any> {
-		const progressRunner = this.progressService.show(true);
-		let promise: TPromise<IPager<IExtension> | IExtension[]>;
+		const context = this.getContext(value);
+		const promise = this.progress(context.query());
 
-		if (!value) {
-			promise = this.extensionsWorkbenchService.queryLocal()
-				.then(result => {
-					if (result.length === 0 && suggestPopular) {
-						this.search('@popular', true);
-					}
+		return promise.then(model => {
+			if (context instanceof LocalContext && model.length === 0 && suggestPopular) {
+				return this.search('@popular', true);
+			}
 
-					return result;
-				});
-		} else if (/@outdated/i.test(value)) {
-			promise = this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.filter(e => e.outdated));
-		} else if (/@popular/i.test(value)) {
-			promise = this.extensionsWorkbenchService.queryGallery({ sortBy: SortBy.InstallCount });
-		} else if (/@recommended/i.test(value)) {
-			promise = this.extensionsWorkbenchService.getRecommendations();
+			this.list.model = model;
+			this.list.scrollTop = 0;
+		});
+	}
+
+	private getContext(value: string): IContext {
+		if (!value || /@outdated/i.test(value)) {
+			return new LocalContext(value, this.extensionsWorkbenchService);
 		} else {
-			promise = this.extensionsWorkbenchService.queryGallery({ text: value });
+			return new GalleryContext(value, this.extensionsWorkbenchService, this.tipsService);
 		}
-
-		return always(promise, () => progressRunner.done())
-			.then(result => new PagedModel<IExtension>(result))
-			.then(model => {
-				this.list.model = model;
-				this.list.scrollTop = 0;
-			});
 	}
 
 	private openExtension(extension: IExtension): void {
@@ -254,6 +293,11 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				const extension = result.firstPage[0];
 				this.openExtension(extension);
 			});
+	}
+
+	private progress<T>(promise: TPromise<T>): TPromise<T> {
+		const progressRunner = this.progressService.show(true);
+		return always(promise, () => progressRunner.done());
 	}
 
 	dispose(): void {
