@@ -931,9 +931,9 @@ export function trackFocus(element: HTMLElement|Window): IFocusTracker {
 	return new FocusTracker(element);
 }
 
-export function append<T extends Node>(parent: HTMLElement, child: T): T {
-	parent.appendChild(child);
-	return child;
+export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
+	children.forEach(child => parent.appendChild(child));
+	return children[children.length - 1];
 }
 
 export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
@@ -963,6 +963,12 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 	Object.keys(attrs || {}).forEach(name => {
 		if (/^on\w+$/.test(name)) {
 			result[name] = attrs[name];
+		} else if (name === 'selected') {
+			const value = attrs[name];
+			if (value) {
+				result.setAttribute(name, 'true');
+			}
+
 		} else {
 			result.setAttribute(name, attrs[name]);
 		}
