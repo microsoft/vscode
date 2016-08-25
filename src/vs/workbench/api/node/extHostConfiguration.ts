@@ -61,7 +61,8 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 			}
 			return result;
 		};
-		return result;
+
+		return Object.freeze(result);
 	}
 
 	private static _lookUp(section: string, config: any) {
