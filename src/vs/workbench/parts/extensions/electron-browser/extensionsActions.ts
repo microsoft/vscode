@@ -320,6 +320,7 @@ export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(id, label, viewletService, extensionsWorkbenchService);
+		this.enabled = false;
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
