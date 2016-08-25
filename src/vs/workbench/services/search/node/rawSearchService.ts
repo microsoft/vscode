@@ -316,20 +316,13 @@ interface ScorerCache {
 	[key: string]: number;
 }
 
-interface IFileMatch extends IRawFileMatch {
-	label?: string;
-}
-
 class FileMatchAccessor {
 
-	public static getLabel(match: IFileMatch): string {
-		if (!match.label) {
-			match.label = paths.basename(match.relativePath);
-		}
-		return match.label;
+	public static getLabel(match: IRawFileMatch): string {
+		return match.basename;
 	}
 
-	public static getResourcePath(match: IFileMatch): string {
+	public static getResourcePath(match: IRawFileMatch): string {
 		return match.relativePath;
 	}
 }
