@@ -104,7 +104,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
-	private getHoveredExpression(lineContent: string, range: Range) : Range {
+	private getExactExpressionRange(lineContent: string, range: Range) : Range {
 		let matchingExpression = undefined;
 		let startOffset = 0;
 
@@ -164,7 +164,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		let startOffset = 0;
 
 		if (canEvaluateForHovers) {
-			let expressionRange = this.getHoveredExpression(lineContent, range);
+			// use regex to extract the sub-expression #9821
+			let expressionRange = this.getExactExpressionRange(lineContent, range);
 			startOffset = expressionRange.startColumn;
 			matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 			evaluatedExpression = evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression, true), 'hover');
@@ -174,7 +175,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				.split('.').map(word => word.trim()).filter(word => !!word);
 			namesToFind.push(hoveringOver);
 			namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
-			evaluatedExpression = this.getExpression(namesToFind);
+			evaluatedExpression = this.findExpressionInStackFrame(namesToFind);
 		}
 
 		return evaluatedExpression.then(expression => {
@@ -183,9 +184,9 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				return;
 			}
 
-			let hoverRange = canEvaluateForHovers ?
-						new Range(pos.lineNumber, startOffset, pos.lineNumber, startOffset + matchingExpression.length) :
-						new Range(pos.lineNumber, lineContent.indexOf(hoveringOver) + 1, pos.lineNumber, lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length);
+			const hoverRange = canEvaluateForHovers ?
+				new Range(pos.lineNumber, startOffset, pos.lineNumber, startOffset + matchingExpression.length) :
+				new Range(pos.lineNumber, lineContent.indexOf(hoveringOver) + 1, pos.lineNumber, lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length);
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
 				range: hoverRange,
@@ -198,7 +199,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		});
 	}
 
-	private getExpression(namesToFind: string[]): TPromise<Expression> {
+	private findExpressionInStackFrame(namesToFind: string[]): TPromise<Expression> {
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
 
 		const variables: debug.IExpression[] = [];
