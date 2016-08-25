@@ -10,30 +10,29 @@ import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import {Range} from 'vs/editor/common/core/range';
 import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 
 
 import emmet = require('emmet');
 
-interface ModeScopeMap {
-	[key: string]: string;
+export interface IGrammarContributions {
+	getGrammar(mode: string): string;
 }
-
-let modeScopesMap: ModeScopeMap = null;
 
 export class EditorAccessor implements emmet.Editor {
 
-	editor: ICommonCodeEditor;
-	syntaxProfiles: any;
+	private _editor: ICommonCodeEditor;
+	private _syntaxProfiles: any;
+	private _grammars: IGrammarContributions;
 
 	private _hasMadeEdits: boolean;
 
-	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'sass', 'scss', 'stylus', 'xml', 'xsl', 'jade', 'handlebars', 'ejs', 'hbs', 'jsx', 'tsx', 'erb', 'php', 'twig'];
+	private emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
 
-	constructor(editor: ICommonCodeEditor, syntaxProfiles: any) {
-		this.editor = editor;
-		this.syntaxProfiles = syntaxProfiles;
+	constructor(editor: ICommonCodeEditor, syntaxProfiles: any, grammars: IGrammarContributions) {
+		this._editor = editor;
+		this._syntaxProfiles = syntaxProfiles;
 		this._hasMadeEdits = false;
+		this._grammars = grammars;
 	}
 
 	public isEmmetEnabledMode(): boolean {
@@ -41,7 +40,7 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getSelectionRange(): emmet.Range {
-		let selection = this.editor.getSelection();
+		let selection = this._editor.getSelection();
 		return {
 			start: this.getOffsetFromPosition(selection.getStartPosition()),
 			end: this.getOffsetFromPosition(selection.getEndPosition())
@@ -49,7 +48,7 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getCurrentLineRange(): emmet.Range {
-		let currentLine = this.editor.getSelection().startLineNumber;
+		let currentLine = this._editor.getSelection().startLineNumber;
 		return {
 			start: this.getOffsetFromPosition({ lineNumber: currentLine, column: 1 }),
 			end: this.getOffsetFromPosition({ lineNumber: currentLine + 1, column: 1 })
@@ -57,7 +56,7 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getCaretPos(): number {
-		let selectionStart = this.editor.getSelection().getStartPosition();
+		let selectionStart = this._editor.getSelection().getStartPosition();
 		return this.getOffsetFromPosition(selectionStart);
 	}
 
@@ -66,8 +65,8 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getCurrentLine(): string {
-		let selectionStart = this.editor.getSelection().getStartPosition();
-		return this.editor.getModel().getLineContent(selectionStart.lineNumber);
+		let selectionStart = this._editor.getSelection().getStartPosition();
+		return this._editor.getModel().getLineContent(selectionStart.lineNumber);
 	}
 
 	public onBeforeEmmetAction(): void {
@@ -80,7 +79,7 @@ export class EditorAccessor implements emmet.Editor {
 		let endPosition = this.getPositionFromOffset(end);
 
 		// test if < or </ are located before the replace range. Either replace these too, or block the expansion
-		var currentLine = this.editor.getModel().getLineContent(startPosition.lineNumber).substr(0, startPosition.column - 1); // content before the replaced range
+		var currentLine = this._editor.getModel().getLineContent(startPosition.lineNumber).substr(0, startPosition.column - 1); // content before the replaced range
 		var match = currentLine.match(/<[/]?$/);
 		if (match) {
 			if (strings.startsWith(value, match[0])) {
@@ -93,23 +92,23 @@ export class EditorAccessor implements emmet.Editor {
 		// If this is the first edit in this "transaction", push an undo stop before them
 		if (!this._hasMadeEdits) {
 			this._hasMadeEdits = true;
-			this.editor.pushUndoStop();
+			this._editor.pushUndoStop();
 		}
 
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
-		SnippetController.get(this.editor).runWithReplaceRange(codeSnippet, range);
+		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
 	}
 
 	public onAfterEmmetAction(): void {
 		// If there were any edits in this "transaction", push an undo stop after them
 		if (this._hasMadeEdits) {
-			this.editor.pushUndoStop();
+			this._editor.pushUndoStop();
 		}
 	}
 
 	public getContent(): string {
-		return this.editor.getModel().getValue();
+		return this._editor.getModel().getValue();
 	}
 
 	public createSelection(startOffset: number, endOffset?: number): void {
@@ -121,13 +120,13 @@ export class EditorAccessor implements emmet.Editor {
 			endPosition = this.getPositionFromOffset(endOffset);
 		}
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		this.editor.setSelection(range);
-		this.editor.revealRange(range);
+		this._editor.setSelection(range);
+		this._editor.revealRange(range);
 	}
 
 	public getSyntax(): string {
-		let position = this.editor.getSelection().getStartPosition();
-		let modeId = this.editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
+		let position = this._editor.getSelection().getStartPosition();
+		let modeId = this._editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
 		let syntax = modeId.split('.').pop();
 
 		// user can overwrite the syntax using the emmet syntaxProfiles setting
@@ -136,10 +135,14 @@ export class EditorAccessor implements emmet.Editor {
 			return profile;
 		}
 
+		if (this.emmetSupportedModes.indexOf(syntax) !== -1) {
+			return syntax;
+		}
+
 		if (/\b(razor|handlebars|erb|php|hbs|ejs|twig)\b/.test(syntax)) { // treat like html
 			return 'html';
 		}
-		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat like tsx like jsx
+		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
 			return 'jsx';
 		}
 		if (syntax === 'sass-indented') { // map sass-indented to sass
@@ -151,17 +154,14 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	private getSyntaxProfile(syntax: string): string {
-		const profile = this.syntaxProfiles[syntax];
+		const profile = this._syntaxProfiles[syntax];
 		if (profile && typeof profile === 'string') {
 			return profile;
 		}
 	}
 
 	private checkParentMode(syntax: string): string {
-		if (!modeScopesMap) {
-			modeScopesMap = this.getModeScopeMap();
-		}
-		let languageGrammar = modeScopesMap[syntax];
+		let languageGrammar = this._grammars.getGrammar(syntax);
 		if (!languageGrammar) {
 			return syntax;
 		}
@@ -170,28 +170,13 @@ export class EditorAccessor implements emmet.Editor {
 		if (syntax !== thisLanguage || languages.length < 2) {
 			return syntax;
 		}
-		let parentMode = languages[languages.length-2];
-		if (this.emmetSupportedModes.indexOf(parentMode) !== -1) {
-			return parentMode;
+		for (let i = 1; i < languages.length; i++) {
+			const language = languages[languages.length - i];
+			if (this.emmetSupportedModes.indexOf(language) !== -1) {
+				return language;
+			}
 		}
 		return syntax;
-	}
-
-	private getModeScopeMap(): ModeScopeMap {
-		let map: ModeScopeMap = {};
-		ExtensionsRegistry.getAllExtensionDescriptions().forEach((desc) => {
-			if (desc.contributes) {
-				let grammars = (<any>desc.contributes).grammars;
-				if (grammars) {
-					grammars.forEach((grammar) => {
-						if (grammar.language && grammar.scopeName) {
-							map[grammar.language] = grammar.scopeName;
-						}
-					});
-				}
-			}
-		});
-		return map;
 	}
 
 	public getProfileName(): string {
@@ -203,8 +188,8 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getSelection(): string {
-		let selection = this.editor.getSelection();
-		let model = this.editor.getModel();
+		let selection = this._editor.getSelection();
+		let model = this._editor.getModel();
 		let start = selection.getStartPosition();
 		let end = selection.getEndPosition();
 		let range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
@@ -212,14 +197,14 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public getFilePath(): string {
-		return this.editor.getModel().uri.fsPath;
+		return this._editor.getModel().uri.fsPath;
 	}
 
 	private getPositionFromOffset(offset: number): IPosition {
-		return this.editor.getModel().getPositionAt(offset);
+		return this._editor.getModel().getPositionAt(offset);
 	}
 
 	private getOffsetFromPosition(position: IPosition): number {
-		return this.editor.getModel().getOffsetAt(position);
+		return this._editor.getModel().getOffsetAt(position);
 	}
 }
