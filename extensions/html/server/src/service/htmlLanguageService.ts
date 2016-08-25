@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-
+import { parse} from './parser/htmlParser';
+import { doComplete } from './services/htmlCompletion';
 import { TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, FormattingOptions, MarkedString } from 'vscode-languageserver-types';
 
 export { TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, FormattingOptions, MarkedString };
@@ -29,15 +30,22 @@ export declare type HTMLDocument = {};
 
 export interface LanguageService {
 	configure(settings: LanguageSettings): void;
-	doValidation(document: TextDocument, htmlDocument: HTMLDocument): Diagnostic[];
 	parseHTMLDocument(document: TextDocument): HTMLDocument;
-	doResolve(item: CompletionItem): CompletionItem;
+	doValidation(document: TextDocument, htmlDocument: HTMLDocument): Diagnostic[];
+
+//	doResolve(item: CompletionItem): CompletionItem;
 	doComplete(document: TextDocument, position: Position, doc: HTMLDocument): CompletionList;
-	findDocumentSymbols(document: TextDocument, doc: HTMLDocument): SymbolInformation[];
-	doHover(document: TextDocument, position: Position, doc: HTMLDocument): Hover;
-	format(document: TextDocument, range: Range, options: FormattingOptions): TextEdit[];
+//	findDocumentSymbols(document: TextDocument, doc: HTMLDocument): SymbolInformation[];
+//	doHover(document: TextDocument, position: Position, doc: HTMLDocument): Hover;
+//	format(document: TextDocument, range: Range, options: FormattingOptions): TextEdit[];
 }
 
 export function getLanguageService() : LanguageService {
-	return null;
+	return {
+		doValidation: (document, htmlDocument) => { return []; },
+
+		configure: (settings) => {},
+		parseHTMLDocument: (document) => parse(document.getText()),
+		doComplete
+	};
 }
