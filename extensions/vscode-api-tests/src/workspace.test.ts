@@ -43,7 +43,7 @@ suite('workspace-namespace', () => {
 
 	test('configuration, getConfig/value', () => {
 		const value = workspace.getConfiguration('farboo.config0');
-		assert.equal(Object.keys(value).length, 2);
+		assert.equal(Object.keys(value).length, 3);
 	});
 
 	test('textDocuments', () => {
