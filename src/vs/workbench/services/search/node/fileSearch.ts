@@ -112,12 +112,13 @@ export class FileWalker {
 			// For each extra file
 			if (extraFiles) {
 				extraFiles.forEach(extraFilePath => {
-					if (this.excludePattern(extraFilePath)) {
+					const basename = paths.basename(extraFilePath);
+					if (this.excludePattern(extraFilePath, basename)) {
 						return; // excluded
 					}
 
 					// File: Check for match on file pattern and include pattern
-					this.matchFile(onResult, null, extraFilePath /* no workspace relative path */);
+					this.matchFile(onResult, null, extraFilePath /* no workspace relative path */, basename);
 				});
 			}
 
@@ -141,8 +142,8 @@ export class FileWalker {
 			}
 
 			// For each root folder
-			flow.parallel(rootFolders, (rootFolder, rootFolderDone: (err?: Error) => void) => {
-				traverse.call(this, rootFolder, onResult, err => {
+			flow.parallel<string, void>(rootFolders, (rootFolder: string, rootFolderDone: (err?: Error) => void) => {
+				traverse.call(this, rootFolder, onResult, (err?: Error) => {
 					if (err) {
 						if (isNodeTraversal) {
 							rootFolderDone(err);
@@ -238,11 +239,11 @@ export class FileWalker {
 		const stdout = this.collectData(cmd.stdout);
 		const stderr = this.collectData(cmd.stderr);
 
-		cmd.on('error', err => {
+		cmd.on('error', (err: Error) => {
 			done(err);
 		});
 
-		cmd.on('close', code => {
+		cmd.on('close', (code: number) => {
 			if (code !== 0) {
 				done(new Error(`find failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
@@ -252,8 +253,8 @@ export class FileWalker {
 	}
 
 	private collectData(stream: Readable): Buffer[] {
-		const buffers = [];
-		stream.on('data', data => {
+		const buffers: Buffer[] = [];
+		stream.on('data', (data: Buffer) => {
 			buffers.push(data);
 		});
 		return buffers;
@@ -269,7 +270,8 @@ export class FileWalker {
 
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
-			this.matchFile(onResult, rootFolder, this.filePattern);
+			const basename = paths.basename(this.filePattern);
+			this.matchFile(onResult, rootFolder, this.filePattern, basename);
 		}
 
 		const tree = this.buildDirectoryTree(relativeFiles);
@@ -306,14 +308,13 @@ export class FileWalker {
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
 			for (let i = 0, n = entries.length; i < n; i++) {
-				const entry = entries[i];
-				const relativePath = entry.relativePath;
+				const {relativePath, basename} = entries[i];
 
 				// Check exclude pattern
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (excludePattern(relativePath, () => filePattern !== entry.basename ? entries.map(entry => entry.basename) : [])) {
+				if (excludePattern(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
 					continue;
 				}
 
@@ -326,7 +327,7 @@ export class FileWalker {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
 
-					self.matchFile(onResult, rootFolder, relativePath);
+					self.matchFile(onResult, rootFolder, relativePath, basename);
 				}
 			};
 		}
@@ -419,7 +420,7 @@ export class FileWalker {
 
 			// Check exclude pattern
 			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(paths.sep) : file;
-			if (this.excludePattern(currentRelativePath, () => siblings)) {
+			if (this.excludePattern(currentRelativePath, file, () => siblings)) {
 				return clb(null);
 			}
 
@@ -476,7 +477,7 @@ export class FileWalker {
 							return clb(null); // ignore file if max file size is hit
 						}
 
-						this.matchFile(onResult, rootFolder, currentRelativePath, stat.size);
+						this.matchFile(onResult, rootFolder, currentRelativePath, file, stat.size);
 					}
 
 					// Unwind
@@ -492,8 +493,8 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: IRawFileMatch) => void, base: string, relativePath: string, size?: number): void {
-		if (this.isFilePatternMatch(relativePath) && (!this.includePattern || this.includePattern(relativePath))) {
+	private matchFile(onResult: (result: IRawFileMatch) => void, base: string, relativePath: string, basename: string, size?: number): void {
+		if (this.isFilePatternMatch(relativePath) && (!this.includePattern || this.includePattern(relativePath, basename))) {
 			this.resultCount++;
 
 			if (this.maxResults && this.resultCount > this.maxResults) {
