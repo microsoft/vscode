@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {JSONPath} from 'vs/base/common/json';
-import {IConfigurationService}  from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService, IConfigurationValue}  from 'vs/platform/configuration/common/configuration';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const IWorkbenchConfigurationService = createDecorator<IWorkbenchConfigurationService>('configurationService');
@@ -17,8 +17,17 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	hasWorkspaceConfiguration(): boolean;
 
 	/**
+	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.
+	 */
+	lookup<T>(key: string): IWorkbenchConfigurationValue<T>;
+
+	/**
 	 * Sets a user configuration. An the setting does not yet exist in the settings, it will be
 	 * added.
 	 */
 	setUserConfiguration(key: string | JSONPath, value: any): Thenable<void>;
+}
+
+export interface IWorkbenchConfigurationValue<T> extends IConfigurationValue<T> {
+	workspace: T;
 }
