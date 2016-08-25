@@ -66,22 +66,23 @@ class GalleryContext implements IContext {
 	) {}
 
 	query(): TPromise<PagedModel<IExtension>> {
-		let options: TPromise<IQueryOptions> = null;
+		let optionsPromise: TPromise<IQueryOptions> = null;
 
 		if (/@popular/i.test(this.value)) {
-			options = TPromise.as({ sortBy: SortBy.InstallCount });
+			optionsPromise = TPromise.as({ sortBy: SortBy.InstallCount });
 		} else if (/@recommended/i.test(this.value)) {
-			options = this.extensionsWorkbenchService.queryLocal().then(local => {
+			optionsPromise = this.extensionsWorkbenchService.queryLocal().then(local => {
 				const names = this.tipsService.getRecommendations()
 					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name));
 
 				return { names, pageSize: names.length };
 			});
 		} else {
-			options = TPromise.as({ text: this.value });
+			optionsPromise = TPromise.as({ text: this.value });
 		}
 
-		return this.extensionsWorkbenchService.queryGallery(options)
+		return optionsPromise
+			.then(options => this.extensionsWorkbenchService.queryGallery(options))
 			.then(result => new PagedModel(result));
 	}
 }
