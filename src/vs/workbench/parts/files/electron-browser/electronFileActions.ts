@@ -17,6 +17,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 import {ipcRenderer as ipc, shell, clipboard} from 'electron';
 
@@ -191,6 +192,33 @@ export class ShowOpenedFileInNewWindow extends Action {
 			ipc.send('vscode:windowOpen', [fileInput.getResource().fsPath], true /* force new window */); // handled from browser process
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to open in new window"));
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class EditInExternalEditor extends Action {
+
+	private resource: uri;
+	constructor(
+		resource: uri,
+		@IMessageService private messageService: IMessageService,
+		@IConfigurationService private configService: IConfigurationService) {
+		super('workbench.action.files.editInExternalEditor', nls.localize('editInExternalEditor', "Edit In External Editor"));
+		this.resource = resource;
+
+		this.order = 40;
+	}
+
+	public run(): TPromise<any> {
+		const execFile = require('child_process').spawn;
+		let config = this.configService.getConfiguration<any>();
+		let externalEditor = config.editor.externalEditor;
+		if (externalEditor !== null) {
+			execFile(externalEditor, [paths.normalize(this.resource.fsPath, true)]);
+		} else {
+			this.messageService.show(severity.Error, nls.localize('configureExternalEditor', "Configure the externalEditor setting to use this command."));
 		}
 
 		return TPromise.as(true);

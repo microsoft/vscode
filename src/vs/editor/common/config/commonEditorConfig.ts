@@ -272,6 +272,7 @@ class InternalEditorOptionsHelper {
 		return new editorCommon.InternalEditorOptions({
 			lineHeight: fontInfo.lineHeight, // todo -> duplicated in styling
 			readOnly: readOnly,
+			externalEditor: String(opts.externalEditor),
 			wordSeparators: String(opts.wordSeparators),
 			autoClosingBrackets: toBoolean(opts.autoClosingBrackets),
 			useTabStops: toBoolean(opts.useTabStops),
@@ -614,6 +615,11 @@ let editorConfiguration:IConfigurationNode = {
 			},
 			'default': DefaultConfig.editor.rulers,
 			'description': nls.localize('rulers', "Columns at which to show vertical rulers")
+		},
+		'editor.externalEditor' : {
+			'type': 'string',
+			'default': DefaultConfig.editor.externalEditor,
+			'description': nls.localize('externalEditor', "External editor to be used for opening files.")
 		},
 		'editor.wordSeparators' : {
 			'type': 'string',

@@ -1045,6 +1045,10 @@ declare module monaco.editor {
          */
         rulers?: number[];
         /**
+         * External editor to be used for opening files.
+         */
+        externalEditor?: string;
+        /**
          * A string containing the word separators used when doing word navigation.
          * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
          */
@@ -1437,6 +1441,7 @@ declare module monaco.editor {
         _internalEditorOptionsBrand: void;
         lineHeight: number;
         readOnly: boolean;
+        externalEditor: string;
         wordSeparators: string;
         autoClosingBrackets: boolean;
         useTabStops: boolean;
@@ -1454,6 +1459,7 @@ declare module monaco.editor {
     export interface IConfigurationChangedEvent {
         lineHeight: boolean;
         readOnly: boolean;
+        externalEditor: boolean;
         wordSeparators: boolean;
         autoClosingBrackets: boolean;
         useTabStops: boolean;
