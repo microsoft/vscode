@@ -16,7 +16,7 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import emmet = require('emmet');
 
 interface ModeScopeMap {
-    [key: string]: string;
+	[key: string]: string;
 }
 
 let modeScopesMap: ModeScopeMap = null;
