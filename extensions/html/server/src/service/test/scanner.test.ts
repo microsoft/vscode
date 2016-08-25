@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Scanner, TokenType, ScannerState} from '../parser/htmlScanner';
+import {Scanner, TokenType, ScannerState, createScanner} from '../parser/htmlScanner';
 
 suite('HTML Scanner', () => {
 
@@ -16,22 +16,22 @@ suite('HTML Scanner', () => {
 	}
 
 	function assertTokens(tests: {input: string; tokens: Token[]; }[]) {
-		let scanner = new Scanner();
+		
 		let scannerState = ScannerState.Content;
 		for (let t of tests) {
-			scanner.setSource(t.input, scannerState);
+			let scanner = createScanner(t.input, scannerState);
 			let tokenType = scanner.scan();
 			let actual : Token[] = [];
 			while (tokenType !== TokenType.EOS) {
-				let actualToken : Token= { offset: scanner.tokenOffset, type: tokenType };
+				let actualToken : Token= { offset: scanner.getTokenOffset(), type: tokenType };
 				if (tokenType == TokenType.StartTag || tokenType == TokenType.EndTag) {
-					actualToken.content = t.input.substr(scanner.tokenOffset, scanner.tokenLength);
+					actualToken.content = t.input.substr(scanner.getTokenOffset(), scanner.getTokenLength());
 				}
 				actual.push(actualToken);
 				tokenType = scanner.scan();
 			}
 			assert.deepEqual(actual, t.tokens);
-			scannerState = scanner.scannerState;
+			scannerState = scanner.getScannerState();
 		}
 	}
 

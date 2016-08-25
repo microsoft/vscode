@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Scanner, TokenType } from './htmlScanner';
+import { TokenType, createScanner } from './htmlScanner';
 import { findFirst } from '../utils/arrays';
 import { isEmptyElement } from './htmlTags';
 
@@ -33,8 +33,7 @@ export interface HTMLDocument {
 }
 
 export function parse(text: string) : HTMLDocument {
-	let scanner = new Scanner();
-	scanner.setSource(text);
+	let scanner = createScanner(text);
 
 	let htmlDocument = new Node(0, text.length, [], null);
 	let curr = htmlDocument;
@@ -43,21 +42,21 @@ export function parse(text: string) : HTMLDocument {
 	while (token !== TokenType.EOS) {
 		switch (token) {
 			case TokenType.StartTagOpen:
-				let child = new Node(scanner.tokenOffset, text.length, [], curr);
+				let child = new Node(scanner.getTokenOffset(), text.length, [], curr);
 				curr.children.push(child);
 				curr = child;
 				break;
 			case TokenType.StartTag:
-				curr.tag = scanner.tokenText;
+				curr.tag = scanner.getTokenText();
 				break;
 			case TokenType.StartTagClose:
-				curr.end = scanner.position; // might be later set to end tag position
+				curr.end = scanner.getTokenEnd(); // might be later set to end tag position
 				if (isEmptyElement(curr.tag) && curr !== htmlDocument) {
 					curr = curr.parent;
 				}
 				break;
 			case TokenType.EndTag:
-				let closeTag = scanner.tokenText;
+				let closeTag = scanner.getTokenText();
 				while (curr.tag !== closeTag && curr !== htmlDocument) {
 					curr = curr.parent;
 				}
@@ -65,7 +64,7 @@ export function parse(text: string) : HTMLDocument {
 			case TokenType.StartTagSelfClose:
 			case TokenType.EndTagClose:
 				if (curr !== htmlDocument) {
-					curr.end = scanner.position;
+					curr.end = scanner.getTokenEnd();
 					curr = curr.parent;
 				}
 				break;
