@@ -159,7 +159,12 @@ export class TextAreaHandler extends Disposable {
 
 			// Due to isEdgeOrIE (where the textarea was not cleared initially)
 			// we cannot assume the text at the end consists only of the composited text
-			this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+			if (Browser.isEdgeOrIE) {
+				// In Chrome v49, the text at the time of the compositionend event is not really the final text
+				// for the mac dead key input method.
+				// N.B: This can be removed in Chrome v53
+				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+			}
 
 			this.lastCompositionEndTime = (new Date()).getTime();
 			if (!this.textareaIsShownAtCursor) {
