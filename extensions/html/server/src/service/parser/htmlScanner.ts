@@ -179,16 +179,16 @@ const _TAB = '\t'.charCodeAt(0);
 
 
 export enum ScannerState {
-	Content,
-	OpeningStartTag,
-	OpeningEndTag,
+	WithinContent,
+	AfterOpeningStartTag,
+	AfterOpeningEndTag,
 	WithinDoctype,
 	WithinTag,
 	WithinComment,
 	WithinScriptContent,
 	WithinStyleContent,
-	AttributeName,
-	AttributeValue
+	AfterAttributeName,
+	BeforeAttributeValue
 }
 
 export interface Scanner {
@@ -201,7 +201,7 @@ export interface Scanner {
 	getScannerState(): ScannerState;
 }
 
-export function createScanner(input: string, initialOffset = 0, initialState: ScannerState = ScannerState.Content) : Scanner {
+export function createScanner(input: string, initialOffset = 0, initialState: ScannerState = ScannerState.WithinContent) : Scanner {
 
 	let stream = new MultiLineStream(input, initialOffset);
 	let state = initialState;
@@ -234,19 +234,19 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 		switch (state) {
 			case ScannerState.WithinComment:
 				if (stream.advanceIfChars([_MIN, _MIN, _RAN])) { // -->
-					state = ScannerState.Content;
+					state = ScannerState.WithinContent;
 					return finishToken(offset, TokenType.EndCommentTag);
 				}
 				stream.advanceUntilChars([_MIN, _MIN, _RAN]);  // -->
 				return finishToken(offset, TokenType.Comment);
 			case ScannerState.WithinDoctype:
 				if (stream.advanceIfChar(_RAN)) {
-					state = ScannerState.Content;
+					state = ScannerState.WithinContent;
 					return finishToken(offset, TokenType.EndDoctypeTag);
 				}
 				stream.advanceUntilChar(_RAN); // >
 				return finishToken(offset, TokenType.Doctype);
-			case ScannerState.Content:
+			case ScannerState.WithinContent:
 				if (stream.advanceIfChar(_LAN)) { // <
 					if (!stream.eos() && stream.peekChar() === _BNG) { // !
 						if (stream.advanceIfChars([_BNG, _MIN, _MIN])) { // <!--
@@ -259,25 +259,25 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 						}
 					}
 					if (stream.advanceIfChar(_FSL)) { // /
-						state = ScannerState.OpeningEndTag;
+						state = ScannerState.AfterOpeningEndTag;
 						return finishToken(offset, TokenType.EndTagOpen);
 					}
-					state = ScannerState.OpeningStartTag;
+					state = ScannerState.AfterOpeningStartTag;
 					return finishToken(offset, TokenType.StartTagOpen);
 				}
 				stream.advanceUntilChar(_LAN);
 				return finishToken(offset, TokenType.Content);
-			case ScannerState.OpeningEndTag:
+			case ScannerState.AfterOpeningEndTag:
 				let tagName = nextElementName();
 				if (tagName.length > 0) {
 					return finishToken(offset, TokenType.EndTag);
 				} else if (stream.advanceIfChar(_RAN)) { // >
-					state = ScannerState.Content;
+					state = ScannerState.WithinContent;
 					return finishToken(offset, TokenType.EndTagClose);
 				}
 				stream.advanceUntilChar(_RAN);
 				return finishToken(offset, TokenType.Whitespace);
-			case ScannerState.OpeningStartTag:
+			case ScannerState.AfterOpeningStartTag:
 				lastTag = nextElementName();
 				if (lastTag.length > 0) {
 					hasSpaceAfterTag = false;
@@ -293,13 +293,13 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 				if (hasSpaceAfterTag) {
 					let name = nextAttributeName();
 					if (name.length > 0) {
-						state = ScannerState.AttributeName;
+						state = ScannerState.AfterAttributeName;
 						hasSpaceAfterTag = false;
 						return finishToken(offset, TokenType.AttributeName);
 					}
 				}
 				if (stream.advanceIfChars([_FSL, _RAN])) { // />
-					state = ScannerState.Content;
+					state = ScannerState.WithinContent;
 					return finishToken(offset, TokenType.StartTagSelfClose);
 				}
 				if (stream.advanceIfChar(_RAN)) { // >
@@ -308,25 +308,25 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 					} else if (lastTag === 'style') {
 						state = ScannerState.WithinStyleContent;
 					} else {
-						state = ScannerState.Content;
+						state = ScannerState.WithinContent;
 					}
 					return finishToken(offset, TokenType.StartTagClose);
 				}
 				stream.advance(1);
 				return finishToken(offset, TokenType.Unknown);
-			case ScannerState.AttributeName:
+			case ScannerState.AfterAttributeName:
 				if (stream.skipWhitespace()) {
 					hasSpaceAfterTag = true;
 					return finishToken(offset, TokenType.Whitespace);
 				}
 
 				if (stream.advanceIfChar(_EQS)) {
-					state = ScannerState.AttributeValue;
+					state = ScannerState.BeforeAttributeValue;
 					return finishToken(offset, TokenType.DelimiterAssign);
 				}
 				state = ScannerState.WithinTag;
 				return scan(); // no advance yet - jump to WithinTag
-			case ScannerState.AttributeValue:
+			case ScannerState.BeforeAttributeValue:
 				if (stream.skipWhitespace()) {
 					return finishToken(offset, TokenType.Whitespace);
 				}
@@ -376,14 +376,14 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 						}
 					}
 				}
-				state = ScannerState.Content;
+				state = ScannerState.WithinContent;
 				if (offset < stream.pos()) {
 					return finishToken(offset, TokenType.Script);
 				}
 				return scan(); // no advance yet - jump to content
 			case ScannerState.WithinScriptContent:
 				stream.advanceUntilRegExp(/<\/style/i);
-				state = ScannerState.Content;
+				state = ScannerState.WithinContent;
 				if (offset < stream.pos()) {
 					return finishToken(offset, TokenType.Styles);
 				}
@@ -391,7 +391,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 		}
 
 		stream.advance(1);
-		state = ScannerState.Content;
+		state = ScannerState.WithinContent;
 		return finishToken(offset, TokenType.Unknown);
 	}
 	return {
