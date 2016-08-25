@@ -43,7 +43,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		// First validate before making any edits
 		return this.validate(target, values).then(validation => {
 			if (validation.result !== ConfigurationEditingResult.OK) {
-				return validation;
+				return validation.result;
 			}
 
 			// Create configuration file if missing
@@ -98,7 +98,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		const resource = this.getConfigurationResource(target);
 		return this.editorService.createInput({ resource }).then(typedInput => {
 			if (typedInput.isDirty()) {
-				return TPromise.as({ result: ConfigurationEditingResult.ERROR_CONFIGURATION_FILE_DIRTY });
+				return { result: ConfigurationEditingResult.ERROR_CONFIGURATION_FILE_DIRTY };
 			}
 
 			// 4.) Target cannot contain JSON errors
@@ -113,7 +113,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 					json.parse(contents, parseErrors);
 
 					if (parseErrors.length > 0) {
-						return TPromise.as({ result: ConfigurationEditingResult.ERROR_INVALID_CONFIGURATION });
+						return { result: ConfigurationEditingResult.ERROR_INVALID_CONFIGURATION };
 					}
 
 					return { result: ConfigurationEditingResult.OK, exists, contents };
