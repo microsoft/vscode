@@ -2641,10 +2641,21 @@ declare namespace vscode {
 		/**
 		 * Check if this configuration has a certain value.
 		 *
-		 * @param section configuration name, supports _dotted_ names.
+		 * @param section Configuration name, supports _dotted_ names.
 		 * @return `true` iff the section doesn't resolve to `undefined`.
 		 */
 		has(section: string): boolean;
+
+		/**
+		 * Update a configuration value. A value can be changed for the current
+		 * [workspace](#workspace.rootPath) only or globally for all instances of the
+		 * editor. The updated configuration values are persisted.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param value The new value.
+		 * @param global When `true` changes the configuration value for all instances of the editor.
+		 */
+		update(section: string, value: any, global: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
