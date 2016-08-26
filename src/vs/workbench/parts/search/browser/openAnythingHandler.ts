@@ -182,7 +182,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				};
 
 				let lookupPromise = this.openSymbolHandler.getResults(searchValue);
-				let timeoutPromise = symbolSearchTimeoutPromiseFn(this.openFileHandler.isCacheWarm ? OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT_WHEN_FILE_SEARCH_CACHED : OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT);
+				let timeoutPromise = symbolSearchTimeoutPromiseFn(this.openFileHandler.isCacheLoaded ? OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT_WHEN_FILE_SEARCH_CACHED : OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT);
 
 				// Timeout lookup after N seconds to not block file search results
 				resultPromises.push(TPromise.any([lookupPromise, timeoutPromise]).then((result) => {
@@ -253,7 +253,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
-		return this.openFileHandler.isCacheWarm ? promiseFactory() : this.delayer.trigger(promiseFactory);
+		return this.openFileHandler.isCacheLoaded ? promiseFactory() : this.delayer.trigger(promiseFactory);
 	}
 
 	private extractRange(value: string): ISearchWithRange {

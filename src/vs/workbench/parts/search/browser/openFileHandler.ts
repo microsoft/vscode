@@ -9,6 +9,7 @@ import errors = require('vs/base/common/errors');
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
+import * as objects from 'vs/base/common/objects';
 import uuid = require('vs/base/common/uuid');
 import URI from 'vs/base/common/uri';
 import {IRange} from 'vs/editor/common/editorCommon';
@@ -22,7 +23,7 @@ import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IQueryOptions, ISearchService, ISearchStats} from 'vs/platform/search/common/search';
+import {IQueryOptions, ISearchService, ISearchStats, ISearchQuery} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class FileEntry extends EditorQuickOpenEntry {
@@ -89,11 +90,8 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 export class OpenFileHandler extends QuickOpenHandler {
 
-	public isCacheWarm = false;
-
 	private queryBuilder: QueryBuilder;
-	private cacheKey: string;
-	private cacheWarmUp: TPromise<any>;
+	private cacheState: CacheState;
 
 	constructor(
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
@@ -119,7 +117,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		if (!searchValue) {
 			promise = TPromise.as(<[QuickOpenEntry[], ISearchStats]>[[], undefined]);
 		} else {
-			promise = this.doFindResults(searchValue, this.cacheKey, maxSortedResults);
+			promise = this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
 		}
 
 		return promise.then(result => [new QuickOpenModel(result[0]), result[1]]);
@@ -153,31 +151,26 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	public onOpen(): void {
-		const cacheKey = this.cacheKey = uuid.generateUuid();
-		this.cacheWarmUp = this.doFindResults('', cacheKey, 0)
-			.then(() => {
-				if (cacheKey === this.cacheKey) {
-					this.isCacheWarm = true;
-				}
-			}, err => {
-				if (!errors.isPromiseCanceledError(err)) {
-					console.error(errors.toErrorMessage(err));
-				}
-			});
+		this.cacheState = new CacheState(cacheKey => this.cacheQuery(cacheKey), query => this.searchService.search(query), cacheKey => this.searchService.clearCache(cacheKey), this.cacheState);
+		this.cacheState.load();
 	}
 
-	public onClose(canceled: boolean): void {
-		const cacheKey = this.cacheKey; // might change in between if onOpen() is called again soon
-		if (cacheKey) {
-			this.cacheKey = null;
-			this.isCacheWarm = false;
-			this.cacheWarmUp.then(null, () => {})
-				.then(() => {
-					return this.searchService.clearCache(cacheKey);
-				});
-			this.cacheWarmUp.cancel();
-			this.cacheWarmUp = null;
-		}
+	private cacheQuery(cacheKey: string): ISearchQuery {
+		const options: IQueryOptions = {
+			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
+			extraFileResources: [],
+			filePattern: '',
+			cacheKey: cacheKey,
+			maxResults: 0,
+			sortByScore: true
+		};
+		const query = this.queryBuilder.file(options);
+		this.searchService.extendQuery(query);
+		return query;
+	}
+
+	public get isCacheLoaded(): boolean {
+		return this.cacheState && this.cacheState.isLoaded;
 	}
 
 	public getGroupLabel(): string {
@@ -188,5 +181,62 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return {
 			autoFocusFirstEntry: true
 		};
+	}
+}
+
+class CacheState {
+
+	public query: ISearchQuery;
+
+	private _cacheKey = uuid.generateUuid();
+	private _isLoaded = false;
+
+	private promise: TPromise<void>;
+
+	constructor (private cacheQuery: (cacheKey: string) => ISearchQuery, private doLoad: (query: ISearchQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
+		this.query = cacheQuery(this._cacheKey);
+		if (this.previous) {
+			const current = objects.assign({}, this.query, { cacheKey: null });
+			const previous = objects.assign({}, this.previous.query, { cacheKey: null });
+			if (!objects.equals(current, previous)) {
+				this.previous.dispose();
+				this.previous = null;
+			}
+		}
+	}
+
+	public get cacheKey(): string {
+		return this._isLoaded || !this.previous ? this._cacheKey : this.previous.cacheKey;
+	}
+
+	public get isLoaded(): boolean {
+		return this._isLoaded || !this.previous ? this._isLoaded : this.previous.isLoaded;
+	}
+
+	public load(): void {
+		this.promise = this.doLoad(this.query)
+			.then(() => {
+				this._isLoaded = true;
+				if (this.previous) {
+					this.previous.dispose();
+					this.previous = null;
+				}
+			}, err => {
+				console.error(errors.toErrorMessage(err));
+			});
+	}
+
+	public dispose(): void {
+		this.promise.then(null, () => {})
+			.then(() => {
+				this._isLoaded = false;
+				return this.doDispose(this._cacheKey);
+			}).then(null, err => {
+				console.error(errors.toErrorMessage(err));
+			});
+		if (this.previous) {
+			this.previous.dispose();
+			this.previous = null;
+		}
 	}
 }

@@ -36,7 +36,7 @@ export class SearchService implements ISearchService {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose);
 	}
 
-	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+	public extendQuery(query: ISearchQuery): void {
 		const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
 
 		// Configuration: Encoding
@@ -54,6 +54,10 @@ export class SearchService implements ISearchService {
 				objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
 			}
 		}
+	}
+
+	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+		this.extendQuery(query);
 
 		let rawSearchQuery: PPromise<void, ISearchProgressItem>;
 		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
