@@ -9,6 +9,7 @@ import 'vs/css!./media/extensionsViewlet';
 import Event, { Emitter } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
+import { isUUID } from 'vs/base/common/uuid';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -25,6 +26,7 @@ import { readFile } from 'vs/base/node/pfs';
 import { asText } from 'vs/base/node/request';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration } from './extensions';
 import { UpdateAllAction } from './extensionsActions';
+
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -295,7 +297,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private syncWithGallery(): TPromise<void> {
 		const ids = this.installed
 			.filter(e => !!(e.local && e.local.metadata))
-			.map(e => e.local.metadata.id);
+			.map(e => e.local.metadata.id)
+			.filter(id => isUUID(id));
 
 		if (ids.length === 0) {
 			return TPromise.as(null);
