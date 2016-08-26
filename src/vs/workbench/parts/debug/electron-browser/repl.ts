@@ -25,7 +25,7 @@ import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/edi
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IContextKeyService, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
@@ -40,7 +40,6 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 
 const $ = dom.$;
-const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 
 const replTreeOptions: tree.ITreeOptions = {
 	indentPixels: 8,
@@ -132,7 +131,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
 		this.toDispose.push(scopedContextKeyService);
-		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
+		debug.CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 
@@ -274,7 +273,7 @@ class ReplHistoryPreviousAction extends EditorAction {
 			id: 'repl.action.historyPrevious',
 			label: nls.localize('actions.repl.historyPrevious', "History Previous"),
 			alias: 'History Previous',
-			precondition: CONTEXT_IN_DEBUG_REPL,
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyCode.UpArrow,
@@ -299,7 +298,7 @@ class ReplHistoryNextAction extends EditorAction {
 			id: 'repl.action.historyNext',
 			label: nls.localize('actions.repl.historyNext', "History Next"),
 			alias: 'History Next',
-			precondition: CONTEXT_IN_DEBUG_REPL,
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyCode.DownArrow,
@@ -324,7 +323,7 @@ class AcceptReplInputAction extends EditorAction {
 			id: 'repl.action.acceptInput',
 			label: nls.localize('actions.repl.acceptInput', "REPL Accept Input"),
 			alias: 'REPL Accept Input',
-			precondition: CONTEXT_IN_DEBUG_REPL,
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyCode.Enter,
