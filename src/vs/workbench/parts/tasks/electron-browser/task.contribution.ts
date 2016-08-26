@@ -967,8 +967,7 @@ let schema : IJSONSchema =
 		'definitions': {
 			'showOutputType': {
 				'type': 'string',
-				'enum': ['always', 'silent', 'never'],
-				'default': 'silent'
+				'enum': ['always', 'silent', 'never']
 			},
 			'patternType': {
 				'anyOf': [
