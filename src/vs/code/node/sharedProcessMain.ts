@@ -108,7 +108,7 @@ function main(server: Server): void {
 			server.registerChannel('extensions', channel);
 
 			// eventually clean up old extensions
-			setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 5000);
+			setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 100);
 		});
 	});
 }
