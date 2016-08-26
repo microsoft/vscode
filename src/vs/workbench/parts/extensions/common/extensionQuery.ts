@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionActions';
-
 export class Query {
 
 	constructor(public value: string, public sortBy: string, public sortOrder: string) {}
 
 	static parse(value: string): Query {
-		let sortBy: string = undefined;
-		let sortOrder: string = undefined;
+		let sortBy = '';
+		let sortOrder = '';
 
-		value = value.replace(/@sort:(\w+)(-asc|-desc)?\b/g, (match, by: string, order: string) => {
-			if (order) {
+		value = value.replace(/@sort:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
+			if (order === '-asc' || order === '-desc') {
 				sortOrder = order.substr(1);
 			}
 
