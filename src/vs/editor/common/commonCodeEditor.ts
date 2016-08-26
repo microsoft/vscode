@@ -228,8 +228,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public getValue(options:{ preserveBOM:boolean; lineEnding:string; }=null): string {
 		if (this.model) {
-			var preserveBOM:boolean = (options && options.preserveBOM) ? true : false;
-			var eolPreference = editorCommon.EndOfLinePreference.TextDefined;
+			let preserveBOM:boolean = (options && options.preserveBOM) ? true : false;
+			let eolPreference = editorCommon.EndOfLinePreference.TextDefined;
 			if (options && options.lineEnding && options.lineEnding === '\n') {
 				eolPreference = editorCommon.EndOfLinePreference.LF;
 			} else if (options  && options.lineEnding && options.lineEnding === '\r\n') {
@@ -256,10 +256,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			return;
 		}
 
-		var detachedModel = this._detachModel();
+		let detachedModel = this._detachModel();
 		this._attachModel(model);
 
-		var e: editorCommon.IModelChangedEvent = {
+		let e: editorCommon.IModelChangedEvent = {
 			oldModelUrl: detachedModel ? detachedModel.uri : null,
 			newModelUrl: model ? model.uri : null
 		};
@@ -315,9 +315,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		if (!Range.isIRange(range)) {
 			throw new Error('Invalid arguments');
 		}
-		var validatedRange = this.model.validateRange(range);
+		let validatedRange = this.model.validateRange(range);
 
-		var revealRangeEvent: editorCommon.ICursorRevealRangeEvent = {
+		let revealRangeEvent: editorCommon.ICursorRevealRangeEvent = {
 			range: validatedRange,
 			viewRange: null,
 			verticalType: verticalType,
@@ -401,9 +401,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		if (!this.cursor) {
 			return null;
 		}
-		var selections = this.cursor.getSelections();
-		var result:Selection[] = [];
-		for (var i = 0, len = selections.length; i < len; i++) {
+		let selections = this.cursor.getSelections();
+		let result:Selection[] = [];
+		for (let i = 0, len = selections.length; i < len; i++) {
 			result[i] = selections[i].clone();
 		}
 		return result;
@@ -414,8 +414,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public setSelection(selection:editorCommon.ISelection, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
 	public setSelection(editorSelection:Selection, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
 	public setSelection(something:any, reveal:boolean = false, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = false): void {
-		var isSelection = Selection.isISelection(something);
-		var isRange = Range.isIRange(something);
+		let isSelection = Selection.isISelection(something);
+		let isRange = Range.isIRange(something);
 
 		if (!isSelection && !isRange) {
 			throw new Error('Invalid arguments');
@@ -425,7 +425,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this._setSelectionImpl(<editorCommon.ISelection>something, reveal, revealVerticalInCenter, revealHorizontal);
 		} else if (isRange) {
 			// act as if it was an IRange
-			var selection:editorCommon.ISelection = {
+			let selection:editorCommon.ISelection = {
 				selectionStartLineNumber: something.startLineNumber,
 				selectionStartColumn: something.startColumn,
 				positionLineNumber: something.endLineNumber,
@@ -439,7 +439,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		if (!this.cursor) {
 			return;
 		}
-		var selection = new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
+		let selection = new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
 		this.cursor.setSelections('api', [selection]);
 		if (reveal) {
 			this.revealRange(selection, revealVerticalInCenter, revealHorizontal);
@@ -492,7 +492,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		if (!ranges || ranges.length === 0) {
 			throw new Error('Invalid arguments');
 		}
-		for (var i = 0, len = ranges.length; i < len; i++) {
+		for (let i = 0, len = ranges.length; i < len; i++) {
 			if (!Selection.isISelection(ranges[i])) {
 				throw new Error('Invalid arguments');
 			}
@@ -567,7 +567,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public trigger(source:string, handlerId:string, payload:any): void {
 		payload = payload || {};
-		var candidate = this.getAction(handlerId);
+		let candidate = this.getAction(handlerId);
 		if (candidate !== null) {
 			TPromise.as(candidate.run()).done(null, onUnexpectedError);
 		} else {
@@ -741,13 +741,13 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 			this.model.onBeforeAttached();
 
-			var hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
+			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
 				this._configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
 				this._configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
 				this._configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
 			);
 
-			var linesCollection = new SplitLinesCollection(
+			let linesCollection = new SplitLinesCollection(
 				this.model,
 				hardWrappingLineMapperFactory,
 				this.model.getOptions().tabSize,
@@ -764,7 +764,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				() => this.getCenteredRangeInViewport()
 			);
 
-			var viewModelHelper:IViewModelHelper = {
+			let viewModelHelper:IViewModelHelper = {
 				viewModel: this.viewModel,
 				getCurrentCompletelyVisibleViewLinesRangeInViewport: () => {
 					return this.viewModel.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
@@ -808,9 +808,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this._createView();
 
 			this.listenersToRemove.push(this._getViewInternalEventBus().addBulkListener2((events) => {
-				for (var i = 0, len = events.length; i < len; i++) {
-					var eventType = events[i].getType();
-					var e = events[i].getData();
+				for (let i = 0, len = events.length; i < len; i++) {
+					let eventType = events[i].getType();
+					let e = events[i].getData();
 
 					switch (eventType) {
 						case editorCommon.EventType.ViewFocusGained:
@@ -860,15 +860,15 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							break;
 
 						default:
-//							console.warn("Unhandled view event: ", e);
+							// console.warn("Unhandled view event: ", e);
 					}
 				}
 			}));
 
 			this.listenersToRemove.push(this.model.addBulkListener((events) => {
-				for (var i = 0, len = events.length; i < len; i++) {
-					var eventType = events[i].getType();
-					var e = events[i].getData();
+				for (let i = 0, len = events.length; i < len; i++) {
+					let eventType = events[i].getType();
+					let e = events[i].getData();
 
 					switch (eventType) {
 						case editorCommon.EventType.ModelDecorationsChanged:
@@ -903,36 +903,36 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							break;
 
 						default:
-//							console.warn("Unhandled model event: ", e);
+							// console.warn("Unhandled model event: ", e);
 					}
 				}
 			}));
 
-			var _hasNonEmptySelection = (e: editorCommon.ICursorSelectionChangedEvent) => {
-				var allSelections = [e.selection].concat(e.secondarySelections);
+			let _hasNonEmptySelection = (e: editorCommon.ICursorSelectionChangedEvent) => {
+				let allSelections = [e.selection].concat(e.secondarySelections);
 				return allSelections.some(s => !s.isEmpty());
 			};
 
 			this.listenersToRemove.push(this.cursor.addBulkListener2((events) => {
-				var updateHasMultipleCursors = false,
-					hasMultipleCursors = false,
-					updateHasNonEmptySelection = false,
-					hasNonEmptySelection = false;
+				let updateHasMultipleCursors = false;
+				let hasMultipleCursors = false;
+				let updateHasNonEmptySelection = false;
+				let hasNonEmptySelection = false;
 
-				for (var i = 0, len = events.length; i < len; i++) {
-					var eventType = events[i].getType();
-					var e = events[i].getData();
+				for (let i = 0, len = events.length; i < len; i++) {
+					let eventType = events[i].getType();
+					let e = events[i].getData();
 
 					switch (eventType) {
 						case editorCommon.EventType.CursorPositionChanged:
-							var cursorPositionChangedEvent = <editorCommon.ICursorPositionChangedEvent>e;
+							let cursorPositionChangedEvent = <editorCommon.ICursorPositionChangedEvent>e;
 							updateHasMultipleCursors = true;
 							hasMultipleCursors = (cursorPositionChangedEvent.secondaryPositions.length > 0);
 							this.emit(editorCommon.EventType.CursorPositionChanged, e);
 							break;
 
 						case editorCommon.EventType.CursorSelectionChanged:
-							var cursorSelectionChangedEvent = <editorCommon.ICursorSelectionChangedEvent>e;
+							let cursorSelectionChangedEvent = <editorCommon.ICursorSelectionChangedEvent>e;
 							updateHasMultipleCursors = true;
 							hasMultipleCursors = (cursorSelectionChangedEvent.secondarySelections.length > 0);
 							updateHasNonEmptySelection = true;
@@ -941,7 +941,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							break;
 
 						default:
-//							console.warn("Unhandled cursor event: ", e);
+							// console.warn("Unhandled cursor event: ", e);
 					}
 				}
 
@@ -1006,7 +1006,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this.viewModel = null;
 		}
 
-		var result = this.model;
+		let result = this.model;
 		this.model = null;
 
 		this.domElement.removeAttribute('data-mode-id');
