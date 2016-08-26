@@ -23,7 +23,7 @@ import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/
 import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import URI from 'vs/base/common/uri';
 import {ConfigurationEditingService} from 'vs/workbench/services/configuration/node/configurationEditingService';
-import {ConfigurationEditingResult, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
+import {ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode} from 'vs/workbench/services/configuration/common/configurationEditing';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
@@ -113,7 +113,8 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createServices(workspaceDir, globalSettingsFile, false, true /* no workspace */).then(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, [{ key: 'unknown.key', value: 'value' }]).then(res => {
-					assert.equal(res, ConfigurationEditingResult.ERROR_UNKNOWN_KEY);
+				}, (error:IConfigurationEditingError) => {
+					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
@@ -125,7 +126,8 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createServices(workspaceDir, globalSettingsFile, false, true /* no workspace */).then(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, [{ key: 'configurationEditing.service.testSetting', value: 'value' }]).then(res => {
-					assert.equal(res, ConfigurationEditingResult.ERROR_NO_WORKSPACE_OPENED);
+				}, (error: IConfigurationEditingError) => {
+					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
@@ -139,7 +141,8 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 				fs.writeFileSync(globalSettingsFile, ',,,,,,,,,,,,,,');
 
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, [{ key: 'configurationEditing.service.testSetting', value: 'value' }]).then(res => {
-					assert.equal(res, ConfigurationEditingResult.ERROR_INVALID_CONFIGURATION);
+				}, (error: IConfigurationEditingError) => {
+					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
@@ -151,7 +154,8 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createServices(workspaceDir, globalSettingsFile, true).then(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, [{ key: 'configurationEditing.service.testSetting', value: 'value' }]).then(res => {
-					assert.equal(res, ConfigurationEditingResult.ERROR_CONFIGURATION_FILE_DIRTY);
+				}, (error: IConfigurationEditingError) => {
+					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
 					services.configurationService.dispose();
 					cleanUp(done);
 				});
@@ -163,8 +167,6 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createServices(workspaceDir, globalSettingsFile).then(services => {
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, [{ key: 'configurationEditing.service.testSetting', value: 'value' }]).then(res => {
-					assert.equal(res, ConfigurationEditingResult.OK);
-
 					const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 					const parsed = json.parse(contents);
 					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
@@ -183,8 +185,6 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 				fs.writeFileSync(globalSettingsFile, '{ "my.super.setting": "my.super.value" }');
 
 				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, [{ key: 'configurationEditing.service.testSetting', value: 'value' }]).then(res => {
-					assert.equal(res, ConfigurationEditingResult.OK);
-
 					const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 					const parsed = json.parse(contents);
 					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
@@ -208,8 +208,6 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					{ key: 'configurationEditing.service.testSettingTwo', value: { complex: { value: true } } },
 					{ key: 'configurationEditing.service.testSettingThree', value: 55 }
 				]).then(res => {
-					assert.equal(res, ConfigurationEditingResult.OK);
-
 					const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 					const parsed = json.parse(contents);
 					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
@@ -236,8 +234,6 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 					{ key: 'configurationEditing.service.testSettingTwo', value: { complex: { value: true } } },
 					{ key: 'configurationEditing.service.testSettingThree', value: 55 }
 				]).then(res => {
-					assert.equal(res, ConfigurationEditingResult.OK);
-
 					const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
 					const parsed = json.parse(contents);
 					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');

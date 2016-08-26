@@ -9,15 +9,15 @@ import * as assert from 'assert';
 import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {MainThreadConfigurationShape} from 'vs/workbench/api/node/extHost.protocol';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ConfigurationTarget, ConfigurationEditingResult} from 'vs/workbench/services/configuration/common/configurationEditing';
+import {ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError} from 'vs/workbench/services/configuration/common/configurationEditing';
 
 suite('ExtHostConfiguration', function () {
 
 	class RecordingShape extends MainThreadConfigurationShape {
 		lastArgs: [ConfigurationTarget, string, any];
-		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<ConfigurationEditingResult> {
+		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
 			this.lastArgs = [target, key, value];
-			return TPromise.as(ConfigurationEditingResult.OK);
+			return TPromise.as(void 0);
 		}
 	};
 
@@ -42,7 +42,6 @@ suite('ExtHostConfiguration', function () {
 		let config = allConfig.getConfiguration('foo');
 		config.update('bar', 42, true);
 
-		assert.equal(shape.lastArgs[0], ConfigurationEditingResult.OK);
 		assert.equal(shape.lastArgs[1], 'foo.bar');
 		assert.equal(shape.lastArgs[2], 42);
 
@@ -57,8 +56,8 @@ suite('ExtHostConfiguration', function () {
 	test('update / error-state not OK', function () {
 
 		const shape = new class extends MainThreadConfigurationShape {
-			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<ConfigurationEditingResult> {
-				return TPromise.as(ConfigurationEditingResult.ERROR_UNKNOWN_KEY); // something !== OK
+			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {
+				return TPromise.wrapError(<IConfigurationEditingError>{ code: ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY, message: 'Unknown Key' }); // something !== OK
 			}
 		};
 

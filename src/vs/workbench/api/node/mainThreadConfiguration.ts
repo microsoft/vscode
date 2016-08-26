@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IWorkbenchConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
-import {IConfigurationEditingService, ConfigurationTarget, ConfigurationEditingResult} from 'vs/workbench/services/configuration/common/configurationEditing';
+import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
 import {MainThreadConfigurationShape, ExtHostContext} from './extHost.protocol';
 
 export class MainThreadConfiguration extends MainThreadConfigurationShape {
@@ -32,7 +32,7 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<ConfigurationEditingResult> {
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
 		return this._configurationEditingService.writeConfiguration(target, [{ key, value }]);
 	}
 }
