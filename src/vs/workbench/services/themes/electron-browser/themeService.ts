@@ -11,8 +11,9 @@ import Json = require('vs/base/common/json');
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IThemeService, IThemeData} from 'vs/workbench/services/themes/common/themeService';
-import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes';
+import {IThemeService, IThemeData, IThemeSetting, IThemeDocument} from 'vs/workbench/services/themes/common/themeService';
+import {TokenStylesContribution, EditorStylesContribution} from 'vs/workbench/services/themes/electron-browser/editorStyles';
+import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -99,29 +100,6 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 		required: ['path', 'id']
 	}
 });
-
-interface ThemeSettingStyle {
-	background?: string;
-	foreground?: string;
-	fontStyle?: string;
-	caret?: string;
-	invisibles?: string;
-	guide?: string;
-	lineHighlight?: string;
-	selection?: string;
-}
-
-interface ThemeSetting {
-	name?: string;
-	scope?: string | string[];
-	settings: ThemeSettingStyle[];
-}
-
-interface ThemeDocument {
-	name: string;
-	include: string;
-	settings: ThemeSetting[];
-}
 
 interface IInternalThemeData extends IThemeData {
 	styleSheetContent?: string;
@@ -469,7 +447,7 @@ function _applyIconTheme(data: IInternalThemeData, onApply: (theme:IInternalThem
 function _loadIconThemeDocument(fileSetPath: string) : TPromise<IconThemeDocument> {
 	return pfs.readFile(fileSetPath).then(content => {
 		let errors: Json.ParseError[] = [];
-		let contentValue = <ThemeDocument> Json.parse(content.toString(), errors);
+		let contentValue = <IThemeDocument> Json.parse(content.toString(), errors);
 		if (errors.length > 0) {
 			return TPromise.wrapError(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 		}
@@ -621,11 +599,11 @@ function applyTheme(theme: IInternalThemeData, onApply: (theme:IInternalThemeDat
 	});
 }
 
-function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
+function _loadThemeDocument(themePath: string) : TPromise<IThemeDocument> {
 	return pfs.readFile(themePath).then(content => {
 		if (Paths.extname(themePath) === '.json') {
 			let errors: Json.ParseError[] = [];
-			let contentValue = <ThemeDocument> Json.parse(content.toString(), errors);
+			let contentValue = <IThemeDocument> Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
 				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 			}
@@ -645,114 +623,16 @@ function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
 	});
 }
 
-function _processThemeObject(themeId: string, themeDocument: ThemeDocument): string {
+function _processThemeObject(themeId: string, themeDocument: IThemeDocument): string {
 	let cssRules: string[] = [];
-
-	let themeSettings : ThemeSetting[] = themeDocument.settings;
-	let editorSettings : ThemeSettingStyle = {
-		background: void 0,
-		foreground: void 0,
-		caret: void 0,
-		invisibles: void 0,
-		guide: void 0,
-		lineHighlight: void 0,
-		selection: void 0
-	};
-
-	let themeSelector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
+	let themeSettings : IThemeSetting[] = themeDocument.settings;
 
 	if (Array.isArray(themeSettings)) {
-		themeSettings.forEach((s : ThemeSetting, index, arr) => {
-			if (index === 0 && !s.scope) {
-				editorSettings = s.settings;
-			} else {
-				let scope: string | string[] = s.scope;
-				let settings = s.settings;
-				if (scope && settings) {
-					let rules = Array.isArray(scope) ? <string[]> scope : scope.split(',');
-					let statements = _settingsToStatements(settings);
-					rules.forEach(rule => {
-						rule = rule.trim().replace(/ /g, '.'); // until we have scope hierarchy in the editor dom: replace spaces with .
-
-						cssRules.push(`.monaco-editor.${themeSelector} .token.${rule} { ${statements} }`);
-					});
-				}
-			}
-		});
-	}
-
-	if (editorSettings.background) {
-		let background = new Color(editorSettings.background);
-		cssRules.push(`.monaco-editor.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
-		cssRules.push(`.monaco-editor.${themeSelector} .glyph-margin { background-color: ${background}; }`);
-		cssRules.push(`.${themeSelector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
-	}
-	if (editorSettings.foreground) {
-		let foreground = new Color(editorSettings.foreground);
-		cssRules.push(`.monaco-editor.${themeSelector} .token { color: ${foreground}; }`);
-	}
-	if (editorSettings.selection) {
-		let selection = new Color(editorSettings.selection);
-		cssRules.push(`.monaco-editor.${themeSelector} .focused .selected-text { background-color: ${selection}; }`);
-		cssRules.push(`.monaco-editor.${themeSelector} .selected-text { background-color: ${selection.transparent(0.5)}; }`);
-	}
-	if (editorSettings.lineHighlight) {
-		let lineHighlight = new Color(editorSettings.lineHighlight);
-		cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; border:0; }`);
-	}
-	if (editorSettings.caret) {
-		let caret = new Color(editorSettings.caret);
-		let oppositeCaret = caret.opposite();
-		cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
-	}
-	if (editorSettings.invisibles) {
-		let invisibles = new Color(editorSettings.invisibles);
-		cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
-	}
-	if (editorSettings.guide) {
-		let guide = new Color(editorSettings.guide);
-		cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${guide}; }`);
-	} else if (editorSettings.invisibles) {
-		let invisibles = new Color(editorSettings.invisibles);
-		cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${invisibles}; }`);
+		cssRules= cssRules.concat(new TokenStylesContribution().contributeStyles(themeId, themeDocument));
+		cssRules= cssRules.concat(new EditorStylesContribution().contributeStyles(themeId, themeDocument));
 	}
 
 	return cssRules.join('\n');
-}
-
-function _settingsToStatements(settings: ThemeSettingStyle): string {
-	let statements: string[] = [];
-
-	for (let settingName in settings) {
-		const value = settings[settingName];
-		switch (settingName) {
-			case 'foreground':
-				let foreground = new Color(value);
-				statements.push(`color: ${foreground};`);
-				break;
-			case 'background':
-				// do not support background color for now, see bug 18924
-				//let background = new Color(value);
-				//statements.push(`background-color: ${background};`);
-				break;
-			case 'fontStyle':
-				let segments = value.split(' ');
-				segments.forEach(s => {
-					switch (s) {
-						case 'italic':
-							statements.push(`font-style: italic;`);
-							break;
-						case 'bold':
-							statements.push(`font-weight: bold;`);
-							break;
-						case 'underline':
-							statements.push(`text-decoration: underline;`);
-							break;
-					}
-				});
-		}
-	}
-	return statements.join(' ');
 }
 
 let colorThemeRulesClassName = 'contributedColorTheme';
@@ -768,60 +648,6 @@ function _applyRules(styleSheetContent: string, rulesClassName: string) {
 		document.head.appendChild(elStyle);
 	} else {
 		(<HTMLStyleElement>themeStyles[0]).innerHTML = styleSheetContent;
-	}
-}
-
-interface RGBA { r: number; g: number; b: number; a: number; }
-
-class Color {
-
-	private parsed: RGBA;
-	private str: string;
-
-	constructor(arg: string | RGBA) {
-		if (typeof arg === 'string') {
-			this.parsed = Color.parse(<string>arg);
-		} else {
-			this.parsed = <RGBA>arg;
-		}
-		this.str = null;
-	}
-
-	private static parse(color: string): RGBA {
-		function parseHex(str: string) {
-			return parseInt('0x' + str);
-		}
-
-		if (color.charAt(0) === '#' && color.length >= 7) {
-			let r = parseHex(color.substr(1, 2));
-			let g = parseHex(color.substr(3, 2));
-			let b = parseHex(color.substr(5, 2));
-			let a = color.length === 9 ? parseHex(color.substr(7, 2)) / 0xff : 1;
-			return { r, g, b, a };
-		}
-		return { r: 255, g: 0, b: 0, a: 1 };
-	}
-
-	public toString(): string {
-		if (!this.str) {
-			let p = this.parsed;
-			this.str = `rgba(${p.r}, ${p.g}, ${p.b}, ${+p.a.toFixed(2)})`;
-		}
-		return this.str;
-	}
-
-	public transparent(factor: number): Color {
-		let p = this.parsed;
-		return new Color({ r: p.r, g: p.g, b: p.b, a: p.a * factor });
-	}
-
-	public opposite(): Color {
-		return new Color({
-			r: 255 - this.parsed.r,
-			g: 255 - this.parsed.g,
-			b: 255 - this.parsed.b,
-			a : this.parsed.a
-		});
 	}
 }
 
