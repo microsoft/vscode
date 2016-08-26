@@ -80,7 +80,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
-	private lastSaveTime: number;
+	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
 
 	constructor(
@@ -107,7 +107,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.dirty = false;
 		this.autoSavePromises = [];
 		this.versionId = 0;
-		this.lastSaveTime = 0;
+		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
@@ -449,6 +449,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Clear error flag since we are trying to save again
 		this.inErrorMode = false;
 
+		// Remember when this model was saved last
+		this.lastSaveAttemptTime = Date.now();
+
 		// Save to Disk
 		diag('doSave(' + versionId + ') - before updateContent()', this.resource, new Date());
 		this.mapPendingSaveToVersionId[versionId] = this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
@@ -459,9 +462,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			etag: this.versionOnDiskStat.etag
 		}).then((stat: IFileStat) => {
 			diag('doSave(' + versionId + ') - after updateContent()', this.resource, new Date());
-
-			// Remember when this model was saved last
-			this.lastSaveTime = Date.now();
 
 			// Telemetry
 			this.telemetryService.publicLog('filePUT', { mimeType: stat.mime, ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
@@ -580,10 +580,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	}
 
 	/**
-	 * Returns the time in millies when this working copy was saved by the user.
+	 * Returns the time in millies when this working copy was attempted to be saved.
 	 */
-	public getLastSaveTime(): number {
-		return this.lastSaveTime;
+	public getLastSaveAttemptTime(): number {
+		return this.lastSaveAttemptTime;
 	}
 
 	/**
