@@ -615,7 +615,7 @@ class RunToCursorAction extends EditorAction {
 			id: 'editor.debug.action.runToCursor',
 			label: nls.localize('runToCursor', "Debug: Run to Cursor"),
 			alias: 'Debug: Run to Cursor',
-			precondition: debug.CONTEXT_IN_DEBUG_MODE,
+			precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 2
@@ -676,7 +676,7 @@ class SelectionToReplAction extends EditorAction {
 			id: 'editor.debug.action.selectionToRepl',
 			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
 			alias: 'Debug: Evaluate',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
+			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 0
@@ -703,7 +703,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 			id: 'editor.debug.action.selectionToWatch',
 			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
+			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 1
