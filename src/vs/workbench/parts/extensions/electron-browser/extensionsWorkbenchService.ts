@@ -16,12 +16,15 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as semver from 'semver';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { readFile } from 'vs/base/node/pfs';
 import { asText } from 'vs/base/node/request';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration } from './extensions';
+import { UpdateAllAction } from './extensionsActions';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -215,8 +218,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	get onChange(): Event<void> { return this._onChange.event; }
 
 	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
@@ -228,7 +233,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
 
-		this.queryLocal().done(() => this.syncWithGallery(true));
+		this.queryLocal().done(() => this.eventuallySyncWithGallery(true));
 	}
 
 	get local(): IExtension[] {
@@ -280,14 +285,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return new Extension(this.galleryService, this.stateProvider, null, gallery);
 	}
 
-	private syncWithGallery(immediate = false): void {
-		const loop = () => this.doSyncWithGallery().then(() => this.syncWithGallery());
+	private eventuallySyncWithGallery(immediate = false): void {
+		const loop = () => this.syncWithGallery().then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
 		this.syncDelayer.trigger(loop, delay);
 	}
 
-	private doSyncWithGallery(): TPromise<void> {
+	private syncWithGallery(): TPromise<void> {
 		const ids = this.installed
 			.filter(e => !!(e.local && e.local.metadata))
 			.map(e => e.local.metadata.id);
@@ -296,7 +301,16 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.as(null);
 		}
 
-		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
+		return this.queryGallery({ ids, pageSize: ids.length }).then(() => {
+			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>('extensions');
+
+			if (!config.autoUpdate) {
+				return;
+			}
+
+			const action = this.instantiationService.createInstance(UpdateAllAction);
+			return action.enabled && action.run();
+		});
 	}
 
 	canInstall(extension: IExtension): boolean {
