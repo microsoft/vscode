@@ -5,7 +5,9 @@
 
 export class Query {
 
-	constructor(public value: string, public sortBy: string, public sortOrder: string) {}
+	constructor(public value: string, public sortBy: string, public sortOrder: string) {
+		this.value = value.trim();
+	}
 
 	static parse(value: string): Query {
 		let sortBy = '';
@@ -21,7 +23,7 @@ export class Query {
 			return '';
 		});
 
-		return new Query(value.trim(), sortBy, sortOrder);
+		return new Query(value, sortBy, sortOrder);
 	}
 
 	toString(): string {
