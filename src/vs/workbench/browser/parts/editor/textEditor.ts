@@ -8,7 +8,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
@@ -139,7 +139,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 * provide their own editor control that should be used (e.g. a DiffEditor).
 	 */
 	public createEditorControl(parent: Builder): IEditor {
-		return this._instantiationService.createInstance(CodeEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
+		return this._instantiationService.createInstance(CodeEditor, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {

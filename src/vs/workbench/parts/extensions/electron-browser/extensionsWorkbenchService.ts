@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import * as semver from 'semver';
 import * as path from 'path';
@@ -217,8 +217,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	constructor(
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -265,14 +264,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 				return TPromise.wrapError(err);
 			});
-	}
-
-	getRecommendations(): TPromise<IExtension[]> {
-		return this.tipsService.getRecommendations()
-			.then(result => result
-				.map(gallery => this.fromGallery(gallery))
-				.filter(extension => extension.state === ExtensionState.Uninstalled)
-			);
 	}
 
 	private fromGallery(gallery: IGalleryExtension): Extension {

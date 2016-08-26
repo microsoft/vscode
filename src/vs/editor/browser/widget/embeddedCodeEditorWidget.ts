@@ -8,13 +8,12 @@ import * as objects from 'vs/base/common/objects';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ICodeEditorWidgetCreationOptions, IConfigurationChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 
-export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
+export class EmbeddedCodeEditorWidget extends CodeEditor {
 
 	private _parentEditor: ICodeEditor;
 	private _overwriteOptions: ICodeEditorWidgetCreationOptions;
@@ -26,10 +25,9 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
+		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

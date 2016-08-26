@@ -149,7 +149,7 @@ export interface IModel extends IEventEmitter {
 
 export interface IGitOperation extends IDisposable {
 	id: string;
-	run(): TPromise<any>;
+	run(): TPromise<IRawStatus>;
 }
 
 // Service enums
@@ -325,7 +325,6 @@ export interface IGitService extends IEventEmitter {
 
 	getState(): ServiceState;
 	getModel(): IModel;
-	show(path: string, status: IFileStatus, treeish?: string, mimetype?: string): TPromise<string>;
 	getInput(status: IFileStatus): TPromise<EditorInput>;
 	isInitialized(): boolean;
 	isIdle(): boolean;

@@ -26,6 +26,10 @@
 				},
 				"farboo.config4": {
 					"type": "string"
+				},
+				"farboo.get": {
+					"type": "string",
+					"default": "get-prop"
 				}
 			}
 		}

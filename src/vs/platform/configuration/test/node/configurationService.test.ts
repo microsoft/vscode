@@ -209,4 +209,53 @@ suite('ConfigurationService - Node', () => {
 			});
 		});
 	});
+
+	test('lookup', (done: () => void) => {
+		interface ILookupTestSetting {
+			lookup: {
+				service: {
+					testSetting: string;
+				}
+			};
+		}
+
+		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'lookup.service.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+
+		testFile((testFile, cleanUp) => {
+			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
+
+			let res = service.lookup('something.missing');
+			assert.ok(!res.value);
+			assert.ok(!res.default);
+			assert.ok(!res.user);
+
+			res = service.lookup('lookup.service.testSetting');
+			assert.equal(res.default, 'isSet');
+			assert.equal(res.value, 'isSet');
+			assert.ok(!res.user);
+
+			fs.writeFileSync(testFile, '{ "lookup.service.testSetting": "bar" }');
+
+			return service.reloadConfiguration().then(() => {
+				res = service.lookup('lookup.service.testSetting');
+				assert.equal(res.default, 'isSet');
+				assert.equal(res.user, 'bar');
+				assert.equal(res.value, 'bar');
+
+				service.dispose();
+
+				cleanUp(done);
+			});
+		});
+	});
 });

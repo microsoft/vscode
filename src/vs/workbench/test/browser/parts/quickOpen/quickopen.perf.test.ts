@@ -40,7 +40,7 @@ suite('QuickOpen performance', () => {
 		const argv = minimist(process.argv);
 		const testWorkspaceArg = argv['testWorkspace'];
 		const verboseResults = argv['verboseResults'];
-		const testWorkspacePath = testWorkspaceArg ? path.join(process.cwd(), testWorkspaceArg) : __dirname;
+		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
 
 		const telemetryService = new TestTelemetryService();
 		const overrides: IEditorOverrideServices = {
@@ -64,10 +64,14 @@ suite('QuickOpen performance', () => {
 		function measure() {
 			return instantiationService.createInstance(descriptors[0])
 				.then((handler: QuickOpenHandler) => {
+					handler.onOpen();
 					return handler.getResults('a').then(result => {
 						const uncachedEvent = popEvent();
 						assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
-						assert.strictEqual(uncachedEvent.data.files.fromCache, false, 'files.fromCache');
+						assert.strictEqual(uncachedEvent.data.files.fromCache, true, 'files.fromCache');
+						if (testWorkspaceArg) {
+							assert.ok(!!uncachedEvent.data.files.joined, 'files.joined');
+						}
 						return uncachedEvent;
 					}).then(uncachedEvent => {
 						return handler.getResults('ab').then(result => {
@@ -90,12 +94,12 @@ suite('QuickOpen performance', () => {
 			return event;
 		}
 
-		function printResult(data) {
+		function printResult(data: any) {
 			if (verboseResults) {
 				console.log(JSON.stringify(data, null, '  ') + ',');
 			} else {
 				console.log(JSON.stringify({
-					filesfromCache: data.files.fromCache,
+					filesfromCacheNotJoined: data.files.fromCache && !data.files.joined,
 					searchLength: data.searchLength,
 					sortedResultDuration: data.sortedResultDuration,
 					filesResultCount: data.files.resultCount,
@@ -106,10 +110,10 @@ suite('QuickOpen performance', () => {
 
 		return measure() // Warm-up first
 			.then(() => {
-				if (testWorkspaceArg) { // Don't measure by default
+				if (testWorkspaceArg || verboseResults) { // Don't measure by default
 					const cachedEvents: Timer.ITimerEvent[] = [];
 					let i = n;
-					return (function iterate() {
+					return (function iterate(): TPromise<Timer.ITimerEvent> {
 						if (!i--) {
 							return;
 						}

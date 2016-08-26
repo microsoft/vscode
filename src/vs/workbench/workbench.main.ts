@@ -42,6 +42,7 @@ import 'vs/workbench/parts/git/browser/gitQuickOpen';
 import 'vs/workbench/parts/git/browser/gitActions.contribution';
 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
+import 'vs/workbench/parts/debug/electron-browser/repl';
 
 import 'vs/workbench/parts/markers/markers.contribution';
 

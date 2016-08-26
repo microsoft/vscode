@@ -15,7 +15,7 @@ import winjs = require('vs/base/common/winjs.base');
 import ext = require('vs/workbench/common/contributions');
 import git = require('vs/workbench/parts/git/common/git');
 import common = require('vs/editor/common/editorCommon');
-import widget = require('vs/editor/browser/widget/codeEditorWidget');
+import widget = require('vs/editor/browser/codeEditor');
 import viewlet = require('vs/workbench/browser/viewlet');
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import platform = require('vs/platform/platform');
@@ -398,10 +398,10 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 			.map(e => e.getControl())
 
 			// only interested in code editor widgets
-			.filter(c => c instanceof widget.CodeEditorWidget)
+			.filter(c => c instanceof widget.CodeEditor)
 
 			// map to models
-			.map(e => (<widget.CodeEditorWidget> e).getModel())
+			.map(e => (<widget.CodeEditor> e).getModel())
 
 			// remove nulls and duplicates
 			.filter((m, i, a) => !!m && a.indexOf(m, i + 1) === -1)

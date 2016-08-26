@@ -9,7 +9,7 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
@@ -295,5 +295,13 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration(section));
+	}
+
+	public lookup<C>(key: string): IConfigurationValue<C> {
+		return {
+			value: getConfigurationValue<C>(this.getConfiguration(), key),
+			default: getConfigurationValue<C>(this.getConfiguration(), key),
+			user: getConfigurationValue<C>(this.getConfiguration(), key)
+		};
 	}
 }

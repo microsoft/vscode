@@ -149,7 +149,7 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private updateActivityBadge(): void {
-		let dirtyCount = this.textFileService.getDirty().length;
+		const dirtyCount = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirtyCount;
 		if (dirtyCount > 0) {
 			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
@@ -166,15 +166,15 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Handle moves specially when file is opened
 		if (e.gotMoved()) {
-			let before = e.getBefore();
-			let after = e.getAfter();
+			const before = e.getBefore();
+			const after = e.getAfter();
 
 			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
 		}
 
 		// Dispose all known inputs passed on resource if deleted or moved
-		let oldFile = e.getBefore();
-		let movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
+		const oldFile = e.getBefore();
+		const movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
 		if (e.gotMoved() || e.gotDeleted()) {
 			this.handleDeleteOrMove(oldFile.resource, movedTo);
 		}
@@ -183,7 +183,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Dispose inputs that got deleted
-		let allDeleted = e.getDeleted();
+		const allDeleted = e.getDeleted();
 		if (allDeleted && allDeleted.length > 0) {
 			allDeleted.forEach(deleted => {
 				this.handleDeleteOrMove(deleted.resource);
@@ -195,12 +195,12 @@ export class FileTracker implements IWorkbenchContribution {
 		e.getUpdated()
 			.map(u => CACHE.get(u.resource))
 			.filter(model => {
-				let canDispose = this.canDispose(model);
+				const canDispose = this.canDispose(model);
 				if (!canDispose) {
 					return false;
 				}
 
-				if (Date.now() - model.getLastDirtyTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
+				if (Date.now() - model.getLastSaveAttemptTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
 					return false; // this is a weak check to see if the change came from outside the editor or not
 				}
 
@@ -209,7 +209,7 @@ export class FileTracker implements IWorkbenchContribution {
 			.forEach(model => CACHE.dispose(model.getResource()));
 
 		// Update inputs that got updated
-		let editors = this.editorService.getVisibleEditors();
+		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
 			let input = editor.input;
 			if (input instanceof DiffEditorInput) {
@@ -218,28 +218,27 @@ export class FileTracker implements IWorkbenchContribution {
 
 			// File Editor Input
 			if (input instanceof FileEditorInput) {
-				let fileInput = <FileEditorInput>input;
-				let fileInputResource = fileInput.getResource();
+				const fileInput = <FileEditorInput>input;
+				const fileInputResource = fileInput.getResource();
 
 				// Input got added or updated, so check for model and update
 				// Note: we also consider the added event because it could be that a file was added
 				// and updated right after.
 				if (e.contains(fileInputResource, FileChangeType.UPDATED) || e.contains(fileInputResource, FileChangeType.ADDED)) {
-					let textModel = CACHE.get(fileInputResource);
+					const textModel = CACHE.get(fileInputResource);
 
-					// Text file: check for last dirty time
+					// Text file: check for last save time
 					if (textModel) {
-						let state = textModel.getState();
 
 						// We only ever update models that are in good saved state
-						if (state === ModelState.SAVED) {
-							let lastDirtyTime = textModel.getLastDirtyTime();
+						if (textModel.getState() === ModelState.SAVED) {
+							const lastSaveTime = textModel.getLastSaveAttemptTime();
 
 							// Force a reopen of the input if this change came in later than our wait interval before we consider it
-							if (Date.now() - lastDirtyTime > FileTracker.FILE_CHANGE_UPDATE_DELAY) {
-								let codeEditor = (<BaseTextEditor>editor).getControl();
-								let viewState = codeEditor.saveViewState();
-								let currentMtime = textModel.getLastModifiedTime(); // optimize for the case where the file did actually not change
+							if (Date.now() - lastSaveTime > FileTracker.FILE_CHANGE_UPDATE_DELAY) {
+								const codeEditor = (<BaseTextEditor>editor).getControl();
+								const viewState = codeEditor.saveViewState();
+								const currentMtime = textModel.getLastModifiedTime(); // optimize for the case where the file did actually not change
 								textModel.load().done(() => {
 									if (textModel.getLastModifiedTime() !== currentMtime && this.isEditorShowingPath(<BaseEditor>editor, textModel.getResource())) {
 										codeEditor.restoreViewState(viewState);
@@ -292,7 +291,7 @@ export class FileTracker implements IWorkbenchContribution {
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							let index = resource.fsPath.indexOf(oldResource.fsPath);
+							const index = resource.fsPath.indexOf(oldResource.fsPath);
 							reopenFileResource = URI.file(paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1))); // parent folder got moved
 						}
 
@@ -310,8 +309,8 @@ export class FileTracker implements IWorkbenchContribution {
 	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, arg: any): FileEditorInput {
 
 		// First try modifiedInput
-		let modifiedInput = input.modifiedInput;
-		let res = this.getMatchingFileEditorInputFromInput(modifiedInput, arg);
+		const modifiedInput = input.modifiedInput;
+		const res = this.getMatchingFileEditorInputFromInput(modifiedInput, arg);
 		if (res) {
 			return res;
 		}
@@ -325,12 +324,12 @@ export class FileTracker implements IWorkbenchContribution {
 	private getMatchingFileEditorInputFromInput(input: EditorInput, arg: any): FileEditorInput {
 		if (input instanceof FileEditorInput) {
 			if (arg instanceof URI) {
-				let deletedResource = <URI>arg;
+				const deletedResource = <URI>arg;
 				if (this.containsResource(input, deletedResource)) {
 					return input;
 				}
 			} else {
-				let updatedFiles = <FileChangesEvent>arg;
+				const updatedFiles = <FileChangesEvent>arg;
 				if (updatedFiles.contains(input.getResource(), FileChangeType.UPDATED)) {
 					return input;
 				}
@@ -346,7 +345,7 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		// Add existing clients matching resource
-		let inputsContainingPath: EditorInput[] = FileEditorInput.getAll(resource);
+		const inputsContainingPath: EditorInput[] = FileEditorInput.getAll(resource);
 
 		// Collect from history and opened editors and see which ones to pick
 		const candidates = this.historyService.getHistory();

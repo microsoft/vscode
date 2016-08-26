@@ -74,7 +74,8 @@ suite('SearchService', () => {
 
 	const rawMatch: IRawFileMatch = {
 		base: normalize('/some'),
-		path: 'where',
+		relativePath: 'where',
+		basename: 'where',
 		size: 123
 	};
 
@@ -127,7 +128,6 @@ suite('SearchService', () => {
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
 		const service = new RawSearchService();
-		const diskSearch = new DiskSearch(false);
 
 		const progressResults = [];
 		return DiskSearch.collectResults(service.doFileSearch(Engine, rawSearch, 10))
@@ -142,12 +142,12 @@ suite('SearchService', () => {
 
 	test('Sorted results', function () {
 		const paths = ['bab', 'bbc', 'abb'];
-		const matches: IRawFileMatch[] = paths.map(path => ({
+		const matches: IRawFileMatch[] = paths.map(relativePath => ({
 			base: normalize('/some/where'),
-			path,
+			relativePath,
+			basename: relativePath,
 			size: 3
 		}));
-		let i = 0;
 		const Engine = TestSearchEngine.bind(null, () => matches.shift());
 		const service = new RawSearchService();
 
@@ -197,12 +197,12 @@ suite('SearchService', () => {
 
 	test('Cached results', function () {
 		const paths = ['bcb', 'bbc', 'aab'];
-		const matches: IRawFileMatch[] = paths.map(path => ({
+		const matches: IRawFileMatch[] = paths.map(relativePath => ({
 			base: normalize('/some/where'),
-			path,
+			relativePath,
+			basename: relativePath,
 			size: 3
 		}));
-		let i = 0;
 		const Engine = TestSearchEngine.bind(null, () => matches.shift());
 		const service = new RawSearchService();
 
@@ -243,7 +243,8 @@ suite('SearchService', () => {
 		}).then(() => {
 			matches.push({
 				base: normalize('/some/where'),
-				path: 'bc',
+				relativePath: 'bc',
+				basename: 'bc',
 				size: 3
 			});
 			const results = [];

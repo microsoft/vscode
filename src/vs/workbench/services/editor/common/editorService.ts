@@ -7,7 +7,8 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IEditorModel} from 'vs/platform/editor/common/editor';
+import {ITextEditorModel} from 'vs/workbench/common/editor';
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 

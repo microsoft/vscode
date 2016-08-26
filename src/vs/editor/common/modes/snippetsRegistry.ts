@@ -20,8 +20,6 @@ export interface ISnippetsRegistry {
 	 */
 	registerSnippets(modeId: string, snippets: ISnippet[], owner?: string): void;
 
-
-
 	/**
 	 * Visit all snippets
 	 */
@@ -95,6 +93,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 				documentation: s.description,
 				insertText: s.codeSnippet,
 				noAutoAccept: true,
+				isTMSnippet: true,
 				overwriteBefore
 			});
 			return true;

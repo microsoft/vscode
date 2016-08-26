@@ -34,10 +34,10 @@
 				"path": "./themes/hc_black.json"
 			}
 		],
-		"fileIcons": [
+		"iconThemes": [
 			{
 				"id": "vs-standard",
-				"label": "Visual Studio File Icons",
+				"label": "Standard",
 				"path": "./fileicons/vs_standard.json"
 			}
 		]

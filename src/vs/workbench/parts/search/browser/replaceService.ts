@@ -11,9 +11,8 @@ import * as network from 'vs/base/common/network';
 import * as Map from 'vs/base/common/map';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { IEditorService, IEditorInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorService, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
@@ -53,9 +52,9 @@ class EditorInputCache {
 		if (editorInputPromise) {
 			editorInputPromise.done(() => {
 				if (reloadFromSource) {
-					this.editorService.resolveEditorModel({resource: fileMatch.resource()}).then((value: ITextEditorModel) => {
+					this.editorService.resolveEditorModel({resource: fileMatch.resource()}).then(value => {
 						let replaceResource= this.getReplaceResource(fileMatch.resource());
-						this.modelService.getModel(replaceResource).setValue((<IModel> value.textEditorModel).getValue());
+						this.modelService.getModel(replaceResource).setValue(value.textEditorModel.getValue());
 						this.replaceService.replace(fileMatch, null, replaceResource);
 					});
 				} else {
@@ -102,8 +101,8 @@ class EditorInputCache {
 
 	private createRightInput(element: FileMatch): TPromise<IEditorInput> {
 		return new TPromise((c, e, p) => {
-			this.editorService.resolveEditorModel({resource: element.resource()}).then((value: ITextEditorModel) => {
-				let model= <IModel> value.textEditorModel;
+			this.editorService.resolveEditorModel({resource: element.resource()}).then(value => {
+				let model= value.textEditorModel;
 				let replaceResource= this.getReplaceResource(element.resource());
 				this.modelService.createModel(model.getValue(), model.getMode(), replaceResource);
 				c(this.editorService.createInput({ resource: replaceResource }));

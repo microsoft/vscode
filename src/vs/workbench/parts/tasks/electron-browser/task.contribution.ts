@@ -23,7 +23,7 @@ import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { match } from 'vs/base/common/glob';
 import { setTimeout } from 'vs/base/common/platform';
-import { TerminateResponse } from 'vs/base/common/processes';
+import { TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
 import * as strings from 'vs/base/common/strings';
 
 import { Registry } from 'vs/platform/platform';
@@ -77,8 +77,8 @@ class AbstractTaskAction extends Action {
 
 	protected taskService: ITaskService;
 	protected telemetryService: ITelemetryService;
-	private messageService: IMessageService;
-	private contextService: IWorkspaceContextService;
+	protected messageService: IMessageService;
+	protected contextService: IWorkspaceContextService;
 
 	constructor(id:string, label:string, @ITaskService taskService:ITaskService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -309,6 +309,8 @@ class TerminateAction extends AbstractTaskAction {
 				return this.taskService.terminate().then((response) => {
 					if (response.success) {
 						return;
+					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+						this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
 					} else {
 						return Promise.wrapError(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
 					}
@@ -859,6 +861,11 @@ class TaskService extends EventEmitter implements ITaskService {
 						this.disposeFileChangesListener();
 						this.disposeTaskSystemListeners();
 						return false; // no veto
+					} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+						return !this.messageService.confirm({
+							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
+							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways")
+						});
 					}
 					return true; // veto
 				}, (err) => {
@@ -960,8 +967,7 @@ let schema : IJSONSchema =
 		'definitions': {
 			'showOutputType': {
 				'type': 'string',
-				'enum': ['always', 'silent', 'never'],
-				'default': 'silent'
+				'enum': ['always', 'silent', 'never']
 			},
 			'patternType': {
 				'anyOf': [

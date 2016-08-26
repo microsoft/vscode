@@ -100,7 +100,7 @@
 
 .extension-editor > .body > .navbar {
 	height: 36px;
-	text-transform: uppercase;
+	font-weight: bold;
 	font-size: 14px;
 	line-height: 36px;
 	padding-left: 20px;
@@ -118,12 +118,12 @@
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-size: inherit;
+	opacity: 0.7;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item.disabled > .action-label {
 	opacity: 1;
 	text-decoration: underline;
-	font-weight: bold;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label:hover {
@@ -134,7 +134,11 @@
 	height: calc(100% - 36px);
 }
 
-.extension-editor > .body > .content > .subcontent {
+.extension-editor > .body > .content > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .monaco-scrollable-element > .subcontent {
 	height: 100%;
 	padding: 20px;
 	overflow-y: scroll;
@@ -142,8 +146,13 @@
 }
 
 .extension-editor > .body > .content table {
+	width: 100%;
 	border-spacing: 0;
 	border-collapse: separate;
+}
+
+.extension-editor > .body > .content details:not(:first-child) {
+	margin-top: 20px;
 }
 
 .extension-editor > .body > .content details > summary {
@@ -151,6 +160,8 @@
 	margin-bottom: 10px;
 	font-weight: bold;
 	font-size: 120%;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+	padding-bottom: 6px;
 }
 
 .extension-editor > .body > .content details > summary:focus {
@@ -169,10 +180,6 @@
 	background-color: rgba(128, 128, 128, 0.15);
 }
 
-.extension-editor > .body > .content table th {
-	border-bottom: 1px solid rgba(144, 144, 144, 0.5);
-}
-
 .extension-editor > .body > .content table th,
 .extension-editor > .body > .content table td {
 	padding: 2px 16px 2px 4px;
@@ -187,9 +194,9 @@
 	text-align: left;
 }
 
-.extension-editor table.settings code {
+.extension-editor > .body > .content table code {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
-	font-size: 80%;
+	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);
 	border-radius: 4px;
 	padding: 1px 4px;

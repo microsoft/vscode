@@ -211,17 +211,17 @@ const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   			// **/*.something
 const T2 = /^\*\*\/[\w\.-]+$/; 							   			// **/something
 const T3 = /^{\*\*\/[\*\.]?[\w\.-]+(,\*\*\/[\*\.]?[\w\.-]+)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
 
-export type ParsedPattern = (path: string) => boolean;
-export type ParsedExpression = (path: string, siblingsFn?: () => string[]) => string /* the matching pattern */;
+export type ParsedPattern = (path: string, basename?: string) => boolean;
+export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[]) => string /* the matching pattern */;
 
 interface ParsedStringPattern {
-	(path: string): string /* the matching pattern */;
+	(path: string, basename: string): string /* the matching pattern */;
 	basenames?: string[];
 	patterns?: string[];
 }
-type SiblingsPattern = { siblings: string[], basename: string };
+type SiblingsPattern = { siblings: string[], name: string };
 interface ParsedExpressionPattern {
-	(path: string, siblingsPatternFn: () => SiblingsPattern): string /* the matching pattern */;
+	(path: string, basename: string, siblingsPatternFn: () => SiblingsPattern): string /* the matching pattern */;
 	requiresSiblings?: boolean;
 }
 
@@ -231,7 +231,7 @@ const FALSE = function() {
 	return false;
 };
 
-const NULL = function() {
+const NULL = function(): string {
 	return null;
 };
 
@@ -252,15 +252,21 @@ function parsePattern(pattern: string): ParsedStringPattern {
 	// Check for Trivias
 	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
 		const base = pattern.substr(4); // '**/*'.length === 4
-		parsedPattern = function (path) {
+		parsedPattern = function (path, basename) {
 			return path && strings.endsWith(path, base) ? pattern : null;
 		};
 	} else if (T2.test(pattern)) { // common pattern: **/some.txt just need basename check
 		const base = pattern.substr(3); // '**/'.length === 3
 		const slashBase = `/${base}`;
 		const backslashBase = `\\${base}`;
-		parsedPattern = function (path) {
-			return path && (path === base || strings.endsWith(path, slashBase) || strings.endsWith(path, backslashBase)) ? pattern : null;
+		parsedPattern = function (path, basename) {
+			if (!path) {
+				return null;
+			}
+			if (basename) {
+				return basename === base ? pattern : null;
+			}
+			return path === base || strings.endsWith(path, slashBase) || strings.endsWith(path, backslashBase) ? pattern : null;
 		};
 		parsedPattern.basenames = [base];
 		parsedPattern.patterns = [pattern];
@@ -275,9 +281,9 @@ function parsePattern(pattern: string): ParsedStringPattern {
 		if (n === 1) {
 			return <ParsedStringPattern>parsedPatterns[0];
 		}
-		parsedPattern = function (path: string) {
+		parsedPattern = function (path: string, basename: string) {
 			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
-				if ((<ParsedStringPattern>parsedPatterns[i])(path)) {
+				if ((<ParsedStringPattern>parsedPatterns[i])(path, basename)) {
 					return pattern;
 				}
 			}
@@ -299,7 +305,7 @@ function parsePattern(pattern: string): ParsedStringPattern {
 function toRegExp(pattern: string): ParsedStringPattern {
 	try {
 		const regExp = new RegExp(`^${parseRegExp(pattern)}$`);
-		return function (path: string) {
+		return function (path: string, basename: string) {
 			regExp.lastIndex = 0; // reset RegExp to its initial state to reuse it!
 			return path && regExp.test(path) ? pattern : null;
 		};
@@ -323,7 +329,7 @@ export function match(arg1: string | IExpression, path: string, siblingsFn?: () 
 		return false;
 	}
 
-	return parse(<IExpression>arg1)(path, siblingsFn);
+	return parse(<IExpression>arg1)(path, undefined, siblingsFn);
 }
 
 /**
@@ -344,11 +350,11 @@ export function parse(arg1: string | IExpression): any {
 	// Glob with String
 	if (typeof arg1 === 'string') {
 		const parsedPattern = parsePattern(arg1);
-		if (parsePattern === NULL) {
+		if (parsedPattern === NULL) {
 			return FALSE;
 		}
-		return function (path) {
-			return !!parsedPattern(path);
+		return function (path: string, basename: string) {
+			return !!parsedPattern(path, basename);
 		};
 	}
 
@@ -371,10 +377,10 @@ function parsedExpression(expression: IExpression): ParsedExpression {
 			return <ParsedStringPattern>parsedPatterns[0];
 		}
 
-		return function (path: string, siblingsFn?: () => string[]) {
+		return function (path: string, basename: string, siblingsFn?: () => string[]) {
 			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 				// Pattern matches path
-				const result = (<ParsedStringPattern>parsedPatterns[i])(path);
+				const result = (<ParsedStringPattern>parsedPatterns[i])(path, basename);
 				if (result) {
 					return result;
 				}
@@ -384,7 +390,7 @@ function parsedExpression(expression: IExpression): ParsedExpression {
 		};
 	}
 
-	return function (path: string, siblingsFn?: () => string[]) {
+	return function (path: string, basename: string, siblingsFn?: () => string[]) {
 		let siblingsPattern: SiblingsPattern;
 		let siblingsResolved = !siblingsFn;
 
@@ -394,12 +400,11 @@ function parsedExpression(expression: IExpression): ParsedExpression {
 				siblingsResolved = true;
 				const siblings = siblingsFn();
 				if (siblings && siblings.length) {
-					const base = paths.basename(path);
-					const basename = base.substr(0, base.length - paths.extname(path).length);
-					siblingsPattern = {
-						siblings: siblings,
-						basename: basename
-					};
+					if (!basename) {
+						basename = paths.basename(path);
+					}
+					const name = basename.substr(0, basename.length - paths.extname(path).length);
+					siblingsPattern = { siblings, name };
 				}
 			}
 			return siblingsPattern;
@@ -407,7 +412,7 @@ function parsedExpression(expression: IExpression): ParsedExpression {
 
 		for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 			// Pattern matches path
-			const result = (<ParsedExpressionPattern>parsedPatterns[i])(path, siblingsPatternFn);
+			const result = (<ParsedExpressionPattern>parsedPatterns[i])(path, basename, siblingsPatternFn);
 			if (result) {
 				return result;
 			}
@@ -436,8 +441,8 @@ function parseExpressionPattern(pattern: string, value: any): (ParsedStringPatte
 	if (value) {
 		const when = (<SiblingClause>value).when;
 		if (typeof when === 'string') {
-			const result: ParsedExpressionPattern = function (path: string, siblingsPatternFn: () => { siblings: string[], basename: string }) {
-				if (!parsedPattern(path)) {
+			const result: ParsedExpressionPattern = function (path: string, basename: string, siblingsPatternFn: () => SiblingsPattern) {
+				if (!parsedPattern(path, basename)) {
 					return null;
 				}
 
@@ -446,7 +451,7 @@ function parseExpressionPattern(pattern: string, value: any): (ParsedStringPatte
 					return null; // pattern is malformed or we don't have siblings
 				}
 
-				let clausePattern = when.replace('$(basename)', siblingsPattern.basename);
+				let clausePattern = when.replace('$(basename)', siblingsPattern.name);
 				if (siblingsPattern.siblings.indexOf(clausePattern) !== -1) {
 					return pattern;
 				} else {
@@ -481,18 +486,20 @@ function aggregateBasenameMatches(parsedPatterns: (ParsedStringPattern | ParsedE
 	} else {
 		patterns = basenamePatterns.reduce((all, current) => all.concat((<ParsedStringPattern>current).patterns), []);
 	}
-	const aggregate: ParsedStringPattern = function (path) {
+	const aggregate: ParsedStringPattern = function (path, basename) {
 		if (!path) {
 			return null;
 		}
-		let i;
-		for (i = path.length; i > 0; i--) {
-			const ch = path.charCodeAt(i - 1);
-			if (ch === SLASH || ch === BACKSLASH) {
-				break;
+		if (!basename) {
+			let i: number;
+			for (i = path.length; i > 0; i--) {
+				const ch = path.charCodeAt(i - 1);
+				if (ch === SLASH || ch === BACKSLASH) {
+					break;
+				}
 			}
+			basename = path.substr(i);
 		}
-		const basename = path.substr(i);
 		const index = basenames.indexOf(basename);
 		return index !== -1 ? patterns[index] : null;
 	};

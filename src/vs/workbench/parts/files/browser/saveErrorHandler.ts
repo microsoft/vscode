@@ -13,10 +13,10 @@ import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {guessMimeTypes} from 'vs/base/common/mime';
+import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
-import {Position} from 'vs/platform/editor/common/editor';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
@@ -211,7 +211,14 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 	}
 }
 
-// A message with action to resolve a 412 save conflict
+const pendingResolveSaveConflictMessages: Function[] = [];
+function clearPendingResolveSaveConflictMessages(): void {
+	while (pendingResolveSaveConflictMessages.length > 0) {
+		pendingResolveSaveConflictMessages.pop()();
+	}
+}
+
+// A message with action to resolve a save conflict
 class ResolveSaveConflictMessage implements IMessageWithAction {
 	public message: string;
 	public actions: Action[];
@@ -240,21 +247,15 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					const mime = guessMimeTypes(resource.fsPath).join(', ');
 					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, mime, paths.basename(resource.fsPath), resource.fsPath);
 					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, mime, void 0);
-					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} - on disk ↔ in {1}", modifiedInput.getName(), product.nameLong), nls.localize('resolveSaveConflict', "{0} - Resolve save conflict", modifiedInput.getDescription()), originalInput, modifiedInput);
+					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), product.nameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
 
-					return this.editorService.openEditor(conflictInput).then(editor => {
+					return this.editorService.openEditor(conflictInput).then(() => {
 
 						// We have to bring the model into conflict resolution mode to prevent subsequent save erros when the user makes edits
 						this.model.setConflictResolutionMode();
 
 						// Inform user
-						this.messageService.show(Severity.Info, {
-							message: nls.localize('userGuide', "Please either select **Revert** to discard your changes or **Overwrite** to replace the content on disk with your changes"),
-							actions: [
-								this.instantiationService.createInstance(AcceptLocalChangesAction, conflictInput, editor.position),
-								this.instantiationService.createInstance(RevertLocalChangesAction, conflictInput, editor.position)
-							]
-						});
+						pendingResolveSaveConflictMessages.push(this.messageService.show(Severity.Info, nls.localize('userGuide', "Use the actions in the editor tool bar to either **undo** your changes or **overwrite** the content on disk with your changes")));
 					});
 				}
 
@@ -265,25 +266,25 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 }
 
 // Accept changes to resolve a conflicting edit
-export class AcceptLocalChangesAction extends Action {
+export class AcceptLocalChangesAction extends EditorInputAction {
 	private messagesToHide: { (): void; }[];
 
 	constructor(
-		private input: ConflictResolutionDiffEditorInput,
-		private position: Position,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
-		super('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Overwrite"), 'conflict-editor-action accept-changes');
+		super('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use local changes and overwrite disk contents"), 'conflict-editor-action accept-changes');
 
 		this.messagesToHide = [];
 	}
 
 	public run(): TPromise<void> {
-		const conflictInput = this.input;
+		const conflictInput = <ConflictResolutionDiffEditorInput>this.input;
 		const model = conflictInput.getModel();
 		const localModelValue = model.getValue();
+
+		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
 		// 1.) Get the diff editor model from cache (resolve(false)) to have access to the mtime of the file we currently show to the left
 		return conflictInput.resolve(false).then((diffModel: DiffEditorModel) => {
@@ -337,20 +338,20 @@ export class AcceptLocalChangesAction extends Action {
 }
 
 // Revert changes to resolve a conflicting edit
-export class RevertLocalChangesAction extends Action {
+export class RevertLocalChangesAction extends EditorInputAction {
 
 	constructor(
-		private input: ConflictResolutionDiffEditorInput,
-		private position: Position,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
-		super('workbench.action.files.revert', nls.localize('revertLocalChanges', "Revert"), 'conflict-editor-action revert-changes');
+		super('workbench.action.files.revert', nls.localize('revertLocalChanges', "Discard local changes and revert to content on disk"), 'conflict-editor-action revert-changes');
 	}
 
 	public run(): TPromise<void> {
-		const conflictInput = this.input;
+		const conflictInput = <ConflictResolutionDiffEditorInput>this.input;
 		const model = conflictInput.getModel();
+
+		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
 		// Revert on model
 		return model.revert().then(() => {

@@ -116,7 +116,7 @@ export interface IWindowSettings {
 export class VSCodeWindow {
 
 	public static menuBarHiddenKey = 'menuBarHidden';
-	public static themeStorageKey = 'theme';
+	public static colorThemeStorageKey = 'theme';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -153,7 +153,7 @@ export class VSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const usesLightTheme = /vs($| )/.test(this.storageService.getItem<string>(VSCodeWindow.themeStorageKey));
+		const usesLightTheme = /vs($| )/.test(this.storageService.getItem<string>(VSCodeWindow.colorThemeStorageKey));
 		if (!global.windowShow) {
 			global.windowShow = Date.now();
 		}

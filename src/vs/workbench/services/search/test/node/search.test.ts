@@ -159,7 +159,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.strictEqual(path.basename(res.path), 'site.less');
+			assert.strictEqual(path.basename(res.relativePath), 'site.less');
 			done();
 		});
 	});
@@ -256,7 +256,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), '汉语.txt');
+			assert.equal(path.basename(res.relativePath), '汉语.txt');
 			done();
 		});
 	});
@@ -296,7 +296,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'site.css');
+			assert.equal(path.basename(res.relativePath), 'site.css');
 			done();
 		});
 	});
@@ -317,7 +317,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'company.js');
+			assert.equal(path.basename(res.relativePath), 'company.js');
 			done();
 		});
 	});
@@ -339,7 +339,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'company.js');
+			assert.equal(path.basename(res.relativePath), 'company.js');
 			done();
 		});
 	});
@@ -365,7 +365,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'company.js');
+			assert.equal(path.basename(res.relativePath), 'company.js');
 			done();
 		});
 	});
@@ -392,7 +392,7 @@ suite('Search', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 1);
-			assert.equal(path.basename(res.path), 'site.css');
+			assert.equal(path.basename(res.relativePath), 'site.css');
 			done();
 		});
 	});

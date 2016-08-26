@@ -82,7 +82,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private quickOpenWidget: QuickOpenWidget;
 	private pickOpenWidget: QuickOpenWidget;
 	private layoutDimensions: Dimension;
-	private mapResolvedHandlersToPrefix: { [prefix: string]: QuickOpenHandler; };
+	private mapResolvedHandlersToPrefix: { [prefix: string]: TPromise<QuickOpenHandler>; };
+	private handlerOnOpenCalled: { [prefix: string]: boolean; };
 	private currentResultToken: string;
 	private currentPickerToken: string;
 	private inQuickOpenMode: IContextKey<boolean>;
@@ -106,6 +107,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		super(QuickOpenController.ID);
 
 		this.mapResolvedHandlersToPrefix = {};
+		this.handlerOnOpenCalled = {};
 
 		this.promisesToCompleteOnHide = [];
 
@@ -471,17 +473,17 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Telemetry: log that quick open is shown and log the mode
 		let registry = (<IQuickOpenRegistry>Registry.as(Extensions.Quickopen));
-		let handlerDescriptor = registry.getQuickOpenHandler(prefix);
-		if (!handlerDescriptor) {
-			let defaultHandlerDescriptors = registry.getDefaultQuickOpenHandlers();
-			if (defaultHandlerDescriptors.length > 0) {
-				handlerDescriptor = defaultHandlerDescriptors[0];
-			}
+		let handlerDescriptors = [registry.getQuickOpenHandler(prefix)];
+		if (!handlerDescriptors[0]) {
+			handlerDescriptors = registry.getDefaultQuickOpenHandlers();
 		}
 
-		if (handlerDescriptor) {
-			this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
+		if (handlerDescriptors[0]) {
+			this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptors[0].getId(), quickNavigate: quickNavigateConfiguration });
 		}
+
+		// Trigger onOpen
+		handlerDescriptors.forEach(desc => this.resolveHandler(desc));
 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
@@ -558,8 +560,12 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			// Pass to handlers
 			for (let prefix in this.mapResolvedHandlersToPrefix) {
 				if (this.mapResolvedHandlersToPrefix.hasOwnProperty(prefix)) {
-					let handler = this.mapResolvedHandlersToPrefix[prefix];
-					handler.onClose(reason === HideReason.CANCELED);
+					let promise = this.mapResolvedHandlersToPrefix[prefix];
+					promise.then(handler => {
+						this.handlerOnOpenCalled[prefix] = false;
+						// Don't check if onOpen was called to preserve old behaviour for now
+						handler.onClose(reason === HideReason.CANCELED);
+					});
 				}
 			}
 
@@ -620,6 +626,13 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Reset Extra Class
 		this.quickOpenWidget.setExtraClass(null);
+
+		// Trigger onOpen
+		if (handlerDescriptor) {
+			this.resolveHandler(handlerDescriptor);
+		} else {
+			registry.getDefaultQuickOpenHandlers().forEach(desc => this.resolveHandler(desc));
+		}
 
 		// Remove leading and trailing whitespace
 		let trimmedValue = strings.trim(value);
@@ -854,21 +867,33 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	private resolveHandler(handler: QuickOpenHandlerDescriptor): TPromise<QuickOpenHandler> {
+		let result = this._resolveHandler(handler);
+		const id = handler.getId();
+		if (!this.handlerOnOpenCalled[id]) {
+			const original = result;
+			this.handlerOnOpenCalled[id] = true;
+			result = this.mapResolvedHandlersToPrefix[id] = original.then(resolved => {
+				this.mapResolvedHandlersToPrefix[id] = original;
+				resolved.onOpen();
+				return resolved;
+			});
+		}
+		return result.then(null, (error) => {
+			delete this.mapResolvedHandlersToPrefix[id];
+			return TPromise.wrapError('Unable to instantiate quick open handler ' + handler.moduleName + ' - ' + handler.ctorName + ': ' + JSON.stringify(error));
+		});
+	}
+
+	private _resolveHandler(handler: QuickOpenHandlerDescriptor): TPromise<QuickOpenHandler> {
 		let id = handler.getId();
 
 		// Return Cached
 		if (this.mapResolvedHandlersToPrefix[id]) {
-			return TPromise.as(this.mapResolvedHandlersToPrefix[id]);
+			return this.mapResolvedHandlersToPrefix[id];
 		}
 
 		// Otherwise load and create
-		return this.instantiationService.createInstance(handler).then((resolvedHandler: QuickOpenHandler) => {
-			this.mapResolvedHandlersToPrefix[id] = resolvedHandler;
-
-			return resolvedHandler;
-		}, (error) => {
-			return TPromise.wrapError('Unable to instantiate quick open handler ' + handler.moduleName + ' - ' + handler.ctorName + ': ' + JSON.stringify(error));
-		});
+		return this.mapResolvedHandlersToPrefix[id] = this.instantiationService.createInstance(handler);
 	}
 
 	public layout(dimension: Dimension): void {

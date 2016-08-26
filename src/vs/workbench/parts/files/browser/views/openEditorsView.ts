@@ -204,6 +204,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
+		if (this.isDisposed) {
+			return; // guard against possible race condition when config change causes recreate of views
+		}
+
 		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.visible;
 		if (typeof visibleOpenEditors === 'number') {
 			this.visibleOpenEditors = visibleOpenEditors;
