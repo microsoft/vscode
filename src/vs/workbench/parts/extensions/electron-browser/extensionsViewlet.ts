@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
 import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -177,7 +177,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return this.progress(this.query(value))
 			.then(model => {
 				if (!value && model.length === 0 && suggestPopular) {
-					return this.search('@popular', true);
+					return this.search('@sort:installs', true);
 				}
 
 				this.list.model = model;
@@ -198,6 +198,25 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		let options: IQueryOptions = {};
 
+		value = value.replace(/@sort:(\w+)(-asc|-desc)?\b/, (match, by, order) => {
+			let sortOrder = SortOrder.Default;
+
+			switch (order) {
+				case '-asc': sortOrder = SortOrder.Ascending; break;
+				case '-desc': sortOrder = SortOrder.Descending; break;
+			}
+
+			let sortBy = SortBy.NoneOrRelevance;
+
+			switch(by) {
+				case 'installs': sortBy = SortBy.InstallCount; break;
+				default: return match;
+			}
+
+			options = assign(options, { sortBy, sortOrder });
+			return '';
+		});
+
 		if (/@recommended/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal().then(local => {
 				const names = this.tipsService.getRecommendations()
@@ -212,9 +231,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			});
 		}
 
-		if (/@popular/i.test(value)) {
-			options = assign(options, { sortBy: SortBy.InstallCount });
-		} else {
+		value = value.trim();
+
+		if (value) {
 			options = assign(options, { text: value });
 		}
 

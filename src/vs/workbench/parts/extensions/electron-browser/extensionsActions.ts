@@ -378,7 +378,7 @@ export class ShowPopularExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@popular', true);
+				viewlet.search('@sort:installs', true);
 				viewlet.focus();
 			});
 	}
