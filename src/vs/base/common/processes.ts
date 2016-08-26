@@ -85,7 +85,15 @@ export interface ErrorData {
 
 export interface TerminateResponse {
 	success: boolean;
+	code?: TerminateResponseCode;
 	error?: any;
+}
+
+export enum TerminateResponseCode {
+	Success = 0,
+	Unknown = 1,
+	AccessDenied = 2,
+	ProcessNotFound = 3,
 }
 
 export namespace Config {
