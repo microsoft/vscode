@@ -17,7 +17,6 @@ import {IWindowService} from 'vs/workbench/services/window/electron-browser/wind
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Registry} from 'vs/platform/platform';
-import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {Extensions as JSONExtensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
@@ -817,19 +816,6 @@ class Color {
 			b: 255 - this.parsed.b,
 			a : this.parsed.a
 		});
-	}
-}
-
-var configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
-configurationRegistry.registerConfiguration({
-	'id': 'files',
-	'order': 9.01,
-	'type': 'object',
-	'properties': {
-		'files.iconTheme': {
-			'type': 'string',
-			'default': DEFAULT_FILE_ICONS,
-			'description': nls.localize('settings.icons.dark', 'The active file icons. Use \'explorer.showFileIcons\' to enable file icons in the explorer'),
 		}
 	}
 });
