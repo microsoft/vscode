@@ -11,6 +11,7 @@ import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
+import { assign } from 'vs/base/common/objects';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import EventOf, { mapEvent, filterEvent } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
@@ -36,55 +37,6 @@ import URI from 'vs/base/common/uri';
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
 	immediate?: boolean;
-}
-
-interface IContext {
-	query(): TPromise<PagedModel<IExtension>>;
-}
-
-class LocalContext implements IContext {
-
-	constructor(private value: string, private extensionsWorkbenchService: IExtensionsWorkbenchService) {}
-
-	query(): TPromise<PagedModel<IExtension>> {
-		let local = this.extensionsWorkbenchService.queryLocal();
-
-		if (/@outdated/i.test(this.value)) {
-			local = local.then(result => result.filter(e => e.outdated));
-		}
-
-		return local.then(result => new PagedModel(result));
-	}
-}
-
-class GalleryContext implements IContext {
-
-	constructor(
-		private value: string,
-		private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		private tipsService: IExtensionTipsService
-	) {}
-
-	query(): TPromise<PagedModel<IExtension>> {
-		let optionsPromise: TPromise<IQueryOptions> = null;
-
-		if (/@popular/i.test(this.value)) {
-			optionsPromise = TPromise.as({ sortBy: SortBy.InstallCount });
-		} else if (/@recommended/i.test(this.value)) {
-			optionsPromise = this.extensionsWorkbenchService.queryLocal().then(local => {
-				const names = this.tipsService.getRecommendations()
-					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name));
-
-				return { names, pageSize: names.length };
-			});
-		} else {
-			optionsPromise = TPromise.as({ text: this.value });
-		}
-
-		return optionsPromise
-			.then(options => this.extensionsWorkbenchService.queryGallery(options))
-			.then(result => new PagedModel(result));
-	}
 }
 
 export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
@@ -222,25 +174,52 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private doSearch(value: string = '', suggestPopular = false): TPromise<any> {
-		const context = this.getContext(value);
-		const promise = this.progress(context.query());
+		return this.progress(this.query(value))
+			.then(model => {
+				if (!value && model.length === 0 && suggestPopular) {
+					return this.search('@popular', true);
+				}
 
-		return promise.then(model => {
-			if (context instanceof LocalContext && model.length === 0 && suggestPopular) {
-				return this.search('@popular', true);
-			}
-
-			this.list.model = model;
-			this.list.scrollTop = 0;
-		});
+				this.list.model = model;
+				this.list.scrollTop = 0;
+			});
 	}
 
-	private getContext(value: string): IContext {
+	private query(value: string): TPromise<PagedModel<IExtension>> {
 		if (!value || /@outdated/i.test(value)) {
-			return new LocalContext(value, this.extensionsWorkbenchService);
-		} else {
-			return new GalleryContext(value, this.extensionsWorkbenchService, this.tipsService);
+			let local = this.extensionsWorkbenchService.queryLocal();
+
+			if (/@outdated/i.test(value)) {
+				local = local.then(result => result.filter(e => e.outdated));
+			}
+
+			return local.then(result => new PagedModel(result));
 		}
+
+		let options: IQueryOptions = {};
+
+		if (/@recommended/i.test(value)) {
+			return this.extensionsWorkbenchService.queryLocal().then(local => {
+				const names = this.tipsService.getRecommendations()
+					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name));
+
+				if (!names.length) {
+					return new PagedModel([]);
+				}
+
+				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+					.then(result => new PagedModel(result));
+			});
+		}
+
+		if (/@popular/i.test(value)) {
+			options = assign(options, { sortBy: SortBy.InstallCount });
+		} else {
+			options = assign(options, { text: value });
+		}
+
+		return this.extensionsWorkbenchService.queryGallery(options)
+			.then(result => new PagedModel(result));
 	}
 
 	private openExtension(extension: IExtension): void {
