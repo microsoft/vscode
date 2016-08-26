@@ -198,7 +198,24 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		let options: IQueryOptions = {};
 
-		value = value.replace(/@sort:(\w+)(-asc|-desc)?\b/, (match, by, order) => {
+		if (/@recommended/i.test(value)) {
+			value = value.replace(/@recommended/g, '').trim();
+
+			return this.extensionsWorkbenchService.queryLocal().then(local => {
+				const names = this.tipsService.getRecommendations()
+					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
+					.filter(name => name.indexOf(value) > -1);
+
+				if (!names.length) {
+					return new PagedModel([]);
+				}
+
+				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+					.then(result => new PagedModel(result));
+			});
+		}
+
+		value = value.replace(/@sort:(\w+)(-asc|-desc)?\b/g, (match, by, order) => {
 			let sortOrder = SortOrder.Default;
 
 			switch (order) {
@@ -216,20 +233,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			options = assign(options, { sortBy, sortOrder });
 			return '';
 		});
-
-		if (/@recommended/i.test(value)) {
-			return this.extensionsWorkbenchService.queryLocal().then(local => {
-				const names = this.tipsService.getRecommendations()
-					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name));
-
-				if (!names.length) {
-					return new PagedModel([]);
-				}
-
-				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(result => new PagedModel(result));
-			});
-		}
 
 		value = value.trim();
 
