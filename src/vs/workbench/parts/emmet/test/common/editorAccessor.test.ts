@@ -56,7 +56,7 @@ suite('Emmet', () => {
 			});
 
 			// syntaxes mapped to html, hard coded
-			let html = ['razor', 'handlebars', 'erb', 'php', 'hbs', 'ejs', 'twig'];  // twig??
+			let html = ['razor', 'handlebars'];
 			html.forEach(each => {
 				testIsEnabled(each, null);
 			});
@@ -97,7 +97,7 @@ suite('Emmet', () => {
 			});
 
 			// syntaxes mapped to html, hard coded
-			let html = ['razor', 'handlebars', 'erb', 'php', 'hbs', 'ejs', 'twig'];  // twig??
+			let html = ['razor', 'handlebars'];
 			html.forEach(each => {
 				testSyntax(each, null, 'html');
 			});
