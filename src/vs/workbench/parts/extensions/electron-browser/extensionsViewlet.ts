@@ -16,6 +16,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import EventOf, { mapEvent, filterEvent } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
@@ -26,9 +27,10 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
-import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
+import { Query } from './extensionQuery';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -154,7 +156,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
-				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL)
+				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
+				new Separator(),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install.asc', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
+				new Separator(),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
 			];
 		}
 
@@ -196,10 +203,11 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return local.then(result => new PagedModel(result));
 		}
 
+		const query = Query.parse(value);
 		let options: IQueryOptions = {};
 
-		if (/@recommended/i.test(value)) {
-			value = value.replace(/@recommended/g, '').trim();
+		if (/@recommended/i.test(query.value)) {
+			const value = query.value.replace(/@recommended/g, '').trim();
 
 			return this.extensionsWorkbenchService.queryLocal().then(local => {
 				const names = this.tipsService.getRecommendations()
@@ -215,29 +223,17 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			});
 		}
 
-		value = value.replace(/@sort:(\w+)(-asc|-desc)?\b/g, (match, by, order) => {
-			let sortOrder = SortOrder.Default;
+		switch(query.sortBy) {
+			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
+		}
 
-			switch (order) {
-				case '-asc': sortOrder = SortOrder.Ascending; break;
-				case '-desc': sortOrder = SortOrder.Descending; break;
-			}
+		switch (query.sortOrder) {
+			case 'asc': options = assign(options, { sortOrder: SortOrder.Ascending }); break;
+			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
+		}
 
-			let sortBy = SortBy.NoneOrRelevance;
-
-			switch(by) {
-				case 'installs': sortBy = SortBy.InstallCount; break;
-				default: return match;
-			}
-
-			options = assign(options, { sortBy, sortOrder });
-			return '';
-		});
-
-		value = value.trim();
-
-		if (value) {
-			options = assign(options, { text: value });
+		if (query.value) {
+			options = assign(options, { text: query.value });
 		}
 
 		return this.extensionsWorkbenchService.queryGallery(options)

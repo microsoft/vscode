@@ -17,6 +17,7 @@ import { IMessageService, LaterAction } from 'vs/platform/message/common/message
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Query } from './extensionQuery';
 
 export class InstallAction extends Action {
 
@@ -406,6 +407,50 @@ export class ShowRecommendedExtensionsAction extends Action {
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
 				viewlet.search('@recommended');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class ChangeSortAction extends Action {
+
+	private query: Query;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string,
+		label: string,
+		onSearchChange: Event<string>,
+		private sortBy: string,
+		private sortOrder: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+
+		if (this.sortBy === undefined && this.sortOrder === undefined) {
+			throw new Error('bad arguments');
+		}
+
+		this.query = Query.parse('');
+		this.enabled = false;
+		onSearchChange(this.onSearchChange, this, this.disposables);
+	}
+
+	private onSearchChange(value: string): void {
+		const query = Query.parse(value);
+		this.query = new Query(query.value, this.sortBy || query.sortBy, this.sortOrder || query.sortOrder);
+		this.enabled = this.query.isValid() && !this.query.equals(query);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search(this.query.toString());
 				viewlet.focus();
 			});
 	}
