@@ -7,6 +7,7 @@
 
 import * as childProcess from 'child_process';
 import {StringDecoder} from 'string_decoder';
+import errors = require('vs/base/common/errors');
 import fs = require('fs');
 import paths = require('path');
 import {Readable} from "stream";
@@ -151,7 +152,9 @@ export class FileWalker {
 							rootFolderDone(err);
 						} else {
 							// fallback
-							this.errors.push(String(err));
+							const errorMessage = errors.toErrorMessage(err);
+							console.error(errorMessage);
+							this.errors.push(errorMessage);
 							this.nodeJSTraversal(rootFolder, onResult, rootFolderDone);
 						}
 					} else {
@@ -181,6 +184,11 @@ export class FileWalker {
 				relativeFiles.pop();
 			}
 
+			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
+				done(new Error('Splitting up files failed'));
+				return;
+			}
+
 			this.matchFiles(rootFolder, relativeFiles, onResult);
 
 			done();
@@ -188,7 +196,7 @@ export class FileWalker {
 	}
 
 	private windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d'], { cwd: rootFolder });
+		const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d', rootFolder]);
 		this.readStdout(cmd, 'ucs2', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
@@ -201,6 +209,11 @@ export class FileWalker {
 			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
 			if (!relativeFiles[n - 1]) {
 				relativeFiles.pop();
+			}
+
+			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
+				done(new Error('Splitting up files failed'));
+				return;
 			}
 
 			this.matchFiles(rootFolder, relativeFiles, onResult);
@@ -223,6 +236,11 @@ export class FileWalker {
 			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
 			if (!relativeFiles[n - 1]) {
 				relativeFiles.pop();
+			}
+
+			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
+				done(new Error('Splitting up files failed'));
+				return;
 			}
 
 			this.matchFiles(rootFolder, relativeFiles, onResult);
