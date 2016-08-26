@@ -395,7 +395,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 
 let _defaultPatterns: { [name: string]: ProblemPattern | ProblemPattern[]; } = Object.create(null);
 _defaultPatterns['msCompile'] = {
-	regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(\w{1,2}\d+)\s*:\s*(.*)$/,
+	regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w{1,2}\d+)\s*:\s*(.*)$/,
 	file: 1,
 	location: 2,
 	severity: 3,
