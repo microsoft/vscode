@@ -27,7 +27,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 
-import {ConfigurationTarget, ConfigurationEditingResult} from 'vs/workbench/services/configuration/common/configurationEditing';
+import {ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
 
 import {IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
@@ -84,7 +84,7 @@ export abstract class MainThreadCommandsShape {
 }
 
 export abstract class MainThreadConfigurationShape {
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<ConfigurationEditingResult> { throw ni(); }
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> { throw ni(); }
 }
 
 export abstract class MainThreadDiagnosticsShape {
