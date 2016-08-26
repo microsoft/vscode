@@ -299,7 +299,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('', true);
+				viewlet.search('');
 				viewlet.focus();
 			});
 	}
@@ -351,7 +351,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@outdated', true);
+				viewlet.search('@outdated');
 				viewlet.focus();
 			});
 	}
@@ -378,7 +378,7 @@ export class ShowPopularExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@sort:installs', true);
+				viewlet.search('@sort:installs');
 				viewlet.focus();
 			});
 	}
@@ -405,7 +405,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended', true);
+				viewlet.search('@recommended');
 				viewlet.focus();
 			});
 	}

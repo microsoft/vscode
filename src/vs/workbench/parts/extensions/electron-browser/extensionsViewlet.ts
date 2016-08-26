@@ -161,9 +161,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return this.secondaryActions;
 	}
 
-	search(value: string, immediate = false): void {
+	search(value: string): void {
 		const event = new Event('input', { bubbles: true }) as SearchInputEvent;
-		event.immediate = immediate;
+		event.immediate = true;
 
 		this.searchBox.value = value;
 		this.searchBox.dispatchEvent(event);
@@ -177,7 +177,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return this.progress(this.query(value))
 			.then(model => {
 				if (!value && model.length === 0 && suggestPopular) {
-					return this.search('@sort:installs', true);
+					return this.search('@sort:installs');
 				}
 
 				this.list.model = model;
@@ -254,7 +254,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private onEscape(): void {
-		this.search('', true);
+		this.search('');
 	}
 
 	private onUpArrow(): void {
