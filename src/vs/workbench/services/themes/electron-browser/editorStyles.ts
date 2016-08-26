@@ -106,7 +106,6 @@ interface EditorStyleSettings {
 	wordHighlightStrong?: string;
 }
 
-
 class EditorStyles {
 
 	private themeSelector: string;
