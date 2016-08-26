@@ -12,6 +12,10 @@ var path = require('path');
 var minimist = require('minimist');
 var paths = require('./paths');
 
+var args = minimist(process.argv, {
+	string: ['user-data-dir', 'locale']
+});
+
 function stripComments(content) {
 	var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 	var result = content.replace(regexp, function (match, m1, m2, m3, m4) {
@@ -39,16 +43,7 @@ function stripComments(content) {
 }
 
 function getNLSConfiguration() {
-	var locale = undefined;
-	var localeOpts = '--locale';
-	for (var i = 0; i < process.argv.length; i++) {
-		var arg = process.argv[i];
-		if (arg.slice(0, localeOpts.length) == localeOpts) {
-			var segments = arg.split('=');
-			locale = segments[1];
-			break;
-		}
-	}
+	var locale = args['locale'];
 
 	if (!locale) {
 		var userData = app.getPath('userData');
@@ -127,8 +122,7 @@ try {
 }
 
 // Set userData path before app 'ready' event
-var argv = minimist(process.argv, { string: ['user-data-dir'] });
-var userData = argv['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
+var userData = args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
 app.setPath('userData', userData);
 
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
