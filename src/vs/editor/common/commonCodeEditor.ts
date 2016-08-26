@@ -6,7 +6,7 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -107,13 +107,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[]};
 	private _decorationTypeSubtypes: {[decorationTypeKey:string]:{ [subtype:string]:boolean}};
 
-	private _editorIdContextKey: IContextKey<string>;
-	protected _editorFocusContextKey: IContextKey<boolean>;
-	private _editorTabMovesFocusKey: IContextKey<boolean>;
-	private _editorReadonly: IContextKey<boolean>;
-	private _hasMultipleSelectionsKey: IContextKey<boolean>;
-	private _hasNonEmptySelectionKey: IContextKey<boolean>;
-	private _langIdKey: IContextKey<string>;
 
 	constructor(
 		domElement: IContextKeyServiceTarget,
@@ -130,15 +123,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		// listeners that are kept during the whole editor lifetime
 		this._lifetimeDispose = [];
 
-		this._contextKeyService = contextKeyService.createScoped(this.domElement);
-		this._editorIdContextKey = this._contextKeyService.createKey('editorId', this.getId());
-		this._editorFocusContextKey = EditorContextKeys.Focus.bindTo(this._contextKeyService);
-		this._editorTabMovesFocusKey = EditorContextKeys.TabMovesFocus.bindTo(this._contextKeyService);
-		this._editorReadonly = EditorContextKeys.ReadOnly.bindTo(this._contextKeyService);
-		this._hasMultipleSelectionsKey = EditorContextKeys.HasMultipleSelections.bindTo(this._contextKeyService);
-		this._hasNonEmptySelectionKey = EditorContextKeys.HasNonEmptySelection.bindTo(this._contextKeyService);
-		this._langIdKey = EditorContextKeys.LanguageId.bindTo(this._contextKeyService);
-		this._lifetimeDispose.push(new EditorModeContext(this, this._contextKeyService));
 
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
@@ -149,18 +133,13 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}
 
 		this._configuration = this._createConfiguration(options);
-		if (this._configuration.editor.tabFocusMode) {
-			this._editorTabMovesFocusKey.set(true);
-		}
-		this._editorReadonly.set(this._configuration.editor.readOnly);
 		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
-			if (this._configuration.editor.tabFocusMode) {
-				this._editorTabMovesFocusKey.set(true);
-			} else {
-				this._editorTabMovesFocusKey.reset();
-			}
 			this.emit(editorCommon.EventType.ConfigurationChanged, e);
 		}));
+
+		this._contextKeyService = contextKeyService.createScoped(this.domElement);
+		this._lifetimeDispose.push(new EditorContextKeysManager(this, this._contextKeyService));
+		this._lifetimeDispose.push(new EditorModeContext(this, this._contextKeyService));
 
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
@@ -214,8 +193,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
 		this._configuration.updateOptions(newOptions);
-		this._editorReadonly.set(this._configuration.editor.readOnly);
-		this._editorTabMovesFocusKey.set(this._configuration.editor.tabFocusMode);
 	}
 
 	public getConfiguration(): editorCommon.InternalEditorOptions {
@@ -736,7 +713,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 		if (this.model) {
 			this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
-			this._langIdKey.set(this.model.getMode().getId());
 			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
 
 			this.model.onBeforeAttached();
@@ -877,7 +853,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 						case editorCommon.EventType.ModelModeChanged:
 							this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
-							this._langIdKey.set(this.model.getMode().getId());
 							this.emit(editorCommon.EventType.ModelModeChanged, e);
 							break;
 
@@ -908,55 +883,22 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				}
 			}));
 
-			let _hasNonEmptySelection = (e: editorCommon.ICursorSelectionChangedEvent) => {
-				let allSelections = [e.selection].concat(e.secondarySelections);
-				return allSelections.some(s => !s.isEmpty());
-			};
-
 			this.listenersToRemove.push(this.cursor.addBulkListener2((events) => {
-				let updateHasMultipleCursors = false;
-				let hasMultipleCursors = false;
-				let updateHasNonEmptySelection = false;
-				let hasNonEmptySelection = false;
-
 				for (let i = 0, len = events.length; i < len; i++) {
 					let eventType = events[i].getType();
 					let e = events[i].getData();
 
 					switch (eventType) {
 						case editorCommon.EventType.CursorPositionChanged:
-							let cursorPositionChangedEvent = <editorCommon.ICursorPositionChangedEvent>e;
-							updateHasMultipleCursors = true;
-							hasMultipleCursors = (cursorPositionChangedEvent.secondaryPositions.length > 0);
 							this.emit(editorCommon.EventType.CursorPositionChanged, e);
 							break;
 
 						case editorCommon.EventType.CursorSelectionChanged:
-							let cursorSelectionChangedEvent = <editorCommon.ICursorSelectionChangedEvent>e;
-							updateHasMultipleCursors = true;
-							hasMultipleCursors = (cursorSelectionChangedEvent.secondarySelections.length > 0);
-							updateHasNonEmptySelection = true;
-							hasNonEmptySelection = _hasNonEmptySelection(cursorSelectionChangedEvent);
 							this.emit(editorCommon.EventType.CursorSelectionChanged, e);
 							break;
 
 						default:
 							// console.warn("Unhandled cursor event: ", e);
-					}
-				}
-
-				if (updateHasMultipleCursors) {
-					if (hasMultipleCursors) {
-						this._hasMultipleSelectionsKey.set(true);
-					} else {
-						this._hasMultipleSelectionsKey.reset();
-					}
-				}
-				if (updateHasNonEmptySelection) {
-					if (hasNonEmptySelection) {
-						this._hasNonEmptySelectionKey.set(true);
-					} else {
-						this._hasNonEmptySelectionKey.reset();
 					}
 				}
 			}));
@@ -1017,4 +959,63 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	protected abstract _registerDecorationType(key:string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
 	protected abstract _removeDecorationType(key:string): void;
 	protected abstract _resolveDecorationOptions(typeKey:string, writable: boolean): editorCommon.IModelDecorationOptions;
+}
+
+class EditorContextKeysManager extends Disposable {
+
+	private _editor:CommonCodeEditor;
+
+	private _editorIdContextKey: IContextKey<string>;
+	private _editorFocusContextKey: IContextKey<boolean>;
+	private _editorTabMovesFocusKey: IContextKey<boolean>;
+	private _editorReadonly: IContextKey<boolean>;
+	private _hasMultipleSelectionsKey: IContextKey<boolean>;
+	private _hasNonEmptySelectionKey: IContextKey<boolean>;
+
+	constructor(
+		editor:CommonCodeEditor,
+		contextKeyService: IContextKeyService
+	) {
+		super();
+
+		this._editor = editor;
+
+		this._editorIdContextKey = contextKeyService.createKey('editorId', editor.getId());
+		this._editorFocusContextKey = EditorContextKeys.Focus.bindTo(contextKeyService);
+		this._editorTabMovesFocusKey = EditorContextKeys.TabMovesFocus.bindTo(contextKeyService);
+		this._editorReadonly = EditorContextKeys.ReadOnly.bindTo(contextKeyService);
+		this._hasMultipleSelectionsKey = EditorContextKeys.HasMultipleSelections.bindTo(contextKeyService);
+		this._hasNonEmptySelectionKey = EditorContextKeys.HasNonEmptySelection.bindTo(contextKeyService);
+
+		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
+		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
+		this._register(this._editor.onDidFocusEditor(() => this._updateFromFocus()));
+		this._register(this._editor.onDidBlurEditor(() => this._updateFromFocus()));
+
+		this._updateFromConfig();
+		this._updateFromSelection();
+		this._updateFromFocus();
+	}
+
+	private _updateFromConfig(): void {
+		let config = this._editor.getConfiguration();
+
+		this._editorTabMovesFocusKey.set(config.tabFocusMode);
+		this._editorReadonly.set(config.readOnly);
+	}
+
+	private _updateFromSelection(): void {
+		let selections = this._editor.getSelections();
+		if (!selections) {
+			this._hasMultipleSelectionsKey.reset();
+			this._hasNonEmptySelectionKey.reset();
+		} else {
+			this._hasMultipleSelectionsKey.set(selections.length > 1);
+			this._hasNonEmptySelectionKey.set(selections.some(s => !s.isEmpty()));
+		}
+	}
+
+	private _updateFromFocus(): void {
+		this._editorFocusContextKey.set(this._editor.hasWidgetFocus());
+	}
 }
