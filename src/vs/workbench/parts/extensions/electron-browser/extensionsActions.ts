@@ -17,7 +17,7 @@ import { IMessageService, LaterAction } from 'vs/platform/message/common/message
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Query } from './extensionQuery';
+import { Query } from '../common/extensionQuery';
 
 export class InstallAction extends Action {
 
