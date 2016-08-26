@@ -158,10 +158,11 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
 				new Separator(),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install.asc', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating', undefined),
 				new Separator(),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc')
 			];
 		}
 
@@ -225,6 +226,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		switch(query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
 		}
 
 		switch (query.sortOrder) {
