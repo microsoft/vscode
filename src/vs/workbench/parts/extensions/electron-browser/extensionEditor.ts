@@ -215,7 +215,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
-					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`, true));
+					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`));
 			});
 
 			if (extension.licenseUrl) {

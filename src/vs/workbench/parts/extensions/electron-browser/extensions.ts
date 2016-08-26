@@ -13,7 +13,7 @@ import { IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManageme
 export const VIEWLET_ID = 'workbench.view.extensions';
 
 export interface IExtensionsViewlet extends IViewlet {
-	search(text: string, immediate?: boolean): void;
+	search(text: string): void;
 }
 
 export enum ExtensionState {
