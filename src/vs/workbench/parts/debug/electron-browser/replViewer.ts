@@ -122,13 +122,13 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		}
 
 		const lines = s.split(/\r\n|\r|\n/g);
-		const numLines = lines.reduce((length: number, line: string) => {
+		const numLines = lines.reduce((lineCount: number, line: string) => {
 			let lineLength = 0;
 			for (let i = 0; i < line.length; i++) {
-				lineLength = strings.isFullWidthCharacter(s.charCodeAt(i)) ? 2 : 1;
+				lineLength += strings.isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
 			}
 
-			return length + Math.floor(lineLength * this.characterWidth / this.width);
+			return lineCount + Math.floor(lineLength * this.characterWidth / this.width);
 		}, lines.length);
 
 		return ReplExpressionsRenderer.LINE_HEIGHT_PX * numLines;
