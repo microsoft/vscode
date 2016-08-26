@@ -28,3 +28,18 @@ export interface IThemeData {
 	description?: string;
 	path: string;
 }
+
+export interface IThemeDocument {
+	name: string;
+	include: string;
+	settings: IThemeSetting[];
+}
+
+export interface IThemeSetting {
+	name?: string;
+	scope?: string[];
+	settings: IThemeSettingStyle[];
+}
+
+export interface IThemeSettingStyle {
+}
