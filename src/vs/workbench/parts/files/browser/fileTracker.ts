@@ -200,7 +200,7 @@ export class FileTracker implements IWorkbenchContribution {
 					return false;
 				}
 
-				if (Date.now() - model.getLastSaveTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
+				if (Date.now() - model.getLastSaveAttemptTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
 					return false; // this is a weak check to see if the change came from outside the editor or not
 				}
 
@@ -232,7 +232,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 						// We only ever update models that are in good saved state
 						if (textModel.getState() === ModelState.SAVED) {
-							const lastSaveTime = textModel.getLastSaveTime();
+							const lastSaveTime = textModel.getLastSaveAttemptTime();
 
 							// Force a reopen of the input if this change came in later than our wait interval before we consider it
 							if (Date.now() - lastSaveTime > FileTracker.FILE_CHANGE_UPDATE_DELAY) {
