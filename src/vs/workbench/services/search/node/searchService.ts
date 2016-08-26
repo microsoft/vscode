@@ -209,7 +209,7 @@ export class DiskSearch {
 			uri.parse(require.toUrl('bootstrap')).fsPath,
 			{
 				serverName: 'Search',
-				timeout: 60 * 1000,
+				timeout: 60 * 60 * 1000,
 				args: ['--type=searchService'],
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
