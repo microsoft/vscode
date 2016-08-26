@@ -504,7 +504,6 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	protected _createView(): void {
 		this._view = new View(
-			this._contextKeyService,
 			this._commandService,
 			this._configuration,
 			this.viewModel,
