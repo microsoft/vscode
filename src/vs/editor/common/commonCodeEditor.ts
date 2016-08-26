@@ -965,12 +965,13 @@ class EditorContextKeysManager extends Disposable {
 
 	private _editor:CommonCodeEditor;
 
-	private _editorIdContextKey: IContextKey<string>;
-	private _editorFocusContextKey: IContextKey<boolean>;
-	private _editorTabMovesFocusKey: IContextKey<boolean>;
+	private _editorId: IContextKey<string>;
+	private _editorFocus: IContextKey<boolean>;
+	private _editorTextFocus: IContextKey<boolean>;
+	private _editorTabMovesFocus: IContextKey<boolean>;
 	private _editorReadonly: IContextKey<boolean>;
-	private _hasMultipleSelectionsKey: IContextKey<boolean>;
-	private _hasNonEmptySelectionKey: IContextKey<boolean>;
+	private _hasMultipleSelections: IContextKey<boolean>;
+	private _hasNonEmptySelection: IContextKey<boolean>;
 
 	constructor(
 		editor:CommonCodeEditor,
@@ -980,17 +981,20 @@ class EditorContextKeysManager extends Disposable {
 
 		this._editor = editor;
 
-		this._editorIdContextKey = contextKeyService.createKey('editorId', editor.getId());
-		this._editorFocusContextKey = EditorContextKeys.Focus.bindTo(contextKeyService);
-		this._editorTabMovesFocusKey = EditorContextKeys.TabMovesFocus.bindTo(contextKeyService);
+		this._editorId = contextKeyService.createKey('editorId', editor.getId());
+		this._editorFocus = EditorContextKeys.Focus.bindTo(contextKeyService);
+		this._editorTextFocus = EditorContextKeys.TextFocus.bindTo(contextKeyService);
+		this._editorTabMovesFocus = EditorContextKeys.TabMovesFocus.bindTo(contextKeyService);
 		this._editorReadonly = EditorContextKeys.ReadOnly.bindTo(contextKeyService);
-		this._hasMultipleSelectionsKey = EditorContextKeys.HasMultipleSelections.bindTo(contextKeyService);
-		this._hasNonEmptySelectionKey = EditorContextKeys.HasNonEmptySelection.bindTo(contextKeyService);
+		this._hasMultipleSelections = EditorContextKeys.HasMultipleSelections.bindTo(contextKeyService);
+		this._hasNonEmptySelection = EditorContextKeys.HasNonEmptySelection.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
 		this._register(this._editor.onDidFocusEditor(() => this._updateFromFocus()));
 		this._register(this._editor.onDidBlurEditor(() => this._updateFromFocus()));
+		this._register(this._editor.onDidFocusEditorText(() => this._updateFromFocus()));
+		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
 
 		this._updateFromConfig();
 		this._updateFromSelection();
@@ -1000,22 +1004,23 @@ class EditorContextKeysManager extends Disposable {
 	private _updateFromConfig(): void {
 		let config = this._editor.getConfiguration();
 
-		this._editorTabMovesFocusKey.set(config.tabFocusMode);
+		this._editorTabMovesFocus.set(config.tabFocusMode);
 		this._editorReadonly.set(config.readOnly);
 	}
 
 	private _updateFromSelection(): void {
 		let selections = this._editor.getSelections();
 		if (!selections) {
-			this._hasMultipleSelectionsKey.reset();
-			this._hasNonEmptySelectionKey.reset();
+			this._hasMultipleSelections.reset();
+			this._hasNonEmptySelection.reset();
 		} else {
-			this._hasMultipleSelectionsKey.set(selections.length > 1);
-			this._hasNonEmptySelectionKey.set(selections.some(s => !s.isEmpty()));
+			this._hasMultipleSelections.set(selections.length > 1);
+			this._hasNonEmptySelection.set(selections.some(s => !s.isEmpty()));
 		}
 	}
 
 	private _updateFromFocus(): void {
-		this._editorFocusContextKey.set(this._editor.hasWidgetFocus());
+		this._editorFocus.set(this._editor.hasWidgetFocus());
+		this._editorTextFocus.set(this._editor.isFocused());
 	}
 }
