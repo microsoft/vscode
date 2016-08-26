@@ -211,7 +211,14 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 	}
 }
 
-// A message with action to resolve a 412 save conflict
+const pendingResolveSaveConflictMessages: Function[] = [];
+function clearPendingResolveSaveConflictMessages(): void {
+	while (pendingResolveSaveConflictMessages.length > 0) {
+		pendingResolveSaveConflictMessages.pop()();
+	}
+}
+
+// A message with action to resolve a save conflict
 class ResolveSaveConflictMessage implements IMessageWithAction {
 	public message: string;
 	public actions: Action[];
@@ -248,7 +255,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 						this.model.setConflictResolutionMode();
 
 						// Inform user
-						this.messageService.show(Severity.Info, nls.localize('userGuide', "Use the actions in the editor tool bar to either **undo** your changes or **overwrite** the content on disk with your changes"));
+						pendingResolveSaveConflictMessages.push(this.messageService.show(Severity.Info, nls.localize('userGuide', "Use the actions in the editor tool bar to either **undo** your changes or **overwrite** the content on disk with your changes")));
 					});
 				}
 
@@ -276,6 +283,8 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 		const conflictInput = <ConflictResolutionDiffEditorInput>this.input;
 		const model = conflictInput.getModel();
 		const localModelValue = model.getValue();
+
+		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
 		// 1.) Get the diff editor model from cache (resolve(false)) to have access to the mtime of the file we currently show to the left
 		return conflictInput.resolve(false).then((diffModel: DiffEditorModel) => {
@@ -341,6 +350,8 @@ export class RevertLocalChangesAction extends EditorInputAction {
 	public run(): TPromise<void> {
 		const conflictInput = <ConflictResolutionDiffEditorInput>this.input;
 		const model = conflictInput.getModel();
+
+		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
 		// Revert on model
 		return model.revert().then(() => {
