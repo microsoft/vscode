@@ -40,7 +40,6 @@ class MockGrammarContributions implements IGrammarContributions {
 	}
 }
 
-
 export interface IGrammarContributions {
 	getGrammar(mode: string): string;
 }
