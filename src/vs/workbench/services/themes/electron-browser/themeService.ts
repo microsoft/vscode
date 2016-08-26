@@ -149,6 +149,7 @@ interface IconsAssociation {
 	file?: string;
 	folderExpanded?: string;
 	folderNames?: {[folderName:string]: string; };
+	folderNamesExpanded?: {[folderName:string]: string; };
 	fileExtensions?: {[extension:string]: string; };
 	fileNames?: {[fileName:string]: string; };
 	languageIds?: {[languageId:string]: string; };
@@ -512,6 +513,12 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 					addSelector(`${qualifier} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
 				}
 			}
+			let folderNamesExpanded = associations.folderNamesExpanded;
+			if (folderNamesExpanded) {
+				for (let folderName in folderNamesExpanded) {
+					addSelector(`${qualifier} .expanded .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
+				}
+			}
 			let fileExtensions = associations.fileExtensions;
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
@@ -842,6 +849,14 @@ const schema: IJSONSchema = {
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
+			}
+		},
+		folderNamesExpanded: {
+			type: 'object',
+			description: nls.localize('schema.folderNamesExpanded', 'Associates folder names to icons for expanded folders. The object key is is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.folderNameExpanded', 'The ID of the icon definition for the association.')
 			}
 		},
 		fileExtensions: {
