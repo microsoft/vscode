@@ -237,7 +237,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		}
 
 		if (query.value) {
-			options = assign(options, { text: query.value });
+			options = assign(options, { text: query.value.substr(0, 200) });
 		}
 
 		return this.extensionsWorkbenchService.queryGallery(options)
