@@ -5,9 +5,10 @@
 
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkbenchShell} from 'vs/workbench/electron-browser/shell';
 import {IOptions} from 'vs/workbench/common/options';
+import {domContentLoaded} from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
@@ -21,6 +22,7 @@ import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {IProcessEnvironment} from 'vs/code/electron-main/env';
 import {ParsedArgs} from 'vs/code/node/argv';
+import {realpath} from 'vs/base/node/pfs';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import fs = require('fs');
@@ -29,17 +31,6 @@ import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 const timers = (<any>window).MonacoEnvironment.timers;
-
-function domContentLoaded(): winjs.Promise {
-	return new winjs.Promise((c, e) => {
-		const readyState = document.readyState;
-		if (readyState === 'complete' || (document && document.body !== null)) {
-			window.setImmediate(c);
-		} else {
-			window.addEventListener('DOMContentLoaded', c, false);
-		}
-	});
-}
 
 export interface IPath {
 	filePath: string;
@@ -62,7 +53,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	extensionsToInstall?: string[];
 }
 
-export function startup(configuration: IWindowConfiguration): winjs.TPromise<void> {
+export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	// Shell Options
 	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
@@ -79,8 +70,12 @@ export function startup(configuration: IWindowConfiguration): winjs.TPromise<voi
 		timer.ENABLE_TIMER = true;
 	}
 
-	// Open workbench
-	return openWorkbench(configuration, getWorkspace(configuration.workspacePath), shellOptions);
+	// Resolve workspace
+	return getWorkspace(configuration.workspacePath).then(workspace => {
+
+		// Open workbench
+		return openWorkbench(configuration, workspace, shellOptions);
+	});
 }
 
 function toInputs(paths: IPath[]): IResourceInput[] {
@@ -102,32 +97,38 @@ function toInputs(paths: IPath[]): IResourceInput[] {
 	});
 }
 
-function getWorkspace(workspacePath: string): IWorkspace {
+function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 	if (!workspacePath) {
-		return null;
+		return TPromise.as(null);
 	}
 
-	let realWorkspacePath = path.normalize(fs.realpathSync(workspacePath));
-	if (paths.isUNC(realWorkspacePath) && strings.endsWith(realWorkspacePath, paths.nativeSep)) {
+	return realpath(workspacePath).then(realWorkspacePath => {
+
 		// for some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
 		// someone opens root ("/").
 		// See also https://github.com/nodejs/io.js/issues/1765
-		realWorkspacePath = strings.rtrim(realWorkspacePath, paths.nativeSep);
-	}
+		if (paths.isUNC(realWorkspacePath) && strings.endsWith(realWorkspacePath, paths.nativeSep)) {
+			realWorkspacePath = strings.rtrim(realWorkspacePath, paths.nativeSep);
+		}
 
-	const workspaceResource = uri.file(realWorkspacePath);
-	const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
-	const folderStat = fs.statSync(realWorkspacePath);
+		const workspaceResource = uri.file(realWorkspacePath);
+		const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
+		const folderStat = fs.statSync(realWorkspacePath);
 
-	return <IWorkspace>{
-		'resource': workspaceResource,
-		'name': folderName,
-		'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-	};
+		return <IWorkspace>{
+			'resource': workspaceResource,
+			'name': folderName,
+			'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+		};
+	}, (error) => {
+		errors.onUnexpectedError(error);
+
+		return null; // treat invalid paths as empty workspace
+	});
 }
 
-function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): winjs.TPromise<void> {
+function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): TPromise<void> {
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment, environment.execPath);
 	const contextService = new LegacyWorkspaceContextService(workspace, options);
