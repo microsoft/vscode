@@ -29,7 +29,7 @@ import {WorkbenchComponent} from 'vs/workbench/common/component';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
 import {KeyMod} from 'vs/base/common/keyCodes';
-import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler, QuickOpenHandlerResult, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -71,6 +71,8 @@ interface IInternalPickOptions {
 }
 
 export class QuickOpenController extends WorkbenchComponent implements IQuickOpenService {
+
+	private static MAX_SHORT_RESPONSE_TIME = 1000;
 
 	public _serviceBrand: any;
 
@@ -690,15 +692,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			matchingHistoryEntries[0] = new EditorHistoryEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened"), false);
 		}
 
-		// If we have matching entries from history we want to show them directly and not wait for the other results to come in
-		// This also applies when we used to have entries from a previous run and now there are no more history results matching
-		let inputSet = false;
-		let quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
-		if (wasShowingHistory || matchingHistoryEntries.length > 0) {
-			this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
-			inputSet = true;
-		}
-
 		// Resolve all default handlers
 		let resolvePromises: TPromise<QuickOpenHandler>[] = [];
 		defaultHandlers.forEach(defaultHandler => {
@@ -706,23 +699,42 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		});
 
 		return TPromise.join(resolvePromises).then((resolvedHandlers: QuickOpenHandler[]) => {
+			let inputSet = false;
+			let shortResponseTime = false;
+			let quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
 			let resultPromises: TPromise<void>[] = [];
 			resolvedHandlers.forEach(resolvedHandler => {
 
+				const result = resolvedHandler.getResults(value);
+				const promise = (<QuickOpenHandlerResult>result).promisedModel || <TPromise<IModel<any>>>result;
+				shortResponseTime = shortResponseTime || !!(<QuickOpenHandlerResult>result).shortResponseTime;
+
 				// Receive Results from Handler and apply
-				resultPromises.push(resolvedHandler.getResults(value).then(result => {
+				resultPromises.push(promise.then(result => {
 					if (this.currentResultToken === currentResultToken) {
 						let handlerResults = (result && result.entries) || [];
 
 						// now is the time to show the input if we did not have set it before
 						if (!inputSet) {
 							this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
+							inputSet = true;
 						}
 
 						this.mergeResults(quickOpenModel, handlerResults, resolvedHandler.getGroupLabel());
 					}
 				}));
 			});
+
+			// If we have matching entries from history we want to show them directly and not wait for the other results to come in
+			// This also applies when we used to have entries from a previous run and now there are no more history results matching
+			if (!inputSet && (wasShowingHistory || matchingHistoryEntries.length > 0)) {
+				(shortResponseTime ? TPromise.timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME) : TPromise.as(undefined)).then(() => {
+					if (this.currentResultToken === currentResultToken && !inputSet) {
+						this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
+						inputSet = true;
+					}
+				});
+			}
 
 			return TPromise.join(resultPromises).then(() => void 0);
 		});
@@ -824,7 +836,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			}
 
 			// Receive Results from Handler and apply
-			return resolvedHandler.getResults(value).then(result => {
+			const result = resolvedHandler.getResults(value);
+			const promise = (<QuickOpenHandlerResult>result).promisedModel || <TPromise<IModel<any>>>result;
+			return promise.then(result => {
 				if (this.currentResultToken === currentResultToken) {
 					if (!result || !result.entries.length) {
 						const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(resolvedHandler.getEmptyLabel(value))]);
