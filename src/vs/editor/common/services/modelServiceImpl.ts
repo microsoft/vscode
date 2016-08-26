@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import network = require('vs/base/common/network');
 import Event, {Emitter} from 'vs/base/common/event';
 import {EmitterEvent} from 'vs/base/common/eventEmitter';
-import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
+import {MarkedString, textAsCodeBlock} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -121,7 +121,6 @@ class ModelMarkerHandler {
 		let className: string;
 		let color: string;
 		let darkColor: string;
-		let hoverMessage: MarkedString[] = null;
 
 		switch (marker.severity) {
 			case Severity.Ignore:
@@ -141,16 +140,14 @@ class ModelMarkerHandler {
 				break;
 		}
 
-		if (typeof marker.message === 'string') {
-			hoverMessage = [ textToMarkedString(marker.message) ];
-		} else if (Array.isArray(marker.message)) {
-			hoverMessage = <MarkedString[]><any>marker.message;
-		} else if (marker.message) {
-			hoverMessage = [ marker.message ];
-		}
+		let hoverMessage: MarkedString[] = null;
+		let {message, source} = marker;
 
-		if (hoverMessage && marker.source) {
-			hoverMessage.unshift(`[${marker.source}] `);
+		if (typeof message === 'string') {
+			if (source) {
+				message = nls.localize('sourceAndDiagMessage', "[{0}] {1}", source, message);
+			}
+			hoverMessage = [textAsCodeBlock(message)];
 		}
 
 		return {

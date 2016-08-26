@@ -78,6 +78,8 @@ export const isIE9 = (userAgent.indexOf('MSIE 9') >= 0);
 export const isIE11orEarlier = isIE11 || isIE10 || isIE9;
 export const isIE10orEarlier = isIE10 || isIE9;
 export const isIE10orLater = isIE11 || isIE10;
+export const isEdge = (userAgent.indexOf('Edge/') >= 0);
+export const isEdgeOrIE = isEdge || isIE11 || isIE10 || isIE9;
 
 export const isOpera = (userAgent.indexOf('Opera') >= 0);
 export const isFirefox = (userAgent.indexOf('Firefox') >= 0);

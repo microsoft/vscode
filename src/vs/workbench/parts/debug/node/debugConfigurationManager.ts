@@ -210,7 +210,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					if (duplicate) {
 						Object.keys(adapter).forEach(attribute => {
 							if (adapter[attribute]) {
-								if (attribute === 'enableBreakpointsFor') {
+								if (attribute === 'enableBreakpointsFor' && duplicate[attribute]) {
 									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
 								} else if (duplicate[attribute] && attribute !== 'type' && attribute !== 'extensionDescription') {
 									// give priority to the later registered extension.

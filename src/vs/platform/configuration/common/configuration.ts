@@ -19,6 +19,12 @@ export interface IConfigurationService {
 	getConfiguration<T>(section?: string): T;
 
 	/**
+	 * Resolves a configuration key to its values in the different scopes
+	 * the setting is defined.
+	 */
+	lookup<T>(key: string): IConfigurationValue<T>;
+
+	/**
 	 * Similar to #getConfiguration() but ensures that the latest configuration
 	 * from disk is fetched.
 	 */
@@ -32,6 +38,12 @@ export interface IConfigurationService {
 
 export interface IConfigurationServiceEvent {
 	config: any;
+}
+
+export interface IConfigurationValue<T> {
+	value: T;
+	default: T;
+	user: T;
 }
 
 /**

@@ -51,72 +51,95 @@ export class SearchService implements IRawSearchService {
 	public doFileSearch(EngineClass: { new (config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 
 		if (config.sortByScore) {
-			const cached = this.trySearchFromCache(config, batchSize);
-			if (cached) {
-				return cached;
+			let sortedSearch = this.trySortedSearchFromCache(config);
+			if (!sortedSearch) {
+				const walkerConfig = config.maxResults ? objects.assign({}, config, { maxResults: null }) : config;
+				const engine = new EngineClass(walkerConfig);
+				sortedSearch = this.doSortedSearch(engine, config);
 			}
 
-			const walkerConfig = config.maxResults ? objects.assign({}, config, { maxResults: null }) : config;
-			const engine = new EngineClass(walkerConfig);
-			return this.doSortedSearch(engine, config, batchSize);
+			return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
+				process.nextTick(() => { // allow caller to register progress callback first
+					sortedSearch.then(([result, rawMatches]) => {
+						const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
+						this.sendProgress(serializedMatches, p, batchSize);
+						c(result);
+					}, e, p);
+				});
+			}, () => {
+				sortedSearch.cancel();
+			});
 		}
 
-		let searchPromise;
+		let searchPromise: PPromise<void, IRawProgressItem<IRawFileMatch>>;
 		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
 			const engine = new EngineClass(config);
 			searchPromise = this.doSearch(engine, batchSize)
 				.then(c, e, progress => {
 					if (Array.isArray(progress)) {
 						p(progress.map(m => this.rawMatchToSearchItem(m)));
-					} else if ((<IRawFileMatch>progress).path) {
+					} else if ((<IRawFileMatch>progress).relativePath) {
 						p(this.rawMatchToSearchItem(<IRawFileMatch>progress));
 					} else {
 						p(progress);
 					}
 				});
-		}, () => searchPromise.cancel());
+		}, () => {
+			searchPromise.cancel();
+		});
 	}
 
 	private rawMatchToSearchItem(match: IRawFileMatch): ISerializedFileMatch {
-		return { path: match.base ? [match.base, match.path].join(paths.nativeSep) : match.path };
+		return { path: match.base ? [match.base, match.relativePath].join(paths.nativeSep) : match.relativePath };
 	}
 
-	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, IRawProgressItem<IRawFileMatch>> {
-		let searchPromise;
-		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
+	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
+		let searchPromise: PPromise<void, IRawProgressItem<IRawFileMatch>>;
+		const allResultsPromise = new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
 			let results: IRawFileMatch[] = [];
-			let unsortedResultTime: number;
-			let sortedResultTime: number;
-			searchPromise = this.doSearch(engine, -1).then(result => {
-				const maxResults = config.maxResults;
-				result.limitHit = !!maxResults && results.length > maxResults;
-				result.stats.unsortedResultTime = unsortedResultTime || Date.now();
-				result.stats.sortedResultTime = sortedResultTime || Date.now();
-				c(result);
-			}, null, progress => {
-				try {
+			searchPromise = this.doSearch(engine, -1)
+				.then(result => {
+					c([result, results]);
+				}, e, progress => {
 					if (Array.isArray(progress)) {
 						results = progress;
-						let scorerCache;
-						if (config.cacheKey) {
-							const cache = this.getOrCreateCache(config.cacheKey);
-							cache.resultsToSearchCache[config.filePattern] = results;
-							scorerCache = cache.scorerCache;
-						} else {
-							scorerCache = Object.create(null);
-						}
-						unsortedResultTime = Date.now();
-						const sortedResults = this.sortResults(config, results, scorerCache);
-						sortedResultTime = Date.now();
-						this.sendProgress(sortedResults, p, batchSize);
 					} else {
 						p(progress);
 					}
-				} catch (err) {
-					e(err);
-				}
-			}).then(null, e);
-		}, () => searchPromise.cancel());
+				});
+		}, () => {
+			if (!config.cacheKey) { // preserve cached promise
+				searchPromise.cancel();
+			}
+		});
+
+		let cache: Cache;
+		if (config.cacheKey) {
+			cache = this.getOrCreateCache(config.cacheKey);
+			cache.resultsToSearchCache[config.filePattern] = allResultsPromise;
+			allResultsPromise.then(null, err => {
+				delete cache.resultsToSearchCache[config.filePattern];
+			});
+		}
+
+		return new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
+			allResultsPromise.then(([result, results]) => {
+				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
+				const unsortedResultTime = Date.now();
+				const sortedResults = this.sortResults(config, results, scorerCache);
+				const sortedResultTime = Date.now();
+
+				c([{
+					stats: objects.assign({}, result.stats, {
+						unsortedResultTime,
+						sortedResultTime
+					}),
+					limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
+				}, sortedResults]);
+			}, e, p);
+		}, () => {
+			allResultsPromise.cancel();
+		});
 	}
 
 	private getOrCreateCache(cacheKey: string): Cache {
@@ -127,7 +150,7 @@ export class SearchService implements IRawSearchService {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySearchFromCache(config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
+	private trySortedSearchFromCache(config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
 			return;
@@ -136,56 +159,49 @@ export class SearchService implements IRawSearchService {
 		const cacheLookupStartTime = Date.now();
 		const cached = this.getResultsFromCache(cache, config.filePattern);
 		if (cached) {
-			const cacheLookupResultTime = Date.now();
-			const [results, cacheEntryCount] = cached;
-			let clippedResults;
-			if (config.sortByScore) {
-				clippedResults = this.sortResults(config, results, cache);
-			} else if (config.maxResults) {
-				clippedResults = results.slice(0, config.maxResults);
-			} else {
-				clippedResults = results;
-			}
-			const sortedResultTime = Date.now();
-			let canceled = false;
-			return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
-				process.nextTick(() => { // allow caller to register progress callback first
-					if (canceled) {
-						return;
-					}
-					this.sendProgress(clippedResults, p, batchSize);
-					const maxResults = config.maxResults;
+			return new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
+				cached.then(([result, results, cacheStats]) => {
+					const cacheLookupResultTime = Date.now();
+					const sortedResults = this.sortResults(config, results, cache.scorerCache);
+					const sortedResultTime = Date.now();
+
 					const stats: ICachedSearchStats = {
 						fromCache: true,
 						cacheLookupStartTime: cacheLookupStartTime,
+						cacheFilterStartTime: cacheStats.cacheFilterStartTime,
 						cacheLookupResultTime: cacheLookupResultTime,
-						cacheEntryCount: cacheEntryCount,
+						cacheEntryCount: cacheStats.cacheFilterResultCount,
 						resultCount: results.length
 					};
 					if (config.sortByScore) {
 						stats.unsortedResultTime = cacheLookupResultTime;
 						stats.sortedResultTime = sortedResultTime;
 					}
-					c({
-						limitHit: !!maxResults && results.length > maxResults,
-						stats: stats
-					});
-				});
+					if (!cacheStats.cacheWasResolved) {
+						stats.joined = result.stats;
+					}
+					c([
+						{
+							limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
+							stats: stats
+						},
+						sortedResults
+					]);
+				}, e, p);
 			}, () => {
-				canceled = true;
+				cached.cancel();
 			});
 		}
 	}
 
-	private sortResults(config: IRawSearch, results: IRawFileMatch[], cache: Cache): ISerializedFileMatch[] {
+	private sortResults(config: IRawSearch, results: IRawFileMatch[], scorerCache: ScorerCache): IRawFileMatch[] {
 		const filePattern = config.filePattern;
 		const normalizedSearchValue = strings.stripWildcards(filePattern).toLowerCase();
-		const compare = (elementA: IRawFileMatch, elementB: IRawFileMatch) => compareByScore(elementA, elementB, FileMatchAccessor, filePattern, normalizedSearchValue, cache.scorerCache);
-		const filteredWrappers = arrays.top(results, compare, config.maxResults);
-		return filteredWrappers.map(result => this.rawMatchToSearchItem(result));
+		const compare = (elementA: IRawFileMatch, elementB: IRawFileMatch) => compareByScore(elementA, elementB, FileMatchAccessor, filePattern, normalizedSearchValue, scorerCache);
+		return arrays.top(results, compare, config.maxResults);
 	}
 
-	private sendProgress(results: ISerializedFileMatch[], progressCb: (batch: ISerializedFileMatch[]) => void, batchSize?: number) {
+	private sendProgress(results: ISerializedFileMatch[], progressCb: (batch: ISerializedFileMatch[]) => void, batchSize: number) {
 		if (batchSize && batchSize > 0) {
 			for (let i = 0; i < results.length; i += batchSize) {
 				progressCb(results.slice(i, i + batchSize));
@@ -195,14 +211,14 @@ export class SearchService implements IRawSearchService {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string): [IRawFileMatch[], number] {
+	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISerializedSearchComplete, IRawFileMatch[], CacheStats], IProgress> {
 		if (paths.isAbsolute(searchValue)) {
 			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
 		}
 
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(paths.nativeSep) >= 0;
-		let cachedEntries: IRawFileMatch[];
+		let cached: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>;
 		for (let previousSearch in cache.resultsToSearchCache) {
 
 			// If we narrow down, we might be able to reuse the cached results
@@ -211,35 +227,49 @@ export class SearchService implements IRawSearchService {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
-				cachedEntries = cache.resultsToSearchCache[previousSearch];
+				cached = cache.resultsToSearchCache[previousSearch];
 				break;
 			}
 		}
 
-		if (!cachedEntries) {
+		if (!cached) {
 			return null;
 		}
 
-		// Pattern match on results and adjust highlights
-		let results: IRawFileMatch[] = [];
-		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
-		for (let i = 0; i < cachedEntries.length; i++) {
-			let entry = cachedEntries[i];
+		return new PPromise<[ISerializedSearchComplete, IRawFileMatch[], CacheStats], IProgress>((c, e, p) => {
+			let wasResolved = true;
+			cached.then(([complete, cachedEntries]) => {
+				const cacheFilterStartTime = Date.now();
 
-			// Check if this entry is a match for the search value
-			if (!scorer.matches(entry.path, normalizedSearchValueLowercase)) {
-				continue;
-			}
+				// Pattern match on results
+				let results: IRawFileMatch[] = [];
+				const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
+				for (let i = 0; i < cachedEntries.length; i++) {
+					let entry = cachedEntries[i];
 
-			results.push(entry);
-		}
+					// Check if this entry is a match for the search value
+					if (!scorer.matches(entry.relativePath, normalizedSearchValueLowercase)) {
+						continue;
+					}
 
-		return [results, cachedEntries.length];
+					results.push(entry);
+				}
+
+				c([complete, results, {
+					cacheWasResolved: wasResolved,
+					cacheFilterStartTime: cacheFilterStartTime,
+					cacheFilterResultCount: cachedEntries.length
+				}]);
+			}, e, p);
+			wasResolved = false;
+		}, () => {
+			cached.cancel();
+		});
 	}
 
 	private doSearch<T>(engine: ISearchEngine<T>, batchSize?: number): PPromise<ISerializedSearchComplete, IRawProgressItem<T>> {
 		return new PPromise<ISerializedSearchComplete, IRawProgressItem<T>>((c, e, p) => {
-			let batch = [];
+			let batch: T[] = [];
 			engine.search((match) => {
 				if (match) {
 					if (batchSize) {
@@ -264,7 +294,9 @@ export class SearchService implements IRawSearchService {
 					c(stats);
 				}
 			});
-		}, () => engine.cancel());
+		}, () => {
+			engine.cancel();
+		});
 	}
 
 	public clearCache(cacheKey: string): TPromise<void> {
@@ -275,25 +307,28 @@ export class SearchService implements IRawSearchService {
 
 class Cache {
 
-	public resultsToSearchCache: { [searchValue: string]: IRawFileMatch[]; } = Object.create(null);
+	public resultsToSearchCache: { [searchValue: string]: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>; } = Object.create(null);
 
-	public scorerCache: { [key: string]: number } = Object.create(null);
+	public scorerCache: ScorerCache = Object.create(null);
 }
 
-interface IFileMatch extends IRawFileMatch {
-	label?: string;
+interface ScorerCache {
+	[key: string]: number;
 }
 
 class FileMatchAccessor {
 
-	public static getLabel(match: IFileMatch): string {
-		if (!match.label) {
-			match.label = paths.basename(match.path);
-		}
-		return match.label;
+	public static getLabel(match: IRawFileMatch): string {
+		return match.basename;
 	}
 
-	public static getResourcePath(match: IFileMatch): string {
-		return match.path;
+	public static getResourcePath(match: IRawFileMatch): string {
+		return match.relativePath;
 	}
+}
+
+interface CacheStats {
+	cacheWasResolved: boolean;
+	cacheFilterStartTime: number;
+	cacheFilterResultCount: number;
 }

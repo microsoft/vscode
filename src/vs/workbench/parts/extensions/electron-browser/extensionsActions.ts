@@ -17,6 +17,7 @@ import { IMessageService, LaterAction } from 'vs/platform/message/common/message
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Query } from '../common/extensionQuery';
 
 export class InstallAction extends Action {
 
@@ -299,7 +300,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('', true);
+				viewlet.search('');
 				viewlet.focus();
 			});
 	}
@@ -320,6 +321,7 @@ export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(id, label, viewletService, extensionsWorkbenchService);
+		this.enabled = false;
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
@@ -350,7 +352,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@outdated', true);
+				viewlet.search('@outdated');
 				viewlet.focus();
 			});
 	}
@@ -377,7 +379,7 @@ export class ShowPopularExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@popular', true);
+				viewlet.search('@sort:installs');
 				viewlet.focus();
 			});
 	}
@@ -404,7 +406,51 @@ export class ShowRecommendedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended', true);
+				viewlet.search('@recommended');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class ChangeSortAction extends Action {
+
+	private query: Query;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		id: string,
+		label: string,
+		onSearchChange: Event<string>,
+		private sortBy: string,
+		private sortOrder: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+
+		if (this.sortBy === undefined && this.sortOrder === undefined) {
+			throw new Error('bad arguments');
+		}
+
+		this.query = Query.parse('');
+		this.enabled = false;
+		onSearchChange(this.onSearchChange, this, this.disposables);
+	}
+
+	private onSearchChange(value: string): void {
+		const query = Query.parse(value);
+		this.query = new Query(query.value, this.sortBy || query.sortBy, this.sortOrder || query.sortOrder);
+		this.enabled = this.query.isValid() && !this.query.equals(query);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search(this.query.toString());
 				viewlet.focus();
 			});
 	}

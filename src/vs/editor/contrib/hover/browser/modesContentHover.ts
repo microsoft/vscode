@@ -20,7 +20,7 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {getHover} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
-import {textToMarkedString, MarkedString} from 'vs/base/common/htmlContent';
+import {textAsCodeBlock, MarkedString} from 'vs/base/common/htmlContent';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -112,7 +112,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 	private _getLoadingMessage(): Hover {
 		return {
 			range: this._range,
-			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
+			contents: [textAsCodeBlock(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
 }

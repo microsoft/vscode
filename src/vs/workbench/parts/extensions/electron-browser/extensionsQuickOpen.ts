@@ -48,7 +48,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 			this.viewletService.openViewlet(VIEWLET_ID, true)
 				.then(viewlet => viewlet as IExtensionsViewlet)
 				.done(viewlet => {
-					viewlet.search('', true);
+					viewlet.search('');
 					viewlet.focus();
 				});
 		};
@@ -80,7 +80,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
 					.done(viewlet => {
-						viewlet.search(text, true);
+						viewlet.search(text);
 						viewlet.focus();
 					});
 			};

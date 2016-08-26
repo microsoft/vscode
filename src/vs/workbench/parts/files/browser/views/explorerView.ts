@@ -117,6 +117,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'explorer-folders-view');
+		DOM.addClass(this.treeContainer, 'show-file-icons'); // always on, for now
 
 		this.tree = this.createViewer($(this.treeContainer));
 
@@ -143,7 +144,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	public create(): TPromise<void> {
-		
+
 		// Update configuration
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.onConfigurationUpdated(configuration);
@@ -199,15 +200,11 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
-		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
+		if (this.isDisposed) {
+			return; // guard against possible race condition when config change causes recreate of views
+		}
 
-		// React to file icons setting by toggling global class on tree
-		let showFileIcons = configuration && configuration.explorer && configuration.explorer.showFileIcons;
-		this.extensionService.onReady().then(() => {
-			if (this.treeContainer) {
-				DOM.toggleClass(this.treeContainer, 'show-file-icons', showFileIcons); // since icons come from extensions, we wait for them to be ready
-			}
-		});
+		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;

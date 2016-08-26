@@ -25,13 +25,12 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
 		this._terminalService.show(!preserveFocus).then((terminalPanel) => {
-			terminalPanel.setActiveTerminalById(terminalId);
+			this._terminalService.setActiveTerminalById(terminalId);
 		});
 	}
 
 	public $hide(terminalId: number): void {
-		// TODO: Use terminalId to hide it
-		this._terminalService.hide();
+		this._terminalService.hideTerminalInstance(terminalId);
 	}
 
 	public $dispose(terminalId: number): void {
@@ -43,7 +42,7 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 
 	public $sendText(terminalId: number, text: string, addNewLine: boolean): void {
 		this._terminalService.show(false).then((terminalPanel) => {
-			terminalPanel.setActiveTerminalById(terminalId);
+			this._terminalService.setActiveTerminalById(terminalId);
 			terminalPanel.sendTextToActiveTerminal(text, addNewLine);
 		});
 	}

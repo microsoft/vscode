@@ -27,6 +27,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 
+import {ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
+
 import {IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import {TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent} from './mainThreadEditorsTracker';
@@ -79,6 +81,10 @@ export abstract class MainThreadCommandsShape {
 	$registerCommand(id: string): TPromise<any> { throw ni(); }
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> { throw ni(); }
 	$getCommands(): Thenable<string[]> { throw ni(); }
+}
+
+export abstract class MainThreadConfigurationShape {
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> { throw ni(); }
 }
 
 export abstract class MainThreadDiagnosticsShape {
@@ -290,6 +296,7 @@ export abstract class ExtHostQuickOpenShape {
 
 export const MainContext = {
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands', MainThreadCommandsShape),
+	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration', MainThreadConfigurationShape),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics', MainThreadDiagnosticsShape),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', MainThreadDocumentsShape),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', MainThreadEditorsShape),

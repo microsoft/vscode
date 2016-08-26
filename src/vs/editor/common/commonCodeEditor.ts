@@ -7,13 +7,10 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IContextKey, IContextKeyServiceTarget, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Cursor} from 'vs/editor/common/controller/cursor';
@@ -25,7 +22,6 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {DynamicEditorAction} from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
 import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
@@ -91,8 +87,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	_lifetimeDispose: IDisposable[];
 	_configuration:CommonEditorConfiguration;
 
-	_telemetryService:ITelemetryService;
-
 	protected _contributions:{ [key:string]:editorCommon.IEditorContribution; };
 	protected _actions:{ [key:string]:editorCommon.IEditorAction; };
 
@@ -105,7 +99,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	protected cursor:Cursor;
 
 	protected _instantiationService: IInstantiationService;
-	protected _commandService: ICommandService;
 	protected _contextKeyService: IContextKeyService;
 
 	/**
@@ -114,7 +107,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[]};
 	private _decorationTypeSubtypes: {[decorationTypeKey:string]:{ [subtype:string]:boolean}};
 
-	private _codeEditorService: ICodeEditorService;
 	private _editorIdContextKey: IContextKey<string>;
 	protected _editorFocusContextKey: IContextKey<boolean>;
 	private _editorTabMovesFocusKey: IContextKey<boolean>;
@@ -127,24 +119,17 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		domElement: IContextKeyServiceTarget,
 		options: editorCommon.IEditorOptions,
 		instantiationService: IInstantiationService,
-		codeEditorService: ICodeEditorService,
-		commandService: ICommandService,
-		contextKeyService: IContextKeyService,
-		telemetryService: ITelemetryService
+		contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this.domElement = domElement;
 
 		this.id = (++EDITOR_ID);
-		this._codeEditorService = codeEditorService;
-
-		var timerEvent = timer.start(timer.Topic.EDITOR, 'CodeEditor.ctor');
 
 		// listeners that are kept during the whole editor lifetime
 		this._lifetimeDispose = [];
 
-		this._commandService = commandService;
 		this._contextKeyService = contextKeyService.createScoped(this.domElement);
 		this._editorIdContextKey = this._contextKeyService.createKey('editorId', this.getId());
 		this._editorFocusContextKey = EditorContextKeys.Focus.bindTo(this._contextKeyService);
@@ -177,17 +162,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this.emit(editorCommon.EventType.ConfigurationChanged, e);
 		}));
 
-		this._telemetryService = telemetryService;
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
 		this._attachModel(null);
 
 		this._contributions = {};
 		this._actions = {};
-
-		timerEvent.stop();
-
-		this._codeEditorService.addCodeEditor(this);
 	}
 
 	protected abstract _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration;
@@ -205,7 +185,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	}
 
 	public dispose(): void {
-		this._codeEditorService.removeCodeEditor(this);
 		this._lifetimeDispose = dispose(this._lifetimeDispose);
 
 		let keys = Object.keys(this._contributions);
@@ -277,8 +256,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			return;
 		}
 
-		var timerEvent = timer.start(timer.Topic.EDITOR, 'CodeEditor.setModel');
-
 		var detachedModel = this._detachModel();
 		this._attachModel(model);
 
@@ -286,8 +263,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			oldModelUrl: detachedModel ? detachedModel.uri : null,
 			newModelUrl: model ? model.uri : null
 		};
-
-		timerEvent.stop();
 
 		this.emit(editorCommon.EventType.ModelChanged, e);
 		this._postDetachModelCleanup(detachedModel);
@@ -547,8 +522,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public abstract layout(dimension?:editorCommon.IDimension): void;
 
 	public abstract focus(): void;
-	public abstract beginForcedWidgetFocus(): void;
-	public abstract endForcedWidgetFocus(): void;
 	public abstract isFocused(): boolean;
 	public abstract hasWidgetFocus(): boolean;
 
@@ -696,11 +669,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				typeKey = decorationTypeKey + '-' + subType;
 				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
 					// decoration type did not exist before, register new one
-					this._codeEditorService.registerDecorationType(typeKey, decorationOption.renderOptions, decorationTypeKey);
+					this._registerDecorationType(typeKey, decorationOption.renderOptions, decorationTypeKey);
 				}
 				newDecorationsSubTypes[subType] = true;
 			}
-			let opts = this._codeEditorService.resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
+			let opts = this._resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
 			if (decorationOption.hoverMessage) {
 				opts.hoverMessage = decorationOption.hoverMessage;
 			}
@@ -710,7 +683,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		// remove decoration sub types that are no longer used, deregister decoration type if necessary
 		for (let subType in oldDecorationsSubTypes) {
 			if (!newDecorationsSubTypes[subType]) {
-				this._codeEditorService.removeDecorationType(decorationTypeKey + '-' + subType);
+				this._removeDecorationType(decorationTypeKey + '-' + subType);
 			}
 		}
 
@@ -1005,7 +978,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				for (let decorationType in this._decorationTypeSubtypes) {
 					let subTypes = this._decorationTypeSubtypes[decorationType];
 					for (let subType in subTypes) {
-						this._codeEditorService.removeDecorationType(decorationType + '-' + subType);
+						this._removeDecorationType(decorationType + '-' + subType);
 					}
 				}
 				this._decorationTypeSubtypes = {};
@@ -1040,4 +1013,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 		return result;
 	}
+
+	protected abstract _registerDecorationType(key:string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
+	protected abstract _removeDecorationType(key:string): void;
+	protected abstract _resolveDecorationOptions(typeKey:string, writable: boolean): editorCommon.IModelDecorationOptions;
 }

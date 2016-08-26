@@ -80,6 +80,7 @@ const _altKey = new class extends Emitter<boolean> {
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.fire(e.altKey)));
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.fire(false)));
 		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.fire(false)));
+		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.fire(false)));
 	}
 
 	dispose() {
@@ -90,7 +91,7 @@ const _altKey = new class extends Emitter<boolean> {
 
 class MenuItemActionItem extends ActionItem {
 
-	private _altKeyDown: boolean = false;
+	private _wantsAltCommand: boolean = false;
 
 	constructor(
 		action: MenuItemAction,
@@ -102,14 +103,14 @@ class MenuItemActionItem extends ActionItem {
 
 	private get _command() {
 		const {command, altCommand} = <MenuItemAction>this._action;
-		return this._altKeyDown && altCommand || command;
+		return this._wantsAltCommand && altCommand || command;
 	}
 
 	onClick(event: MouseEvent): void {
 		event.preventDefault();
 		event.stopPropagation();
 
-		(<MenuItemAction>this._action).run(this._altKeyDown).done(undefined, err => {
+		(<MenuItemAction>this._action).run(this._wantsAltCommand).done(undefined, err => {
 			this._messageService.show(Severity.Error, err);
 		});
 	}
@@ -117,29 +118,32 @@ class MenuItemActionItem extends ActionItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
-		let altSubscription: IDisposable;
-		let mouseOver: boolean;
-		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => {
-			mouseOver = false;
-			if (!this._altKeyDown) {
-				// stop listen on ALT
-				altSubscription.dispose();
-			}
-		}));
-		this._callOnDispose.push(domEvent(container, 'mouseenter')(e => {
-			mouseOver = true;
-			altSubscription = _altKey.event(value => {
+		let mouseOver = false;
+		let altDown = false;
 
-				this._altKeyDown = value;
+		const updateAltState = () => {
+			const wantsAltCommand = mouseOver && altDown;
+			if (wantsAltCommand !== this._wantsAltCommand) {
+				this._wantsAltCommand = wantsAltCommand;
 				this._updateLabel();
 				this._updateTooltip();
 				this._updateClass();
+			}
+		};
 
-				if (!mouseOver) {
-					// stop listening on ALT
-					altSubscription.dispose();
-				}
-			});
+		this._callOnDispose.push(_altKey.event(value => {
+			altDown = value;
+			updateAltState();
+		}));
+
+		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => {
+			mouseOver = false;
+			updateAltState();
+		}));
+
+		this._callOnDispose.push(domEvent(container, 'mouseenter')(e => {
+			mouseOver = true;
+			updateAltState();
 		}));
 	}
 

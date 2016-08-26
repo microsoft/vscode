@@ -10,7 +10,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {match} from 'vs/base/common/glob';
-import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, IGalleryExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
+import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product';
@@ -72,15 +72,8 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		this._modelService.getModels().forEach(model => this._suggest(model.uri));
 	}
 
-	getRecommendations(): Promise<IGalleryExtension[]> {
-		const names = Object.keys(this._recommendations);
-
-		if (names.length === 0) {
-			return Promise.as([]);
-		}
-
-		return this._galleryService.query({ names, pageSize: names.length })
-			.then(result => result.firstPage, () => []);
+	getRecommendations(): string[] {
+		return Object.keys(this._recommendations);
 	}
 
 	private _suggest(uri: URI): Promise<any> {

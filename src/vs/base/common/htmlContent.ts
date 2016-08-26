@@ -67,7 +67,7 @@ function markedStringEqual(a:MarkedString, b:MarkedString): boolean {
 	);
 }
 
-export function textToMarkedString(text: string) : MarkedString {
+export function textAsCodeBlock(text: string) : MarkedString {
 	return { language: 'string', value: text };
 }
 

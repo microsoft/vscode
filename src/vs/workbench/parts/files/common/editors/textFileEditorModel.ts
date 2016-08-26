@@ -80,7 +80,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
-	private lastDirtyTime: number;
+	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
 
 	constructor(
@@ -107,7 +107,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.dirty = false;
 		this.autoSavePromises = [];
 		this.versionId = 0;
-		this.lastDirtyTime = 0;
+		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
@@ -164,7 +164,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.cancelAutoSavePromises();
 
 		// Unset flags
-		let undo = this.setDirty(false);
+		const undo = this.setDirty(false);
 
 		// Reload
 		return this.load(true /* force */).then(() => {
@@ -215,7 +215,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			this.telemetryService.publicLog('fileGet', { mimeType: content.mime, ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
 
 			// Update our resolved disk stat model
-			let resolvedStat: IFileStat = {
+			const resolvedStat: IFileStat = {
 				resource: this.resource,
 				name: content.name,
 				mtime: content.mtime,
@@ -228,7 +228,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			this.updateVersionOnDiskStat(resolvedStat);
 
 			// Keep the original encoding to not loose it when saving
-			let oldEncoding = this.contentEncoding;
+			const oldEncoding = this.contentEncoding;
 			this.contentEncoding = content.encoding;
 
 			// Handle events if encoding changed
@@ -347,9 +347,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private makeDirty(e?: IModelContentChangedEvent): void {
 
 		// Track dirty state and version id
-		let wasDirty = this.dirty;
+		const wasDirty = this.dirty;
 		this.setDirty(true);
-		this.lastDirtyTime = Date.now();
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
@@ -364,7 +363,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.cancelAutoSavePromises();
 
 		// Create new save promise and keep it
-		let promise: TPromise<void> = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
+		const promise: TPromise<void> = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
@@ -403,7 +402,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		diag('doSave(' + versionId + ') - enter with versionId ' + versionId, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
-		let pendingSave = this.mapPendingSaveToVersionId[versionId];
+		const pendingSave = this.mapPendingSaveToVersionId[versionId];
 		if (pendingSave) {
 			diag('doSave(' + versionId + ') - exit - found a pending save for versionId ' + versionId, this.resource, new Date());
 
@@ -449,6 +448,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// Clear error flag since we are trying to save again
 		this.inErrorMode = false;
+
+		// Remember when this model was saved last
+		this.lastSaveAttemptTime = Date.now();
 
 		// Save to Disk
 		diag('doSave(' + versionId + ') - before updateContent()', this.resource, new Date());
@@ -500,10 +502,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	}
 
 	private setDirty(dirty: boolean): () => void {
-		let wasDirty = this.dirty;
-		let wasInConflictResolutionMode = this.inConflictResolutionMode;
-		let wasInErrorMode = this.inErrorMode;
-		let oldBufferSavedVersionId = this.bufferSavedVersionId;
+		const wasDirty = this.dirty;
+		const wasInConflictResolutionMode = this.inConflictResolutionMode;
+		const wasInErrorMode = this.inErrorMode;
+		const oldBufferSavedVersionId = this.bufferSavedVersionId;
 
 		if (!dirty) {
 			this.dirty = false;
@@ -578,10 +580,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	}
 
 	/**
-	 * Returns the time in millies when this working copy was edited by the user.
+	 * Returns the time in millies when this working copy was attempted to be saved.
 	 */
-	public getLastDirtyTime(): number {
-		return this.lastDirtyTime;
+	public getLastSaveAttemptTime(): number {
+		return this.lastSaveAttemptTime;
 	}
 
 	/**
@@ -729,7 +731,7 @@ export class TextFileEditorModelCache {
 	}
 
 	public dispose(resource: URI): void {
-		let model = this.get(resource);
+		const model = this.get(resource);
 		if (model) {
 			if (model.isDirty()) {
 				return; // we never dispose dirty models to avoid data loss

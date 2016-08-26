@@ -11,7 +11,7 @@ import {ConfigWatcher} from 'vs/base/node/config';
 import {Registry} from 'vs/platform/platform';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
-import {IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 
@@ -70,6 +70,14 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 		}
 
 		return section ? consolidatedConfig[section] : consolidatedConfig;
+	}
+
+	public lookup<C>(key: string): IConfigurationValue<C> {
+		return {
+			default: getConfigurationValue<C>(getDefaultValues(), key),
+			user: getConfigurationValue<C>(flatten(this.rawConfig.getConfig()), key),
+			value: getConfigurationValue<C>(this.getConfiguration(), key)
+		};
 	}
 
 	private getConsolidatedConfig(): T {

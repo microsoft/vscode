@@ -2641,10 +2641,21 @@ declare namespace vscode {
 		/**
 		 * Check if this configuration has a certain value.
 		 *
-		 * @param section configuration name, supports _dotted_ names.
+		 * @param section Configuration name, supports _dotted_ names.
 		 * @return `true` iff the section doesn't resolve to `undefined`.
 		 */
 		has(section: string): boolean;
+
+		/**
+		 * Update a configuration value. A value can be changed for the current
+		 * [workspace](#workspace.rootPath) only or globally for all instances of the
+		 * editor. The updated configuration values are persisted.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param value The new value.
+		 * @param global When `true` changes the configuration value for all instances of the editor.
+		 */
+		update(section: string, value: any, global: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -2882,20 +2893,20 @@ declare namespace vscode {
 		/**
 		 * Reveal this channel in the UI.
 		 *
+		 * @param preserveFocus When `true` the channel will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
+
+		/**
+		 * Reveal this channel in the UI.
+		 *
 		 * @deprecated This method is **deprecated** and the overload with
-		 * just one parameter should be used (`show(preservceFocus?: boolean): void`).
+		 * just one parameter should be used (`show(preserveFocus?: boolean): void`).
 		 *
 		 * @param column This argument is **deprecated** and will be ignored.
 		 * @param preserveFocus When `true` the channel will not take focus.
 		 */
 		show(column?: ViewColumn, preserveFocus?: boolean): void;
-
-		/**
-		 * Reveal this channel in the UI.
-		 *
-		 * @param preserveFocus When `true` the channel will not take focus.
-		 */
-		show(preservceFocus?: boolean): void;
 
 		/**
 		 * Hide this channel from the UI.
@@ -3490,8 +3501,7 @@ declare namespace vscode {
 		/**
 		 * Creates a [Terminal](#Terminal).
 		 *
-		 * @param name The optional name of a terminal, this will override the label used in the
-		 * terminal dropdown.
+		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
 		 * @return A new Terminal.
 		 */
 		export function createTerminal(name?: string): Terminal;

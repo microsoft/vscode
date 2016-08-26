@@ -12,13 +12,12 @@ import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 import {IEditorContextViewService, IEditorOverrideServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 
@@ -56,7 +55,7 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 	addAction(descriptor:IActionDescriptor): void;
 }
 
-export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
+export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _contextViewService:IEditorContextViewService;
@@ -72,11 +71,10 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		options = options || {};
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;

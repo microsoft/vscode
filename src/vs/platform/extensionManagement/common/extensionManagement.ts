@@ -28,7 +28,8 @@ export interface IConfiguration {
 }
 
 export interface IDebugger {
-	label: string;
+	label?: string;
+	type: string;
 	runtime: string;
 }
 
@@ -40,7 +41,7 @@ export interface IJSONValidation {
 	fileMatch: string;
 }
 
-export interface IKeyBindings {
+export interface IKeyBinding {
 	command: string;
 	key: string;
 	when?: string;
@@ -66,16 +67,21 @@ export interface ISnippet {
 	language: string;
 }
 
+export interface ITheme {
+	label: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
-	keybindings?: IKeyBindings[];
+	keybindings?: IKeyBinding[];
 	languages?: ILanguage[];
 	menus?: { [context: string]: IMenu[] };
 	snippets?: ISnippet[];
+	themes?: ITheme[];
 }
 
 export interface IExtensionManifest {
@@ -194,7 +200,7 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getRecommendations(): TPromise<IGalleryExtension[]>;
+	getRecommendations(): string[];
 }
 
 export const ExtensionsLabel = nls.localize('extensions', "Extensions");

@@ -17,7 +17,9 @@ export interface IThemeService {
 	getColorThemes(): TPromise<IThemeData[]>;
 	onDidColorThemeChange: Event<string>;
 
-	getFileIcons(): TPromise<IThemeData[]>;
+	setFileIconTheme(iconThemeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
+	getFileIconTheme(): string;
+	getFileIconThemes(): TPromise<IThemeData[]>;
 }
 
 export interface IThemeData {

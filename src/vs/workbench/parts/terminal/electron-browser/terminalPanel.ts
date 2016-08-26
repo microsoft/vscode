@@ -122,7 +122,7 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, parent);
 
-		return this.terminalService.createNew();
+		return TPromise.as(void 0);
 	}
 
 	private attachEventListeners(): void {
@@ -254,10 +254,6 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
 		return terminalIndex;
-	}
-
-	public setActiveTerminalById(terminalId: number): void {
-		this.setActiveTerminal(this.getTerminalIndexFromId(terminalId));
 	}
 
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {

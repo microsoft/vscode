@@ -36,7 +36,7 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		context
 	}).then(response => {
 		expression.available = !!(response && response.body);
-		if (response.body) {
+		if (response && response.body) {
 			expression.value = response.body.result;
 			expression.reference = response.body.variablesReference;
 			expression.namedVariables = response.body.namedVariables;

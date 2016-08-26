@@ -116,11 +116,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 
 		// Watch the parent of the path so that we detect ADD and DELETES
 		const parentFolder = path.dirname(this._path);
-		fs.exists(parentFolder, exists => {
-			if (exists) {
-				this.watch(parentFolder);
-			}
-		});
+		this.watch(parentFolder);
 
 		// Check if the path is a symlink and watch its target if so
 		fs.lstat(this._path, (err, stat) => {
@@ -155,7 +151,11 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 				watcher.close();
 			}));
 		} catch (error) {
-			console.warn(`Failed to watch ${path} for configuration changes (${error.toString()})`);
+			fs.exists(path, exists => {
+				if (exists) {
+					console.warn(`Failed to watch ${path} for configuration changes (${error.toString()})`);
+				}
+			});
 		}
 	}
 

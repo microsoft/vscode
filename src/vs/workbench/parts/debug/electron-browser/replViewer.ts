@@ -18,7 +18,7 @@ import mouse = require('vs/base/browser/mouseEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debugviewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
@@ -101,6 +101,8 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
 	];
 
+	private static LINE_HEIGHT_PX = 18;
+
 	private width: number;
 	private characterWidth: number;
 
@@ -116,14 +118,20 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private getHeightForString(s: string): number {
 		if (!s || !s.length || !this.width || this.width <= 0 || !this.characterWidth || this.characterWidth <= 0) {
-			return 18;
-		}
-		let realLength = 0;
-		for (let i = 0; i < s.length; i++) {
-			realLength += strings.isFullWidthCharacter(s.charCodeAt(i)) ? 2 : 1;
+			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		return 18 * Math.ceil(realLength * this.characterWidth / this.width);
+		const lines = s.split(/\r\n|\r|\n/g);
+		const numLines = lines.reduce((lineCount: number, line: string) => {
+			let lineLength = 0;
+			for (let i = 0; i < line.length; i++) {
+				lineLength += strings.isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
+			}
+
+			return lineCount + Math.floor(lineLength * this.characterWidth / this.width);
+		}, lines.length);
+
+		return ReplExpressionsRenderer.LINE_HEIGHT_PX * numLines;
 	}
 
 	public setWidth(fullWidth: number, characterWidth: number): void {
@@ -479,7 +487,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 		debugService: debug.IDebugService,
 		contextMenuService: IContextMenuService,
 		actionProvider: renderer.IActionProvider,
-		private replInput: CodeEditorWidget,
+		private replInput: CodeEditor,
 		focusOnContextMenu = true
 	) {
 		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);

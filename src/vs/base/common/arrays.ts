@@ -89,7 +89,10 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
  * @param n The number of elements to return.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number) {
+export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): T[] {
+	if (n === 0) {
+		return [];
+	}
 	const result = array.slice(0, n).sort(compare);
 	for (let i = n, m = array.length; i < m; i++) {
 		const element = array[i];
@@ -265,4 +268,19 @@ export function index<T,R>(array: T[], indexer: (t: T) => string, merger: (t: T,
 		r[key] = merger(t, r[key]);
 		return r;
 	}, Object.create(null));
+}
+
+/**
+ * Inserts an element into an array. Returns a function which, when
+ * called, will remove that element from the array.
+ */
+export function insert<T>(array: T[], element: T): () => void {
+	array.push(element);
+
+	return () => {
+		const index = array.indexOf(element);
+		if (index > -1) {
+			array.splice(index, 1);
+		}
+	};
 }

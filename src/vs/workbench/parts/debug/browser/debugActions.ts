@@ -4,28 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import actions = require('vs/base/common/actions');
+import {Action} from 'vs/base/common/actions';
 import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Range} from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
+import {ServicesAccessor, editorAction, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandService} from 'vs/platform/commands/common/commands';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import {BreakpointWidget} from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import IDebugService = debug.IDebugService;
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
-export class AbstractDebugAction extends actions.Action {
+export class AbstractDebugAction extends Action {
 
 	protected toDispose: lifecycle.IDisposable[];
 	private keybinding: string;
@@ -531,7 +532,8 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-export class ToggleBreakpointAction extends EditorAction {
+@editorAction
+class ToggleBreakpointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.toggleBreakpoint',
@@ -560,7 +562,8 @@ export class ToggleBreakpointAction extends EditorAction {
 	}
 }
 
-export class EditorConditionalBreakpointAction extends EditorAction {
+@editorAction
+class EditorConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -604,7 +607,8 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 }
 
-export class RunToCursorAction extends EditorAction {
+@editorAction
+class RunToCursorAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -613,7 +617,8 @@ export class RunToCursorAction extends EditorAction {
 			alias: 'Debug: Run to Cursor',
 			precondition: debug.CONTEXT_IN_DEBUG_MODE,
 			menuOpts: {
-				group: 'debug'
+				group: 'debug',
+				order: 2
 			}
 		});
 	}
@@ -663,7 +668,8 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
-export class SelectionToReplAction extends EditorAction {
+@editorAction
+class SelectionToReplAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -672,7 +678,8 @@ export class SelectionToReplAction extends EditorAction {
 			alias: 'Debug: Evaluate',
 			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
 			menuOpts: {
-				group: 'debug'
+				group: 'debug',
+				order: 0
 			}
 		});
 	}
@@ -681,7 +688,6 @@ export class SelectionToReplAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
 
-
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		return debugService.addReplExpression(text)
 			.then(() => panelService.openPanel(debug.REPL_ID, true))
@@ -689,7 +695,33 @@ export class SelectionToReplAction extends EditorAction {
 	}
 }
 
-export class ShowDebugHoverAction extends EditorAction {
+@editorAction
+class SelectionToWatchExpressionsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.debug.action.selectionToWatch',
+			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
+			alias: 'Debug: Add to Watch',
+			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
+			menuOpts: {
+				group: 'debug',
+				order: 1
+			}
+		});
+	}
+
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+		const debugService = accessor.get(IDebugService);
+		const viewletService = accessor.get(IViewletService);
+
+		const text = editor.getModel().getValueInRange(editor.getSelection());
+		return viewletService.openViewlet(debug.VIEWLET_ID).then(() => debugService.addWatchExpression(text));
+	}
+}
+
+@editorAction
+class ShowDebugHoverAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -838,6 +870,23 @@ export class ToggleReplAction extends AbstractDebugAction {
 	private isReplVisible(): boolean {
 		const panel = this.panelService.getActivePanel();
 		return panel && panel.getId() === debug.REPL_ID;
+	}
+}
+
+export class FocusReplAction extends Action {
+
+	static ID = 'workbench.debug.action.focusRepl';
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus Debug Console');
+
+
+	constructor(id: string, label: string,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.panelService.openPanel(debug.REPL_ID, true);
 	}
 }
 
