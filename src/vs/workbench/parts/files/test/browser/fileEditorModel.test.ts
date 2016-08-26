@@ -211,8 +211,8 @@ suite('Files - TextFileEditorModel', () => {
 						assert.ok(!textFileService.isDirty(toResource('/path/index_async2.txt')));
 						assert.ok(m1.getLastModifiedTime() > m1Mtime);
 						assert.ok(m2.getLastModifiedTime() > m2Mtime);
-						assert.ok(m1.getLastSaveTime() > m1Mtime);
-						assert.ok(m2.getLastSaveTime() > m2Mtime);
+						assert.ok(m1.getLastSaveAttemptTime() > m1Mtime);
+						assert.ok(m2.getLastSaveAttemptTime() > m2Mtime);
 
 						m1.dispose();
 						m2.dispose();
