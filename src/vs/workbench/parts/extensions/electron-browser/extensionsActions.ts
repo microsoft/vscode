@@ -262,6 +262,40 @@ export class EnableAction extends Action {
 	}
 }
 
+export class UpdateAllAction extends Action {
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super('extensions.update-all', localize('updateAll', "Update All Extensions"), '', false);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private get outdated(): IExtension[] {
+		return this.extensionsWorkbenchService.local
+			.filter(e => this.extensionsWorkbenchService.canInstall(e)
+				&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
+				&& e.outdated);
+	}
+
+	private update(): void {
+		this.enabled = this.outdated.length > 0;
+	}
+
+	run(): TPromise<any> {
+		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e)));
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 export class OpenExtensionsViewletAction extends ToggleViewletAction {
 
 	static ID = VIEWLET_ID;
