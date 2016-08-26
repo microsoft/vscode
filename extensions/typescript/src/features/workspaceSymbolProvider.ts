@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, Location, CancellationToken } from 'vscode';
+import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, Location, CancellationToken } from 'vscode';
 
 import * as Proto  from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -30,14 +30,23 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 
 	public provideWorkspaceSymbols(search: string, token :CancellationToken): Promise<SymbolInformation[]> {
 		// typescript wants to have a resource even when asking
-		// general questions so we check all open documents for
-		// one that is typescript'ish
+		// general questions so we check the active editor. If this
+		// doesn't match we take the first TS document.
 		let uri: Uri;
-		let documents = workspace.textDocuments;
-		for (let document of documents) {
-			if (document.languageId === this.modeId) {
+		let editor = window.activeTextEditor;
+		if (editor) {
+			let document = editor.document;
+			if (document && document.languageId === this.modeId) {
 				uri = document.uri;
-				break;
+			}
+		}
+		if (!uri) {
+			let documents = workspace.textDocuments;
+			for (let document of documents) {
+				if (document.languageId === this.modeId) {
+					uri = document.uri;
+					break;
+				}
 			}
 		}
 
