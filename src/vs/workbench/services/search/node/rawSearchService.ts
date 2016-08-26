@@ -71,10 +71,10 @@ export class SearchService implements IRawSearchService {
 			});
 		}
 
-		let searchPromise: PPromise<ISerializedSearchComplete, IRawProgressItem<IRawFileMatch>>;
+		let searchPromise: PPromise<void, IRawProgressItem<IRawFileMatch>>;
 		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
 			const engine = new EngineClass(config);
-			searchPromise = <any>this.doSearch(engine, batchSize)
+			searchPromise = this.doSearch(engine, batchSize)
 				.then(c, e, progress => {
 					if (Array.isArray(progress)) {
 						p(progress.map(m => this.rawMatchToSearchItem(m)));
@@ -94,10 +94,10 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
-		let searchPromise: PPromise<ISerializedSearchComplete, IRawProgressItem<IRawFileMatch>>;
+		let searchPromise: PPromise<void, IRawProgressItem<IRawFileMatch>>;
 		const allResultsPromise = new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
 			let results: IRawFileMatch[] = [];
-			searchPromise = <any>this.doSearch(engine, -1)
+			searchPromise = this.doSearch(engine, -1)
 				.then(result => {
 					c([result, results]);
 				}, e, progress => {
