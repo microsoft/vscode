@@ -21,7 +21,7 @@ export class TokenStylesContribution {
 				rules.forEach(rule => {
 					rule = rule.trim().replace(/ /g, '.'); // until we have scope hierarchy in the editor dom: replace spaces with .
 
-					cssRules.push(`.monaco-editor.${editorStyles.themeSelector} .token.${rule} { ${statements} }`);
+					cssRules.push(`.monaco-editor.${editorStyles.getThemeSelector()} .token.${rule} { ${statements} }`);
 				});
 			}
 		});
@@ -68,60 +68,24 @@ export class EditorStylesContribution {
 
 	public contributeStyles(themeId: string, themeDocument: IThemeDocument): string[] {
 		let cssRules = [];
+		let editorStyleRules = [
+			new EditorBackgroundStyleRule(),
+			new EditorForegroundStyleRule(),
+			new EditorSelectionStyleRule(),
+			new EditorSelectionHighlightStyleRule(),
+			new EditorWordHighlightStyleRule(),
+			new EditorWordHighlightStrongStyleRule(),
+			new EditorFindLineHighlightStyleRule(),
+			new EditorCurrentLineHighlightStyleRule(),
+			new EditorCursorStyleRule(),
+			new EditorWhiteSpaceStyleRule(),
+			new EditorIndentGuidesStyleRule()
+		];
 		let editorStyles = new EditorStyles(themeId, themeDocument);
-		if (editorStyles.editorStyleSettings) {
-			let themeSelector = editorStyles.themeSelector;
-			if (editorStyles.editorStyleSettings.background) {
-				let background = new Color(editorStyles.editorStyleSettings.background);
-				cssRules.push(`.monaco-editor.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
-				cssRules.push(`.monaco-editor.${themeSelector} .glyph-margin { background-color: ${background}; }`);
-				cssRules.push(`.${themeSelector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
-			}
-			if (editorStyles.editorStyleSettings.foreground) {
-				let foreground = new Color(editorStyles.editorStyleSettings.foreground);
-				cssRules.push(`.monaco-editor.${themeSelector} .token { color: ${foreground}; }`);
-			}
-			if (editorStyles.editorStyleSettings.selection) {
-				let selection = new Color(editorStyles.editorStyleSettings.selection);
-				cssRules.push(`.monaco-editor.${themeSelector} .focused .selected-text { background-color: ${selection}; }`);
-				cssRules.push(`.monaco-editor.${themeSelector} .selected-text { background-color: ${selection.transparent(0.5)}; }`);
-			}
-			if (editorStyles.editorStyleSettings.selectionHighlight) {
-				let selection = new Color(editorStyles.editorStyleSettings.selectionHighlight);
-				cssRules.push(`.monaco-editor.${themeSelector} .selectionHighlight { background-color: ${selection}; }`);
-			}
-			if (editorStyles.editorStyleSettings.wordHighlight) {
-				let selection = new Color(editorStyles.editorStyleSettings.wordHighlight);
-				cssRules.push(`.monaco-editor.${themeSelector} .wordHighlight { background-color: ${selection}; }`);
-			}
-			if (editorStyles.editorStyleSettings.wordHighlightStrong) {
-				let selection = new Color(editorStyles.editorStyleSettings.wordHighlightStrong);
-				cssRules.push(`.monaco-editor.${themeSelector} .wordHighlightStrong { background-color: ${selection}; }`);
-			}
-			if (editorStyles.editorStyleSettings.findLineHighlight) {
-				let selection = new Color(editorStyles.editorStyleSettings.findLineHighlight);
-				cssRules.push(`.monaco-editor.${themeSelector} .findLineHighlight { background-color: ${selection}; }`);
-			}
-			if (editorStyles.editorStyleSettings.lineHighlight) {
-				let lineHighlight = new Color(editorStyles.editorStyleSettings.lineHighlight);
-				cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; border:0; }`);
-			}
-			if (editorStyles.editorStyleSettings.caret) {
-				let caret = new Color(editorStyles.editorStyleSettings.caret);
-				let oppositeCaret = caret.opposite();
-				cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
-			}
-			if (editorStyles.editorStyleSettings.invisibles) {
-				let invisibles = new Color(editorStyles.editorStyleSettings.invisibles);
-				cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
-			}
-			if (editorStyles.editorStyleSettings.guide) {
-				let guide = new Color(editorStyles.editorStyleSettings.guide);
-				cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${guide}; }`);
-			} else if (editorStyles.editorStyleSettings.invisibles) {
-				let invisibles = new Color(editorStyles.editorStyleSettings.invisibles);
-				cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${invisibles}; }`);
-			}
+		if (editorStyles.hasEditorStyleSettings()) {
+			editorStyleRules.forEach((editorStyleRule => {
+				cssRules = cssRules.concat(editorStyleRule.getCssRules(editorStyles));
+			}));
 		}
 		return cssRules;
 	}
@@ -145,8 +109,8 @@ interface EditorStyleSettings {
 
 class EditorStyles {
 
-	public themeSelector: string;
-	public editorStyleSettings: EditorStyleSettings = null;
+	private themeSelector: string;
+	private editorStyleSettings: EditorStyleSettings = null;
 
 	constructor(themeId: string, themeDocument: IThemeDocument) {
 		this.themeSelector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
@@ -154,5 +118,167 @@ class EditorStyles {
 		if (!settings.scope) {
 			this.editorStyleSettings = settings.settings;
 		}
+	}
+
+	public getThemeSelector(): string {
+		return this.themeSelector;
+	}
+
+	public hasEditorStyleSettings(): boolean {
+		return !!this.editorStyleSettings;
+	}
+
+	public getEditorStyleSettings(): EditorStyleSettings {
+		return this.editorStyleSettings;
+	}
+}
+
+abstract class EditorStyleRule {
+	public abstract getCssRules(editorStyles: EditorStyles): string[];
+}
+
+class EditorBackgroundStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().background) {
+			let background = new Color(editorStyles.getEditorStyleSettings().background);
+			cssRules.push(`.monaco-editor.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
+			cssRules.push(`.monaco-editor.${themeSelector} .glyph-margin { background-color: ${background}; }`);
+			cssRules.push(`.${themeSelector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorForegroundStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().foreground) {
+			let foreground = new Color(editorStyles.getEditorStyleSettings().foreground);
+			cssRules.push(`.monaco-editor.${themeSelector} .token { color: ${foreground}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorSelectionStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().selection) {
+			let selection = new Color(editorStyles.getEditorStyleSettings().selection);
+			cssRules.push(`.monaco-editor.${themeSelector} .focused .selected-text { background-color: ${selection}; }`);
+			cssRules.push(`.monaco-editor.${themeSelector} .selected-text { background-color: ${selection.transparent(0.5)}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorSelectionHighlightStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().selectionHighlight) {
+			let selection = new Color(editorStyles.getEditorStyleSettings().selectionHighlight);
+			cssRules.push(`.monaco-editor.${themeSelector} .selectionHighlight { background-color: ${selection}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorWordHighlightStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().wordHighlight) {
+			let selection = new Color(editorStyles.getEditorStyleSettings().wordHighlight);
+			cssRules.push(`.monaco-editor.${themeSelector} .wordHighlight { background-color: ${selection}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorWordHighlightStrongStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().wordHighlightStrong) {
+			let selection = new Color(editorStyles.getEditorStyleSettings().wordHighlightStrong);
+			cssRules.push(`.monaco-editor.${themeSelector} .wordHighlightStrong { background-color: ${selection}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorFindLineHighlightStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().findLineHighlight) {
+			let selection = new Color(editorStyles.getEditorStyleSettings().findLineHighlight);
+			cssRules.push(`.monaco-editor.${themeSelector} .findLineHighlight { background-color: ${selection}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorCurrentLineHighlightStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().lineHighlight) {
+			let lineHighlight = new Color(editorStyles.getEditorStyleSettings().lineHighlight);
+			cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; border:0; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorCursorStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().caret) {
+			let caret = new Color(editorStyles.getEditorStyleSettings().caret);
+			let oppositeCaret = caret.opposite();
+			cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorWhiteSpaceStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		if (editorStyles.getEditorStyleSettings().invisibles) {
+			let invisibles = new Color(editorStyles.getEditorStyleSettings().invisibles);
+			cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorIndentGuidesStyleRule extends EditorStyleRule {
+	public getCssRules(editorStyles: EditorStyles): string[] {
+		let cssRules = [];
+		let themeSelector = editorStyles.getThemeSelector();
+		let color = this.getColor(editorStyles.getEditorStyleSettings());
+		if (color !== null) {
+			cssRules.push(`.monaco-editor.${themeSelector} .lines-content .cigr { background: ${color}; }`);
+		}
+		return cssRules;
+	}
+
+	private getColor(editorStyleSettings: EditorStyleSettings): Color {
+		if (editorStyleSettings.guide) {
+			return new Color(editorStyleSettings.guide);
+		}
+		if (editorStyleSettings.invisibles) {
+			return new Color(editorStyleSettings.invisibles);
+		}
+		return null;
 	}
 }
