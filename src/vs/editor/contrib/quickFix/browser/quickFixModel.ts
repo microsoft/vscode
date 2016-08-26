@@ -158,13 +158,20 @@ export class QuickFixModel extends EventEmitter {
 
 		if (!this.updateScheduler) {
 			this.updateScheduler = new RunOnceScheduler(() => {
-				var marker = this.lastMarker;
-				var pos = this.editor.getPosition();
+
+				const pos = this.editor.getPosition();
+				let marker = this.lastMarker;
 				if (marker && Range.containsPosition(marker, pos)) {
 					// still on the same marker
 					if (this.lightBulpPosition) {
 						this.setDecoration(pos);
 					}
+					return;
+				}
+
+				if (!this.editor.isFocused()) {
+					// remove lightbulb when editor lost focus
+					this.setDecoration(null);
 					return;
 				}
 
@@ -175,8 +182,8 @@ export class QuickFixModel extends EventEmitter {
 					return;
 				}
 
-				var $tRequest = timer.start(timer.Topic.EDITOR, 'quickfix/lighbulp');
-				var computeFixesPromise = this.computeFixes(marker);
+				const $tRequest = timer.start(timer.Topic.EDITOR, 'quickfix/lighbulp');
+				const computeFixesPromise = this.computeFixes(marker);
 				computeFixesPromise.done((fixes) => {
 					this.setDecoration(!arrays.isFalsyOrEmpty(fixes) ? pos : null);
 					this.triggerAutoSuggest(marker);
