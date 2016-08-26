@@ -166,7 +166,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 		let languages = languageGrammar.split('.');
-		let thisLanguage = languages[languages.length-1];
+		let thisLanguage = languages[languages.length - 1];
 		if (syntax !== thisLanguage || languages.length < 2) {
 			return syntax;
 		}
