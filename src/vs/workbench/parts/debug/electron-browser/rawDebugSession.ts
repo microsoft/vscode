@@ -355,25 +355,36 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	private prepareCommand(terminalPanel: ITerminalPanel, args: DebugProtocol.RunInTerminalRequestArguments) {
 
-		const quote = (s: string) => s.indexOf(' ') >= 0 ? `'${s}'` : s;
-
-		function quotes(args: string[]): string {
-			let r = '';
-			for (let a of args) {
-				r += quote(a) + ' ';
-			}
-			return r;
-		}
-
 		let command = '';
 
-		if (args.cwd) {
-			command += `cd ${quote(args.cwd)} ${platform.isWindows ? '&&' : ';'} `;
-		}
-
 		if (platform.isWindows) {
-			// TODO
+			const quote = (s: string) => {
+				s = s.replace(/\"/g, '""');
+				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
+			};
+
+			if (args.cwd) {
+				command += `cd ${quote(args.cwd)} && `;
+			}
+			if (args.env) {
+				command += 'cmd /C "';
+				for (let key in args.env) {
+					command += `set "${key}=${args.env[key]}" && `;
+				}
+			}
+			for (let a of args.args) {
+				command += `${quote(a)} `;
+			}
+			if (args.env) {
+				command += '"';
+			}
+
 		} else {
+			const quote = (s: string) => s.indexOf(' ') >= 0 ? `'${s}'` : s;
+
+			if (args.cwd) {
+				command += `cd ${quote(args.cwd)} ; `;
+			}
 			if (args.env) {
 				command += 'env';
 				for (let key in args.env) {
@@ -381,9 +392,11 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				}
 				command += ' ';
 			}
-		}
+			for (let a of args.args) {
+				command += `${quote(a)} `;
+			}
 
-		command += quotes(args.args);
+		}
 
 		terminalPanel.sendTextToActiveTerminal(command, true);
 	}
