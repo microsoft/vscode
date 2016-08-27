@@ -90,10 +90,8 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 			let hasFocus = this._focusTracker.hasFocus();
 
 			if (hasFocus) {
-				this._editorFocusContextKey.set(true);
 				this.emit(editorCommon.EventType.EditorFocus, {});
 			} else {
-				this._editorFocusContextKey.reset();
 				this.emit(editorCommon.EventType.EditorBlur, {});
 			}
 		});
@@ -309,7 +307,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 	}
 
 	public hasWidgetFocus(): boolean {
-		return this._focusTracker.hasFocus();
+		return this._focusTracker && this._focusTracker.hasFocus();
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
@@ -506,7 +504,6 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	protected _createView(): void {
 		this._view = new View(
-			this._contextKeyService,
 			this._commandService,
 			this._configuration,
 			this.viewModel,

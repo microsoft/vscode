@@ -17,6 +17,7 @@ import severity from 'vs/base/common/severity';
 import stdfork = require('vs/base/node/stdFork');
 import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITerminalService, ITerminalPanel} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
@@ -70,7 +71,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		private customTelemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@ITerminalService private terminalService: ITerminalService
 	) {
 		super();
 		this.emittedStopped = false;
@@ -272,6 +274,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this.send('restartFrame', args);
 	}
 
+	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
+		return this.send('completions', args);
+	}
+
 	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
 		if (this.stopServerPending && force) {
 			return this.stopServer();
@@ -336,6 +342,46 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public getLengthInSeconds(): number {
 		return (new Date().getTime() - this.startTime) / 1000;
+	}
+
+	protected runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
+		return this.terminalService.createNew(args.title || nls.localize('debuggee', "debuggee")).then(id => {
+			return this.terminalService.show(false).then(terminalPanel => {
+				this.terminalService.setActiveTerminalById(id);
+				this.prepareCommand(terminalPanel, args);
+			});
+		});
+	}
+
+	private prepareCommand(terminalPanel: ITerminalPanel, args: DebugProtocol.RunInTerminalRequestArguments) {
+
+		const quote = (s: string) => s.indexOf(' ') >= 0 ? `'${s}'` : s;
+
+		function quotes(args: string[]): string {
+			let r = '';
+			for (let a of args) {
+				r += quote(a) + ' ';
+			}
+			return r;
+		}
+
+		let command = '';
+
+		if (args.cwd) {
+			command += `cd ${quote(args.cwd)}; `;
+		}
+
+		if (args.env) {
+			command += 'env';
+			for (let key in args.env) {
+				command += ` '${key}=${args.env[key]}'`;
+			}
+			command += ' ';
+		}
+
+		command += quotes(args.args);
+
+		terminalPanel.sendTextToActiveTerminal(command, true);
 	}
 
 	private connectServer(port: number): TPromise<void> {

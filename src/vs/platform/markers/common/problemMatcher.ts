@@ -11,6 +11,7 @@ import * as Strings from 'vs/base/common/strings';
 import * as Assert from 'vs/base/common/assert';
 import * as Paths from 'vs/base/common/paths';
 import * as Types from 'vs/base/common/types';
+import * as UUID from 'vs/base/common/uuid';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 
@@ -394,7 +395,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 
 let _defaultPatterns: { [name: string]: ProblemPattern | ProblemPattern[]; } = Object.create(null);
 _defaultPatterns['msCompile'] = {
-	regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(\w{1,2}\d+)\s*:\s*(.*)$/,
+	regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w{1,2}\d+)\s*:\s*(.*)$/,
 	file: 1,
 	location: 2,
 	severity: 3,
@@ -664,7 +665,7 @@ export namespace Config {
 		* The owner of the produced VSCode problem. This is typically
 		* the identifier of a VSCode language service if the problems are
 		* to be merged with the one produced by the language service
-		* or 'external'. Defaults to 'external' if omitted.
+		* or a generated internal id. Defaults to the generated internal id.
 		*/
 		owner?: string;
 
@@ -772,7 +773,7 @@ export class ProblemMatcherParser extends Parser {
 	private createProblemMatcher(description: Config.ProblemMatcher): ProblemMatcher {
 		let result: ProblemMatcher = null;
 
-		let owner = description.owner ? description.owner : 'external';
+		let owner = description.owner ? description.owner : UUID.generateUuid();
 		let applyTo = Types.isString(description.applyTo) ? ApplyToKind.fromString(description.applyTo) : ApplyToKind.allDocuments;
 		if (!applyTo) {
 			applyTo = ApplyToKind.allDocuments;

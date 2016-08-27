@@ -101,6 +101,8 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
 	];
 
+	private static LINE_HEIGHT_PX = 18;
+
 	private width: number;
 	private characterWidth: number;
 
@@ -116,14 +118,20 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private getHeightForString(s: string): number {
 		if (!s || !s.length || !this.width || this.width <= 0 || !this.characterWidth || this.characterWidth <= 0) {
-			return 18;
-		}
-		let realLength = 0;
-		for (let i = 0; i < s.length; i++) {
-			realLength += strings.isFullWidthCharacter(s.charCodeAt(i)) ? 2 : 1;
+			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		return 18 * Math.ceil(realLength * this.characterWidth / this.width);
+		const lines = s.split(/\r\n|\r|\n/g);
+		const numLines = lines.reduce((lineCount: number, line: string) => {
+			let lineLength = 0;
+			for (let i = 0; i < line.length; i++) {
+				lineLength += strings.isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
+			}
+
+			return lineCount + Math.floor(lineLength * this.characterWidth / this.width);
+		}, lines.length);
+
+		return ReplExpressionsRenderer.LINE_HEIGHT_PX * numLines;
 	}
 
 	public setWidth(fullWidth: number, characterWidth: number): void {

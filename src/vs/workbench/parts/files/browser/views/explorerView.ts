@@ -117,6 +117,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'explorer-folders-view');
+		DOM.addClass(this.treeContainer, 'show-file-icons'); // always on, for now
 
 		this.tree = this.createViewer($(this.treeContainer));
 
@@ -204,14 +205,6 @@ export class ExplorerView extends CollapsibleViewletView {
 		}
 
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
-
-		// React to file icons setting by toggling global class on tree
-		let showFileIcons = configuration && configuration.explorer && configuration.explorer.showFileIcons;
-		this.extensionService.onReady().then(() => {
-			if (this.treeContainer) {
-				DOM.toggleClass(this.treeContainer, 'show-file-icons', showFileIcons); // since icons come from extensions, we wait for them to be ready
-			}
-		});
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;

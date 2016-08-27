@@ -229,4 +229,69 @@ suite('WorkspaceConfigurationService - Node', () => {
 			});
 		});
 	});
+
+	test('lookup', (done: () => void) => {
+		interface ILookupTestSetting {
+			workspaceLookup: {
+				service: {
+					testSetting: string;
+				}
+			};
+		}
+
+		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'workspaceLookup.service.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
+			return createService(workspaceDir, globalSettingsFile).then(service => {
+				let res = service.lookup('something.missing');
+				assert.ok(!res.default);
+				assert.ok(!res.user);
+				assert.ok(!res.workspace);
+				assert.ok(!res.value);
+
+				res = service.lookup('workspaceLookup.service.testSetting');
+				assert.equal(res.default, 'isSet');
+				assert.equal(res.value, 'isSet');
+				assert.ok(!res.user);
+				assert.ok(!res.workspace);
+
+				fs.writeFileSync(globalSettingsFile, '{ "workspaceLookup.service.testSetting": true }');
+
+				return service.reloadConfiguration().then(() => {
+					res = service.lookup('workspaceLookup.service.testSetting');
+					assert.equal(res.default, 'isSet');
+					assert.equal(res.user, true);
+					assert.equal(res.value, true);
+					assert.ok(!res.workspace);
+
+					const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
+					fs.writeFileSync(settingsFile, '{ "workspaceLookup.service.testSetting": 55 }');
+
+					return service.reloadConfiguration().then(() => {
+						res = service.lookup('workspaceLookup.service.testSetting');
+						assert.equal(res.default, 'isSet');
+						assert.equal(res.user, true);
+						assert.equal(res.workspace, 55);
+						assert.equal(res.value, 55);
+
+						service.dispose();
+
+						cleanUp(done);
+					});
+
+				});
+
+			});
+		});
+	});
 });

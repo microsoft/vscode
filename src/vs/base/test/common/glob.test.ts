@@ -682,4 +682,18 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(null), false);
 		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(''), false);
 	});
+
+	test('expression basename', function () {
+		assert.strictEqual(glob.parse('**/foo')('bar/baz', 'baz'), false);
+		assert.strictEqual(glob.parse('**/foo')('bar/foo', 'foo'), true);
+
+		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/bar', 'bar'), false);
+		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/foo', 'foo'), true);
+
+		var expr = { '**/*.js': { when: '$(basename).ts' } };
+		var sibilings = () => [ 'foo.ts', 'foo.js' ];
+
+		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', sibilings), null);
+		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', sibilings), '**/*.js');
+	});
 });

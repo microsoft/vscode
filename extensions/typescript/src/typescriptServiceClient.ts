@@ -208,7 +208,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (data) {
 			this.output.appendLine(this.data2String(data));
 		}
-		this.output.show(true);
+		// this.output.show(true);
 	}
 
 	private get packageInfo(): IPackageInfo {

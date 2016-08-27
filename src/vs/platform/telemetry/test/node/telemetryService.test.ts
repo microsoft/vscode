@@ -13,6 +13,7 @@ import Telemetry = require('vs/platform/telemetry/common/telemetry');
 import Errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
 import * as sinon from 'sinon';
+import {getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 
 const optInStatusEventName: string = 'optInStatus';
 
@@ -653,6 +654,13 @@ suite('TelemetryService', () => {
 				},
 				reloadConfiguration() {
 					return TPromise.as(this.getConfiguration());
+				},
+				lookup(key: string) {
+					return {
+						value: getConfigurationValue(this.getConfiguration(), key),
+						default: getConfigurationValue(this.getConfiguration(), key),
+						user: getConfigurationValue(this.getConfiguration(), key)
+					};
 				},
 				onDidUpdateConfiguration: emitter.event
 		});

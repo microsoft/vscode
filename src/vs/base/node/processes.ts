@@ -24,8 +24,8 @@ import * as TPath from 'vs/base/common/paths';
 import * as Platform from 'vs/base/common/platform';
 
 import { LineDecoder } from 'vs/base/node/decoder';
-import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, Executable } from 'vs/base/common/processes';
-export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse };
+import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
+export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
 export interface LineData {
 	line: string;
@@ -43,26 +43,36 @@ export interface StreamData {
 	stderr: NodeJS.ReadableStream;
 }
 
+function getWindowsCode(status: number): TerminateResponseCode {
+	switch (status) {
+		case 0:
+			return TerminateResponseCode.Success;
+		case 1:
+			return TerminateResponseCode.AccessDenied;
+		case 128:
+			return TerminateResponseCode.ProcessNotFound;
+		default:
+			return TerminateResponseCode.Unknown;
+	}
+}
+
 export function terminateProcess(process: ChildProcess, cwd?: string): TerminateResponse {
 	if (Platform.isWindows) {
 		try {
-			// This we run in Electron execFileSync is available.
-			// Ignore stderr since this is otherwise piped to parent.stderr
-			// which might be already closed.
 			let options:any = {
 				stdio: ['pipe', 'pipe', 'ignore']
 			};
 			if (cwd) {
 				options.cwd = cwd;
 			}
-			(<any>cp).execFileSync('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
+			cp.execFileSync('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
 		} catch (err) {
-			return { success: false, error: err };
+			return { success: false, error: err , code: err.status ? getWindowsCode(err.status) : TerminateResponseCode.Unknown };
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
 			let cmd = URI.parse(require.toUrl('vs/base/node/terminateProcess.sh')).fsPath;
-			let result = (<any>cp).spawnSync(cmd, [process.pid.toString()]);
+			let result = cp.spawnSync(cmd, [process.pid.toString()]);
 			if (result.error) {
 				return { success: false, error: result.error };
 			}

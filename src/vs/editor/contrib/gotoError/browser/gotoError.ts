@@ -143,16 +143,12 @@ class MarkerModel {
 		this.move(false);
 	}
 
-	public goTo(pos: editorCommon.IPosition): void {
-		for (var i = 0; i < this._markers.length; i++) {
-			var marker = this._markers[i];
-			if (marker.startLineNumber <= pos.lineNumber && marker.endLineNumber >= pos.lineNumber
-				&& marker.startColumn <= pos.column && marker.endColumn >= pos.column) {
-				this._onCurrentMarkerChanged.fire(marker);
-				return;
+	public findMarkerAtPosition(pos: editorCommon.IPosition): IMarker {
+		for (const marker of this._markers) {
+			if (Range.containsPosition(marker, pos)) {
+				return marker;
 			}
 		}
-		return null;
 	}
 
 	public get stats(): { errors: number; others: number; } {
@@ -308,7 +304,6 @@ class FixesWidget {
 
 class MarkerNavigationWidget extends ZoneWidget {
 
-	private _editor: ICodeEditor;
 	private _parentContainer: HTMLElement;
 	private _container: HTMLElement;
 	private _title: HTMLElement;
@@ -318,7 +313,6 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
-		this._editor = editor;
 		this.create();
 		this._wireModelAndView();
 	}
@@ -356,6 +350,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private _wireModelAndView(): void {
 		// listen to events
 		this._model.onCurrentMarkerChanged(this.showAtMarker, this, this._callOnDispose);
+		this._model.onMarkerSetChanged(this._onMarkersChanged, this, this._callOnDispose);
 	}
 
 	public showAtMarker(marker: IMarker): void {
@@ -365,15 +360,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		}
 
 		// update frame color
-		switch (marker.severity) {
-			case Severity.Error:
-				this.options.frameColor = '#ff5a5a';
-				break;
-			case Severity.Warning:
-			case Severity.Info:
-				this.options.frameColor = '#5aac5a';
-				break;
-		}
+		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
 
 		// update meta title
 		if (marker.source) {
@@ -396,10 +383,36 @@ class MarkerNavigationWidget extends ZoneWidget {
 			.then(() => this.show(range.getStartPosition(), this.computeRequiredHeight()));
 	}
 
+	private _onMarkersChanged(): void {
+
+		const marker = this._model.findMarkerAtPosition(this.position);
+		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
+		const newQuickFixes = marker
+			? getCodeActions(this.editor.getModel(), Range.lift(marker))
+			: TPromise.as([]);
+
+		this._fixesWidget
+			.update(newQuickFixes)
+			.then(() => this.show(this.position, this.computeRequiredHeight()));
+	}
+
 	private computeRequiredHeight() {
 		// minimum one line content, add one line for zone widget decorations
-		let lineHeight = this._editor.getConfiguration().lineHeight || 12;
+		let lineHeight = this.editor.getConfiguration().lineHeight || 12;
 		return Math.max(1, Math.ceil(this._container.clientHeight / lineHeight)) + 1;
+	}
+
+	private static _getFrameColorFromMarker(marker: IMarker): string {
+		if (marker) {
+			switch (marker.severity) {
+				case Severity.Error:
+					return '#ff5a5a';
+				case Severity.Warning:
+				case Severity.Info:
+					return '#5aac5a';
+			}
+		}
+		return '#ccc';
 	}
 
 	public dispose(): void {

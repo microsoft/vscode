@@ -1014,7 +1014,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						overlay.once(DOM.EventType.MOUSE_OVER, () => {
 							setTimeout(() => {
 								cleanUp();
-							}, 100);
+							}, 300);
 						});
 					}
 				});

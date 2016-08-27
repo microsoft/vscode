@@ -70,12 +70,14 @@ export interface ITerminalService {
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;
 	hide(): TPromise<any>;
+	hideTerminalInstance(terminalId: number): TPromise<any>;
 	paste(): TPromise<any>;
 	runSelectedText(): TPromise<any>;
 	scrollDown(): TPromise<any>;
 	scrollUp(): TPromise<any>;
 	show(focus: boolean): TPromise<ITerminalPanel>;
 	setActiveTerminal(index: number): TPromise<any>;
+	setActiveTerminalById(terminalId: number): void;
 	toggle(): TPromise<any>;
 
 	getActiveTerminalIndex(): number;
@@ -87,5 +89,4 @@ export interface ITerminalService {
 export interface ITerminalPanel {
 	closeTerminalById(terminalId: number): TPromise<void>;
 	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
-	setActiveTerminalById(terminalId: number): void;
 }

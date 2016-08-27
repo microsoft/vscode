@@ -15,7 +15,7 @@ import Storage = require('vs/workbench/common/storage');
 import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService, getConfigurationValue, IConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
@@ -102,7 +102,7 @@ export abstract class TestTextFileService extends TextFileService {
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService, modelService);
+		super(contextService, instantiationService, configurationService, telemetryService, editorService, eventService, fileService, modelService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
@@ -556,6 +556,14 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 	public onDidUpdateConfiguration() {
 		return { dispose() { } };
+	}
+
+	public lookup<C>(key: string): IConfigurationValue<C> {
+		return {
+			value: getConfigurationValue<C>(this.getConfiguration(), key),
+			default: getConfigurationValue<C>(this.getConfiguration(), key),
+			user: getConfigurationValue<C>(this.getConfiguration(), key)
+		};
 	}
 }
 

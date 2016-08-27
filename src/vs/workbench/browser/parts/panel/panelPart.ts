@@ -6,12 +6,11 @@
 import 'vs/css!./media/panelpart';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {KeyMod, KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Action, IAction} from 'vs/base/common/actions';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IComposite} from 'vs/workbench/common/composite';
 import {Builder} from 'vs/base/browser/builder';
-import dom = require('vs/base/browser/dom');
 import {Registry} from 'vs/platform/platform';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -26,7 +25,6 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
@@ -76,13 +74,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public create(parent: Builder): void {
 		super.create(parent);
-
-		dom.addStandardDisposableListener(this.getContainer().getHTMLElement(), 'keyup', (e: IKeyboardEvent) => {
-			if (e.equals(CommonKeybindings.ESCAPE)) {
-				this.partService.setPanelHidden(true);
-				e.preventDefault();
-			}
-		});
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {

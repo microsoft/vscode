@@ -933,10 +933,11 @@ declare namespace vscode {
 		 * be used to make edits. Note that the edit-builder is only valid while the
 		 * callback executes.
 		 *
-		 * @param callback A function which can make edits using an [edit-builder](#TextEditorEdit).
+		 * @param callback A function which can create edits using an [edit-builder](#TextEditorEdit).
+		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
-		edit(callback: (editBuilder: TextEditorEdit) => void): Thenable<boolean>;
+		edit(callback: (editBuilder: TextEditorEdit) => void, options?:{ undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -2641,10 +2642,21 @@ declare namespace vscode {
 		/**
 		 * Check if this configuration has a certain value.
 		 *
-		 * @param section configuration name, supports _dotted_ names.
+		 * @param section Configuration name, supports _dotted_ names.
 		 * @return `true` iff the section doesn't resolve to `undefined`.
 		 */
 		has(section: string): boolean;
+
+		/**
+		 * Update a configuration value. A value can be changed for the current
+		 * [workspace](#workspace.rootPath) only or globally for all instances of the
+		 * editor. The updated configuration values are persisted.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param value The new value.
+		 * @param global When `true` changes the configuration value for all instances of the editor.
+		 */
+		update(section: string, value: any, global: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -2882,20 +2894,20 @@ declare namespace vscode {
 		/**
 		 * Reveal this channel in the UI.
 		 *
+		 * @param preserveFocus When `true` the channel will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
+
+		/**
+		 * Reveal this channel in the UI.
+		 *
 		 * @deprecated This method is **deprecated** and the overload with
-		 * just one parameter should be used (`show(preservceFocus?: boolean): void`).
+		 * just one parameter should be used (`show(preserveFocus?: boolean): void`).
 		 *
 		 * @param column This argument is **deprecated** and will be ignored.
 		 * @param preserveFocus When `true` the channel will not take focus.
 		 */
 		show(column?: ViewColumn, preserveFocus?: boolean): void;
-
-		/**
-		 * Reveal this channel in the UI.
-		 *
-		 * @param preserveFocus When `true` the channel will not take focus.
-		 */
-		show(preservceFocus?: boolean): void;
 
 		/**
 		 * Hide this channel from the UI.
@@ -3490,8 +3502,7 @@ declare namespace vscode {
 		/**
 		 * Creates a [Terminal](#Terminal).
 		 *
-		 * @param name The optional name of a terminal, this will override the label used in the
-		 * terminal dropdown.
+		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
 		 * @return A new Terminal.
 		 */
 		export function createTerminal(name?: string): Terminal;

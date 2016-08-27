@@ -14,7 +14,7 @@ import {IInstantiationService, optional} from 'vs/platform/instantiation/common/
 import {IContextKey, IContextKeyService, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -116,7 +116,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			switch (kind) {
 				case 'open':
 					if (event.source === 'editor'
-						&& getConfigurationValue(this._configurationService.getConfiguration(), 'editor.stablePeek', false)) {
+						&& this._configurationService.lookup('editor.stablePeek').value) {
 
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor
