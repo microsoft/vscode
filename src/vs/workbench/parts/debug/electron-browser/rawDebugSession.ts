@@ -368,15 +368,19 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		let command = '';
 
 		if (args.cwd) {
-			command += `cd ${quote(args.cwd)}; `;
+			command += `cd ${quote(args.cwd)} ${platform.isWindows ? '&&' : ';'} `;
 		}
 
-		if (args.env) {
-			command += 'env';
-			for (let key in args.env) {
-				command += ` '${key}=${args.env[key]}'`;
+		if (platform.isWindows) {
+			// TODO
+		} else {
+			if (args.env) {
+				command += 'env';
+				for (let key in args.env) {
+					command += ` '${key}=${args.env[key]}'`;
+				}
+				command += ' ';
 			}
-			command += ' ';
 		}
 
 		command += quotes(args.args);
