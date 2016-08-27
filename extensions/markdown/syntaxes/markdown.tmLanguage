@@ -28,10 +28,6 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#separator</string>
-				</dict>
-				<dict>
-					<key>include</key>
 					<string>#heading</string>
 				</dict>
 				<dict>
@@ -206,6 +202,11 @@
 					<key>include</key>
 					<string>#paragraph</string>
 				</dict>
+				<dict>
+					<key>include</key>
+					<string>#separator</string>
+				</dict>
+
 			</array>
 			<key>repository</key>
 			<dict>
