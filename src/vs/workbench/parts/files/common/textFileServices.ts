@@ -20,7 +20,6 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
 /**
@@ -32,13 +31,13 @@ export abstract class TextFileService implements ITextFileService {
 
 	public _serviceBrand: any;
 
-	private listenerToUnbind: IDisposable[];
+	protected listenerToUnbind: IDisposable[];
 
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 
 	private configuredAutoSaveDelay: number;
-	private configuredAutoSaveOnFocusChange: boolean;
-	private configuredAutoSaveOnWindowChange: boolean;
+	protected configuredAutoSaveOnFocusChange: boolean;
+	protected configuredAutoSaveOnWindowChange: boolean;
 
 	constructor(
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -46,7 +45,6 @@ export abstract class TextFileService implements ITextFileService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService private eventService: IEventService,
 		@IFileService protected fileService: IFileService,
 		@IModelService protected modelService: IModelService
@@ -74,23 +72,6 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Configuration changes
 		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
-
-		// Application & Editor focus change
-		window.addEventListener('blur', () => this.onWindowFocusLost());
-		window.addEventListener('blur', () => this.onEditorFocusChanged(), true);
-		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
-	}
-
-	private onWindowFocusLost(): void {
-		if (this.configuredAutoSaveOnWindowChange && this.isDirty()) {
-			this.saveAll().done(null, errors.onUnexpectedError);
-		}
-	}
-
-	private onEditorFocusChanged(): void {
-		if (this.configuredAutoSaveOnFocusChange && this.isDirty()) {
-			this.saveAll().done(null, errors.onUnexpectedError);
-		}
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {

@@ -56,6 +56,12 @@ export enum TextEditorRevealType {
 	InCenterIfOutsideViewport = 2
 }
 
+export interface IApplyEditsOptions {
+	undoStopBefore: boolean;
+	undoStopAfter: boolean;
+	setEndOfLine: EndOfLine;
+}
+
 /**
  * Text Editor that is permanently bound to the same model.
  * It can be bound or not to a CodeEditor.
@@ -314,7 +320,7 @@ export class MainThreadTextEditor {
 		return editor.getControl() === this._codeEditor;
 	}
 
-	public applyEdits(versionIdCheck:number, edits:EditorCommon.ISingleEditOperation[], setEndOfLine:EndOfLine): boolean {
+	public applyEdits(versionIdCheck:number, edits:EditorCommon.ISingleEditOperation[], opts:IApplyEditsOptions): boolean {
 		if (this._model.getVersionId() !== versionIdCheck) {
 			console.warn('Model has changed in the meantime!');
 			// throw new Error('Model has changed in the meantime!');
@@ -323,9 +329,9 @@ export class MainThreadTextEditor {
 		}
 
 		if (this._codeEditor) {
-			if (setEndOfLine === EndOfLine.CRLF) {
+			if (opts.setEndOfLine === EndOfLine.CRLF) {
 				this._model.setEOL(EditorCommon.EndOfLineSequence.CRLF);
-			} else if (setEndOfLine === EndOfLine.LF) {
+			} else if (opts.setEndOfLine === EndOfLine.LF) {
 				this._model.setEOL(EditorCommon.EndOfLineSequence.LF);
 			}
 
@@ -338,9 +344,13 @@ export class MainThreadTextEditor {
 				};
 			});
 
-			this._codeEditor.pushUndoStop();
+			if (opts.undoStopBefore) {
+				this._codeEditor.pushUndoStop();
+			}
 			this._codeEditor.executeEdits('MainThreadTextEditor', transformedEdits);
-			this._codeEditor.pushUndoStop();
+			if (opts.undoStopAfter) {
+				this._codeEditor.pushUndoStop();
+			}
 			return true;
 		}
 

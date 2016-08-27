@@ -31,7 +31,8 @@ export interface IRawSearchService {
 
 export interface IRawFileMatch {
 	base?: string;
-	path: string;
+	relativePath: string;
+	basename: string;
 	size?: number;
 }
 
@@ -46,7 +47,7 @@ export interface ISerializedSearchComplete {
 }
 
 export interface ISerializedFileMatch {
-	path?: string;
+	path: string;
 	lineMatches?: ILineMatch[];
 }
 

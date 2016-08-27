@@ -418,7 +418,6 @@ export class ActionProvider extends ContributableActionProvider {
 				const resource = openEditor.getResource();
 				if (resource) {
 					// Open to side
-					result.unshift(new Separator());
 					result.unshift(this.instantiationService.createInstance(OpenToSideAction, tree, resource, false));
 
 					if (!openEditor.isUntitled()) {

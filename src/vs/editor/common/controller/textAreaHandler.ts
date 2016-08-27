@@ -9,7 +9,6 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
-import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 
@@ -74,7 +73,6 @@ export class TextAreaHandler extends Disposable {
 	private asyncTriggerCut: RunOnceScheduler;
 
 	private lastCompositionEndTime:number;
-	private cursorPosition:Position;
 
 	private textAreaState:TextAreaState;
 	private textareaIsShownAtCursor: boolean;
@@ -92,7 +90,6 @@ export class TextAreaHandler extends Disposable {
 		this.flushAnyAccumulatedEvents = flushAnyAccumulatedEvents;
 		this.selection = new Range(1, 1, 1, 1);
 		this.selections = [new Range(1, 1, 1, 1)];
-		this.cursorPosition = new Position(1, 1);
 		this._nextCommand = ReadFromTextArea.Type;
 
 		this.asyncTriggerCut = new RunOnceScheduler(() => this._onCut.fire(), 0);
@@ -127,21 +124,9 @@ export class TextAreaHandler extends Disposable {
 				}
 			}
 
-			let showAtLineNumber: number;
-			let showAtColumn: number;
-
-			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (this.Browser.isEdgeOrIE) {
-				// Ensure selection start is in viewport
-				showAtLineNumber = this.selection.startLineNumber;
-				showAtColumn = (this.selection.startColumn - this.textAreaState.getSelectionStart());
-			} else {
-				showAtLineNumber = this.cursorPosition.lineNumber;
-				showAtColumn = this.cursorPosition.column;
-			}
 			this._onCompositionStart.fire({
-				showAtLineNumber: showAtLineNumber,
-				showAtColumn: showAtColumn
+				showAtLineNumber: this.selection.startLineNumber,
+				showAtColumn: this.selection.startColumn
 			});
 		}));
 
@@ -174,7 +159,12 @@ export class TextAreaHandler extends Disposable {
 
 			// Due to isEdgeOrIE (where the textarea was not cleared initially)
 			// we cannot assume the text at the end consists only of the composited text
-			this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+			if (Browser.isEdgeOrIE) {
+				// In Chrome v49, the text at the time of the compositionend event is not really the final text
+				// for the mac dead key input method.
+				// N.B: This can be removed in Chrome v53
+				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+			}
 
 			this.lastCompositionEndTime = (new Date()).getTime();
 			if (!this.textareaIsShownAtCursor) {
@@ -251,10 +241,6 @@ export class TextAreaHandler extends Disposable {
 		this.selection = primary;
 		this.selections = [primary].concat(secondary);
 		this._writePlaceholderAndSelectTextArea('selection changed');
-	}
-
-	public setCursorPosition(primary: Position): void {
-		this.cursorPosition = primary;
 	}
 
 	// --- end event handlers

@@ -11,6 +11,7 @@ import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
+import errors = require('vs/base/common/errors');
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -49,12 +50,12 @@ export class TextFileService extends AbstractTextFileService {
 		@IEventService eventService: IEventService,
 		@IModeService private modeService: IModeService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWindowService private windowService: IWindowService,
 		@IModelService modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService, modelService);
+		super(contextService, instantiationService, configurationService, telemetryService, editorService, eventService, fileService, modelService);
 
 		this.init();
 	}
@@ -65,6 +66,23 @@ export class TextFileService extends AbstractTextFileService {
 		// Lifecycle
 		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 		this.lifecycleService.onShutdown(this.onShutdown, this);
+
+		// Application & Editor focus change
+		window.addEventListener('blur', () => this.onWindowFocusLost());
+		window.addEventListener('blur', () => this.onEditorFocusChanged(), true);
+		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
+	}
+
+	private onWindowFocusLost(): void {
+		if (this.configuredAutoSaveOnWindowChange && this.isDirty()) {
+			this.saveAll().done(null, errors.onUnexpectedError);
+		}
+	}
+
+	private onEditorFocusChanged(): void {
+		if (this.configuredAutoSaveOnFocusChange && this.isDirty()) {
+			this.saveAll().done(null, errors.onUnexpectedError);
+		}
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

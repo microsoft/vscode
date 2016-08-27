@@ -11,10 +11,6 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .repl .repl-tree {
-	height: calc(100% - 22px);
-}
-
 .monaco-workbench .repl .surveyor {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	position: absolute;

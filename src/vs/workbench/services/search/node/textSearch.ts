@@ -111,7 +111,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 				return unwind(size);
 			};
 
-			const absolutePath = result.base ? [result.base, result.path].join(path.sep) : result.path;
+			const absolutePath = result.base ? [result.base, result.relativePath].join(path.sep) : result.relativePath;
 			let perLineCallback = (line: string, lineNumber: number) => {
 				if (this.limitReached || this.isCanceled) {
 					return; // return early if canceled or limit reached

@@ -38,7 +38,7 @@ export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
 
 
 // add suggestions from snippet registry.
-const snippetSuggestSupport: ISuggestSupport = {
+export const snippetSuggestSupport: ISuggestSupport = {
 
 	triggerCharacters: [],
 

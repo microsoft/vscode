@@ -5,7 +5,6 @@
 
 import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
-import errors = require('vs/base/common/errors');
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import dom = require('vs/base/browser/dom');
 import * as nls from 'vs/nls';
@@ -104,35 +103,74 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
+	private getExactExpressionRange(lineContent: string, range: Range) : Range {
+		let matchingExpression = undefined;
+		let startOffset = 0;
+
+		// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
+		// Match any character except a set of characters which often break interesting sub-expressions
+		let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+		let result = undefined;
+
+		// First find the full expression under the cursor
+		while (result = expression.exec(lineContent)) {
+			let start = result.index + 1;
+			let end = start + result[0].length;
+
+			if (start <= range.startColumn && end >= range.endColumn) {
+				matchingExpression = result[0];
+				startOffset = start;
+				break;
+			}
+		}
+
+		// If there are non-word characters after the cursor, we want to truncate the expression then.
+		// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
+		if (matchingExpression) {
+			let subExpression: RegExp = /\w+/g;
+			let subExpressionResult = undefined;
+			while (subExpressionResult = subExpression.exec(matchingExpression)) {
+				let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
+				if (subEnd >= range.endColumn) {
+					break;
+				}
+			}
+
+			if (subExpressionResult) {
+				matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
+			}
+		}
+
+		return matchingExpression ?
+			new Range(range.startLineNumber, startOffset, range.endLineNumber, startOffset + matchingExpression.length - 1) :
+			new Range(range.startLineNumber, 0, range.endLineNumber, 0);
+	}
+
 	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
-		const model = this.editor.getModel();
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== model.uri.toString())) {
+		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== this.editor.getModel().uri.toString())) {
 			return;
 		}
 
-		// string magic to get the parents of the variable (a and b for a.b.foo)
-		const lineContent = model.getLineContent(pos.lineNumber);
-		const namesToFind = lineContent.substring(0, lineContent.indexOf('.' + hoveringOver))
-			.split('.').map(word => word.trim()).filter(word => !!word);
-		namesToFind.push(hoveringOver);
-		namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
+		const session = this.debugService.getActiveSession();
+		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
+		const expressionRange = this.getExactExpressionRange(lineContent, range);
+		// use regex to extract the sub-expression #9821
+		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 
-		return this.getExpression(namesToFind).then(expression => {
+		const evaluatedExpression = session.configuration.capabilities.supportsEvaluateForHovers ?
+			evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression, true), 'hover') :
+			this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
+
+		return evaluatedExpression.then(expression => {
 			if (!expression || !expression.available) {
 				this.hide();
 				return;
 			}
 
-			// show it
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-				range: {
-					startLineNumber: pos.lineNumber,
-					endLineNumber: pos.lineNumber,
-					startColumn: lineContent.indexOf(hoveringOver) + 1,
-					endColumn: lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length
-				},
+				range: new Range(pos.lineNumber, expressionRange.startColumn, pos.lineNumber, expressionRange.startColumn + matchingExpression.length),
 				options: {
 					className: 'hoverHighlight'
 				}
@@ -142,43 +180,31 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		});
 	}
 
-	private getExpression(namesToFind: string[]): TPromise<Expression> {
-		const session = this.debugService.getActiveSession();
-		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (session.configuration.capabilities.supportsEvaluateForHovers) {
-			return evaluateExpression(session, focusedStackFrame, new Expression(namesToFind.join('.'), true), 'hover');
-		}
+	private doFindExpression(container: debug.IExpressionContainer, namesToFind: string[]): TPromise<debug.IExpression> {
+		return container.getChildren(this.debugService).then(children => {
+			// look for our variable in the list. First find the parents of the hovered variable if there are any.
+			// some languages pass the type as part of the name, so need to check if the last word of the name matches.
+			const filtered = children.filter(v => typeof v.name === 'string' && (namesToFind[0] === v.name || namesToFind[0] === v.name.substr(v.name.lastIndexOf(' ') + 1)));
+			if (filtered.length !== 1) {
+				return null;
+			}
 
-		const variables: debug.IExpression[] = [];
-		return focusedStackFrame.getScopes(this.debugService).then(scopes => {
+			if (namesToFind.length === 1) {
+				return filtered[0];
+			} else {
+				return this.doFindExpression(filtered[0], namesToFind.slice(1));
+			}
+		});
+	}
 
-			// flatten out scopes lists
-			return scopes.reduce((accum, scopes) => { return accum.concat(scopes); }, [])
-
+	private findExpressionInStackFrame(namesToFind: string[]): TPromise<debug.IExpression> {
+		return this.debugService.getViewModel().getFocusedStackFrame().getScopes(this.debugService)
 			// no expensive scopes
-			.filter((scope: debug.IScope) => !scope.expensive)
-
-			// get the scopes variables
-			.map((scope: debug.IScope) => scope.getChildren(this.debugService).done((children: debug.IExpression[]) => {
-
-				// look for our variable in the list. First find the parents of the hovered variable if there are any.
-				for (var i = 0; i < namesToFind.length && children; i++) {
-					// some languages pass the type as part of the name, so need to check if the last word of the name matches.
-					const filtered = children.filter(v => typeof v.name === 'string' && (namesToFind[i] === v.name || namesToFind[i] === v.name.substr(v.name.lastIndexOf(' ') + 1)));
-					if (filtered.length !== 1) {
-						break;
-					}
-
-					if (i === namesToFind.length - 1) {
-						variables.push(filtered[0]);
-					} else {
-						filtered[0].getChildren(this.debugService).done(c => children = c, children = null);
-					}
-				}
-			}, errors.onUnexpectedError));
-
-		// only show if there are no duplicates across scopes
-		}).then(() => variables.length === 1 ? TPromise.as(variables[0]) : TPromise.as(null));
+			.then(scopes => scopes.filter(scope => !scope.expensive))
+			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
+			.then(expressions => expressions.filter(exp => !!exp))
+			// only show if there are no duplicates across scopes
+			.then(expressions => expressions.length === 1 ? expressions[0] : null);
 	}
 
 	private doShow(position: Position, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {

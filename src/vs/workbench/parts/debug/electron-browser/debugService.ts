@@ -17,6 +17,8 @@ import severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import aria = require('vs/base/browser/ui/aria/aria');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
+import {ISuggestion} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
 import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
@@ -32,7 +34,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import session = require('vs/workbench/parts/debug/node/rawDebugSession');
+import session = require('vs/workbench/parts/debug/electron-browser/rawDebugSession');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
@@ -511,8 +513,6 @@ export class DebugService implements debug.IDebugService {
 			return this.setFocusedStackFrameAndEvaluate(this.viewModel.getFocusedStackFrame());
 		}, err => {
 			(<model.Variable>variable).errorMessage = err.message;
-			// On error still show bad value so the user can fix it #8055
-			(<model.Variable>variable).value = value;
 		});
 	}
 
@@ -630,7 +630,8 @@ export class DebugService implements debug.IDebugService {
 				linesStartAt1: true,
 				columnsStartAt1: true,
 				supportsVariableType: true, // #8858
-				supportsVariablePaging: true // #9537
+				supportsVariablePaging: true, // #9537
+				supportsRunInTerminalRequest: true // #10574
 			}).then((result: DebugProtocol.InitializeResponse) => {
 				if (!this.session) {
 					return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
@@ -946,6 +947,26 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.restartFrame({ frameId });
+	}
+
+	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
+		if (!this.session) {
+			return TPromise.as([]);
+		}
+		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
+
+		return this.session.completions({
+			frameId: focussedStackFrame ? focussedStackFrame.frameId : undefined,
+			text,
+			column: position.column,
+			line: position.lineNumber
+		}).then(response => {
+			return !response ? [] : response.body.targets.map(item => ({
+				label: item.label,
+				insertText: item.text || item.label,
+				type: item.type
+			}));
+		}, err => []);
 	}
 
 	private lazyTransitionToRunningState(threadId?: number): void {

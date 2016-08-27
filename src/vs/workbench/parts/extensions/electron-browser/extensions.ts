@@ -13,7 +13,7 @@ import { IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManageme
 export const VIEWLET_ID = 'workbench.view.extensions';
 
 export interface IExtensionsViewlet extends IViewlet {
-	search(text: string, immediate?: boolean): void;
+	search(text: string): void;
 }
 
 export enum ExtensionState {
@@ -54,8 +54,11 @@ export interface IExtensionsWorkbenchService {
 	local: IExtension[];
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
-	getRecommendations(): TPromise<IExtension[]>;
 	canInstall(extension: IExtension): boolean;
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+}
+
+export interface IExtensionsConfiguration {
+	autoUpdate: boolean;
 }

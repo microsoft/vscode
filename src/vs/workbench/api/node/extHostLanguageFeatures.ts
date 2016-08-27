@@ -283,7 +283,7 @@ class QuickFixAdapter {
 	private _diagnostics: ExtHostDiagnostics;
 	private _provider: vscode.CodeActionProvider;
 
-	private _cachedCommands: IDisposable[] = [];
+	private _cachedCommands: IDisposable[][] = [];
 
 	constructor(documents: ExtHostDocuments, commands: ExtHostCommands, diagnostics: ExtHostDiagnostics, provider: vscode.CodeActionProvider) {
 		this._documents = documents;
@@ -308,7 +308,15 @@ class QuickFixAdapter {
 			}
 		});
 
-		this._cachedCommands = dispose(this._cachedCommands);
+		// we cache the last 10 commands that might have been
+		// created during type conversion. when as have more
+		// than 10 we drop the first three
+		const cachedCommands: IDisposable[] = [];
+		if (this._cachedCommands.push(cachedCommands) > 10) {
+			dispose(...this._cachedCommands.shift());
+			dispose(...this._cachedCommands.shift());
+			dispose(...this._cachedCommands.shift());
+		}
 
 		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)).then(commands => {
 			if (!Array.isArray(commands)) {
@@ -316,7 +324,7 @@ class QuickFixAdapter {
 			}
 			return commands.map((command, i) => {
 				return <modes.CodeAction> {
-					command: TypeConverters.Command.from(command, this._cachedCommands),
+					command: TypeConverters.Command.from(command, cachedCommands),
 					score: i
 				};
 			});

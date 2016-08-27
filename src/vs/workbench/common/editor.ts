@@ -16,6 +16,7 @@ import {Event as BaseEvent} from 'vs/base/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {IModel} from 'vs/editor/common/editorCommon';
 
 export enum ConfirmResult {
 	SAVE,
@@ -385,6 +386,10 @@ export abstract class BaseDiffEditorInput extends EditorInput {
 	public revert(): TPromise<boolean> {
 		return this._modifiedInput.revert();
 	}
+}
+
+export interface ITextEditorModel extends IEditorModel {
+	textEditorModel: IModel;
 }
 
 /**

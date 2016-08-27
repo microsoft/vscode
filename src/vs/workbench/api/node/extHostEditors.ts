@@ -181,6 +181,8 @@ export interface IEditData {
 	documentVersionId: number;
 	edits: ITextEditOperation[];
 	setEndOfLine: EndOfLine;
+	undoStopBefore:boolean;
+	undoStopAfter:boolean;
 }
 
 export class TextEditorEdit {
@@ -188,18 +190,24 @@ export class TextEditorEdit {
 	private _documentVersionId: number;
 	private _collectedEdits: ITextEditOperation[];
 	private _setEndOfLine: EndOfLine;
+	private _undoStopBefore: boolean;
+	private _undoStopAfter: boolean;
 
-	constructor(document: vscode.TextDocument) {
+	constructor(document: vscode.TextDocument, options:{ undoStopBefore: boolean; undoStopAfter: boolean; }) {
 		this._documentVersionId = document.version;
 		this._collectedEdits = [];
 		this._setEndOfLine = 0;
+		this._undoStopBefore = options.undoStopBefore;
+		this._undoStopAfter = options.undoStopAfter;
 	}
 
 	finalize(): IEditData {
 		return {
 			documentVersionId: this._documentVersionId,
 			edits: this._collectedEdits,
-			setEndOfLine: this._setEndOfLine
+			setEndOfLine: this._setEndOfLine,
+			undoStopBefore: this._undoStopBefore,
+			undoStopAfter: this._undoStopAfter
 		};
 	}
 
@@ -402,8 +410,8 @@ class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- editing
 
-	edit(callback: (edit: TextEditorEdit) => void): Thenable<boolean> {
-		let edit = new TextEditorEdit(this._documentData.document);
+	edit(callback: (edit: TextEditorEdit) => void, options:{ undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+		let edit = new TextEditorEdit(this._documentData.document, options);
 		callback(edit);
 		return this._applyEdit(edit);
 	}
@@ -420,7 +428,11 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			};
 		});
 
-		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, editData.setEndOfLine);
+		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, {
+			setEndOfLine: editData.setEndOfLine,
+			undoStopBefore: editData.undoStopBefore,
+			undoStopAfter: editData.undoStopAfter
+		});
 	}
 
 	// ---- util

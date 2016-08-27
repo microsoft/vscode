@@ -106,7 +106,13 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 				// adjust width by its size
 				let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
 				let context = canvasElem.getContext('2d');
-				context.font = window.getComputedStyle(this.textArea.actual).font;
+				let cs = dom.getComputedStyle(this.textArea.actual);
+				if (browser.isFirefox) {
+					// computedStyle.font is empty in Firefox...
+					context.font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontStretch} ${cs.fontSize} / ${cs.lineHeight} '${cs.fontFamily}'`;
+				} else {
+					context.font = cs.font;
+				}
 				let metrics = context.measureText(e.data);
 				StyleMutator.setWidth(this.textArea.actual, metrics.width);
 			}
@@ -180,11 +186,6 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	private _lastCursorSelectionChanged:editorCommon.IViewCursorSelectionChangedEvent = null;
 	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		this._lastCursorSelectionChanged = e;
-		return false;
-	}
-
-	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
-		this.textAreaHandler.setCursorPosition(e.position);
 		return false;
 	}
 

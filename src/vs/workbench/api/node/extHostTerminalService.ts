@@ -10,53 +10,58 @@ import {MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
-	public name: string;
+	public _name: string;
 
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
 
 	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string) {
-		this.name = name;
+		this._name = name;
 		this._proxy = proxy;
 		this._proxy.$createTerminal(name).then((terminalId) => {
 			this._id = terminalId;
 		});
 	}
 
+	public get name(): string {
+		this._checkDisposed();
+		return this._name;
+	}
+
 	public sendText(text: string, addNewLine: boolean = true): void {
-		this.checkId();
-		this.checkDisposed();
+		this._checkId();
+		this._checkDisposed();
 		this._proxy.$sendText(this._id, text, addNewLine);
 	}
 
 	public show(preserveFocus: boolean): void {
-		this.checkId();
-		this.checkDisposed();
+		this._checkId();
+		this._checkDisposed();
 		this._proxy.$show(this._id, preserveFocus);
 	}
 
 	public hide(): void {
-		this.checkId();
-		this.checkDisposed();
+		this._checkId();
+		this._checkDisposed();
 		this._proxy.$hide(this._id);
 	}
 
 	public dispose(): void {
-		this.checkId();
+		this._checkId();
 		if (!this._disposed) {
 			this._disposed = true;
 			this._proxy.$dispose(this._id);
 		}
 	}
 
-	private checkId() {
+	private _checkId() {
 		if (!this._id) {
 			throw new Error('Terminal has not been initialized yet');
 		}
 	}
 
-	private checkDisposed() {
+	private _checkDisposed() {
 		if (this._disposed) {
 			throw new Error('Terminal has already been disposed');
 		}

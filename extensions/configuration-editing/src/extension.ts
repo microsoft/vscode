@@ -13,8 +13,6 @@ export function activate(context) {
 	//keybindings.json command-suggestions
 	context.subscriptions.push(registerKeybindingsCompletions());
 
-	//settings.json command-suggestions
-	context.subscriptions.push(registerSettingsCompletions());
 }
 
 function registerKeybindingsCompletions() : vscode.Disposable {
@@ -28,31 +26,6 @@ function registerKeybindingsCompletions() : vscode.Disposable {
 
 				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 				return commands.then(ids => ids.map(id => newCompletionItem(id, range)));
-			}
-		}
-	});
-}
-
-function registerSettingsCompletions() : vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ language: 'json', pattern: '**/settings.json' }, {
-
-		provideCompletionItems(document, position, token) {
-			const location = getLocation(document.getText(), document.offsetAt(position));
-			if (!location.isAtPropertyKey && location.path[0] === 'files.iconTheme') {
-				let result: vscode.CompletionItem[] = [];
-				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-
-				vscode.extensions.all.forEach(e => {
-					let fileIconsContributions = e.packageJSON.contributes && e.packageJSON.contributes.fileIcons;
-					if (Array.isArray(fileIconsContributions)) {
-						fileIconsContributions.forEach(contribution => {
-							if (contribution.id !== 'vs-standard') {
-								result.push(newCompletionItem(contribution.id, range, contribution.label));
-							}
-						});
-					}
-				});
-				return result;
 			}
 		}
 	});

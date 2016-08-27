@@ -165,7 +165,7 @@ export default class Webview {
 			outline-offset: -1px;
 		}
 		::-webkit-scrollbar {
-			width: 14px;
+			width: 10px;
 			height: 10px;
 		}`;
 

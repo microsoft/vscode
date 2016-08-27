@@ -17,7 +17,9 @@ export interface IThemeService {
 	getColorThemes(): TPromise<IThemeData[]>;
 	onDidColorThemeChange: Event<string>;
 
-	getFileIcons(): TPromise<IThemeData[]>;
+	setFileIconTheme(iconThemeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
+	getFileIconTheme(): string;
+	getFileIconThemes(): TPromise<IThemeData[]>;
 }
 
 export interface IThemeData {
@@ -25,4 +27,19 @@ export interface IThemeData {
 	label: string;
 	description?: string;
 	path: string;
+}
+
+export interface IThemeDocument {
+	name: string;
+	include: string;
+	settings: IThemeSetting[];
+}
+
+export interface IThemeSetting {
+	name?: string;
+	scope?: string[];
+	settings: IThemeSettingStyle[];
+}
+
+export interface IThemeSettingStyle {
 }

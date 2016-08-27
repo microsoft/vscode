@@ -44,6 +44,8 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import {IConfigurationEditingService} from 'vs/workbench/services/configuration/common/configurationEditing';
+import {ConfigurationEditingService} from 'vs/workbench/services/configuration/node/configurationEditingService';
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
@@ -371,6 +373,9 @@ export class Workbench implements IPartService {
 
 		// History
 		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
+
+		// Configuration Editing
+		serviceCollection.set(IConfigurationEditingService, this.instantiationService.createInstance(ConfigurationEditingService));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);

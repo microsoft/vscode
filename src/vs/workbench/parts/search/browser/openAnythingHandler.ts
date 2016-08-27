@@ -16,7 +16,6 @@ import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import strings = require('vs/base/common/strings');
-import uuid = require('vs/base/common/uuid');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -64,8 +63,10 @@ interface ITimerEventData {
 		cmdResultCount?: number;
 	} | {
 		cacheLookupStartDuration: number;
+		cacheFilterStartDuration: number;
 		cacheLookupResultDuration: number;
 		cacheEntryCount: number;
+		joined?: any;
 	});
 }
 
@@ -87,6 +88,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private static LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
 	private static SYMBOL_SEARCH_INITIAL_TIMEOUT = 500; // Ignore symbol search after a timeout to not block search results
+	private static SYMBOL_SEARCH_INITIAL_TIMEOUT_WHEN_FILE_SEARCH_CACHED = 300;
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
 	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
 
@@ -99,7 +101,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
-	private cacheKey: string;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -122,7 +123,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		this.symbolResultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
-		this.cacheKey = uuid.generateUuid();
 		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
 	}
 
@@ -182,7 +182,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				};
 
 				let lookupPromise = this.openSymbolHandler.getResults(searchValue);
-				let timeoutPromise = symbolSearchTimeoutPromiseFn(OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT);
+				let timeoutPromise = symbolSearchTimeoutPromiseFn(this.openFileHandler.isCacheLoaded ? OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT_WHEN_FILE_SEARCH_CACHED : OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT);
 
 				// Timeout lookup after N seconds to not block file search results
 				resultPromises.push(TPromise.any([lookupPromise, timeoutPromise]).then((result) => {
@@ -193,7 +193,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResultsWithStats(searchValue, this.cacheKey, OpenAnythingHandler.MAX_DISPLAYED_RESULTS).then(([results, stats]) => {
+			resultPromises.push(this.openFileHandler.getResultsWithStats(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS).then(([results, stats]) => {
 				receivedFileResults = true;
 				searchStats = stats;
 
@@ -219,7 +219,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Sort
 				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
-				const compare = (elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache);
+				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache);
 				const viewResults = arrays.top(result, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 				const sortedResultTime = Date.now();
 
@@ -253,7 +253,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
-		return cachedSymbolResults ? promiseFactory() : this.delayer.trigger(promiseFactory);
+		return this.openFileHandler.isCacheLoaded ? promiseFactory() : this.delayer.trigger(promiseFactory);
 	}
 
 	private extractRange(value: string): ISearchWithRange {
@@ -361,6 +361,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		};
 	}
 
+	public onOpen(): void {
+		this.openSymbolHandler.onOpen();
+		this.openFileHandler.onOpen();
+	}
+
 	public onClose(canceled: boolean): void {
 		this.isClosed = true;
 
@@ -370,8 +375,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Clear Cache
 		this.symbolResultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
-		this.openFileHandler.clearCache(this.cacheKey);
-		this.cacheKey = uuid.generateUuid();
 
 		// Propagate
 		this.openSymbolHandler.onClose(canceled);
@@ -386,35 +389,40 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private createTimerEventData(startTime: number, telemetry: ITelemetryData): ITimerEventData {
-		const stats = telemetry.files;
-		const cached = stats as ICachedSearchStats;
-		const uncached = stats as IUncachedSearchStats;
 		return {
 			searchLength: telemetry.searchLength,
 			unsortedResultDuration: telemetry.unsortedResultTime - startTime,
 			sortedResultDuration: telemetry.sortedResultTime - startTime,
 			resultCount: telemetry.resultCount,
 			symbols: telemetry.symbols,
-			files: objects_assign({
-				fromCache: stats.fromCache,
-				unsortedResultDuration: stats.unsortedResultTime - startTime,
-				sortedResultDuration: stats.sortedResultTime - startTime,
-				resultCount: stats.resultCount
-			}, stats.fromCache ? {
-				cacheLookupStartDuration: cached.cacheLookupStartTime - startTime,
-				cacheLookupResultDuration: cached.cacheLookupResultTime - startTime,
-				cacheEntryCount: cached.cacheEntryCount
-			} : {
-				traversal: uncached.traversal,
-				errors: uncached.errors,
-				fileWalkStartDuration: uncached.fileWalkStartTime - startTime,
-				fileWalkResultDuration: uncached.fileWalkResultTime - startTime,
-				directoriesWalked: uncached.directoriesWalked,
-				filesWalked: uncached.filesWalked,
-				cmdForkStartDuration: uncached.cmdForkStartTime && uncached.cmdForkStartTime - startTime,
-				cmdForkResultDuration: uncached.cmdForkResultTime && uncached.cmdForkResultTime - startTime,
-				cmdResultCount: uncached.cmdResultCount
-			})
+			files: this.createFileEventData(startTime, telemetry.files)
 		};
+	}
+
+	private createFileEventData(startTime: number, stats: ISearchStats) {
+		const cached = stats as ICachedSearchStats;
+		const uncached = stats as IUncachedSearchStats;
+		return objects_assign({
+			fromCache: stats.fromCache,
+			unsortedResultDuration: stats.unsortedResultTime && stats.unsortedResultTime - startTime,
+			sortedResultDuration: stats.sortedResultTime && stats.sortedResultTime - startTime,
+			resultCount: stats.resultCount
+		}, stats.fromCache ? {
+			cacheLookupStartDuration: cached.cacheLookupStartTime - startTime,
+			cacheFilterStartDuration: cached.cacheFilterStartTime - startTime,
+			cacheLookupResultDuration: cached.cacheLookupResultTime - startTime,
+			cacheEntryCount: cached.cacheEntryCount,
+			joined: cached.joined && this.createFileEventData(startTime, cached.joined)
+		} : {
+			traversal: uncached.traversal,
+			errors: uncached.errors,
+			fileWalkStartDuration: uncached.fileWalkStartTime - startTime,
+			fileWalkResultDuration: uncached.fileWalkResultTime - startTime,
+			directoriesWalked: uncached.directoriesWalked,
+			filesWalked: uncached.filesWalked,
+			cmdForkStartDuration: uncached.cmdForkStartTime && uncached.cmdForkStartTime - startTime,
+			cmdForkResultDuration: uncached.cmdForkResultTime && uncached.cmdForkResultTime - startTime,
+			cmdResultCount: uncached.cmdResultCount
+		});
 	}
 }

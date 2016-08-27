@@ -16,15 +16,12 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {readFile, writeFile} from 'vs/base/node/pfs';
-import {JSONPath} from 'vs/base/common/json';
-import {applyEdits} from 'vs/base/common/jsonFormatter';
-import {setProperty} from 'vs/base/common/jsonEdit';
+import {readFile} from 'vs/base/node/pfs';
 import errors = require('vs/base/common/errors');
-import {IConfigFile, consolidate, CONFIG_DEFAULT_NAME, newConfigFile} from 'vs/workbench/services/configuration/common/model';
-import {IConfigurationServiceEvent}  from 'vs/platform/configuration/common/configuration';
+import {IConfigFile, consolidate, newConfigFile} from 'vs/workbench/services/configuration/common/model';
+import {IConfigurationServiceEvent, getConfigurationValue}  from 'vs/platform/configuration/common/configuration';
 import {ConfigurationService as BaseConfigurationService}  from 'vs/platform/configuration/node/configurationService';
-import {IWorkbenchConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
+import {IWorkbenchConfigurationService, IWorkbenchConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME} from 'vs/workbench/services/configuration/common/configuration';
 import {EventType as FileEventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -63,7 +60,7 @@ export class WorkspaceConfigurationService implements IWorkbenchConfigurationSer
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		private workspaceSettingsRootFolder: string = '.vscode'
+		private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME
 	) {
 		this.toDispose = [];
 		this.workspaceFilePathToConfiguration = Object.create(null);
@@ -116,6 +113,17 @@ export class WorkspaceConfigurationService implements IWorkbenchConfigurationSer
 		return section ? this.cachedConfig[section] : this.cachedConfig;
 	}
 
+	public lookup<C>(key: string): IWorkbenchConfigurationValue<C> {
+		const configurationValue = this.baseConfigurationService.lookup<C>(key);
+
+		return {
+			default: configurationValue.default,
+			user: configurationValue.user,
+			workspace: getConfigurationValue<C>(this.cachedWorkspaceConfig, key),
+			value: getConfigurationValue<C>(this.getConfiguration(), key)
+		};
+	}
+
 	public reloadConfiguration(section?: string): TPromise<any> {
 
 		// Reset caches to ensure we are hitting the disk
@@ -154,21 +162,6 @@ export class WorkspaceConfigurationService implements IWorkbenchConfigurationSer
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
-	}
-
-	// TODO implement
-	public setUserConfiguration(key: any, value: any): Thenable<void> {
-		const appSettingsPath = this.environmentService.appSettingsPath;
-
-		return readFile(appSettingsPath, 'utf8').then(content => {
-			const {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-			const path: JSONPath = typeof key === 'string' ? (<string>key).split('.') : <JSONPath>key;
-			const edits = setProperty(content, path, value, { insertSpaces, tabSize, eol: '\n' });
-
-			content = applyEdits(content, edits);
-
-			return writeFile(appSettingsPath, content, 'utf8');
-		});
 	}
 
 	private loadWorkspaceConfigFiles(): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
