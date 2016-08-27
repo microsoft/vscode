@@ -358,6 +358,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		let command = '';
 
 		if (platform.isWindows) {
+			
 			const quote = (s: string) => {
 				s = s.replace(/\"/g, '""');
 				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
@@ -378,9 +379,12 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			if (args.env) {
 				command += '"';
 			}
-
 		} else {
-			const quote = (s: string) => s.indexOf(' ') >= 0 ? `'${s}'` : s;
+
+			const quote = (s: string) => {
+				s = s.replace(/\"/g, '\\"');
+				return s.indexOf(' ') >= 0 ? `"${s}"` : s;
+			};
 
 			if (args.cwd) {
 				command += `cd ${quote(args.cwd)} ; `;
@@ -388,14 +392,13 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			if (args.env) {
 				command += 'env';
 				for (let key in args.env) {
-					command += ` '${key}=${args.env[key]}'`;
+					command += ` ${quote(key + '=' + args.env[key])}`;
 				}
 				command += ' ';
 			}
 			for (let a of args.args) {
 				command += `${quote(a)} `;
 			}
-
 		}
 
 		terminalPanel.sendTextToActiveTerminal(command, true);
