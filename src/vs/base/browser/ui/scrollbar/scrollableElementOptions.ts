@@ -41,6 +41,11 @@ export interface ScrollableElementCreationOptions {
 	 */
 	scrollYToX?: boolean;
 	/**
+	 * Always consume mouse wheel events, even when scrolling is no longer possible.
+	 * Defaults to false.
+	 */
+	alwaysConsumeMouseWheel?: boolean;
+	/**
 	 * A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.
 	 * Defaults to 1.
 	 */
@@ -117,6 +122,7 @@ export interface ScrollableElementResolvedOptions {
 	handleMouseWheel: boolean;
 	flipAxes: boolean;
 	scrollYToX: boolean;
+	alwaysConsumeMouseWheel: boolean;
 	mouseWheelScrollSensitivity: number;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement;
