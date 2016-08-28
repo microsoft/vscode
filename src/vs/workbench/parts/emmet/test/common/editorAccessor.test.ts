@@ -1,3 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+'use strict';
+
 import {EditorAccessor, IGrammarContributions} from 'vs/workbench/parts/emmet/node/editorAccessor';
 import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
@@ -32,7 +39,6 @@ class MockGrammarContributions implements IGrammarContributions {
 		return this.scopeName;
 	}
 }
-
 
 export interface IGrammarContributions {
 	getGrammar(mode: string): string;
