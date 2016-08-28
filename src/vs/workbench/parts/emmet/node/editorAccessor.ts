@@ -139,7 +139,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 
-		if (/\b(razor|handlebars|erb|php|hbs|ejs|twig)\b/.test(syntax)) { // treat like html
+		if (/\b(razor|handlebars)\b/.test(syntax)) { // treat like html
 			return 'html';
 		}
 		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
@@ -166,7 +166,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 		let languages = languageGrammar.split('.');
-		let thisLanguage = languages[languages.length-1];
+		let thisLanguage = languages[languages.length - 1];
 		if (syntax !== thisLanguage || languages.length < 2) {
 			return syntax;
 		}
