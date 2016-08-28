@@ -6,9 +6,9 @@
 
 ### Alternate heading styles:
 Alternate Header 1
-==========================
+==================
 Alternate Header 2
---------------------------
+------------------
 
 <!-- html madness -->
 <div class="custom-class" markdown="1">

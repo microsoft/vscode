@@ -412,6 +412,10 @@
 							<key>include</key>
 							<string>text.html.basic</string>
 						</dict>
+						<dict>
+							<key>include</key>
+							<string>#heading-setext</string>
+						</dict>
 					</array>
 					<key>while</key>
 					<string>(^|\G)(?!\s*$|#|[ ]{0,3}([-*_][ ]{2,}){3,}[ \t]*$\n?|&gt;|[ ]{0,3}[*+-]|[ ]{0,3}[0-9]+\.)</string>
