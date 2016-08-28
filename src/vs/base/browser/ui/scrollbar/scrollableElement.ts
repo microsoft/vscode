@@ -285,8 +285,10 @@ export class ScrollableElement extends Widget {
 			}
 		}
 
-		e.preventDefault();
-		e.stopPropagation();
+		if (this._options.alwaysConsumeMouseWheel || this._shouldRender) {
+			e.preventDefault();
+			e.stopPropagation();
+		}
 	}
 
 	private _onDidScroll(e:ScrollEvent): void {
@@ -416,6 +418,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
 		handleMouseWheel: (typeof opts.handleMouseWheel !== 'undefined' ? opts.handleMouseWheel : true),
 		flipAxes: (typeof opts.flipAxes !== 'undefined' ? opts.flipAxes : false),
+		alwaysConsumeMouseWheel: (typeof opts.alwaysConsumeMouseWheel !== 'undefined' ? opts.alwaysConsumeMouseWheel : false),
 		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
