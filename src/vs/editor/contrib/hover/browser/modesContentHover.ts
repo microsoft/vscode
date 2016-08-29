@@ -7,6 +7,7 @@
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
+import {$} from 'vs/base/browser/dom';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
 import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
@@ -238,29 +239,25 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
-			var row:HTMLElement = document.createElement('div');
-			var container = row;
+			msg.contents
+				.filter(contents => !!contents)
+				.forEach(contents => {
+					const renderedContents = renderMarkedString(contents, {
+						actionCallback: (content) => {
+							this._openerService.open(URI.parse(content));
+						},
+						codeBlockRenderer: (modeId, value): string | TPromise<string> => {
+							const mode = this._modeService.getMode(modeId);
+							const getMode = mode ? TPromise.as(mode) : this._modeService.getOrCreateMode(modeId);
 
-			if (msg.contents && msg.contents.length > 0) {
-				container.appendChild(renderMarkedString(msg.contents, {
-					actionCallback: (content) => {
-						this._openerService.open(URI.parse(content));
-					},
-					codeBlockRenderer: (modeId, value): string | TPromise<string> => {
-
-						let mode = this._modeService.getMode(modeId);
-						if (mode) {
-							return tokenizeToString(value, mode);
+							return getMode
+								.then(null, err => null)
+								.then(mode => `<div class="code">${ tokenizeToString(value, mode) }</div>`);
 						}
+					});
 
-						return this._modeService.getOrCreateMode(modeId).then(
-							mode => tokenizeToString(value, mode),
-							err => tokenizeToString(value, null));
-					}
-				}));
-			}
-
-			fragment.appendChild(row);
+					fragment.appendChild($('div.hover-row', null, renderedContents));
+				});
 		});
 
 		this._domNode.textContent = '';
