@@ -9,7 +9,7 @@ import {IEditorInput} from 'vs/platform/editor/common/editor';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
-export class RecentlyClosedEditorInput {
+export class IRecentlyClosedEditor {
 	editor: IEditorInput;
 	index: number;
 }
@@ -21,7 +21,7 @@ export interface IHistoryService {
 	/**
 	 * Removes and returns the last closed editor if any.
 	 */
-	popLastClosedEditor(): RecentlyClosedEditorInput;
+	popLastClosedEditor(): IRecentlyClosedEditor;
 
 	/**
 	 * Navigate forwards in history.

@@ -14,7 +14,7 @@ import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {EditorInput, IGroupEvent, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {RecentlyClosedEditorInput, IHistoryService} from 'vs/workbench/services/history/common/history';
+import {IRecentlyClosedEditor, IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -228,7 +228,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private currentFileEditorState: EditorState;
 
 	private history: IEditorInput[];
-	private recentlyClosed: RecentlyClosedEditorInput[];
+	private recentlyClosed: IRecentlyClosedEditor[];
 	private loaded: boolean;
 	private registry: IEditorRegistry;
 
@@ -283,7 +283,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	public popLastClosedEditor(): RecentlyClosedEditorInput {
+	public popLastClosedEditor(): IRecentlyClosedEditor {
 		this.ensureLoaded();
 
 		return this.recentlyClosed.pop();
