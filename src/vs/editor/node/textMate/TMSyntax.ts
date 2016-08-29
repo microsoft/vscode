@@ -10,10 +10,11 @@ import * as paths from 'vs/base/common/paths';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ILineTokens, IMode, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
-import {LineTokens, Token} from 'vs/editor/common/modes/supports';
+import {LineTokens} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IGrammar, Registry, StackElement} from 'vscode-textmate';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;

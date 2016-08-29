@@ -7,22 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-
-export class Token implements modes.IToken {
-	_tokenBrand: void;
-
-	public startIndex:number;
-	public type:string;
-
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex;
-		this.type = type;
-	}
-
-	public toString(): string {
-		return '(' + this.startIndex + ', ' + this.type + ')';
-	}
-}
+import {Token} from 'vs/editor/common/core/token';
 
 export class LineTokens implements modes.ILineTokens {
 	_lineTokensBrand: void;

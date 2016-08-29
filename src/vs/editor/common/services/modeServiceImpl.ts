@@ -23,7 +23,7 @@ import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {Token} from 'vs/editor/common/modes/supports';
+import {Token} from 'vs/editor/common/core/token';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
