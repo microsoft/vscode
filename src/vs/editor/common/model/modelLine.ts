@@ -160,6 +160,12 @@ export class ModelLine {
 
 	// --- BEGIN STATE
 
+	public resetTokenizationState(): void {
+		this._state = null;
+		this._modeTransitions = null;
+		this._lineTokens = null;
+	}
+
 	public setState(state: IState): void {
 		this._state = state;
 	}
