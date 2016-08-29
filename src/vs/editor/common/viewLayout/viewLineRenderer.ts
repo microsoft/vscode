@@ -13,7 +13,7 @@ export class RenderLineInput {
 	tabSize: number;
 	spaceWidth: number;
 	stopRenderingLineAfter: number;
-	renderWhitespace: boolean;
+	renderWhitespace: 'none' | 'boundary' | 'all';
 	renderControlCharacters: boolean;
 	parts: ViewLineToken[];
 
@@ -22,7 +22,7 @@ export class RenderLineInput {
 		tabSize: number,
 		spaceWidth: number,
 		stopRenderingLineAfter: number,
-		renderWhitespace: boolean,
+		renderWhitespace: 'none' | 'boundary' | 'all',
 		renderControlCharacters: boolean,
 		parts: ViewLineToken[]
 	) {
@@ -96,7 +96,7 @@ function controlCharacterToPrintable(characterCode: number): string {
 	return String.fromCharCode(_controlCharacterSequenceConversionStart + characterCode);
 }
 
-function renderLineActual(lineText: string, lineTextLength: number, tabSize: number, spaceWidth: number, actualLineParts: ViewLineToken[], renderWhitespace: boolean, renderControlCharacters: boolean, charBreakIndex: number): RenderLineOutput {
+function renderLineActual(lineText: string, lineTextLength: number, tabSize: number, spaceWidth: number, actualLineParts: ViewLineToken[], renderWhitespace: 'none' | 'boundary' | 'all', renderControlCharacters: boolean, charBreakIndex: number): RenderLineOutput {
 	lineTextLength = +lineTextLength;
 	tabSize = +tabSize;
 	charBreakIndex = +charBreakIndex;
@@ -111,7 +111,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
 		let part = actualLineParts[partIndex];
 
-		let parsRendersWhitespace = (renderWhitespace && isWhitespace(part.type));
+		let parsRendersWhitespace = (renderWhitespace !== 'none' && isWhitespace(part.type));
 
 		let toCharIndex = lineTextLength;
 		if (partIndex + 1 < partIndexLen) {

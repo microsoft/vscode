@@ -98,7 +98,7 @@ export class Colorizer {
 			tabSize,
 			0,
 			-1,
-			false,
+			'none',
 			false,
 			tokens
 		));
@@ -143,7 +143,7 @@ function actualColorize(lines:string[], mode:IMode, tabSize:number): IActualColo
 			tabSize,
 			0,
 			-1,
-			false,
+			'none',
 			false,
 			tokenizeResult.tokens.map(t => new ViewLineToken(t.startIndex, t.type))
 		));
