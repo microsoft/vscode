@@ -18,7 +18,7 @@ import {ICursorPositionChangedEvent, IPosition, IRange} from 'vs/editor/common/e
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
 import {IQuickFix2, getCodeActions} from '../common/quickFix';
-import {LightBulpWidget} from './lightBulpWidget';
+import {LightBulbWidget} from './lightBulbWidget';
 
 enum QuickFixSuggestState {
 	NOT_ACTIVE = 0,
@@ -33,10 +33,10 @@ export class QuickFixModel extends EventEmitter {
 
 	private markers: IMarker[];
 	private lastMarker: IMarker;
-	private lightBulpPosition: IPosition;
+	private lightBulbPosition: IPosition;
 	private toDispose: IDisposable[];
 	private toLocalDispose: IDisposable[];
-	private lightBulpDecoration: string[];
+	private lightBulbDecoration: string[];
 
 	private autoSuggestDelay: number;
 	private enableAutoQuckFix: boolean;
@@ -51,7 +51,7 @@ export class QuickFixModel extends EventEmitter {
 
 	private updateScheduler: RunOnceScheduler;
 
-	private lightBulp: LightBulpWidget;
+	private lightBulb: LightBulbWidget;
 
 	constructor(editor: ICodeEditor, markerService: IMarkerService, onAccept: (fix: IQuickFix2, marker:IMarker) => void) {
 		super(/*[
@@ -66,11 +66,11 @@ export class QuickFixModel extends EventEmitter {
 		this.onAccept = onAccept;
 
 		this.quickFixRequestPromise = null;
-		this.lightBulpDecoration = [];
+		this.lightBulbDecoration = [];
 		this.toDispose = [];
 		this.toLocalDispose = [];
 
-		this.lightBulp = new LightBulpWidget(editor, (pos) => { this.onLightBulpClicked(pos); });
+		this.lightBulb = new LightBulbWidget(editor, (pos) => { this.onLightBulbClicked(pos); });
 
 		this.enableAutoQuckFix = false; // turn off for now
 		this.autoSuggestDelay = this.editor.getConfiguration().contribInfo.quickSuggestionsDelay;
@@ -87,7 +87,7 @@ export class QuickFixModel extends EventEmitter {
 		this.cancelDialog();
 		this.localDispose();
 		this.lastMarker = null;
-		this.lightBulpPosition = null;
+		this.lightBulbPosition = null;
 		this.markers = null;
 		this.updateScheduler = null;
 
@@ -103,7 +103,7 @@ export class QuickFixModel extends EventEmitter {
 		}));
 	}
 
-	private onLightBulpClicked(pos: IPosition) : void {
+	private onLightBulbClicked(pos: IPosition) : void {
 		this.triggerDialog(true, pos);
 	}
 
@@ -137,15 +137,15 @@ export class QuickFixModel extends EventEmitter {
 	}
 
 	private setDecoration(pos: IPosition): void {
-		this.lightBulpPosition = pos;
+		this.lightBulbPosition = pos;
 		this.updateDecoration();
 	}
 
 	private updateDecoration() : void {
-		if (this.lightBulpPosition && this.state === QuickFixSuggestState.NOT_ACTIVE) {
-			this.lightBulp.show(this.lightBulpPosition);
+		if (this.lightBulbPosition && this.state === QuickFixSuggestState.NOT_ACTIVE) {
+			this.lightBulb.show(this.lightBulbPosition);
 		} else {
-			this.lightBulp.hide();
+			this.lightBulb.hide();
 		}
 	}
 
@@ -163,7 +163,7 @@ export class QuickFixModel extends EventEmitter {
 				let marker = this.lastMarker;
 				if (marker && Range.containsPosition(marker, pos)) {
 					// still on the same marker
-					if (this.lightBulpPosition) {
+					if (this.lightBulbPosition) {
 						this.setDecoration(pos);
 					}
 					return;
@@ -177,7 +177,7 @@ export class QuickFixModel extends EventEmitter {
 
 				this.lastMarker = marker = this.findMarker(pos, false);
 				if (!marker) {
-					// remove lightbulp
+					// remove lightbulb
 					this.setDecoration(null);
 					return;
 				}

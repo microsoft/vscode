@@ -10,7 +10,7 @@ import {IPosition} from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 
-export class LightBulpWidget implements IContentWidget, IDisposable {
+export class LightBulbWidget implements IContentWidget, IDisposable {
 
 	private editor: ICodeEditor;
 	private position: IPosition;
@@ -35,7 +35,7 @@ export class LightBulpWidget implements IContentWidget, IDisposable {
 	}
 
 	public getId(): string {
-		return '__lightBulpWidget';
+		return '__lightBulbWidget';
 	}
 
 	public getDomNode(): HTMLElement {
@@ -43,7 +43,7 @@ export class LightBulpWidget implements IContentWidget, IDisposable {
 			this.domNode = document.createElement('div');
 			this.domNode.style.width = '20px';
 			this.domNode.style.height = '20px';
-			this.domNode.className = 'lightbulp-glyph';
+			this.domNode.className = 'lightbulb-glyph';
 			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click',(e) => {
 				this.editor.focus();
 				this.onclick(this.position);
