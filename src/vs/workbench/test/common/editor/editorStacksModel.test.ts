@@ -6,11 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup, GroupEvent} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService} from 'vs/test/utils/servicesTestUtils';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
@@ -48,7 +48,7 @@ interface ModelEvents {
 interface GroupEvents {
 	opened: EditorInput[];
 	activated: EditorInput[];
-	closed: EditorInput[];
+	closed: GroupEvent[];
 	pinned: EditorInput[];
 	unpinned: EditorInput[];
 	moved: EditorInput[];
@@ -87,7 +87,7 @@ function groupListener(group: EditorGroup): GroupEvents {
 	};
 
 	group.onEditorOpened(e => groupEvents.opened.push(e));
-	group.onEditorClosed(e => groupEvents.closed.push(e.editor));
+	group.onEditorClosed(e => groupEvents.closed.push(e));
 	group.onEditorActivated(e => groupEvents.activated.push(e));
 	group.onEditorPinned(e => groupEvents.pinned.push(e));
 	group.onEditorUnpinned(e => groupEvents.unpinned.push(e));
@@ -494,7 +494,9 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[0], input1);
+		assert.equal(events.closed[0].editor, input1);
+		assert.equal(events.closed[0].index, 0);
+		assert.equal(events.closed[0].pinned, true);
 
 		// Active && Preview
 		const input2 = input();
@@ -514,13 +516,15 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[1], input2);
+		assert.equal(events.closed[1].editor, input2);
+		assert.equal(events.closed[1].index, 0);
+		assert.equal(events.closed[1].pinned, false);
 
 		group.closeEditor(input2);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[1], input2);
+		assert.equal(events.closed[1].editor, input2);
 
 		// Nonactive && Pinned => gets active because its first editor
 		const input3 = input();
@@ -540,7 +544,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[2], input3);
+		assert.equal(events.closed[2].editor, input3);
 
 		assert.equal(events.opened[2], input3);
 		assert.equal(events.activated[2], input3);
@@ -549,7 +553,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[2], input3);
+		assert.equal(events.closed[2].editor, input3);
 
 		// Nonactive && Preview => gets active because its first editor
 		const input4 = input();
@@ -569,7 +573,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[3], input4);
+		assert.equal(events.closed[3].editor, input4);
 	});
 
 	test('Stack - Multiple Editors - Pinned and Active', function () {
@@ -725,8 +729,8 @@ suite('Editor Stacks Model', () => {
 		assert.equal(events.opened[0], input1);
 		assert.equal(events.opened[1], input2);
 		assert.equal(events.opened[2], input3);
-		assert.equal(events.closed[0], input1);
-		assert.equal(events.closed[1], input2);
+		assert.equal(events.closed[0].editor, input1);
+		assert.equal(events.closed[1].editor, input2);
 
 		const mru = group.getEditors(true);
 		assert.equal(mru[0], input3);
@@ -809,7 +813,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 2); // 2 previews got merged into one
 		assert.equal(group.getEditors()[0], input2);
 		assert.equal(group.getEditors()[1], input3);
-		assert.equal(events.closed[0], input1);
+		assert.equal(events.closed[0].editor, input1);
 		assert.equal(group.count, 2);
 
 		group.unpin(input3);
@@ -817,7 +821,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 1); // pinning replaced the preview
 		assert.equal(group.getEditors()[0], input3);
-		assert.equal(events.closed[1], input2);
+		assert.equal(events.closed[1].editor, input2);
 		assert.equal(group.count, 1);
 	});
 

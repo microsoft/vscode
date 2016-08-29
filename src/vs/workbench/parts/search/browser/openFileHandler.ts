@@ -158,7 +158,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private cacheQuery(cacheKey: string): ISearchQuery {
 		const options: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
-			extraFileResources: [],
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
 			maxResults: 0,
@@ -193,7 +193,7 @@ class CacheState {
 
 	private promise: TPromise<void>;
 
-	constructor (private cacheQuery: (cacheKey: string) => ISearchQuery, private doLoad: (query: ISearchQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
+	constructor(private cacheQuery: (cacheKey: string) => ISearchQuery, private doLoad: (query: ISearchQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });
@@ -222,17 +222,17 @@ class CacheState {
 					this.previous = null;
 				}
 			}, err => {
-				console.error(errors.toErrorMessage(err));
+				errors.onUnexpectedError(err);
 			});
 	}
 
 	public dispose(): void {
-		this.promise.then(null, () => {})
+		this.promise.then(null, () => { })
 			.then(() => {
 				this._isLoaded = false;
 				return this.doDispose(this._cacheKey);
 			}).then(null, err => {
-				console.error(errors.toErrorMessage(err));
+				errors.onUnexpectedError(err);
 			});
 		if (this.previous) {
 			this.previous.dispose();
