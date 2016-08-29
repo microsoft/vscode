@@ -704,7 +704,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			let quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
 			let resultPromises: TPromise<void>[] = [];
 			resolvedHandlers.forEach(resolvedHandler => {
-
 				const result = resolvedHandler.getResults(value);
 				const promise = (<QuickOpenHandlerResult>result).promisedModel || <TPromise<IModel<any>>>result;
 				shortResponseTime = shortResponseTime || !!(<QuickOpenHandlerResult>result).shortResponseTime;
