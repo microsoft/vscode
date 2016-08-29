@@ -310,9 +310,11 @@ export class QuickFixModel extends EventEmitter {
 		if (!quickFix) {
 			return false;
 		}
-
-		this.onAccept(quickFix, range);
-
+		try {
+			this.onAccept(quickFix, range);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
 		return true;
 	}
 
