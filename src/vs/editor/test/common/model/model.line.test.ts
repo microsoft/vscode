@@ -9,10 +9,9 @@ import {ILineTokens} from 'vs/editor/common/editorCommon';
 import {ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
 import {LineMarker} from 'vs/editor/common/model/textModelWithMarkers';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
-import {IToken} from 'vs/editor/common/modes';
 import {LineToken} from 'vs/editor/common/model/lineToken';
 
-function assertLineTokens(actual:ILineTokens, expected:IToken[]): void {
+function assertLineTokens(actual:ILineTokens, expected:LineToken[]): void {
 	var inflatedActual = actual.inflate();
 	assert.deepEqual(inflatedActual, expected, 'Line tokens are equal');
 }
@@ -283,10 +282,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		line.setTokens(map, [], null, []);
 
 		line.applyEdits({}, [{startColumn:1, endColumn:1, text:'a', forceMoveMarkers: false}], NO_TAB_SIZE);
-		assertLineTokens(line.getTokens(map), [{
-			startIndex: 0,
-			type:''
-		}]);
+		assertLineTokens(line.getTokens(map), [new LineToken(0, '')]);
 	});
 
 	test('updates tokens on insertion 1', () => {
@@ -921,7 +917,7 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 });
 
 suite('Editor Model - modelLine.append text & tokens', () => {
-	function testLineAppendTokens(aText:string, aTokens: LineToken[], bText:string, bTokens:LineToken[], expectedText:string, expectedTokens:IToken[]): void {
+	function testLineAppendTokens(aText:string, aTokens: LineToken[], bText:string, bTokens:LineToken[], expectedText:string, expectedTokens:LineToken[]): void {
 		let inflator = new TokensInflatorMap();
 
 		let a = new ModelLine(1, aText, NO_TAB_SIZE);

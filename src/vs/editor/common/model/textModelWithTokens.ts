@@ -17,7 +17,7 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
-import {ILineContext, ILineTokens, IToken, IMode, IState} from 'vs/editor/common/modes';
+import {ILineContext, ILineTokens, IMode, IState} from 'vs/editor/common/modes';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -26,6 +26,7 @@ import {LineToken} from 'vs/editor/common/model/lineToken';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Position} from 'vs/editor/common/core/position';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {Token} from 'vs/editor/common/core/token';
 
 class ModeToModelBinder implements IDisposable {
 
@@ -475,12 +476,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	private static _toLineTokens(tokens:IToken[]): LineToken[] {
+	private static _toLineTokens(tokens:Token[]): LineToken[] {
 		if (!tokens || tokens.length === 0) {
 			return [];
-		}
-		if (tokens[0] instanceof LineToken) {
-			return <LineToken[]>tokens;
 		}
 		let result:LineToken[] = [];
 		for (let i = 0, len = tokens.length; i < len; i++) {
@@ -623,10 +621,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				if (r && r.actualStopOffset < text.length) {
 					// Treat the rest of the line (if above limit) as one default token
-					r.tokens.push({
-						startIndex: r.actualStopOffset,
-						type: ''
-					});
+					r.tokens.push(new Token(r.actualStopOffset, ''));
 
 					// Use as end state the starting state
 					r.endState = this._lines[lineIndex].getState();

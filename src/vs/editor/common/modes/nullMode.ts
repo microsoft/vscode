@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMode, IState, IStream, ITokenizationResult, ILineTokens, IToken} from 'vs/editor/common/modes';
+import {IMode, IState, IStream, ITokenizationResult, ILineTokens} from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 
 export class NullState implements IState {
 
@@ -72,12 +73,7 @@ export class NullMode implements IMode {
 }
 
 export function nullTokenize(modeId: string, buffer:string, state: IState, deltaOffset:number = 0, stopAtOffset?:number): ILineTokens {
-	let tokens:IToken[] = [
-		{
-			startIndex: deltaOffset,
-			type: ''
-		}
-	];
+	let tokens:Token[] = [new Token(deltaOffset, '')];
 
 	let modeTransitions:ModeTransition[] = [new ModeTransition(deltaOffset, modeId)];
 

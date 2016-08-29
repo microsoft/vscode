@@ -10,7 +10,7 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import {ILineContext, IMode, IToken} from 'vs/editor/common/modes';
+import {ILineContext, IMode} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -18,6 +18,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
@@ -1247,7 +1248,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	token: IToken;
+	token: Token;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;
