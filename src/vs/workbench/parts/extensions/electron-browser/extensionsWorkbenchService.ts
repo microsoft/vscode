@@ -387,7 +387,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extension.local = local;
 		extension.needsRestart = true;
 
-		let eventName: string = 'extensionGallery:install';
 		this.installing = this.installing.filter(e => e.id !== id);
 
 		if (!error) {
@@ -395,7 +394,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
 
 			if (galleryId && installed) {
-				eventName = 'extensionGallery:update';
+				installing.operation = Operation.Updating;
 				installed.local = local;
 			} else {
 				this.installed.push(extension);
