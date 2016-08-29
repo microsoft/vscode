@@ -4,42 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor-hover {
-	padding: 0 3px 0 3px;
-	border: 1px solid #CCC;
-	position: absolute;
-	margin-top: -1px;
 	cursor: default;
+	position: absolute;
+	overflow: hidden;
+	width: 438px;
+	background-color: #F3F3F3;
+	border: 1px solid #CCC;
 	z-index: 50;
-
-	-webkit-animation-duration: 0.15s;
-	-webkit-animation-name: fadeIn;
-	-moz-animation-duration: 0.15s;
-	-moz-animation-name: fadeIn;
-	-ms-animation-duration: 0.15s;
-	-ms-animation-name: fadeIn;
-	animation-duration: 0.15s;
-	animation-name: fadeIn;
-
 	-webkit-user-select: text;
 	-ms-user-select: text;
 	-khtml-user-select: text;
 	-moz-user-select: text;
 	-o-user-select: text;
 	user-select: text;
-
-	overflow: hidden;
-
-	white-space: pre-wrap;
-
 	box-sizing: initial;
 }
 
-.monaco-editor-hover p {
-	margin: 0;
+.monaco-editor-hover .hover-row {
+	padding: 0.5em 0.5em;
 }
 
-.monaco-editor.vs-dark .monaco-editor-hover { border-color: #555; }
-.monaco-editor.vs-dark .monaco-editor-hover a { color: #1C5DAF; }
+.monaco-editor-hover .hover-row:not(:first-child):not(:empty) {
+	border-top: 1px solid rgba(204, 204, 204, 0.5);
+}
 
-.monaco-editor			.hoverHighlight { background: rgba(173, 214, 255, 0.15); }
-.monaco-editor.vs-dark	.hoverHighlight { background: rgba(38, 79, 120, 0.25); }
+.monaco-editor-hover p,
+.monaco-editor-hover ul {
+	margin: 0.6em 0;
+}
+
+.monaco-editor-hover p:first-child,
+.monaco-editor-hover ul:first-child {
+	margin-top: 0;
+}
+
+.monaco-editor-hover p:last-child,
+.monaco-editor-hover ul:last-child {
+	margin-bottom: 0;
+}
+
+.monaco-editor-hover ul {
+	line-height: 1.8em;
+	list-style-position: inside;
+	-webkit-padding-start: 6px;
+}
+
+.monaco-editor-hover code {
+	background-color: rgba(132, 132, 132, 0.14);
+	border-radius: 3px;
+	padding: 0 0.4em;
+}
+
+.monaco-editor .hoverHighlight {
+	background: rgba(173, 214, 255, 0.15);
+}
+
+.monaco-editor.vs-dark .monaco-editor-hover { background-color: #2D2D30; border-color: #555; }
+.monaco-editor.vs-dark .monaco-editor-hover a { color: #1C5DAF; }
+.monaco-editor.vs-dark .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-color: rgba(85,85,85,0.5); }
+.monaco-editor.vs-dark .hoverHighlight { background: rgba(38, 79, 120, 0.25); }
+
+.monaco-editor.hc-black .monaco-editor-hover { background-color: #0C141F; }
