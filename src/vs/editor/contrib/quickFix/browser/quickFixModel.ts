@@ -82,6 +82,7 @@ export class QuickFixModel extends EventEmitter {
 
 		this.markerService.onMarkerChanged(this.onMarkerChanged, this, this.toLocalDispose);
 		this.toLocalDispose.push(this.editor.onDidChangeCursorPosition(e => this.onCursorPositionChanged()));
+		this.toLocalDispose.push(this.editor.onDidBlurEditorText(() => this.setDecoration(null)));
 	}
 
 	private onLightBulbClicked(pos: IPosition): void {
