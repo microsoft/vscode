@@ -7,17 +7,30 @@
 import {IMode, IModeTransition} from 'vs/editor/common/modes';
 import {Arrays} from 'vs/editor/common/core/arrays';
 
-export class ModeTransition {
-	_modeTransitionBrand: void;
+export class ReducedModeTransition {
+	_reducedModeTransitionBrand: void;
 
 	public startIndex:number;
-	public mode:IMode;
 	public modeId: string;
 
-	constructor(startIndex:number, mode:IMode) {
+	constructor(startIndex:number, modeId:string) {
 		this.startIndex = startIndex|0;
+		this.modeId = modeId;
+	}
+
+	public static findIndexInSegmentsArray(arr:ReducedModeTransition[], desiredIndex: number): number {
+		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
+	}
+}
+
+export class ModeTransition extends ReducedModeTransition {
+	_modeTransitionBrand: void;
+
+	public mode:IMode;
+
+	constructor(startIndex:number, mode:IMode) {
+		super(startIndex, mode.getId());
 		this.mode = mode;
-		this.modeId = mode.getId();
 	}
 
 	public static findIndexInSegmentsArray(arr:ModeTransition[], desiredIndex: number): number {
