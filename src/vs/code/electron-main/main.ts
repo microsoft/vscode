@@ -69,7 +69,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
-	const configurationService = <ConfigurationService<any>>accessor.get(IConfigurationService);
+	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
