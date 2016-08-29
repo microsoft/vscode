@@ -44,7 +44,7 @@ export class LightBulbWidget implements IContentWidget, IDisposable {
 			this.domNode.style.width = '20px';
 			this.domNode.style.height = '20px';
 			this.domNode.className = 'lightbulb-glyph';
-			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click', (e) => {
+			this.toDispose.push(dom.addDisposableListener(this.domNode, 'mousedown', (e) => {
 				this.editor.focus();
 				this.onclick(this.position);
 			}));
@@ -78,4 +78,3 @@ export class LightBulbWidget implements IContentWidget, IDisposable {
 		this.editor.layoutContentWidget(this);
 	}
 }
-
