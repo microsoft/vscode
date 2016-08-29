@@ -311,6 +311,12 @@ export interface IEditorOptions {
 	 */
 	wrappingColumn?:number;
 	/**
+	 * Control the alternate style of viewport wrapping.
+	 * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
+	 * Can be true or false. Defaults to false.
+	 */
+	dynamicWrapping?:boolean;
+	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
 	 * Defaults to 'none'.
 	 */
@@ -570,6 +576,7 @@ export class EditorWrappingInfo {
 	_editorWrappingInfoBrand: void;
 
 	isViewportWrapping: boolean;
+	dynamicWrapping: boolean;
 	wrappingColumn: number;
 	wrappingIndent: WrappingIndent;
 	wordWrapBreakBeforeCharacters: string;
@@ -581,6 +588,7 @@ export class EditorWrappingInfo {
 	 */
 	constructor(source:{
 		isViewportWrapping: boolean;
+		dynamicWrapping: boolean;
 		wrappingColumn: number;
 		wrappingIndent: WrappingIndent;
 		wordWrapBreakBeforeCharacters: string;
@@ -588,6 +596,7 @@ export class EditorWrappingInfo {
 		wordWrapBreakObtrusiveCharacters: string;
 	}) {
 		this.isViewportWrapping = Boolean(source.isViewportWrapping);
+		this.dynamicWrapping = Boolean(source.dynamicWrapping);
 		this.wrappingColumn = source.wrappingColumn|0;
 		this.wrappingIndent = source.wrappingIndent|0;
 		this.wordWrapBreakBeforeCharacters = String(source.wordWrapBreakBeforeCharacters);
@@ -601,6 +610,7 @@ export class EditorWrappingInfo {
 	public equals(other:EditorWrappingInfo): boolean {
 		return (
 			this.isViewportWrapping === other.isViewportWrapping
+			&& this.dynamicWrapping === other.dynamicWrapping
 			&& this.wrappingColumn === other.wrappingColumn
 			&& this.wrappingIndent === other.wrappingIndent
 			&& this.wordWrapBreakBeforeCharacters === other.wordWrapBreakBeforeCharacters
