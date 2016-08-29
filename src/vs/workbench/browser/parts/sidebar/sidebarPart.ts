@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
-import {IComposite} from 'vs/workbench/common/composite';
 import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
 import {Viewlet, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -24,7 +23,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event from 'vs/base/common/event';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -32,8 +31,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	public _serviceBrand: any;
 
-	private _onDidViewletOpen = new Emitter<IViewlet>();
-	private _onDidViewletClose = new Emitter<IViewlet>();
 	private blockOpeningViewlet: boolean;
 
 	constructor(
@@ -64,11 +61,11 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	public get onDidViewletOpen(): Event<IViewlet> {
-		return this._onDidViewletOpen.event;
+		return this._onDidCompositeOpen.event;
 	}
 
 	public get onDidViewletClose(): Event<IViewlet> {
-		return this._onDidViewletClose.event;
+		return this._onDidCompositeClose.event;
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
@@ -86,10 +83,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			}
 		}
 
-		return this.openComposite(id, focus).then(composite => {
-			this._onDidViewletOpen.fire(composite as IComposite as IViewlet);
-			return composite;
-		});
+		return this.openComposite(id, focus);
 	}
 
 	public getActiveViewlet(): IViewlet {
@@ -101,7 +95,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	public hideActiveViewlet(): TPromise<void> {
-		return this.hideActiveComposite().then(composite => this._onDidViewletClose.fire(composite as IComposite as IViewlet));
+		return this.hideActiveComposite().then(composite => void 0);
 	}
 }
 
