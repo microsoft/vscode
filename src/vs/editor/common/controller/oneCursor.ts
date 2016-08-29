@@ -1367,7 +1367,7 @@ export class OneCursorOp {
 			return false;
 		}
 
-		return this._enter(cursor, false, ctx);
+		return this._enter(cursor, false, ctx, cursor.getPosition(), cursor.getSelection());
 	}
 
 	public static lineInsertBefore(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
@@ -1391,19 +1391,13 @@ export class OneCursorOp {
 	}
 
 	public static lineBreakInsert(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._enter(cursor, true, ctx);
+		return this._enter(cursor, true, ctx, cursor.getPosition(), cursor.getSelection());
 	}
 
-	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position?: Position, range?: Range): boolean {
-		if (typeof position === 'undefined') {
-			position = cursor.getPosition();
-		}
-		if (typeof range === 'undefined') {
-			range = cursor.getSelection();
-		}
+	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position: Position, range: Range): boolean {
 		ctx.shouldPushStackElementBefore = true;
 
-		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(cursor.model, position.lineNumber, position.column);
+		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(cursor.model, range.startLineNumber, range.startColumn);
 		let enterAction = r.enterAction;
 		let indentation = r.indentation;
 

@@ -739,7 +739,7 @@ suite('Editor Controller - Cursor', () => {
 		});
 		thisCursor.addListener2(EventType.CursorSelectionChanged, (e:ICursorSelectionChangedEvent) => {
 			events++;
-			assert.deepEqual(e.selection, new Selection(1, 2, 1, 1));
+			assert.deepEqual(e.selection, new Selection(1, 1, 1, 2));
 		});
 		moveTo(thisCursor, 1, 2, true);
 		assert.equal(events, 2, 'receives 2 events');
@@ -2007,31 +2007,59 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
-	// test('issue Microsoft/monaco-editor#108: Auto indentation on Enter with selection is half broken', () => {
-	// 	usingCursor({
-	// 		text: [
-	// 			'function baz() {',
-	// 			'\tvar x = 1;',
-	// 			'\t\t\t\t\t\t\treturn x;',
-	// 			'}'
-	// 		],
-	// 		modelOpts: {
-	// 			defaultEOL: DefaultEndOfLine.LF,
-	// 			detectIndentation: false,
-	// 			insertSpaces: false,
-	// 			tabSize: 4,
-	// 			trimAutoWhitespace: true
-	// 		},
-	// 		mode: new OnEnterMode(IndentAction.Indent),
-	// 	}, (model, cursor) => {
-	// 		moveTo(cursor, 2, 12, false);
-	// 		moveTo(cursor, 3, 8, true);
-	// 		assertCursor(cursor, new Selection(2, 12, 3, 8));
+	test('issue Microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', () => {
+		usingCursor({
+			text: [
+				'function baz() {',
+				'\tvar x = 1;',
+				'\t\t\t\t\t\t\treturn x;',
+				'}'
+			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			},
+			mode: new OnEnterMode(IndentAction.None),
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 8, false);
+			moveTo(cursor, 2, 12, true);
+			assertCursor(cursor, new Selection(3, 8, 2, 12));
 
-	// 		cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
-	// 		// assert.equal(model.getLineContent(4), '\t\t');
-	// 	});
-	// });
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getLineContent(3), '\treturn x;');
+			assertCursor(cursor, new Position(3, 2));
+		});
+	});
+
+	test('issue Microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', () => {
+		usingCursor({
+			text: [
+				'function baz() {',
+				'\tvar x = 1;',
+				'\t\t\t\t\t\t\treturn x;',
+				'}'
+			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			},
+			mode: new OnEnterMode(IndentAction.None),
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 12, false);
+			moveTo(cursor, 3, 8, true);
+			assertCursor(cursor, new Selection(2, 12, 3, 8));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getLineContent(3), '\treturn x;');
+			assertCursor(cursor, new Position(3, 2));
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
@@ -2447,7 +2475,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assert.equal(model.getLineContent(1), '    ');
 			assert.equal(model.getLineContent(2), '    ');
-			assert.equal(model.getLineContent(3), '');
+			assert.equal(model.getLineContent(3), '    ');
 			assert.equal(model.getLineContent(4), '');
 			assert.equal(model.getLineContent(5), '');
 		});
