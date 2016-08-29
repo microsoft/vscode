@@ -9,7 +9,7 @@ import {ILineTokens, IReadOnlyLineMarker} from 'vs/editor/common/editorCommon';
 import {IState} from 'vs/editor/common/modes';
 import {TokensBinaryEncoding, TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {LineToken} from 'vs/editor/common/model/lineToken';
+import {Token} from 'vs/editor/common/core/token';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 
 const START_INDEX_MASK = TokensBinaryEncoding.START_INDEX_MASK;
@@ -190,7 +190,7 @@ export class ModelLine {
 
 	// --- BEGIN TOKENS
 
-	public setTokens(map: TokensInflatorMap, tokens: LineToken[], topLevelModeId:string, modeTransitions:ModeTransition[]): void {
+	public setTokens(map: TokensInflatorMap, tokens: Token[], topLevelModeId:string, modeTransitions:ModeTransition[]): void {
 		this._lineTokens = toLineTokensFromInflated(map, tokens, this._text.length);
 		this._modeTransitions = toModeTransitions(topLevelModeId, modeTransitions);
 	}
@@ -697,7 +697,7 @@ export class ModelLine {
 	}
 }
 
-function toLineTokensFromInflated(map:TokensInflatorMap, tokens:LineToken[], textLength:number): number[] {
+function toLineTokensFromInflated(map:TokensInflatorMap, tokens:Token[], textLength:number): number[] {
 	if (textLength === 0) {
 		return null;
 	}
