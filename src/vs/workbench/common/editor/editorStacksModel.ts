@@ -346,7 +346,7 @@ export class EditorGroup implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		this.fireEvent(this._onEditorClosed, { editor, pinned }, true);
+		this.fireEvent(this._onEditorClosed, { editor, pinned, index }, true);
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {

@@ -831,6 +831,7 @@ export interface IEditorContext extends IEditorIdentifier {
 export interface IGroupEvent {
 	editor: IEditorInput;
 	pinned: boolean;
+	index: number;
 }
 
 export type GroupIdentifier = number;
