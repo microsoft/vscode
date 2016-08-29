@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IWorkbenchConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
+import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
 import {MainThreadConfigurationShape, ExtHostContext} from './extHost.protocol';
 
@@ -18,7 +18,7 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 
 	constructor(
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
-		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IThreadService threadService: IThreadService
 	) {
 		super();
