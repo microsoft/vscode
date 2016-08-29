@@ -86,7 +86,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
 	public build(): ITaskRunResult {
 		if (!this.defaultBuildTaskIdentifier) {
-			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noBuildTask', 'No build task configured.'), TaskErrors.NoBuildTask);
+			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noBuildTask', 'No task is marked as a build task in the tasks.json. Mark a task with \'isBuildCommand\'.'), TaskErrors.NoBuildTask);
 		}
 		return this.executeTask(this.defaultBuildTaskIdentifier, Triggers.shortcut);
 	}
