@@ -17,7 +17,7 @@ export class LightBulbWidget implements IContentWidget, IDisposable {
 	private domNode: HTMLElement;
 	private visible: boolean;
 	private onclick: (pos: IPosition) => void;
-	private toDispose:IDisposable[];
+	private toDispose: IDisposable[];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
@@ -44,7 +44,7 @@ export class LightBulbWidget implements IContentWidget, IDisposable {
 			this.domNode.style.width = '20px';
 			this.domNode.style.height = '20px';
 			this.domNode.className = 'lightbulb-glyph';
-			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click',(e) => {
+			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click', (e) => {
 				this.editor.focus();
 				this.onclick(this.position);
 			}));
@@ -58,7 +58,7 @@ export class LightBulbWidget implements IContentWidget, IDisposable {
 			: null;
 	}
 
-	public show(where:IPosition): void {
+	public show(where: IPosition): void {
 		if (this.visible && Position.equals(this.position, where)) {
 			return;
 		}
