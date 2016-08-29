@@ -5,24 +5,24 @@
 
 /* light bulp */
 
-.monaco-editor .lightbulp-glyph {
+.monaco-editor .lightbulb-glyph {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.monaco-editor .lightbulp-glyph:hover {
+.monaco-editor .lightbulb-glyph:hover {
 	cursor: pointer;
 }
 
-.monaco-editor.vs .lightbulp-glyph {
-	background: url('lightbulp.svg') center center no-repeat;
+.monaco-editor.vs .lightbulb-glyph {
+	background: url('lightbulb.svg') center center no-repeat;
 	height: 16px;
 	width: 16px;
 }
 
-.monaco-editor.vs-dark .lightbulp-glyph, .monaco-editor.hc-black .lightbulp-glyph {
-	background: url('lightbulp-dark.svg') center center no-repeat;
+.monaco-editor.vs-dark .lightbulb-glyph, .monaco-editor.hc-black .lightbulb-glyph {
+	background: url('lightbulb-dark.svg') center center no-repeat;
 	height: 16px;
 	width: 16px;
 }
