@@ -269,6 +269,10 @@ export class QuickOpenEntry {
 
 		return { labelHighlights, descriptionHighlights };
 	}
+
+	public isFile(): boolean {
+		return false; // TODO@Ben debt with editor history merging
+	}
 }
 
 export class QuickOpenEntryItem extends QuickOpenEntry {

@@ -77,6 +77,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
+	public isFile(): boolean {
+		return true; // TODO@Ben debt with editor history merging
+	}
+
 	public getInput(): IResourceInput | EditorInput {
 		const input: IResourceInput = {
 			resource: this.resource,
