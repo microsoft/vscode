@@ -504,11 +504,17 @@ class StatusBarItem implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data:TaskServiceEventData) => {
-			this.activeCount--;
-			if (this.activeCount === 0) {
-				$(progress).hide();
-				clearInterval(this.intervalToken);
-				this.intervalToken = null;
+			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
+			// So try to treat them accordingly.
+			if (this.activeCount > 0) {
+				this.activeCount--;
+				if (this.activeCount === 0) {
+					$(progress).hide();
+					if (this.intervalToken) {
+						clearInterval(this.intervalToken);
+						this.intervalToken = null;
+					}
+				}
 			}
 		}));
 
