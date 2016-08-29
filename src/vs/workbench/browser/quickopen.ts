@@ -101,11 +101,8 @@ export class QuickOpenHandler {
 }
 
 export interface QuickOpenHandlerResult {
-
 	shortResponseTime: boolean;
-
 	promisedModel: TPromise<IModel<any>>;
-
 }
 
 export interface QuickOpenHandlerHelpEntry {

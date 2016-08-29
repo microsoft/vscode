@@ -81,7 +81,7 @@ suite('QuickOpen performance', () => {
 						const promise = (<QuickOpenHandlerResult>result).promisedModel || <TPromise<IModel<any>>>result;
 						return promise.then(result => {
 							const cachedEvent = popEvent();
-							assert.ok(cachedEvent.data.symbols.fromCache, 'symbolsFromCache');
+							assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 							assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');
 							handler.onClose(false);
 							return [uncachedEvent, cachedEvent];
