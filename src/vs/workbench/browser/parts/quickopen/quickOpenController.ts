@@ -627,11 +627,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.quickOpenWidget.setExtraClass(null);
 
 		// Trigger onOpen
-		if (handlerDescriptor) {
-			this.resolveHandler(handlerDescriptor);
-		} else {
-			this.resolveHandler(defaultHandlerDescriptor);
-		}
+		this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor);
 
 		// Remove leading and trailing whitespace
 		const trimmedValue = strings.trim(value);
@@ -770,7 +766,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			const result = handlerResults[i];
 			const resource = result.getResource();
 
-			if (!resource || !mapEntryToResource[resource.toString()]) {
+			if (!result.isFile() || !resource || !mapEntryToResource[resource.toString()]) {
 				additionalHandlerResults.push(result);
 			}
 		}
