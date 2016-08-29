@@ -1165,8 +1165,8 @@ declare module monaco.editor {
          */
         wrappingColumn?: number;
         /**
-         * Control the word wrapping.
-         * The lines will wrap at min(editor.wrappingColumn, viewportWidthInColumns).
+         * Control the alternate style of viewport wrapping.
+         * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
          * Defaults to false.
          */
         wordWrap?: boolean;
