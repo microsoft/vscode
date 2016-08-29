@@ -14,10 +14,41 @@ suite('Command Tests', function () {
 		assert.throws(() => CommandsRegistry.registerCommand('foo', null));
 	});
 
-	// test('register command - dupe', function () {
-	// 	CommandsRegistry.registerCommand('foo', () => { });
-	// 	assert.throws(() => CommandsRegistry.registerCommand('foo', () => { }));
-	// });
+	test('register/dispose', function () {
+		const command = function () { };
+		const reg = CommandsRegistry.registerCommand('foo', command);
+		assert.ok(CommandsRegistry.getCommand('foo').handler === command);
+		reg.dispose();
+		assert.ok(CommandsRegistry.getCommand('foo') === undefined);
+	});
+
+	test('register/register/dispose', function () {
+		const command1 = function () { };
+		const command2 = function () { };
+
+		// dispose overriding command
+		let reg1 = CommandsRegistry.registerCommand('foo', command1);
+		assert.ok(CommandsRegistry.getCommand('foo').handler === command1);
+
+		let reg2 = CommandsRegistry.registerCommand('foo', command2);
+		assert.ok(CommandsRegistry.getCommand('foo').handler === command2);
+		reg2.dispose();
+
+		assert.ok(CommandsRegistry.getCommand('foo').handler === command1);
+		reg1.dispose();
+		assert.ok(CommandsRegistry.getCommand('foo') === void 0);
+
+		// dispose override command first
+		reg1 = CommandsRegistry.registerCommand('foo', command1);
+		reg2 = CommandsRegistry.registerCommand('foo', command2);
+		assert.ok(CommandsRegistry.getCommand('foo').handler === command2);
+
+		reg1.dispose();
+		assert.ok(CommandsRegistry.getCommand('foo').handler === command2);
+
+		reg2.dispose();
+		assert.ok(CommandsRegistry.getCommand('foo') === void 0);
+	});
 
 	test('command with description', function() {
 
