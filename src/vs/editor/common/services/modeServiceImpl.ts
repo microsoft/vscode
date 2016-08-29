@@ -24,6 +24,7 @@ import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {Token} from 'vs/editor/common/modes/supports';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
@@ -468,7 +469,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 				tokens: tokens,
 				actualStopOffset: offsetDelta + line.length,
 				endState: new TokenizationState2Adapter(state.getMode(), actualResult.endState, state.getStateData()),
-				modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
+				modeTransitions: [new ModeTransition(offsetDelta, state.getMode().getId())],
 			};
 		}
 		throw new Error('Unexpected state to tokenize with!');
@@ -547,7 +548,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
 				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
-				
+
 				mime.registerTextMime({ mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}

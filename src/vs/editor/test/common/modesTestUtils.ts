@@ -14,11 +14,11 @@ export interface TokenText {
 }
 
 export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILineContext {
-	var line = '';
-	var processedTokens: modes.IToken[] = [];
+	let line = '';
+	let processedTokens: modes.IToken[] = [];
 
-	var indexSoFar = 0;
-	for (var i = 0; i < tokens.length; ++i){
+	let indexSoFar = 0;
+	for (let i = 0; i < tokens.length; ++i){
 		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type });
 		line += tokens[i].text;
 		indexSoFar += tokens[i].text.length;
@@ -28,7 +28,7 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 }
 
 export function createMockLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
-	return new TestLineContext(line, tokens.tokens, ModeTransition.create(tokens.modeTransitions));
+	return new TestLineContext(line, tokens.tokens, tokens.modeTransitions);
 }
 
 class TestLineContext implements modes.ILineContext {
@@ -71,8 +71,8 @@ class TestLineContext implements modes.ILineContext {
 	}
 
 	public getTokenText(tokenIndex:number): string {
-		var startIndex = this._tokens[tokenIndex].startIndex;
-		var endIndex = tokenIndex + 1 < this._tokens.length ? this._tokens[tokenIndex + 1].startIndex : this._line.length;
+		let startIndex = this._tokens[tokenIndex].startIndex;
+		let endIndex = tokenIndex + 1 < this._tokens.length ? this._tokens[tokenIndex + 1].startIndex : this._line.length;
 		return this._line.substring(startIndex, endIndex);
 	}
 }
