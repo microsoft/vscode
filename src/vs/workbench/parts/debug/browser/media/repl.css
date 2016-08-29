@@ -117,11 +117,6 @@
 	content: '';
 }
 
-.monaco-workbench .repl .repl-input-wrapper .monaco-editor .current-line {
-	/* Hide selected line highlight */
-	border: none;
-}
-
 .hc-black .monaco-workbench .repl .repl-input-wrapper {
 	border-top-color: #6FC3DF;
 }
