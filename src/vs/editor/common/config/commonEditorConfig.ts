@@ -244,7 +244,7 @@ class InternalEditorOptionsHelper {
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			editorClassName: editorClassName,
 			stopRenderingLineAfter: stopRenderingLineAfter,
-			renderWhitespace: toBoolean(opts.renderWhitespace),
+			renderWhitespace: opts.renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: toBoolean(opts.renderLineHighlight),
@@ -756,9 +756,10 @@ let editorConfiguration:IConfigurationNode = {
 			'description': nls.localize('hideCursorInOverviewRuler', "Controls if the cursor should be hidden in the overview ruler.")
 		},
 		'editor.renderWhitespace': {
-			'type': 'boolean',
+			'type': 'string',
+			'enum': ['none', 'boundary', 'all'],
 			default: DefaultConfig.editor.renderWhitespace,
-			description: nls.localize('renderWhitespace', "Controls whether the editor should render whitespace characters")
+			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters, posibilties are 'none', 'boundary', and 'all'. The 'boundary' option does not render single spaces between words.")
 		},
 		'editor.renderControlCharacters': {
 			'type': 'boolean',

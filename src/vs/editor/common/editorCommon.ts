@@ -423,10 +423,10 @@ export interface IEditorOptions {
 	 */
 	folding?: boolean;
 	/**
-	 * Enable rendering of leading whitespace.
-	 * Defaults to false.
+	 * Enable rendering of whitespace.
+	 * Defaults to none.
 	 */
-	renderWhitespace?: boolean;
+	renderWhitespace?: 'none' | 'boundary' | 'all';
 	/**
 	 * Enable rendering of control characters.
 	 * Defaults to false.
@@ -637,7 +637,7 @@ export class InternalEditorViewOptions {
 	scrollBeyondLastLine:boolean;
 	editorClassName: string;
 	stopRenderingLineAfter: number;
-	renderWhitespace: boolean;
+	renderWhitespace: 'none' | 'boundary' | 'all';
 	renderControlCharacters: boolean;
 	renderIndentGuides: boolean;
 	renderLineHighlight: boolean;
@@ -665,7 +665,7 @@ export class InternalEditorViewOptions {
 		scrollBeyondLastLine:boolean;
 		editorClassName: string;
 		stopRenderingLineAfter: number;
-		renderWhitespace: boolean;
+		renderWhitespace: 'none' | 'boundary' | 'all';
 		renderControlCharacters: boolean;
 		renderIndentGuides: boolean;
 		renderLineHighlight: boolean;
@@ -689,7 +689,7 @@ export class InternalEditorViewOptions {
 		this.scrollBeyondLastLine = Boolean(source.scrollBeyondLastLine);
 		this.editorClassName = String(source.editorClassName);
 		this.stopRenderingLineAfter = source.stopRenderingLineAfter|0;
-		this.renderWhitespace = Boolean(source.renderWhitespace);
+		this.renderWhitespace = source.renderWhitespace;
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.renderLineHighlight = Boolean(source.renderLineHighlight);
