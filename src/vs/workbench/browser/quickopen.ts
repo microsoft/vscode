@@ -33,7 +33,7 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	public getResults(searchValue: string): TPromise<IModel<any>> {
+	public getResults(searchValue: string): TPromise<IModel<any>> | QuickOpenHandlerResult {
 		return TPromise.as(null);
 	}
 
@@ -98,6 +98,14 @@ export class QuickOpenHandler {
 		}
 		return nls.localize('noResultsFound2', "No results found");
 	}
+}
+
+export interface QuickOpenHandlerResult {
+
+	shortResponseTime: boolean;
+
+	promisedModel: TPromise<IModel<any>>;
+
 }
 
 export interface QuickOpenHandlerHelpEntry {

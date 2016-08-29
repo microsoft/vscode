@@ -17,7 +17,7 @@ import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/servic
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'path';
-import {QuickOpenHandler, IQuickOpenRegistry, Extensions} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler, QuickOpenHandlerResult, IQuickOpenRegistry, Extensions} from 'vs/workbench/browser/quickopen';
 import {Registry} from 'vs/platform/platform';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -26,6 +26,7 @@ import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import * as Timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import {IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 
 declare var __dirname: string;
 
@@ -65,7 +66,9 @@ suite('QuickOpen performance', () => {
 			return instantiationService.createInstance(descriptors[0])
 				.then((handler: QuickOpenHandler) => {
 					handler.onOpen();
-					return handler.getResults('a').then(result => {
+					const result = handler.getResults('a');
+					const promise = (<QuickOpenHandlerResult>result).promisedModel || <TPromise<IModel<any>>>result;
+					return promise.then(result => {
 						const uncachedEvent = popEvent();
 						assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 						assert.strictEqual(uncachedEvent.data.files.fromCache, true, 'files.fromCache');
@@ -74,7 +77,9 @@ suite('QuickOpen performance', () => {
 						}
 						return uncachedEvent;
 					}).then(uncachedEvent => {
-						return handler.getResults('ab').then(result => {
+						const result = handler.getResults('ab');
+						const promise = (<QuickOpenHandlerResult>result).promisedModel || <TPromise<IModel<any>>>result;
+						return promise.then(result => {
 							const cachedEvent = popEvent();
 							assert.ok(cachedEvent.data.symbols.fromCache, 'symbolsFromCache');
 							assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');
