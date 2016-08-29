@@ -10,6 +10,7 @@ import * as modes from 'vs/editor/common/modes';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {Token} from 'vs/editor/common/modes/supports';
+import {ModeTransition} from 'vs/editor/common/core/ModeTransition';
 
 export interface ILeavingNestedModeData {
 	/**
@@ -189,10 +190,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		myState = myState.clone();
 		if (prependModeTransitions.length <= 0 || prependModeTransitions[prependModeTransitions.length-1].mode !== this._mode) {
 			// Avoid transitioning to the same mode (this can happen in case of empty embedded modes)
-			prependModeTransitions.push({
-				startIndex: deltaOffset,
-				mode: this._mode
-			});
+			prependModeTransitions.push(new ModeTransition(deltaOffset,this._mode));
 		}
 
 		var maxPos = Math.min(stopAtOffset - deltaOffset, buffer.length);
