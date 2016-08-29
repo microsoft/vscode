@@ -363,14 +363,14 @@ interface Outline {
 }
 
 interface IEditorLineDecoration {
-	lineHighlightId: string;
+	rangeHighlightId: string;
 	lineDecorationId: string;
 	position: Position;
 }
 
 export class GotoSymbolHandler extends QuickOpenHandler {
 	private outlineToModelCache: { [modelId: string]: OutlineModel; };
-	private lineHighlightDecorationId: IEditorLineDecoration;
+	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 	private activeOutlineRequest: TPromise<OutlineModel>;
 
@@ -509,19 +509,19 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			let deleteDecorations: string[] = [];
 
-			if (this.lineHighlightDecorationId) {
-				deleteDecorations.push(this.lineHighlightDecorationId.lineDecorationId);
-				deleteDecorations.push(this.lineHighlightDecorationId.lineHighlightId);
-				this.lineHighlightDecorationId = null;
+			if (this.rangeHighlightDecorationId) {
+				deleteDecorations.push(this.rangeHighlightDecorationId.lineDecorationId);
+				deleteDecorations.push(this.rangeHighlightDecorationId.rangeHighlightId);
+				this.rangeHighlightDecorationId = null;
 			}
 
 			let newDecorations: IModelDeltaDecoration[] = [
 
-				// lineHighlight at index 0
+				// rangeHighlight at index 0
 				{
 					range: fullRange,
 					options: {
-						className: 'lineHighlight',
+						className: 'rangeHighlight',
 						isWholeLine: true
 					}
 				},
@@ -541,11 +541,11 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			];
 
 			let decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
-			let lineHighlightId = decorations[0];
+			let rangeHighlightId = decorations[0];
 			let lineDecorationId = decorations[1];
 
-			this.lineHighlightDecorationId = {
-				lineHighlightId: lineHighlightId,
+			this.rangeHighlightDecorationId = {
+				rangeHighlightId: rangeHighlightId,
 				lineDecorationId: lineDecorationId,
 				position: position
 			};
@@ -553,20 +553,20 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	}
 
 	public clearDecorations(): void {
-		if (this.lineHighlightDecorationId) {
+		if (this.rangeHighlightDecorationId) {
 			this.editorService.getVisibleEditors().forEach((editor) => {
-				if (editor.position === this.lineHighlightDecorationId.position) {
+				if (editor.position === this.rangeHighlightDecorationId.position) {
 					let editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 						changeAccessor.deltaDecorations([
-							this.lineHighlightDecorationId.lineDecorationId,
-							this.lineHighlightDecorationId.lineHighlightId
+							this.rangeHighlightDecorationId.lineDecorationId,
+							this.rangeHighlightDecorationId.rangeHighlightId
 						], []);
 					});
 				}
 			});
 
-			this.lineHighlightDecorationId = null;
+			this.rangeHighlightDecorationId = null;
 		}
 	}
 
