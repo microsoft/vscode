@@ -149,7 +149,7 @@ class InternalEditorOptionsHelper {
 	): editorCommon.InternalEditorOptions {
 
 		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
-		let dynamicWrapping = toBoolean(opts.dynamicWrapping);
+		let wordWrap = toBoolean(opts.wordWrap);
 
 		let stopRenderingLineAfter:number;
 		if (typeof opts.stopRenderingLineAfter !== 'undefined') {
@@ -191,39 +191,34 @@ class InternalEditorOptionsHelper {
 			wrappingColumn = 0;
 		}
 
-		let bareWrappingInfo: { isViewportWrapping: boolean; dynamicWrapping: boolean; wrappingColumn: number; };
+		let bareWrappingInfo: { isViewportWrapping: boolean; wrappingColumn: number; };
 		if (wrappingColumn === 0) {
 			// If viewport width wrapping is enabled
 			bareWrappingInfo = {
 				isViewportWrapping: true,
-				dynamicWrapping: false,
 				wrappingColumn: Math.max(1, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
 			};
-		} else if (wrappingColumn > 0 && dynamicWrapping === true) {
+		} else if (wrappingColumn > 0 && wordWrap === true) {
 			// Enable smart viewport wrapping
 			bareWrappingInfo = {
 				isViewportWrapping: true,
-				dynamicWrapping: true,
 				wrappingColumn: Math.min(wrappingColumn, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
 			};
 		} else if (wrappingColumn > 0) {
 			// Wrapping is enabled
 			bareWrappingInfo = {
 				isViewportWrapping: false,
-				dynamicWrapping: false,
 				wrappingColumn: wrappingColumn
 			};
 		} else {
 			bareWrappingInfo = {
 				isViewportWrapping: false,
-				dynamicWrapping: false,
 				wrappingColumn: -1
 			};
 		}
 		let wrappingInfo = new editorCommon.EditorWrappingInfo({
 			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
 			wrappingColumn: bareWrappingInfo.wrappingColumn,
-			dynamicWrapping: bareWrappingInfo.dynamicWrapping,
 			wrappingIndent: wrappingIndentFromString(opts.wrappingIndent),
 			wordWrapBreakBeforeCharacters: String(opts.wordWrapBreakBeforeCharacters),
 			wordWrapBreakAfterCharacters: String(opts.wordWrapBreakAfterCharacters),
@@ -667,10 +662,10 @@ let editorConfiguration:IConfigurationNode = {
 			'minimum': -1,
 			'description': nls.localize('wrappingColumn', "Controls after how many characters the editor will wrap to the next line. Setting this to 0 turns on viewport width wrapping (word wrapping). Setting this to -1 forces the editor to never wrap.")
 		},
-		'editor.dynamicWrapping' : {
+		'editor.wordWrap' : {
 			'type': 'boolean',
-			'default': DefaultConfig.editor.dynamicWrapping,
-			'description': nls.localize('dynamicWrapping', "Control the alternate style of viewport wrapping. When set to true, viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property.")
+			'default': DefaultConfig.editor.wordWrap,
+			'description': nls.localize('wordWrap', "Controls if lines should wrap. The lines will wrap at min(editor.wrappingColumn, viewportWidthInColumns).")
 		},
 		'editor.wrappingIndent' : {
 			'type': 'string',
