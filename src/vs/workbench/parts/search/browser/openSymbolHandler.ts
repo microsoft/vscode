@@ -179,7 +179,6 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 		// Convert to Entries
 		for (let element of types) {
-
 			if (this.options.skipLocalSymbols && !!element.containerName) {
 				continue; // ignore local symbols if we are told so
 			}
