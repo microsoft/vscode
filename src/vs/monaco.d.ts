@@ -1283,9 +1283,14 @@ declare module monaco.editor {
         renderControlCharacters?: boolean;
         /**
          * Enable rendering of indent guides.
-         * Defaults to true.
+         * Defaults to false.
          */
         renderIndentGuides?: boolean;
+        /**
+         * Enable rendering of current line highlight.
+         * Defaults to true.
+         */
+        renderLineHighlight?: boolean;
         /**
          * Inserting and deleting whitespace follows tab stops.
          */
@@ -1383,6 +1388,7 @@ declare module monaco.editor {
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
+        renderLineHighlight: boolean;
         scrollbar: InternalEditorScrollbarOptions;
     }
 
@@ -1408,6 +1414,7 @@ declare module monaco.editor {
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
+        renderLineHighlight: boolean;
         scrollbar: boolean;
     }
 

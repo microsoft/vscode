@@ -434,9 +434,14 @@ export interface IEditorOptions {
 	renderControlCharacters?: boolean;
 	/**
 	 * Enable rendering of indent guides.
-	 * Defaults to true.
+	 * Defaults to false.
 	 */
 	renderIndentGuides?: boolean;
+	/**
+	 * Enable rendering of current line highlight.
+	 * Defaults to true.
+	 */
+	renderLineHighlight?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -635,6 +640,7 @@ export class InternalEditorViewOptions {
 	renderWhitespace: boolean;
 	renderControlCharacters: boolean;
 	renderIndentGuides: boolean;
+	renderLineHighlight: boolean;
 	scrollbar:InternalEditorScrollbarOptions;
 
 	/**
@@ -662,6 +668,7 @@ export class InternalEditorViewOptions {
 		renderWhitespace: boolean;
 		renderControlCharacters: boolean;
 		renderIndentGuides: boolean;
+		renderLineHighlight: boolean;
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
 		this.theme = String(source.theme);
@@ -685,6 +692,7 @@ export class InternalEditorViewOptions {
 		this.renderWhitespace = Boolean(source.renderWhitespace);
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
+		this.renderLineHighlight = Boolean(source.renderLineHighlight);
 		this.scrollbar = source.scrollbar.clone();
 	}
 
@@ -742,6 +750,7 @@ export class InternalEditorViewOptions {
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.renderIndentGuides === other.renderIndentGuides
+			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
 		);
 	}
@@ -772,6 +781,7 @@ export class InternalEditorViewOptions {
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
 			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
+			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
 		};
 	}
@@ -806,6 +816,7 @@ export interface IViewConfigurationChangedEvent {
 	renderWhitespace:  boolean;
 	renderControlCharacters: boolean;
 	renderIndentGuides:  boolean;
+	renderLineHighlight:  boolean;
 	scrollbar: boolean;
 }
 

@@ -247,6 +247,7 @@ class InternalEditorOptionsHelper {
 			renderWhitespace: toBoolean(opts.renderWhitespace),
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
+			renderLineHighlight: toBoolean(opts.renderLineHighlight),
 			scrollbar: scrollbar,
 		});
 
@@ -768,6 +769,11 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			default: DefaultConfig.editor.renderIndentGuides,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
+		},
+		'editor.renderLineHighlight': {
+			'type': 'boolean',
+			default: DefaultConfig.editor.renderLineHighlight,
+			description: nls.localize('renderLineHighlight', "Controls whether the editor should render the current line highlight")
 		},
 		'editor.codeLens' : {
 			'type': 'boolean',
