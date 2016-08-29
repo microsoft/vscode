@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {IThemeDocument, IThemeSetting, IThemeSettingStyle} from 'vs/workbench/services/themes/common/themeService';
-import {Color} from 'vs/workbench/services/themes/common/color';
+import {Color} from 'vs/base/common/color';
 import {getBaseThemeId, getSyntaxThemeId, isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
 
 export class TokenStylesContribution {
@@ -189,8 +189,23 @@ class EditorSelectionStyleRules extends EditorStyleRule {
 			this.addBackgroundColorRule(editorStyles, '.focused .selected-text', selection, cssRules);
 			this.addBackgroundColorRule(editorStyles, '.selected-text', selection.transparent(0.5), cssRules);
 		}
-		this.addBackgroundColorRule(editorStyles, '.selectionHighlight', editorStyles.getEditorStyleSettings().selectionHighlight, cssRules);
+
+		this.addBackgroundColorRule(editorStyles, '.focused .selectionHighlight', this.getSelectionHighlightColor(editorStyles), cssRules);
 		return cssRules;
+	}
+
+	private getSelectionHighlightColor(editorStyles: EditorStyles) {
+		if (editorStyles.getEditorStyleSettings().selectionHighlight) {
+			return new Color(editorStyles.getEditorStyleSettings().selectionHighlight);
+		}
+
+		if (editorStyles.getEditorStyleSettings().selection && editorStyles.getEditorStyleSettings().background) {
+			let selection = new Color(editorStyles.getEditorStyleSettings().selection);
+			let background = new Color(editorStyles.getEditorStyleSettings().background);
+			return deriveLessProminentColor(selection, background);
+		}
+
+		return null;
 	}
 }
 
@@ -265,4 +280,15 @@ class EditorIndentGuidesStyleRules extends EditorStyleRule {
 		}
 		return null;
 	}
+}
+
+function deriveLessProminentColor(from: Color, backgroundColor: Color): Color {
+	let contrast = from.getContrast(backgroundColor);
+	if (contrast < 1.7 || contrast > 4.5) {
+		return null;
+	}
+	if (from.isDarkerThan(backgroundColor)) {
+		return Color.getLighterColor(from, backgroundColor, 0.4);
+	}
+	return Color.getDarkerColor(from, backgroundColor, 0.4);
 }
