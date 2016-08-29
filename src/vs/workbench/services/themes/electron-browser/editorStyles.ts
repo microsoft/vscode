@@ -191,7 +191,11 @@ class EditorSelectionStyleRules extends EditorStyleRule {
 			this.addBackgroundColorRule(editorStyles, '.selected-text', selection.transparent(0.5), cssRules);
 		}
 
-		this.addBackgroundColorRule(editorStyles, '.focused .selectionHighlight', this.getSelectionHighlightColor(editorStyles), cssRules);
+		let selectionHighlightColor = this.getSelectionHighlightColor(editorStyles);
+		if (selectionHighlightColor) {
+			this.addBackgroundColorRule(editorStyles, '.focused .selectionHighlight', selectionHighlightColor, cssRules);
+			this.addBackgroundColorRule(editorStyles, '.selectionHighlight', selectionHighlightColor.transparent(0.5), cssRules);
+		}
 		return cssRules;
 	}
 
