@@ -66,7 +66,7 @@ class ConfigClass implements IConfiguration {
 			scrollBeyondLastLine: true,
 			automaticLayout: false,
 			wrappingColumn: 300,
-			dynamicWrapping: false,
+			wordWrap: false,
 			wrappingIndent: 'same',
 			wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
 			wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',

@@ -1165,11 +1165,11 @@ declare module monaco.editor {
          */
         wrappingColumn?: number;
         /**
-         * Control the alternate style of viewport wrapping.
-         * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
-         * Can be true or false. Defaults to false.
+         * Control the word wrapping.
+         * The lines will wrap at min(editor.wrappingColumn, viewportWidthInColumns).
+         * Defaults to false.
          */
-        dynamicWrapping?: boolean;
+        wordWrap?: boolean;
         /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
          * Defaults to 'none'.
@@ -1364,7 +1364,6 @@ declare module monaco.editor {
     export class EditorWrappingInfo {
         _editorWrappingInfoBrand: void;
         isViewportWrapping: boolean;
-        dynamicWrapping: boolean;
         wrappingColumn: number;
         wrappingIndent: WrappingIndent;
         wordWrapBreakBeforeCharacters: string;
