@@ -5,7 +5,7 @@
 
 import {IThemeDocument, IThemeSetting, IThemeSettingStyle} from 'vs/workbench/services/themes/common/themeService';
 import {Color} from 'vs/workbench/services/themes/common/color';
-import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes';
+import {getBaseThemeId, getSyntaxThemeId, isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
 
 export class TokenStylesContribution {
 
@@ -74,7 +74,7 @@ export class EditorStylesContribution {
 			new EditorCursorStyleRules(),
 			new EditorWhiteSpaceStyleRules(),
 			new EditorIndentGuidesStyleRules(),
-			new EditorCurrentLineHighlightStyleRules(),
+			new EditorLineHighlightStyleRules(),
 			new EditorSelectionStyleRules(),
 			new EditorWordHighlightStyleRules(),
 			new EditorFindStyleRules()
@@ -96,12 +96,12 @@ interface EditorStyleSettings {
 	caret?: string;
 	invisibles?: string;
 	guide?: string;
+
 	lineHighlight?: string;
 
 	selection?: string;
 	selectionHighlight?: string;
 
-	findLineHighlight?: string;
 	findMatch?: string;
 	currentFindMatch?: string;
 
@@ -114,7 +114,7 @@ class EditorStyles {
 	private themeSelector: string;
 	private editorStyleSettings: EditorStyleSettings = null;
 
-	constructor(themeId: string, themeDocument: IThemeDocument) {
+	constructor(private themeId: string, themeDocument: IThemeDocument) {
 		this.themeSelector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
 		let settings = themeDocument.settings[0];
 		if (!settings.scope) {
@@ -132,6 +132,14 @@ class EditorStyles {
 
 	public getEditorStyleSettings(): EditorStyleSettings {
 		return this.editorStyleSettings;
+	}
+
+	public isDarkTheme(): boolean {
+		return isDarkTheme(this.themeId);
+	}
+
+	public isLightTheme(): boolean {
+		return isLightTheme(this.themeId);
 	}
 }
 
@@ -181,7 +189,6 @@ class EditorSelectionStyleRules extends EditorStyleRule {
 			this.addBackgroundColorRule(editorStyles, '.focused .selected-text', selection, cssRules);
 			this.addBackgroundColorRule(editorStyles, '.selected-text', selection.transparent(0.5), cssRules);
 		}
-
 		this.addBackgroundColorRule(editorStyles, '.selectionHighlight', editorStyles.getEditorStyleSettings().selectionHighlight, cssRules);
 		return cssRules;
 	}
@@ -199,14 +206,13 @@ class EditorWordHighlightStyleRules extends EditorStyleRule {
 class EditorFindStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
-		this.addBackgroundColorRule(editorStyles, '.findLineHighlight', editorStyles.getEditorStyleSettings().findLineHighlight, cssRules);
 		this.addBackgroundColorRule(editorStyles, '.findMatch', editorStyles.getEditorStyleSettings().findMatch, cssRules);
 		this.addBackgroundColorRule(editorStyles, '.currentFindMatch', editorStyles.getEditorStyleSettings().currentFindMatch, cssRules);
 		return cssRules;
 	}
 }
 
-class EditorCurrentLineHighlightStyleRules extends EditorStyleRule {
+class EditorLineHighlightStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
 		this.addBackgroundColorRule(editorStyles, '.current-line', editorStyles.getEditorStyleSettings().lineHighlight, cssRules);
