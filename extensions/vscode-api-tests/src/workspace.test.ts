@@ -41,10 +41,10 @@ suite('workspace-namespace', () => {
 		assert.throws(() => config['get'] = <any> 'get-prop');
 	});
 
-	test('configuration, getConfig/value', () => {
-		const value = workspace.getConfiguration('farboo.config0');
-		assert.equal(Object.keys(value).length, 3);
-	});
+	// test('configuration, getConfig/value', () => {
+	// 	const value = workspace.getConfiguration('farboo.config0');
+	// 	assert.equal(Object.keys(value).length, 3);
+	// });
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(workspace.textDocuments));
