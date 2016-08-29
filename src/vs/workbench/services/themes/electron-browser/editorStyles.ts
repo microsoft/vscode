@@ -98,6 +98,7 @@ interface EditorStyleSettings {
 	guide?: string;
 
 	lineHighlight?: string;
+	rangeHighlight?: string;
 
 	selection?: string;
 	selectionHighlight?: string;
@@ -231,6 +232,7 @@ class EditorLineHighlightStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
 		this.addBackgroundColorRule(editorStyles, '.current-line', editorStyles.getEditorStyleSettings().lineHighlight, cssRules);
+		this.addBackgroundColorRule(editorStyles, '.rangeHighlight', editorStyles.getEditorStyleSettings().rangeHighlight, cssRules);
 		return cssRules;
 	}
 }
