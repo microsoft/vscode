@@ -176,8 +176,6 @@ export interface ILineContext {
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
-	getTokenText(tokenIndex:number): string;
-	getTokenEndIndex(tokenIndex:number): number;
 	findIndexOfOffset(offset:number): number;
 }
 

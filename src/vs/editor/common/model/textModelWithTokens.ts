@@ -149,18 +149,8 @@ class LineContext implements ILineContext {
 		return this._lineTokens.getTokenStartIndex(tokenIndex);
 	}
 
-	public getTokenEndIndex(tokenIndex:number): number {
-		return this._lineTokens.getTokenEndIndex(tokenIndex, this._text.length);
-	}
-
 	public getTokenType(tokenIndex:number): string {
 		return this._lineTokens.getTokenType(tokenIndex);
-	}
-
-	public getTokenText(tokenIndex:number): string {
-		var startIndex = this._lineTokens.getTokenStartIndex(tokenIndex);
-		var endIndex = this._lineTokens.getTokenEndIndex(tokenIndex, this._text.length);
-		return this._text.substring(startIndex, endIndex);
 	}
 
 	public findIndexOfOffset(offset:number): number {

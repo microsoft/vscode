@@ -92,16 +92,8 @@ export class FilteredLineContext implements modes.ILineContext {
 		return this._actual.getTokenStartIndex(tokenIndex + this._firstTokenInModeIndex) - this._firstTokenCharacterOffset;
 	}
 
-	public getTokenEndIndex(tokenIndex:number): number {
-		return this._actual.getTokenEndIndex(tokenIndex + this._firstTokenInModeIndex) - this._firstTokenCharacterOffset;
-	}
-
 	public getTokenType(tokenIndex:number): string {
 		return this._actual.getTokenType(tokenIndex + this._firstTokenInModeIndex);
-	}
-
-	public getTokenText(tokenIndex:number): string {
-		return this._actual.getTokenText(tokenIndex + this._firstTokenInModeIndex);
 	}
 }
 

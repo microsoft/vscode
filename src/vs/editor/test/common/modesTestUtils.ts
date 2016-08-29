@@ -56,24 +56,11 @@ class TestLineContext implements modes.ILineContext {
 		return this._tokens[tokenIndex].startIndex;
 	}
 
-	public getTokenEndIndex(tokenIndex:number): number {
-		if (tokenIndex + 1 < this._tokens.length) {
-			return this._tokens[tokenIndex + 1].startIndex;
-		}
-		return this._line.length;
-	}
-
 	public getTokenType(tokenIndex:number): string {
 		return this._tokens[tokenIndex].type;
 	}
 
 	public findIndexOfOffset(offset:number): number {
 		return Arrays.findIndexInSegmentsArray(this._tokens, offset);
-	}
-
-	public getTokenText(tokenIndex:number): string {
-		let startIndex = this._tokens[tokenIndex].startIndex;
-		let endIndex = tokenIndex + 1 < this._tokens.length ? this._tokens[tokenIndex + 1].startIndex : this._line.length;
-		return this._line.substring(startIndex, endIndex);
 	}
 }
