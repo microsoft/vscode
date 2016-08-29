@@ -169,10 +169,7 @@ class CleanAction extends AbstractTaskAction {
 	}
 }
 
-class ConfigureTaskRunnerAction extends Action {
-
-	public static ID = 'workbench.action.tasks.configureTaskRunner';
-	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
+abstract class OpenTaskConfigurationAction extends Action {
 
 	private configurationService: IConfigurationService;
 	private fileService: IFileService;
@@ -271,6 +268,35 @@ class ConfigureTaskRunnerAction extends Action {
 			throw new Error(nls.localize('ConfigureTaskRunnerAction.failed', "Unable to create the 'tasks.json' file inside the '.vscode' folder. Consult the task output for details."));
 		});
 	}
+}
+
+class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
+	public static ID = 'workbench.action.tasks.configureTaskRunner';
+	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
+
+	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
+		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
+		@IEnvironmentService environmentService: IEnvironmentService) {
+			super(id, label, configurationService, editorService, fileService, contextService,
+			outputService, messageService, quickOpenService, environmentService);
+		}
+
+}
+
+class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
+	public static ID = 'workbench.action.tasks.configureBuildTask';
+	public static TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
+
+	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
+		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
+		@IEnvironmentService environmentService: IEnvironmentService) {
+			super(id, label, configurationService, editorService, fileService, contextService,
+			outputService, messageService, quickOpenService, environmentService);
+		}
 }
 
 class CloseMessageAction extends Action {
@@ -754,6 +780,12 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.outputService, this.messageService, this.quickOpenService, this.environmentService);
 	}
 
+	private configureBuildTask(): Action {
+		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT,
+			this.configurationService, this.editorService, this.fileService, this.contextService,
+			this.outputService, this.messageService, this.quickOpenService, this.environmentService);
+	}
+
 	public build(): TPromise<ITaskSummary> {
 		return this.executeTarget(taskSystem => taskSystem.build());
 	}
@@ -878,6 +910,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		return false; // Nothing to do here
 	}
 
+	private getConfigureAction(code: TaskErrors): Action {
+		switch(code) {
+			case TaskErrors.NoBuildTask:
+				return this.configureBuildTask();
+			default:
+				return this.configureAction();
+		}
+	}
 	private handleError(err:any):void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
@@ -887,7 +927,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (needsConfig || needsTerminate) {
 				let closeAction = new CloseMessageAction();
 				let action = needsConfig
-					? this.configureAction()
+					? this.getConfigureAction(buildError.code)
 					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService);
 
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [closeAction, action ] });
