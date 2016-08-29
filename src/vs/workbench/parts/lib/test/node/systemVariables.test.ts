@@ -24,18 +24,18 @@ suite('SystemVariables tests', () => {
 	test('SystemVariables: substitute many', () => {
 		let systemVariables: SystemVariables = new SystemVariables(null, null, TestEnvironmentService, URI.parse('file:///VSCode/workspaceLocation'));
 		if (Platform.isWindows) {
-			assert.strictEqual(systemVariables.resolve('${workspaceRoot} - ${workspaceRoot}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
+			assert.strictEqual(systemVariables.resolve('${workspaceRoot} - ${workspaceRoot} ${workspaceRootFolderName} - ${workspaceRootFolderName}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation workspaceLocation - workspaceLocation');
 		} else {
-			assert.strictEqual(systemVariables.resolve('${workspaceRoot} - ${workspaceRoot}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation');
+			assert.strictEqual(systemVariables.resolve('${workspaceRoot} - ${workspaceRoot} ${workspaceRootFolderName} - ${workspaceRootFolderName}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation workspaceLocation - workspaceLocation');
 		}
 	});
 	test('SystemVariables: substitute one env variable', () => {
 		let envVariables: { [key: string]: string } = { key1: 'Value for Key1', key2: 'Value for Key2' };
 		let systemVariables: SystemVariables = new SystemVariables(null, null, TestEnvironmentService, URI.parse('file:///VSCode/workspaceLocation'), envVariables);
 		if (Platform.isWindows) {
-			assert.strictEqual(systemVariables.resolve('abc ${workspaceRoot} ${env.key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for Key1 xyz');
+			assert.strictEqual(systemVariables.resolve('abc ${workspaceRoot} ${workspaceRootFolderName} ${env.key1} xyz'), 'abc \\VSCode\\workspaceLocation workspaceLocation Value for Key1 xyz');
 		} else {
-			assert.strictEqual(systemVariables.resolve('abc ${workspaceRoot} ${env.key1} xyz'), 'abc /VSCode/workspaceLocation Value for Key1 xyz');
+			assert.strictEqual(systemVariables.resolve('abc ${workspaceRoot} ${workspaceRootFolderName} ${env.key1} xyz'), 'abc /VSCode/workspaceLocation workspaceLocation Value for Key1 xyz');
 		}
 	});
 
