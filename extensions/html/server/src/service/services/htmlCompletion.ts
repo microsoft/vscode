@@ -10,7 +10,7 @@ import { TokenType, createScanner, ScannerState } from '../parser/htmlScanner';
 import { IHTMLTagProvider, getHTML5TagProvider, getAngularTagProvider, getIonicTagProvider } from '../parser/htmlTags';
 import { startsWith } from '../utils/strings';
 
-let tagProviders: IHTMLTagProvider[];
+let tagProviders: IHTMLTagProvider[] = [];
 tagProviders.push(getHTML5TagProvider());
 tagProviders.push(getAngularTagProvider());
 tagProviders.push(getIonicTagProvider());
@@ -48,10 +48,24 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 		return result;
 	}
 
-	function collectCloseTagSuggestions(afterOpenBracket: number) : CompletionList {
+	function collectCloseTagSuggestions(afterOpenBracket: number, matchingOnly: boolean) : CompletionList {
 		let range : Range = { start: document.positionAt(afterOpenBracket), end: document.positionAt(offset)};
 		let contentAfter = document.getText().substr(offset);
 		let closeTag = isWhiteSpace(contentAfter) || startsWith(contentAfter, '<') ? '>' : '';
+		if (node.parent && node.parent.tag) {
+			let tag = node.parent.tag;
+			result.items.push({
+				label: '/' + tag,
+				kind: CompletionItemKind.Property,
+				filterText: '/' + tag + closeTag,
+				textEdit: { newText: '/' + tag + closeTag, range: range }
+			});
+			return;
+		}
+		if (matchingOnly) {
+			return;
+		}
+
 		tagProviders.forEach((provider) => {
 			provider.collectTags((tag, label) => {
 				result.items.push({
@@ -68,7 +82,7 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 
 	function collectTagSuggestions(tagStart: number) : CompletionList {
 		collectOpenTagSuggestions(tagStart);
-		collectCloseTagSuggestions(tagStart);
+		collectCloseTagSuggestions(tagStart, true);
 		return result;
 	}
 
@@ -134,31 +148,33 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 				break;
 			case TokenType.AttributeValue:
 				if (scanner.getTokenOffset() <= offset && offset <= scanner.getTokenEnd()) {
-					return collectAttributeValueSuggestions(scanner.getTokenEnd());
+					return collectAttributeValueSuggestions(scanner.getTokenOffset());
 				}
 				break;
 			case TokenType.Whitespace:
-			case TokenType.StartTagClose:
-			case TokenType.StartTagSelfClose:
-				if (offset <= scanner.getTokenOffset()) {
+			case TokenType.Unknown:
+				if (offset <= scanner.getTokenEnd()) {
 					switch (scanner.getScannerState()) {
+						case ScannerState.AfterOpeningStartTag:
+							return collectTagSuggestions(scanner.getTokenOffset());
 						case ScannerState.WithinTag:
 						case ScannerState.AfterAttributeName:
-							return collectAttributeNameSuggestions(scanner.getTokenOffset());
+							return collectAttributeNameSuggestions(scanner.getTokenEnd());
 						case ScannerState.BeforeAttributeValue:
-							return collectAttributeValueSuggestions(scanner.getTokenOffset());
+							return collectAttributeValueSuggestions(scanner.getTokenEnd());
 					}
 				}
 				break;
 			case TokenType.EndTagOpen:
 				if (offset <= scanner.getTokenEnd()) {
-					return collectCloseTagSuggestions(scanner.getTokenOffset() + 1);
+					return collectCloseTagSuggestions(scanner.getTokenOffset() + 1, false);
 				}
 				break;
+				
 		}
-
+		token = scanner.scan();
 	}
-	return null;
+	return result;
 }
 
 function isWhiteSpace(s:string) : boolean {
