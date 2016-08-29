@@ -10,9 +10,9 @@ export const CONFIG_DEFAULT_NAME = 'settings';
 export const WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME = '.vscode';
 export const WORKSPACE_CONFIG_DEFAULT_PATH = '.vscode/settings.json';
 
-export const IWorkbenchConfigurationService = createDecorator<IWorkbenchConfigurationService>('configurationService');
+export const IWorkspaceConfigurationService = createDecorator<IWorkspaceConfigurationService>('configurationService');
 
-export interface IWorkbenchConfigurationService extends IConfigurationService {
+export interface IWorkspaceConfigurationService extends IConfigurationService {
 
 	/**
 	 * Returns iff the workspace has configuration or not.
@@ -22,9 +22,9 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	/**
 	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.
 	 */
-	lookup<T>(key: string): IWorkbenchConfigurationValue<T>;
+	lookup<T>(key: string): IWorkspaceConfigurationValue<T>;
 }
 
-export interface IWorkbenchConfigurationValue<T> extends IConfigurationValue<T> {
+export interface IWorkspaceConfigurationValue<T> extends IConfigurationValue<T> {
 	workspace: T;
 }

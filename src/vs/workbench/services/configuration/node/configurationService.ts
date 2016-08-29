@@ -21,7 +21,7 @@ import errors = require('vs/base/common/errors');
 import {IConfigFile, consolidate, newConfigFile} from 'vs/workbench/services/configuration/common/model';
 import {IConfigurationServiceEvent, getConfigurationValue}  from 'vs/platform/configuration/common/configuration';
 import {ConfigurationService as BaseConfigurationService}  from 'vs/platform/configuration/node/configurationService';
-import {IWorkbenchConfigurationService, IWorkbenchConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME} from 'vs/workbench/services/configuration/common/configuration';
+import {IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME} from 'vs/workbench/services/configuration/common/configuration';
 import {EventType as FileEventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -39,7 +39,7 @@ interface IContent {
 /**
  * Wraps around the basic configuration service and adds knowledge about workspace settings.
  */
-export class WorkspaceConfigurationService implements IWorkbenchConfigurationService, IDisposable {
+export class WorkspaceConfigurationService implements IWorkspaceConfigurationService, IDisposable {
 
 	public _serviceBrand: any;
 
@@ -113,7 +113,7 @@ export class WorkspaceConfigurationService implements IWorkbenchConfigurationSer
 		return section ? this.cachedConfig[section] : this.cachedConfig;
 	}
 
-	public lookup<C>(key: string): IWorkbenchConfigurationValue<C> {
+	public lookup<C>(key: string): IWorkspaceConfigurationValue<C> {
 		const configurationValue = this.baseConfigurationService.lookup<C>(key);
 
 		return {
