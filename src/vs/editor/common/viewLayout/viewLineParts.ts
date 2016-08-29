@@ -134,7 +134,7 @@ function insertWhitespaceLineDecorations(lineNumber:number, lineContent: string,
 	let startOfWhitespace = -1;
 	let hasTab = false;
 
-	for (let i = firstNonWhitespaceIndex; i <= lastNonWhitespaceIndex; ++i) {
+	for (let i = Math.max(firstNonWhitespaceIndex, fauxIndentLength); i <= lastNonWhitespaceIndex; ++i) {
 		let currentCharIsTab = lineContent.charCodeAt(i) === _tab;
 		if (currentCharIsTab || lineContent.charCodeAt(i) === _space) {
 			if (currentCharIsTab) {
