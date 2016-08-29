@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
-import {Token} from 'vs/editor/common/modes/supports';
+import {Token} from 'vs/editor/common/core/token';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ILeavingNestedModeData {
