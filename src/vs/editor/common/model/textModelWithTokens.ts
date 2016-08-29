@@ -22,7 +22,6 @@ import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {LineToken} from 'vs/editor/common/model/lineToken';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Position} from 'vs/editor/common/core/position';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -476,17 +475,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	private static _toLineTokens(tokens:Token[]): LineToken[] {
-		if (!tokens || tokens.length === 0) {
-			return [];
-		}
-		let result:LineToken[] = [];
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			result[i] = new LineToken(tokens[i].startIndex, tokens[i].type);
-		}
-		return result;
-	}
-
 	private _beginBackgroundTokenization(): void {
 		if (this._shouldAutoTokenize() && this._revalidateTokensTimeout === -1) {
 			this._revalidateTokensTimeout = setTimeout(() => {
@@ -638,7 +626,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				// Make sure there is at least the transition to the top-most mode
 				r.modeTransitions.push(new ModeTransition(0, this.getModeId()));
 			}
-			this._lines[lineIndex].setTokens(this._tokensInflatorMap, TextModelWithTokens._toLineTokens(r.tokens), this.getModeId(), r.modeTransitions);
+			this._lines[lineIndex].setTokens(this._tokensInflatorMap, r.tokens, this.getModeId(), r.modeTransitions);
 
 			if (this._lines[lineIndex].isInvalid) {
 				this._lines[lineIndex].isInvalid = false;

@@ -7,7 +7,7 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
-import {LineToken} from 'vs/editor/common/model/lineToken';
+import {Token} from 'vs/editor/common/core/token';
 
 const START_INDEX_MASK = 0xffffffff;
 const TYPE_MASK = 0xffff;
@@ -40,7 +40,7 @@ export class TokensBinaryEncoding {
 	public static START_INDEX_OFFSET = START_INDEX_OFFSET;
 	public static TYPE_OFFSET = TYPE_OFFSET;
 
-	public static deflateArr(map:TokensInflatorMap, tokens:LineToken[]): number[] {
+	public static deflateArr(map:TokensInflatorMap, tokens:Token[]): number[] {
 		if (tokens.length === 0) {
 			return DEFLATED_TOKENS_EMPTY_TEXT;
 		}
@@ -52,7 +52,7 @@ export class TokensBinaryEncoding {
 			len:number,
 			deflatedToken:number,
 			deflated:number,
-			token:LineToken,
+			token:Token,
 			inflateMap = map._inflate,
 			deflateMap = map._deflate,
 			prevStartIndex:number = -1,
