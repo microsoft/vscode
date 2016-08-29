@@ -60,8 +60,8 @@ suite('HTML Scanner', () => {
 			input: '< abc',
 			tokens: [
 				{ offset:0, type: TokenType.StartTagOpen },
-				{ offset:1, type: TokenType.Unknown },
-				{ offset:2, type: TokenType.Content }
+				{ offset:1, type: TokenType.Whitespace },
+				{ offset:2, type: TokenType.StartTag, content: 'abc' }
 			]}
 		]);
 	});
@@ -71,8 +71,9 @@ suite('HTML Scanner', () => {
 			input: '< abc>',
 			tokens: [
 				{ offset:0, type: TokenType.StartTagOpen },
-				{ offset:1, type: TokenType.Unknown },
-				{ offset:2, type: TokenType.Content }
+				{ offset:1, type: TokenType.Whitespace },
+				{ offset:2, type: TokenType.StartTag, content: 'abc' },
+				{ offset:5, type: TokenType.StartTagClose },
 			]}
 		]);
 	});

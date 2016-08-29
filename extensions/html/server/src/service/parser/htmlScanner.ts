@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
+
 export enum TokenType {
 	StartCommentTag,
 	Comment,
@@ -184,6 +187,7 @@ export enum ScannerState {
 	AfterOpeningEndTag,
 	WithinDoctype,
 	WithinTag,
+	WithinEndTag,
 	WithinComment,
 	WithinScriptContent,
 	WithinStyleContent,
@@ -198,6 +202,7 @@ export interface Scanner {
 	getTokenLength(): number;
 	getTokenEnd(): number;
 	getTokenText(): string;
+	getTokenError(): string;
 	getScannerState(): ScannerState;
 }
 
@@ -207,6 +212,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 	let state = initialState;
 	let tokenOffset: number = 0;
 	let tokenType: number = void 0;
+	let tokenError: string;
 
 	let hasSpaceAfterTag: boolean;
 	let lastTag: string;
@@ -219,9 +225,10 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 		return stream.advanceIfRegExp(/^[^\s"'>/=\x00-\x0F\x7F\x80-\x9F]*/).toLowerCase();
 	}
 
-	function finishToken(offset: number, type: TokenType): TokenType {
+	function finishToken(offset: number, type: TokenType, errorMessage?: string): TokenType {
 		tokenType = type;
 		tokenOffset = offset;
+		tokenError = errorMessage;
 		return type;
 	}
 
@@ -230,6 +237,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 		if (stream.eos()) {
 			return finishToken(offset, TokenType.EOS);
 		}
+		let errorMessage;
 
 		switch (state) {
 			case ScannerState.WithinComment:
@@ -270,13 +278,24 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 			case ScannerState.AfterOpeningEndTag:
 				let tagName = nextElementName();
 				if (tagName.length > 0) {
+					state = ScannerState.WithinEndTag;
 					return finishToken(offset, TokenType.EndTag);
-				} else if (stream.advanceIfChar(_RAN)) { // >
+				}
+				if (stream.skipWhitespace()) { // white space is not valid here
+					return finishToken(offset, TokenType.Whitespace, localize('error.unexpectedWhitespace', 'Tag name must directly follow the open bracket.'));
+				}
+				stream.advanceUntilChar(_RAN);
+				return finishToken(offset, TokenType.Unknown, localize('error.endTagNameExpected', 'End tag name expected.'));
+			case ScannerState.WithinEndTag:
+				if (stream.skipWhitespace()) { // white space is valid here
+					return finishToken(offset, TokenType.Whitespace);
+				}
+				if (stream.advanceIfChar(_RAN)) { // >
 					state = ScannerState.WithinContent;
 					return finishToken(offset, TokenType.EndTagClose);
 				}
-				stream.advanceUntilChar(_RAN);
-				return finishToken(offset, TokenType.Whitespace);
+				errorMessage = localize('error.tagNameExpected', 'Closing bracket expected.');
+				break;
 			case ScannerState.AfterOpeningStartTag:
 				lastTag = nextElementName();
 				if (lastTag.length > 0) {
@@ -284,7 +303,11 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 					state = ScannerState.WithinTag;
 					return finishToken(offset, TokenType.StartTag);
 				}
-				break;
+				if (stream.skipWhitespace()) { // white space is not valid here
+					return finishToken(offset, TokenType.Whitespace, localize('error.unexpectedWhitespace', 'Tag name must directly follow the open bracket.'));
+				}
+				stream.advanceUntilChar(_RAN);
+				return finishToken(offset, TokenType.Unknown, localize('error.startTagNameExpected', 'Start tag name expected.'));
 			case ScannerState.WithinTag:
 				if (stream.skipWhitespace()) {
 					hasSpaceAfterTag = true; // remember that we have seen a whitespace
@@ -313,7 +336,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 					return finishToken(offset, TokenType.StartTagClose);
 				}
 				stream.advance(1);
-				return finishToken(offset, TokenType.Unknown);
+				return finishToken(offset, TokenType.Unknown, localize('error.unexpectedCharacterInTag', 'Unexpected character in tag.'));
 			case ScannerState.AfterAttributeName:
 				if (stream.skipWhitespace()) {
 					hasSpaceAfterTag = true;
@@ -392,7 +415,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 
 		stream.advance(1);
 		state = ScannerState.WithinContent;
-		return finishToken(offset, TokenType.Unknown);
+		return finishToken(offset, TokenType.Unknown, errorMessage);
 	}
 	return {
 		scan,
@@ -401,6 +424,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 		getTokenLength: () => stream.pos() - tokenOffset,
 		getTokenEnd: () => stream.pos(),
 		getTokenText: () => stream.getSource().substring(tokenOffset, stream.pos()),
-		getScannerState: () => state
+		getScannerState: () => state,
+		getTokenError: () => tokenError
 	};
 }
