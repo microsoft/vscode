@@ -13,6 +13,7 @@ import {handleEvent} from 'vs/editor/common/modes/supports';
 import {IEnteringNestedModeData, ILeavingNestedModeData, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {createMockLineContext} from 'vs/editor/test/common/modesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export class State extends AbstractState {
 
@@ -162,12 +163,12 @@ interface ITestModeTransition {
 	startIndex:number;
 	id:string;
 }
-function assertModeTransitions(actual:modes.IModeTransition[], expected:ITestModeTransition[], message?:string) {
+function assertModeTransitions(actual:ModeTransition[], expected:ITestModeTransition[], message?:string) {
 	var massagedActual:ITestModeTransition[] = [];
 	for (var i = 0; i < actual.length; i++) {
 		massagedActual.push({
 			startIndex: actual[i].startIndex,
-			id: actual[i].mode.getId()
+			id: actual[i].modeId
 		});
 	}
 	assert.deepEqual(massagedActual, expected, message);

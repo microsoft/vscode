@@ -251,7 +251,7 @@ class Tokenizer {
 		if (line.length >= 20000 || depth(state.getRuleStack()) > 30) {
 			return new LineTokens(
 				[new Token(offsetDelta, '')],
-				[new ModeTransition(offsetDelta, state.getMode())],
+				[new ModeTransition(offsetDelta, state.getMode().getId())],
 				offsetDelta,
 				state
 			);
@@ -278,7 +278,7 @@ class Tokenizer {
 
 		return new LineTokens(
 			tokens,
-			[new ModeTransition(offsetDelta, freshState.getMode())],
+			[new ModeTransition(offsetDelta, freshState.getMode().getId())],
 			offsetDelta + line.length,
 			freshState
 		);

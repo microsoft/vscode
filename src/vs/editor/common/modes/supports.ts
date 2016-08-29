@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
-import {ModeTransition, ReducedModeTransition} from 'vs/editor/common/core/modeTransition';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export class Token implements modes.IToken {
 	_tokenBrand: void;
@@ -48,7 +48,7 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 		return runner(modeTransitions[0].modeId, context, offset);
 	}
 
-	let modeIndex = ReducedModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
+	let modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
 	let nestedModeId = modeTransitions[modeIndex].modeId;
 	let modeStartIndex = modeTransitions[modeIndex].startIndex;
 
@@ -70,7 +70,7 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 
 export class FilteredLineContext implements modes.ILineContext {
 
-	public modeTransitions: ReducedModeTransition[];
+	public modeTransitions: ModeTransition[];
 
 	private _actual:modes.ILineContext;
 	private _firstTokenInModeIndex:number;
@@ -82,7 +82,7 @@ export class FilteredLineContext implements modes.ILineContext {
 			firstTokenInModeIndex:number, nextTokenAfterMode:number,
 			firstTokenCharacterOffset:number, nextCharacterAfterModeIndex:number) {
 
-		this.modeTransitions = [new ReducedModeTransition(0, modeId)];
+		this.modeTransitions = [new ModeTransition(0, modeId)];
 		this._actual = actual;
 		this._firstTokenInModeIndex = firstTokenInModeIndex;
 		this._nextTokenAfterMode = nextTokenAfterMode;
