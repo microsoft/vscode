@@ -222,7 +222,7 @@ class CacheState {
 					this.previous = null;
 				}
 			}, err => {
-				console.error(errors.toErrorMessage(err));
+				errors.onUnexpectedError(err);
 			});
 	}
 
@@ -232,7 +232,7 @@ class CacheState {
 				this._isLoaded = false;
 				return this.doDispose(this._cacheKey);
 			}).then(null, err => {
-				console.error(errors.toErrorMessage(err));
+				errors.onUnexpectedError(err);
 			});
 		if (this.previous) {
 			this.previous.dispose();
