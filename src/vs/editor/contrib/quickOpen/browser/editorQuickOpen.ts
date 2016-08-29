@@ -29,7 +29,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 
 	private editor:ICodeEditor;
 	private widget:QuickOpenEditorWidget;
-	private lineHighlightDecorationId:string;
+	private rangeHighlightDecorationId:string;
 	private lastKnownEditorSelection:Selection;
 
 	constructor(editor:ICodeEditor) {
@@ -93,31 +93,31 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 	public decorateLine(range:editorCommon.IRange, editor:ICodeEditor):void {
 		editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>{
 			var oldDecorations: string[] = [];
-			if (this.lineHighlightDecorationId) {
-				oldDecorations.push(this.lineHighlightDecorationId);
-				this.lineHighlightDecorationId = null;
+			if (this.rangeHighlightDecorationId) {
+				oldDecorations.push(this.rangeHighlightDecorationId);
+				this.rangeHighlightDecorationId = null;
 			}
 
 			var newDecorations: editorCommon.IModelDeltaDecoration[] = [
 				{
 					range: range,
 					options: {
-						className: 'lineHighlight',
+						className: 'rangeHighlight',
 						isWholeLine: true
 					}
 				}
 			];
 
 			var decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
-			this.lineHighlightDecorationId = decorations[0];
+			this.rangeHighlightDecorationId = decorations[0];
 		});
 	}
 
 	public clearDecorations():void {
-		if (this.lineHighlightDecorationId) {
+		if (this.rangeHighlightDecorationId) {
 			this.editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>{
-				changeAccessor.deltaDecorations([this.lineHighlightDecorationId], []);
-				this.lineHighlightDecorationId = null;
+				changeAccessor.deltaDecorations([this.rangeHighlightDecorationId], []);
+				this.rangeHighlightDecorationId = null;
 			});
 		}
 	}
