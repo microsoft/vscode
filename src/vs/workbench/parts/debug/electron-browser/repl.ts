@@ -33,6 +33,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
+import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import {Panel} from 'vs/workbench/browser/panel';
@@ -118,7 +119,18 @@ export class Repl extends Panel implements IPrivateReplService {
 
 			this.refreshTimeoutHandle = setTimeout(() => {
 				this.refreshTimeoutHandle = null;
-				this.tree.refresh().done(() => this.tree.setScrollPosition(1), errors.onUnexpectedError);
+				this.tree.refresh().then(() => {
+					this.tree.setScrollPosition(1);
+
+					// If the last repl element has children - auto expand it #6019
+					const elements = this.debugService.getModel().getReplElements();
+					const lastElement = elements.length > 0 ? elements[elements.length - 1] : null;
+					if (lastElement instanceof Expression && lastElement.reference > 0) {
+						return this.tree.expand(elements[elements.length - 1]).then(() =>
+							this.tree.reveal(elements[elements.length - 1], 0)
+						);
+					}
+				}, errors.onUnexpectedError);
 			}, Repl.REFRESH_DELAY);
 		}
 	}
