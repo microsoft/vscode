@@ -248,8 +248,8 @@ class Tokenizer {
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
 		// Do not attempt to tokenize if a line has over 20k
-		// or if the rule stack contains more than 30 rules (indicator of broken grammar that forgets to pop rules)
-		if (line.length >= 20000 || depth(state.getRuleStack()) > 30) {
+		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
+		if (line.length >= 20000 || depth(state.getRuleStack()) > 100) {
 			return new LineTokens(
 				[new Token(offsetDelta, '')],
 				[new ModeTransition(offsetDelta, state.getMode().getId())],
