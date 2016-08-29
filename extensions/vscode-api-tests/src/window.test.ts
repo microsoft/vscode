@@ -225,4 +225,19 @@ suite('window namespace tests', () => {
 
 		});
 	});
+
+	test('createTerminal, Terminal.name', () => {
+		var terminal = window.createTerminal('foo');
+		assert.equal(terminal.name, 'foo');
+
+		assert.throws(() => {
+			terminal.name = 'bar';
+		}, 'Terminal.name should be readonly');
+	});
+
+	test('createTerminal, immediate Terminal.sendText', () => {
+		var terminal = window.createTerminal();
+		// This should not throw an exception
+		terminal.sendText('echo "foo"');
+	});
 });
