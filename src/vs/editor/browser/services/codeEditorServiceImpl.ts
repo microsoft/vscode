@@ -302,7 +302,7 @@ class DecorationRenderHelper {
 		if (typeof opts !== 'undefined') {
 			DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString()));
+				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.parse(opts.contentIconPath).toString()));
 			}
 			if (typeof opts.contentText !== 'undefined') {
 				let escaped = opts.contentText.replace(/\"/g, '\\\"');
