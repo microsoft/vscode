@@ -17,7 +17,7 @@ import strings = require('vs/base/common/strings');
 import {IRange} from 'vs/editor/common/editorCommon';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler, QuickOpenHandlerResult} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {FileEntry, OpenFileHandler, FileQuickOpenModel} from 'vs/workbench/parts/search/browser/openFileHandler';
 /* tslint:disable:no-unused-variable */
 import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
@@ -139,7 +139,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> | QuickOpenHandlerResult {
+	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		const timerEvent = this.telemetryService.timedPublicLog('openAnything');
 		const startTime = timerEvent.startTime ? timerEvent.startTime.getTime() : Date.now(); // startTime is undefined when telemetry is disabled
 
@@ -231,11 +231,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
-		const isFileCacheLoaded = this.openFileHandler.isCacheLoaded;
-		return {
-			shortResponseTime: isFileCacheLoaded,
-			promisedModel: isFileCacheLoaded ? promiseFactory() : this.fileSearchDelayer.trigger(promiseFactory)
-		};
+		return this.hasShortResponseTime() ? promiseFactory() : this.fileSearchDelayer.trigger(promiseFactory);
+	}
+
+	public hasShortResponseTime(): boolean {
+		return this.openFileHandler.isCacheLoaded;
 	}
 
 	private extractRange(value: string): ISearchWithRange {
