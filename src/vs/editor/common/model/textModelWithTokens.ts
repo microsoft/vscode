@@ -354,19 +354,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._scheduleRetokenizeNow.cancel();
 		this._clearTimers();
 		for (var i = 0; i < this._lines.length; i++) {
-			this._lines[i].setState(null);
+			this._lines[i].resetTokenizationState();
 		}
-		this._initializeTokenizationState();
-	}
 
-	private _clearTimers(): void {
-		if (this._revalidateTokensTimeout !== -1) {
-			clearTimeout(this._revalidateTokensTimeout);
-			this._revalidateTokensTimeout = -1;
-		}
-	}
-
-	private _initializeTokenizationState(): void {
 		// Initialize tokenization states
 		var initialState:IState = null;
 		if (this._mode.tokenizationSupport) {
@@ -387,6 +377,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._tokensInflatorMap = new TokensInflatorMap();
 		this._invalidLineStartIndex = 0;
 		this._beginBackgroundTokenization();
+	}
+
+	private _clearTimers(): void {
+		if (this._revalidateTokensTimeout !== -1) {
+			clearTimeout(this._revalidateTokensTimeout);
+			this._revalidateTokensTimeout = -1;
+		}
 	}
 
 	public getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean = false): editorCommon.ILineTokens {
