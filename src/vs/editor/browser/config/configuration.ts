@@ -271,6 +271,8 @@ export class Configuration extends CommonEditorConfiguration {
 			extra += 'ie ';
 		} else if (browser.isFirefox) {
 			extra += 'ff ';
+		} else if (browser.isEdge) {
+			extra += 'edge ';
 		}
 		if (browser.isIE9) {
 			extra += 'ie9 ';
