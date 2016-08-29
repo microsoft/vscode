@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IFilter} from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {ReducedModeTransition} from 'vs/editor/common/core/modeTransition';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position} from 'vs/editor/common/core/position';
@@ -170,7 +170,7 @@ export interface IModeDescriptor {
 export interface ILineContext {
 	getLineContent(): string;
 
-	modeTransitions: ModeTransition[];
+	modeTransitions: ReducedModeTransition[];
 
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
