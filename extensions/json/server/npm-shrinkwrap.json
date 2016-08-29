@@ -43,9 +43,9 @@
       "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.1.0.tgz"
     },
     "vscode-json-languageservice": {
-      "version": "1.1.4",
-      "from": "vscode-json-languageservice@1.1.4",
-      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-1.1.4.tgz"
+      "version": "1.1.5-next.1",
+      "from": "vscode-json-languageservice@next",
+      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-1.1.5-next.1.tgz"
     },
     "vscode-jsonrpc": {
       "version": "2.2.0",
