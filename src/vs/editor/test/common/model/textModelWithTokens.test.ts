@@ -9,6 +9,7 @@ import {Model} from 'vs/editor/common/model/model';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ITokenizationSupport} from 'vs/editor/common/modes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {Token} from 'vs/editor/common/core/token';
 
 suite('TextModelWithTokens', () => {
 
@@ -31,7 +32,7 @@ suite('TextModelWithTokens', () => {
 					tokenize: (line, state, offsetDelta, stopAtOffset) => {
 						let myId = ++_tokenId;
 						return {
-							tokens: [{ startIndex: 0, type: 'custom.'+myId }],
+							tokens: [new Token(0, 'custom.'+myId)],
 							actualStopOffset: line.length,
 							endState: null,
 							modeTransitions: [],

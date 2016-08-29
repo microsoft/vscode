@@ -14,6 +14,7 @@ import {IEnteringNestedModeData, ILeavingNestedModeData, TokenizationSupport} fr
 import {createMockLineContext} from 'vs/editor/test/common/modesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 
 export class State extends AbstractState {
 
@@ -151,7 +152,7 @@ interface ITestToken {
 	startIndex:number;
 	type:string;
 }
-function assertTokens(actual:modes.IToken[], expected:ITestToken[], message?:string) {
+function assertTokens(actual:Token[], expected:ITestToken[], message?:string) {
 	assert.equal(actual.length, expected.length, 'Lengths mismatch');
 	for (var i = 0; i < expected.length; i++) {
 		assert.equal(actual[i].startIndex, expected[i].startIndex, 'startIndex mismatch');

@@ -7,6 +7,7 @@
 import {Arrays} from 'vs/editor/common/core/arrays';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 
 export interface TokenText {
 	text: string;
@@ -15,11 +16,11 @@ export interface TokenText {
 
 export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILineContext {
 	let line = '';
-	let processedTokens: modes.IToken[] = [];
+	let processedTokens: Token[] = [];
 
 	let indexSoFar = 0;
 	for (let i = 0; i < tokens.length; ++i){
-		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type });
+		processedTokens.push(new Token(indexSoFar, tokens[i].type));
 		line += tokens[i].text;
 		indexSoFar += tokens[i].text.length;
 	}
@@ -35,9 +36,9 @@ class TestLineContext implements modes.ILineContext {
 
 	public modeTransitions: ModeTransition[];
 	private _line:string;
-	private _tokens: modes.IToken[];
+	private _tokens: Token[];
 
-	constructor(line:string, tokens: modes.IToken[], modeTransitions:ModeTransition[]) {
+	constructor(line:string, tokens: Token[], modeTransitions:ModeTransition[]) {
 		this.modeTransitions = modeTransitions;
 		this._line = line;
 		this._tokens = tokens;

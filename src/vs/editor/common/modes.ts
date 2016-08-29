@@ -11,6 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IFilter} from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position} from 'vs/editor/common/core/position';
@@ -212,19 +213,10 @@ export interface IMode {
 }
 
 /**
- * Interface used for tokenization
- * @internal
- */
-export interface IToken {
-	startIndex:number;
-	type:string;
-}
-
-/**
  * @internal
  */
 export interface ILineTokens {
-	tokens: IToken[];
+	tokens: Token[];
 	actualStopOffset: number;
 	endState: IState;
 	modeTransitions: ModeTransition[];

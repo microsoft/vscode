@@ -455,7 +455,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	public tokenize(line:string, state:modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
 		if (state instanceof TokenizationState2Adapter) {
 			let actualResult = this._actual.tokenize(line, state.actual);
-			let tokens: modes.IToken[] = [];
+			let tokens: Token[] = [];
 			actualResult.tokens.forEach((t) => {
 				if (typeof t.scopes === 'string') {
 					tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
