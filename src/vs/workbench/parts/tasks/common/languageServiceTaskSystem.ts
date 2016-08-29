@@ -10,7 +10,7 @@ import { TerminateResponse} from 'vs/base/common/processes';
 import { IMode } from 'vs/editor/common/modes';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 
-import { ITaskSystem, ITaskSummary, TaskDescription, TelemetryEvent, Triggers, TaskConfiguration, ITaskRunResult }  from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, TaskDescription, TelemetryEvent, Triggers, TaskConfiguration, ITaskExecuteResult, TaskExecuteKind }  from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
@@ -33,30 +33,30 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 		this.modeService = modeService;
 	}
 
-	public build(): ITaskRunResult {
+	public build(): ITaskExecuteResult {
 		return this.processMode((mode) => {
 			return null;
 		}, 'build', Triggers.shortcut);
 	}
 
-	public rebuild(): ITaskRunResult {
+	public rebuild(): ITaskExecuteResult {
 		return this.processMode((mode) => {
 			return null;
 		}, 'rebuild', Triggers.shortcut);
 	}
 
-	public clean(): ITaskRunResult {
+	public clean(): ITaskExecuteResult {
 		return this.processMode((mode) => {
 			return null;
 		}, 'clean', Triggers.shortcut);
 	}
 
-	public runTest(): ITaskRunResult {
-		return { promise: TPromise.wrapError<ITaskSummary>('Not implemented yet.') };
+	public runTest(): ITaskExecuteResult {
+		return { kind: TaskExecuteKind.Started, promise: TPromise.wrapError<ITaskSummary>('Not implemented yet.') };
 	}
 
-	public run(taskIdentifier:string): ITaskRunResult {
-		return { promise: TPromise.wrapError<ITaskSummary>('Not implemented yet.') };
+	public run(taskIdentifier:string): ITaskExecuteResult {
+		return { kind: TaskExecuteKind.Started, promise: TPromise.wrapError<ITaskSummary>('Not implemented yet.') };
 	}
 
 	public isActive(): TPromise<boolean> {
@@ -84,13 +84,13 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 		return TPromise.as(result);
 	}
 
-	private processMode(fn: (mode: IMode) => Promise, taskName: string, trigger: string): ITaskRunResult {
+	private processMode(fn: (mode: IMode) => Promise, taskName: string, trigger: string): ITaskExecuteResult {
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
 			command: 'languageService',
 			success: true
 		};
-		return { promise: Promise.join(this.configuration.modes.map((mode) => {
+		return { kind: TaskExecuteKind.Started, started: {}, promise: Promise.join(this.configuration.modes.map((mode) => {
 			return this.modeService.getOrCreateMode(mode);
 		})).then((modes: IMode[]) => {
 			let promises: Promise[] = [];
@@ -104,7 +104,7 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 		}).then((value) => {
 				this.telemetryService.publicLog(LanguageServiceTaskSystem.TelemetryEventName, telemetryEvent);
 				return value;
-			},(err) => {
+			}, (err) => {
 				telemetryEvent.success = false;
 				this.telemetryService.publicLog(LanguageServiceTaskSystem.TelemetryEventName, telemetryEvent);
 				return Promise.wrapError(err);
