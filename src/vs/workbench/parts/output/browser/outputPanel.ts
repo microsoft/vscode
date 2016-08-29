@@ -55,7 +55,7 @@ export class OutputPanel extends StringEditor {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchOutputAction),
-				this.instantiationService.createInstance(ClearOutputAction)
+				this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL)
 			];
 
 			this.actions.forEach(a => {

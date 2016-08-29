@@ -41,11 +41,15 @@ export class ToggleOutputAction extends Action {
 
 export class ClearOutputAction extends Action {
 
+	public static ID = 'workbench.output.action.clearOutput';
+	public static LABEL = nls.localize('clearOutput', "Clear Output");
+
 	constructor(
+		id: string, label: string,
 		@IOutputService private outputService: IOutputService,
 		@IPanelService private panelService: IPanelService
 	) {
-		super('workbench.output.action.clearOutput', nls.localize('clearOutput', "Clear Output"), 'output-action clear-output');
+		super(id, label, 'output-action clear-output');
 	}
 
 	public run(): TPromise<any> {
