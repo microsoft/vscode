@@ -3012,14 +3012,14 @@ declare namespace vscode {
 		sendText(text: string, addNewLine?: boolean): void;
 
 		/**
-		 * Reveal this channel in the UI.
+		 * Show the terminal panel and reveal this terminal in the UI.
 		 *
 		 * @param preserveFocus When `true` the channel will not take focus.
 		 */
 		show(preservceFocus?: boolean): void;
 
 		/**
-		 * Hide this channel from the UI.
+		 * Hide the terminal panel if this terminal is currently showing.
 		 */
 		hide(): void;
 
