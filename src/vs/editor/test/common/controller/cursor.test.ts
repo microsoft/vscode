@@ -2060,6 +2060,35 @@ suite('Editor Controller - Regression tests', () => {
 			assertCursor(cursor, new Position(3, 2));
 		});
 	});
+
+	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
+		usingCursor({
+			text: [
+			]
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			// Typing sennsei in Japanese - Hiragana
+			cursorCommand(cursor, H.Type, { text: 'ｓ'}, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せ', replaceCharCnt: 1});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せｎ', replaceCharCnt: 1});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せん', replaceCharCnt: 2});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せんｓ', replaceCharCnt: 2});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せんせ', replaceCharCnt: 3});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せんせ', replaceCharCnt: 3});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せんせい', replaceCharCnt: 3});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せんせい', replaceCharCnt: 4});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せんせい', replaceCharCnt: 4});
+			cursorCommand(cursor, H.ReplacePreviousChar, {text: 'せんせい', replaceCharCnt: 4});
+
+			assert.equal(model.getLineContent(1), 'せんせい');
+			assertCursor(cursor, new Position(1, 5));
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getLineContent(1), '');
+			assertCursor(cursor, new Position(1, 1));
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
