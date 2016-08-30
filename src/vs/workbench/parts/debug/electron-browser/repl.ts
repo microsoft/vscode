@@ -117,6 +117,9 @@ export class Repl extends Panel implements IPrivateReplService {
 				return; // refresh already triggered
 			}
 
+			const elements = this.debugService.getModel().getReplElements();
+			const delay = elements.length > 0 ? Repl.REFRESH_DELAY : 0;
+
 			this.refreshTimeoutHandle = setTimeout(() => {
 				this.refreshTimeoutHandle = null;
 				this.tree.refresh().then(() => {
@@ -131,7 +134,7 @@ export class Repl extends Panel implements IPrivateReplService {
 						);
 					}
 				}, errors.onUnexpectedError);
-			}, Repl.REFRESH_DELAY);
+			}, delay);
 		}
 	}
 
