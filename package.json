@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.5.0",
-  "electronVersion": "0.37.6",
+  "electronVersion": "1.3.4",
   "author": {
     "name": "Microsoft Corporation"
   },
