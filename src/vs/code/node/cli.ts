@@ -7,6 +7,7 @@ import { spawn } from 'child_process';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { parseCLIProcessArgv, buildHelpMessage, ParsedArgs } from 'vs/code/node/argv';
+import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
@@ -30,7 +31,7 @@ export function main(argv: string[]): TPromise<void> {
 	if (args.help) {
 		console.log(buildHelpMessage(pkg.version));
 	} else if (args.version) {
-		console.log(pkg.version);
+		console.log(`${ pkg.version } (${ product.commit })`);
 	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
