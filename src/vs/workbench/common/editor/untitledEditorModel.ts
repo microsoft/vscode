@@ -16,6 +16,8 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IEventService} from 'vs/platform/event/common/event';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IMode} from 'vs/editor/common/modes';
+import {isUnspecific} from 'vs/base/common/mime';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
 	private textModelChangeListener: IDisposable;
@@ -27,7 +29,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	constructor(
 		value: string,
-		modeId: string,
+		mime: string,
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		@IModeService modeService: IModeService,
@@ -35,11 +37,19 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(value, modeId, resource, modeService, modelService);
+		super(value, mime, resource, modeService, modelService);
 
 		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
 
 		this.registerListeners();
+	}
+
+	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
+		if (isUnspecific(mime)) {
+			return modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLineText); // lookup mode via resource path if the provided mime is unspecific
+		}
+
+		return super.getOrCreateMode(modeService, mime, firstLineText);
 	}
 
 	private registerListeners(): void {
