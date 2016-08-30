@@ -155,8 +155,10 @@ function getActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEd
 
 		// Substitute for (editor instanceof ICodeEditor)
 		if (editor && typeof editor.getEditorType === 'function') {
-			let codeEditor = <editorCommon.ICommonCodeEditor>editor;
-			return codeEditor;
+			if (editor.getEditorType() === editorCommon.EditorType.ICodeEditor) {
+				return <editorCommon.ICommonCodeEditor>editor;
+			}
+			return (<editorCommon.ICommonDiffEditor>editor).getModifiedEditor();
 		}
 	}
 

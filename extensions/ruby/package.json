@@ -9,6 +9,7 @@
 			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".rake", ".ru" ],
 			"filenames": [ "rakefile", "gemfile", "guardfile" ],
 			"aliases": [ "Ruby", "rb" ],
+			"firstLine": "^#!/.*\\bruby\\b",
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{

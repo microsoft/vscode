@@ -855,7 +855,7 @@ declare namespace vscode {
 	export interface DecorationOptions {
 
 		/**
-		 * Range to which this decoration is applied.
+		 * Range to which this decoration is applied. The range must not be empty.
 		 */
 		range: Range;
 
@@ -2648,17 +2648,6 @@ declare namespace vscode {
 		has(section: string): boolean;
 
 		/**
-		 * Update a configuration value. A value can be changed for the current
-		 * [workspace](#workspace.rootPath) only or globally for all instances of the
-		 * editor. The updated configuration values are persisted.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param value The new value.
-		 * @param global When `true` changes the configuration value for all instances of the editor.
-		 */
-		update(section: string, value: any, global: boolean): Thenable<void>;
-
-		/**
 		 * Readable dictionary that backs this configuration.
 		 * @readonly
 		 */
@@ -3023,14 +3012,14 @@ declare namespace vscode {
 		sendText(text: string, addNewLine?: boolean): void;
 
 		/**
-		 * Reveal this channel in the UI.
+		 * Show the terminal panel and reveal this terminal in the UI.
 		 *
 		 * @param preserveFocus When `true` the channel will not take focus.
 		 */
 		show(preservceFocus?: boolean): void;
 
 		/**
-		 * Hide this channel from the UI.
+		 * Hide the terminal panel if this terminal is currently showing.
 		 */
 		hide(): void;
 

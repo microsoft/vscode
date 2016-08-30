@@ -231,7 +231,9 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 	}
 
 	private getUpdateChannel(): string {
-		const channel = this.configurationService.getConfiguration<string>('update.channel') || 'default';
+		const config = this.configurationService.getConfiguration<{ channel: string; }>('update');
+		const channel = config && config.channel;
+
 		return channel === 'none' ? null : this.envService.quality;
 	}
 

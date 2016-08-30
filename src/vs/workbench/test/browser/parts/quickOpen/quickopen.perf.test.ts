@@ -58,11 +58,11 @@ suite('QuickOpen performance', () => {
 		));
 
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
-		const descriptors = registry.getDefaultQuickOpenHandlers();
-		assert.strictEqual(descriptors.length, 1);
+		const descriptor = registry.getDefaultQuickOpenHandler();
+		assert.ok(descriptor);
 
 		function measure() {
-			return instantiationService.createInstance(descriptors[0])
+			return instantiationService.createInstance(descriptor)
 				.then((handler: QuickOpenHandler) => {
 					handler.onOpen();
 					return handler.getResults('a').then(result => {
@@ -76,7 +76,7 @@ suite('QuickOpen performance', () => {
 					}).then(uncachedEvent => {
 						return handler.getResults('ab').then(result => {
 							const cachedEvent = popEvent();
-							assert.ok(cachedEvent.data.symbols.fromCache, 'symbolsFromCache');
+							assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 							assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');
 							handler.onClose(false);
 							return [uncachedEvent, cachedEvent];

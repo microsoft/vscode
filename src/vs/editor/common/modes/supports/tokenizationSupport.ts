@@ -9,7 +9,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
-import {Token} from 'vs/editor/common/modes/supports';
+import {Token} from 'vs/editor/common/core/token';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ILeavingNestedModeData {
 	/**
@@ -76,10 +77,12 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	public supportsNestedModes:boolean;
 
 	private _mode:modes.IMode;
+	private _modeId:string;
 	private _embeddedModesListeners: { [modeId:string]: IDisposable; };
 
 	constructor(mode:modes.IMode, customization:ITokenizationCustomization, supportsNestedModes:boolean) {
 		this._mode = mode;
+		this._modeId = this._mode.getId();
 		this.customization = customization;
 		this.supportsNestedModes = supportsNestedModes;
 		this._embeddedModesListeners = {};
@@ -98,7 +101,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	}
 
 	public dispose() : void {
-		for (var listener in this._embeddedModesListeners) {
+		for (let listener in this._embeddedModesListeners) {
 			this._embeddedModesListeners[listener].dispose();
 			delete this._embeddedModesListeners[listener];
 		}
@@ -120,44 +123,44 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	 * Precondition is: nestedModeState.getMode() !== this
 	 * This means we are in a nested mode when parsing starts on this line.
 	 */
-	private _nestedTokenize(buffer:string, nestedModeState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:modes.IToken[], prependModeTransitions:modes.IModeTransition[]):modes.ILineTokens {
-		var myStateBeforeNestedMode = nestedModeState.getStateData();
-		var leavingNestedModeData = this.getLeavingNestedModeData(buffer, myStateBeforeNestedMode);
+	private _nestedTokenize(buffer:string, nestedModeState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:Token[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
+		let myStateBeforeNestedMode = nestedModeState.getStateData();
+		let leavingNestedModeData = this.getLeavingNestedModeData(buffer, myStateBeforeNestedMode);
 
 		// Be sure to give every embedded mode the
 		// opportunity to leave nested mode.
 		// i.e. Don't go straight to the most nested mode
-		var stepOnceNestedState = nestedModeState;
+		let stepOnceNestedState = nestedModeState;
 		while (stepOnceNestedState.getStateData() && stepOnceNestedState.getStateData().getMode() !== this._mode) {
 			stepOnceNestedState = stepOnceNestedState.getStateData();
 		}
-		var nestedMode = stepOnceNestedState.getMode();
+		let nestedMode = stepOnceNestedState.getMode();
 
 		if (!leavingNestedModeData) {
 			// tokenization will not leave nested mode
-			var result:modes.ILineTokens;
+			let result:modes.ILineTokens;
 			if (nestedMode.tokenizationSupport) {
 				result = nestedMode.tokenizationSupport.tokenize(buffer, nestedModeState, deltaOffset, stopAtOffset);
 			} else {
 				// The nested mode doesn't have tokenization support,
 				// unfortunatelly this means we have to fake it
-				result = nullTokenize(nestedMode, buffer, nestedModeState, deltaOffset);
+				result = nullTokenize(nestedMode.getId(), buffer, nestedModeState, deltaOffset);
 			}
 			result.tokens = prependTokens.concat(result.tokens);
 			result.modeTransitions = prependModeTransitions.concat(result.modeTransitions);
 			return result;
 		}
 
-		var nestedModeBuffer = leavingNestedModeData.nestedModeBuffer;
+		let nestedModeBuffer = leavingNestedModeData.nestedModeBuffer;
 		if (nestedModeBuffer.length > 0) {
 			// Tokenize with the nested mode
-			var nestedModeLineTokens:modes.ILineTokens;
+			let nestedModeLineTokens:modes.ILineTokens;
 			if (nestedMode.tokenizationSupport) {
 				nestedModeLineTokens = nestedMode.tokenizationSupport.tokenize(nestedModeBuffer, nestedModeState, deltaOffset, stopAtOffset);
 			} else {
 				// The nested mode doesn't have tokenization support,
 				// unfortunatelly this means we have to fake it
-				nestedModeLineTokens = nullTokenize(nestedMode, nestedModeBuffer, nestedModeState, deltaOffset);
+				nestedModeLineTokens = nullTokenize(nestedMode.getId(), nestedModeBuffer, nestedModeState, deltaOffset);
 			}
 
 			// Save last state of nested mode
@@ -168,8 +171,8 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 			prependModeTransitions = prependModeTransitions.concat(nestedModeLineTokens.modeTransitions);
 		}
 
-		var bufferAfterNestedMode = leavingNestedModeData.bufferAfterNestedMode;
-		var myStateAfterNestedMode = leavingNestedModeData.stateAfterNestedMode;
+		let bufferAfterNestedMode = leavingNestedModeData.bufferAfterNestedMode;
+		let myStateAfterNestedMode = leavingNestedModeData.stateAfterNestedMode;
 		myStateAfterNestedMode.setStateData(myStateBeforeNestedMode.getStateData());
 		this.onReturningFromNestedMode(myStateAfterNestedMode, nestedModeState);
 
@@ -180,22 +183,19 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	 * Precondition is: state.getMode() === this
 	 * This means we are in the current mode when parsing starts on this line.
 	 */
-	private _myTokenize(buffer:string, myState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:modes.IToken[], prependModeTransitions:modes.IModeTransition[]):modes.ILineTokens {
-		var lineStream = new LineStream(buffer);
-		var tokenResult:modes.ITokenizationResult, beforeTokenizeStreamPos:number;
-		var previousType:string = null;
-		var retokenize:TPromise<void> = null;
+	private _myTokenize(buffer:string, myState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:Token[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
+		let lineStream = new LineStream(buffer);
+		let tokenResult:modes.ITokenizationResult, beforeTokenizeStreamPos:number;
+		let previousType:string = null;
+		let retokenize:TPromise<void> = null;
 
 		myState = myState.clone();
-		if (prependModeTransitions.length <= 0 || prependModeTransitions[prependModeTransitions.length-1].mode !== this._mode) {
+		if (prependModeTransitions.length <= 0 || prependModeTransitions[prependModeTransitions.length-1].modeId !== this._modeId) {
 			// Avoid transitioning to the same mode (this can happen in case of empty embedded modes)
-			prependModeTransitions.push({
-				startIndex: deltaOffset,
-				mode: this._mode
-			});
+			prependModeTransitions.push(new ModeTransition(deltaOffset,this._modeId));
 		}
 
-		var maxPos = Math.min(stopAtOffset - deltaOffset, buffer.length);
+		let maxPos = Math.min(stopAtOffset - deltaOffset, buffer.length);
 		while (lineStream.pos() < maxPos) {
 			beforeTokenizeStreamPos = lineStream.pos();
 
@@ -212,7 +212,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 					myState = tokenResult.nextState;
 				}
 				if (lineStream.pos() <= beforeTokenizeStreamPos) {
-					throw new Error('Stream did not advance while tokenizing. Mode id is ' + this._mode.getId() + ' (stuck at token type: "' + tokenResult.type + '", prepend tokens: "' + (prependTokens.map(t => t.type).join(',')) + '").');
+					throw new Error('Stream did not advance while tokenizing. Mode id is ' + this._modeId + ' (stuck at token type: "' + tokenResult.type + '", prepend tokens: "' + (prependTokens.map(t => t.type).join(',')) + '").');
 				}
 			} while (!tokenResult.type && tokenResult.type !== '');
 
@@ -223,14 +223,14 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 			previousType = tokenResult.type;
 
 			if (this.supportsNestedModes && this.enterNestedMode(myState)) {
-				var currentEmbeddedLevels = this._getEmbeddedLevel(myState);
+				let currentEmbeddedLevels = this._getEmbeddedLevel(myState);
 				if (currentEmbeddedLevels < TokenizationSupport.MAX_EMBEDDED_LEVELS) {
-					var nestedModeState = this.getNestedModeInitialState(myState);
+					let nestedModeState = this.getNestedModeInitialState(myState);
 
 					// Re-emit tokenizationSupport change events from all modes that I ever embedded
-					var embeddedMode = nestedModeState.state.getMode();
+					let embeddedMode = nestedModeState.state.getMode();
 					if (typeof embeddedMode.addSupportChangedListener === 'function' && !this._embeddedModesListeners.hasOwnProperty(embeddedMode.getId())) {
-						var emitting = false;
+						let emitting = false;
 						this._embeddedModesListeners[embeddedMode.getId()] = embeddedMode.addSupportChangedListener((e) => {
 							if (emitting) {
 								return;
@@ -248,8 +248,8 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 
 					if (!lineStream.eos()) {
 						// There is content from the embedded mode
-						var restOfBuffer = buffer.substr(lineStream.pos());
-						var result = this._nestedTokenize(restOfBuffer, nestedModeState.state, deltaOffset + lineStream.pos(), stopAtOffset, prependTokens, prependModeTransitions);
+						let restOfBuffer = buffer.substr(lineStream.pos());
+						let result = this._nestedTokenize(restOfBuffer, nestedModeState.state, deltaOffset + lineStream.pos(), stopAtOffset, prependTokens, prependModeTransitions);
 						result.retokenize = result.retokenize || nestedModeState.missingModePromise;
 						return result;
 					} else {
@@ -271,7 +271,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	}
 
 	private _getEmbeddedLevel(state:modes.IState): number {
-		var result = -1;
+		let result = -1;
 		while(state) {
 			result++;
 			state = state.getStateData();
@@ -295,7 +295,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	}
 
 	private static _validatedNestedMode(input:IEnteringNestedModeData): IEnteringNestedModeData {
-		var mode: modes.IMode = new NullMode(),
+		let mode: modes.IMode = new NullMode(),
 			missingModePromise: TPromise<void> = null;
 
 		if (input && input.mode) {
@@ -313,9 +313,9 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 
 	private getNestedModeInitialState(state:modes.IState): { state:modes.IState; missingModePromise:TPromise<void>; } {
 		if (this.defaults.getNestedModeInitialState) {
-			var nestedMode = TokenizationSupport._validatedNestedMode(this.getNestedMode(state));
-			var missingModePromise = nestedMode.missingModePromise;
-			var nestedModeState: modes.IState;
+			let nestedMode = TokenizationSupport._validatedNestedMode(this.getNestedMode(state));
+			let missingModePromise = nestedMode.missingModePromise;
+			let nestedModeState: modes.IState;
 
 			if (nestedMode.mode.tokenizationSupport) {
 				nestedModeState = nestedMode.mode.tokenizationSupport.getInitialState();

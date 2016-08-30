@@ -210,12 +210,14 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		let options: IQueryOptions = {};
 
 		if (/@recommended/i.test(query.value)) {
-			const value = query.value.replace(/@recommended/g, '').trim();
+			const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
 			return this.extensionsWorkbenchService.queryLocal().then(local => {
 				const names = this.tipsService.getRecommendations()
 					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
-					.filter(name => name.indexOf(value) > -1);
+					.filter(name => name.toLowerCase().indexOf(value) > -1);
+
+				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
 
 				if (!names.length) {
 					return new PagedModel([]);

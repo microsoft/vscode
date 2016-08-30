@@ -8,8 +8,7 @@ import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Action, IAction} from 'vs/base/common/actions';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IComposite} from 'vs/workbench/common/composite';
+import Event from 'vs/base/common/event';
 import {Builder} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
@@ -33,8 +32,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public _serviceBrand: any;
 
-	private _onDidPanelOpen = new Emitter<IPanel>();
-	private _onDidPanelClose = new Emitter<IPanel>();
 	private blockOpeningPanel: boolean;
 
 	constructor(
@@ -65,11 +62,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
-		return this._onDidPanelOpen.event;
+		return this._onDidCompositeOpen.event;
 	}
 
 	public get onDidPanelClose(): Event<IPanel> {
-		return this._onDidPanelClose.event;
+		return this._onDidCompositeClose.event;
 	}
 
 	public create(parent: Builder): void {
@@ -91,10 +88,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus).then(composite => {
-			this._onDidPanelOpen.fire(composite as IComposite as IPanel);
-			return composite;
-		});
+		return this.openComposite(id, focus);
 	}
 
 	protected getActions(): IAction[] {
@@ -110,7 +104,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public hideActivePanel(): TPromise<void> {
-		return this.hideActiveComposite().then(composite => this._onDidPanelClose.fire(composite as IComposite as IPanel));
+		return this.hideActiveComposite().then(composite => void 0);
 	}
 }
 

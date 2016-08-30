@@ -25,12 +25,12 @@ export class QuickFixController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.quickFixController';
 
-	public static get(editor:ICommonCodeEditor): QuickFixController {
+	public static get(editor: ICommonCodeEditor): QuickFixController {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
 	}
 
-	private editor:ICodeEditor;
-	private model:QuickFixModel;
+	private editor: ICodeEditor;
+	private model: QuickFixModel;
 	private suggestWidget: QuickFixSelectionWidget;
 	private quickFixWidgetVisible: IContextKey<boolean>;
 
@@ -46,9 +46,9 @@ export class QuickFixController implements IEditorContribution {
 		this.model = new QuickFixModel(this.editor, this._markerService, this.onAccept.bind(this));
 
 		this.quickFixWidgetVisible = CONTEXT_QUICK_FIX_WIDGET_VISIBLE.bindTo(this._contextKeyService);
-		this.suggestWidget = new QuickFixSelectionWidget(this.editor, telemetryService,() => {
+		this.suggestWidget = new QuickFixSelectionWidget(this.editor, telemetryService, () => {
 			this.quickFixWidgetVisible.set(true);
-		},() => {
+		}, () => {
 			this.quickFixWidgetVisible.reset();
 		});
 		this.suggestWidget.setModel(this.model);
@@ -130,7 +130,7 @@ export class QuickFixAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		QuickFixController.get(editor).run();
 	}
 }

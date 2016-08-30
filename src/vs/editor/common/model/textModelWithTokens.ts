@@ -17,15 +17,15 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
-import {ILineContext, ILineTokens, IToken, IModeTransition, IMode, IState} from 'vs/editor/common/modes';
+import {ILineContext, ILineTokens, IMode, IState} from 'vs/editor/common/modes';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {LineToken} from 'vs/editor/common/model/lineToken';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Position} from 'vs/editor/common/core/position';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {Token} from 'vs/editor/common/core/token';
 
 class ModeToModelBinder implements IDisposable {
 
@@ -131,8 +131,8 @@ class LineContext implements ILineContext {
 	private _text:string;
 	private _lineTokens:editorCommon.ILineTokens;
 
-	constructor (topLevelMode:IMode, line:ModelLine, map:TokensInflatorMap) {
-		this.modeTransitions = line.getModeTransitions(topLevelMode);
+	constructor (topLevelModeId:string, line:ModelLine, map:TokensInflatorMap) {
+		this.modeTransitions = line.getModeTransitions(topLevelModeId);
 		this._text = line.text;
 		this._lineTokens = line.getTokens(map);
 	}
@@ -149,18 +149,8 @@ class LineContext implements ILineContext {
 		return this._lineTokens.getTokenStartIndex(tokenIndex);
 	}
 
-	public getTokenEndIndex(tokenIndex:number): number {
-		return this._lineTokens.getTokenEndIndex(tokenIndex, this._text.length);
-	}
-
 	public getTokenType(tokenIndex:number): string {
 		return this._lineTokens.getTokenType(tokenIndex);
-	}
-
-	public getTokenText(tokenIndex:number): string {
-		var startIndex = this._lineTokens.getTokenStartIndex(tokenIndex);
-		var endIndex = this._lineTokens.getTokenEndIndex(tokenIndex, this._text.length);
-		return this._text.substring(startIndex, endIndex);
 	}
 
 	public findIndexOfOffset(offset:number): number {
@@ -354,19 +344,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._scheduleRetokenizeNow.cancel();
 		this._clearTimers();
 		for (var i = 0; i < this._lines.length; i++) {
-			this._lines[i].setState(null);
+			this._lines[i].resetTokenizationState();
 		}
-		this._initializeTokenizationState();
-	}
 
-	private _clearTimers(): void {
-		if (this._revalidateTokensTimeout !== -1) {
-			clearTimeout(this._revalidateTokensTimeout);
-			this._revalidateTokensTimeout = -1;
-		}
-	}
-
-	private _initializeTokenizationState(): void {
 		// Initialize tokenization states
 		var initialState:IState = null;
 		if (this._mode.tokenizationSupport) {
@@ -389,6 +369,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._beginBackgroundTokenization();
 	}
 
+	private _clearTimers(): void {
+		if (this._revalidateTokensTimeout !== -1) {
+			clearTimeout(this._revalidateTokensTimeout);
+			this._revalidateTokensTimeout = -1;
+		}
+	}
+
 	public getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean = false): editorCommon.ILineTokens {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
@@ -407,7 +394,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._updateTokensUntilLine(lineNumber, true);
 
-		return new LineContext(this._mode, this._lines[lineNumber - 1], this._tokensInflatorMap);
+		return new LineContext(this.getModeId(), this._lines[lineNumber - 1], this._tokensInflatorMap);
 	}
 
 	_getInternalTokens(lineNumber:number): editorCommon.ILineTokens {
@@ -417,6 +404,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	public getMode(): IMode {
 		return this._mode;
+	}
+
+	public getModeId(): string {
+		return this.getMode().getId();
 	}
 
 	public setMode(newModeOrPromise:IMode|TPromise<IMode>): void {
@@ -472,38 +463,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			this._invalidLineStartIndex = lineIndex;
 			this._beginBackgroundTokenization();
 		}
-	}
-
-	private static _toLineTokens(tokens:IToken[]): LineToken[] {
-		if (!tokens || tokens.length === 0) {
-			return [];
-		}
-		if (tokens[0] instanceof LineToken) {
-			return <LineToken[]>tokens;
-		}
-		let result:LineToken[] = [];
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			result[i] = new LineToken(tokens[i].startIndex, tokens[i].type);
-		}
-		return result;
-	}
-
-	private static _toModeTransitions(modeTransitions:IModeTransition[]): ModeTransition[] {
-		if (!modeTransitions || modeTransitions.length === 0) {
-			return [];
-		}
-		if (modeTransitions[0] instanceof ModeTransition) {
-			return <ModeTransition[]>modeTransitions;
-		}
-		let result:ModeTransition[] = [];
-		for (let i = 0, len = modeTransitions.length; i < len; i++) {
-			result[i] = new ModeTransition(modeTransitions[i].startIndex, modeTransitions[i].mode);
-		}
-		return result;
-	}
-
-	private _updateLineTokens(lineIndex:number, map:TokensInflatorMap, topLevelMode:IMode, r:ILineTokens): void {
-		this._lines[lineIndex].setTokens(map, TextModelWithTokens._toLineTokens(r.tokens), topLevelMode, TextModelWithTokens._toModeTransitions(r.modeTransitions));
 	}
 
 	private _beginBackgroundTokenization(): void {
@@ -604,7 +563,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 		this._updateTokensUntilLine(lineNumber, true);
-		return this._lines[lineNumber - 1].getModeTransitions(this._mode);
+		return this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
 	}
 
 	private _updateTokensUntilLine(lineNumber:number, emitEvents:boolean): void {
@@ -640,10 +599,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				if (r && r.actualStopOffset < text.length) {
 					// Treat the rest of the line (if above limit) as one default token
-					r.tokens.push({
-						startIndex: r.actualStopOffset,
-						type: ''
-					});
+					r.tokens.push(new Token(r.actualStopOffset, ''));
 
 					// Use as end state the starting state
 					r.endState = this._lines[lineIndex].getState();
@@ -651,19 +607,16 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			if (!r) {
-				r = nullTokenize(this._mode, text, this._lines[lineIndex].getState());
+				r = nullTokenize(this.getModeId(), text, this._lines[lineIndex].getState());
 			}
 			if (!r.modeTransitions) {
 				r.modeTransitions = [];
 			}
 			if (r.modeTransitions.length === 0) {
 				// Make sure there is at least the transition to the top-most mode
-				r.modeTransitions.push({
-					startIndex: 0,
-					mode: this._mode
-				});
+				r.modeTransitions.push(new ModeTransition(0, this.getModeId()));
 			}
-			this._updateLineTokens(lineIndex, this._tokensInflatorMap, this._mode, r);
+			this._lines[lineIndex].setTokens(this._tokensInflatorMap, r.tokens, this.getModeId(), r.modeTransitions);
 
 			if (this._lines[lineIndex].isInvalid) {
 				this._lines[lineIndex].isInvalid = false;
@@ -733,7 +686,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	_getWordDefinition(): RegExp {
-		return WordHelper.massageWordDefinitionOf(this._mode);
+		return WordHelper.massageWordDefinitionOf(this.getModeId());
 	}
 
 	public getWordAtPosition(position:editorCommon.IPosition): editorCommon.IWordAtPosition {
@@ -765,7 +718,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	public findMatchingBracketUp(bracket:string, _position:editorCommon.IPosition): Range {
 		let position = this.validatePosition(_position);
-		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this._mode);
+		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this.getModeId());
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
 		let currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentMode.modeId);
@@ -795,7 +748,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let currentTokenIndex = lineTokens.findIndexOfOffset(position.column - 1);
 		let currentTokenStart = lineTokens.getTokenStartIndex(currentTokenIndex);
 
-		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
+		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
 		let currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentMode.modeId);
@@ -901,7 +854,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
 			let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			let lineText = this._lines[lineNumber - 1].text;
-			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
+			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
 			let currentModeIndex = modeTransitions.length - 1;
 			let currentModeStart = modeTransitions[currentModeIndex].startIndex;
 			let currentModeId = modeTransitions[currentModeIndex].modeId;
@@ -968,7 +921,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
 			let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 			let lineText = this._lines[lineNumber - 1].text;
-			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
+			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
 			let currentModeIndex = 0;
 			let nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
 			let currentModeId = modeTransitions[currentModeIndex].modeId;

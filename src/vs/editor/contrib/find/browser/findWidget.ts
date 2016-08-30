@@ -43,6 +43,8 @@ const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "O
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
+let MAX_MATCHES_COUNT_WIDTH = 69;
+
 export class FindWidget extends Widget implements IOverlayWidget {
 
 	private static ID = 'editor.contrib.findWidget';
@@ -200,6 +202,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _updateMatchesCount(): void {
+		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
 		if (this._state.matchesCount >= MATCHES_LIMIT) {
 			this._matchesCount.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
 		} else {
@@ -226,6 +229,8 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			label = NLS_NO_RESULTS;
 		}
 		this._matchesCount.appendChild(document.createTextNode(label));
+
+		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
 	// ----- actions

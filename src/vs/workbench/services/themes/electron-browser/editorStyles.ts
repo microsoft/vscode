@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {IThemeDocument, IThemeSetting, IThemeSettingStyle} from 'vs/workbench/services/themes/common/themeService';
-import {Color} from 'vs/workbench/services/themes/common/color';
-import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes';
+import {Color} from 'vs/base/common/color';
+import {getBaseThemeId, getSyntaxThemeId, isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
 
 export class TokenStylesContribution {
 
@@ -69,17 +69,15 @@ export class EditorStylesContribution {
 	public contributeStyles(themeId: string, themeDocument: IThemeDocument): string[] {
 		let cssRules = [];
 		let editorStyleRules = [
-			new EditorBackgroundStyleRule(),
-			new EditorForegroundStyleRule(),
-			new EditorSelectionStyleRule(),
-			new EditorSelectionHighlightStyleRule(),
-			new EditorWordHighlightStyleRule(),
-			new EditorWordHighlightStrongStyleRule(),
-			new EditorFindLineHighlightStyleRule(),
-			new EditorCurrentLineHighlightStyleRule(),
-			new EditorCursorStyleRule(),
-			new EditorWhiteSpaceStyleRule(),
-			new EditorIndentGuidesStyleRule()
+			new EditorBackgroundStyleRules(),
+			new EditorForegroundStyleRules(),
+			new EditorCursorStyleRules(),
+			new EditorWhiteSpaceStyleRules(),
+			new EditorIndentGuidesStyleRules(),
+			new EditorLineHighlightStyleRules(),
+			new EditorSelectionStyleRules(),
+			new EditorWordHighlightStyleRules(),
+			new EditorFindStyleRules()
 		];
 		let editorStyles = new EditorStyles(themeId, themeDocument);
 		if (editorStyles.hasEditorStyleSettings()) {
@@ -98,10 +96,16 @@ interface EditorStyleSettings {
 	caret?: string;
 	invisibles?: string;
 	guide?: string;
+
 	lineHighlight?: string;
+	rangeHighlight?: string;
+
 	selection?: string;
 	selectionHighlight?: string;
-	findLineHighlight?: string;
+
+	findMatch?: string;
+	currentFindMatch?: string;
+
 	wordHighlight?: string;
 	wordHighlightStrong?: string;
 }
@@ -111,7 +115,7 @@ class EditorStyles {
 	private themeSelector: string;
 	private editorStyleSettings: EditorStyleSettings = null;
 
-	constructor(themeId: string, themeDocument: IThemeDocument) {
+	constructor(private themeId: string, themeDocument: IThemeDocument) {
 		this.themeSelector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
 		let settings = themeDocument.settings[0];
 		if (!settings.scope) {
@@ -130,27 +134,43 @@ class EditorStyles {
 	public getEditorStyleSettings(): EditorStyleSettings {
 		return this.editorStyleSettings;
 	}
+
+	public isDarkTheme(): boolean {
+		return isDarkTheme(this.themeId);
+	}
+
+	public isLightTheme(): boolean {
+		return isLightTheme(this.themeId);
+	}
 }
 
 abstract class EditorStyleRule {
+
+	protected addBackgroundColorRule(editorStyles: EditorStyles, selector: string, color: string | Color, rules: string[]): void {
+		if (color) {
+			color = color instanceof Color ? color : new Color(color);
+			rules.push(`.monaco-editor.${editorStyles.getThemeSelector()} ${selector} { background-color: ${color}; }`);
+		}
+	}
+
 	public abstract getCssRules(editorStyles: EditorStyles): string[];
 }
 
-class EditorBackgroundStyleRule extends EditorStyleRule {
+class EditorBackgroundStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
 		let themeSelector = editorStyles.getThemeSelector();
 		if (editorStyles.getEditorStyleSettings().background) {
 			let background = new Color(editorStyles.getEditorStyleSettings().background);
-			cssRules.push(`.monaco-editor.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
-			cssRules.push(`.monaco-editor.${themeSelector} .glyph-margin { background-color: ${background}; }`);
+			this.addBackgroundColorRule(editorStyles, '.monaco-editor-background', background, cssRules);
+			this.addBackgroundColorRule(editorStyles, '.glyph-margin', background, cssRules);
 			cssRules.push(`.${themeSelector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
 		}
 		return cssRules;
 	}
 }
 
-class EditorForegroundStyleRule extends EditorStyleRule {
+class EditorForegroundStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
 		let themeSelector = editorStyles.getThemeSelector();
@@ -162,80 +182,66 @@ class EditorForegroundStyleRule extends EditorStyleRule {
 	}
 }
 
-class EditorSelectionStyleRule extends EditorStyleRule {
+class EditorSelectionStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
-		let themeSelector = editorStyles.getThemeSelector();
 		if (editorStyles.getEditorStyleSettings().selection) {
 			let selection = new Color(editorStyles.getEditorStyleSettings().selection);
-			cssRules.push(`.monaco-editor.${themeSelector} .focused .selected-text { background-color: ${selection}; }`);
-			cssRules.push(`.monaco-editor.${themeSelector} .selected-text { background-color: ${selection.transparent(0.5)}; }`);
+			this.addBackgroundColorRule(editorStyles, '.focused .selected-text', selection, cssRules);
+			this.addBackgroundColorRule(editorStyles, '.selected-text', selection.transparent(0.5), cssRules);
+		}
+
+		let selectionHighlightColor = this.getSelectionHighlightColor(editorStyles);
+		if (selectionHighlightColor) {
+			this.addBackgroundColorRule(editorStyles, '.focused .selectionHighlight', selectionHighlightColor, cssRules);
+			this.addBackgroundColorRule(editorStyles, '.selectionHighlight', selectionHighlightColor.transparent(0.5), cssRules);
 		}
 		return cssRules;
 	}
-}
 
-class EditorSelectionHighlightStyleRule extends EditorStyleRule {
-	public getCssRules(editorStyles: EditorStyles): string[] {
-		let cssRules = [];
-		let themeSelector = editorStyles.getThemeSelector();
+	private getSelectionHighlightColor(editorStyles: EditorStyles) {
 		if (editorStyles.getEditorStyleSettings().selectionHighlight) {
-			let selection = new Color(editorStyles.getEditorStyleSettings().selectionHighlight);
-			cssRules.push(`.monaco-editor.${themeSelector} .selectionHighlight { background-color: ${selection}; }`);
+			return new Color(editorStyles.getEditorStyleSettings().selectionHighlight);
 		}
-		return cssRules;
+
+		if (editorStyles.getEditorStyleSettings().selection && editorStyles.getEditorStyleSettings().background) {
+			let selection = new Color(editorStyles.getEditorStyleSettings().selection);
+			let background = new Color(editorStyles.getEditorStyleSettings().background);
+			return deriveLessProminentColor(selection, background);
+		}
+
+		return null;
 	}
 }
 
-class EditorWordHighlightStyleRule extends EditorStyleRule {
+class EditorWordHighlightStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
-		let themeSelector = editorStyles.getThemeSelector();
-		if (editorStyles.getEditorStyleSettings().wordHighlight) {
-			let selection = new Color(editorStyles.getEditorStyleSettings().wordHighlight);
-			cssRules.push(`.monaco-editor.${themeSelector} .wordHighlight { background-color: ${selection}; }`);
-		}
+		this.addBackgroundColorRule(editorStyles, '.wordHighlight', editorStyles.getEditorStyleSettings().wordHighlight, cssRules);
+		this.addBackgroundColorRule(editorStyles, '.wordHighlightStrong', editorStyles.getEditorStyleSettings().wordHighlightStrong, cssRules);
 		return cssRules;
 	}
 }
 
-class EditorWordHighlightStrongStyleRule extends EditorStyleRule {
+class EditorFindStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
-		let themeSelector = editorStyles.getThemeSelector();
-		if (editorStyles.getEditorStyleSettings().wordHighlightStrong) {
-			let selection = new Color(editorStyles.getEditorStyleSettings().wordHighlightStrong);
-			cssRules.push(`.monaco-editor.${themeSelector} .wordHighlightStrong { background-color: ${selection}; }`);
-		}
+		this.addBackgroundColorRule(editorStyles, '.findMatch', editorStyles.getEditorStyleSettings().findMatch, cssRules);
+		this.addBackgroundColorRule(editorStyles, '.currentFindMatch', editorStyles.getEditorStyleSettings().currentFindMatch, cssRules);
 		return cssRules;
 	}
 }
 
-class EditorFindLineHighlightStyleRule extends EditorStyleRule {
+class EditorLineHighlightStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
-		let themeSelector = editorStyles.getThemeSelector();
-		if (editorStyles.getEditorStyleSettings().findLineHighlight) {
-			let selection = new Color(editorStyles.getEditorStyleSettings().findLineHighlight);
-			cssRules.push(`.monaco-editor.${themeSelector} .findLineHighlight { background-color: ${selection}; }`);
-		}
+		this.addBackgroundColorRule(editorStyles, '.current-line', editorStyles.getEditorStyleSettings().lineHighlight, cssRules);
+		this.addBackgroundColorRule(editorStyles, '.rangeHighlight', editorStyles.getEditorStyleSettings().rangeHighlight, cssRules);
 		return cssRules;
 	}
 }
 
-class EditorCurrentLineHighlightStyleRule extends EditorStyleRule {
-	public getCssRules(editorStyles: EditorStyles): string[] {
-		let cssRules = [];
-		let themeSelector = editorStyles.getThemeSelector();
-		if (editorStyles.getEditorStyleSettings().lineHighlight) {
-			let lineHighlight = new Color(editorStyles.getEditorStyleSettings().lineHighlight);
-			cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; border:0; }`);
-		}
-		return cssRules;
-	}
-}
-
-class EditorCursorStyleRule extends EditorStyleRule {
+class EditorCursorStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
 		let themeSelector = editorStyles.getThemeSelector();
@@ -248,7 +254,7 @@ class EditorCursorStyleRule extends EditorStyleRule {
 	}
 }
 
-class EditorWhiteSpaceStyleRule extends EditorStyleRule {
+class EditorWhiteSpaceStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
 		let themeSelector = editorStyles.getThemeSelector();
@@ -260,7 +266,7 @@ class EditorWhiteSpaceStyleRule extends EditorStyleRule {
 	}
 }
 
-class EditorIndentGuidesStyleRule extends EditorStyleRule {
+class EditorIndentGuidesStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
 		let themeSelector = editorStyles.getThemeSelector();
@@ -280,4 +286,15 @@ class EditorIndentGuidesStyleRule extends EditorStyleRule {
 		}
 		return null;
 	}
+}
+
+function deriveLessProminentColor(from: Color, backgroundColor: Color): Color {
+	let contrast = from.getContrast(backgroundColor);
+	if (contrast < 1.7 || contrast > 4.5) {
+		return null;
+	}
+	if (from.isDarkerThan(backgroundColor)) {
+		return Color.getLighterColor(from, backgroundColor, 0.4);
+	}
+	return Color.getDarkerColor(from, backgroundColor, 0.4);
 }

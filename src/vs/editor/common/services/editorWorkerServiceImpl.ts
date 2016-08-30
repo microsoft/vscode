@@ -322,7 +322,7 @@ export class EditorWorkerClient extends Disposable {
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getModeId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
@@ -335,7 +335,7 @@ export class EditorWorkerClient extends Disposable {
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getModeId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);

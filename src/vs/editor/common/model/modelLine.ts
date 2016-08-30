@@ -6,10 +6,10 @@
 
 import * as strings from 'vs/base/common/strings';
 import {ILineTokens, IReadOnlyLineMarker} from 'vs/editor/common/editorCommon';
-import {IMode, IState} from 'vs/editor/common/modes';
+import {IState} from 'vs/editor/common/modes';
 import {TokensBinaryEncoding, TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {LineToken} from 'vs/editor/common/model/lineToken';
+import {Token} from 'vs/editor/common/core/token';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 
 const START_INDEX_MASK = TokensBinaryEncoding.START_INDEX_MASK;
@@ -160,6 +160,12 @@ export class ModelLine {
 
 	// --- BEGIN STATE
 
+	public resetTokenizationState(): void {
+		this._state = null;
+		this._modeTransitions = null;
+		this._lineTokens = null;
+	}
+
 	public setState(state: IState): void {
 		this._state = state;
 	}
@@ -172,11 +178,11 @@ export class ModelLine {
 
 	// --- BEGIN MODE TRANSITIONS
 
-	public getModeTransitions(topLevelMode:IMode): ModeTransition[] {
+	public getModeTransitions(topLevelModeId:string): ModeTransition[] {
 		if (this._modeTransitions) {
 			return this._modeTransitions;
 		} else {
-			return [new ModeTransition(0, topLevelMode)];
+			return [new ModeTransition(0, topLevelModeId)];
 		}
 	}
 
@@ -184,9 +190,9 @@ export class ModelLine {
 
 	// --- BEGIN TOKENS
 
-	public setTokens(map: TokensInflatorMap, tokens: LineToken[], topLevelMode:IMode, modeTransitions:ModeTransition[]): void {
+	public setTokens(map: TokensInflatorMap, tokens: Token[], topLevelModeId:string, modeTransitions:ModeTransition[]): void {
 		this._lineTokens = toLineTokensFromInflated(map, tokens, this._text.length);
-		this._modeTransitions = toModeTransitions(topLevelMode, modeTransitions);
+		this._modeTransitions = toModeTransitions(topLevelModeId, modeTransitions);
 	}
 
 	private _setLineTokensFromDeflated(tokens:number[]): void {
@@ -691,7 +697,7 @@ export class ModelLine {
 	}
 }
 
-function toLineTokensFromInflated(map:TokensInflatorMap, tokens:LineToken[], textLength:number): number[] {
+function toLineTokensFromInflated(map:TokensInflatorMap, tokens:Token[], textLength:number): number[] {
 	if (textLength === 0) {
 		return null;
 	}
@@ -868,11 +874,11 @@ export class DefaultLineTokens implements ILineTokens {
 
 }
 
-function toModeTransitions(topLevelMode:IMode, modeTransitions:ModeTransition[]): ModeTransition[] {
+function toModeTransitions(topLevelModeId:string, modeTransitions:ModeTransition[]): ModeTransition[] {
 
 	if (!modeTransitions || modeTransitions.length === 0) {
 		return null;
-	} else if (modeTransitions.length === 1 && modeTransitions[0].startIndex === 0 && modeTransitions[0].mode === topLevelMode) {
+	} else if (modeTransitions.length === 1 && modeTransitions[0].startIndex === 0 && modeTransitions[0].modeId === topLevelModeId) {
 		return null;
 	}
 

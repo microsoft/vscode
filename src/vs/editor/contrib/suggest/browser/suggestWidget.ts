@@ -284,7 +284,6 @@ class SuggestionDetails {
 export class SuggestWidget implements IContentWidget, IDisposable {
 
 	private static ID: string = 'editor.widget.suggestWidget';
-	static WIDTH: number = 438;
 
 	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
 	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
@@ -324,10 +323,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.isAuto = false;
 		this.focusedItem = null;
 
-		this.element = $('.editor-widget.suggest-widget.monaco-editor-background');
-		this.element.style.width = SuggestWidget.WIDTH + 'px';
-		this.element.style.top = '0';
-		this.element.style.left = '0';
+		this.element = $('.editor-widget.suggest-widget');
 
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
 			addClass(this.element, 'no-icons');

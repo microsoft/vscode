@@ -10,7 +10,7 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import {ILineContext, IMode, IToken} from 'vs/editor/common/modes';
+import {ILineContext, IMode} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -18,6 +18,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
@@ -315,6 +316,12 @@ export interface IEditorOptions {
 	 */
 	wrappingColumn?:number;
 	/**
+	 * Control the alternate style of viewport wrapping.
+	 * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
+	 * Defaults to false.
+	 */
+	wordWrap?:boolean;
+	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
 	 * Defaults to 'none'.
 	 */
@@ -439,9 +446,14 @@ export interface IEditorOptions {
 	renderControlCharacters?: boolean;
 	/**
 	 * Enable rendering of indent guides.
-	 * Defaults to true.
+	 * Defaults to false.
 	 */
 	renderIndentGuides?: boolean;
+	/**
+	 * Enable rendering of current line highlight.
+	 * Defaults to true.
+	 */
+	renderLineHighlight?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -641,6 +653,7 @@ export class InternalEditorViewOptions {
 	renderWhitespace: boolean;
 	renderControlCharacters: boolean;
 	renderIndentGuides: boolean;
+	renderLineHighlight: boolean;
 	scrollbar:InternalEditorScrollbarOptions;
 
 	/**
@@ -669,6 +682,7 @@ export class InternalEditorViewOptions {
 		renderWhitespace: boolean;
 		renderControlCharacters: boolean;
 		renderIndentGuides: boolean;
+		renderLineHighlight: boolean;
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
 		this.theme = String(source.theme);
@@ -693,6 +707,7 @@ export class InternalEditorViewOptions {
 		this.renderWhitespace = Boolean(source.renderWhitespace);
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
+		this.renderLineHighlight = Boolean(source.renderLineHighlight);
 		this.scrollbar = source.scrollbar.clone();
 	}
 
@@ -751,6 +766,7 @@ export class InternalEditorViewOptions {
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.renderIndentGuides === other.renderIndentGuides
+			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
 		);
 	}
@@ -782,6 +798,7 @@ export class InternalEditorViewOptions {
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
 			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
+			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
 		};
 	}
@@ -817,6 +834,7 @@ export interface IViewConfigurationChangedEvent {
 	renderWhitespace:  boolean;
 	renderControlCharacters: boolean;
 	renderIndentGuides:  boolean;
+	renderLineHighlight:  boolean;
 	scrollbar: boolean;
 }
 
@@ -1247,7 +1265,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	token: IToken;
+	token: Token;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;

@@ -21,6 +21,7 @@ import * as FileConfig from './processRunnerConfiguration';
 
 let build: string = 'build';
 let test: string = 'test';
+let defaultValue: string = 'default';
 
 interface TaskInfo {
 	index: number;
@@ -342,11 +343,14 @@ export class ProcessRunnerDetector {
 	private testBuild(taskInfo: TaskInfo, taskName: string, index: number):void {
 		if (taskName === build) {
 			taskInfo.index = index;
+			taskInfo.exact = 4;
+		} else if ((Strings.startsWith(taskName, build) || Strings.endsWith(taskName, build)) && taskInfo.exact < 4) {
+			taskInfo.index = index;
 			taskInfo.exact = 3;
-		} else if ((Strings.startsWith(taskName, build) || Strings.endsWith(taskName, build)) && taskInfo.exact < 3) {
+		} else if (taskName.indexOf(build) !== -1 && taskInfo.exact < 3) {
 			taskInfo.index = index;
 			taskInfo.exact = 2;
-		} else if (taskName.indexOf(build) !== -1 && taskInfo.exact < 2) {
+		} else if (taskName === defaultValue && taskInfo.exact < 2) {
 			taskInfo.index = index;
 			taskInfo.exact = 1;
 		}
