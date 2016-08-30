@@ -494,7 +494,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let folderNamesExpanded = associations.folderNamesExpanded;
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
-					addSelector(`${qualifier} .expanded .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
+					addSelector(`${qualifier} .expanded .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 				}
 			}
 			let fileExtensions = associations.fileExtensions;
@@ -726,6 +726,9 @@ const schema: IJSONSchema = {
 				},
 				folderNames: {
 					$ref: '#/definitions/folderNames'
+				},
+				folderNamesExpanded: {
+					$ref: '#/definitions/folderNamesExpanded'
 				},
 				fileExtensions: {
 					$ref: '#/definitions/fileExtensions'
