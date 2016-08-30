@@ -4,7 +4,7 @@ setlocal
 rem APPVEYOR Builds
 if not "%APPVEYOR%" == "" (
 	set ELECTRON_NO_ATTACH_CONSOLE=1
-	set ATOM_SHELL_INTERNAL_RUN_AS_NODE=
+	set ELECTRON_RUN_AS_NODE=
 )
 
 :: Integration Tests
