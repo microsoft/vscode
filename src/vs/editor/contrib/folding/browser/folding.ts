@@ -241,22 +241,27 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			return;
 		}
 		let hasChanges = false;
-		let position = this.editor.getPosition();
-		let lineNumber = position.lineNumber;
+		let selections = this.editor.getSelections();
+
 		this.editor.changeDecorations(changeAccessor => {
 			return this.decorations.forEach(dec => {
 				if (dec.isCollapsed) {
 					let decRange = dec.getDecorationRange(model);
-					// reveal if cursor in in one of the collapsed line (not the first)
-					if (decRange && decRange.startLineNumber < lineNumber && lineNumber <= decRange.endLineNumber) {
-						dec.setCollapsed(false, changeAccessor);
-						hasChanges = true;
+					if (decRange) {
+						for (let selection of selections) {
+							// reveal if cursor in in one of the collapsed line (not the first)
+							if (decRange.startLineNumber < selection.selectionStartLineNumber && selection.selectionStartLineNumber <= decRange.endLineNumber) {
+								dec.setCollapsed(false, changeAccessor);
+								hasChanges = true;
+								break;
+							}
+						}
 					}
 				}
 			});
 		});
 		if (hasChanges) {
-			this.updateHiddenAreas(lineNumber);
+			this.updateHiddenAreas(this.editor.getPosition().lineNumber);
 		}
 	}
 
