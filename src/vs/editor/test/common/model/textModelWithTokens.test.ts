@@ -11,76 +11,27 @@ import {ITokenizationSupport} from 'vs/editor/common/modes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {Token} from 'vs/editor/common/core/token';
 import {Range} from 'vs/editor/common/core/range';
+import {Position} from 'vs/editor/common/core/position';
 import {IFoundBracket} from 'vs/editor/common/editorCommon';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 suite('TextModelWithTokens', () => {
-
-	function assertViewLineTokens(model:Model, lineNumber:number, forceTokenization:boolean, expected:ViewLineToken[]): void {
-		let actual = model.getLineTokens(lineNumber, !forceTokenization).inflate();
-		assert.deepEqual(actual, expected);
-	}
-
-	test('Microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
-		let _tokenId = 0;
-		class IndicisiveMode extends MockMode {
-			public tokenizationSupport:ITokenizationSupport;
-
-			constructor() {
-				super();
-				this.tokenizationSupport = {
-					getInitialState: () => {
-						return null;
-					},
-					tokenize: (line, state, offsetDelta, stopAtOffset) => {
-						let myId = ++_tokenId;
-						return {
-							tokens: [new Token(0, 'custom.'+myId)],
-							actualStopOffset: line.length,
-							endState: null,
-							modeTransitions: [],
-							retokenize: null
-						};
-					}
-				};
-			}
-		}
-		let model = Model.createFromString('A model with\ntwo lines');
-
-		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, '')]);
-		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, '')]);
-
-		model.setMode(new IndicisiveMode());
-
-		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, 'custom.1')]);
-		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, 'custom.2')]);
-
-		model.setMode(new IndicisiveMode());
-
-		assertViewLineTokens(model, 1, false, [new ViewLineToken(0, '')]);
-		assertViewLineTokens(model, 2, false, [new ViewLineToken(0, '')]);
-
-		model.dispose();
-	});
-
-});
-
-suite('TextModelWithTokens', () => {
-
-	function toRelaxedFoundBracket(a:IFoundBracket) {
-		if (!a) {
-			return null;
-		}
-		return {
-			range: a.range.toString(),
-			open: a.open,
-			close: a.close,
-			isOpen: a.isOpen
-		};
-	}
 
 	function testBrackets(contents: string[], brackets:string[][]): void {
+		function toRelaxedFoundBracket(a:IFoundBracket) {
+			if (!a) {
+				return null;
+			}
+			return {
+				range: a.range.toString(),
+				open: a.open,
+				close: a.close,
+				isOpen: a.isOpen
+			};
+		}
+
 		let charIsBracket: {[char:string]:boolean} = {};
 		let charIsOpenBracket: {[char:string]:boolean} = {};
 		let openForChar: {[char:string]:string} = {};
@@ -183,4 +134,170 @@ suite('TextModelWithTokens', () => {
 		]);
 	});
 
+
+});
+
+suite('TextModelWithTokens - bracket matching', () => {
+
+	function isNotABracket(model:Model, lineNumber:number, column:number) {
+		let match = model.matchBracket(new Position(lineNumber, column));
+		assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
+	}
+
+	function isBracket(model:Model, lineNumber1:number, column11:number, column12:number, lineNumber2:number, column21:number, column22:number) {
+		let match = model.matchBracket(new Position(lineNumber1, column11));
+		assert.deepEqual(match, [
+			new Range(lineNumber1, column11, lineNumber1, column12),
+			new Range(lineNumber2, column21, lineNumber2, column22)
+		], 'is matching brackets at ' + lineNumber1 + ', ' + column11);
+	}
+
+	class BracketMode extends MockMode {
+		constructor() {
+			super();
+			LanguageConfigurationRegistry.register(this.getId(), {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')'],
+				]
+			});
+		}
+	}
+
+	test('bracket matching 1', () => {
+		let text =
+			')]}{[(' + '\n' +
+			')]}{[(';
+		let model = Model.createFromString(text, undefined, new BracketMode());
+
+		isNotABracket(model, 1, 1);
+		isNotABracket(model, 1, 2);
+		isNotABracket(model, 1, 3);
+		isBracket(model, 1, 4, 5, 2, 3, 4);
+		isBracket(model, 1, 5, 4, 2, 3, 4);
+		isBracket(model, 1, 6, 5, 2, 2, 3);
+		isBracket(model, 1, 7, 6, 2, 1, 2);
+
+		isBracket(model, 2, 1, 2, 1, 6, 7);
+		isBracket(model, 2, 2, 1, 1, 6, 7);
+		isBracket(model, 2, 3, 2, 1, 5, 6);
+		isBracket(model, 2, 4, 3, 1, 4, 5);
+		isNotABracket(model, 2, 5);
+		isNotABracket(model, 2, 6);
+		isNotABracket(model, 2, 7);
+
+		model.destroy();
+	});
+
+	test('bracket matching 2', () => {
+		let text =
+			'var bar = {' + '\n' +
+			'foo: {' + '\n' +
+			'}, bar: {hallo: [{' + '\n' +
+			'}, {' + '\n' +
+			'}]}}';
+		let model = Model.createFromString(text, undefined, new BracketMode());
+
+		let brackets = [
+			[1, 11, 12, 5, 4, 5],
+			[1, 12, 11, 5, 4, 5],
+			[5, 5, 4, 1, 11, 12],
+
+			[2, 6, 7, 3, 1, 2],
+			[2, 7, 6, 3, 1, 2],
+			[3, 1, 2, 2, 6, 7],
+			[3, 2, 1, 2, 6, 7],
+
+			[3, 9, 10, 5, 3, 4],
+			[3, 10, 9, 5, 3, 4],
+			[5, 4, 3, 3, 9, 10],
+
+			[3, 17, 18, 5, 2, 3],
+			[3, 18, 17, 5, 2, 3],
+			[5, 3, 2, 3, 17, 18],
+
+			[3, 19, 18, 4, 1, 2],
+			[4, 2, 1, 3, 18, 19],
+			[4, 1, 2, 3, 18, 19],
+
+			[4, 4, 5, 5, 1, 2],
+			[4, 5, 4, 5, 1, 2],
+			[5, 2, 1, 4, 4, 5],
+			[5, 1, 2, 4, 4, 5]
+		];
+		let i, len, b, isABracket = {1:{}, 2:{}, 3:{}, 4:{}, 5:{}};
+
+		for (i = 0, len = brackets.length; i < len; i++) {
+			b = brackets[i];
+			isBracket(model, b[0], b[1], b[2], b[3], b[4], b[5]);
+			isABracket[b[0]][b[1]] = true;
+		}
+
+		for (i = 1, len = model.getLineCount(); i <= len; i++) {
+			let line = model.getLineContent(i), j, lenJ;
+			for (j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
+				if (!isABracket[i].hasOwnProperty(j)) {
+					isNotABracket(model, i, j);
+				}
+			}
+		}
+
+		model.destroy();
+	});
+});
+
+
+suite('TextModelWithTokens regression tests', () => {
+
+	test('Microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
+		function assertViewLineTokens(model:Model, lineNumber:number, forceTokenization:boolean, expected:ViewLineToken[]): void {
+			let actual = model.getLineTokens(lineNumber, !forceTokenization).inflate();
+			assert.deepEqual(actual, expected);
+		}
+
+		let _tokenId = 0;
+		class IndicisiveMode extends MockMode {
+			public tokenizationSupport:ITokenizationSupport;
+
+			constructor() {
+				super();
+				this.tokenizationSupport = {
+					getInitialState: () => {
+						return null;
+					},
+					tokenize: (line, state, offsetDelta, stopAtOffset) => {
+						let myId = ++_tokenId;
+						return {
+							tokens: [new Token(0, 'custom.'+myId)],
+							actualStopOffset: line.length,
+							endState: null,
+							modeTransitions: [],
+							retokenize: null
+						};
+					}
+				};
+			}
+		}
+		let model = Model.createFromString('A model with\ntwo lines');
+
+		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, '')]);
+		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, '')]);
+
+		model.setMode(new IndicisiveMode());
+
+		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, 'custom.1')]);
+		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, 'custom.2')]);
+
+		model.setMode(new IndicisiveMode());
+
+		assertViewLineTokens(model, 1, false, [new ViewLineToken(0, '')]);
+		assertViewLineTokens(model, 2, false, [new ViewLineToken(0, '')]);
+
+		model.dispose();
+	});
+
+	// test('Microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
+
+	// });
 });

@@ -13,23 +13,9 @@ import {
 	IModelContentChangedLinesDeletedEvent, IModelContentChangedLinesInsertedEvent
 } from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import {BracketMode} from 'vs/editor/test/common/testModes';
 import {TextModel, IParsedSearchRequest} from 'vs/editor/common/model/textModel';
 
 // --------- utils
-
-function isNotABracket(model:Model, lineNumber:number, column:number) {
-	var match = model.matchBracket(new Position(lineNumber, column));
-	assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
-}
-
-function isBracket(model:Model, lineNumber1:number, column11:number, column12:number, lineNumber2:number, column21:number, column22:number) {
-	var match = model.matchBracket(new Position(lineNumber1, column11));
-	assert.deepEqual(match, [
-		new Range(lineNumber1, column11, lineNumber1, column12),
-		new Range(lineNumber2, column21, lineNumber2, column22)
-	], 'is matching brackets at ' + lineNumber1 + ', ' + column11);
-}
 
 var LINE1 = 'My First Line';
 var LINE2 = '\t\tMy Second Line';
@@ -374,112 +360,6 @@ suite('Editor Model - Model Line Separators', () => {
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
-	});
-});
-
-
-// --------- bracket matching
-
-suite('Editor Model - bracket Matching', () => {
-
-	var thisModel: Model;
-	var bracketMode = new BracketMode();
-
-	setup(() => {
-		var text =
-			'var bar = {' + '\n' +
-			'foo: {' + '\n' +
-			'}, bar: {hallo: [{' + '\n' +
-			'}, {' + '\n' +
-			'}]}}';
-		thisModel = Model.createFromString(text, undefined, bracketMode);
-	});
-
-	teardown(() => {
-		thisModel.destroy();
-	});
-
-	test('Model bracket matching 1', () => {
-
-		var brackets = [
-			[1, 11, 12, 5, 4, 5],
-			[1, 12, 11, 5, 4, 5],
-			[5, 5, 4, 1, 11, 12],
-
-			[2, 6, 7, 3, 1, 2],
-			[2, 7, 6, 3, 1, 2],
-			[3, 1, 2, 2, 6, 7],
-			[3, 2, 1, 2, 6, 7],
-
-			[3, 9, 10, 5, 3, 4],
-			[3, 10, 9, 5, 3, 4],
-			[5, 4, 3, 3, 9, 10],
-
-			[3, 17, 18, 5, 2, 3],
-			[3, 18, 17, 5, 2, 3],
-			[5, 3, 2, 3, 17, 18],
-
-			[3, 19, 18, 4, 1, 2],
-			[4, 2, 1, 3, 18, 19],
-			[4, 1, 2, 3, 18, 19],
-
-			[4, 4, 5, 5, 1, 2],
-			[4, 5, 4, 5, 1, 2],
-			[5, 2, 1, 4, 4, 5],
-			[5, 1, 2, 4, 4, 5]
-		];
-		var i, len, b, isABracket = {1:{}, 2:{}, 3:{}, 4:{}, 5:{}};
-
-		for (i = 0, len = brackets.length; i < len; i++) {
-			b = brackets[i];
-			isBracket(thisModel, b[0], b[1], b[2], b[3], b[4], b[5]);
-			isABracket[b[0]][b[1]] = true;
-		}
-
-		for (i = 1, len = thisModel.getLineCount(); i <= len; i++) {
-			var line = thisModel.getLineContent(i), j, lenJ;
-			for (j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
-				if (!isABracket[i].hasOwnProperty(j)) {
-					isNotABracket(thisModel, i, j);
-				}
-			}
-		}
-	});
-});
-
-
-suite('Editor Model - bracket Matching 2', () => {
-
-	var thisModel: Model;
-	var bracketMode = new BracketMode();
-
-	setup(() => {
-		var text =
-			')]}{[(' + '\n' +
-			')]}{[(';
-		thisModel = Model.createFromString(text, undefined, bracketMode);
-	});
-
-	teardown(() => {
-		thisModel.destroy();
-	});
-
-	test('Model bracket matching', () => {
-		isNotABracket(thisModel, 1, 1);
-		isNotABracket(thisModel, 1, 2);
-		isNotABracket(thisModel, 1, 3);
-		isBracket(thisModel, 1, 4, 5, 2, 3, 4);
-		isBracket(thisModel, 1, 5, 4, 2, 3, 4);
-		isBracket(thisModel, 1, 6, 5, 2, 2, 3);
-		isBracket(thisModel, 1, 7, 6, 2, 1, 2);
-
-		isBracket(thisModel, 2, 1, 2, 1, 6, 7);
-		isBracket(thisModel, 2, 2, 1, 1, 6, 7);
-		isBracket(thisModel, 2, 3, 2, 1, 5, 6);
-		isBracket(thisModel, 2, 4, 3, 1, 4, 5);
-		isNotABracket(thisModel, 2, 5);
-		isNotABracket(thisModel, 2, 6);
-		isNotABracket(thisModel, 2, 7);
 	});
 });
 
