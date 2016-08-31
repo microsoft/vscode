@@ -46,6 +46,46 @@ suite('ConfigVariables tests', () => {
 		let systemVariables: ConfigVariables = new ConfigVariables(configurationService, null, null, TestEnvironmentService, URI.parse('file:///VSCode/workspaceLocation'));
 		assert.strictEqual(systemVariables.resolve('abc ${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
 	});
+	test('ConfigVariables: substitute nested configs', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {
+				fontFamily: 'foo ${workspaceRoot} ${config.terminal.integrated.fontFamily}'
+			},
+			terminal: {
+				integrated: {
+					fontFamily: 'bar'
+				}
+			}
+		});
+
+		let systemVariables: ConfigVariables = new ConfigVariables(configurationService, null, null, TestEnvironmentService, URI.parse('file:///VSCode/workspaceLocation'));
+		if (Platform.isWindows) {
+			assert.strictEqual(systemVariables.resolve('abc ${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} xyz'), 'abc foo \\VSCode\\workspaceLocation bar bar xyz');
+		} else {
+			assert.strictEqual(systemVariables.resolve('abc ${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} xyz'), 'abc foo /VSCode/workspaceLocation bar bar xyz');
+		}
+	});
+	test('ConfigVariables: substitute accidental self referenced configs', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {
+				fontFamily: 'foo ${workspaceRoot} ${config.terminal.integrated.fontFamily} ${config.editor.fontFamily}'
+			},
+			terminal: {
+				integrated: {
+					fontFamily: 'bar'
+				}
+			}
+		});
+
+		let systemVariables: ConfigVariables = new ConfigVariables(configurationService, null, null, TestEnvironmentService, URI.parse('file:///VSCode/workspaceLocation'));
+		if (Platform.isWindows) {
+			assert.strictEqual(systemVariables.resolve('abc ${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} xyz'), 'abc foo \\VSCode\\workspaceLocation bar  bar xyz');
+		} else {
+			assert.strictEqual(systemVariables.resolve('abc ${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} xyz'), 'abc foo /VSCode/workspaceLocation bar  bar xyz');
+		}
+	});
 	test('SystemVariables: substitute one env variable', () => {
 		let configurationService: IConfigurationService;
 		configurationService = new MockConfigurationService({
