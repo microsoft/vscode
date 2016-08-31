@@ -475,14 +475,14 @@ export class ChangeSortAction extends Action {
 		}
 
 		this.query = Query.parse('');
-		this.enabled = !!sortBy;
+		this.enabled = false;
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
 	private onSearchChange(value: string): void {
 		const query = Query.parse(value);
 		this.query = new Query(query.value, this.sortBy || query.sortBy, this.sortOrder || query.sortOrder);
-		this.enabled = this.query.isValid() && !this.query.equals(query);
+		this.enabled = value && this.query.isValid() && !this.query.equals(query);
 	}
 
 	run(): TPromise<void> {
