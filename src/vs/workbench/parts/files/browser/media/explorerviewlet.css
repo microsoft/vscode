@@ -11,6 +11,7 @@
 .explorer-viewlet .explorer-item,
 .explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
+	height: 22px;
 	line-height: 22px;
 }
 
