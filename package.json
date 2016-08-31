@@ -61,7 +61,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.6.0",
-    "gulp-symdest": "^1.0.0",
+    "gulp-symdest": "^1.1.0",
     "gulp-tsb": "^1.10.1",
     "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^1.4.1",
