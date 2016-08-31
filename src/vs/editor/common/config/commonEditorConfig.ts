@@ -598,7 +598,7 @@ let editorConfiguration:IConfigurationNode = {
 		'editor.fontSize' : {
 			'type': 'number',
 			'default': DefaultConfig.editor.fontSize,
-			'description': nls.localize('fontSize', "Controls the font size.")
+			'description': nls.localize('fontSize', "Controls the font size in pixels.")
 		},
 		'editor.lineHeight' : {
 			'type': 'number',
