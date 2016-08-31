@@ -232,15 +232,15 @@ export class GitChannelClient implements IRawGitService {
 }
 
 export interface IAskpassChannel extends IChannel {
-	call(command: 'askpass', id: string, host: string, gitCommand: string): TPromise<ICredentials>;
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: 'askpass', args: [string, string, string]): TPromise<ICredentials>;
+	call(command: string, args: any[]): TPromise<any>;
 }
 
 export class AskpassChannel implements IAskpassChannel {
 
 	constructor(private service: IAskpassService) { }
 
-	call(command: string, ...args: any[]): TPromise<any> {
+	call(command: string, args: [string, string, string]): TPromise<any> {
 		switch (command) {
 			case 'askpass': return this.service.askpass(args[0], args[1], args[2]);
 		}
@@ -252,6 +252,6 @@ export class AskpassChannelClient implements IAskpassService {
 	constructor(private channel: IAskpassChannel) { }
 
 	askpass(id: string, host: string, command: string): TPromise<ICredentials> {
-		return this.channel.call('askpass', id, host, command);
+		return this.channel.call('askpass', [id, host, command]);
 	}
 }
