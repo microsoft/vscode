@@ -169,6 +169,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 	private createRenderer() : IRenderer {
 		const hljs = require('highlight.js');
 		const mdnh = require('markdown-it-named-headers');
+		const mdkatex = require('markdown-it-katex');
 		const md = require('markdown-it')({
 			html: true,
 			highlight: function (str, lang) {
@@ -179,7 +180,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				}
 				return `<pre class="hljs"><code><div>${md.utils.escapeHtml(str)}</div></code></pre>`;
 			}
-		}).use(mdnh, {});
+		}).use(mdnh, {}).use(mdkatex, {});
 		return md;
 	}
 
@@ -234,6 +235,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				'<head>',
 				'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
+				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('katex/katex.min.css')}" >`,
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
 				this.computeCustomStyleSheetIncludes(uri),
 				`<base href="${document.uri.toString(true)}">`,

@@ -22,6 +22,11 @@
       "from": "highlight.js@>=9.3.0 <10.0.0",
       "resolved": "https://registry.npmjs.org/highlight.js/-/highlight.js-9.5.0.tgz"
     },
+    "katex": {
+      "version": "0.5.1",
+      "from": "katex@>=0.5.1 <0.6.0",
+      "resolved": "https://registry.npmjs.org/katex/-/katex-0.5.1.tgz"
+    },
     "linkify-it": {
       "version": "1.2.4",
       "from": "linkify-it@>=1.2.2 <1.3.0",
@@ -32,10 +37,20 @@
       "from": "markdown-it@>=6.0.1 <7.0.0",
       "resolved": "https://registry.npmjs.org/markdown-it/-/markdown-it-6.1.1.tgz"
     },
+    "markdown-it-katex": {
+      "version": "2.0.1",
+      "from": "markdown-it-katex@*",
+      "resolved": "https://registry.npmjs.org/markdown-it-katex/-/markdown-it-katex-2.0.1.tgz"
+    },
     "markdown-it-named-headers": {
       "version": "0.0.4",
       "from": "markdown-it-named-headers@0.0.4",
       "resolved": "https://registry.npmjs.org/markdown-it-named-headers/-/markdown-it-named-headers-0.0.4.tgz"
+    },
+    "match-at": {
+      "version": "0.1.0",
+      "from": "match-at@>=0.1.0 <0.2.0",
+      "resolved": "https://registry.npmjs.org/match-at/-/match-at-0.1.0.tgz"
     },
     "mdurl": {
       "version": "1.0.1",
