@@ -135,9 +135,5 @@
     "markdown-it-katex": "^2.0.1",
     "markdown-it-named-headers": "0.0.4",
     "vscode-extension-telemetry": "^0.0.5"
-  },
-  "devDependencies": {
-    "request": "^2.74.0",
-    "unzip": "^0.1.11"
   }
 }
