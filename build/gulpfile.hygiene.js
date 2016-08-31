@@ -27,7 +27,7 @@ const eolFilter = [
 	'!extensions/**/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
-	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',
+	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,woff2,eot}',
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/monaco/**',
 	'!build/win32/**'
@@ -78,7 +78,8 @@ const copyrightFilter = [
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
-	'!extensions/markdown/media/tomorrow.css'
+	'!extensions/markdown/media/tomorrow.css',
+	'!extensions/markdown/media/katex/katex.min.css'
 ];
 
 const tslintFilter = [
