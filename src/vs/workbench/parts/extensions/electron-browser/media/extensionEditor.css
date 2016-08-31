@@ -8,8 +8,8 @@
 	overflow: hidden;
 }
 
-.extension-editor a {
-	color: inherit;
+.extension-editor .clickable {
+	cursor: pointer;
 }
 
 .extension-editor > .header {

@@ -110,11 +110,11 @@ export class ExtensionEditor extends BaseEditor {
 	static ID: string = 'workbench.editor.extension';
 
 	private icon: HTMLImageElement;
-	private name: HTMLAnchorElement;
-	private license: HTMLAnchorElement;
-	private publisher: HTMLAnchorElement;
+	private name: HTMLElement;
+	private license: HTMLElement;
+	private publisher: HTMLElement;
 	private installCount: HTMLElement;
-	private rating: HTMLAnchorElement;
+	private rating: HTMLElement;
 	private description: HTMLElement;
 	private extensionActionBar: ActionBar;
 	private navbar: NavBar;
@@ -163,20 +163,16 @@ export class ExtensionEditor extends BaseEditor {
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
-		this.name = append(title, $<HTMLAnchorElement>('a.name'));
-		this.name.href = '#';
+		this.name = append(title, $('span.name.clickable'));
 
 		const subtitle = append(details, $('.subtitle'));
-		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
-		this.publisher.href = '#';
+		this.publisher = append(subtitle, $('span.publisher.clickable'));
 
 		this.installCount = append(subtitle, $('span.install'));
 
-		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
-		this.rating.href = '#';
+		this.rating = append(subtitle, $('span.rating.clickable'));
 
-		this.license = append(subtitle, $<HTMLAnchorElement>('a.license'));
-		this.license.href = '#';
+		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
 		this.license.style.display = 'none';
 
