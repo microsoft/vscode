@@ -20,7 +20,6 @@ import {Model} from 'vs/editor/common/model/model';
 import {IMode, IndentAction} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
-import {BracketMode} from 'vs/editor/test/common/testModes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {viewModelHelper} from 'vs/editor/test/common/editorTestUtils';
 
@@ -1129,6 +1128,19 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #183: jump to matching bracket position', () => {
+		class BracketMode extends MockMode {
+			constructor() {
+				super();
+				LanguageConfigurationRegistry.register(this.getId(), {
+					brackets: [
+						['{', '}'],
+						['[', ']'],
+						['(', ')'],
+					]
+				});
+			}
+		}
+
 		usingCursor({
 			text: [
 				'var x = (3 + (5-7));'

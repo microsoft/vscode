@@ -470,7 +470,7 @@ export class ChangeSortAction extends Action {
 	) {
 		super(id, label, null, true);
 
-		if (this.sortBy === undefined && this.sortOrder === undefined) {
+		if (sortBy === undefined && sortOrder === undefined) {
 			throw new Error('bad arguments');
 		}
 
@@ -482,7 +482,7 @@ export class ChangeSortAction extends Action {
 	private onSearchChange(value: string): void {
 		const query = Query.parse(value);
 		this.query = new Query(query.value, this.sortBy || query.sortBy, this.sortOrder || query.sortOrder);
-		this.enabled = this.query.isValid() && !this.query.equals(query);
+		this.enabled = value && this.query.isValid() && !this.query.equals(query);
 	}
 
 	run(): TPromise<void> {
