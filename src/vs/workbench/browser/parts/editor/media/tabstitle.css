@@ -30,6 +30,10 @@
 	border-top: 1px solid #403F3F;
 }
 
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs::before {
+	border-top: 1px solid #6FC3DF;
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs > .monaco-scrollable-element {
 	flex: 1;
 }
@@ -104,6 +108,10 @@
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child,
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child {
 	border-left-color: transparent;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
+	border-left-color: #6FC3DF;
 }
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active  {

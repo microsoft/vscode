@@ -87,7 +87,7 @@
 }
 
 /* High Contrast Theming */
-.hc-black .monaco-split-view > .split-view-view > .header {
+.hc-black .monaco-split-view > .split-view-view:not(:first-child) > .header {
 	border-top: 1px solid #6FC3DF;
 }
 
