@@ -3030,6 +3030,16 @@ declare namespace vscode {
 	}
 
 	/**
+	 * A configuration describing a terminal within the integrated terminal.
+	 */
+	export interface TerminalConfiguration {
+		/**
+		 * A human-readable string which will be used to represent the terminal in the UI.
+		 */
+		name?: string
+	}
+
+	/**
 	 * Represents an extension.
 	 *
 	 * To get an instance of an `Extension` use [getExtension](#extensions.getExtension).
@@ -3491,10 +3501,10 @@ declare namespace vscode {
 		/**
 		 * Creates a [Terminal](#Terminal).
 		 *
-		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
+		 * @param configuration A configuration object for the terminal.
 		 * @return A new Terminal.
 		 */
-		export function createTerminal(name?: string): Terminal;
+		export function createTerminal(configuration: TerminalConfiguration): Terminal;
 	}
 
 	/**
