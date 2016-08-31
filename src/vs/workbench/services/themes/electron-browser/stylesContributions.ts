@@ -34,6 +34,7 @@ interface ThemeGlobalSettings {
 	referenceHighlight?: string;
 
 	activeLinkForeground?: string;
+	gotoDefinitionLinkForeground?: string;
 }
 
 class Theme {
@@ -230,7 +231,10 @@ class EditorLinkStyleRules extends EditorStyleRules {
 	public getCssRules(theme: Theme): string[] {
 		let cssRules = [];
 		if (theme.getGlobalSettings().activeLinkForeground) {
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link-active { color: ${theme.getGlobalSettings().activeLinkForeground} !important; }`);
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link-active { color: ${new Color(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
+		}
+		if (theme.getGlobalSettings().gotoDefinitionLinkForeground) {
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .goto-definition-link { color: ${new Color(theme.getGlobalSettings().gotoDefinitionLinkForeground)} !important; }`);
 		}
 		return cssRules;
 	}
