@@ -235,7 +235,9 @@ class EditorFindStyleRules extends EditorStyleRule {
 class EditorLineHighlightStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
-		this.addBackgroundColorRule(editorStyles, '.current-line', editorStyles.getEditorStyleSettings().lineHighlight, cssRules);
+		if (editorStyles.getEditorStyleSettings().lineHighlight) {
+			cssRules.push(`.monaco-editor.${editorStyles.getThemeSelector()} .current-line { background-color: ${new Color(editorStyles.getEditorStyleSettings().lineHighlight)}; border: none; }`);
+		}
 		this.addBackgroundColorRule(editorStyles, '.rangeHighlight', editorStyles.getEditorStyleSettings().rangeHighlight, cssRules);
 		return cssRules;
 	}
