@@ -15,7 +15,6 @@ import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
 import Actions = require('vs/base/common/actions');
 import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
-import git = require('vs/workbench/parts/git/common/git');
 import GitView = require('vs/workbench/parts/git/browser/views/view');
 import GitActions = require('vs/workbench/parts/git/browser/gitActions');
 import {IFileService} from 'vs/platform/files/common/files';
@@ -102,13 +101,8 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 			DOM.EventHelper.stop(e);
 
 			this.disableUI();
-
-			this.actionRunner.run(this.initAction).done(() => {
-				this.enableUI();
-			});
+			this.actionRunner.run(this.initAction).done(() => this.enableUI());
 		});
-
-		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.OPERATION, () => this.onGitOperation()));
 	}
 
 	private disableUI(): void {
@@ -124,7 +118,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 	}
 
 	private enableUI(): void {
-		if (this.gitService.getRunningOperations().length > 0){
+		if (this.gitService.getRunningOperations().length > 0) {
 			return;
 		}
 
@@ -163,14 +157,6 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 	}
 
 	// Events
-
-	private onGitOperation(): void {
-		if (this.gitService.getRunningOperations().length > 0) {
-			this.disableUI();
-		} else {
-			this.enableUI();
-		}
-	}
 
 	public dispose(): void {
 		if (this.$el) {
