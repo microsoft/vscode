@@ -384,7 +384,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					window.showInformationMessage(
 						localize('versionMismatch', 'A version mismatch between the globally installed tsc compiler ({0}) and VS Code\'s language service ({1}) has been detected. This might result in inconsistent compile errors.', tscVersion, version),
 						...[{
-							title: localize('moreInformation', 'More Informaiton'),
+							title: localize('moreInformation', 'More Information'),
 							id: 1
 						},
 						{
