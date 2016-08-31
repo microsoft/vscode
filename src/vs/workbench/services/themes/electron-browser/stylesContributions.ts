@@ -18,6 +18,8 @@ interface ThemeGlobalSettings {
 	lineHighlight?: string;
 	rangeHighlight?: string;
 
+	hoverHighlight?: string;
+
 	selection?: string;
 	inactiveSelection?: string;
 	selectionHighlight?: string;
@@ -28,6 +30,10 @@ interface ThemeGlobalSettings {
 
 	wordHighlight?: string;
 	wordHighlightStrong?: string;
+
+	referenceHighlight?: string;
+
+	activeLinkForeground?: string;
 }
 
 class Theme {
@@ -145,7 +151,9 @@ export class EditorStylesContribution {
 			new EditorSelectionStyleRules(),
 			new EditorWordHighlightStyleRules(),
 			new EditorFindStyleRules(),
-			new EditorReferenceSearchStyleRules()
+			new EditorReferenceSearchStyleRules(),
+			new EditorHoverHighlightStyleRules(),
+			new EditorLinkStyleRules()
 		];
 		let theme = new Theme(themeId, themeDocument);
 		if (theme.hasGlobalSettings()) {
@@ -205,6 +213,24 @@ class EditorForegroundStyleRules extends EditorStyleRules {
 		if (theme.getGlobalSettings().foreground) {
 			let foreground = new Color(theme.getGlobalSettings().foreground);
 			cssRules.push(`.monaco-editor.${themeSelector} .token { color: ${foreground}; }`);
+		}
+		return cssRules;
+	}
+}
+
+class EditorHoverHighlightStyleRules extends EditorStyleRules {
+	public getCssRules(theme: Theme): string[] {
+		let cssRules = [];
+		this.addBackgroundColorRule(theme, '.hoverHighlight', theme.getGlobalSettings().hoverHighlight, cssRules);
+		return cssRules;
+	}
+}
+
+class EditorLinkStyleRules extends EditorStyleRules {
+	public getCssRules(theme: Theme): string[] {
+		let cssRules = [];
+		if (theme.getGlobalSettings().activeLinkForeground) {
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link-active { color: ${theme.getGlobalSettings().activeLinkForeground} !important; }`);
 		}
 		return cssRules;
 	}
@@ -271,6 +297,7 @@ class EditorReferenceSearchStyleRules extends EditorStyleRules {
 	public getCssRules(theme: Theme): string[] {
 		let cssRules = [];
 		this.addBackgroundColorRule(theme, '.reference-zone-widget .ref-tree .referenceMatch', theme.getGlobalSettings().findMatchHighlight, cssRules);
+		this.addBackgroundColorRule(theme, '.reference-zone-widget .preview .reference-decoration', theme.getGlobalSettings().referenceHighlight, cssRules);
 		return cssRules;
 	}
 }
