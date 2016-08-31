@@ -1427,7 +1427,7 @@ declare namespace vscode {
 		ignoreFocusOut?: boolean;
 
 		/**
-		 * An optional function that will be called to valide input and to give a hint
+		 * An optional function that will be called to validate input and to give a hint
 		 * to the user.
 		 *
 		 * @param value The current value of the input box.
