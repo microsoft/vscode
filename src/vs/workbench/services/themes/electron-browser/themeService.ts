@@ -852,11 +852,7 @@ const schema: IJSONSchema = {
 			$ref: '#/definitions/associations',
 			description: nls.localize('schema.highContrast', 'Optional associations for file icons in high contrast color themes.')
 		}
-	},
-	required: [
-		'iconDefinitions',
-		'file'
-	]
+	}
 };
 
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
