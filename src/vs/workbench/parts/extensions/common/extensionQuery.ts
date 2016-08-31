@@ -41,7 +41,7 @@ export class Query {
 	}
 
 	isValid(): boolean {
-		return !!this.sortBy || !this.sortOrder;
+		return !/@outdated/.test(this.value) && (!!this.sortBy || !this.sortOrder);
 	}
 
 	equals(other: Query): boolean {
