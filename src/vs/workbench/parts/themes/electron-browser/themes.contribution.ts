@@ -42,11 +42,25 @@ class SelectColorThemeAction extends Action {
 			const currentThemeId = this.themeService.getColorTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
 
+			const pickInMarketPlace = {
+				id: 'themes.findmore',
+				label: localize('findMore', "Find more in the Marketplace..."),
+				separator: { border: true },
+				alwaysShow: true,
+				run: () => this.viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+					(<IExtensionsViewlet> viewlet).search('category:themes');
+					viewlet.focus();
+				})
+			};
+
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
 			const selectTheme = (theme, broadcast) => {
+				if (theme === pickInMarketPlace) {
+					theme = currentTheme;
+				}
 				this.themeService.setColorTheme(theme.id, broadcast)
 					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem loading theme: {0}", err.message)));
 			};
@@ -56,22 +70,7 @@ class SelectColorThemeAction extends Action {
 			const delayer = new Delayer<void>(100);
 
 			if (this.extensionGalleryService.isEnabled()) {
-				const run = () => {
-					return this.viewletService.openViewlet(VIEWLET_ID, true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
-						.then(viewlet => {
-							viewlet.search('category:themes');
-							viewlet.focus();
-						});
-				};
-
-				picks.push({
-					id: 'themes.findmore',
-					label: localize('findMore', "Find more in the Marketplace..."),
-					separator: { border: true },
-					alwaysShow: true,
-					run
-				});
+				picks.push(pickInMarketPlace);
 			}
 
 			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }})
