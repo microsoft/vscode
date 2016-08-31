@@ -236,9 +236,7 @@ var CSSLoaderPlugin;
         CSSPlugin.prototype.load = function (name, req, load, config) {
             config = config || {};
             var myConfig = config['vs/css'] || {};
-            if (myConfig.inlineResources) {
-                global.inlineResources = true;
-            }
+            global.inlineResources = myConfig.inlineResources;
             var cssUrl = req.toUrl(name + '.css');
             this.cssLoader.load(name, cssUrl, function (contents) {
                 // Contents has the CSS file contents if we are in a build
@@ -277,7 +275,7 @@ var CSSLoaderPlugin;
                 ], entries = global.cssPluginEntryPoints[moduleName];
                 for (var i = 0; i < entries.length; i++) {
                     if (global.inlineResources) {
-                        contents.push(Utilities.rewriteOrInlineUrls(entries[i].fsPath, entries[i].moduleName, moduleName, entries[i].contents));
+                        contents.push(Utilities.rewriteOrInlineUrls(entries[i].fsPath, entries[i].moduleName, moduleName, entries[i].contents, global.inlineResources === 'base64'));
                     }
                     else {
                         contents.push(Utilities.rewriteUrls(entries[i].moduleName, moduleName, entries[i].contents));
@@ -428,7 +426,7 @@ var CSSLoaderPlugin;
                 return Utilities.relativePath(newFile, absoluteUrl);
             });
         };
-        Utilities.rewriteOrInlineUrls = function (originalFileFSPath, originalFile, newFile, contents) {
+        Utilities.rewriteOrInlineUrls = function (originalFileFSPath, originalFile, newFile, contents, forceBase64) {
             var fs = require.nodeRequire('fs');
             var path = require.nodeRequire('path');
             return this._replaceURL(contents, function (url) {
@@ -444,7 +442,7 @@ var CSSLoaderPlugin;
                         global.cssInlinedResources.push(normalizedFSPath);
                         var MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
                         var DATA = ';base64,' + fileContents.toString('base64');
-                        if (/\.svg$/.test(url)) {
+                        if (!forceBase64 && /\.svg$/.test(url)) {
                             // .svg => url encode as explained at https://codepen.io/tigt/post/optimizing-svgs-in-data-uris
                             var newText = fileContents.toString()
                                 .replace(/"/g, '\'')
