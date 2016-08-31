@@ -104,8 +104,8 @@ interface EditorStyleSettings {
 	inactiveSelection?: string;
 	selectionHighlight?: string;
 
-	findMatch?: string;
-	currentFindMatch?: string;
+	findSelection?: string;
+	findSelectionHighlight?: string;
 
 	wordHighlight?: string;
 	wordHighlightStrong?: string;
@@ -233,8 +233,8 @@ class EditorWordHighlightStyleRules extends EditorStyleRule {
 class EditorFindStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
-		this.addBackgroundColorRule(editorStyles, '.findMatch', editorStyles.getEditorStyleSettings().findMatch, cssRules);
-		this.addBackgroundColorRule(editorStyles, '.currentFindMatch', editorStyles.getEditorStyleSettings().currentFindMatch, cssRules);
+		this.addBackgroundColorRule(editorStyles, '.findMatch', editorStyles.getEditorStyleSettings().findSelectionHighlight, cssRules);
+		this.addBackgroundColorRule(editorStyles, '.currentFindMatch', editorStyles.getEditorStyleSettings().findSelection, cssRules);
 		return cssRules;
 	}
 }
