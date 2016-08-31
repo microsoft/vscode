@@ -9,10 +9,10 @@ import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { assign } from 'vs/base/common/objects';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import EventOf, { mapEvent, filterEvent } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
@@ -31,8 +31,11 @@ import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInsta
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { Query } from '../common/extensionQuery';
+import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 import { IURLService } from 'vs/platform/url/common/url';
 import URI from 'vs/base/common/uri';
 
@@ -62,7 +65,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IURLService urlService: IURLService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService
+		@IExtensionTipsService private tipsService: IExtensionTipsService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
@@ -180,7 +184,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private triggerSearch(value: string, immediate = false, suggestPopular = false): void {
-		this.searchDelayer.trigger(() => this.doSearch(value, suggestPopular), immediate || !value ? 0 : 500);
+		this.searchDelayer.trigger(() => this.doSearch(value, suggestPopular), immediate || !value ? 0 : 500)
+			.done(null, err => this.onError(err));
 	}
 
 	private doSearch(value: string = '', suggestPopular = false): TPromise<any> {
@@ -248,7 +253,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private openExtension(extension: IExtension): void {
 		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
-			.done(null, onUnexpectedError);
+			.done(null, err => this.onError(err));
 	}
 
 	private onEnter(): void {
@@ -302,6 +307,28 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private progress<T>(promise: TPromise<T>): TPromise<T> {
 		const progressRunner = this.progressService.show(true);
 		return always(promise, () => progressRunner.done());
+	}
+
+	private onError(err: any): void {
+		if (isPromiseCanceledError(err)) {
+			return;
+		}
+
+		const message = err && err.message || '';
+
+		if (!/ECONNREFUSED/.test(message)) {
+			const error = createError(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
+				actions: [
+					CloseAction,
+					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
+				]
+			});
+
+			this.messageService.show(Severity.Error, error);
+			return;
+		}
+
+		this.messageService.show(Severity.Error, err);
 	}
 
 	dispose(): void {
