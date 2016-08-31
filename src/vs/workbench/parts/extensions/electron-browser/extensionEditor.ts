@@ -14,14 +14,13 @@ import * as arrays from 'vs/base/common/arrays';
 import Event, { Emitter, once, fromEventEmitter, filterEvent, mapEvent } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -149,8 +148,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.disposables = [];
 		this.extensionReadme = null;
 		this.extensionManifest = null;
-
-		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
 
 	createEditor(parent: Builder): void {
@@ -547,14 +544,6 @@ export class ExtensionEditor extends BaseEditor {
 
 	layout(): void {
 		this.layoutParticipants.forEach(p => p.layout());
-	}
-
-	private onViewletOpen(viewlet: IViewlet): void {
-		if (!viewlet || viewlet.getId() === VIEWLET_ID) {
-			return;
-		}
-
-		this.editorService.closeEditor(this.position, this.input).done(null, onUnexpectedError);
 	}
 
 	private onError(err: any): void {

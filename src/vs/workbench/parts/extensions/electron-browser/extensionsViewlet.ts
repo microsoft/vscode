@@ -9,7 +9,7 @@ import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError, create as createError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { assign } from 'vs/base/common/objects';
@@ -20,6 +20,8 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { append, $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -34,6 +36,7 @@ import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -63,16 +66,20 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IURLService urlService: IURLService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
 		const onOpenExtensionUrl = filterEvent(urlService.onOpenURL, uri => /^extension/.test(uri.path));
 		onOpenExtensionUrl(this.onOpenExtensionUrl, this, this.disposables);
+
+		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -307,6 +314,24 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private progress<T>(promise: TPromise<T>): TPromise<T> {
 		const progressRunner = this.progressService.show(true);
 		return always(promise, () => progressRunner.done());
+	}
+
+	private onViewletOpen(viewlet: IViewlet): void {
+		if (!viewlet || viewlet.getId() === VIEWLET_ID) {
+			return;
+		}
+
+		const model = this.editorInputService.getStacksModel();
+
+		const promises = model.groups.map(group => {
+			const position = model.positionOfGroup(group);
+			const inputs = group.getEditors().filter(input => input instanceof ExtensionsInput);
+			const promises = inputs.map(input => this.editorService.closeEditor(position, input));
+
+			return TPromise.join(promises);
+		});
+
+		TPromise.join(promises).done(null, onUnexpectedError);
 	}
 
 	private onError(err: any): void {
