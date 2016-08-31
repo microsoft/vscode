@@ -497,6 +497,12 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 					addSelector(`${qualifier} .expanded .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 				}
 			}
+			let languageIds = associations.languageIds;
+			if (languageIds) {
+				for (let languageId in languageIds) {
+					addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`, languageIds[languageId]);
+				}
+			}
 			let fileExtensions = associations.fileExtensions;
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
@@ -516,12 +522,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
 					}
 					addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[fileName]);
-				}
-			}
-			let languageIds = associations.languageIds;
-			if (languageIds) {
-				for (let languageId in languageIds) {
-					addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`, languageIds[languageId]);
 				}
 			}
 		}
