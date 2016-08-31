@@ -187,6 +187,8 @@ class TokenScanner {
 		let bracketIsOpen: boolean = false;
 		if (nextBracket) {
 			let bracketText = this._currentLineText.substring(nextBracket.startColumn - 1, nextBracket.endColumn - 1);
+			bracketText = bracketText.toLowerCase();
+
 			bracketData = this._currentModeBrackets.textIsBracket[bracketText];
 			bracketIsOpen = this._currentModeBrackets.textIsOpenBracket[bracketText];
 		}
