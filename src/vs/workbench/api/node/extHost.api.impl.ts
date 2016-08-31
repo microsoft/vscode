@@ -258,8 +258,8 @@ export class ExtHostAPIImplementation {
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
 			},
-			createTerminal(name?: string): vscode.Terminal {
-				return extHostTerminalService.createTerminal(name);
+			createTerminal(configuration: vscode.TerminalConfiguration): vscode.Terminal {
+				return extHostTerminalService.createTerminal(configuration);
 			}
 		};
 

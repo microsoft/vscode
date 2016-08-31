@@ -12,7 +12,7 @@ import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IThemeService, IThemeData, IThemeSetting, IThemeDocument} from 'vs/workbench/services/themes/common/themeService';
-import {TokenStylesContribution, EditorStylesContribution} from 'vs/workbench/services/themes/electron-browser/editorStyles';
+import {TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution} from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -630,6 +630,7 @@ function _processThemeObject(themeId: string, themeDocument: IThemeDocument): st
 	if (Array.isArray(themeSettings)) {
 		cssRules= cssRules.concat(new TokenStylesContribution().contributeStyles(themeId, themeDocument));
 		cssRules= cssRules.concat(new EditorStylesContribution().contributeStyles(themeId, themeDocument));
+		cssRules= cssRules.concat(new SearchViewStylesContribution().contributeStyles(themeId, themeDocument));
 	}
 
 	return cssRules.join('\n');
