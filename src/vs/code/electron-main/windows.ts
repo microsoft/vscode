@@ -10,6 +10,7 @@ import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
+import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { EventEmitter } from 'events';
@@ -375,7 +376,7 @@ export class WindowsManager implements IWindowsService {
 		});
 
 		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
-			if (broadcast.channel && broadcast.payload) {
+			if (broadcast.channel && !types.isUndefinedOrNull(broadcast.payload)) {
 				this.logService.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
 
 				// Handle specific events on main side
