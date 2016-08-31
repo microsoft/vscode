@@ -221,6 +221,16 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const query = Query.parse(value);
 		let options: IQueryOptions = {};
 
+		switch(query.sortBy) {
+			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
+		}
+
+		switch (query.sortOrder) {
+			case 'asc': options = assign(options, { sortOrder: SortOrder.Ascending }); break;
+			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
+		}
+
 		if (/@recommended/i.test(query.value)) {
 			const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
@@ -238,16 +248,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 					.then(result => new PagedModel(result));
 			});
-		}
-
-		switch(query.sortBy) {
-			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
-		}
-
-		switch (query.sortOrder) {
-			case 'asc': options = assign(options, { sortOrder: SortOrder.Ascending }); break;
-			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
 		}
 
 		if (query.value) {

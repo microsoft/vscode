@@ -470,12 +470,12 @@ export class ChangeSortAction extends Action {
 	) {
 		super(id, label, null, true);
 
-		if (this.sortBy === undefined && this.sortOrder === undefined) {
+		if (sortBy === undefined && sortOrder === undefined) {
 			throw new Error('bad arguments');
 		}
 
 		this.query = Query.parse('');
-		this.enabled = false;
+		this.enabled = !!sortBy;
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
