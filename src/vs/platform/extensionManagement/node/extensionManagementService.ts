@@ -127,6 +127,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			};
 
 			return this.galleryService.download(extension)
+				.then(zipPath => validate(zipPath).then(() => zipPath))
 				.then(zipPath => this.installExtension(zipPath, id, metadata))
 				.then(
 					local => this._onDidInstallExtension.fire({ id, local }),
