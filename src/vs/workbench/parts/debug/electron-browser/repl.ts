@@ -21,14 +21,18 @@ import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import {IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {CodeEditor} from 'vs/editor/browser/codeEditor';
+import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {IEditorContributionDescriptor} from 'vs/editor/browser/editorBrowser';
+import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
@@ -58,6 +62,27 @@ export interface IPrivateReplService {
 	acceptReplInput(): void;
 }
 
+class ReplEditor extends CodeEditorWidget {
+	constructor(
+		domElement:HTMLElement,
+		options:IEditorOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+	}
+
+	protected _getContributions(): IEditorContributionDescriptor[] {
+		return [].concat(EditorBrowserRegistry.getEditorContributions()).concat(CommonEditorRegistry.getEditorContributions());
+	}
+
+	protected _getActions(): EditorAction[] {
+		return CommonEditorRegistry.getEditorActions();
+	}
+}
+
 export class Repl extends Panel implements IPrivateReplService {
 	public _serviceBrand: any;
 
@@ -71,7 +96,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private renderer: viewer.ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: CodeEditor;
+	private replInput: ReplEditor;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
 	private actions: actions.IAction[];
@@ -154,7 +179,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(CodeEditor, this.replInputContainer, this.getReplInputOptions());
+		this.replInput = scopedInstantiationService.createInstance(ReplEditor, this.replInputContainer, this.getReplInputOptions());
 		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
 		this.replInput.setModel(model);
 
