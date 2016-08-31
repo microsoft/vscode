@@ -11,10 +11,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import Event, { Emitter, once, fromEventEmitter, filterEvent, mapEvent } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import Severity from 'vs/base/common/severity';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
@@ -41,6 +42,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { Keybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -138,7 +140,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService private themeService: IThemeService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -182,6 +185,11 @@ export class ExtensionEditor extends BaseEditor {
 		const extensionActions = append(details, $('.actions'));
 		this.extensionActionBar = new ActionBar(extensionActions, { animated: false });
 		this.disposables.push(this.extensionActionBar);
+
+		let onActionError = fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run');
+		onActionError = mapEvent(onActionError, ({ error }) => error);
+		onActionError = filterEvent(onActionError, error => !!error);
+		onActionError(this.onError, this, this.disposables);
 
 		const body = append(root, $('.body'));
 		this.navbar = new NavBar(body);
@@ -551,6 +559,14 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.editorService.closeEditor(this.position, this.input).done(null, onUnexpectedError);
+	}
+
+	private onError(err: any): void {
+		if (isPromiseCanceledError(err)) {
+			return;
+		}
+
+		this.messageService.show(Severity.Error, err);
 	}
 
 	dispose(): void {
