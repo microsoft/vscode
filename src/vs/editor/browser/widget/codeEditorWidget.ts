@@ -18,11 +18,10 @@ import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorCon
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import {View} from 'vs/editor/browser/view/viewImpl';
 import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
@@ -30,7 +29,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {InternalEditorAction} from 'vs/editor/common/editorAction';
 
-export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
+export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
 	public onMouseUp(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.MouseUp, listener);
@@ -99,7 +98,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
-		let contributionDescriptors = [].concat(EditorBrowserRegistry.getEditorContributions()).concat(CommonEditorRegistry.getEditorContributions());
+		let contributionDescriptors = this._getContributions();
 		for (let i = 0, len = contributionDescriptors.length; i < len; i++) {
 			try {
 				let contribution = contributionDescriptors[i].createInstance(this._instantiationService, this);
@@ -109,13 +108,16 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 			}
 		}
 
-		CommonEditorRegistry.getEditorActions().forEach((action) => {
+		this._getActions().forEach((action) => {
 			let internalAction = new InternalEditorAction(action, this, this._instantiationService, this._contextKeyService);
 			this._actions[internalAction.id] = internalAction;
 		});
 
 		this._codeEditorService.addCodeEditor(this);
 	}
+
+	protected abstract _getContributions(): editorBrowser.IEditorContributionDescriptor[];
+	protected abstract _getActions(): EditorAction[];
 
 	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
 		return new Configuration(options, this.domElement);
