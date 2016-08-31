@@ -20,8 +20,7 @@ import GitActions = require('vs/workbench/parts/git/browser/gitActions');
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
-
-import IGitService = git.IGitService;
+import { IGitService } from 'vs/workbench/parts/git/common/git';
 
 var $ = Builder.$;
 
