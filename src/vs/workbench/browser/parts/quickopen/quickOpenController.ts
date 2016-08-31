@@ -67,6 +67,7 @@ interface IInternalPickOptions {
 	matchOnDescription?: boolean;
 	matchOnDetail?: boolean;
 	ignoreFocusLost?: boolean;
+	initialValue?: string;
 	onDidType?: (value: string) => any;
 }
 

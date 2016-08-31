@@ -41,7 +41,8 @@ export interface IQuickOpenCallbacks {
 export interface IQuickOpenOptions {
 	minItemsToShow?: number;
 	maxItemsToShow?: number;
-	inputPlaceHolder: string;
+	inputPlaceHolder?: string;
+	initialValue?: string;
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
 	enableAnimations?: boolean;
@@ -142,7 +143,8 @@ export class QuickOpenWidget implements IModelProvider {
 			div.div({ 'class': 'quick-open-input' }, (inputContainer) => {
 				this.inputContainer = inputContainer;
 				this.inputBox = new InputBox(inputContainer.getHTMLElement(), null, {
-					placeholder: this.options.inputPlaceHolder || '',
+					placeholder: this.options.inputPlaceHolder,
+					initialValue: this.options.initialValue,
 					ariaLabel: DEFAULT_INPUT_ARIA_LABEL
 				});
 

@@ -1369,6 +1369,11 @@ declare namespace vscode {
 		ignoreFocusOut?: boolean;
 
 		/**
+		 * An initial value filled into the input box
+		 */
+		initialValue?: string;
+
+		/**
 		 * An optional function that is invoked whenever an item is selected.
 		 */
 		onDidSelectItem?: <T extends QuickPickItem>(item: T | string) => any;
