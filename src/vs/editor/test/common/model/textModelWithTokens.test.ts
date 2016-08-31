@@ -297,7 +297,34 @@ suite('TextModelWithTokens regression tests', () => {
 		model.dispose();
 	});
 
-	// test('Microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
+	test('Microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
+		class BracketMode extends MockMode {
+			constructor() {
+				super();
+				LanguageConfigurationRegistry.register(this.getId(), {
+					brackets: [
+						['module','end module'],
+						['sub','end sub']
+					]
+				});
+			}
+		}
 
-	// });
+		let model = Model.createFromString([
+			'Imports System',
+			'Imports System.Collections.Generic',
+			'',
+			'Module m1',
+			'',
+			'\tSub Main()',
+			'\tEnd Sub',
+			'',
+			'End Module',
+		].join('\n'), undefined, new BracketMode());
+
+		let actual = model.matchBracket(new Position(4,1));
+		assert.deepEqual(actual, [new Range(4,1,4,7), new Range(9,1,9,11)]);
+
+		model.dispose();
+	});
 });
