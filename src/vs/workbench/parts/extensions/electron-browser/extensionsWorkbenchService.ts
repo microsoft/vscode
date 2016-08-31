@@ -316,7 +316,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				return;
 			}
 
-			const action = this.instantiationService.createInstance(UpdateAllAction);
+			const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
 			return action.enabled && action.run();
 		});
 	}

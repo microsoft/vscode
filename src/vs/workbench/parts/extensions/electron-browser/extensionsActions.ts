@@ -264,12 +264,17 @@ export class EnableAction extends Action {
 
 export class UpdateAllAction extends Action {
 
+	static ID = 'extensions.update-all';
+	static LABEL = localize('updateAll', "Update All Extensions");
+
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		id = UpdateAllAction.ID,
+		label = UpdateAllAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.update-all', localize('updateAll', "Update All Extensions"), '', false);
+		super(id, label, '', false);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
