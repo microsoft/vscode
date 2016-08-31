@@ -101,6 +101,7 @@ interface EditorStyleSettings {
 	rangeHighlight?: string;
 
 	selection?: string;
+	inactiveSelection?: string;
 	selectionHighlight?: string;
 
 	findMatch?: string;
@@ -186,8 +187,13 @@ class EditorSelectionStyleRules extends EditorStyleRule {
 	public getCssRules(editorStyles: EditorStyles): string[] {
 		let cssRules = [];
 		if (editorStyles.getEditorStyleSettings().selection) {
+			this.addBackgroundColorRule(editorStyles, '.focused .selected-text', editorStyles.getEditorStyleSettings().selection, cssRules);
+		}
+
+		if (editorStyles.getEditorStyleSettings().inactiveSelection) {
+			this.addBackgroundColorRule(editorStyles, '.selected-text', editorStyles.getEditorStyleSettings().inactiveSelection, cssRules);
+		} else if (editorStyles.getEditorStyleSettings().selection) {
 			let selection = new Color(editorStyles.getEditorStyleSettings().selection);
-			this.addBackgroundColorRule(editorStyles, '.focused .selected-text', selection, cssRules);
 			this.addBackgroundColorRule(editorStyles, '.selected-text', selection.transparent(0.5), cssRules);
 		}
 
@@ -196,6 +202,7 @@ class EditorSelectionStyleRules extends EditorStyleRule {
 			this.addBackgroundColorRule(editorStyles, '.focused .selectionHighlight', selectionHighlightColor, cssRules);
 			this.addBackgroundColorRule(editorStyles, '.selectionHighlight', selectionHighlightColor.transparent(0.5), cssRules);
 		}
+
 		return cssRules;
 	}
 
