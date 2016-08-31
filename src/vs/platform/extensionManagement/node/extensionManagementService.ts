@@ -255,7 +255,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			let result: T = null;
 			return pfs.readFile(this.obsoletePath, 'utf8')
 				.then(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
-				.then<{ [id: string]: boolean }>(raw => JSON.parse(raw))
+				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; }})
 				.then(obsolete => { result = fn(obsolete); return obsolete; })
 				.then(obsolete => {
 					if (Object.keys(obsolete).length === 0) {

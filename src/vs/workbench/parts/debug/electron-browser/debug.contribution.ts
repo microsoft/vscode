@@ -118,7 +118,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const configurationManager = debugService.getConfigurationManager();
 			return configurationManager.setConfiguration(configuration)
 				.then(() => {
-					return configurationManager.configurationName ? debugService.createSession(false)
+					return configurationManager.configuration ? debugService.createSession(false)
 						: TPromise.wrapError(new Error(nls.localize('launchConfigDoesNotExist', "Launch configuration '{0}' does not exist.", configuration)));
 				});
 		}
