@@ -11,6 +11,7 @@ import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { isUUID } from 'vs/base/common/uuid';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
@@ -19,6 +20,8 @@ import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IMessageService } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 import * as semver from 'semver';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
@@ -224,7 +227,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IMessageService private messageService: IMessageService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -291,7 +295,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const loop = () => this.syncWithGallery().then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
-		this.syncDelayer.trigger(loop, delay);
+		this.syncDelayer.trigger(loop, delay)
+			.done(null, err => this.onError(err));
 	}
 
 	private syncWithGallery(): TPromise<void> {
@@ -453,6 +458,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const eventName = toTelemetryEventName(active.operation);
 
 		this.telemetryService.publicLog(eventName, assign(data, { success, duration }));
+	}
+
+	private onError(err: any): void {
+		if (isPromiseCanceledError(err)) {
+			return;
+		}
+
+		this.messageService.show(Severity.Error, err);
 	}
 
 	dispose(): void {
