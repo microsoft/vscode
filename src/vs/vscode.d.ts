@@ -1617,9 +1617,7 @@ declare namespace vscode {
 		contents: MarkedString[];
 
 		/**
-		 * The range to which this hover applies. When missing, the
-		 * editor will use the range at the current position or the
-		 * current position itself.
+		 * The range to which this hover applies.
 		 */
 		range: Range;
 
