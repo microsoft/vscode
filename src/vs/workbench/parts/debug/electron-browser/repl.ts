@@ -147,9 +147,13 @@ export class Repl extends Panel implements IPrivateReplService {
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
 		this.toDispose.push(scopedContextKeyService);
 		debug.CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
+		const onFirstReplLine = debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
+		onFirstReplLine.set(true);
+		const onLastReplLine = debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
+		onLastReplLine.set(true);
+
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-
 		this.replInput = scopedInstantiationService.createInstance(CodeEditor, this.replInputContainer, this.getReplInputOptions());
 		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
 		this.replInput.setModel(model);
@@ -173,6 +177,10 @@ export class Repl extends Panel implements IPrivateReplService {
 				return;
 			}
 			this.layout(this.dimension, Math.min(170, e.scrollHeight));
+		}));
+		this.toDispose.push(this.replInput.onDidChangeCursorPosition(e => {
+			onFirstReplLine.set(e.position.lineNumber === 1);
+			onLastReplLine.set(e.position.lineNumber === this.replInput.getModel().getLineCount());
 		}));
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
@@ -289,7 +297,7 @@ class ReplHistoryPreviousAction extends EditorAction {
 			id: 'repl.action.historyPrevious',
 			label: nls.localize('actions.repl.historyPrevious', "History Previous"),
 			alias: 'History Previous',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyCode.UpArrow,
@@ -314,7 +322,7 @@ class ReplHistoryNextAction extends EditorAction {
 			id: 'repl.action.historyNext',
 			label: nls.localize('actions.repl.historyNext', "History Next"),
 			alias: 'History Next',
-			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			precondition: debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
 				primary: KeyCode.DownArrow,
