@@ -968,7 +968,7 @@ declare module monaco.editor {
         horizontal?: string;
         /**
          * Cast horizontal and vertical shadows when the content is scrolled.
-         * Defaults to false.
+         * Defaults to true.
          */
         useShadows?: boolean;
         /**
