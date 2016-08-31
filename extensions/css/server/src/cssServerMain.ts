@@ -90,7 +90,7 @@ function updateConfiguration(settings: Settings) {
 	documents.all().forEach(triggerValidation);
 }
 
-let pendingValidationRequests : {[uri:string]:number} = {};
+let pendingValidationRequests : { [uri:string]: NodeJS.Timer } = {};
 const validationDelayMs = 200;
 
 // The content of a text document has changed. This event is emitted
