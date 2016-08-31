@@ -845,10 +845,12 @@ const schema: IJSONSchema = {
 			$ref: '#/definitions/languageIds'
 		},
 		light: {
-			$ref: '#/definitions/associations'
+			$ref: '#/definitions/associations',
+			description: nls.localize('schema.light', 'Optional associations for file icons in light color themes.')
 		},
 		highContrast: {
-			$ref: '#/definitions/associations'
+			$ref: '#/definitions/associations',
+			description: nls.localize('schema.highContrast', 'Optional associations for file icons in high contrast color themes.')
 		}
 	},
 	required: [
