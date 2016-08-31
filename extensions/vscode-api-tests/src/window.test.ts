@@ -253,7 +253,7 @@ suite('window namespace tests', () => {
 	});
 
 	test('createTerminal, Terminal.name', () => {
-		var terminal = window.createTerminal('foo');
+		var terminal = window.createTerminal({ name: 'foo' });
 		assert.equal(terminal.name, 'foo');
 
 		assert.throws(() => {
@@ -262,7 +262,7 @@ suite('window namespace tests', () => {
 	});
 
 	test('createTerminal, immediate Terminal.sendText', () => {
-		var terminal = window.createTerminal();
+		var terminal = window.createTerminal({});
 		// This should not throw an exception
 		terminal.sendText('echo "foo"');
 	});
