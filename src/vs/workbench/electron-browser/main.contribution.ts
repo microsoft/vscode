@@ -80,7 +80,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.enablePreviewFromQuickOpen': {
 			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from quick open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
 			'default': true
 		},
 		'workbench.editor.openPositioning': {
@@ -91,7 +91,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.quickOpen.closeOnFocusLost': {
 			'type': 'boolean',
-			'description': nls.localize('closeOnFocusLost', "Controls if quick open should close automatically once it looses focus."),
+			'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
 			'default': true
 		},
 		'workbench.settings.openDefaultSettings': {
