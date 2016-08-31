@@ -29,7 +29,7 @@ export function main(argv: string[]): TPromise<void> {
 	}
 
 	if (args.help) {
-		console.log(buildHelpMessage(pkg.version));
+		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
 	} else if (args.version) {
 		console.log(`${ pkg.version } (${ product.commit })`);
 	} else if (shouldSpawnCliProcess(args)) {
