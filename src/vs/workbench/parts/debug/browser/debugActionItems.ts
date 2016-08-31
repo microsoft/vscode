@@ -38,14 +38,15 @@ export class DebugSelectActionItem extends SelectActionItem {
 	}
 
 	private updateOptions(changeDebugConfiguration: boolean): TPromise<any> {
-		return this.debugService.getConfigurationManager().loadLaunchConfig().then(config => {
+		const configurationManager = this.debugService.getConfigurationManager();
+		return configurationManager.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations || config.configurations.length === 0) {
 				this.setOptions([nls.localize('noConfigurations', "No Configurations")], 0);
 				return changeDebugConfiguration ? this.actionRunner.run(this._action, null) : null;
 			}
 
 			const configurationNames = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
-			const configurationName = this.debugService.getConfigurationManager().configurationName;
+			const configurationName = configurationManager.configuration ? configurationManager.configuration.name : null;
 			let selected = configurationNames.indexOf(configurationName);
 
 			this.setOptions(configurationNames, selected);

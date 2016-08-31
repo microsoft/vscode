@@ -739,11 +739,7 @@ export class DebugService implements debug.IDebugService {
 
 	private rawAttach(port: number): TPromise<any> {
 		if (this.session) {
-			if (!this.session.configuration.isAttach) {
-				return this.session.attach({ port });
-			}
-
-			this.session.disconnect().done(null, errors.onUnexpectedError);
+			return this.session.attach({ port });
 		}
 
 		this.setStateAndEmit(debug.State.Initializing);

@@ -250,7 +250,7 @@ export interface IRawBreakpointContribution {
 }
 
 export interface IRawDebugSession {
-	configuration: { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites };
+	configuration: { type: string, capabilities: DebugProtocol.Capabilites };
 
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 
@@ -265,7 +265,7 @@ export interface IRawDebugSession {
 }
 
 export interface IConfigurationManager {
-	configurationName: string;
+	configuration: IConfig;
 	setConfiguration(name: string): TPromise<void>;
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 	loadLaunchConfig(): TPromise<IGlobalConfig>;
@@ -274,7 +274,7 @@ export interface IConfigurationManager {
 	/**
 	 * Allows to register on change of debug configuration.
 	 */
-	onDidConfigurationChange: Event<string>;
+	onDidConfigurationChange: Event<IConfig>;
 }
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
