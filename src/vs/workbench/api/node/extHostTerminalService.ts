@@ -85,8 +85,8 @@ export class ExtHostTerminalService {
 		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
 	}
 
-	public createTerminal(configuration: vscode.TerminalConfiguration): vscode.Terminal {
-		return new ExtHostTerminal(this._proxy, -1, configuration.name);
+	public createTerminal(name?: string): vscode.Terminal {
+		return new ExtHostTerminal(this._proxy, -1, name);
 	}
 }
 
