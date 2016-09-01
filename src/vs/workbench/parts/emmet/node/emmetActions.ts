@@ -20,7 +20,8 @@ interface IEmmetConfiguration {
 	emmet: {
 		preferences: any;
 		syntaxProfiles: any;
-		triggerExpansionOnTab: boolean
+		triggerExpansionOnTab: boolean,
+		excludeLanguages: string[]
 	};
 }
 
@@ -136,6 +137,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		let editorAccessor = new EditorAccessor(
 			editor,
 			configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles,
+			configurationService.getConfiguration<IEmmetConfiguration>().emmet.excludeLanguages,
 			new GrammarContributions()
 		);
 

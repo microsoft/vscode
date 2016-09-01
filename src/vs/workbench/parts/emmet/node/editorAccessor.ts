@@ -22,15 +22,17 @@ export class EditorAccessor implements emmet.Editor {
 
 	private _editor: ICommonCodeEditor;
 	private _syntaxProfiles: any;
+	private _excludedLanguages: any;
 	private _grammars: IGrammarContributions;
 
 	private _hasMadeEdits: boolean;
 
 	private emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
 
-	constructor(editor: ICommonCodeEditor, syntaxProfiles: any, grammars: IGrammarContributions) {
+	constructor(editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
 		this._editor = editor;
 		this._syntaxProfiles = syntaxProfiles;
+		this._excludedLanguages = excludedLanguages;
 		this._hasMadeEdits = false;
 		this._grammars = grammars;
 	}
@@ -128,6 +130,10 @@ export class EditorAccessor implements emmet.Editor {
 		let position = this._editor.getSelection().getStartPosition();
 		let modeId = this._editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
 		let syntax = modeId.split('.').pop();
+
+		if (this._excludedLanguages.indexOf(syntax) !== -1) {
+			return '';
+		}
 
 		// user can overwrite the syntax using the emmet syntaxProfiles setting
 		let profile = this.getSyntaxProfile(syntax);
