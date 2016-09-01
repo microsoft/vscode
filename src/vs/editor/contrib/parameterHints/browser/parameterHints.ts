@@ -12,11 +12,11 @@ import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextK
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorBrowserContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from '../common/parameterHints';
 
-@editorBrowserContribution
+@editorContribution
 class ParameterHintsController implements IEditorContribution {
 
 	private static ID = 'editor.controller.parameterHints';

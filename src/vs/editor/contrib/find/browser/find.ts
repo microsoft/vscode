@@ -8,11 +8,11 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {FindWidget, IFindController} from 'vs/editor/contrib/find/browser/findWidget';
 import {CommonFindController, FindStartFocusAction, IFindStartOptions} from 'vs/editor/contrib/find/common/findController';
 
-@editorBrowserContribution
+@editorContribution
 class FindController extends CommonFindController implements IFindController {
 
 	private _widget: FindWidget;

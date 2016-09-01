@@ -16,14 +16,14 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {CollapsibleRegion, getCollapsibleRegionsToFoldAtLine, getCollapsibleRegionsToUnfoldAtLine, doesLineBelongsToCollapsibleRegion, IFoldingRange} from 'vs/editor/contrib/folding/common/foldingModel';
 import {computeRanges, limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import {Selection} from 'vs/editor/common/core/selection';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
-@editorBrowserContribution
+@editorContribution
 export class FoldingController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.folding';

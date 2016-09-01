@@ -10,12 +10,12 @@ import * as platform from 'vs/base/common/platform';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {EndOfLinePreference, IEditorContribution, ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
-import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {Range} from 'vs/editor/common/core/range';
 
-@editorBrowserContribution
+@editorContribution
 class SelectionClipboard extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.selectionClipboard';
