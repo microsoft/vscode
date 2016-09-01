@@ -25,7 +25,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {getCodeActions, IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 
@@ -446,7 +446,7 @@ class MarkerNavigationAction extends EditorAction {
 	}
 }
 
-@editorBrowserContribution
+@editorContribution
 class MarkerController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.markerController';

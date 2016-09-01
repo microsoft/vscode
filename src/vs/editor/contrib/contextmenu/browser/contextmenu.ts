@@ -19,14 +19,14 @@ import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 
 interface IPosition {
 	x: number;
 	y: number;
 }
 
-@editorBrowserContribution
+@editorContribution
 class ContextMenuController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.contextmenu';

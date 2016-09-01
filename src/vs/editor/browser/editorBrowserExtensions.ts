@@ -7,7 +7,7 @@
 import {Registry} from 'vs/platform/platform';
 import {IEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
 
-export function editorBrowserContribution(ctor:IEditorContributionCtor): void {
+export function editorContribution(ctor:IEditorContributionCtor): void {
 	EditorContributionRegistry.INSTANCE.registerEditorBrowserContribution(ctor);
 }
 

@@ -13,7 +13,7 @@ import {IAction, Action} from 'vs/base/common/actions';
 import {KeyCode} from 'vs/base/common/keyCodes';
 import keyboard = require('vs/base/browser/keyboardEvent');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import editorcommon = require('vs/editor/common/editorCommon');
 import {DebugHoverWidget} from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
@@ -25,7 +25,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 
 const HOVER_DELAY = 300;
 
-@editorBrowserContribution
+@editorContribution
 export class DebugEditorContribution implements debug.IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];

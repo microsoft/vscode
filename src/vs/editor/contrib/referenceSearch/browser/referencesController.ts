@@ -19,7 +19,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {ReferencesModel, OneReference} from './referencesModel';
 import {ReferenceWidget, LayoutData} from './referencesWidget';
@@ -32,7 +32,7 @@ export interface RequestOptions {
 	onGoto?: (reference: OneReference) => TPromise<any>;
 }
 
-@editorBrowserContribution
+@editorContribution
 export class ReferencesController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.referencesController';

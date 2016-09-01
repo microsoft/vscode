@@ -20,7 +20,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CodeLensProviderRegistry, ICodeLensSymbol, Command} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {ICodeLensData, getCodeLensData} from '../common/codelens';
 
 
@@ -339,7 +339,7 @@ class CodeLens {
 	}
 }
 
-@editorBrowserContribution
+@editorContribution
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	private static ID: string = 'css.editor.codeLens';
