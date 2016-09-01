@@ -33,6 +33,7 @@
 
 .explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon::before,
 .explorer-viewlet .explorer-folders-view.show-file-icons .file-icon::before {
+
 	/* svg icons rendered as background image */
 	background-size: 16px;
 	background-position: left center;
@@ -44,7 +45,7 @@
 
 	/* fonts icons */
 	-webkit-font-smoothing: antialiased;
-
+	vertical-align: top;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
