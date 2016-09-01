@@ -12,7 +12,7 @@ import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, commonEditorContribution, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ICodeSnippet, CodeSnippet} from './snippet';
 
@@ -349,6 +349,7 @@ interface IPreparedSnippet {
 	adaptedSnippet: ICodeSnippet;
 }
 
+@commonEditorContribution
 export class SnippetController {
 
 	private static ID = 'editor.contrib.snippetController';
@@ -594,7 +595,6 @@ export var CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('inSnippetMode', fa
 
 const SnippetCommand = EditorCommand.bindToContribution<SnippetController>(SnippetController.get);
 
-CommonEditorRegistry.registerEditorContribution(SnippetController);
 CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	id: 'jumpToNextSnippetPlaceholder',
 	precondition: CONTEXT_SNIPPET_MODE,

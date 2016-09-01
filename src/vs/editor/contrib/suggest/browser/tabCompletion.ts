@@ -13,7 +13,7 @@ import {Registry} from 'vs/platform/platform';
 import {endsWith} from 'vs/base/common/strings';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, commonEditorContribution, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
 
@@ -21,6 +21,7 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 
 let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
+@commonEditorContribution
 class TabCompletionController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.tabCompletionController';
@@ -78,8 +79,6 @@ class TabCompletionController implements editorCommon.IEditorContribution {
 		return TabCompletionController.ID;
 	}
 }
-
-CommonEditorRegistry.registerEditorContribution(TabCompletionController);
 
 const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
 
