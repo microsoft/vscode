@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {Range} from 'vs/editor/common/core/range';
 import {ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, IActionOptions, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution} from 'vs/editor/common/editorCommonExtensions';
 import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
 // --- selection state machine
@@ -37,6 +37,7 @@ var ignoreSelection = false;
 
 // -- action implementation
 
+@commonEditorContribution
 class SmartSelectController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.smartSelectController';
@@ -189,6 +190,3 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 		});
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorContribution(SmartSelectController);

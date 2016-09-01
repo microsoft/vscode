@@ -9,11 +9,12 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorContextKeys, IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction, commonEditorContribution} from 'vs/editor/common/editorCommonExtensions';
 import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {InPlaceReplaceCommand} from './inPlaceReplaceCommand';
 
+@commonEditorContribution
 class InPlaceReplaceController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.inPlaceReplaceController';
@@ -160,5 +161,3 @@ class InPlaceReplaceDown extends EditorAction {
 		return InPlaceReplaceController.get(editor).run(this.id, false);
 	}
 }
-
-CommonEditorRegistry.registerEditorContribution(InPlaceReplaceController);
