@@ -115,7 +115,8 @@
 }
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active  {
-	border: 2px solid #f38518;
+	outline: 2px solid #f38518;
+	outline-offset: -1px;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
