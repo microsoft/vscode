@@ -117,8 +117,8 @@
 /* -------------------- Highlight a range -------------------- */
 
 .monaco-editor.vs		.rangeHighlight { background: rgba(253, 255, 0, 0.2); }
-.monaco-editor.vs-dark	.rangeHighlight { background: rgba(243, 240, 245, 0.2); }
-.monaco-editor.hc-black	.rangeHighlight { background: rgba(243, 240, 245, 0.2); }
+.monaco-editor.vs-dark	.rangeHighlight { background: rgba(255, 255, 255, 0.044); }
+.monaco-editor.hc-black	.rangeHighlight { border: 1px dotted #f38518; }
 
 /* -------------------- Squigglies -------------------- */
 
