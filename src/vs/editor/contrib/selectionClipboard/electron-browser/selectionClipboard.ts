@@ -16,7 +16,7 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import {Range} from 'vs/editor/common/core/range';
 
 @editorContribution
-class SelectionClipboard extends Disposable implements IEditorContribution {
+export class SelectionClipboard extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.selectionClipboard';
 

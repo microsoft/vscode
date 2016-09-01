@@ -21,13 +21,13 @@ import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/edi
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 
-interface IPosition {
+export interface IPosition {
 	x: number;
 	y: number;
 }
 
 @editorContribution
-class ContextMenuController implements IEditorContribution {
+export class ContextMenuController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.contextmenu';
 
@@ -238,7 +238,7 @@ class ShowContextMenu extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		var contribution = ContextMenuController.get(editor);
+		let contribution = ContextMenuController.get(editor);
 		contribution.showContextMenu();
 	}
 }

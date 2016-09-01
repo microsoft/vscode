@@ -11,10 +11,17 @@ import {EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonE
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ICommandService} from 'vs/platform/commands/common/commands';
+
+// Allowed Editor Contributions:
+import {MenuPreventer} from 'vs/editor/contrib/multicursor/browser/menuPreventer';
+import {SelectionClipboard} from 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
+import {ContextMenuController} from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import {SuggestController} from 'vs/editor/contrib/suggest/browser/suggestController';
+import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
+import {TabCompletionController} from 'vs/editor/contrib/suggest/browser/tabCompletion';
 
 export class ReplEditor extends CodeEditorWidget {
 	constructor(
@@ -29,7 +36,14 @@ export class ReplEditor extends CodeEditorWidget {
 	}
 
 	protected _getContributions(): IEditorContributionCtor[] {
-		return [].concat(EditorBrowserRegistry.getEditorContributions()).concat(CommonEditorRegistry.getEditorContributions());
+		return [
+			MenuPreventer,
+			SelectionClipboard,
+			ContextMenuController,
+			SuggestController,
+			SnippetController,
+			TabCompletionController,
+		];
 	}
 
 	protected _getActions(): EditorAction[] {

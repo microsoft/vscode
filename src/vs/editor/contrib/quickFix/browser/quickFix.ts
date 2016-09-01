@@ -132,7 +132,10 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		QuickFixController.get(editor).run();
+		let controller = QuickFixController.get(editor);
+		if (controller) {
+			controller.run();
+		}
 	}
 }
 

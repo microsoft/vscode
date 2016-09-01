@@ -153,7 +153,10 @@ abstract class AbstractSmartSelect extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
-		return SmartSelectController.get(editor).run(this._forward);
+		let controller = SmartSelectController.get(editor);
+		if (controller) {
+			return controller.run(this._forward);
+		}
 	}
 }
 

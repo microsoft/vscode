@@ -129,16 +129,18 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	private _openInPeek(editorService:IEditorService, target: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
-		let controller = ReferencesController.getController(target);
-		controller.toggleWidget(target.getSelection(), TPromise.as(model), {
-			getMetaTitle: (model) => {
-				return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
-			},
-			onGoto: (reference) => {
-				controller.closeWidget();
-				return this._openReference(editorService, reference, false);
-			}
-		});
+		let controller = ReferencesController.get(target);
+		if (controller) {
+			controller.toggleWidget(target.getSelection(), TPromise.as(model), {
+				getMetaTitle: (model) => {
+					return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
+				},
+				onGoto: (reference) => {
+					controller.closeWidget();
+					return this._openReference(editorService, reference, false);
+				}
+			});
+		}
 	}
 }
 

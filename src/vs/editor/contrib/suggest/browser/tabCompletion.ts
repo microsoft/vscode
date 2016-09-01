@@ -22,7 +22,7 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
 @commonEditorContribution
-class TabCompletionController implements editorCommon.IEditorContribution {
+export class TabCompletionController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.tabCompletionController';
 	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);

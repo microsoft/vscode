@@ -36,10 +36,6 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 	private hoverRange: Range;
 	private hoveringOver: string;
 
-	static get(editor: editorcommon.ICommonCodeEditor): DebugEditorContribution {
-		return <DebugEditorContribution>editor.getContribution(debug.EDITOR_CONTRIBUTION_ID);
-	}
-
 	constructor(
 		private editor: editorbrowser.ICodeEditor,
 		@debug.IDebugService private debugService: debug.IDebugService,

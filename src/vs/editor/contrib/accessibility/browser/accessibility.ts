@@ -213,7 +213,9 @@ class ShowAccessibilityHelpAction extends EditorAction {
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 		let controller = AccessibilityHelpController.get(editor);
-		controller.show();
+		if (controller) {
+			controller.show();
+		}
 	}
 }
 
