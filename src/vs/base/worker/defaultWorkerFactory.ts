@@ -79,7 +79,6 @@ class FrameWorker implements IWorker {
 
 		this.iframe = <HTMLIFrameElement> document.createElement('iframe');
 		this.iframe.id = this.iframeId();
-		this.iframe.src = require.toUrl('./workerMainCompatibility.html');
 		(<any> this.iframe).frameborder = this.iframe.height = this.iframe.width = '0';
 		this.iframe.style.display = 'none';
 		this._listeners.push(dom.addDisposableListener(this.iframe, 'load', () => this.onLoaded()));
