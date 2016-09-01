@@ -191,6 +191,10 @@ export interface IEditorOptions {
 	 */
 	rulers?: number[];
 	/**
+	 * External editor to be used for opening files.
+	 */
+	externalEditor?: string;
+	/**
 	 * A string containing the word separators used when doing word navigation.
 	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 	 */
@@ -925,6 +929,7 @@ export class InternalEditorOptions {
 	lineHeight:number; // todo: move to fontInfo
 
 	readOnly:boolean;
+	externalEditor:string;
 	// ---- cursor options
 	wordSeparators: string;
 	autoClosingBrackets:boolean;
@@ -943,6 +948,7 @@ export class InternalEditorOptions {
 	constructor(source: {
 		lineHeight:number;
 		readOnly:boolean;
+		externalEditor:string;
 		wordSeparators: string;
 		autoClosingBrackets:boolean;
 		useTabStops: boolean;
@@ -955,6 +961,7 @@ export class InternalEditorOptions {
 	}) {
 		this.lineHeight = source.lineHeight|0;
 		this.readOnly = Boolean(source.readOnly);
+		this.externalEditor = String(source.externalEditor);
 		this.wordSeparators = String(source.wordSeparators);
 		this.autoClosingBrackets = Boolean(source.autoClosingBrackets);
 		this.useTabStops = Boolean(source.useTabStops);
@@ -973,6 +980,7 @@ export class InternalEditorOptions {
 		return (
 			this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
+			&& this.externalEditor === other.externalEditor
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.useTabStops === other.useTabStops
@@ -992,6 +1000,7 @@ export class InternalEditorOptions {
 		return {
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			readOnly: (this.readOnly !== newOpts.readOnly),
+			externalEditor: (this.externalEditor !== newOpts.externalEditor),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
@@ -1018,6 +1027,7 @@ export class InternalEditorOptions {
 export interface IConfigurationChangedEvent {
 	lineHeight: boolean;
 	readOnly: boolean;
+	externalEditor: boolean;
 	wordSeparators: boolean;
 	autoClosingBrackets: boolean;
 	useTabStops: boolean;

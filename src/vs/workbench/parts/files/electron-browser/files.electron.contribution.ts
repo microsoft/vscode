@@ -17,7 +17,7 @@ import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from
 import {GlobalNewUntitledFileAction, SaveFileAsAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {FileTracker} from 'vs/workbench/parts/files/electron-browser/electronFileTracker';
 import {TextFileService} from 'vs/workbench/parts/files/electron-browser/textFileServices';
-import {OpenFolderAction, OPEN_FOLDER_ID, OPEN_FOLDER_LABEL, OpenFileAction, OPEN_FILE_ID, OPEN_FILE_LABEL, OpenFileFolderAction, OPEN_FILE_FOLDER_ID, OPEN_FILE_FOLDER_LABEL, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
+import {OpenFolderAction, OPEN_FOLDER_ID, OPEN_FOLDER_LABEL, OpenFileAction, OPEN_FILE_ID, OPEN_FILE_LABEL, OpenFileFolderAction, OPEN_FILE_FOLDER_ID, OPEN_FILE_FOLDER_LABEL, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction, EditInExternalEditor} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
@@ -47,6 +47,9 @@ class FileViewerActionContributor extends ActionBarContributor {
 
 			// Copy Path
 			actions.push(this.instantiationService.createInstance(CopyPathAction, resource));
+
+			// Edit In External Editor
+			actions.push(this.instantiationService.createInstance(EditInExternalEditor, resource));
 		}
 
 		return actions;
