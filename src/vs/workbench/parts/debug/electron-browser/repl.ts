@@ -295,8 +295,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			selectOnLineNumbers: false,
 			selectionHighlight: false,
 			scrollbar: {
-				horizontal: 'hidden',
-				vertical: 'hidden'
+				horizontal: 'hidden'
 			},
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
