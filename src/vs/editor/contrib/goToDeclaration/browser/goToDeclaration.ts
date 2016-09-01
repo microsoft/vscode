@@ -24,7 +24,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, IActionOptions, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
@@ -211,6 +211,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 
 // --- Editor Contribution to goto definition using the mouse and a modifier key
 
+@editorBrowserContribution
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.gotodefinitionwithmouse';
@@ -487,5 +488,3 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook = dispose(this.toUnhook);
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(GotoDefinitionWithMouseEditorContribution);

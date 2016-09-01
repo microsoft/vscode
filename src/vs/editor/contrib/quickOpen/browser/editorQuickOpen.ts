@@ -8,7 +8,7 @@ import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {QuickOpenEditorWidget} from './quickOpenEditorWidget';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IActionOptions, EditorAction} from 'vs/editor/common/editorCommonExtensions';
@@ -19,6 +19,7 @@ export interface IQuickOpenControllerOpts {
 	getAutoFocus(searchValue:string):IAutoFocus;
 }
 
+@editorBrowserContribution
 export class QuickOpenController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.controller.quickOpenController';
@@ -164,5 +165,3 @@ export interface IDecorator {
 	decorateLine(range:editorCommon.IRange, editor:editorCommon.IEditor):void;
 	clearDecorations():void;
 }
-
-EditorBrowserRegistry.registerEditorContribution(QuickOpenController);
