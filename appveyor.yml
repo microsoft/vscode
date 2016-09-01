@@ -4,6 +4,7 @@ environment:
 
 install:
   - ps: Install-Product node 6.5.0 x64
+  - npm install -g npm
   - npm install -g gulp mocha
 
 build_script:
@@ -12,5 +13,7 @@ build_script:
   - gulp compile
 
 test_script:
+  - node --version
+  - npm --version
   - .\scripts\test.bat
   - .\scripts\test-integration.bat
