@@ -192,14 +192,15 @@
 	]
 },
 {
+	"isLicense": true, // We override the license since we need a coorect Copyright 
 	"name": "typescript",
-	"version": "1.8.2",
+	"version": "1.8.10",
 	"license": "Apache2",
 	"repositoryURL": "https://github.com/Microsoft/TypeScript",
 	"description": "The contents of the folder lib is from the TypeScript project https://github.com/Microsoft/TypeScript.",
 	// Reason: LICENSE file does not include Copyright statement
 	"licenseDetail": [
-		"Copyright (c) Microsoft Corporation. All rights reserved. ",
+		"Copyright (c) Microsoft Corporation. All rights reserved.",
 		"",
 		"Apache License",
 		"",
