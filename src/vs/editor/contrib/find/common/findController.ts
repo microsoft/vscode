@@ -257,7 +257,7 @@ export class StartFindAction extends EditorAction {
 		let controller = CommonFindController.get(editor);
 		controller.start({
 			forceRevealReplace: false,
-			seedSearchStringFromSelection: true,
+			seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
 			shouldFocus: FindStartFocusAction.FocusFindInput,
 			shouldAnimate: true
 		});
@@ -413,7 +413,7 @@ export class StartFindReplaceAction extends EditorAction {
 		let controller = CommonFindController.get(editor);
 		controller.start({
 			forceRevealReplace: true,
-			seedSearchStringFromSelection: true,
+			seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
 			shouldFocus: FindStartFocusAction.FocusReplaceInput,
 			shouldAnimate: true
 		});
