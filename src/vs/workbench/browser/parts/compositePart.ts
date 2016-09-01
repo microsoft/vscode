@@ -150,7 +150,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				});
 			});
 		}).then(composite => {
-			this._onDidCompositeOpen.fire(composite);
+			if (composite) {
+				this._onDidCompositeOpen.fire(composite);
+			}
+
 			return composite;
 		});
 	}
