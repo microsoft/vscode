@@ -1495,28 +1495,37 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _scrollUpOrDown(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
-		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
-		let cursor: OneCursor = this.cursors.getAll()[0];
-
-		if (editorCommon.EditorScrollByUnit.Line === editorScrollArg.by && !cursor.isLastLineVisibleInViewPort()) {
-			let range = up ? cursor.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : cursor.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
-			this.emitCursorRevealRange(range, null, up ? editorCommon.VerticalRevealType.Top : editorCommon.VerticalRevealType.Bottom, false, true);
+		if (this._scrollByReveal(editorScrollArg, ctx)) {
 			return true;
 		}
-
-		let noOfLines = 1;
+		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
+		let cursor: OneCursor = this.cursors.getAll()[0];
+		let noOfLines = editorScrollArg.value || 1;
 		switch (editorScrollArg.by) {
-			case editorCommon.EditorScrollByUnit.WrappedLine:
-				noOfLines = editorScrollArg.value;
-				break;
 			case editorCommon.EditorScrollByUnit.Page:
-				noOfLines = cursor.getPageSize() * editorScrollArg.value;
+				noOfLines = cursor.getPageSize() * noOfLines;
 				break;
 			case editorCommon.EditorScrollByUnit.HalfPage:
-				noOfLines = Math.round(cursor.getPageSize() / 2) * editorScrollArg.value;
+				noOfLines = Math.round(cursor.getPageSize() / 2) * noOfLines;
 				break;
 		}
 		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, !!editorScrollArg.revealCursor);
+		return true;
+	}
+
+	private _scrollByReveal(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
+		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
+		let cursor: OneCursor = this.cursors.getAll()[0];
+		if (editorCommon.EditorScrollByUnit.Line !== editorScrollArg.by) {
+			// Scroll by reveal is done only when unit is line.
+			return false;
+		}
+		if (!up && cursor.isLastLineVisibleInViewPort()) {
+			// Scroll by reveal is not done if last line is visible and scrolling down.
+			return false;
+		}
+		let range = up ? cursor.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : cursor.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
+		this.emitCursorRevealRange(range, null, up ? editorCommon.VerticalRevealType.Top : editorCommon.VerticalRevealType.Bottom, false, true);
 		return true;
 	}
 
