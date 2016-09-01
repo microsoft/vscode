@@ -78,7 +78,7 @@ interface MyMessageItem extends MessageItem  {
 }
 
 
-export function openUrl(url: string) {
+function openUrl(url: string) {
 	let cmd: string;
 	switch (process.platform) {
 		case 'darwin':
@@ -281,6 +281,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private startService(resendModels: boolean = false): void {
 		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
 		let checkGlobalVersion = true;
+		let showVersionStatusItem = false;
 
 		if (this.tsdk) {
 			checkGlobalVersion = false;
@@ -329,10 +330,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						}
 						switch(selected.id) {
 							case MessageAction.useLocal:
+								showVersionStatusItem = true;
 								return localModulePath;
 							case MessageAction.alwaysUseLocal:
 								window.showInformationMessage(localize('continueWithVersion', 'Continuing with version {0}', shippedVersion));
-								// openUrl();
+								openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
 								return modulePath;
 							case MessageAction.useBundled:
 								return modulePath;
@@ -364,7 +366,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 			const label = version || localize('versionNumber.custom' ,'custom');
 			const tooltip = modulePath;
-			VersionStatus.enable(!!this.tsdk);
+			VersionStatus.enable(!!this.tsdk || showVersionStatusItem);
 			VersionStatus.setInfo(label, tooltip);
 
 			const doGlobalVersionCheckKey: string = 'doGlobalVersionCheck';
@@ -398,7 +400,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						}
 						switch (selected.id) {
 							case 1:
-								// openUrl();
+								openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
 								break;
 							case 2:
 								this.globalState.update(doGlobalVersionCheckKey, false);
