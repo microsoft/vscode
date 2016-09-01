@@ -196,6 +196,12 @@ export class TerminalService implements ITerminalService {
 		}
 
 		return this.focus().then((terminalPanel) => {
+			// If the terminal panel has not been initialized yet skip this, the terminal will be
+			// created via a call from TerminalPanel.setVisible
+			if (terminalPanel === null) {
+				return;
+			}
+
 			// Only create a new process if none have been created since toggling the terminal
 			// panel. This happens when createNew is called when the panel is either empty or no yet
 			// created.
