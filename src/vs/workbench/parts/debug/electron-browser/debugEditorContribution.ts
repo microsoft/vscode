@@ -22,7 +22,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import {Range} from 'vs/editor/common/core/range';
 
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+
 const HOVER_DELAY = 300;
+
+export class DebugEditorContext {
+	public static CURRENT_TOKEN = 'debug.editor.token.current';
+}
 
 export class DebugEditorContribution implements debug.IDebugEditorContribution {
 
@@ -34,17 +40,22 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 	private hoverRange: Range;
 	private hoveringOver: string;
 
+	private currentTokenKey: IKeybindingContextKey<string>;
+
 	static getDebugEditorContribution(editor: editorcommon.ICommonCodeEditor): DebugEditorContribution {
 		return <DebugEditorContribution>editor.getContribution(debug.EDITOR_CONTRIBUTION_ID);
 	}
 
 	constructor(
 		private editor: editorbrowser.ICodeEditor,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
+		this.currentTokenKey = keybindingService.createKey(DebugEditorContext.CURRENT_TOKEN, null);
+
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
 		this.toDispose = [this.hoverWidget];
@@ -73,7 +84,16 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		return TPromise.as(actions);
 	}
 
+	private determineCurrentToken(e): void {
+		const tokens = this.editor.getModel().getLineTokens(e.position.lineNumber);
+		const tokenIdx = tokens.findIndexOfOffset(e.position.column);
+		const type = tokens.getTokenType(tokenIdx);
+		this.currentTokenKey.set(type);
+	}
+
 	private registerListeners(): void {
+		this.toDispose.push(this.editor.onDidChangeCursorPosition(this.determineCurrentToken.bind(this)));
+
 		this.toDispose.push(this.editor.onMouseDown((e: editorbrowser.IEditorMouseEvent) => {
 			if (e.target.type !== editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
 				return;
