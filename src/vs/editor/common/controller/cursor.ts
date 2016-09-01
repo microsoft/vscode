@@ -1498,7 +1498,7 @@ export class Cursor extends EventEmitter {
 		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
 		let cursor: OneCursor = this.cursors.getAll()[0];
 
-		if (editorCommon.EditorScrollByUnit.Line === editorScrollArg.by) {
+		if (editorCommon.EditorScrollByUnit.Line === editorScrollArg.by && !cursor.isLastLineVisibleInViewPort()) {
 			let range = up ? cursor.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : cursor.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
 			this.emitCursorRevealRange(range, null, up ? editorCommon.VerticalRevealType.Top : editorCommon.VerticalRevealType.Bottom, false, true);
 			return true;

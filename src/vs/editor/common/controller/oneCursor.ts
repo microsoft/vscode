@@ -599,12 +599,15 @@ export class OneCursor {
 	}
 
 	// -- view
+	public isLastLineVisibleInViewPort(): boolean {
+		return this.viewModelHelper.viewModel.getLineCount() <= this.getCompletelyVisibleViewLinesRangeInViewport().getEndPosition().lineNumber;
+	}
 	public getCompletelyVisibleViewLinesRangeInViewport(): Range {
 		return this.viewModelHelper.getCurrentCompletelyVisibleViewLinesRangeInViewport();
 	}
 	public getRevealViewLinesRangeInViewport(): Range {
 		let visibleRange = this.getCompletelyVisibleViewLinesRangeInViewport().cloneRange();
-		if (visibleRange.endLineNumber > visibleRange.startLineNumber) {
+		if (!this.isLastLineVisibleInViewPort() && visibleRange.endLineNumber > visibleRange.startLineNumber) {
 			visibleRange.endLineNumber = visibleRange.endLineNumber - 1;
 			visibleRange.endColumn = this.viewModelHelper.viewModel.getLineLastNonWhitespaceColumn(visibleRange.endLineNumber);
 		}
