@@ -91,8 +91,12 @@ class LazyEmmet {
 
 	private updateEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet) {
 		let emmetPreferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet;
-		_emmet.loadPreferences(emmetPreferences.preferences);
-		_emmet.loadProfiles(emmetPreferences.syntaxProfiles);
+		try {
+			_emmet.loadPreferences(emmetPreferences.preferences);
+			_emmet.loadProfiles(emmetPreferences.syntaxProfiles);
+		} catch (err) {
+			// ignore
+		}
 	}
 
 	private resetEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet) {
