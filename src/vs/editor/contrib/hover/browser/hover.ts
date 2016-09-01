@@ -16,13 +16,14 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorBrowserContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {ModesContentHoverWidget} from './modesContentHover';
 import {ModesGlyphHoverWidget} from './modesGlyphHover';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
+@editorBrowserContribution
 class ModesHoverController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.hover';
@@ -165,5 +166,3 @@ class ShowHoverAction extends EditorAction {
 		ModesHoverController.get(editor).showContentHover(range, true);
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(ModesHoverController);

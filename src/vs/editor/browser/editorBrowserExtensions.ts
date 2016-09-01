@@ -9,13 +9,14 @@ import {Registry} from 'vs/platform/platform';
 import {IEditorContribution} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IEditorContributionDescriptor, ISimpleEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
 
+export function editorBrowserContribution(ctor:ISimpleEditorContributionCtor): void {
+	EditorContributionRegistry.INSTANCE.registerEditorBrowserContribution(ctor);
+}
+
 export namespace EditorBrowserRegistry {
 	// --- Editor Contributions
-	export function registerEditorContribution(ctor:ISimpleEditorContributionCtor): void {
-		(<EditorContributionRegistry>Registry.as(Extensions.EditorContributions)).registerEditorBrowserContribution(ctor);
-	}
 	export function getEditorContributions(): IEditorContributionDescriptor[] {
-		return (<EditorContributionRegistry>Registry.as(Extensions.EditorContributions)).getEditorBrowserContributions();
+		return EditorContributionRegistry.INSTANCE.getEditorBrowserContributions();
 	}
 }
 
@@ -39,6 +40,8 @@ var Extensions = {
 
 class EditorContributionRegistry {
 
+	public static INSTANCE = new EditorContributionRegistry();
+
 	private editorContributions: IEditorContributionDescriptor[];
 
 	constructor() {
@@ -54,4 +57,4 @@ class EditorContributionRegistry {
 	}
 }
 
-Registry.add(Extensions.EditorContributions, new EditorContributionRegistry());
+Registry.add(Extensions.EditorContributions, EditorContributionRegistry.INSTANCE);
