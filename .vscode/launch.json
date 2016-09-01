@@ -9,7 +9,8 @@
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
-				"999999"
+				"999999",
+				"Emmet"
 			],
 			"cwd": "${workspaceRoot}",
 			"runtimeArgs": [],
@@ -17,6 +18,25 @@
 			"sourceMaps": true,
 			"outDir": "${workspaceRoot}/out"
 		},
+ 		{
+ 			"name": "Stacks Tests",
+ 			"type": "node",
+ 			"request": "launch",
+ 			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+ 			"stopOnEntry": false,
+ 			"args": [
+ 				"--timeout",
+ 				"999999",
+ 				"--colors",
+ 				"-g",
+ 				"Emmet"
+ 			],
+ 			"cwd": "${workspaceRoot}",
+ 			"runtimeArgs": [],
+ 			"env": {},
+ 			"sourceMaps": true,
+ 			"outDir": "${workspaceRoot}/out"
+ 		},
 		{
 			"name": "Attach to Extension Host",
 			"type": "node",
