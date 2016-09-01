@@ -507,8 +507,11 @@ abstract class FoldingAction<T> extends EditorAction {
 	abstract invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor, args:T): void;
 
 	public runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: T): void | TPromise<void> {
-		this.reportTelemetry(accessor);
 		let foldingController = FoldingController.get(editor);
+		if (!foldingController) {
+			return;
+		}
+		this.reportTelemetry(accessor);
 		this.invoke(foldingController, editor, args);
 	}
 

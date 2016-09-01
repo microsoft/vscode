@@ -137,7 +137,11 @@ class InPlaceReplaceUp extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
-		return InPlaceReplaceController.get(editor).run(this.id, true);
+		let controller = InPlaceReplaceController.get(editor);
+		if (!controller) {
+			return;
+		}
+		return controller.run(this.id, true);
 	}
 }
 
@@ -158,6 +162,10 @@ class InPlaceReplaceDown extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
-		return InPlaceReplaceController.get(editor).run(this.id, false);
+		let controller = InPlaceReplaceController.get(editor);
+		if (!controller) {
+			return;
+		}
+		return controller.run(this.id, false);
 	}
 }

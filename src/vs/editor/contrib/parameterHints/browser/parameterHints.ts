@@ -75,7 +75,10 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		ParameterHintsController.get(editor).trigger();
+		let controller = ParameterHintsController.get(editor);
+		if (controller) {
+			controller.trigger();
+		}
 	}
 }
 

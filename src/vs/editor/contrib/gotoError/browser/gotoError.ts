@@ -433,7 +433,12 @@ class MarkerNavigationAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		const telemetryService = accessor.get(ITelemetryService);
 
-		let model = MarkerController.get(editor).getOrCreateModel();
+		let controller = MarkerController.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		let model = controller.getOrCreateModel();
 		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
 		if (model) {
 			if (this._isNext) {

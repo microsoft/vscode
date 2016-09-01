@@ -331,6 +331,10 @@ class OpenLinkAction extends EditorAction {
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		let linkDetector = LinkDetector.get(editor);
+		if (!linkDetector) {
+			return;
+		}
+
 		let link = linkDetector.getLinkOccurence(editor.getPosition());
 		if (link) {
 			linkDetector.openLinkOccurence(link, false);

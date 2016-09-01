@@ -167,7 +167,10 @@ export class RenameAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
-		return RenameController.get(editor).run();
+		let controller = RenameController.get(editor);
+		if (controller) {
+			return controller.run();
+		}
 	}
 }
 

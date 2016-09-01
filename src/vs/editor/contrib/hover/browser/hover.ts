@@ -161,8 +161,12 @@ class ShowHoverAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		let controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		ModesHoverController.get(editor).showContentHover(range, true);
+		controller.showContentHover(range, true);
 	}
 }

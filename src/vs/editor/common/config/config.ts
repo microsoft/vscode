@@ -97,7 +97,10 @@ export abstract class EditorCommand extends Command {
 			}
 
 			protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
-				this._callback(controllerGetter(editor));
+				let controller = controllerGetter(editor);
+				if (controller) {
+					this._callback(controllerGetter(editor));
+				}
 			}
 		};
 	}

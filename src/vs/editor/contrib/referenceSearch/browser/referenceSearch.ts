@@ -76,10 +76,13 @@ export class ReferenceAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		let controller = ReferencesController.get(editor);
+		if (!controller) {
+			return;
+		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
 		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
-		let controller = ReferencesController.getController(editor);
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}
 }
@@ -100,8 +103,12 @@ let findReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 			return;
 		}
 
+		let controller = ReferencesController.get(control);
+		if (!controller) {
+			return;
+		}
+
 		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
-		let controller = ReferencesController.getController(control);
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
@@ -119,7 +126,10 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 			return;
 		}
 
-		let controller = ReferencesController.getController(control);
+		let controller = ReferencesController.get(control);
+		if (!controller) {
+			return;
+		}
 
 		return TPromise.as(controller.toggleWidget(
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
@@ -148,10 +158,16 @@ CommandsRegistry.registerCommand('editor.action.showReferences', {
 
 function closeActiveReferenceSearch(accessor, args) {
 	var outerEditor = getOuterEditor(accessor, args);
-	if (outerEditor) {
-		var controller = ReferencesController.getController(outerEditor);
-		controller.closeWidget();
+	if (!outerEditor) {
+		return;
 	}
+
+	let controller = ReferencesController.get(outerEditor);
+	if (!controller) {
+		return;
+	}
+
+	controller.closeWidget();
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

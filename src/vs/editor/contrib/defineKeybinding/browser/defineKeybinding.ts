@@ -470,8 +470,10 @@ export class DefineKeybindingAction extends EditorAction {
 		if (!isInterestingEditorModel(editor)) {
 			return;
 		}
-		var controller = DefineKeybindingController.get(editor);
-		controller.launch();
+		let controller = DefineKeybindingController.get(editor);
+		if (controller) {
+			controller.launch();
+		}
 	}
 
 }
