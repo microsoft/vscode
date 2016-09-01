@@ -159,6 +159,7 @@
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
 	outline-offset: -2px !important;
 	outline: 1px solid #f38518 !important;
+	padding-left: 2px; /* push text by the width of the outline offset to prevent overlaying */
 }
 
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox.synthetic-focus {
