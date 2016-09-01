@@ -28,7 +28,7 @@ import {IEditorContributionDescriptor} from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
@@ -321,9 +321,9 @@ class ReplHistoryPreviousAction extends EditorAction {
 			id: 'repl.action.historyPrevious',
 			label: nls.localize('actions.repl.historyPrevious', "History Previous"),
 			alias: 'History Previous',
-			precondition: debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE,
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
 				primary: KeyCode.UpArrow,
 				weight: 50
 			},
@@ -346,9 +346,9 @@ class ReplHistoryNextAction extends EditorAction {
 			id: 'repl.action.historyNext',
 			label: nls.localize('actions.repl.historyNext', "History Next"),
 			alias: 'History Next',
-			precondition: debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE,
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
 				primary: KeyCode.DownArrow,
 				weight: 50
 			},
