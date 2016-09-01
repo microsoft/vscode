@@ -121,7 +121,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		const lines = s.split(/\r\n|\r|\n/g);
+		const lines = s.trim().split(/\r\n|\r|\n/g);
 		const numLines = lines.reduce((lineCount: number, line: string) => {
 			let lineLength = 0;
 			for (let i = 0; i < line.length; i++) {
