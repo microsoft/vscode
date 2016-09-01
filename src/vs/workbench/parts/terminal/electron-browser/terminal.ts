@@ -87,5 +87,6 @@ export interface ITerminalService {
 
 export interface ITerminalPanel {
 	closeTerminalById(terminalId: number): TPromise<void>;
+	focus(): void;
 	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
 }
