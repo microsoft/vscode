@@ -8,7 +8,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {IEditorContributionDescriptor} from 'vs/editor/browser/editorBrowser';
+import {IEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
@@ -27,7 +27,7 @@ export class CodeEditor extends CodeEditorWidget {
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
 	}
 
-	protected _getContributions(): IEditorContributionDescriptor[] {
+	protected _getContributions(): IEditorContributionCtor[] {
 		return [].concat(EditorBrowserRegistry.getEditorContributions()).concat(CommonEditorRegistry.getEditorContributions());
 	}
 

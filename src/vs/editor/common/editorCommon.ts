@@ -9,7 +9,7 @@ import {MarkedString} from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServicesAccessor, IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
@@ -3509,17 +3509,6 @@ export type IEditorActionContributionCtor = IConstructorSignature2<IEditorAction
  * @internal
  */
 export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
-
-/**
- * An editor contribution descriptor that will be used to construct editor contributions
- * @internal
- */
-export interface ICommonEditorContributionDescriptor {
-	/**
-	 * Create an instance of the contribution
-	 */
-	createInstance(instantiationService:IInstantiationService, editor:ICommonCodeEditor): IEditorContribution;
-}
 
 export interface IEditorAction {
 	id: string;

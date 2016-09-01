@@ -8,7 +8,7 @@ import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IInstantiationService, IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
+import {IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -385,19 +385,7 @@ export interface IEditorMouseEvent {
 /**
  * @internal
  */
-export type ISimpleEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
-
-/**
- * An editor contribution descriptor that will be used to construct editor contributions
- * @internal
- */
-export interface IEditorContributionDescriptor {
-	/**
-	 * Create an instance of the contribution
-	 */
-	createInstance(instantiationService:IInstantiationService, editor:ICodeEditor): editorCommon.IEditorContribution;
-}
-
+export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
 
 /**
  * An overview ruler
