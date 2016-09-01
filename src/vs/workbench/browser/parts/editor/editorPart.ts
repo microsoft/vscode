@@ -632,7 +632,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Thus we make the non-active one active and then close the others
 		else {
 			this.openEditor(except, null, this.stacks.positionOfGroup(group)).done(() => {
-				this.doCloseEditors(group, except, direction);
+
+				// since the opening might have failed, we have to check again for the active editor
+				// being the expected one, otherwise we end up in an endless loop trying to open the
+				// editor
+				if (except.matches(group.activeEditor)) {
+					this.doCloseEditors(group, except, direction);
+				}
 			}, errors.onUnexpectedError);
 		}
 	}
