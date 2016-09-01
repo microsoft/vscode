@@ -98,10 +98,11 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
-		let contributionDescriptors = this._getContributions();
-		for (let i = 0, len = contributionDescriptors.length; i < len; i++) {
+		let contributions = this._getContributions();
+		for (let i = 0, len = contributions.length; i < len; i++) {
+			let ctor = contributions[i];
 			try {
-				let contribution = contributionDescriptors[i].createInstance(this._instantiationService, this);
+				let contribution = this._instantiationService.createInstance(ctor, this);
 				this._contributions[contribution.getId()] = contribution;
 			} catch (err) {
 				onUnexpectedError(err);
@@ -116,7 +117,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected abstract _getContributions(): editorBrowser.IEditorContributionDescriptor[];
+	protected abstract _getContributions(): editorBrowser.IEditorContributionCtor[];
 	protected abstract _getActions(): EditorAction[];
 
 	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {

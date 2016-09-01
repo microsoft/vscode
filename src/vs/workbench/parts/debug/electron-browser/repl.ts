@@ -24,7 +24,7 @@ import * as modes from 'vs/editor/common/modes';
 import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IEditorContributionDescriptor} from 'vs/editor/browser/editorBrowser';
+import {IEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -73,7 +73,7 @@ class ReplEditor extends CodeEditorWidget {
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
 	}
 
-	protected _getContributions(): IEditorContributionDescriptor[] {
+	protected _getContributions(): IEditorContributionCtor[] {
 		return [].concat(EditorBrowserRegistry.getEditorContributions()).concat(CommonEditorRegistry.getEditorContributions());
 	}
 
