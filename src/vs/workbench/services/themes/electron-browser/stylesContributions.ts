@@ -34,7 +34,6 @@ interface ThemeGlobalSettings {
 	referenceHighlight?: string;
 
 	activeLinkForeground?: string;
-	gotoDefinitionLinkForeground?: string;
 }
 
 class Theme {
@@ -232,9 +231,7 @@ class EditorLinkStyleRules extends EditorStyleRules {
 		let cssRules = [];
 		if (theme.getGlobalSettings().activeLinkForeground) {
 			cssRules.push(`.monaco-editor.${theme.getSelector()} .detected-link-active { color: ${new Color(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
-		}
-		if (theme.getGlobalSettings().gotoDefinitionLinkForeground) {
-			cssRules.push(`.monaco-editor.${theme.getSelector()} .goto-definition-link { color: ${new Color(theme.getGlobalSettings().gotoDefinitionLinkForeground)} !important; }`);
+			cssRules.push(`.monaco-editor.${theme.getSelector()} .goto-definition-link { color: ${new Color(theme.getGlobalSettings().activeLinkForeground)} !important; }`);
 		}
 		return cssRules;
 	}
