@@ -21,21 +21,17 @@ import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import {IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
+import {ReplEditor} from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
@@ -61,26 +57,7 @@ export interface IPrivateReplService {
 	acceptReplInput(): void;
 }
 
-class ReplEditor extends CodeEditorWidget {
-	constructor(
-		domElement:HTMLElement,
-		options:IEditorOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
-	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
-	}
 
-	protected _getContributions(): IEditorContributionCtor[] {
-		return [].concat(EditorBrowserRegistry.getEditorContributions()).concat(CommonEditorRegistry.getEditorContributions());
-	}
-
-	protected _getActions(): EditorAction[] {
-		return CommonEditorRegistry.getEditorActions();
-	}
-}
 
 export class Repl extends Panel implements IPrivateReplService {
 	public _serviceBrand: any;
