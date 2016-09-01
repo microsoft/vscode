@@ -43,16 +43,6 @@
 	background-color: inherit;
 }
 
-/* Allign twistie since hover tree is smaller */
-
-.monaco-editor .debug-hover-widget .debug-hover-tree  .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:before {
-	top: 6px;
-}
-
-.monaco-editor .debug-hover-widget .debug-hover-tree  .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:after {
-	top: 8px;
-}
-
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row {
 	cursor: default;
 }

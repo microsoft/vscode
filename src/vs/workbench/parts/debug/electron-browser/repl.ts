@@ -49,7 +49,6 @@ const $ = dom.$;
 const replTreeOptions: tree.ITreeOptions = {
 	indentPixels: 8,
 	twistiePixels: 20,
-	paddingOnRow: false,
 	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
 };
 
