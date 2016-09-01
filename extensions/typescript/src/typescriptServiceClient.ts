@@ -294,7 +294,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let versionCheckPromise: Thenable<string> = Promise.resolve(modulePath);
 		const doLocalVersionCheckKey: string = 'doLocalVersionCheck';
 
-		if (!this.tsdk && this.globalState.get(doLocalVersionCheckKey, true)) {
+		if (!this.tsdk && workspace.rootPath && this.globalState.get(doLocalVersionCheckKey, true)) {
 			let localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
 			if (fs.existsSync(localModulePath)) {
 				let localVersion = this.getTypeScriptVersion(localModulePath);
