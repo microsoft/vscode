@@ -45,7 +45,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				description: localize('strictSSL', "Whether the proxy server certificate should be verified against the list of supplied CAs.")
 			},
 			'http.proxyAuthorization': {
-				type: 'string',
+				type: ['null', 'string'],
 				default: null,
 				description: localize('proxyAuthorization', "The value to send as the 'Proxy-Authorization' header for every network request.")
 			}
