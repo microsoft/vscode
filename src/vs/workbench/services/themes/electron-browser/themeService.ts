@@ -481,8 +481,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 				qualifier = baseThemeClassName + ' ' + qualifier;
 			}
 
+			let expanded = '.monaco-tree-row.expanded'; // workaround for #11453
+
 			addSelector(`${qualifier} .folder-icon::before`, associations.folder);
-			addSelector(`${qualifier} .expanded .folder-icon::before`, associations.folderExpanded);
+			addSelector(`${qualifier} ${expanded} .folder-icon::before`, associations.folderExpanded);
 			addSelector(`${qualifier} .file-icon::before`, associations.file);
 
 			let folderNames = associations.folderNames;
@@ -494,7 +496,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let folderNamesExpanded = associations.folderNamesExpanded;
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
-					addSelector(`${qualifier} .expanded .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
+					addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 				}
 			}
 			let languageIds = associations.languageIds;
