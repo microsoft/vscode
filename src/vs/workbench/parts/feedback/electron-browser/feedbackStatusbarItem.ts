@@ -10,8 +10,8 @@ import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {FeedbackDropdown, IFeedback, IFeedbackService} from 'vs/workbench/parts/feedback/browser/feedback';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {shell} from 'electron';
+import product from 'vs/platform/product';
 
 class TwitterFeedbackService implements IFeedbackService {
 
@@ -49,13 +49,12 @@ export class FeedbackStatusbarItem implements IStatusbarItem {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IContextViewService private contextViewService: IContextViewService
 	) {
 	}
 
 	public render(element: HTMLElement): IDisposable {
-		if (this.contextService.getConfiguration().env.sendASmile) {
+		if (product.sendASmile) {
 			return this.instantiationService.createInstance(FeedbackDropdown, element, {
 				contextViewProvider: this.contextViewService,
 				feedbackService: this.instantiationService.createInstance(TwitterFeedbackService)

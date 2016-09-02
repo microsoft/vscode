@@ -25,7 +25,7 @@ import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeDefaults';
 import DOM = require('vs/base/browser/dom');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {KeyCode, KeyMod, CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 
@@ -34,7 +34,7 @@ export interface IQuickOpenCallbacks {
 	onCancel: () => void;
 	onType: (value: string) => void;
 	onShow?: () => void;
-	onHide?: (focusLost?: boolean) => void;
+	onHide?: (reason: HideReason) => void;
 	onFocusLost?: () => boolean /* veto close */;
 }
 
@@ -155,15 +155,6 @@ export class QuickOpenWidget implements IModelProvider {
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
-					if (platform.isMacintosh) {
-						if (keyboardEvent.equals(CommonKeybindings.WINCTRL_N)) {
-							keyboardEvent.keyCode = KeyCode.DownArrow;
-						}
-						else if (keyboardEvent.equals(CommonKeybindings.WINCTRL_P)) {
-							keyboardEvent.keyCode = KeyCode.UpArrow;
-						}
-					}
-
 					// Do not handle Tab: It is used to navigate between elements without mouse
 					if (keyboardEvent.keyCode === KeyCode.Tab) {
 						return;
@@ -234,15 +225,6 @@ export class QuickOpenWidget implements IModelProvider {
 					// Only handle when in quick navigation mode
 					if (!this.quickNavigateConfiguration) {
 						return;
-					}
-
-					if (platform.isMacintosh) {
-						if (keyboardEvent.equals(CommonKeybindings.WINCTRL_N)) {
-							keyboardEvent.keyCode = KeyCode.DownArrow;
-						}
-						else if (keyboardEvent.equals(CommonKeybindings.WINCTRL_P)) {
-							keyboardEvent.keyCode = KeyCode.UpArrow;
-						}
 					}
 
 					// Support keyboard navigation in quick navigation mode
@@ -428,7 +410,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
-			const context: IEntryRunContext = { event: event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
+			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 			hide = this.model.runner.run(value, Mode.OPEN, context);
 		}
 
@@ -738,14 +720,14 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 
 		// Callbacks
-		if (reason === HideReason.CANCELED) {
-			this.callbacks.onCancel();
-		} else {
+		if (reason === HideReason.ELEMENT_SELECTED) {
 			this.callbacks.onOk();
+		} else {
+			this.callbacks.onCancel();
 		}
 
 		if (this.callbacks.onHide) {
-			this.callbacks.onHide(reason === HideReason.FOCUS_LOST);
+			this.callbacks.onHide(reason);
 		}
 	}
 
@@ -804,14 +786,19 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public runFocus(): boolean {
-		let focus = this.tree.getFocus();
-		if (focus) {
-			this.elementSelected(focus);
-			return true;
+	public focus(): void {
+		if (this.isVisible() && this.inputBox) {
+			this.inputBox.focus();
 		}
+	}
 
-		return false;
+	public accept(): void {
+		if (this.isVisible()) {
+			let focus = this.tree.getFocus();
+			if (focus) {
+				this.elementSelected(focus);
+			}
+		}
 	}
 
 	public getProgressBar(): ProgressBar {

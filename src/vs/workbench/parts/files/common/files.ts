@@ -14,11 +14,14 @@ import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEd
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
+import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
+
+export const ExplorerViewletVisible = new RawContextKey<boolean>('explorerViewletVisible', true);
 
 /**
  * File editor input id.
@@ -236,13 +239,15 @@ export interface IResult {
 export interface IAutoSaveConfiguration {
 	autoSaveDelay: number;
 	autoSaveFocusChange: boolean;
+	autoSaveApplicationChange: boolean;
 }
 
 export enum AutoSaveMode {
 	OFF,
 	AFTER_SHORT_DELAY,
 	AFTER_LONG_DELAY,
-	ON_FOCUS_CHANGE
+	ON_FOCUS_CHANGE,
+	ON_WINDOW_CHANGE
 }
 
 export interface IFileEditorDescriptor extends IEditorDescriptor {

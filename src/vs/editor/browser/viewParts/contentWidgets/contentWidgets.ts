@@ -185,6 +185,14 @@ export class ViewContentWidgets extends ViewPart {
 		}
 	}
 
+	public shouldSuppressMouseDownOnWidget(widgetId: string): boolean {
+		if (this._widgets.hasOwnProperty(widgetId)) {
+			let widgetData = this._widgets[widgetId];
+			return widgetData.widget.suppressMouseDown;
+		}
+		return false;
+	}
+
 	private _layoutBoxInViewport(position:Position, domNode:HTMLElement, ctx:IRenderingContext): IBoxLayoutResult {
 
 		let visibleRange = ctx.visibleRangeForPosition(position);

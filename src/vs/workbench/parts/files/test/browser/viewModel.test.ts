@@ -10,12 +10,13 @@ import {isUndefinedOrNull, isArray} from 'vs/base/common/types';
 import {isLinux, isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
+import {guessMimeTypes} from 'vs/base/common/mime';
 import {validateFileName} from 'vs/workbench/parts/files/browser/fileActions';
 import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime) {
-	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);
+	return new FileStat(toResource(path), isFolder, hasChildren, name, !isFolder ? guessMimeTypes(path).join(', ') : null, mtime);
 }
 
 function toResource(path) {
@@ -43,31 +44,10 @@ suite('Files - View Model', () => {
 	test('Add and Remove Child, check for hasChild', function () {
 		let d = new Date().getTime();
 		let s = createStat('/path/to/stat', 'sName', true, false, 8096, d);
-		let s2 = createStat('/path/to/stat2', 'sName2', false, false, 8096, d);
 
 		let child1 = createStat('/path/to/stat/foo', 'foo', true, false, 8096, d);
 		let child2 = createStat('/path/to/stat/bar.html', 'bar', false, false, 8096, d);
 		let child4 = createStat('/otherpath/to/other/otherbar.html', 'otherbar.html', false, false, 8096, d);
-
-		assert.throws(function () {
-			s2.addChild(child1); // Can not add into non directory
-		});
-
-		assert.throws(function () {
-			s2.addChild(null);
-		});
-
-		assert.throws(function () {
-			s2.hasChild(child1.name);
-		});
-
-		assert.throws(function () {
-			s2.removeChild(child1);
-		});
-
-		assert.throws(function () {
-			s.hasChild(null);
-		});
 
 		assert(!s.hasChild(child1.name));
 		assert(!s.hasChild(child2.name));
@@ -80,6 +60,7 @@ suite('Files - View Model', () => {
 		assert(s.children.length === 1);
 		assert(s.hasChildren);
 
+		s.removeChild(child1);
 		s.addChild(child1);
 		assert(s.children.length === 1);
 
@@ -103,18 +84,6 @@ suite('Files - View Model', () => {
 		s1.addChild(s2);
 		s2.addChild(s3);
 		s3.addChild(s4);
-
-		assert.throws(function () {
-			s4.move(null);
-		});
-
-		assert.throws(function () {
-			s2.move(s4); // Can not move into a file
-		});
-
-		assert.throws(function () {
-			s1.move(s3); // Can not move root
-		});
 
 		s4.move(s1);
 
@@ -147,19 +116,6 @@ suite('Files - View Model', () => {
 		let s2 = createStat('/path', 'path', true, false, 8096, d);
 		let s3 = createStat('/path/to', 'to', true, false, 8096, d);
 		let s4 = createStat('/path/to/stat', 'stat', true, false, 8096, d);
-		let s5 = createStat('/path/to/stat', 'stat', true, false, 8096, d);
-
-		assert.throws(function () {
-			s2.rename(null);
-		});
-
-		assert.throws(function () {
-			s1.rename(s2); // Can not rename root
-		});
-
-		assert.throws(function () {
-			s4.rename(s5); // Can not rename to stat from different workspace
-		});
 
 		s1.addChild(s2);
 		s2.addChild(s3);
@@ -284,9 +240,9 @@ suite('Files - View Model', () => {
 
 	test('File Change Event (with stats)', function () {
 		let d = new Date().toUTCString();
-		let s1 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', 8096 /* Size */, d);
-		let s2 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', 16000 /* Size */, d);
-		let s3 = new FileStat(toResource('/path/to/sNameMoved'), false, false, 'sNameMoved', 8096 /* Size */, d);
+		let s1 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', void 0, 8096 /* Size */, d);
+		let s2 = new FileStat(toResource('/path/to/sName'), false, false, 'sName', void 0, 16000 /* Size */, d);
+		let s3 = new FileStat(toResource('/path/to/sNameMoved'), false, false, 'sNameMoved', void 0, 8096 /* Size */, d);
 
 		// Got Added
 		let event = new LocalFileChangeEvent(null, s1);
@@ -327,20 +283,22 @@ suite('Files - View Model', () => {
 	test('Merge Local with Disk', function () {
 		let d = new Date().toUTCString();
 
-		let merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', 8096, d);
-		let merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', 16000, new Date(0).toUTCString());
+		let merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', void 0, 8096, d);
+		let merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), true, false, 'to', void 0, 16000, new Date(0).toUTCString());
 
 		// Merge Properties
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', 8096, d));
+		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', void 0, 8096, d));
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.children.length, 0);
 
 		// Merge Child with isDirectoryResolved=true
-		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', 8096, d));
+		const child = new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), true, false, 'foo.html', void 0, 8096, d);
+		merge2.removeChild(child);
+		merge2.addChild(child);
 		merge2.isDirectoryResolved = true;
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.children.length, 1);

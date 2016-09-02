@@ -6,33 +6,58 @@
 'use strict';
 
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {RawContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
-import {ISuggestion} from 'vs/editor/common/modes';
+import {ISnippetsRegistry, Extensions, getNonWhitespacePrefix, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
+import {Registry} from 'vs/platform/platform';
+import {endsWith} from 'vs/base/common/strings';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import * as editor from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {CodeSnippet, ISnippetController, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, commonEditorContribution, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
+import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
+import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
 
-class TabCompletionController implements editor.IEditorContribution {
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
-	static Id = 'editor.tabCompletionController';
-	static ContextKey = 'hasSnippetCompletions';
+let snippetsRegistry = <ISnippetsRegistry>Registry.as(Extensions.Snippets);
 
-	private _snippetController: ISnippetController;
+@commonEditorContribution
+export class TabCompletionController implements editorCommon.IEditorContribution {
+
+	private static ID = 'editor.tabCompletionController';
+	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
+
+	public static get(editor:editorCommon.ICommonCodeEditor): TabCompletionController {
+		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
+	}
+
+	private _snippetController: SnippetController;
 	private _cursorChangeSubscription: IDisposable;
-	private _currentCompletions: ISuggestion[] = [];
+	private _currentSnippets: ISnippet[] = [];
 
 	constructor(
-		editor: editor.ICommonCodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService
+		editor: editorCommon.ICommonCodeEditor,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		this._snippetController = getSnippetController(editor);
-		const hasSnippets = keybindingService.createKey(TabCompletionController.ContextKey, undefined);
-		this._cursorChangeSubscription = editor.onDidChangeCursorPosition(e => {
-			SnippetsRegistry.fillInSnippets(this._currentCompletions, editor.getModel(), editor.getPosition());
-			hasSnippets.set(this._currentCompletions.length === 1); //todo@joh make it work with N
+		this._snippetController = SnippetController.get(editor);
+		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
+		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
+
+			this._currentSnippets.length = 0;
+
+			const prefix = e.selection.isEmpty()
+				? getNonWhitespacePrefix(editor.getModel(), editor.getPosition())
+				: editor.getModel().getValueInRange(e.selection);
+
+			if (prefix) {
+				snippetsRegistry.visitSnippets(editor.getModel().getModeId(), s => {
+					if (endsWith(prefix, s.prefix)) {
+						this._currentSnippets.push(s);
+					}
+					return true;
+				});
+			}
+			hasSnippets.set(this._currentSnippets.length === 1); //todo@joh make it work with N
 		});
 	}
 
@@ -41,28 +66,33 @@ class TabCompletionController implements editor.IEditorContribution {
 	}
 
 	performSnippetCompletions(): void {
-		if (this._currentCompletions.length === 1) {
-			const suggestion = this._currentCompletions[0];
-			const snippet = new CodeSnippet(suggestion.codeSnippet);
-			this._snippetController.run(snippet, suggestion.label.length, 0);
-		} else {
+		if (this._currentSnippets.length === 1) {
+			const snippet = this._currentSnippets[0];
+			const codeSnippet = CodeSnippet.fromTextmate(snippet.codeSnippet);
+			this._snippetController.run(codeSnippet, snippet.prefix.length, 0);
+		// } else {
 			// todo@joh - show suggest widget with proposals
 		}
 	}
 
 	getId(): string {
-		return TabCompletionController.Id;
+		return TabCompletionController.ID;
 	}
 }
 
-CommonEditorRegistry.registerEditorContribution(TabCompletionController);
-CommonEditorRegistry.registerEditorCommand(
-	'insertSnippet',
-	KeybindingsRegistry.WEIGHT.editorContrib(),
-	{ primary: KeyCode.Tab },
-	true,
-	TabCompletionController.ContextKey,
-	(accessor, editor) => {
-		const controller = <TabCompletionController>editor.getContribution(TabCompletionController.Id);
-		controller.performSnippetCompletions();
-	});
+const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
+
+CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
+	id: 'insertSnippet',
+	precondition: TabCompletionController.ContextKey,
+	handler: x => x.performSnippetCompletions(),
+	kbOpts: {
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+		kbExpr: ContextKeyExpr.and(
+			EditorContextKeys.TextFocus,
+			EditorContextKeys.TabDoesNotMoveFocus,
+			ContextKeyExpr.has('config.editor.tabCompletion')
+		),
+		primary: KeyCode.Tab
+	}
+}));

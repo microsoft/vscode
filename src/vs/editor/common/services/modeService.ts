@@ -45,11 +45,6 @@ export interface IModeService {
 	onDidAddModes: Event<string[]>;
 	onDidCreateMode: Event<modes.IMode>;
 
-	configureMode(modeName: string, options: any): void;
-	configureModeById(modeId: string, options: any): void;
-	configureAllModes(config:any): void;
-	getConfigurationForMode(modeId:string): any;
-
 	// --- reading
 	isRegisteredMode(mimetypeOrModeId: string): boolean;
 	isCompatMode(modeId: string): boolean;

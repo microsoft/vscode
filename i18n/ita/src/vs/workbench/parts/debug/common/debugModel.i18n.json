@@ -6,5 +6,6 @@
 {
 	"snapshotObj": "Per questo oggetto vengono visualizzati solo i valori primitivi.",
 	"startDebugFirst": "Per eseguire la valutazione, avviare una sessione di debug",
+	"unknownSource": "Origine sconosciuta",
 	"unknownStack": "Posizione dello stack sconosciuta"
 }

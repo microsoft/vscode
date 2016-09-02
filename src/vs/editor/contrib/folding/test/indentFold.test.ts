@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
+import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingModel';
 import {limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 
 suite('Indentation Folding', () => {

@@ -11,7 +11,7 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
@@ -25,6 +25,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -32,6 +33,16 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {extractResources} from 'vs/base/browser/dnd';
+import {LinkedMap} from 'vs/base/common/map';
+import paths = require('vs/base/common/paths');
+
+interface IEditorInputLabel {
+	editor: IEditorInput;
+	name: string;
+	hasAmbiguousName?: boolean;
+	description?: string;
+	verboseDescription?: string;
+}
 
 export class TabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
@@ -47,13 +58,14 @@ export class TabsTitleControl extends TitleControl {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
+		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.tabDisposeables = [];
 	}
@@ -89,7 +101,9 @@ export class TabsTitleControl extends TitleControl {
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
 				DOM.EventHelper.stop(e);
 
-				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true }); // untitled are always pinned
+				const group = this.context;
+
+				return this.editorService.openEditor(this.untitledEditorService.createOrGet(), { pinned: true, index: group.count /* always at the end */ }); // untitled are always pinned
 			}
 		}));
 
@@ -176,13 +190,37 @@ export class TabsTitleControl extends TitleControl {
 			DOM.removeClass(this.titleContainer, 'active');
 		}
 
-		// Tab styles
-		this.context.getEditors().forEach((editor, index) => {
+		// Compute labels and protect against duplicates
+		const editorsOfGroup = this.context.getEditors();
+		const labels = this.getUniqueTabLabels(editorsOfGroup);
+
+		// Tab label and styles
+		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
+				const tabLabelsContainer = <HTMLElement>tabContainer.children[0];
+				const tabLabel = <HTMLAnchorElement>tabLabelsContainer.children[0];
+				const tabDescription = <HTMLSpanElement>tabLabelsContainer.children[1];
+
 				const isPinned = group.isPinned(editor);
 				const isActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
+
+				const label = labels[index];
+				const name = label.name;
+				const description = label.hasAmbiguousName && label.description ? label.description : '';
+				const verboseDescription = label.verboseDescription || '';
+
+				// Label & Description
+				tabContainer.setAttribute('aria-label', `tab, ${name}`);
+				tabContainer.title = verboseDescription;
+				tabLabel.innerText = name;
+				tabDescription.innerText = description;
+				if (description) {
+					DOM.show(tabDescription);
+				} else {
+					DOM.hide(tabDescription);
+				}
 
 				// Pinned state
 				if (isPinned) {
@@ -217,6 +255,56 @@ export class TabsTitleControl extends TitleControl {
 		this.layout();
 	}
 
+	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
+		const labels: IEditorInputLabel[] = [];
+
+		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+
+		// Build labels and descriptions for each editor
+		editors.forEach(editor => {
+			let description = editor.getDescription();
+			if (description && description.indexOf(paths.nativeSep) >= 0) {
+				description = paths.basename(description); // optimize for editors that show paths and build a shorter description to keep tab width small
+			}
+
+			const item: IEditorInputLabel = {
+				editor,
+				name: editor.getName(),
+				description,
+				verboseDescription: editor.getDescription(true)
+			};
+			labels.push(item);
+
+			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
+			if (item.description) {
+				mapLabelAndDescriptionToDuplicates.getOrSet(item.name + item.description, []).push(item);
+			}
+		});
+
+		// Mark label duplicates
+		const labelDuplicates = mapLabelToDuplicates.values();
+		labelDuplicates.forEach(duplicates => {
+			if (duplicates.length > 1) {
+				duplicates.forEach(duplicate => {
+					duplicate.hasAmbiguousName = true;
+				});
+			}
+		});
+
+		// React to duplicates for combination of label and description
+		const descriptionDuplicates = mapLabelAndDescriptionToDuplicates.values();
+		descriptionDuplicates.forEach(duplicates => {
+			if (duplicates.length > 1) {
+				duplicates.forEach(duplicate => {
+					duplicate.description = duplicate.editor.getDescription(); // fallback to full description if the short description still has duplicates
+				});
+			}
+		});
+
+		return labels;
+	}
+
 	protected doRefresh(): void {
 		const group = this.context;
 		const editor = group && group.activeEditor;
@@ -231,7 +319,7 @@ export class TabsTitleControl extends TitleControl {
 		// Refresh Tabs
 		this.refreshTabs(group);
 
-		// Update styles
+		// Update Tabs
 		this.doUpdate();
 	}
 
@@ -250,14 +338,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Add a tab for each opened editor
 		this.context.getEditors().forEach(editor => {
-			const description = editor.getDescription(true) || '';
 
+			// Tab Container
 			const tabContainer = document.createElement('div');
-			tabContainer.title = description;
 			tabContainer.draggable = true;
 			tabContainer.tabIndex = 0;
 			tabContainer.setAttribute('role', 'presentation'); // cannot use role "tab" here due to https://github.com/Microsoft/vscode/issues/8659
-			tabContainer.setAttribute('aria-label', `tab, ${editor.getName()}`);
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
@@ -268,8 +354,11 @@ export class TabsTitleControl extends TitleControl {
 
 			// Tab Label
 			const tabLabel = document.createElement('a');
-			tabLabel.innerText = editor.getName();
 			tabLabelContainer.appendChild(tabLabel);
+
+			// Tab Description
+			const tabDescription = document.createElement('span');
+			tabLabelContainer.appendChild(tabDescription);
 
 			// Tab Close
 			const tabCloseContainer = document.createElement('div');

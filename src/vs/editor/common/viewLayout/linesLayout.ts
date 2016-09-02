@@ -198,7 +198,16 @@ export class LinesLayout {
 			this.model.getLineMaxColumn(partialData.endLineNumber)
 		);
 
-		return new ViewLinesViewportData(partialData, visibleRange, decorationsData);
+		let startLineNumber =  partialData.startLineNumber === partialData.endLineNumber || partialData.relativeVerticalOffset[0] >= partialData.viewportTop ? partialData.startLineNumber : partialData.startLineNumber + 1;
+		let endLineNumber = partialData.relativeVerticalOffset[partialData.relativeVerticalOffset.length - 1] + this._lineHeight <= partialData.viewportTop + partialData.viewportHeight ? partialData.endLineNumber : partialData.endLineNumber - 1;
+		let visibleRangeWithCompleteLines = new Range(
+			startLineNumber,
+			1,
+			endLineNumber,
+			this.model.getLineMaxColumn(endLineNumber)
+		);
+
+		return new ViewLinesViewportData(partialData, visibleRange, visibleRangeWithCompleteLines, decorationsData);
 	}
 
 	/**

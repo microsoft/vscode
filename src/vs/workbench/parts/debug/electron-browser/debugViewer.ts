@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import { isMacintosh } from 'vs/base/common/platform';
+import {isMacintosh} from 'vs/base/common/platform';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import labels = require('vs/base/common/labels');
@@ -25,15 +25,15 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {CopyValueAction} from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
-const $ = dom.emmet;
+const $ = dom.$;
 const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -71,11 +71,12 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 
 export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
-		data.name.textContent = variable.name + ':';
+		data.name.textContent = variable.name;
 		data.name.title = variable.type ? variable.type : '';
 	}
 
 	if (variable.value) {
+		data.name.textContent += ':';
 		renderExpressionValue(variable, data.value, showChanged, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
 		data.value.title = variable.value;
 	} else {
@@ -157,7 +158,12 @@ function getSourceName(source: Source, contextService: IWorkspaceContextService)
 
 export class BaseDebugController extends treedefaults.DefaultController {
 
-	constructor(protected debugService: debug.IDebugService, private contextMenuService: IContextMenuService, private actionProvider: renderer.IActionProvider, private focusOnContextMenu = true) {
+	constructor(
+		protected debugService: debug.IDebugService,
+		private contextMenuService: IContextMenuService,
+		private actionProvider: renderer.IActionProvider,
+		private focusOnContextMenu = true
+	) {
 		super();
 
 		if (isMacintosh) {
@@ -281,7 +287,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements renderer.IActionProvider {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
@@ -303,9 +309,9 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 			const thread = <model.Thread>element;
 			if (thread.stopped) {
 				actions.push(this.instantiationService.createInstance(debugactions.ContinueAction, debugactions.ContinueAction.ID, debugactions.ContinueAction.LABEL));
-				actions.push(this.instantiationService.createInstance(debugactions.StepOverDebugAction, debugactions.StepOverDebugAction.ID, debugactions.StepOverDebugAction.LABEL));
-				actions.push(this.instantiationService.createInstance(debugactions.StepIntoDebugAction, debugactions.StepIntoDebugAction.ID, debugactions.StepIntoDebugAction.LABEL));
-				actions.push(this.instantiationService.createInstance(debugactions.StepOutDebugAction, debugactions.StepOutDebugAction.ID, debugactions.StepOutDebugAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepOverAction, debugactions.StepOverAction.ID, debugactions.StepOverAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepIntoAction, debugactions.StepIntoAction.ID, debugactions.StepIntoAction.LABEL));
+				actions.push(this.instantiationService.createInstance(debugactions.StepOutAction, debugactions.StepOutAction.ID, debugactions.StepOutAction.LABEL));
 			} else {
 				actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
 			}
@@ -326,7 +332,7 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 
 export class CallStackDataSource implements tree.IDataSource {
 
-	constructor( @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor(@debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
@@ -402,7 +408,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	private static ERROR_TEMPLATE_ID = 'error';
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
@@ -506,7 +512,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 export class CallstackAccessibilityProvider implements tree.IAccessibilityProvider {
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
@@ -823,7 +829,9 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	private toDispose: lifecycle.IDisposable[];
 	private actionProvider: WatchExpressionsActionProvider;
 
-	constructor(actionProvider: renderer.IActionProvider, private actionRunner: actions.IActionRunner,
+	constructor(
+		actionProvider: renderer.IActionProvider,
+		private actionRunner: actions.IActionRunner,
 		@IMessageService private messageService: IMessageService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService
@@ -877,10 +885,11 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		}
 		data.actionBar.context = watchExpression;
 
-		data.name.textContent = `${watchExpression.name}:`;
+		data.name.textContent = watchExpression.name;
 		if (watchExpression.value) {
+			data.name.textContent += ':';
 			renderExpressionValue(watchExpression, data.value, true, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
-			data.expression.title = watchExpression.value;
+			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
 	}
 
@@ -1137,6 +1146,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
+		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
 
@@ -1149,9 +1159,20 @@ export class BreakpointsRenderer implements tree.IRenderer {
 				ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")
 			});
 		} else {
-			this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
 			data.name.textContent = functionBreakpoint.name;
 			data.checkbox.checked = functionBreakpoint.enabled;
+			data.breakpoint.title = functionBreakpoint.name;
+
+			// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
+			const session = this.debugService.getActiveSession();
+			if ((session && !session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
+				tree.addTraits('disabled', [functionBreakpoint]);
+				if (session && !session.configuration.capabilities.supportsFunctionBreakpoints) {
+					data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
+				}
+			} else {
+				tree.removeTraits('disabled', [functionBreakpoint]);
+			}
 		}
 		data.actionBar.context = functionBreakpoint;
 	}
@@ -1185,7 +1206,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProvider {
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 

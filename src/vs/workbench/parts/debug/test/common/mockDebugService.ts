@@ -5,9 +5,11 @@
 
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {ISuggestion} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 
 export class MockDebugService implements debug.IDebugService {
 	private session: MockRawSession;
@@ -134,15 +136,18 @@ export class MockDebugService implements debug.IDebugService {
 	public restartFrame(frameId: number): TPromise<any> {
 		return TPromise.as(null);
 	}
+
+	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
+		return TPromise.as([]);
+	}
 }
 
 
 class MockRawSession implements debug.IRawDebugSession {
 
-	public get configuration(): { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites } {
+	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilites } {
 		return {
 			type: 'mock',
-			isAttach: false,
 			capabilities: {}
 		};
 	}

@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Action} from 'vs/base/common/actions';
-import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -19,6 +19,7 @@ import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 
 export class SplitEditorAction extends Action {
 
@@ -56,7 +57,7 @@ export class SplitEditorAction extends Action {
 		let options: EditorOptions;
 		if (editorToSplit instanceof BaseTextEditor) {
 			options = new TextEditorOptions();
-			(<TextEditorOptions>options).viewState(editorToSplit.getControl().saveViewState());
+			(<TextEditorOptions>options).fromEditor(editorToSplit.getControl());
 		} else {
 			options = new EditorOptions();
 		}
@@ -221,7 +222,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			if (referenceEditor instanceof BaseTextEditor) {
 				options = new TextEditorOptions();
 				options.pinned = true;
-				(<TextEditorOptions>options).viewState(referenceEditor.getControl().saveViewState());
+				(<TextEditorOptions>options).fromEditor(referenceEditor.getControl());
 			} else {
 				options = EditorOptions.create({ pinned: true });
 			}
@@ -904,12 +905,12 @@ export class ReopenClosedEditorAction extends Action {
 
 		// Find an editor that was closed and is currently not opened in the group
 		let lastClosedEditor = this.historyService.popLastClosedEditor();
-		while (lastClosedEditor && stacks.activeGroup && stacks.activeGroup.indexOf(lastClosedEditor) >= 0) {
+		while (lastClosedEditor && stacks.activeGroup && stacks.activeGroup.indexOf(lastClosedEditor.editor) >= 0) {
 			lastClosedEditor = this.historyService.popLastClosedEditor();
 		}
 
 		if (lastClosedEditor) {
-			this.editorService.openEditor(lastClosedEditor, { pinned: true });
+			this.editorService.openEditor(lastClosedEditor.editor, { pinned: true, index: lastClosedEditor.index });
 		}
 
 		return TPromise.as(false);
@@ -1086,25 +1087,6 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditor
 	}
 }
 
-export class GlobalQuickOpenAction extends Action {
-
-	public static ID = 'workbench.action.quickOpen';
-	public static LABEL = nls.localize('quickOpen', "Go to File...");
-
-	constructor(id: string, label: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
-		super(id, label);
-
-		this.order = 100; // Allow other actions to position before or after
-		this.class = 'quickopen';
-	}
-
-	public run(): TPromise<any> {
-		this.quickOpenService.show(null);
-
-		return TPromise.as(true);
-	}
-}
-
 export class OpenPreviousEditorFromHistoryAction extends Action {
 
 	public static ID = 'workbench.action.openPreviousEditorFromHistory';
@@ -1186,62 +1168,6 @@ export class RemoveFromEditorHistoryAction extends Action {
 	}
 }
 
-export class BaseQuickOpenNavigateAction extends Action {
-	private navigateNext: boolean;
-
-	constructor(
-		id: string,
-		label: string,
-		navigateNext: boolean,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
-	) {
-		super(id, label);
-
-		this.navigateNext = navigateNext;
-	}
-
-	public run(event?: any): TPromise<any> {
-		let keys = this.keybindingService.lookupKeybindings(this.id);
-
-		this.quickOpenService.quickNavigate({
-			keybindings: keys
-		}, this.navigateNext);
-
-		return TPromise.as(true);
-	}
-}
-
-export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
-
-	public static ID = 'workbench.action.quickOpenNavigateNext';
-	public static LABEL = nls.localize('quickNavigateNext', "Navigate Next in Quick Open");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, true, quickOpenService, keybindingService);
-	}
-}
-
-export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction {
-
-	public static ID = 'workbench.action.quickOpenNavigatePrevious';
-	public static LABEL = nls.localize('quickNavigatePrevious', "Navigate Previous in Quick Open");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, false, quickOpenService, keybindingService);
-	}
-}
-
 interface IEditorPickOpenEntry extends IPickOpenEntry {
 	identifier: IEditorIdentifier;
 }
@@ -1270,6 +1196,52 @@ export class FocusLastEditorInStackAction extends Action {
 				return this.editorService.openEditor(editor);
 			}
 		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorLeftInGroupAction extends Action {
+
+	public static ID = 'workbench.action.moveEditorLeftInGroup';
+	public static LABEL = nls.localize('moveEditorLeft', "Move Editor Left");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const args: ActiveEditorMoveArguments = {
+			to: ActiveEditorMovePositioning.LEFT
+		};
+		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorRightInGroupAction extends Action {
+
+	public static ID = 'workbench.action.moveEditorRightInGroup';
+	public static LABEL = nls.localize('moveEditorRight', "Move Editor Right");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const args: ActiveEditorMoveArguments = {
+			to: ActiveEditorMovePositioning.RIGHT
+		};
+		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
 
 		return TPromise.as(true);
 	}

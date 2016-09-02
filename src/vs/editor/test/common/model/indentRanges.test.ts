@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
-import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
+import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingModel';
 import {computeRanges} from 'vs/editor/common/model/indentRanges';
 
 suite('Indentation Folding', () => {

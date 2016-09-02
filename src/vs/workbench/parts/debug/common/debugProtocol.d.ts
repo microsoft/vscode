@@ -165,7 +165,36 @@ declare module DebugProtocol {
 		}
 	}
 
-	//---- Requests
+	//---- Frontend Requests
+
+	/** runInTerminal request; value of command field is "runInTerminal".
+		With this request a debug adapter can run a command in a terminal.
+	*/
+	export interface RunInTerminalRequest extends Request {
+		arguments: RunInTerminalRequestArguments;
+	}
+	/** Arguments for "runInTerminal" request. */
+	export interface RunInTerminalRequestArguments {
+		/** What kind of terminal to launch. */
+		kind?: 'integrated' | 'external';
+		/** Optional title of the terminal. */
+		title?: string;
+		/** Working directory of the command. */
+		cwd: string;
+		/** List of arguments. The first argument is the command to run. */
+		args: string[];
+		/** Environment key-value pairs that are added to the default environment. */
+		env?: { [key: string]: string; }
+	}
+	/** Response to Initialize request. */
+	export interface RunInTerminalResponse extends Response {
+		body: {
+			/** The process ID */
+			processId?: number;
+		};
+	}
+
+	//---- Debug Adapter Requests
 
 	/** On error that is whenever 'success' is false, the body can provide more details.
 	 */
@@ -196,6 +225,8 @@ declare module DebugProtocol {
 		supportsVariableType?: boolean;
 		/** Client supports the paging of variables. */
 		supportsVariablePaging?: boolean;
+		/** Client supports the runInTerminal request. */
+		supportsRunInTerminalRequest?: boolean;
 	}
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
@@ -431,6 +462,26 @@ declare module DebugProtocol {
 	export interface RestartFrameResponse extends Response {
 	}
 
+	/** Goto request; value of command field is "goto".
+		The request sets the location where the debuggee will continue to run.
+		This makes it possible to skip the execution of code or to executed code again.
+		The code between the current location and the goto target is not executed but skipped.
+		The debug adapter first sends the GotoResponse and then a StoppedEvent (event type 'goto').
+	*/
+	export interface GotoRequest extends Request {
+		arguments: GotoArguments;
+	}
+	/** Arguments for "goto" request. */
+	export interface GotoArguments {
+		/** Set the goto target for this thread. */
+		threadId: number;
+		/** The location where the debuggee will continue to run. */
+		targetId: number;
+	}
+	/** Response to "goto" request. This is just an acknowledgement, so no body field is required. */
+	export interface GotoResponse extends Response {
+	}
+
 	/** Pause request; value of command field is "pause".
 		The request suspenses the debuggee.
 		The debug adapter first sends the PauseResponse and then a StoppedEvent (event type 'pause') after the thread has been paused successfully.
@@ -493,7 +544,8 @@ declare module DebugProtocol {
 	}
 
 	/** Variables request; value of command field is "variables".
-		Retrieves all variables (or a range thereof) for the given variable reference.
+		Retrieves all child variables for the given variable reference.
+		An optional filter can be used to limit the fetched children to either named or indexed children.
 	*/
 	export interface VariablesRequest extends Request {
 		arguments: VariablesArguments;
@@ -502,6 +554,8 @@ declare module DebugProtocol {
 	export interface VariablesArguments {
 		/** The Variable reference. */
 		variablesReference: number;
+		/** Optional filter to limit the child variables to either named or indexed. If ommited, both types are fetched. */
+		filter?: "indexed" | "named";
 		/** The index of the first variable to return; if omitted children start at 0. */
 		start?: number;
 		/** The number of variables to return. If count is missing or 0, all variables are returned. */
@@ -510,7 +564,7 @@ declare module DebugProtocol {
 	/** Response to "variables" request. */
 	export interface VariablesResponse extends Response {
 		body: {
-			/** All (or a selected range) of variables for the given variable reference. */
+			/** All (or a range) of variables for the given variable reference. */
 			variables: Variable[];
 		};
 	}
@@ -620,10 +674,12 @@ declare module DebugProtocol {
 			type?: string;
 			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest */
 			variablesReference: number;
-			/** The total number of child variables.
-				If this number is large, the number should be returned via the optional 'totalCount' attribute.
-				The client can use this information to present the variables in a paged UI and fetch them in chunks. */
-			totalCount?: number;
+			/** The number of named child variables.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
+			namedVariables?: number;
+			/** The number of indexed child variables.
+				The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
+			indexedVariables?: number;
 		};
 	}
 
@@ -648,6 +704,58 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** GotoTargets request; value of command field is "gotoTargets".
+		This request retrieves the possible goto targets for the specified source location.
+		These targets can be used in the "goto" request.
+		The GotoTargets request may only be called if the "supportsGotoTargetsRequest" capability exists and is true.
+	 */
+	export interface GotoTargetsRequest extends Request {
+		arguments: GotoTargetsArguments;
+	}
+	/** Arguments for "gotoTargets" request. */
+	export interface GotoTargetsArguments {
+		/** The source location for which the goto targets are determined. */
+		source: Source;
+		/** The line location for which the goto targets are determined. */
+		line: number;
+		/** An optional column location for which the goto targets are determined. */
+		column?: number;
+	}
+	/** Response to "gotoTargets" request. */
+	export interface GotoTargetsResponse extends Response {
+		body: {
+			/** The possible goto targets of the specified location. */
+			targets: GotoTarget[];
+		};
+	}
+
+	/** EXPERIMENTAL, DO NOT USE!
+		CompletionsRequest request; value of command field is "completions".
+		Returns a list of possible completions for a given caret position and text.
+		The CompletionsRequest may only be called if the "supportsCompletionsRequest" capability exists and is true.
+	 */
+	export interface CompletionsRequest extends Request {
+		arguments: CompletionsArguments;
+	}
+	/** Arguments for "completions" request. */
+	export interface CompletionsArguments {
+		/** Returns completions in the scope of this stack frame. If not specified, the completions are returned for the global scope. */
+		frameId?: number;
+		/** One or more source lines. Typically this is the text a user has typed into the debug console before he asked for completion. */
+		text: string;
+		/** The character position for which to determine the completion proposals. */
+		column: number;
+		/** An optional line for which to determine the completion proposals. If missing the first line of the text is assumed. */
+		line?: number;
+	}
+	/** Response to "completions" request. */
+	export interface CompletionsResponse extends Response {
+		body: {
+			/** The possible completions for . */
+			targets: CompletionItem[];
+		};
+	}
+
 	//---- Types
 
 	/** Information about the capabilities of a debug adapter. */
@@ -668,8 +776,12 @@ declare module DebugProtocol {
 		supportsSetVariable?: boolean;
 		/** The debug adapter supports restarting a frame. */
 		supportsRestartFrame?: boolean;
-		/** The debug adapter supports stepInTargetsRequest. */
+		/** The debug adapter supports the gotoTargetsRequest. */
+		supportsGotoTargetsRequest?: boolean;
+		/** The debug adapter supports the stepInTargetsRequest. */
 		supportsStepInTargetsRequest?: boolean;
+		/** The debug adapter supports the completionsRequest. */
+		supportsCompletionsRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -807,9 +919,12 @@ declare module DebugProtocol {
 		name: string;
 		/** The variables of this scope can be retrieved by passing the value of variablesReference to the VariablesRequest. */
 		variablesReference: number;
-		/** The total number of variables in this scope.
+		/** The number of named variables in this scope.
 			The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
-		totalCount?: number;
+		namedVariables?: number;
+		/** The number of indexed variables in this scope.
+			The client can use this optional information to present the variables in a paged UI and fetch them in chunks. */
+		indexedVariables?: number;
 		/** If true, the number of variables in this scope is large or expensive to retrieve. */
 		expensive: boolean;
 	}
@@ -818,7 +933,7 @@ declare module DebugProtocol {
 		Optionally a variable can have a 'type' that is shown if space permits or when hovering over the variable's name.
 		An optional 'kind' is used to render additional properties of the variable, e.g. different icons can be used to indicate that a variable is public or private.
 		If the value is structured (has children), a handle is provided to retrieve the children with the VariablesRequest.
-		If the number of children is large, the number should be returned via the optional 'totalCount' attribute.
+		If the number of children is large, the number should be returned via the optional 'totalVariables' attribute.
 		The client can use this optional information to present the children in a paged UI and fetch them in chunks.
 	*/
 	export interface Variable {
@@ -828,12 +943,16 @@ declare module DebugProtocol {
 		type?: string;
 		/** The variable's value. For structured objects this can be a multi line text, e.g. for a function the body of a function. */
 		value: string;
-		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
-		variablesReference: number;
-		/** The total number of child variables. */
-		totalCount?: number;
 		/** Properties of a variable that can be used to determine how to render the variable in the UI. Format of the string value: TBD. */
 		kind?: string;
+		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
+		variablesReference: number;
+		/** The number of named child variables in this scope.
+			The client can use this optional information to present the children in a paged UI and fetch them in chunks. */
+		namedVariables?: number;
+		/** The number of indexed child variables in this scope.
+			The client can use this optional information to present the children in a paged UI and fetch them in chunks. */
+		indexedVariables?: number;
 	}
 
 	/** Properties of a breakpoint passed to the setBreakpoints request.
@@ -886,4 +1005,59 @@ declare module DebugProtocol {
 		/** The name of the stepIn target (shown in the UI). */
  		label: string;
 	}
+
+	/** A GotoTarget describes a code location that can be used as a target in the 'goto' request.
+		The possible goto targets can be determined via the 'gotoTargets' request.
+	 */
+	export interface GotoTarget {
+		/** Unique identifier for a goto target. This is used in the goto request. */
+		id: number;
+		/** The name of the goto target (shown in the UI). */
+ 		label: string;
+		/** The line of the goto target. */
+		line: number;
+		/** An optional column of the goto target. */
+		column?: number;
+		/** An optional end line of the range covered by the goto target. */
+		endLine?: number;
+		/** An optional end column of the range covered by the goto target. */
+		endColumn?: number;
+	}
+
+	/** CompletionItems are the suggestions returned from the CompletionsRequest.
+	 */
+	export interface CompletionItem {
+		/** The label of this completion item. By default this is also the text that is inserted when selecting this completion. */
+		label: string;
+		/** If text is not falsy then it is inserted instead of the label. */
+		text?: string;
+        /** The item's type. Typically the client uses this information to render the item in the UI with an icon. */
+        type?: CompletionItemType;
+		/** When a completion is selected it replaces 'length' characters starting at 'start' in the text passed to the CompletionsRequest.
+			If missing the frontend will try to determine these values heuristically. */
+		start?: number;
+		length?: number;
+	}
+
+	/** Some predefined types for the CompletionItem. Please note that not all clients have specific icons for all of them.
+	 */
+	export type CompletionItemType = 'method'
+		| 'function'
+		| 'constructor'
+		| 'field'
+		| 'variable'
+		| 'class'
+		| 'interface'
+		| 'module'
+		| 'property'
+		| 'unit'
+		| 'value'
+		| 'enum'
+		| 'keyword'
+		| 'snippet'
+		| 'text'
+		| 'color'
+		| 'file'
+		| 'reference'
+		| 'customcolor';
 }

@@ -102,6 +102,11 @@
       "from": "extract-opts@>=2.2.0 <3.0.0",
       "resolved": "https://registry.npmjs.org/extract-opts/-/extract-opts-2.2.0.tgz"
     },
+    "fast-plist": {
+      "version": "0.1.1",
+      "from": "fast-plist@0.1.1",
+      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.1.tgz"
+    },
     "fd-slicer": {
       "version": "1.0.1",
       "from": "fd-slicer@>=1.0.1 <1.1.0",
@@ -382,11 +387,6 @@
       "from": "repeat-string@>=1.5.2 <2.0.0",
       "resolved": "https://registry.npmjs.org/repeat-string/-/repeat-string-1.5.4.tgz"
     },
-    "sax": {
-      "version": "1.1.2",
-      "from": "sax@1.1.2",
-      "resolved": "https://registry.npmjs.org/sax/-/sax-1.1.2.tgz"
-    },
     "semver": {
       "version": "4.3.6",
       "from": "semver@4.3.6",
@@ -408,14 +408,14 @@
       "resolved": "https://registry.npmjs.org/typechecker/-/typechecker-2.0.8.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.10.0",
-      "from": "vscode-debugprotocol@1.10.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.10.0.tgz"
+      "version": "1.12.0",
+      "from": "vscode-debugprotocol@1.12.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.12.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.0.1",
-      "from": "vscode-textmate@2.0.1",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.0.1.tgz"
+      "version": "2.1.1",
+      "from": "vscode-textmate@2.1.1",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.1.1.tgz"
     },
     "windows-mutex": {
       "version": "0.2.0",
@@ -429,8 +429,8 @@
     },
     "xterm": {
       "version": "1.0.0",
-      "from": "git+https://github.com/sourcelair/xterm.js.git#55fb5db",
-      "resolved": "git+https://github.com/sourcelair/xterm.js.git#55fb5dbcb5353d6fb2a00617be4b1c5de84c6c80"
+      "from": "git+https://github.com/sourcelair/xterm.js.git#220828f",
+      "resolved": "git+https://github.com/sourcelair/xterm.js.git#220828f7db9932acbd3198be5b97d81f5a7b6880"
     },
     "yauzl": {
       "version": "2.3.1",

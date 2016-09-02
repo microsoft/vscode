@@ -6,7 +6,7 @@
 import assert = require('assert');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
 
 suite('Debug - Adapter', () => {
 	var adapter: Adapter;

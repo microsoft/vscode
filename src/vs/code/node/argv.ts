@@ -5,32 +5,32 @@
 
 import * as os from 'os';
 import * as minimist from 'minimist';
+import * as assert from 'assert';
+import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
-	help: boolean;
-	version: boolean;
-	wait: boolean;
-	diff: boolean;
-	goto: boolean;
-	'new-window': boolean;
-	'reuse-window': boolean;
-	locale: string;
-	'user-data-dir': string;
-	performance: boolean;
-	verbose: boolean;
-	logExtensionHostCommunication: boolean;
-	debugBrkFileWatcherPort: string;
-	'disable-extensions': boolean;
-	extensionHomePath: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-	timestamp: string;
-	debugBrkPluginHost: string;
-	debugPluginHost: string;
-	'list-extensions': boolean;
-	'install-extension': string | string[];
-	'uninstall-extension': string | string[];
+	help?: boolean;
+	version?: boolean;
+	wait?: boolean;
+	diff?: boolean;
+	goto?: boolean;
+	'new-window'?: boolean;
+	'reuse-window'?: boolean;
+	locale?: string;
+	'user-data-dir'?: string;
+	performance?: boolean;
+	verbose?: boolean;
+	logExtensionHostCommunication?: boolean;
+	'disable-extensions'?: boolean;
+	extensionHomePath?: string;
+	extensionDevelopmentPath?: string;
+	extensionTestsPath?: string;
+	debugBrkPluginHost?: string;
+	debugPluginHost?: string;
+	'list-extensions'?: boolean;
+	'install-extension'?: string | string[];
+	'uninstall-extension'?: string | string[];
 }
 
 const options: minimist.Opts = {
@@ -40,9 +40,10 @@ const options: minimist.Opts = {
 		'extensionHomePath',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
-		'timestamp',
 		'install-extension',
-		'uninstall-extension'
+		'uninstall-extension',
+		'debugBrkPluginHost',
+		'debugPluginHost'
 	],
 	boolean: [
 		'help',
@@ -71,11 +72,55 @@ const options: minimist.Opts = {
 	}
 };
 
+function validate(args: ParsedArgs): ParsedArgs {
+	if (args.goto) {
+		args._.forEach(arg => assert(/^[^:]+(:\d+){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:COLUMN))`.")));
+	}
+
+	return args;
+}
+
+function stripAppPath(argv: string[]): string[] {
+	const index = firstIndex(argv, a => !/^-/.test(a));
+
+	if (index > -1) {
+		return [...argv.slice(0, index), ...argv.slice(index + 1)];
+	}
+}
+
+/**
+ * Use this to parse raw code process.argv such as: `Electron . --verbose --wait`
+ */
+export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
+	let [, ...args] = processArgv;
+
+	// If dev, remove the first non-option argument: it's the app location
+	if (process.env['VSCODE_DEV']) {
+		args = stripAppPath(args);
+	}
+
+	return validate(parseArgs(args));
+}
+
+/**
+ * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
+ */
+export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
+	let [,, ...args] = processArgv;
+
+	if (process.env['VSCODE_DEV']) {
+		args = stripAppPath(args);
+	}
+
+	return validate(parseArgs(args));
+}
+
+/**
+ * Use this to parse code arguments such as `--verbose --wait`
+ */
 export function parseArgs(args: string[]): ParsedArgs {
 	return minimist(args, options) as ParsedArgs;
 }
-
-const executable = 'code' + (os.platform() === 'win32' ? '.exe' : '');
 
 export const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
@@ -130,13 +175,14 @@ function wrapText(text: string, columns: number) : string[] {
 	return lines;
 }
 
-export function buildHelpMessage(version: string): string {
-	let columns = (<any>process.stdout).isTTY ? (<any>process.stdout).columns : 80;
-	return `Visual Studio Code v${ version }
+export function buildHelpMessage(fullName: string, name: string, version: string): string {
+	const columns = (<any>process.stdout).isTTY ? (<any>process.stdout).columns : 80;
+	const executable = `${ name }${ os.platform() === 'win32' ? '.exe' : '' }`;
 
+	return `${ fullName } ${ version }
 
-Usage: ${ executable } [arguments] [paths...]
+${ localize('usage', "Usage") }: ${ executable } [${ localize('options', "options") }] [${ localize('paths', 'paths') }...]
 
-Options:
+${ localize('optionsUpperCase', "Options") }:
 ${formatOptions(optionsHelp, columns)}`;
 }

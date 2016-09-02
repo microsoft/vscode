@@ -7,11 +7,12 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/platform';
+import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { ShowReleaseNotesAction } from 'vs/workbench/electron-browser/update';
@@ -34,33 +35,31 @@ export class UpdateContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMessageService messageService: IMessageService
 	) {
-		const env = contextService.getConfiguration().env;
 		const lastVersion = storageService.get(UpdateContribution.KEY, StorageScope.GLOBAL, '');
 
 		// was there an update?
-		if (env.releaseNotesUrl && lastVersion && env.version !== lastVersion) {
+		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			setTimeout(() => {
 				messageService.show(Severity.Info, {
-					message: nls.localize('releaseNotes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", env.appName, env.version),
+					message: nls.localize('releaseNotes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
 					actions: [
 						CloseAction,
-						ShowReleaseNotesAction(env.releaseNotesUrl, true)
+						ShowReleaseNotesAction(product.releaseNotesUrl, true)
 					]
 				});
 			}, 0);
 		}
 
 		// should we show the new license?
-		if (env.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(env.version, '>=1.0.0')) {
+		if (product.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(pkg.version, '>=1.0.0')) {
 			setTimeout(() => {
 				messageService.show(Severity.Info, {
-					message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", env.appName, env.version),
+					message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", product.nameLong, pkg.version),
 					actions: [
 						CloseAction,
-						LinkAction('update.showLicense', nls.localize('license', "Read License"), env.licenseUrl)
+						LinkAction('update.showLicense', nls.localize('license', "Read License"), product.licenseUrl)
 					]
 				});
 			}, 0);
@@ -69,10 +68,10 @@ export class UpdateContribution implements IWorkbenchContribution {
 		const shouldShowInsiderDisclaimer = storageService.getBoolean(UpdateContribution.INSIDER_KEY, StorageScope.GLOBAL, true);
 
 		// is this a build which releases often?
-		if (shouldShowInsiderDisclaimer && /-alpha$|-insider$/.test(env.version)) {
+		if (shouldShowInsiderDisclaimer && /-alpha$|-insider$/.test(pkg.version)) {
 			setTimeout(() => {
 				messageService.show(Severity.Info, {
-					message: nls.localize('insiderBuilds', "Insider builds are becoming daily builds!", env.appName, env.version),
+					message: nls.localize('insiderBuilds', "Insider builds are becoming daily builds!", product.nameLong, pkg.version),
 					actions: [
 						CloseAction,
 						new Action('update.neverAgain', nls.localize('neverShowAgain', "Never Show Again"), '', true, () => {
@@ -89,7 +88,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 			}, 0);
 		}
 
-		storageService.store(UpdateContribution.KEY, env.version, StorageScope.GLOBAL);
+		storageService.store(UpdateContribution.KEY, pkg.version, StorageScope.GLOBAL);
 	}
 }
 

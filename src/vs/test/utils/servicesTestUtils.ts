@@ -6,30 +6,26 @@
 'use strict';
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import {NullTelemetryService, ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
 import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
-import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
-import http = require('vs/base/common/http');
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IContent, IStat} from 'vs/platform/configuration/common/configurationService';
+import {IConfigurationService, getConfigurationValue, IConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
 import PartService = require('vs/workbench/services/part/common/partService');
-import WorkspaceContextService = require('vs/workbench/services/workspace/common/contextService');
+import WorkspaceContextService = require('vs/platform/workspace/common/workspace');
 import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -42,42 +38,30 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {RawText} from 'vs/editor/common/model/textModel';
+import {parseArgs} from 'vs/code/node/argv';
+import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
-	id: 'testWorkspace',
 	name: 'Test Workspace',
-	uid: new Date().getTime(),
-	mtime: new Date().getTime()
+	uid: new Date().getTime()
 };
 
-export const TestConfiguration: IConfiguration = {
-	env: Object.create(null)
-};
+export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public _serviceBrand: any;
 
 	private workspace: any;
-	private configuration: any;
 	private options: any;
 
-	constructor(workspace: any = TestWorkspace, configuration: any = TestConfiguration, options: any = null) {
+	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
-		this.configuration = configuration;
-		this.options = options || {
-			globalSettings: {
-				settings: {}
-			}
-		};
+		this.options = options || Object.create(null);
 	}
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
-	}
-
-	public getConfiguration(): IConfiguration {
-		return this.configuration;
 	}
 
 	public getOptions() {
@@ -118,7 +102,7 @@ export abstract class TestTextFileService extends TextFileService {
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService, fileService, modelService);
+		super(contextService, instantiationService, configurationService, telemetryService, editorService, eventService, fileService, modelService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
@@ -256,48 +240,6 @@ export class TestStorageService extends EventEmitter.EventEmitter implements ISt
 	}
 }
 
-export class TestRequestService extends BaseRequestService {
-
-	constructor(workspace = TestWorkspace) {
-		super(new TestContextService(), NullTelemetryService);
-	}
-}
-
-export interface ICustomResponse {
-	responseText: string;
-	getResponseHeader: (key: string) => string;
-}
-
-export interface IMockRequestHandler {
-	(url: string): string | ICustomResponse;
-}
-
-export class MockRequestService extends BaseRequestService {
-
-	constructor(workspace: any, private handler: IMockRequestHandler) {
-		super(new TestContextService(), NullTelemetryService);
-	}
-
-	public makeRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
-		let data = this.handler(options.url);
-
-		if (!data) {
-			return super.makeRequest(options);
-		}
-
-		let isString = Types.isString(data);
-		let responseText = isString ? <string>data : (<ICustomResponse>data).responseText;
-		let getResponseHeader = isString ? () => '' : (<ICustomResponse>data).getResponseHeader;
-
-		return TPromise.as<http.IXHRResponse>({
-			responseText: responseText,
-			status: 200,
-			readyState: 4,
-			getResponseHeader: getResponseHeader
-		});
-	}
-}
-
 export class TestUntitledEditorService implements IUntitledEditorService {
 	public _serviceBrand: any;
 
@@ -355,7 +297,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 		let inst = new InstantiationService(services);
 
-		this.stacksModel = inst.createInstance(EditorStacksModel);
+		this.stacksModel = inst.createInstance(EditorStacksModel, true);
 	}
 
 	public fireChange(): void {
@@ -509,16 +451,21 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		this.callback = callback;
 	}
 
-	pick(arg: any, placeHolder?: string, autoFocusFirst?: boolean): Promise {
+	pick(arg: any, options?: any, token?: any): Promise {
 		return TPromise.as(null);
 	}
 
-	input(options?: any): Promise {
+	input(options?: any, token?: any): Promise {
 		return TPromise.as(null);
 	}
 
-	refresh(): Promise {
-		return TPromise.as(true);
+	accept(): void {
+	}
+
+	focus(): void {
+	}
+
+	close(): void {
 	}
 
 	show(prefix?: string, options?: any): Promise {
@@ -594,39 +541,12 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 	private configuration = Object.create(null);
 
-	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(resources.map((resource) => {
-			return {
-				resource: resource,
-				value: ''
-			};
-		}));
-	}
-
-	protected resolveContent(resource: URI): TPromise<IContent> {
-		return TPromise.as({
-			resource: resource,
-			value: ''
-		});
-	}
-
-	protected resolveStat(resource: URI): TPromise<IStat> {
-		return TPromise.as({
-			resource: resource,
-			isDirectory: false
-		});
-	}
-
-	public loadConfiguration<T>(section?: string): TPromise<T> {
+	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());
 	}
 
 	public getConfiguration(): any {
 		return this.configuration;
-	}
-
-	public hasWorkspaceConfiguration(): boolean {
-		return false;
 	}
 
 	public setUserConfiguration(key: any, value: any): Thenable<void> {
@@ -636,6 +556,14 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 	public onDidUpdateConfiguration() {
 		return { dispose() { } };
+	}
+
+	public lookup<C>(key: string): IConfigurationValue<C> {
+		return {
+			value: getConfigurationValue<C>(this.getConfiguration(), key),
+			default: getConfigurationValue<C>(this.getConfiguration(), key),
+			user: getConfigurationValue<C>(this.getConfiguration(), key)
+		};
 	}
 }
 

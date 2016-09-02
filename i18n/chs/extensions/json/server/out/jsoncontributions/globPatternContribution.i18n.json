@@ -7,7 +7,7 @@
 	"derivedDescription": "与具有名称相同但扩展名不同的同级文件的文件匹配。",
 	"derivedLabel": "具有同级文件的文件(按名称)",
 	"falseDescription": "禁用该模式。",
-	"falseLabel": "False",
+	"falseLabel": "false",
 	"fileDescription": "与具有特定文件扩展名的所有文件匹配。",
 	"fileLabel": "按扩展名的文件",
 	"filesDescription": "与具有任意文件扩展名的所有文件匹配。",
@@ -20,5 +20,5 @@
 	"topFoldersDescription": "与多个顶级文件夹匹配。",
 	"topFoldersLabel": "使用多个名称的文件夹(顶级)",
 	"trueDescription": "启用该模式。",
-	"trueLabel": "True"
+	"trueLabel": "true"
 }

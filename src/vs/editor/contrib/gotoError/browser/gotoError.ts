@@ -17,19 +17,19 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {getCodeActions, IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
+
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 class MarkerModel {
 
@@ -143,16 +143,12 @@ class MarkerModel {
 		this.move(false);
 	}
 
-	public goTo(pos: editorCommon.IPosition): void {
-		for (var i = 0; i < this._markers.length; i++) {
-			var marker = this._markers[i];
-			if (marker.startLineNumber <= pos.lineNumber && marker.endLineNumber >= pos.lineNumber
-				&& marker.startColumn <= pos.column && marker.endColumn >= pos.column) {
-				this._onCurrentMarkerChanged.fire(marker);
-				return;
+	public findMarkerAtPosition(pos: editorCommon.IPosition): IMarker {
+		for (const marker of this._markers) {
+			if (Range.containsPosition(marker, pos)) {
+				return marker;
 			}
 		}
-		return null;
 	}
 
 	public get stats(): { errors: number; others: number; } {
@@ -308,7 +304,6 @@ class FixesWidget {
 
 class MarkerNavigationWidget extends ZoneWidget {
 
-	private _editor: ICodeEditor;
 	private _parentContainer: HTMLElement;
 	private _container: HTMLElement;
 	private _title: HTMLElement;
@@ -318,7 +313,6 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
-		this._editor = editor;
 		this.create();
 		this._wireModelAndView();
 	}
@@ -356,6 +350,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private _wireModelAndView(): void {
 		// listen to events
 		this._model.onCurrentMarkerChanged(this.showAtMarker, this, this._callOnDispose);
+		this._model.onMarkerSetChanged(this._onMarkersChanged, this, this._callOnDispose);
 	}
 
 	public showAtMarker(marker: IMarker): void {
@@ -365,15 +360,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		}
 
 		// update frame color
-		switch (marker.severity) {
-			case Severity.Error:
-				this.options.frameColor = '#ff5a5a';
-				break;
-			case Severity.Warning:
-			case Severity.Info:
-				this.options.frameColor = '#5aac5a';
-				break;
-		}
+		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
 
 		// update meta title
 		if (marker.source) {
@@ -396,10 +383,41 @@ class MarkerNavigationWidget extends ZoneWidget {
 			.then(() => this.show(range.getStartPosition(), this.computeRequiredHeight()));
 	}
 
+	private _onMarkersChanged(): void {
+
+		const marker = this._model.findMarkerAtPosition(this.position);
+		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
+		const newQuickFixes = marker
+			? getCodeActions(this.editor.getModel(), Range.lift(marker))
+			: TPromise.as([]);
+
+		this._fixesWidget
+			.update(newQuickFixes)
+			.then(() => {
+				const selections = this.editor.getSelections();
+				super.show(this.position, this.computeRequiredHeight());
+				this.editor.setSelections(selections);
+				this.editor.focus();
+			});
+	}
+
 	private computeRequiredHeight() {
 		// minimum one line content, add one line for zone widget decorations
-		let lineHeight = this._editor.getConfiguration().lineHeight || 12;
+		let lineHeight = this.editor.getConfiguration().lineHeight || 12;
 		return Math.max(1, Math.ceil(this._container.clientHeight / lineHeight)) + 1;
+	}
+
+	private static _getFrameColorFromMarker(marker: IMarker): string {
+		if (marker) {
+			switch (marker.severity) {
+				case Severity.Error:
+					return '#ff5a5a';
+				case Severity.Warning:
+				case Severity.Info:
+					return '#5aac5a';
+			}
+		}
+		return '#ccc';
 	}
 
 	public dispose(): void {
@@ -412,17 +430,21 @@ class MarkerNavigationAction extends EditorAction {
 
 	private _isNext: boolean;
 
-	private telemetryService: ITelemetryService;
-
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, next: boolean, @ITelemetryService telemetryService: ITelemetryService) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange);
-		this.telemetryService = telemetryService;
+	constructor(next: boolean, opts:IActionOptions) {
+		super(opts);
 		this._isNext = next;
 	}
 
-	public run(): TPromise<boolean> {
-		var model = MarkerController.getMarkerController(this.editor).getOrCreateModel();
-		this.telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		const telemetryService = accessor.get(ITelemetryService);
+
+		let controller = MarkerController.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		let model = controller.getOrCreateModel();
+		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
 		if (model) {
 			if (this._isNext) {
 				model.next();
@@ -431,32 +453,32 @@ class MarkerNavigationAction extends EditorAction {
 			}
 			model.reveal();
 		}
-		return TPromise.as(true);
 	}
 }
 
+@editorContribution
 class MarkerController implements editorCommon.IEditorContribution {
 
-	static ID = 'editor.contrib.markerController';
+	private static ID = 'editor.contrib.markerController';
 
-	static getMarkerController(editor: editorCommon.ICommonCodeEditor): MarkerController {
-		return <MarkerController>editor.getContribution(MarkerController.ID);
+	public static get(editor: editorCommon.ICommonCodeEditor): MarkerController {
+		return editor.getContribution<MarkerController>(MarkerController.ID);
 	}
 
 	private _editor: ICodeEditor;
 	private _model: MarkerModel;
 	private _zone: MarkerNavigationWidget;
 	private _callOnClose: IDisposable[] = [];
-	private _markersNavigationVisible: IKeybindingContextKey<boolean>;
+	private _markersNavigationVisible: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
 		@IMarkerService private _markerService: IMarkerService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
 		this._editor = editor;
-		this._markersNavigationVisible = this._keybindingService.createKey(CONTEXT_MARKERS_NAVIGATION_VISIBLE, false);
+		this._markersNavigationVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
 	}
 
 	public getId(): string {
@@ -514,36 +536,50 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 }
 
+@editorAction
 class NextMarkerAction extends MarkerNavigationAction {
-	public static ID = 'editor.action.marker.next';
-
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @ITelemetryService telemetryService: ITelemetryService) {
-		super(descriptor, editor, true, telemetryService);
+	constructor() {
+		super(true, {
+			id: 'editor.action.marker.next',
+			label: nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
+			alias: 'Go to Next Error or Warning',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyCode.F8
+			}
+		});
 	}
 }
 
+@editorAction
 class PrevMarkerAction extends MarkerNavigationAction {
-	public static ID = 'editor.action.marker.prev';
-
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @ITelemetryService telemetryService: ITelemetryService) {
-		super(descriptor, editor, false, telemetryService);
+	constructor() {
+		super(false, {
+			id: 'editor.action.marker.prev',
+			label: nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
+			alias: 'Go to Previous Error or Warning',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.Shift | KeyCode.F8
+			}
+		});
 	}
 }
 
-var CONTEXT_MARKERS_NAVIGATION_VISIBLE = 'markersNavigationVisible';
+var CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
 
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(NextMarkerAction, NextMarkerAction.ID, nls.localize('markerAction.next.label', "Go to Next Error or Warning"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyCode.F8
-}, 'Go to Next Error or Warning'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PrevMarkerAction, PrevMarkerAction.ID, nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.Shift | KeyCode.F8
-}, 'Go to Previous Error or Warning'));
-CommonEditorRegistry.registerEditorCommand('closeMarkersNavigation', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_MARKERS_NAVIGATION_VISIBLE, (ctx, editor, args) => {
-	var controller = MarkerController.getMarkerController(editor);
-	controller.closeMarkersNavigation();
-});
+const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.get);
 
-EditorBrowserRegistry.registerEditorContribution(MarkerController);
+CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
+	id: 'closeMarkersNavigation',
+	precondition: CONTEXT_MARKERS_NAVIGATION_VISIBLE,
+	handler: x => x.closeMarkersNavigation(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(50),
+		kbExpr: EditorContextKeys.Focus,
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+}));

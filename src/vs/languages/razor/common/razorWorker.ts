@@ -18,6 +18,7 @@ export function getRazorTagProvider() : htmlTags.IHTMLTagProvider {
 	};
 
 	return {
+		getId: () => 'razor',
 		collectTags: (collector: (tag: string) => void) => {
 			// no extra tags
 		},

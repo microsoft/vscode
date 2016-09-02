@@ -111,6 +111,7 @@ declare module monaco {
      *
      */
     export class Uri {
+        static isUri(thing: any): thing is Uri;
         constructor();
         /**
          * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
@@ -883,22 +884,23 @@ declare module monaco.editor {
 
     export interface IStandaloneCodeEditor extends ICodeEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
-        createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+        createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
         addAction(descriptor: IActionDescriptor): void;
     }
 
     export interface IStandaloneDiffEditor extends IDiffEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
-        createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+        createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
         addAction(descriptor: IActionDescriptor): void;
     }
     export interface ICommandHandler {
         (...args: any[]): void;
     }
 
-    export interface IKeybindingContextKey<T> {
+    export interface IContextKey<T> {
         set(value: T): void;
         reset(): void;
+        get(): T;
     }
 
     export interface IEditorOverrideServices {
@@ -966,7 +968,7 @@ declare module monaco.editor {
         horizontal?: string;
         /**
          * Cast horizontal and vertical shadows when the content is scrolled.
-         * Defaults to false.
+         * Defaults to true.
          */
         useShadows?: boolean;
         /**
@@ -1163,6 +1165,12 @@ declare module monaco.editor {
          */
         wrappingColumn?: number;
         /**
+         * Control the alternate style of viewport wrapping.
+         * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
+         * Defaults to false.
+         */
+        wordWrap?: boolean;
+        /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
          * Defaults to 'none'.
          */
@@ -1247,6 +1255,10 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Enable tab completion. Defaults to 'false'
+         */
+        tabCompletion?: boolean;
+        /**
          * Enable word based suggestions. Defaults to 'true'
          */
         wordBasedSuggestions?: boolean;
@@ -1256,10 +1268,10 @@ declare module monaco.editor {
          */
         selectionHighlight?: boolean;
         /**
-         * Show reference infos (a.k.a. code lenses) for modes that support it
+         * Show code lens
          * Defaults to true.
          */
-        referenceInfos?: boolean;
+        codeLens?: boolean;
         /**
          * Enable code folding
          * Defaults to true.
@@ -1277,9 +1289,14 @@ declare module monaco.editor {
         renderControlCharacters?: boolean;
         /**
          * Enable rendering of indent guides.
-         * Defaults to true.
+         * Defaults to false.
          */
         renderIndentGuides?: boolean;
+        /**
+         * Enable rendering of current line highlight.
+         * Defaults to true.
+         */
+        renderLineHighlight?: boolean;
         /**
          * Inserting and deleting whitespace follows tab stops.
          */
@@ -1288,6 +1305,10 @@ declare module monaco.editor {
          * The font family
          */
         fontFamily?: string;
+        /**
+         * The font weight
+         */
+        fontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
         /**
          * The font size
          */
@@ -1373,6 +1394,7 @@ declare module monaco.editor {
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
+        renderLineHighlight: boolean;
         scrollbar: InternalEditorScrollbarOptions;
     }
 
@@ -1398,6 +1420,7 @@ declare module monaco.editor {
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
+        renderLineHighlight: boolean;
         scrollbar: boolean;
     }
 
@@ -1413,9 +1436,10 @@ declare module monaco.editor {
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        tabCompletion: boolean;
         wordBasedSuggestions: boolean;
         selectionHighlight: boolean;
-        referenceInfos: boolean;
+        codeLens: boolean;
         folding: boolean;
     }
 
@@ -2565,38 +2589,6 @@ declare module monaco.editor {
     }
 
     /**
-     * Conditions describing action enablement
-     */
-    export interface IActionEnablement {
-        /**
-         * The action is enabled only if text in the editor is focused (e.g. blinking cursor).
-         * Warning: This condition will be disabled if the action is marked to be displayed in the context menu
-         * Defaults to false.
-         */
-        textFocus?: boolean;
-        /**
-         * The action is enabled only if the editor or its widgets have focus (e.g. focus is in find widget).
-         * Defaults to false.
-         */
-        widgetFocus?: boolean;
-        /**
-         * The action is enabled only if the editor is not in read only mode.
-         * Defaults to false.
-         */
-        writeableEditor?: boolean;
-        /**
-         * The action is enabled only if the cursor position is over tokens of a certain kind.
-         * Defaults to no tokens required.
-         */
-        tokensAtPosition?: string[];
-        /**
-         * The action is enabled only if the cursor position is over a word (i.e. not whitespace).
-         * Defaults to false.
-         */
-        wordAtPosition?: boolean;
-    }
-
-    /**
      * A (serializable) state of the cursors.
      */
     export interface ICursorState {
@@ -2732,39 +2724,10 @@ declare module monaco.editor {
         charChanges: ICharChange[];
     }
 
-    /**
-     * A context key that is set when the editor's text has focus (cursor is blinking).
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS: string;
-
-    /**
-     * A context key that is set when the editor's text or an editor's widget has focus.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_FOCUS: string;
-
-    /**
-     * A context key that is set when the editor's text is readonly.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_READONLY: string;
-
-    /**
-     * A context key that is set when the editor has multiple selections (multiple cursors).
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: string;
-
-    /**
-     * A context key that is set when the editor has a non-collapsed selection.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION: string;
-
-    /**
-     * A context key that is set to the language associated with the model associated with the editor.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID: string;
-
     export class BareFontInfo {
         _bareFontInfoBrand: void;
         fontFamily: string;
+        fontWeight: string;
         fontSize: number;
         lineHeight: number;
     }
@@ -2803,14 +2766,18 @@ declare module monaco.editor {
          */
         keybindingContext?: string;
         /**
-         * A set of enablement conditions.
-         */
-        enablement?: IActionEnablement;
-        /**
          * Method that will be executed when the action is triggered.
          * @param editor The editor instance is passed in as a convinience
          */
         run: (editor: ICommonCodeEditor) => Promise<void>;
+    }
+
+    export interface IEditorAction {
+        id: string;
+        label: string;
+        alias: string;
+        isSupported(): boolean;
+        run(): Promise<void>;
     }
 
     /**
@@ -2882,7 +2849,11 @@ declare module monaco.editor {
         /**
          * Returns all actions associated with this editor.
          */
-        getActions(): IAction[];
+        getActions(): IEditorAction[];
+        /**
+         * Returns all actions associated with this editor.
+         */
+        getSupportedActions(): IEditorAction[];
         /**
          * Saves current view state of the editor in a serializable object.
          */
@@ -3063,7 +3034,7 @@ declare module monaco.editor {
          * @id Unique identifier of the contribution.
          * @return The contribution or null if contribution not found.
          */
-        getContribution(id: string): IEditorContribution;
+        getContribution<T extends IEditorContribution>(id: string): T;
         /**
          * Type the getModel() of IEditor.
          */
@@ -3118,7 +3089,7 @@ declare module monaco.editor {
          * @id Unique identifier of the contribution.
          * @return The action or null if action not found.
          */
-        getAction(id: string): IAction;
+        getAction(id: string): IEditorAction;
         /**
          * Execute a command on the editor.
          * @param source The source of the call.
@@ -3210,6 +3181,7 @@ declare module monaco.editor {
         ViewPortTop: string;
         ViewPortCenter: string;
         ViewPortBottom: string;
+        ViewPortIfOutside: string;
     };
 
     /**
@@ -3229,8 +3201,53 @@ declare module monaco.editor {
         to: string;
         select?: boolean;
         by?: string;
-        amount?: number;
+        value?: number;
     }
+
+    /**
+     * Directions in the view for editor scroll command.
+     */
+    export const EditorScrollDirection: {
+        Up: string;
+        Down: string;
+    };
+
+    /**
+     * Units for editor scroll 'by' argument
+     */
+    export const EditorScrollByUnit: {
+        Line: string;
+        WrappedLine: string;
+        Page: string;
+        HalfPage: string;
+    };
+
+    /**
+     * Arguments for editor scroll command
+     */
+    export interface EditorScrollArguments {
+        to: string;
+        by?: string;
+        value?: number;
+        revealCursor?: boolean;
+    }
+
+    /**
+     * Arguments for reveal line command
+     */
+    export interface RevealLineArguments {
+        lineNumber?: number;
+        at?: string;
+    }
+
+    /**
+     * Values for reveal line 'at' argument
+     */
+    export const RevealLineAtArgument: {
+        Top: string;
+        Center: string;
+        Bottom: string;
+    };
 
     /**
      * Built-in commands.
@@ -3321,10 +3338,12 @@ declare module monaco.editor {
         LineInsertAfter: string;
         LineBreakInsert: string;
         SelectAll: string;
+        EditorScroll: string;
         ScrollLineUp: string;
         ScrollLineDown: string;
         ScrollPageUp: string;
         ScrollPageDown: string;
+        RevealLine: string;
     };
 
     /**
@@ -3485,6 +3504,7 @@ declare module monaco.editor {
          * Render this content widget in a location where it could overflow the editor's view dom node.
          */
         allowEditorOverflow?: boolean;
+        suppressMouseDown?: boolean;
         /**
          * Get a unique identifier of the content widget.
          */
@@ -4478,6 +4498,7 @@ declare module monaco.languages {
      */
     export interface LinkProvider {
         provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
+        resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
     }
 
     export interface IResourceEdit {

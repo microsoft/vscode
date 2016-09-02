@@ -16,8 +16,8 @@ import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRe
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -26,7 +26,16 @@ import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+
+interface IWorkbenchSettingsConfiguration {
+	workbench: {
+		settings: {
+			openDefaultSettings: boolean;
+		}
+	};
+}
 
 export class BaseTwoEditorsAction extends Action {
 
@@ -36,7 +45,7 @@ export class BaseTwoEditorsAction extends Action {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService protected fileService: IFileService,
-		@IConfigurationService protected configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService protected configurationService: IWorkspaceConfigurationService,
 		@IMessageService protected messageService: IMessageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
@@ -85,7 +94,7 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IMessageService messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -95,7 +104,16 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 	}
 
 	protected open(emptySettingsContents: string, settingsResource: URI): TPromise<void> {
-		return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents);
+		const openDefaultSettings = !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.openDefaultSettings;
+
+		if (openDefaultSettings) {
+			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents);
+		}
+
+		return this.editorService.openEditor({
+			resource: settingsResource,
+			options: { pinned: true }
+		}).then(() => null);
 	}
 }
 
@@ -112,12 +130,13 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IMessageService messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, editorService, editorGroupService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
@@ -138,7 +157,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 					new Action('open.workspaceSettings', nls.localize('openWorkspaceSettings', "Open Workspace Settings"), null, true, () => {
 						let editorCount = this.editorService.getVisibleEditors().length;
 
-						return this.editorService.createInput({ resource: this.contextService.toResource('.vscode/settings.json') }).then((typedInput) => {
+						return this.editorService.createInput({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) }).then((typedInput) => {
 							return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
 						});
 					})
@@ -149,7 +168,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		// Open settings
 		let emptySettingsHeader = nls.localize('emptySettingsHeader', "Place your settings in this file to overwrite the default settings");
 
-		return this.open('// ' + emptySettingsHeader + '\n{\n}', URI.file(this.contextService.getConfiguration().env.appSettingsPath));
+		return this.open('// ' + emptySettingsHeader + '\n{\n}', URI.file(this.environmentService.appSettingsPath));
 	}
 }
 
@@ -164,11 +183,12 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IMessageService messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, editorService, editorGroupService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
@@ -176,7 +196,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 	public run(event?: any): TPromise<void> {
 		let emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 
-		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.keybindingService), URI.file(this.contextService.getConfiguration().env.appKeybindingsPath), emptyContents);
+		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.keybindingService), URI.file(this.environmentService.appKeybindingsPath), emptyContents);
 	}
 }
 
@@ -205,7 +225,7 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 class DefaultSettingsInput extends StringEditorInput {
 	private static INSTANCE: DefaultSettingsInput;
 
-	public static getInstance(instantiationService: IInstantiationService, configurationService: IConfigurationService): DefaultSettingsInput {
+	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkspaceConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
 			let editorConfig = configurationService.getConfiguration<any>();
 			let defaults = getDefaultValuesContent(editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');

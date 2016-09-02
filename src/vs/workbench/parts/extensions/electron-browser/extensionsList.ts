@@ -5,15 +5,19 @@
 
 'use strict';
 
-import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
+import { once } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 import { IExtension } from './extensions';
 import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
+import { EventType } from 'vs/base/common/events';
 
 export interface ITemplateData {
 	element: HTMLElement;
@@ -25,6 +29,7 @@ export interface ITemplateData {
 	description: HTMLElement;
 	extension: IExtension;
 	disposables: IDisposable[];
+	extensionDisposables: IDisposable[];
 }
 
 export class Delegate implements IDelegate<IExtension> {
@@ -36,7 +41,10 @@ const actionOptions = { icon: true, label: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {}
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IMessageService private messageService: IMessageService
+	) {}
 
 	get templateId() { return 'extension'; }
 
@@ -54,6 +62,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, { animated: false });
 
+		actionbar.addListener2(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
+
 		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
@@ -67,6 +77,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		return {
 			element, icon, name, installCount, ratings, author, description, disposables,
+			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				versionWidget.extension = extension;
 				installCountWidget.extension = extension;
@@ -80,6 +91,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
 		addClass(data.element, 'loading');
+
+		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.icon.src = '';
 		data.name.textContent = '';
 		data.author.textContent = '';
@@ -91,6 +104,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
 		removeClass(data.element, 'loading');
+
+		data.extensionDisposables = dispose(data.extensionDisposables);
+
+		const onError = once(domEvent(data.icon, 'error'));
+		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
 		data.icon.src = extension.iconUrl;
 
 		if (!data.icon.complete) {

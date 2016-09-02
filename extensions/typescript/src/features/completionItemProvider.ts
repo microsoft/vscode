@@ -10,7 +10,7 @@ import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionI
 import { ITypescriptServiceClient } from '../typescriptService';
 
 import * as PConst from '../protocol.const';
-import { CompletionEntry, CompletionsRequestArgs, CompletionsResponse, CompletionDetailsRequestArgs, CompletionDetailsResponse, CompletionEntryDetails } from '../protocol';
+import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails } from '../protocol';
 import * as Previewer from './previewer';
 
 class MyCompletionItem extends CompletionItem {
@@ -125,8 +125,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			return completionItems;
-
-		}, (err: CompletionsResponse) => {
+		}, (err) => {
+			this.client.error(`'completions' request failed with error.`, err);
 			return [];
 		});
 	}
@@ -168,7 +168,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 				return item;
 
-			}, (err: CompletionDetailsResponse) => {
+			}, (err) => {
+				this.client.error(`'completionEntryDetails' request failed with error.`, err);
 				return item;
 			});
 

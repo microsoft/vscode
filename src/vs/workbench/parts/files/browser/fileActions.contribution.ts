@@ -9,7 +9,9 @@ import {Registry} from 'vs/platform/platform';
 import {Action, IAction} from 'vs/base/common/actions';
 import {ActionItem, BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
+import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView} from 'vs/workbench/parts/files/browser/fileActions';
+import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDiffEditorInput} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -131,9 +133,30 @@ class FilesViewerActionContributor extends ActionBarContributor {
 	}
 }
 
+class ConflictResolutionActionContributor extends EditorInputActionContributor {
+
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+		super();
+	}
+
+	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
+		return (context.input instanceof ConflictResolutionDiffEditorInput);
+	}
+
+	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
+		return [
+			this.instantiationService.createInstance(AcceptLocalChangesAction),
+			this.instantiationService.createInstance(RevertLocalChangesAction)
+		];
+	}
+}
+
 // Contribute to Viewers that show Files
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FilesViewerActionContributor);
+
+// Contribute to Conflict Editor Inputs
+actionBarRegistry.registerActionBarContributor(Scope.EDITOR, ConflictResolutionActionContributor);
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "Files");

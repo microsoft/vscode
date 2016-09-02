@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {LinkedMap} from 'vs/base/common/map';
+import {BoundedLinkedMap} from 'vs/base/common/map';
 
 /**
  * The empty string.
@@ -166,7 +166,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 export function endsWith(haystack: string, needle: string): boolean {
 	let diff = haystack.length - needle.length;
 	if (diff > 0) {
-		return haystack.lastIndexOf(needle) === diff;
+		return haystack.indexOf(needle, diff) === diff;
 	} else if (diff === 0) {
 		return haystack === needle;
 	} else {
@@ -221,7 +221,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = new LinkedMap<string>(10000); // bounded to 10000 elements
+const normalizedCache = new BoundedLinkedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {
 		return str;
@@ -284,8 +284,14 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 	return -1;
 }
 
-export function localeCompare(strA: string, strB: string): number {
-	return strA.localeCompare(strB);
+export function compare(a: string, b: string): number {
+	if (a < b) {
+		return -1;
+	} else if(a > b) {
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 function isAsciiChar(code: number): boolean {

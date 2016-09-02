@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/diffEditor';
-import {IAction} from 'vs/base/common/actions';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {EventEmitter, EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -15,8 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {ISashEvent, IVerticalSashLayoutProvider, Sash} from 'vs/base/browser/ui/sash/sash';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -24,7 +22,7 @@ import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerServic
 import {createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import {Position} from 'vs/editor/common/core/position';
@@ -77,7 +75,7 @@ class VisualEditorState {
 		return allViewZones.filter((z) => !this._zonesMap[String(z.id)]);
 	}
 
-	public clean(editor:CodeEditorWidget): void {
+	public clean(editor:CodeEditor): void {
 		// (1) View zones
 		if (this._zones.length > 0) {
 			editor.changeViewZones((viewChangeAccessor:editorBrowser.IViewZoneChangeAccessor) => {
@@ -98,7 +96,7 @@ class VisualEditorState {
 		this._decorations = [];
 	}
 
-	public apply(editor:CodeEditorWidget, overviewRuler:editorBrowser.IOverviewRuler, newDecorations:IEditorDiffDecorationsWithZones): void {
+	public apply(editor:CodeEditor, overviewRuler:editorBrowser.IOverviewRuler, newDecorations:IEditorDiffDecorationsWithZones): void {
 		var i:number,
 			length: number;
 
@@ -177,12 +175,12 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _height:number;
 	private _measureDomElementToken:number;
 
-	private originalEditor:CodeEditorWidget;
+	private originalEditor:CodeEditor;
 	private _originalDomNode:HTMLElement;
 	private _originalEditorState:VisualEditorState;
 	private _originalOverviewRuler:editorBrowser.IOverviewRuler;
 
-	private modifiedEditor:CodeEditorWidget;
+	private modifiedEditor:CodeEditor;
 	private _modifiedDomNode:HTMLElement;
 	private _modifiedEditorState:VisualEditorState;
 	private _modifiedOverviewRuler:editorBrowser.IOverviewRuler;
@@ -205,18 +203,18 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _updateDecorationsRunner:RunOnceScheduler;
 
 	private _editorWorkerService: IEditorWorkerService;
-	private _keybindingService: IKeybindingService;
+	protected _contextKeyService: IContextKeyService;
 
 	constructor(
 		domElement:HTMLElement,
 		options:editorCommon.IDiffEditorOptions,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 		this._editorWorkerService = editorWorkerService;
-		this._keybindingService = keybindingService;
+		this._contextKeyService = contextKeyService;
 
 		this.id = (++DIFF_EDITOR_ID);
 
@@ -358,14 +356,13 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	}
 
 	private _createLeftHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
-		instantiationService = instantiationService.createChild(new ServiceCollection([IKeybindingService, this._keybindingService.createScoped(this._originalDomNode)]));
-		this.originalEditor = instantiationService.createInstance(CodeEditorWidget, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
+		this.originalEditor = instantiationService.createInstance(CodeEditor, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
 		this._toDispose.push(this.originalEditor.addBulkListener2((events) => this._onOriginalEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.originalEditor));
 	}
 
 	private _createRightHandSideEditor(options:editorCommon.IDiffEditorOptions, instantiationService:IInstantiationService): void {
-		this.modifiedEditor = instantiationService.createInstance(CodeEditorWidget, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
+		this.modifiedEditor = instantiationService.createInstance(CodeEditor, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
 		this._toDispose.push(this.modifiedEditor.addBulkListener2((events) => this._onModifiedEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.modifiedEditor));
 	}
@@ -597,11 +594,15 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this.modifiedEditor.addAction(descriptor);
 	}
 
-	public getActions(): IAction[] {
+	public getActions(): editorCommon.IEditorAction[] {
 		return this.modifiedEditor.getActions();
 	}
 
-	public getAction(id:string): IAction {
+	public getSupportedActions(): editorCommon.IEditorAction[] {
+		return this.modifiedEditor.getSupportedActions();
+	}
+
+	public getAction(id:string): editorCommon.IEditorAction {
 		return this.modifiedEditor.getAction(id);
 	}
 
@@ -849,7 +850,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
-		clonedOptions.referenceInfos = false;
+		clonedOptions.codeLens = false;
 		return clonedOptions;
 	}
 

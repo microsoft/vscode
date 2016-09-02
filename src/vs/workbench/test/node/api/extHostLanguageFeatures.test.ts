@@ -30,11 +30,12 @@ import {getHover} from 'vs/editor/contrib/hover/common/hover';
 import {getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
-import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
+import {getWorkspaceSymbols} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {provideSuggestionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
+import {getLinks} from 'vs/editor/contrib/links/common/links';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHost.protocol';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
@@ -213,7 +214,7 @@ suite('ExtHostLanguageFeatures', function() {
 				let data = value[0];
 
 				return asWinJsPromise((token) => {
-					return data.support.resolveCodeLens(model, data.symbol, token);
+					return data.provider.resolveCodeLens(model, data.symbol, token);
 				}).then(symbol => {
 					assert.equal(symbol.command.id, 'id');
 					assert.equal(symbol.command.title, 'Title');
@@ -237,7 +238,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 				let data = value[0];
 				return asWinJsPromise((token) => {
-					return data.support.resolveCodeLens(model, data.symbol, token);
+					return data.provider.resolveCodeLens(model, data.symbol, token);
 				}).then(symbol => {
 
 					assert.equal(symbol.command.id, 'missing');
@@ -648,8 +649,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getNavigateToItems('').then(value => {
+			return getWorkspaceSymbols('').then(value => {
 				assert.equal(value.length, 1);
+				const [first] = value;
+				const [, symbols] = first;
+				assert.equal(symbols.length, 1);
+				assert.equal(symbols[0].name, 'testing');
 			});
 		});
 	});
@@ -760,9 +765,9 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
-				assert.equal(value[0].suggestion.codeSnippet, 'testing2');
+				assert.equal(value[0].suggestion.insertText, 'testing2');
 			});
 		});
 	});
@@ -782,9 +787,9 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
-				assert.equal(value[0].suggestion.codeSnippet, 'weak-selector');
+				assert.equal(value[0].suggestion.insertText, 'weak-selector');
 			});
 		});
 	});
@@ -804,10 +809,10 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 2);
-				assert.equal(value[0].suggestion.codeSnippet, 'strong-1'); // sort by label
-				assert.equal(value[1].suggestion.codeSnippet, 'strong-2');
+				assert.equal(value[0].suggestion.insertText, 'strong-1'); // sort by label
+				assert.equal(value[1].suggestion.insertText, 'strong-2');
 			});
 		});
 	});
@@ -829,7 +834,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value[0].container.incomplete, undefined);
 			});
 		});
@@ -845,7 +850,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			provideSuggestionItems(model, new EditorPosition(1, 1), { snippetConfig: 'none' }).then(value => {
+			provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value[0].container.incomplete, true);
 			});
 		});
@@ -856,7 +861,7 @@ suite('ExtHostLanguageFeatures', function() {
 	test('Format Doc, data conversion', function() {
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'testing')];
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
 			}
 		}));
 
@@ -865,7 +870,7 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'testing');
-				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});
@@ -885,7 +890,7 @@ suite('ExtHostLanguageFeatures', function() {
 	test('Format Range, data conversion', function() {
 		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'testing')];
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'testing')];
 			}
 		}));
 
@@ -894,7 +899,7 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'testing');
-				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});
@@ -902,7 +907,7 @@ suite('ExtHostLanguageFeatures', function() {
 	test('Format Range, + format_doc', function() {
 		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits(): any {
-				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'range')];
+				return [new types.TextEdit(new types.Range(0, 0, 0, 0), 'range')];
 			}
 		}));
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultSelector, <vscode.DocumentFormattingEditProvider>{
@@ -946,6 +951,50 @@ suite('ExtHostLanguageFeatures', function() {
 
 				assert.equal(first.text, ';');
 				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+			});
+		});
+	});
+
+	test('Links, data conversion', function () {
+
+		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks() {
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getLinks(model).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.url, 'foo:bar#3');
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+			});
+		});
+	});
+
+	test('Links, evil provider', function () {
+
+		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks() {
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+			}
+		}));
+
+		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks(): any {
+				throw new Error();
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getLinks(model).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.url, 'foo:bar#3');
+				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
 			});
 		});
 	});

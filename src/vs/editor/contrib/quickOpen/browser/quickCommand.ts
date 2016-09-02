@@ -5,24 +5,24 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {matchesFuzzy} from 'vs/base/common/filters';
-import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {ICommonCodeEditor, IEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
+import {IEditorAction, ICommonCodeEditor, IEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {BaseEditorQuickOpenAction} from './editorQuickOpen';
+import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import * as browser from 'vs/base/browser/browser';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	private key: string;
-	private action: IAction;
+	private action: IEditorAction;
 	private editor: IEditor;
 
-	constructor(key: string, highlights: IHighlight[], action: IAction, editor: IEditor) {
+	constructor(key: string, highlights: IHighlight[], action: IEditorAction, editor: IEditor) {
 		super();
 
 		this.key = key;
@@ -52,13 +52,11 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 				// Some actions are enabled only when editor has focus
 				this.editor.focus();
 
-				if (this.action.enabled) {
-					try {
-						let promise = this.action.run() || TPromise.as(null);
-						promise.done(null, onUnexpectedError);
-					} catch (error) {
-						onUnexpectedError(error);
-					}
+				try {
+					let promise = this.action.run() || TPromise.as(null);
+					promise.done(null, onUnexpectedError);
+				} catch (error) {
+					onUnexpectedError(error);
 				}
 			}, onUnexpectedError);
 
@@ -69,46 +67,61 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	}
 }
 
+@editorAction
 export class QuickCommandAction extends BaseEditorQuickOpenAction {
 
-	public static ID = 'editor.action.quickCommand';
-
-	private _keybindingService: IKeybindingService;
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
-		super(descriptor, editor, nls.localize('QuickCommandAction.label', "Command Palette"));
-		this._keybindingService = keybindingService;
+	constructor() {
+		super(nls.localize('quickCommandActionInput', "Type the name of an action you want to execute"), {
+			id: 'editor.action.quickCommand',
+			label: nls.localize('QuickCommandAction.label', "Command Palette"),
+			alias: 'Command Palette',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
+			},
+			menuOpts: {
+			}
+		});
 	}
 
-	_getModel(value: string): QuickOpenModel {
-		return new QuickOpenModel(this._editorActionsToEntries(this.editor.getActions(), value));
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		const keybindingService = accessor.get(IKeybindingService);
+
+		this._show(this.getController(editor), {
+			getModel: (value:string):QuickOpenModel => {
+				return new QuickOpenModel(this._editorActionsToEntries(keybindingService, editor, value));
+			},
+
+			getAutoFocus: (searchValue:string):IAutoFocus => {
+				return {
+					autoFocusFirstEntry: true,
+					autoFocusPrefixMatch: searchValue
+				};
+			}
+		});
 	}
 
-	_sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
+	private _sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
 		let elementAName = elementA.getLabel().toLowerCase();
 		let elementBName = elementB.getLabel().toLowerCase();
 
-		return strings.localeCompare(elementAName, elementBName);
+		return elementAName.localeCompare(elementBName);
 	}
 
-	_editorActionsToEntries(actions: IAction[], searchValue: string): EditorActionCommandEntry[] {
+	private _editorActionsToEntries(keybindingService:IKeybindingService, editor:ICommonCodeEditor, searchValue: string): EditorActionCommandEntry[] {
+		let actions: IEditorAction[] = editor.getSupportedActions();
 		let entries: EditorActionCommandEntry[] = [];
 
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
-			let editorAction = <EditorAction>action;
-
-			if (!editorAction.isSupported()) {
-				continue; // do not show actions that are not supported in this context
-			}
-
-			let keys = this._keybindingService.lookupKeybindings(editorAction.id).map(k => this._keybindingService.getLabelFor(k));
+			let keys = keybindingService.lookupKeybindings(action.id).map(k => keybindingService.getLabelFor(k));
 
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);
 				if (highlights) {
-					entries.push(new EditorActionCommandEntry(keys.length > 0 ? keys.join(', ') : '', highlights, action, this.editor));
+					entries.push(new EditorActionCommandEntry(keys.length > 0 ? keys.join(', ') : '', highlights, action, editor));
 				}
 			}
 		}
@@ -117,16 +130,5 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		entries = entries.sort(this._sort);
 
 		return entries;
-	}
-
-	_getAutoFocus(searchValue: string): IAutoFocus {
-		return {
-			autoFocusFirstEntry: true,
-			autoFocusPrefixMatch: searchValue
-		};
-	}
-
-	_getInputAriaLabel(): string {
-		return nls.localize('quickCommandActionInput', "Type the name of an action you want to execute");
 	}
 }

@@ -9,5 +9,6 @@
 	"peekView.alternateTitle": "Ссылки",
 	"referenceCount": "{0} ссылка",
 	"referencesCount": "Ссылок: {0}",
+	"referencesFailre": "Не удалось разрешить файл.",
 	"treeAriaLabel": "Ссылки"
 }

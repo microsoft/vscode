@@ -11,6 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IFilter} from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position} from 'vs/editor/common/core/position';
@@ -175,8 +176,6 @@ export interface ILineContext {
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
-	getTokenText(tokenIndex:number): string;
-	getTokenEndIndex(tokenIndex:number): number;
 	findIndexOfOffset(offset:number): number;
 }
 
@@ -209,45 +208,16 @@ export interface IMode {
 	 * @internal
 	 */
 	tokenizationSupport?: ITokenizationSupport;
-
-	/**
-	 * Optional adapter to support inplace-replace.
-	 * @internal
-	 */
-	inplaceReplaceSupport?:IInplaceReplaceSupport;
-
-	/**
-	 * Optional adapter to support configuring this mode.
-	 * @internal
-	 */
-	configSupport?:IConfigurationSupport;
-}
-
-/**
- * Interface used for tokenization
- * @internal
- */
-export interface IToken {
-	startIndex:number;
-	type:string;
-}
-
-/**
- * @internal
- */
-export interface IModeTransition {
-	startIndex: number;
-	mode: IMode;
 }
 
 /**
  * @internal
  */
 export interface ILineTokens {
-	tokens: IToken[];
+	tokens: Token[];
 	actualStopOffset: number;
 	endState: IState;
-	modeTransitions: IModeTransition[];
+	modeTransitions: ModeTransition[];
 	retokenize?:TPromise<void>;
 }
 
@@ -370,15 +340,18 @@ export type SuggestionType = 'method'
  */
 export interface ISuggestion {
 	label: string;
-	codeSnippet: string;
+	insertText: string;
 	type: SuggestionType;
-	typeLabel?: string;
-	documentationLabel?: string;
+	detail?: string;
+	documentation?: string;
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;
 	overwriteBefore?: number;
 	overwriteAfter?: number;
+	additionalTextEdits?: editorCommon.ISingleEditOperation[];
+	command?: Command;
+	isTMSnippet?: boolean;
 }
 
 /**
@@ -399,7 +372,7 @@ export interface ISuggestSupport {
 
 	filter?: IFilter;
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
 	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
@@ -811,14 +784,6 @@ export interface IInplaceReplaceSupportResult {
 }
 
 /**
- * Interface used to navigate with a value-set.
- * @internal
- */
-export interface IInplaceReplaceSupport {
-	navigateValueSet(resource:URI, range:editorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
-}
-
-/**
  * A link inside the editor.
  */
 export interface ILink {
@@ -830,15 +795,7 @@ export interface ILink {
  */
 export interface LinkProvider {
 	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
-}
-
-
-/**
- * Interface used to define a configurable editor mode.
- * @internal
- */
-export interface IConfigurationSupport {
-	configure(options:any):TPromise<void>;
+	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 }
 
 
@@ -879,6 +836,7 @@ export type CharacterPair = [string, string];
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
+
 }
 
 /**

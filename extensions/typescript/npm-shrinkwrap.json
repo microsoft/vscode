@@ -14,7 +14,8 @@
     },
     "vscode-nls": {
       "version": "1.0.7",
-      "from": "vscode-nls@>=1.0.4 <2.0.0"
+      "from": "vscode-nls@>=1.0.4 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
     },
     "winreg": {
       "version": "0.0.13",

@@ -164,11 +164,11 @@ suite('Files - FileEditorInput', () => {
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
 		return editorService.resolveEditorModel(inputToResolve).then(function (resolved) {
 			return editorService.resolveEditorModel(sameOtherInput).then(function (resolved) {
-				(<any>tracker).handleDelete(toResource('/bar'), []);
+				tracker.handleDeleteOrMove(toResource('/bar'), []);
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
 
-				(<any>tracker).handleDelete(toResource('/fooss5/bar/file2.js'), []);
+				tracker.handleDeleteOrMove(toResource('/fooss5/bar/file2.js'), []);
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());
@@ -206,11 +206,11 @@ suite('Files - FileEditorInput', () => {
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
 		return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 			return editorService.resolveEditorModel(sameOtherInput, true).then(function (resolved) {
-				(<any>tracker).handleDelete(toResource('/bar'), []);
+				tracker.handleDeleteOrMove(toResource('/bar'), []);
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
 
-				(<any>tracker).handleDelete(toResource('/foo6'), []);
+				tracker.handleDeleteOrMove(toResource('/foo6'), []);
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());

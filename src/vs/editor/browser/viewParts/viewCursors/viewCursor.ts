@@ -10,6 +10,14 @@ import {Configuration} from 'vs/editor/browser/config/configuration';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 
+export interface IViewCursorRenderData {
+	position: IPosition;
+	contentTop: number;
+	contentLeft: number;
+	width: number;
+	height: number;
+}
+
 export class ViewCursor {
 	private _context:ViewContext;
 	private _position: IPosition;
@@ -133,8 +141,9 @@ export class ViewCursor {
 		return '';
 	}
 
-	public render(ctx:IRestrictedRenderingContext): void {
+	public render(ctx:IRestrictedRenderingContext): IViewCursorRenderData {
 		if (this._isInViewport) {
+			let top = this._positionTop + ctx.viewportTop - ctx.bigNumbersDelta;
 			let renderContent = this._getRenderedContent();
 			if (this._lastRenderedContent !== renderContent) {
 				this._lastRenderedContent = renderContent;
@@ -143,12 +152,21 @@ export class ViewCursor {
 
 			this._domNode.setDisplay('block');
 			this._domNode.setLeft(this._positionLeft);
-			this._domNode.setTop(this._positionTop + ctx.viewportTop - ctx.bigNumbersDelta);
+			this._domNode.setTop(top);
 			this._domNode.setLineHeight(this._lineHeight);
 			this._domNode.setHeight(this._lineHeight);
-		} else {
-			this._domNode.setDisplay('none');
+
+			return {
+				position: this._position,
+				contentTop: top,
+				contentLeft: this._positionLeft,
+				height: this._lineHeight,
+				width: 2
+			};
 		}
+
+		this._domNode.setDisplay('none');
+		return null;
 	}
 
 	private updatePosition(newPosition:IPosition): void {

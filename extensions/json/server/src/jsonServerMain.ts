@@ -5,7 +5,7 @@
 'use strict';
 
 import {
-	IPCMessageReader, IPCMessageWriter, createConnection, IConnection,
+	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType
 } from 'vscode-languageserver';
 
@@ -37,7 +37,7 @@ namespace VSCodeContentRequest {
 }
 
 // Create a connection for the server
-let connection: IConnection = createConnection(new IPCMessageReader(process), new IPCMessageWriter(process));
+let connection: IConnection = createConnection();
 
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
@@ -61,7 +61,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: true },
+			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
 			hoverProvider: true,
 			documentSymbolProvider: true,
 			documentRangeFormattingProvider: true,
@@ -102,7 +102,7 @@ let schemaRequestService = (uri:string): Thenable<string> => {
 	return xhr({ url: uri, followRedirects: 5 }).then(response => {
 		return response.responseText;
 	}, (error: XHRResponse) => {
-		return error.responseText || getErrorStatusDescription(error.status) || error.toString();
+		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
 	});
 };
 
@@ -204,7 +204,7 @@ documents.onDidClose(event => {
 	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
-let pendingValidationRequests : {[uri:string]:number} = {};
+let pendingValidationRequests : { [uri: string]: NodeJS.Timer; } = {};
 const validationDelayMs = 200;
 
 function cleanPendingValidation(textDocument: TextDocument): void {

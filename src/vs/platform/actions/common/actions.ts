@@ -9,7 +9,8 @@ import Actions = require('vs/base/common/actions');
 import WinJS = require('vs/base/common/winjs.base');
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
-import {KbExpr, IKeybindings, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +31,7 @@ export interface IMenu extends IDisposable {
 export interface IMenuItem {
 	command: ICommandAction;
 	alt?: ICommandAction;
-	when?: KbExpr;
+	when?: ContextKeyExpr;
 	group?: 'navigation' | string;
 	order?: number;
 }
@@ -47,7 +48,7 @@ export interface IMenuService {
 
 	_serviceBrand: any;
 
-	createMenu(id: MenuId, scopedKeybindingService: IKeybindingService): IMenu;
+	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
 
 	getCommandActions(): ICommandAction[];
 }
@@ -56,7 +57,7 @@ export interface IMenuRegistry {
 	commands: { [id: string]: ICommandAction };
 	addCommand(userCommand: ICommandAction): boolean;
 	getCommand(id: string): ICommandAction;
-	appendMenuItem(menu: MenuId, item: IMenuItem): void;
+	appendMenuItem(menu: MenuId, item: IMenuItem): IDisposable;
 	getMenuItems(loc: MenuId): IMenuItem[];
 }
 
@@ -76,13 +77,21 @@ export const MenuRegistry: IMenuRegistry = new class {
 		return this.commands[id];
 	}
 
-	appendMenuItem(loc: MenuId, items: IMenuItem): void {
+	appendMenuItem(loc: MenuId, item: IMenuItem): IDisposable {
 		let array = this.menuItems[loc];
 		if (!array) {
-			this.menuItems[loc] = [items];
+			this.menuItems[loc] = array = [item];
 		} else {
-			array.push(items);
+			array.push(item);
 		}
+		return {
+			dispose() {
+				const idx = array.indexOf(item);
+				if (idx >= 0) {
+					array.splice(idx, 1);
+				}
+			}
+		};
 	}
 
 	getMenuItems(loc: MenuId): IMenuItem[] {
@@ -109,7 +118,7 @@ export class MenuItemAction extends Actions.Action {
 	) {
 		super(MenuItemAction._getMenuItemId(_item), _item.command.title);
 
-		this.order = 100000; //TODO@Ben order is menu item property, not an action property
+		this.order = this._item.order; //TODO@Ben order is menu item property, not an action property
 	}
 
 	set resource(value: URI) {
@@ -161,11 +170,11 @@ export class SyncActionDescriptor {
 	private _id: string;
 	private _label: string;
 	private _keybindings: IKeybindings;
-	private _keybindingContext: KbExpr;
+	private _keybindingContext: ContextKeyExpr;
 	private _keybindingWeight: number;
 
 	constructor(ctor: Instantiation.IConstructorSignature2<string, string, Actions.Action>,
-		id: string, label: string, keybindings?: IKeybindings, keybindingContext?: KbExpr, keybindingWeight?: number
+		id: string, label: string, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	) {
 		this._id = id;
 		this._label = label;
@@ -191,7 +200,7 @@ export class SyncActionDescriptor {
 		return this._keybindings;
 	}
 
-	public get keybindingContext(): KbExpr {
+	public get keybindingContext(): ContextKeyExpr {
 		return this._keybindingContext;
 	}
 

@@ -22,7 +22,16 @@ export interface ITextMimeAssociation {
 	userConfigured?: boolean;
 }
 
-let registeredAssociations: ITextMimeAssociation[] = [];
+interface ITextMimeAssociationItem extends ITextMimeAssociation {
+	filenameLowercase?: string;
+	extensionLowercase?: string;
+	filepatternLowercase?: string;
+	filepatternOnPath?: boolean;
+}
+
+let registeredAssociations: ITextMimeAssociationItem[] = [];
+let nonUserRegisteredAssociations: ITextMimeAssociationItem[] = [];
+let userRegisteredAssociations: ITextMimeAssociationItem[] = [];
 
 /**
  * Associate a text mime to the registry.
@@ -30,32 +39,53 @@ let registeredAssociations: ITextMimeAssociation[] = [];
 export function registerTextMime(association: ITextMimeAssociation): void {
 
 	// Register
-	registeredAssociations.push(association);
+	const associationItem = toTextMimeAssociationItem(association);
+	registeredAssociations.push(associationItem);
+	if (!associationItem.userConfigured) {
+		nonUserRegisteredAssociations.push(associationItem);
+	} else {
+		userRegisteredAssociations.push(associationItem);
+	}
 
 	// Check for conflicts unless this is a user configured association
-	if (!association.userConfigured) {
+	if (!associationItem.userConfigured) {
 		registeredAssociations.forEach(a => {
-			if (a.mime === association.mime || a.userConfigured) {
+			if (a.mime === associationItem.mime || a.userConfigured) {
 				return; // same mime or userConfigured is ok
 			}
 
-			if (association.extension && a.extension === association.extension) {
-				console.warn(`Overwriting extension <<${association.extension}>> to now point to mime <<${association.mime}>>`);
+			if (associationItem.extension && a.extension === associationItem.extension) {
+				console.warn(`Overwriting extension <<${associationItem.extension}>> to now point to mime <<${associationItem.mime}>>`);
 			}
 
-			if (association.filename && a.filename === association.filename) {
-				console.warn(`Overwriting filename <<${association.filename}>> to now point to mime <<${association.mime}>>`);
+			if (associationItem.filename && a.filename === associationItem.filename) {
+				console.warn(`Overwriting filename <<${associationItem.filename}>> to now point to mime <<${associationItem.mime}>>`);
 			}
 
-			if (association.filepattern && a.filepattern === association.filepattern) {
-				console.warn(`Overwriting filepattern <<${association.filepattern}>> to now point to mime <<${association.mime}>>`);
+			if (associationItem.filepattern && a.filepattern === associationItem.filepattern) {
+				console.warn(`Overwriting filepattern <<${associationItem.filepattern}>> to now point to mime <<${associationItem.mime}>>`);
 			}
 
-			if (association.firstline && a.firstline === association.firstline) {
-				console.warn(`Overwriting firstline <<${association.firstline}>> to now point to mime <<${association.mime}>>`);
+			if (associationItem.firstline && a.firstline === associationItem.firstline) {
+				console.warn(`Overwriting firstline <<${associationItem.firstline}>> to now point to mime <<${associationItem.mime}>>`);
 			}
 		});
 	}
+}
+
+function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMimeAssociationItem {
+	return {
+		mime: association.mime,
+		filename: association.filename,
+		extension: association.extension,
+		filepattern: association.filepattern,
+		firstline: association.firstline,
+		userConfigured: association.userConfigured,
+		filenameLowercase: association.filename ? association.filename.toLowerCase() : void 0,
+		extensionLowercase: association.extension ? association.extension.toLowerCase() : void 0,
+		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : void 0,
+		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(paths.sep) >= 0 : false
+	};
 }
 
 /**
@@ -64,8 +94,11 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 export function clearTextMimes(onlyUserConfigured?: boolean): void {
 	if (!onlyUserConfigured) {
 		registeredAssociations = [];
+		nonUserRegisteredAssociations = [];
+		userRegisteredAssociations = [];
 	} else {
 		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
+		userRegisteredAssociations = [];
 	}
 }
 
@@ -78,15 +111,16 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	}
 
 	path = path.toLowerCase();
+	let filename = paths.basename(path);
 
 	// 1.) User configured mappings have highest priority
-	let configuredMime = guessMimeTypeByPath(path, registeredAssociations.filter(a => a.userConfigured));
+	let configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
 	if (configuredMime) {
 		return [configuredMime, MIME_TEXT];
 	}
 
 	// 2.) Registered mappings have middle priority
-	let registeredMime = guessMimeTypeByPath(path, registeredAssociations.filter(a => !a.userConfigured));
+	let registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
 	if (registeredMime) {
 		return [registeredMime, MIME_TEXT];
 	}
@@ -102,27 +136,25 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	return [MIME_UNKNOWN];
 }
 
-function guessMimeTypeByPath(path: string, associations: ITextMimeAssociation[]): string {
-	let filename = paths.basename(path);
-
-	let filenameMatch: ITextMimeAssociation;
-	let patternMatch: ITextMimeAssociation;
-	let extensionMatch: ITextMimeAssociation;
+function guessMimeTypeByPath(path: string, filename: string, associations: ITextMimeAssociationItem[]): string {
+	let filenameMatch: ITextMimeAssociationItem;
+	let patternMatch: ITextMimeAssociationItem;
+	let extensionMatch: ITextMimeAssociationItem;
 
 	for (var i = 0; i < associations.length; i++) {
 		let association = associations[i];
 
 		// First exact name match
-		if (association.filename && filename === association.filename.toLowerCase()) {
+		if (filename === association.filenameLowercase) {
 			filenameMatch = association;
 			break; // take it!
 		}
 
 		// Longest pattern match
 		if (association.filepattern) {
-			let target = association.filepattern.indexOf(paths.sep) >= 0 ? path : filename; // match on full path if pattern contains path separator
-			if (match(association.filepattern.toLowerCase(), target)) {
-				if (!patternMatch || association.filepattern.length > patternMatch.filepattern.length) {
+			if (!patternMatch || association.filepattern.length > patternMatch.filepattern.length) {
+				let target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
+				if (match(association.filepatternLowercase, target)) {
 					patternMatch = association;
 				}
 			}
@@ -130,8 +162,8 @@ function guessMimeTypeByPath(path: string, associations: ITextMimeAssociation[])
 
 		// Longest extension match
 		if (association.extension) {
-			if (strings.endsWith(filename, association.extension.toLowerCase())) {
-				if (!extensionMatch || association.extension.length > extensionMatch.extension.length) {
+			if (!extensionMatch || association.extension.length > extensionMatch.extension.length) {
+				if (strings.endsWith(filename, association.extensionLowercase)) {
 					extensionMatch = association;
 				}
 			}
@@ -220,5 +252,5 @@ export function suggestFilename(theMime: string, prefix: string): string {
 		}
 	}
 
-	return null;
+	return prefix; // without any known extension, just return the prefix
 }

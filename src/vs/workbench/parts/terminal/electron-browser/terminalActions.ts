@@ -98,7 +98,7 @@ export class FocusTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.focus();
+		return this.terminalService.show(true);
 	}
 }
 
@@ -184,7 +184,9 @@ export class SwitchTerminalInstanceAction extends Action {
 
 	public run(item?: string): TPromise<any> {
 		let selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
-		return this.terminalService.setActiveTerminal(selectedTerminalIndex);
+		return this.terminalService.show(true).then(() => {
+			this.terminalService.setActiveTerminal(selectedTerminalIndex);
+		});
 	}
 }
 
@@ -202,5 +204,39 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 
 	private updateItems(): void {
 		this.setOptions(this.terminalService.getTerminalInstanceTitles(), this.terminalService.getActiveTerminalIndex());
+	}
+}
+
+export class ScrollDownTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollDown';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollDown', "Terminal: Scroll Down");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.scrollDown();
+	}
+}
+
+export class ScrollUpTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollUp';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollUp', "Terminal: Scroll Up");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.scrollUp();
 	}
 }

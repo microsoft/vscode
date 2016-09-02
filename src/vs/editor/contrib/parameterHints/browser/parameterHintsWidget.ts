@@ -17,10 +17,10 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export interface IHintEvent {
 	hints: SignatureHelp;
@@ -158,11 +158,11 @@ interface ISignatureView {
 
 export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
-	static ID = 'editor.widget.parameterHintsWidget';
+	private static ID = 'editor.widget.parameterHintsWidget';
 
 	private model: ParameterHintsModel;
-	private keyVisible: IKeybindingContextKey<boolean>;
-	private keyMultipleSignatures: IKeybindingContextKey<boolean>;
+	private keyVisible: IContextKey<boolean>;
+	private keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
 	private signatures: HTMLElement;
 	private overloads: HTMLElement;
@@ -176,10 +176,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
 
-	constructor(private editor: ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(private editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		this.model = new ParameterHintsModel(editor);
-		this.keyVisible = keybindingService.createKey(Context.Visible, false);
-		this.keyMultipleSignatures = keybindingService.createKey(Context.MultipleSignatures, false);
+		this.keyVisible = Context.Visible.bindTo(contextKeyService);
+		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 		this.visible = false;
 		this.disposables = [];
 
@@ -314,47 +314,50 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		if(!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
-			return code;
+
+		} else {
+			this.renderParameters(code, signature, currentParameter);
 		}
 
-		const parameters = $('span.parameters');
-		let offset = 0;
-		let idx = 0;
+		return signatureElement;
+	}
 
-		for (let i = 0, len = signature.parameters.length; i < len; i++) {
+	private renderParameters(parent: HTMLElement, signature: SignatureInformation, currentParameter: number): void {
+
+		let end = signature.label.length;
+		let idx = 0;
+		let element: HTMLSpanElement;
+
+		for (let i = signature.parameters.length - 1; i >= 0; i--) {
 			const parameter = signature.parameters[i];
-			idx = signature.label.indexOf(parameter.label, idx);
+			idx = signature.label.lastIndexOf(parameter.label, end);
 
 			let signatureLabelOffset = 0;
 			let signatureLabelEnd = 0;
 
 			if (idx >= 0) {
 				signatureLabelOffset = idx;
-				idx += parameter.label.length;
-				signatureLabelEnd = idx;
+				signatureLabelEnd = idx + parameter.label.length;
 			}
 
-			const element = i === 0 ? code : parameters;
+			// non parameter part
+			element = document.createElement('span');
+			element.textContent = signature.label.substring(signatureLabelEnd, end);
+			dom.prepend(parent, element);
 
-			const label = $('span');
-			label.textContent = signature.label.substring(offset, signatureLabelOffset);
-			dom.append(element, label);
+			// parameter part
+			element = document.createElement('span');
+			element.className = `parameter ${i === currentParameter ? 'active' : ''}`;
+			element.textContent = signature.label.substring(signatureLabelOffset, signatureLabelEnd);
+			dom.prepend(parent, element);
 
-			const parameterElement = $('span.parameter');
-			dom.addClass(parameterElement, i === currentParameter ? 'active' : '');
-			parameterElement.textContent = signature.label.substring(signatureLabelOffset, signatureLabelEnd);
-			dom.append(parameters, parameterElement);
-
-			offset = signatureLabelEnd;
+			end = signatureLabelOffset;
 		}
+		// non parameter part
+		element = document.createElement('span');
+		element.textContent = signature.label.substring(0, end);
+		dom.prepend(parent, element);
 
-		const label = $('span');
-		label.textContent = signature.label.substring(offset);
-
-		dom.append(code, parameters);
-		dom.append(code, label);
-
-		return signatureElement;
 	}
 
 	private renderDocumentation(element: HTMLElement, signature:SignatureInformation, activeParameterIdx:number): void {

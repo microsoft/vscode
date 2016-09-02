@@ -7,13 +7,12 @@
 import * as assert from 'assert';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {resolveWorkbenchCommonProperties} from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import {TestStorageService, TestContextService} from 'vs/test/utils/servicesTestUtils';
+import {TestStorageService} from 'vs/test/utils/servicesTestUtils';
 
 suite('Telemetry - common properties', function () {
 
-	const contextService = new TestContextService();
-	const commit = contextService.getConfiguration().env.commitHash;
-	const version = contextService.getConfiguration().env.version;
+	const commit = void 0;
+	const version = void 0;
 
 	test('default', function () {
 

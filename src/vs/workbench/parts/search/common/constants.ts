@@ -3,4 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
+
 export const VIEWLET_ID = 'workbench.view.search';
+
+export const SearchViewletVisible = new RawContextKey<boolean>('searchViewletVisible', true);

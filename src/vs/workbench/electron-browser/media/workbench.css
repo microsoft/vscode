@@ -26,8 +26,7 @@
 
 .monaco-workbench > .part {
 	position: absolute;
-	z-index: 1;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 }
 
 .monaco-workbench .action-bar-select {

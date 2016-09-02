@@ -14,12 +14,13 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {MouseTargetFactory} from 'vs/editor/browser/controller/mouseTarget';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {TimeoutTimer} from 'vs/base/common/async';
+import {TimeoutTimer, RunOnceScheduler} from 'vs/base/common/async';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {VisibleRange} from 'vs/editor/common/view/renderingContext';
 import {EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent} from 'vs/editor/browser/editorDom';
 import {StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {EditorZoom} from 'vs/editor/common/config/commonEditorConfig';
+import {IViewCursorRenderData} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -102,7 +103,14 @@ export interface IPointerHandlerHelper {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData;
-	shouldSuppressMouseDownOnViewZone(viewZoneId:number): boolean;
+
+	/**
+	 * Get the last rendered information of the cursors.
+	 */
+	getLastViewCursorsRenderData(): IViewCursorRenderData[];
+
+	shouldSuppressMouseDownOnViewZone(viewZoneId: number): boolean;
+	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
 	/**
 	 * Decode an Editor.IPosition from a rendered dom node
@@ -123,6 +131,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	protected mouseTargetFactory: MouseTargetFactory;
 	protected listenersToRemove:IDisposable[];
 	private toDispose:IDisposable[];
+	private _asyncFocus: RunOnceScheduler;
 
 	private _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime:number;
@@ -147,6 +156,8 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		);
 
 		this.toDispose = [];
+		this._asyncFocus = new RunOnceScheduler(() => this.viewHelper.focusTextArea(), 0);
+		this.toDispose.push(this._asyncFocus);
 
 		this.lastMouseLeaveTime = -1;
 
@@ -206,10 +217,16 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		this._mouseDownOperation.onCursorSelectionChanged(e);
 		return false;
 	}
+	private _isFocused = false;
+	public onViewFocusChanged(isFocused:boolean): boolean {
+		this._isFocused = isFocused;
+		return false;
+	}
 	// --- end event handlers
 
 	protected _createMouseTarget(e:EditorMouseEvent, testEventTarget:boolean): editorBrowser.IMouseTarget {
-		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, e, testEventTarget);
+		let lastViewCursorsRenderData = this.viewHelper.getLastViewCursorsRenderData();
+		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, lastViewCursorsRenderData, e, testEventTarget);
 	}
 
 	private _getMouseColumn(e:EditorMouseEvent): number {
@@ -263,29 +280,27 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		let targetIsLineNumbers = (t.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
 		let selectOnLineNumbers = this._context.configuration.editor.viewInfo.selectOnLineNumbers;
 		let targetIsViewZone = (t.type === editorCommon.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorCommon.MouseTargetType.GUTTER_VIEW_ZONE);
+		let targetIsWidget = (t.type === editorCommon.MouseTargetType.CONTENT_WIDGET);
 
 		let shouldHandle = e.leftButton;
 		if (platform.isMacintosh && e.ctrlKey) {
 			shouldHandle = false;
 		}
 
-		if (shouldHandle && (targetIsContent || (targetIsLineNumbers && selectOnLineNumbers))) {
-			if (browser.isIE11orEarlier) {
-				// IE does not want to focus when coming in from the browser's address bar
-				if ((<any>e.browserEvent).fromElement) {
-					e.preventDefault();
-					this.viewHelper.focusTextArea();
-				} else {
-					// TODO@Alex -> cancel this if focus is lost
-					setTimeout(() => {
-						this.viewHelper.focusTextArea();
-					});
-				}
+		var focus = () => {
+			// In IE11, if the focus is in the browser's address bar and
+			// then you click in the editor, calling preventDefault()
+			// will not move focus properly (focus remains the address bar)
+			if (browser.isIE11orEarlier && !this._isFocused) {
+				this._asyncFocus.schedule();
 			} else {
 				e.preventDefault();
 				this.viewHelper.focusTextArea();
 			}
+		};
 
+		if (shouldHandle && (targetIsContent || (targetIsLineNumbers && selectOnLineNumbers))) {
+			focus();
 			this._mouseDownOperation.start(t.type, e);
 
 		} else if (targetIsGutter) {
@@ -294,8 +309,13 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		} else if (targetIsViewZone) {
 			let viewZoneData = <editorBrowser.IViewZoneData>t.detail;
 			if (this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
+				focus();
+				this._mouseDownOperation.start(t.type, e);
 				e.preventDefault();
 			}
+		} else if (targetIsWidget && this.viewHelper.shouldSuppressMouseDownOnWidget(<string>t.detail)) {
+			focus();
+			e.preventDefault();
 		}
 
 		this.viewController.emitMouseDown({

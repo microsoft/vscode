@@ -55,7 +55,7 @@ export function getOutdatedExtensions(extensionsService: IExtensionManagementSer
 
 			return available.map(extension => {
 				const local = installed.filter(local => extensionEquals(local.manifest, extension))[0];
-				if (local && semver.lt(local.manifest.version, extension.versions[0].version)) {
+				if (local && semver.lt(local.manifest.version, extension.version)) {
 					return local;
 				} else {
 					return null;

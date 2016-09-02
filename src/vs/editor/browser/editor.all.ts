@@ -8,7 +8,6 @@
 import 'vs/editor/browser/widget/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditorWidget';
 
-import 'vs/editor/contrib/accessibility/browser/accessibility';
 import 'vs/editor/contrib/clipboard/browser/clipboard';
 import 'vs/editor/contrib/codelens/browser/codelens';
 import 'vs/editor/contrib/comment/common/comment';
@@ -26,6 +25,7 @@ import 'vs/editor/contrib/linesOperations/common/linesOperations';
 import 'vs/editor/contrib/carretOperations/common/carretOperations';
 import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/multicursor/common/multicursor';
+import 'vs/editor/contrib/multicursor/browser/menuPreventer';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/quickFix/browser/quickFix';
 import 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
@@ -34,13 +34,12 @@ import 'vs/editor/contrib/smartSelect/common/smartSelect';
 import 'vs/editor/contrib/smartSelect/common/jumpToBracket';
 import 'vs/editor/contrib/snippet/common/snippet';
 import 'vs/editor/contrib/snippet/browser/snippet';
-import 'vs/editor/contrib/suggest/browser/suggest';
+import 'vs/editor/contrib/suggest/browser/suggestController';
 import 'vs/editor/contrib/suggest/browser/tabCompletion';
 import 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import 'vs/editor/contrib/toggleWordWrap/common/toggleWordWrap';
 import 'vs/css!vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
 import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/indentation/common/indentation';
 

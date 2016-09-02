@@ -9,6 +9,7 @@
 	font-size: 12px;
 	border: 1px solid rgb(200, 200, 200);
 	z-index: 40;
+	width: 438px;
 }
 
 .monaco-editor .suggest-widget.visible {
@@ -69,6 +70,10 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details {
 	font-size: 1.4em;
 	opacity: 0.6;
+	width: 14px;
+	height: 14px;
+	background-image: url('./info.svg');
+	background-size: 14px;
 }
 
 .monaco-editor .suggest-widget .details > .header > .go-back,
@@ -176,6 +181,10 @@
 .monaco-editor .suggest-widget .details > .header > .go-back {
 	cursor: pointer;
 	opacity: 0.6;
+	width: 14px;
+	height: 14px;
+	background-image: url('./back.svg');
+	background-size: 14px;
 }
 
 .monaco-editor .suggest-widget .details > .header > .go-back:hover {

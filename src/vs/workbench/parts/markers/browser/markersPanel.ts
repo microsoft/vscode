@@ -24,7 +24,7 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { IAction } from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { IProblemsConfiguration, MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/common/markersModel';
+import { IProblemsConfiguration, MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
 import {Controller} from 'vs/workbench/parts/markers/browser/markersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
@@ -81,7 +81,7 @@ export class MarkersPanel extends Panel {
 		const conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
 		this.onConfigurationsUpdated(conf);
 
-		let container = dom.append(parent.getHTMLElement(), dom.emmet('.markers-panel-container'));
+		let container = dom.append(parent.getHTMLElement(), dom.$('.markers-panel-container'));
 
 		this.createMessageBox(container);
 		this.createTree(container);
@@ -124,9 +124,8 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
-	public refreshPanel(updateTitleArea: boolean = false): TPromise<any> {
+	private refreshPanel(updateTitleArea: boolean = false): TPromise<any> {
 		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
-		this.refreshAutoExpanded();
 		if (updateTitleArea) {
 			this.updateTitleArea();
 		}
@@ -140,14 +139,21 @@ export class MarkersPanel extends Panel {
 		return TPromise.as(null);
 	}
 
+	public updateFilter(filter: string) {
+		this.markersModel.update(new FilterOptions(filter));
+		this.autoExpanded = new Set.ArraySet<string>();
+		this.refreshPanel();
+		this.autoReveal();
+	}
+
 	private createMessageBox(parent: HTMLElement): void {
-		this.messageBoxContainer = dom.append(parent, dom.emmet('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.emmet('span'));
+		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
+		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
 		this.messageBox.setAttribute('tabindex', '0');
 	}
 
 	private createTree(parent: HTMLElement): void {
-		this.treeContainer = dom.append(parent, dom.emmet('.tree-container'));
+		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
 		var controller = this.instantiationService.createInstance(Controller);
@@ -229,14 +235,6 @@ export class MarkersPanel extends Panel {
 		let message = this.markersModel.getMessage();
 		this.messageBox.textContent = message;
 		dom.toggleClass(this.messageBoxContainer, 'hidden', this.markersModel.hasFilteredResources());
-	}
-
-	private refreshAutoExpanded(): void {
-		this.markersModel.nonFilteredResources.forEach((resource) => {
-			if (this.tree.isExpanded(resource)) {
-				this.autoExpanded.unset(resource.uri.toString());
-			}
-		});
 	}
 
 	private autoExpand(): void {

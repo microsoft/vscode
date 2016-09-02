@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { PPromise } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import glob = require('vs/base/common/glob');
-import { IProgress, ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
+import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
 
 export interface IRawSearch {
 	rootFolders: string[];
@@ -17,6 +17,8 @@ export interface IRawSearch {
 	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
+	sortByScore?: boolean;
+	cacheKey?: string;
 	maxFilesize?: number;
 	fileEncoding?: string;
 }
@@ -24,19 +26,28 @@ export interface IRawSearch {
 export interface IRawSearchService {
 	fileSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 	textSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
+	clearCache(cacheKey: string): TPromise<void>;
 }
 
-export interface ISearchEngine {
-	search: (onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void) => void;
+export interface IRawFileMatch {
+	base?: string;
+	relativePath: string;
+	basename: string;
+	size?: number;
+}
+
+export interface ISearchEngine<T> {
+	search: (onResult: (match: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void) => void;
 	cancel: () => void;
 }
 
 export interface ISerializedSearchComplete {
 	limitHit: boolean;
+	stats: ISearchStats;
 }
 
 export interface ISerializedFileMatch {
-	path?: string;
+	path: string;
 	lineMatches?: ILineMatch[];
 }
 

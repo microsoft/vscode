@@ -16,7 +16,6 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import {ipcRenderer as ipc, shell, remote} from 'electron';
@@ -48,7 +47,6 @@ export class ElectronWindow {
 	constructor(
 		win: Electron.BrowserWindow,
 		shellContainer: HTMLElement,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
 		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -65,7 +63,7 @@ export class ElectronWindow {
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
 			this.editorGroupService.onEditorsChanged(() => {
-				let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+				const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 				let representedFilename = '';
 				if (fileInput) {
 					representedFilename = fileInput.getResource().fsPath;
@@ -112,6 +110,18 @@ export class ElectronWindow {
 						})
 						.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
 							cleanUp();
+						}).once(DOM.EventType.MOUSE_OVER, () => {
+							// Under some circumstances we have seen reports where the drop overlay is not being
+							// cleaned up and as such the editor area remains under the overlay so that you cannot
+							// type into the editor anymore. This seems related to using VMs and DND via host and
+							// guest OS, though some users also saw it without VMs.
+							// To protect against this issue we always destroy the overlay as soon as we detect a
+							// mouse event over it. The delay is used to guarantee we are not interfering with the
+							// actual DROP event that can also trigger a mouse over event.
+							// See also: https://github.com/Microsoft/vscode/issues/10970
+							setTimeout(() => {
+								cleanUp();
+							}, 300);
 						});
 				}
 			}

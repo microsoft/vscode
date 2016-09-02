@@ -15,19 +15,19 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
+import {IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
-import {IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup} from 'vs/workbench/common/editor';
+import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
+import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {IEventService} from 'vs/platform/event/common/event';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
@@ -48,14 +48,15 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IMessageService messageService: IMessageService,
-		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IViewletService private viewletService: IViewletService,
+		@IEventService private eventService: IEventService
 	) {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
 
@@ -131,9 +132,12 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		// Also handle configuration updates
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 
+		// Also handle dirty count indicator #10556
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e) => this.updateDirtyIndicator()));
+
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
-		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
-			if (e.compositeId === VIEWLET_ID) {
+		this.toDispose.push(this.viewletService.onDidViewletOpen(viewlet => {
+			if (viewlet.getId() === VIEWLET_ID) {
 				this.fullRefreshNeeded = true;
 				this.structuralTreeUpdate();
 				this.updateDirtyIndicator();
@@ -200,6 +204,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
+		if (this.isDisposed) {
+			return; // guard against possible race condition when config change causes recreate of views
+		}
+
 		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.visible;
 		if (typeof visibleOpenEditors === 'number') {
 			this.visibleOpenEditors = visibleOpenEditors;

@@ -11,6 +11,8 @@
 	"foldLevel3Action.label": "Уровень сгиба 3",
 	"foldLevel4Action.label": "Уровень сгиба 4",
 	"foldLevel5Action.label": "Уровень сгиба 5",
+	"foldRecursivelyAction.label": "Свернуть рекурсивно",
+	"unFoldRecursivelyAction.label": "Развернуть рекурсивно",
 	"unfoldAction.label": "Развернуть",
 	"unfoldAllAction.label": "Развернуть все"
 }

@@ -33,6 +33,13 @@
 				"uiTheme": "hc-black",
 				"path": "./themes/hc_black.json"
 			}
+		],
+		"iconThemes": [
+			{
+				"id": "vs-standard",
+				"label": "Standard",
+				"path": "./fileicons/vs_standard.json"
+			}
 		]
 	}
 }

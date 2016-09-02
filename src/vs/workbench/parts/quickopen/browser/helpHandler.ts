@@ -127,9 +127,9 @@ export class HelpHandler extends QuickOpenHandler {
 		let registry = (<IQuickOpenRegistry>Registry.as(Extensions.Quickopen));
 		let handlerDescriptors = registry.getQuickOpenHandlers();
 
-		let defaultHandlers = registry.getDefaultQuickOpenHandlers();
-		if (defaultHandlers.length > 0) {
-			handlerDescriptors.push(...defaultHandlers);
+		let defaultHandler = registry.getDefaultQuickOpenHandler();
+		if (defaultHandler) {
+			handlerDescriptors.push(defaultHandler);
 		}
 
 		let workbenchScoped: HelpEntry[] = [];

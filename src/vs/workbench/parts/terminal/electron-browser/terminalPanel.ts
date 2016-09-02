@@ -14,11 +14,12 @@ import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ITerminalFont, TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import {ITerminalProcess, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalPanel, ITerminalProcess, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
@@ -28,7 +29,7 @@ import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import {TPromise} from 'vs/base/common/winjs.base';
 
-export class TerminalPanel extends Panel {
+export class TerminalPanel extends Panel implements ITerminalPanel {
 
 	private toDispose: lifecycle.IDisposable[] = [];
 	private terminalInstances: TerminalInstance[] = [];
@@ -61,10 +62,9 @@ export class TerminalPanel extends Panel {
 		if (!dimension) {
 			return;
 		}
-		let activeIndex = this.terminalService.getActiveTerminalIndex();
-		if (activeIndex !== -1 && this.terminalInstances.length > 0) {
-			this.terminalInstances[this.terminalService.getActiveTerminalIndex()].layout(dimension);
-		}
+		this.terminalInstances.forEach((t) => {
+			t.layout(dimension);
+		});
 	}
 
 	public getActions(): IAction[] {
@@ -84,7 +84,7 @@ export class TerminalPanel extends Panel {
 	private getContextMenuActions(): IAction[] {
 		if (!this.contextMenuActions) {
 			this.contextMenuActions = [
-				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New terminal")),
+				this.instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New Terminal")),
 				new Separator(),
 				this.instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy")),
 				this.instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste"))
@@ -104,7 +104,7 @@ export class TerminalPanel extends Panel {
 		return super.getActionItem(action);
 	}
 
-	public create(parent: Builder): TPromise<void> {
+	public create(parent: Builder): TPromise<any> {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
 		this.terminalService.initConfigHelper(parent);
@@ -122,7 +122,7 @@ export class TerminalPanel extends Panel {
 
 		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, parent);
 
-		return this.terminalService.createNew();
+		return TPromise.as(void 0);
 	}
 
 	private attachEventListeners(): void {
@@ -156,7 +156,6 @@ export class TerminalPanel extends Panel {
 					}
 				});
 			}
-			event.stopImmediatePropagation();
 		}));
 		this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mouseup', (event) => {
 			if (this.terminalInstances.length === 0) {
@@ -175,10 +174,11 @@ export class TerminalPanel extends Panel {
 		}));
 	}
 
-	public createNewTerminalInstance(terminalProcess: ITerminalProcess, terminalFocusContextKey: IKeybindingContextKey<boolean>): TPromise<void> {
-		return this.createTerminal(terminalProcess, terminalFocusContextKey).then(() => {
+	public createNewTerminalInstance(process: ITerminalProcess, focusContextKey: IContextKey<boolean>): TPromise<number> {
+		return this.createTerminal(process, focusContextKey).then((terminalInstance) => {
 			this.updateConfig();
 			this.focus();
+			return TPromise.as(terminalInstance.id);
 		});
 	}
 
@@ -187,10 +187,12 @@ export class TerminalPanel extends Panel {
 	}
 
 	public closeTerminal(index: number): TPromise<void> {
-		let self = this;
-		return new TPromise<void>(resolve => {
-			self.onTerminalInstanceExit(self.terminalInstances[index]);
-		});
+		this.onTerminalInstanceExit(this.terminalInstances[index]);
+		return TPromise.as(void 0);
+	}
+
+	public closeTerminalById(terminalId: number): TPromise<void> {
+		return this.closeTerminal(this.getTerminalIndexFromId(terminalId));
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -207,12 +209,27 @@ export class TerminalPanel extends Panel {
 		return super.setVisible(visible);
 	}
 
-	private createTerminal(terminalProcess: ITerminalProcess, terminalFocusContextKey: IKeybindingContextKey<boolean>): TPromise<TerminalInstance> {
+	public sendTextToActiveTerminal(text: string, addNewLine: boolean): void {
+		let terminalInstance = this.terminalInstances[this.terminalService.getActiveTerminalIndex()];
+		terminalInstance.sendText(text, addNewLine);
+	}
+
+	private createTerminal(terminalProcess: ITerminalProcess, terminalFocusContextKey: IContextKey<boolean>): TPromise<TerminalInstance> {
 		return new TPromise<TerminalInstance>(resolve => {
-			var terminalInstance = new TerminalInstance(terminalProcess, this.terminalContainer, this.contextMenuService, this.contextService, this.instantiationService, this.keybindingService, this.terminalService, this.messageService, terminalFocusContextKey, this.onTerminalInstanceExit.bind(this));
+			var terminalInstance = new TerminalInstance(
+				terminalProcess,
+				this.terminalContainer,
+				this.contextMenuService,
+				this.contextService,
+				this.instantiationService,
+				this.keybindingService,
+				this.terminalService,
+				this.messageService,
+				terminalFocusContextKey,
+				this.onTerminalInstanceExit.bind(this));
 			this.terminalInstances.push(terminalInstance);
 			this.setActiveTerminal(this.terminalInstances.length - 1);
-			this.toDispose.push(this.themeService.onDidThemeChange(this.updateTheme.bind(this)));
+			this.toDispose.push(this.themeService.onDidColorThemeChange(this.updateTheme.bind(this)));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateConfig.bind(this)));
 			this.updateTheme();
 			this.updateConfig();
@@ -220,10 +237,23 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
-	public setActiveTerminal(newActiveIndex: number) {
+	public setActiveTerminal(newActiveIndex: number): void {
 		this.terminalInstances.forEach((terminalInstance, i) => {
 			terminalInstance.toggleVisibility(i === newActiveIndex);
 		});
+	}
+
+	private getTerminalIndexFromId(terminalId: number): number {
+		let terminalIndex = -1;
+		this.terminalInstances.forEach((terminalInstance, i) => {
+			if (terminalInstance.id === terminalId) {
+				terminalIndex = i;
+			}
+		});
+		if (terminalIndex === -1) {
+			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
+		}
+		return terminalIndex;
 	}
 
 	private onTerminalInstanceExit(terminalInstance: TerminalInstance): void {
@@ -238,13 +268,13 @@ export class TerminalPanel extends Panel {
 		if (this.terminalInstances.length === 0) {
 			this.terminalService.hide();
 		} else {
-			this.terminalService.focus();
+			this.terminalService.show(true);
 		}
 	}
 
 	private updateTheme(themeId?: string): void {
 		if (!themeId) {
-			themeId = this.themeService.getTheme();
+			themeId = this.themeService.getColorTheme();
 		}
 
 		let baseThemeId = getBaseThemeId(themeId);
@@ -267,6 +297,14 @@ export class TerminalPanel extends Panel {
 		this.themeStyleElement.innerHTML = css;
 	}
 
+	public scrollDown(): void {
+		this.terminalInstances[this.terminalService.getActiveTerminalIndex()].scrollDown();
+	}
+
+	public scrollUp(): void {
+		this.terminalInstances[this.terminalService.getActiveTerminalIndex()].scrollUp();
+	}
+
 	/**
 	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
 	 */
@@ -280,6 +318,7 @@ export class TerminalPanel extends Panel {
 	private updateConfig(): void {
 		this.updateFont();
 		this.updateCursorBlink();
+		this.updateCommandsToSkipShell();
 	}
 
 	private updateFont(): void {
@@ -311,6 +350,12 @@ export class TerminalPanel extends Panel {
 	private updateCursorBlink(): void {
 		this.terminalInstances.forEach((instance) => {
 			instance.setCursorBlink(this.configurationHelper.getCursorBlink());
+		});
+	}
+
+	private updateCommandsToSkipShell(): void {
+		this.terminalInstances.forEach((instance) => {
+			instance.setCommandsToSkipShell(this.configurationHelper.getCommandsToSkipShell());
 		});
 	}
 

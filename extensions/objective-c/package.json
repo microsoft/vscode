@@ -8,7 +8,7 @@
 			"id": "objective-c",
 			"extensions": [ ".m" ],
 			"aliases": [ "Objective-C"],
-			"configuration": "./objective-c.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "objective-c",

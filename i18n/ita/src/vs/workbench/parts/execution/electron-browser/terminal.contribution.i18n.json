@@ -9,6 +9,7 @@
 	"scopedConsoleActionMacLinux": "Apri nel terminale",
 	"scopedConsoleActionWin": "Apri nel prompt dei comandi",
 	"terminal.external.linuxExec": "Personalizza il terminale da eseguire in Linux.",
+	"terminal.external.osxExec": "Personalizza l'applicazione di terminale da eseguire in OS X.",
 	"terminal.external.windowsExec": "Personalizza il terminale da eseguire in Windows.",
 	"terminalConfigurationTitle": "Terminale esterno"
 }

@@ -7,7 +7,5 @@
 	"createFile": "创建文件",
 	"fileEditorAriaLabel": "文本文件编辑器。",
 	"fileEditorWithInputAriaLabel": "{0}。文本文件编辑器。",
-	"fileTooLarge": "抱歉，文件太大，无法在编辑器中打开。",
-	"folderOutofWorkspace": "文件夹“{0}”不在当前打开的根文件夹内，无法在此实例中打开。",
 	"textFileEditor": "文本文件编辑器"
 }

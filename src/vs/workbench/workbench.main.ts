@@ -10,7 +10,10 @@ import 'vs/base/common/strings';
 import 'vs/base/common/errors';
 
 // Editor
+import 'vs/editor/contrib/accessibility/browser/accessibility';
+import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
+import 'vs/editor/contrib/suggest/electron-browser/snippetCompletion';
 import 'vs/editor/browser/editor.all';
 
 // Languages
@@ -41,6 +44,7 @@ import 'vs/workbench/parts/git/browser/gitQuickOpen';
 import 'vs/workbench/parts/git/browser/gitActions.contribution';
 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
+import 'vs/workbench/parts/debug/electron-browser/repl';
 
 import 'vs/workbench/parts/markers/markers.contribution';
 
@@ -48,7 +52,6 @@ import 'vs/workbench/parts/html/browser/html.contribution';
 
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen';
-
 
 import 'vs/workbench/parts/output/browser/output.contribution';
 
@@ -75,7 +78,9 @@ import 'vs/workbench/parts/welcome/electron-browser/electronGettingStarted.contr
 
 import 'vs/workbench/parts/update/electron-browser/update.contribution';
 
-import 'vs/workbench/electron-browser/darwin/cli.contribution';
+import 'vs/workbench/parts/nps/electron-browser/nps.contribution';
+
+import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
 
 import 'vs/workbench/api/node/extHost.contribution';
 

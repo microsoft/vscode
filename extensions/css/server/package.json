@@ -1,18 +1,22 @@
 {
-  "name": "vscode-css-server",
+  "name": "vscode-css-languageserver",
   "description": "CSS/LESS/SCSS language server",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "author": "Microsoft Corporation",
   "license": "MIT",
   "engines": {
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "^1.0.5-next.1",
-    "vscode-languageserver": "^2.2.0"
+    "vscode-css-languageservice": "^1.0.7-next.3",
+    "vscode-languageserver": "^2.4.0-next.4"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-server",
-    "watch": "gulp watch-extension:css-server"
+    "watch": "gulp watch-extension:css-server",
+    "install-service-next": "npm install vscode-css-languageservice@next -f -S",
+    "install-service-local": "npm install ../../../../vscode-css-languageservice -f -S",
+    "install-server-next": "npm install vscode-languageserver@next -f -S",
+    "install-server-local": "npm install ../../../../vscode-languageserver-node/server -f -S"
   }
 }

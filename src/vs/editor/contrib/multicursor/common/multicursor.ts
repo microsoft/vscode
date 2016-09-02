@@ -6,84 +6,95 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
-import {Handler, ICommonCodeEditor, IEditorActionDescriptorData, ISelection} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {Handler, ICommonCodeEditor, EditorContextKeys, ISelection} from 'vs/editor/common/editorCommon';
+import {editorAction, ServicesAccessor, EditorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
 
+@editorAction
 class InsertCursorAbove extends HandlerEditorAction {
-	static ID = 'editor.action.insertCursorAbove';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Handler.AddCursorUp);
-	}
-}
-
-class InsertCursorBelow extends HandlerEditorAction {
-	static ID = 'editor.action.insertCursorBelow';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Handler.AddCursorDown);
-	}
-}
-
-class InsertCursorAtEndOfEachLineSelected extends EditorAction {
-	static ID = 'editor.action.insertCursorAtEndOfEachLineSelected';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor);
-	}
-
-	public run(): TPromise<boolean> {
-		let selection = this.editor.getSelection();
-		if(!selection.isEmpty()) {
-			let model = this.editor.getModel();
-			let newSelections = new Array<ISelection>();
-			let selectionStart = selection.getStartPosition();
-			let selectionEnd = selection.getEndPosition();
-			for (var i = selectionStart.lineNumber; i <= selectionEnd.lineNumber; i++) {
-				if(i !== selectionEnd.lineNumber) {
-					let currentLineMaxColumn = model.getLineMaxColumn(i);
-					newSelections.push({
-						selectionStartLineNumber: i,
-						selectionStartColumn: currentLineMaxColumn,
-						positionLineNumber: i,
-						positionColumn: currentLineMaxColumn
-					});
-				} else if( selectionEnd.column > 0 ) {
-					newSelections.push({
-						selectionStartLineNumber: selectionEnd.lineNumber,
-						selectionStartColumn: selectionEnd.column,
-						positionLineNumber: selectionEnd.lineNumber,
-						positionColumn: selectionEnd.column
-					});
+	constructor() {
+		super({
+			id: 'editor.action.insertCursorAbove',
+			label: nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
+			alias: 'Add Cursor Above',
+			precondition: null,
+			handlerId: Handler.AddCursorUp,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
+				linux: {
+					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
 				}
 			}
-			this.editor.setSelections(newSelections);
-		}
-		return TPromise.as(true);
+		});
 	}
 }
 
+@editorAction
+class InsertCursorBelow extends HandlerEditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.insertCursorBelow',
+			label: nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
+			alias: 'Add Cursor Below',
+			precondition: null,
+			handlerId: Handler.AddCursorDown,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
+				linux: {
+					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow]
+				}
+			}
+		});
+	}
+}
 
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorAbove, InsertCursorAbove.ID, nls.localize('mutlicursor.insertAbove', "Add Cursor Above"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
-	linux: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
+@editorAction
+class InsertCursorAtEndOfEachLineSelected extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
+			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create Multiple Cursors from Selected Lines"),
+			alias: 'Create Multiple Cursors from Selected Lines',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
+			}
+		});
 	}
-}, 'Add Cursor Above'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorBelow, InsertCursorBelow.ID, nls.localize('mutlicursor.insertBelow', "Add Cursor Below"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
-	linux: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow]
+
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		let selection = editor.getSelection();
+		if (selection.isEmpty()) {
+			return;
+		}
+
+		let model = editor.getModel();
+		let newSelections = new Array<ISelection>();
+		let selectionStart = selection.getStartPosition();
+		let selectionEnd = selection.getEndPosition();
+		for (var i = selectionStart.lineNumber; i <= selectionEnd.lineNumber; i++) {
+			if(i !== selectionEnd.lineNumber) {
+				let currentLineMaxColumn = model.getLineMaxColumn(i);
+				newSelections.push({
+					selectionStartLineNumber: i,
+					selectionStartColumn: currentLineMaxColumn,
+					positionLineNumber: i,
+					positionColumn: currentLineMaxColumn
+				});
+			} else if( selectionEnd.column > 0 ) {
+				newSelections.push({
+					selectionStartLineNumber: selectionEnd.lineNumber,
+					selectionStartColumn: selectionEnd.column,
+					positionLineNumber: selectionEnd.lineNumber,
+					positionColumn: selectionEnd.column
+				});
+			}
+		}
+		editor.setSelections(newSelections);
 	}
-}, 'Add Cursor Below'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertCursorAtEndOfEachLineSelected, InsertCursorAtEndOfEachLineSelected.ID, nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create Multiple Cursors from Selected Lines"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
-}, 'Create Multiple Cursors from Selected Lines'));
+}

@@ -41,7 +41,9 @@ class WebWorker implements IWorker {
 	}
 
 	public postMessage(msg:string): void {
-		this.worker.postMessage(msg);
+		if (this.worker) {
+			this.worker.postMessage(msg);
+		}
 	}
 
 	public dispose(): void {

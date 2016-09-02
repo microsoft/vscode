@@ -5,12 +5,11 @@
 'use strict';
 
 import {Range} from 'vs/editor/common/core/range';
-import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
+import {IIdentifiedSingleEditOperation, IRange, IPosition} from 'vs/editor/common/editorCommon';
 
 export class EditOperation {
 
-	public static insert(position:Position, text:string): IIdentifiedSingleEditOperation {
+	public static insert(position:IPosition, text:string): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
 			range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
@@ -19,28 +18,28 @@ export class EditOperation {
 		};
 	}
 
-	public static delete(range:Range): IIdentifiedSingleEditOperation {
+	public static delete(range:IRange): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
-			range: range,
+			range: Range.lift(range),
 			text: null,
 			forceMoveMarkers: true
 		};
 	}
 
-	public static replace(range:Range, text:string): IIdentifiedSingleEditOperation {
+	public static replace(range:IRange, text:string): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
-			range: range,
+			range: Range.lift(range),
 			text: text,
 			forceMoveMarkers: false
 		};
 	}
 
-	public static replaceMove(range:Range, text:string): IIdentifiedSingleEditOperation {
+	public static replaceMove(range:IRange, text:string): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
-			range: range,
+			range: Range.lift(range),
 			text: text,
 			forceMoveMarkers: true
 		};

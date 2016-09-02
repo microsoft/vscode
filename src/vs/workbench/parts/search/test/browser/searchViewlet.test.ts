@@ -34,7 +34,7 @@ suite('Search - Viewlet', () => {
 
 		assert.equal(ds.getId(null, result), 'root');
 		assert.equal(ds.getId(null, fileMatch), 'file:///c%3A/foo');
-		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>1>0');
+		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>1>0b');
 
 		assert(!ds.hasChildren(null, 'foo'));
 		assert(ds.hasChildren(null, result));

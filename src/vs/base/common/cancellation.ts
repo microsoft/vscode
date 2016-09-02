@@ -12,6 +12,11 @@ export interface CancellationToken {
 	onCancellationRequested: Event<any>;
 }
 
+const shortcutEvent: Event<any> = Object.freeze(function(callback, context?) {
+	let handle = setTimeout(callback.bind(context), 0);
+	return { dispose() { clearTimeout(handle); } };
+});
+
 export namespace CancellationToken {
 
 	export const None: CancellationToken = Object.freeze({
@@ -21,14 +26,9 @@ export namespace CancellationToken {
 
 	export const Cancelled: CancellationToken = Object.freeze({
 		isCancellationRequested: true,
-		onCancellationRequested: Event.None
+		onCancellationRequested: shortcutEvent
 	});
 }
-
-const shortcutEvent: Event<any> = Object.freeze(function(callback, context?) {
-	let handle = setTimeout(callback.bind(context), 0);
-	return { dispose() { clearTimeout(handle); } };
-});
 
 class MutableToken implements CancellationToken {
 

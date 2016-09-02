@@ -24,6 +24,7 @@ suite('HTML - worker', () => {
 			null,
 			new MockModeService(),
 			null,
+			null,
 			null
 		);
 	})();
@@ -48,12 +49,12 @@ suite('HTML - worker', () => {
 		var env = mockHtmlWorkerEnv(url, content);
 
 		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
+		return env.worker.provideCompletionItems(url, position);
 	};
 
 	var assertSuggestion = function(completion: Modes.ISuggestResult, label: string, type?: string, codeSnippet?: string) {
 		var proposalsFound = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
-			return suggestion.label === label && (!type || suggestion.type === type) && (!codeSnippet || suggestion.codeSnippet === codeSnippet);
+			return suggestion.label === label && (!type || suggestion.type === type) && (!codeSnippet || suggestion.insertText === codeSnippet);
 		});
 		if (proposalsFound.length !== 1) {
 			assert.fail('Suggestion not found: ' + label + ', has ' + completion.suggestions.map(s => s.label).join(', '));

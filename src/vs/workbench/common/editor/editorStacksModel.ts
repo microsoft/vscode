@@ -12,7 +12,6 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
@@ -347,7 +346,7 @@ export class EditorGroup implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		this.fireEvent(this._onEditorClosed, { editor, pinned }, true);
+		this.fireEvent(this._onEditorClosed, { editor, pinned, index }, true);
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {
@@ -667,9 +666,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
 	constructor(
+		private restoreFromStorage: boolean,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.toDispose = [];
@@ -997,8 +996,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private load(): void {
-		const options = this.contextService.getOptions();
-		if ((options.filesToCreate && options.filesToCreate.length) || (options.filesToOpen && options.filesToOpen.length) || (options.filesToDiff && options.filesToDiff.length)) {
+		if (!this.restoreFromStorage) {
 			return; // do not load from last session if the user explicitly asks to open a set of files
 		}
 
@@ -1095,11 +1093,13 @@ export class EditorStacksModel implements IEditorStacksModel {
 	public isOpen(resource: URI): boolean;
 	public isOpen(editor: EditorInput): boolean;
 	public isOpen(arg1: any): boolean {
-		if (arg1 instanceof EditorInput) {
-			return this._groups.some(g => g.indexOf(arg1) >= 0);
-		}
+		return this._groups.some(group => group.contains(arg1));
+	}
 
-		return this._groups.some(group => group.contains(<URI>arg1));
+	public count(resource: URI): number;
+	public count(editor: EditorInput): number;
+	public count(arg1: any): number {
+		return this._groups.filter(group => group.contains(arg1)).length;
 	}
 
 	private onShutdown(): void {

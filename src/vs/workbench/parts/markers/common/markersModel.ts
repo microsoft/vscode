@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import * as Map from 'vs/base/common/map';
@@ -89,14 +88,14 @@ export class FilterOptions {
 
 export class MarkersModel {
 
-	private markersByResource: Map.SimpleMap<URI, IMarker[]>;
+	private markersByResource: Map.LinkedMap<URI, IMarker[]>;
 
 	private _filteredResources:Resource[];
 	private _nonFilteredResources:Resource[];
 	private _filterOptions:FilterOptions;
 
 	constructor(markers: IMarker[]= []) {
-		this.markersByResource= new Map.SimpleMap<URI, IMarker[]>();
+		this.markersByResource= new Map.LinkedMap<URI, IMarker[]>();
 		this._filterOptions= new FilterOptions();
 		this.update(markers);
 	}
@@ -159,7 +158,7 @@ export class MarkersModel {
 			if (b.statistics.errors === 0 && a.statistics.errors > 0) {
 				return -1;
 			}
-			return strings.localeCompare(a.path, b.path) || strings.localeCompare(a.name, b.name);
+			return a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
 		});
 	}
 

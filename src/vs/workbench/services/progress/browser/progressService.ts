@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {EventType, CompositeEvent} from 'vs/workbench/common/events';
-import {IEventService} from 'vs/platform/event/common/event';
+import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 
 interface ProgressState {
@@ -20,32 +20,32 @@ interface ProgressState {
 }
 
 export abstract class ScopedService {
-	private _eventService: IEventService;
-	private scopeId: string;
 
-	constructor(eventService: IEventService, scopeId: string) {
-		this._eventService = eventService;
-		this.scopeId = scopeId;
+	protected toDispose: lifecycle.IDisposable[];
 
+	constructor(private viewletService: IViewletService, private panelService: IPanelService, private scopeId: string) {
+		this.toDispose = [];
 		this.registerListeners();
 	}
 
-	public get eventService(): IEventService {
-		return this._eventService;
+	public registerListeners(): void {
+		this.toDispose.push(this.viewletService.onDidViewletOpen(viewlet => this.onScopeOpened(viewlet.getId())));
+		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.onScopeOpened(panel.getId())));
+
+		this.toDispose.push(this.viewletService.onDidViewletClose(viewlet => this.onScopeClosed(viewlet.getId())));
+		this.toDispose.push(this.panelService.onDidPanelClose(panel => this.onScopeClosed(panel.getId())));
 	}
 
-	public registerListeners(): void {
-		this.eventService.addListener2(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => {
-			if (e.compositeId === this.scopeId) {
-				this.onScopeDeactivated();
-			}
-		});
+	private onScopeClosed(scopeId: string) {
+		if (scopeId === this.scopeId) {
+			this.onScopeDeactivated();
+		}
+	}
 
-		this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
-			if (e.compositeId === this.scopeId) {
-				this.onScopeActivated();
-			}
-		});
+	private onScopeOpened(scopeId: string) {
+		if (scopeId === this.scopeId) {
+			this.onScopeActivated();
+		}
 	}
 
 	public abstract onScopeActivated(): void;
@@ -59,8 +59,14 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 	private progressbar: ProgressBar;
 	private progressState: ProgressState;
 
-	constructor(eventService: IEventService, progressbar: ProgressBar, scopeId?: string, isActive?: boolean) {
-		super(eventService, scopeId);
+	constructor(
+		progressbar: ProgressBar,
+		scopeId: string,
+		isActive: boolean,
+		@IViewletService viewletService: IViewletService,
+		@IPanelService panelService: IPanelService
+	) {
+		super(viewletService, panelService, scopeId);
 
 		this.progressbar = progressbar;
 		this.isActive = isActive || types.isUndefinedOrNull(scopeId); // If service is unscoped, enable by default
@@ -243,5 +249,9 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 				this.progressbar.infinite().getContainer().showDelayed(delay);
 			}
 		}
+	}
+
+	public dispose(): void {
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }

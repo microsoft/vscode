@@ -8,8 +8,8 @@ import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { ISystemVariables } from 'vs/base/common/parsers';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import {ISystemVariables} from 'vs/base/common/parsers';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 
 export class Adapter {
 

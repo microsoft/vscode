@@ -7,7 +7,7 @@
 	"derivedDescription": "比對名稱相同但副檔名不同的同層級檔案。",
 	"derivedLabel": "依名稱排列且同層級的檔案",
 	"falseDescription": "停用模式。",
-	"falseLabel": "False",
+	"falseLabel": "false",
 	"fileDescription": "比對所有具特定副檔名的檔案。",
 	"fileLabel": "依副檔名排列的檔案",
 	"filesDescription": "比對所有具任何副檔名的檔案。",
@@ -20,5 +20,5 @@
 	"topFoldersDescription": "比對多個最上層資料夾。",
 	"topFoldersLabel": "具多個名稱的資料夾 (最上層)",
 	"trueDescription": "啟用模式。",
-	"trueLabel": "True"
+	"trueLabel": "true"
 }

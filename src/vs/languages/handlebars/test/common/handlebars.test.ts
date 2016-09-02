@@ -57,6 +57,7 @@ suite('Handlebars', () => {
 			null,
 			modeService,
 			null,
+			null,
 			null
 		);
 

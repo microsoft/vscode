@@ -74,6 +74,7 @@ export class PackageJSONContribution implements IJSONContribution {
 										let proposal = new CompletionItem(name);
 										proposal.kind = CompletionItemKind.Property;
 										proposal.insertText = insertText;
+										proposal.filterText = JSON.stringify(name);
 										proposal.documentation = '';
 										collector.add(proposal);
 									}
@@ -105,6 +106,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					let proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = insertText;
+					proposal.filterText = JSON.stringify(name);
 					proposal.documentation = '';
 					collector.add(proposal);
 				});
@@ -119,29 +121,29 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			let currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(currentKey) + '/latest';
+				let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(currentKey).replace('%40', '@');
 				return this.xhr({
 					url : queryUrl
 				}).then((success) => {
 					try {
 						let obj = JSON.parse(success.responseText);
-						if (obj && obj.version) {
-							let version = obj.version;
-							let name = JSON.stringify(version);
+						let latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
+						if (latest) {
+							let name = JSON.stringify(latest);
 							let proposal = new CompletionItem(name);
 							proposal.kind = CompletionItemKind.Property;
 							proposal.insertText = name;
 							proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
 							result.add(proposal);
 
-							name = JSON.stringify('^' + version);
+							name = JSON.stringify('^' + latest);
 							proposal = new CompletionItem(name);
 							proposal.kind = CompletionItemKind.Property;
 							proposal.insertText = name;
 							proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
 							result.add(proposal);
 
-							name = JSON.stringify('~' + version);
+							name = JSON.stringify('~' + latest);
 							proposal = new CompletionItem(name);
 							proposal.kind = CompletionItemKind.Property;
 							proposal.insertText = name;
@@ -177,8 +179,8 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string[]> {
-		let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(pack) + '/latest';
 
+		let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(pack).replace('%40', '@');
 		return this.xhr({
 			url : queryUrl
 		}).then((success) => {
@@ -189,8 +191,9 @@ export class PackageJSONContribution implements IJSONContribution {
 					if (obj.description) {
 						result.push(obj.description);
 					}
-					if (obj.version) {
-						result.push(localize('json.npm.version.hover', 'Latest version: {0}', obj.version));
+					let latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
+					if (latest) {
+						result.push(localize('json.npm.version.hover', 'Latest version: {0}', latest));
 					}
 					return result;
 				}

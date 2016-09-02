@@ -8,17 +8,5 @@
 		"exclude": [
 			"node_modules"
 		]
-	},
-	"properties": {
-		"compilerOptions": {
-			"type": "object",
-			"description": "Instructs the JavaScript language service how to validate .js files",
-			"properties": {
-				"allowJs": {
-					"description": "Includes JS (requires TypeScript 1.8)",
-					"type": "boolean"
-				}
-			}
-		}
 	}
 }

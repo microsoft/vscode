@@ -8,7 +8,7 @@ import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IInstantiationService, IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
+import {IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -58,7 +58,10 @@ export interface IView extends IDisposable {
 	getCodeEditorHelper(): ICodeEditorHelper;
 
 	getCenteredRangeInViewport(): Range;
-	getVisibleRangeInViewport(): Range;
+	/**
+	 * Returns the range of lines in the view port which are completely visible.
+	 */
+	getCompletelyVisibleLinesRangeInViewport(): Range;
 
 	change(callback:(changeAccessor:IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
@@ -278,6 +281,8 @@ export interface IContentWidget {
 	 * Render this content widget in a location where it could overflow the editor's view dom node.
 	 */
 	allowEditorOverflow?: boolean;
+
+	suppressMouseDown?: boolean;
 	/**
 	 * Get a unique identifier of the content widget.
 	 */
@@ -380,19 +385,7 @@ export interface IEditorMouseEvent {
 /**
  * @internal
  */
-export type ISimpleEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
-
-/**
- * An editor contribution descriptor that will be used to construct editor contributions
- * @internal
- */
-export interface IEditorContributionDescriptor {
-	/**
-	 * Create an instance of the contribution
-	 */
-	createInstance(instantiationService:IInstantiationService, editor:ICodeEditor): editorCommon.IEditorContribution;
-}
-
+export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
 
 /**
  * An overview ruler

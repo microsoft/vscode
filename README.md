@@ -1,6 +1,8 @@
 # Visual Studio Code - Open Source
 
-[![Build Status](https://travis-ci.org/Microsoft/vscode.svg?branch=master)](https://travis-ci.org/Microsoft/vscode) [![Build status](https://ci.appveyor.com/api/projects/status/vuhlhg80tj3e2a0l?svg=true)](https://ci.appveyor.com/project/VSCode/vscode)
+[![Build Status](https://travis-ci.org/Microsoft/vscode.svg?branch=master)](https://travis-ci.org/Microsoft/vscode)
+[![Build status](https://ci.appveyor.com/api/projects/status/vuhlhg80tj3e2a0l?svg=true)](https://ci.appveyor.com/project/VSCode/vscode)
+[![Coverage Status](https://img.shields.io/coveralls/Microsoft/vscode/master.svg)](https://coveralls.io/github/Microsoft/vscode?branch=master)
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
 a code editor with what developers need for their core edit-build-debug cycle. Code
@@ -30,7 +32,8 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 ## Feedback
 
 * Ask a question on [Stack Overflow](http://stackoverflow.com/questions/tagged/vscode).
-* Request a feature on [User Voice](https://visualstudio.uservoice.com/forums/293070-visual-studio-code).
+* Request a new feature on [Github](CONTRIBUTING.md).
+* Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
 * File a bug in [GitHub Issues](https://github.com/Microsoft/vscode/issues).
 * [Tweet](https://twitter.com/code) us with other feedback.
 
@@ -40,4 +43,7 @@ Many of the core components and extensions to Code live in their own repositorie
 For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our wiki.
 
 ## License
-[MIT](LICENSE.txt)
+
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+Licensed under the [MIT](LICENSE.txt) License.

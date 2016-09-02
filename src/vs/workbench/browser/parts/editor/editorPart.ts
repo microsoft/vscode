@@ -99,6 +99,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	constructor(
 		id: string,
+		restoreFromStorage: boolean,
 		@IMessageService private messageService: IMessageService,
 		@IEventService private eventService: IEventService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -125,7 +126,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.pendingEditorInputsToClose = [];
 		this.pendingEditorInputCloseTimeout = null;
 
-		this.stacks = this.instantiationService.createInstance(EditorStacksModel);
+		this.stacks = this.instantiationService.createInstance(EditorStacksModel, restoreFromStorage);
 
 		const editorConfig = configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor;
 		this.previewEditors = editorConfig.enablePreview;
@@ -238,6 +239,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const pinned = !this.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
 		const active = (group.count === 0) || !options || !options.inactive;
 		group.openEditor(input, { active, pinned, index: options && options.index });
+
+		// indicate to the UI that an editor is about to open. we need to update the title because it could be that
+		// the input is already opened but the title has changed and the UI should reflect that
+		this.sideBySideControl.updateTitle({ group, editor: input });
 
 		// Return early if the editor is to be open inactive and there are other editors in this group to show
 		if (!active) {
@@ -354,7 +359,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Otherwise instantiate
-		const progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
+		const progressService = this.instantiationService.createInstance(WorkbenchProgressService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
 		const editorInstantiationService = this.sideBySideControl.getInstantiationService(position).createChild(new ServiceCollection([IProgressService, progressService]));
 		let loaded = false;
 
@@ -379,7 +384,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
 		}
 
-		return instantiateEditorPromise;
+		return instantiateEditorPromise.then(result => {
+			progressService.dispose();
+			return result;
+		});
 	}
 
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {
@@ -460,7 +468,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty([{ group, editor: input }]).then(veto => {
+		return this.handleDirty([{ group, editor: input }], true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -592,7 +600,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			editorsToClose = (direction === Direction.LEFT) ? group.getEditors().slice(0, group.indexOf(except)) : group.getEditors().slice(group.indexOf(except) + 1);
 		}
 
-		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; })).then(veto => {
+		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -624,27 +632,33 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Thus we make the non-active one active and then close the others
 		else {
 			this.openEditor(except, null, this.stacks.positionOfGroup(group)).done(() => {
-				this.doCloseEditors(group, except, direction);
+
+				// since the opening might have failed, we have to check again for the active editor
+				// being the expected one, otherwise we end up in an endless loop trying to open the
+				// editor
+				if (except.matches(group.activeEditor)) {
+					this.doCloseEditors(group, except, direction);
+				}
 			}, errors.onUnexpectedError);
 		}
 	}
 
-	private handleDirty(identifiers: EditorIdentifier[]): TPromise<boolean /* veto */> {
+	private handleDirty(identifiers: EditorIdentifier[], ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
 		if (!identifiers.length) {
 			return TPromise.as(false); // no veto
 		}
 
-		return this.doHandleDirty(identifiers.shift()).then(veto => {
+		return this.doHandleDirty(identifiers.shift(), ignoreIfOpenedInOtherGroup).then(veto => {
 			if (veto) {
 				return veto;
 			}
 
-			return this.handleDirty(identifiers);
+			return this.handleDirty(identifiers, ignoreIfOpenedInOtherGroup);
 		});
 	}
 
-	private doHandleDirty(identifier: EditorIdentifier): TPromise<boolean /* veto */> {
-		if (!identifier || !identifier.editor || !identifier.editor.isDirty()) {
+	private doHandleDirty(identifier: EditorIdentifier, ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
+		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.stacks.count(identifier.editor) > 1 /* allow to close a dirty editor if it is opened in another group */)) {
 			return TPromise.as(false); // no veto
 		}
 
@@ -754,6 +768,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, index?: number): void {
+		if (fromGroup.count === 1) {
+			const toGroup = this.stacks.groupAt(to);
+			if (!toGroup && this.stacks.positionOfGroup(fromGroup) < to) {
+				return; // do nothing if the group to move only has one editor and is the last group already
+			}
+		}
 
 		// When moving an editor, try to preserve as much view state as possible by checking
 		// for th editor to be a text editor and creating the options accordingly if so
@@ -761,7 +781,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const activeEditor = this.getActiveEditor();
 		if (activeEditor instanceof BaseTextEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
 			options = TextEditorOptions.create({ pinned: true, index });
-			(<TextEditorOptions>options).viewState(activeEditor.getControl().saveViewState());
+			(<TextEditorOptions>options).fromEditor(activeEditor.getControl());
 		}
 
 		// A move to another group is an open first...
@@ -940,6 +960,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 		}
 
+		let focusGroup = false;
+		const activeGroup = this.stacks.groupAt(activePosition);
+		if (!this.stacks.activeGroup || !activeGroup) {
+			focusGroup = true; // always focus group if this is the first group or we are about to open a new group
+		} else {
+			focusGroup = editors.some(e => !e.options || (!e.options.inactive && !e.options.preserveFocus)); // only focus if the editors to open are not opening as inactive or preserveFocus
+		}
+
 		// Open each input respecting the options. Since there can only be one active editor in each
 		// position, we have to pick the first input from each position and add the others as inactive
 		const promises: TPromise<BaseEditor>[] = [];
@@ -967,8 +995,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		return TPromise.join(promises).then(editors => {
 
-			// Ensure active position
-			this.focusGroup(activePosition);
+			// Adjust focus as needed
+			if (focusGroup) {
+				this.focusGroup(activePosition);
+			}
 
 			// Update stacks model for remaining inactive editors
 			[leftEditors, centerEditors, rightEditors].forEach((editors, index) => {
@@ -1049,7 +1079,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Unpinning an editor closes the preview editor if we have any
 			let handlePreviewEditor: TPromise<boolean> = TPromise.as(false);
 			if (group.previewEditor) {
-				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }]);
+				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }], true /* ignore if opened in other group */);
 			}
 
 			handlePreviewEditor.done(veto => {

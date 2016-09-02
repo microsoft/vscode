@@ -39,7 +39,9 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -60,6 +62,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	private explorerImportDelayer: ThrottledDelayer<void>;
 
 	private resourceContext: ResourceContextKey;
+	private folderContext: IContextKey<boolean>;
 
 	private shouldRefresh: boolean;
 
@@ -84,6 +87,8 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
@@ -99,6 +104,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.explorerImportDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.folderContext = new RawContextKey<boolean>('explorerResourceIsFolder', undefined).bindTo(contextKeyService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -111,6 +117,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'explorer-folders-view');
+		DOM.addClass(this.treeContainer, 'show-file-icons'); // always on, for now
 
 		this.tree = this.createViewer($(this.treeContainer));
 
@@ -193,6 +200,10 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
+		if (this.isDisposed) {
+			return; // guard against possible race condition when config change causes recreate of views
+		}
+
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
 
 		// Push down config updates to components of viewer
@@ -304,26 +315,26 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	public createViewer(container: Builder): ITree {
-		let dataSource = this.instantiationService.createInstance(FileDataSource);
-		let renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
-		let controller = this.instantiationService.createInstance(FileController, this.viewletState);
-		let sorter = new FileSorter();
+		const dataSource = this.instantiationService.createInstance(FileDataSource);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
+		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
+		const sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);
-		let dnd = this.instantiationService.createInstance(FileDragAndDrop);
-		let accessibility = this.instantiationService.createInstance(FileAccessibilityProvider);
+		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
+		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
 		this.explorerViewer = new Tree(container.getHTMLElement(), {
-			dataSource: dataSource,
-			renderer: renderer,
-			controller: controller,
-			sorter: sorter,
+			dataSource,
+			renderer,
+			controller,
+			sorter,
 			filter: this.filter,
-			dnd: dnd,
-			accessibilityProvider: accessibility
+			dnd,
+			accessibilityProvider
 		}, {
-				autoExpandSingleChildren: true,
-				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
-			});
+			autoExpandSingleChildren: true,
+			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
+		});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 
@@ -332,7 +343,10 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
 
 		// Update resource context based on focused element
-		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => this.resourceContext.set(e.focus && e.focus.resource)));
+		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => {
+			this.resourceContext.set(e.focus && e.focus.resource);
+			this.folderContext.set(e.focus && e.focus.isDirectory);
+		}));
 
 		return this.explorerViewer;
 	}
@@ -360,6 +374,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				// Add the new file to its parent (Model)
 				let childElement = FileStat.create(addedElement);
+				parentElement.removeChild(childElement); // make sure to remove any previous version of the file if any
 				parentElement.addChild(childElement);
 
 				let refreshPromise = () => {

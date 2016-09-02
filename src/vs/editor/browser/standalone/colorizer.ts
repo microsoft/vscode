@@ -5,6 +5,7 @@
 'use strict';
 
 import {RunOnceScheduler} from 'vs/base/common/async';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {ILineTokens, IMode} from 'vs/editor/common/modes';
@@ -25,18 +26,37 @@ export class Colorizer {
 
 	public static colorizeElement(modeService:IModeService, domNode:HTMLElement, options:IColorizerElementOptions): TPromise<void> {
 		options = options || {};
-		var theme = options.theme || 'vs';
-		var mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
+		let theme = options.theme || 'vs';
+		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
 		if (!mimeType) {
 			console.error('Mode not detected');
 			return;
 		}
-		var text = domNode.firstChild.nodeValue;
+		let text = domNode.firstChild.nodeValue;
 		domNode.className += 'monaco-editor ' + theme;
-		var render = (str:string) => {
+		let render = (str:string) => {
 			domNode.innerHTML = str;
 		};
 		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err), render);
+	}
+
+	private static _tokenizationSupportChangedPromise(target:IMode): TPromise<void> {
+		let listener: IDisposable = null;
+		let stopListening = () => {
+			if (listener) {
+				listener.dispose();
+				listener = null;
+			}
+		};
+
+		return new TPromise<void>((c, e, p) => {
+			listener = target.addSupportChangedListener((e) => {
+				if (e.tokenizationSupport) {
+					stopListening();
+					c(void 0);
+				}
+			});
+		}, stopListening);
 	}
 
 	public static colorize(modeService:IModeService, text:string, mimeType:string, options:IColorizerOptions): TPromise<string> {
@@ -45,26 +65,26 @@ export class Colorizer {
 			options.tabSize = 4;
 		}
 
-		var lines = text.split('\n'),
-			c: (v:string)=>void,
-			e: (err:any)=>void,
-			p: (v:string)=>void,
-			isCancelled = false,
-			mode: IMode;
+		let lines = text.split('\n');
+		let c: (v:string)=>void;
+		let e: (err:any)=>void;
+		let p: (v:string)=>void;
+		let isCanceled = false;
+		let mode: IMode;
 
-		var result = new TPromise<string>((_c, _e, _p) => {
+		let result = new TPromise<string>((_c, _e, _p) => {
 			c = _c;
 			e = _e;
 			p = _p;
 		}, () => {
-			isCancelled = true;
+			isCanceled = true;
 		});
 
-		var colorize = new RunOnceScheduler(() => {
-			if (isCancelled) {
+		let colorize = new RunOnceScheduler(() => {
+			if (isCanceled) {
 				return;
 			}
-			var r = actualColorize(lines, mode, options.tabSize);
+			let r = actualColorize(lines, mode, options.tabSize);
 			if (r.retokenize.length > 0) {
 				// There are retokenization requests
 				r.retokenize.forEach((p) => p.then(scheduleColorize));
@@ -74,7 +94,7 @@ export class Colorizer {
 				c(r.result);
 			}
 		}, 0);
-		var scheduleColorize = () => colorize.schedule();
+		let scheduleColorize = () => colorize.schedule();
 
 		modeService.getOrCreateMode(mimeType).then((_mode) => {
 			if (!_mode) {
@@ -82,7 +102,15 @@ export class Colorizer {
 				return;
 			}
 			if (!_mode.tokenizationSupport) {
-				e('Mode found ("' + _mode.getId() + '"), but does not support tokenization.');
+				// wait 500ms for mode to load, then give up
+				TPromise.any([this._tokenizationSupportChangedPromise(_mode), TPromise.timeout(500)]).then(_ => {
+					if (!_mode.tokenizationSupport) {
+						e('Mode found ("' + _mode.getId() + '"), but does not support tokenization.');
+						return;
+					}
+					mode = _mode;
+					scheduleColorize();
+				});
 				return;
 			}
 			mode = _mode;
@@ -93,7 +121,7 @@ export class Colorizer {
 	}
 
 	public static colorizeLine(line:string, tokens:ViewLineToken[], tabSize:number = 4): string {
-		var renderResult = renderLine(new RenderLineInput(
+		let renderResult = renderLine(new RenderLineInput(
 			line,
 			tabSize,
 			0,
@@ -106,9 +134,9 @@ export class Colorizer {
 	}
 
 	public static colorizeModelLine(model:IModel, lineNumber:number, tabSize:number = 4): string {
-		var content = model.getLineContent(lineNumber);
-		var tokens = model.getLineTokens(lineNumber, false);
-		var inflatedTokens = tokens.inflate();
+		let content = model.getLineContent(lineNumber);
+		let tokens = model.getLineTokens(lineNumber, false);
+		let inflatedTokens = tokens.inflate();
 		return this.colorizeLine(content, inflatedTokens, tabSize);
 	}
 }
@@ -120,7 +148,7 @@ interface IActualColorizeResult {
 }
 
 function actualColorize(lines:string[], mode:IMode, tabSize:number): IActualColorizeResult {
-	var tokenization = mode.tokenizationSupport,
+	let tokenization = mode.tokenizationSupport,
 		html:string[] = [],
 		state = tokenization.getInitialState(),
 		i:number,

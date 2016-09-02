@@ -8,7 +8,7 @@
 			"id": "java",
 			"extensions": [ ".java", ".jav" ],
 			"aliases": [ "Java", "java" ],
-			"configuration": "./java.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "java",

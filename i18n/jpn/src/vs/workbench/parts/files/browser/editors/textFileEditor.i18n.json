@@ -7,7 +7,5 @@
 	"createFile": "ファイルの作成",
 	"fileEditorAriaLabel": "テキスト ファイル エディター。",
 	"fileEditorWithInputAriaLabel": "{0}。テキスト ファイル エディター。",
-	"fileTooLarge": "申し訳ありませんが、ファイルが大きすぎてエディター内で開くことができません。",
-	"folderOutofWorkspace": "フォルダー '{0}' は現在開いているルート フォルダーの外にあり、このインスタンスでは開くことができません。",
 	"textFileEditor": "テキスト ファイル エディター"
 }

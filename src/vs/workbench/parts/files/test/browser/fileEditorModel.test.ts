@@ -185,28 +185,6 @@ suite('Files - TextFileEditorModel', () => {
 		});
 	});
 
-	test('Dirty tracking', function (done) {
-		let resource = toResource('/path/index_async.txt');
-		let i1 = instantiationService.createInstance(FileEditorInput, resource, 'text/plain', 'utf8');
-
-		i1.resolve().then((m1: TextFileEditorModel) => {
-			let dirty = m1.getLastDirtyTime();
-			assert.ok(!dirty);
-
-			m1.textEditorModel.setValue('foo');
-
-			assert.ok(m1.isDirty());
-			assert.ok(m1.getLastDirtyTime() > dirty);
-
-			assert.ok(textFileService.isDirty(resource));
-			assert.equal(textFileService.getDirty().length, 1);
-
-			m1.dispose();
-
-			done();
-		});
-	});
-
 	test('save() and isDirty() - proper with check for mtimes', function (done) {
 		let c1 = instantiationService.createInstance(FileEditorInput, toResource('/path/index_async2.txt'), 'text/plain', 'utf8');
 		let c2 = instantiationService.createInstance(FileEditorInput, toResource('/path/index_async.txt'), 'text/plain', 'utf8');
@@ -233,6 +211,8 @@ suite('Files - TextFileEditorModel', () => {
 						assert.ok(!textFileService.isDirty(toResource('/path/index_async2.txt')));
 						assert.ok(m1.getLastModifiedTime() > m1Mtime);
 						assert.ok(m2.getLastModifiedTime() > m2Mtime);
+						assert.ok(m1.getLastSaveAttemptTime() > m1Mtime);
+						assert.ok(m2.getLastSaveAttemptTime() > m2Mtime);
 
 						m1.dispose();
 						m2.dispose();

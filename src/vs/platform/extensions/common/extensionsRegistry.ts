@@ -249,7 +249,8 @@ const schema: IJSONSchema = {
 			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
 			type: 'array',
 			items: {
-				type: 'string'
+				type: 'string',
+				defaultSnippets: [{ label: 'onLanguage', body: 'onLanguage:{{languageId}}'}, {label: 'onCommand', body: 'onCommand:{{commandId}}'}, {label: 'onDebug', body: 'onDebug:{{type}}'}, {label: 'workspaceContains', body: 'workspaceContains:{{fileName}}'}],
 			}
 		},
 		extensionDependencies: {

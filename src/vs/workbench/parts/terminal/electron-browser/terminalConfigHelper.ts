@@ -124,7 +124,7 @@ export class TerminalConfigHelper {
 	}
 
 	/**
-	 * Gets the font information based on the terminal.integrated.fontFamily,
+	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
 	public getFont(): ITerminalFont {
@@ -169,7 +169,7 @@ export class TerminalConfigHelper {
 		return shell;
 	}
 
-	public isSetLocaleVariables() {
+	public isSetLocaleVariables(): boolean {
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 		return config.terminal.integrated.setLocaleVariables;
 	}
@@ -183,5 +183,10 @@ export class TerminalConfigHelper {
 			r = Math.max(minimum, r);
 		}
 		return r;
+	}
+
+	public getCommandsToSkipShell(): string[] {
+		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		return config.terminal.integrated.commandsToSkipShell;
 	}
 }

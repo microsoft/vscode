@@ -40,10 +40,10 @@ export class RichEditBrackets implements IRichEditBrackets {
 		this.textIsOpenBracket = {};
 		this.maxBracketLength = 0;
 		this.brackets.forEach((b) => {
-			this.textIsBracket[b.open] = b;
-			this.textIsBracket[b.close] = b;
-			this.textIsOpenBracket[b.open] = true;
-			this.textIsOpenBracket[b.close] = false;
+			this.textIsBracket[b.open.toLowerCase()] = b;
+			this.textIsBracket[b.close.toLowerCase()] = b;
+			this.textIsOpenBracket[b.open.toLowerCase()] = true;
+			this.textIsOpenBracket[b.close.toLowerCase()] = false;
 			this.maxBracketLength = Math.max(this.maxBracketLength, b.open.length);
 			this.maxBracketLength = Math.max(this.maxBracketLength, b.close.length);
 		});

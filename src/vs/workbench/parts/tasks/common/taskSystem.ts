@@ -188,9 +188,21 @@ export interface ITaskSummary {
 	exitCode?: number;
 }
 
-export interface ITaskRunResult {
-	restartOnFileChanges?: string;
+export enum TaskExecuteKind {
+	Started = 1,
+	Active = 2
+}
+
+export interface ITaskExecuteResult {
+	kind: TaskExecuteKind;
 	promise: TPromise<ITaskSummary>;
+	started?: {
+		restartOnFileChanges?: string;
+	};
+	active?: {
+		same: boolean;
+		watching: boolean;
+	};
 }
 
 export namespace TaskSystemEvents {
@@ -210,11 +222,11 @@ export interface TaskEvent {
 }
 
 export interface ITaskSystem extends IEventEmitter {
-	build(): ITaskRunResult;
-	rebuild(): ITaskRunResult;
-	clean(): ITaskRunResult;
-	runTest(): ITaskRunResult;
-	run(taskIdentifier: string): ITaskRunResult;
+	build(): ITaskExecuteResult;
+	rebuild(): ITaskExecuteResult;
+	clean(): ITaskExecuteResult;
+	runTest(): ITaskExecuteResult;
+	run(taskIdentifier: string): ITaskExecuteResult;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;
 	canAutoTerminate(): boolean;

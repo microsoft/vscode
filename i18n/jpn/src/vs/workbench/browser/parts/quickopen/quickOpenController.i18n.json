@@ -6,6 +6,7 @@
 {
 	"canNotRunPlaceholder": "このクイック オープン ハンドラーは現在のコンテキストでは使用できません",
 	"emptyPicks": "選べるエントリがありません",
+	"entryAriaLabel": "{0}、最近開いたもの",
 	"historyMatches": "最近開いたもの",
 	"inputModeEntry": "'Enter' を押して入力を確認するか 'Escape' を押して取り消します",
 	"inputModeEntryDescription": "{0} ('Enter' を押して確認するか 'Escape' を押して取り消します)",

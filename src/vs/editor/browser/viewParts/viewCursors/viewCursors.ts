@@ -9,7 +9,7 @@ import 'vs/css!./viewCursors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import {IViewCursorRenderData, ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
@@ -38,6 +38,7 @@ export class ViewCursors extends ViewPart {
 
 	private _primaryCursor: ViewCursor;
 	private _secondaryCursors: ViewCursor[];
+	private _renderData: IViewCursorRenderData[];
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -48,6 +49,7 @@ export class ViewCursors extends ViewPart {
 
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
+		this._renderData = [];
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._updateDomClassName();
@@ -309,9 +311,17 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public render(ctx: IRestrictedRenderingContext): void {
-		this._primaryCursor.render(ctx);
+		this._renderData = [];
+		this._renderData.push(this._primaryCursor.render(ctx));
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._secondaryCursors[i].render(ctx);
+			this._renderData.push(this._secondaryCursors[i].render(ctx));
 		}
+
+		// Keep only data of cursors that are visible
+		this._renderData = this._renderData.filter(d => !!d);
+	}
+
+	public getLastRenderData(): IViewCursorRenderData[] {
+		return this._renderData;
 	}
 }

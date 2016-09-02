@@ -18,12 +18,12 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -37,7 +37,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		id: string,
 		@IMessageService messageService: IMessageService,
 		@IStorageService storageService: IStorageService,
-		@IEventService eventService: IEventService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
@@ -47,7 +46,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		super(
 			messageService,
 			storageService,
-			eventService,
 			telemetryService,
 			contextMenuService,
 			partService,
@@ -60,6 +58,14 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			Scope.VIEWLET,
 			id
 		);
+	}
+
+	public get onDidViewletOpen(): Event<IViewlet> {
+		return this._onDidCompositeOpen.event;
+	}
+
+	public get onDidViewletClose(): Event<IViewlet> {
+		return this._onDidCompositeClose.event;
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
@@ -89,7 +95,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	public hideActiveViewlet(): TPromise<void> {
-		return this.hideActiveComposite();
+		return this.hideActiveComposite().then(composite => void 0);
 	}
 }
 

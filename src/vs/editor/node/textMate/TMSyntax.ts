@@ -10,11 +10,11 @@ import * as paths from 'vs/base/common/paths';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ILineTokens, IMode, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
-import {LineTokens, Token} from 'vs/editor/common/modes/supports';
+import {LineTokens} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IGrammar, Registry, StackElement} from 'vscode-textmate';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {Token} from 'vs/editor/common/core/token';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -55,10 +55,6 @@ let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtens
 	}
 });
 
-interface MyEditorConfig {
-	useExperimentalParser: boolean;
-}
-
 export class MainProcessTextMateSyntax {
 	private _grammarRegistry: Registry;
 	private _modeService: IModeService;
@@ -66,20 +62,11 @@ export class MainProcessTextMateSyntax {
 	private _injections: { [scopeName:string]: string[]; };
 
 	constructor(
-		@IModeService modeService: IModeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IModeService modeService: IModeService
 	) {
 		this._modeService = modeService;
 		this._scopeNameToFilePath = {};
 		this._injections = {};
-
-		let editorConfig = configurationService.getConfiguration<MyEditorConfig>('editor');
-		let useExperimentalParser = true;
-		if (typeof editorConfig.useExperimentalParser !== 'undefined') {
-			if (Boolean(editorConfig.useExperimentalParser) === false) {
-				useExperimentalParser = false;
-			}
-		}
 
 		this._grammarRegistry = new Registry({
 			getFilePath: (scopeName:string) => {
@@ -88,7 +75,7 @@ export class MainProcessTextMateSyntax {
 			getInjections: (scopeName:string) => {
 				return this._injections[scopeName];
 			}
-		}, useExperimentalParser);
+		});
 
 		grammarsExtPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
@@ -261,11 +248,11 @@ class Tokenizer {
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
 		// Do not attempt to tokenize if a line has over 20k
-		// or if the rule stack contains more than 30 rules (indicator of broken grammar that forgets to pop rules)
-		if (line.length >= 20000 || depth(state.getRuleStack()) > 30) {
+		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
+		if (line.length >= 20000 || depth(state.getRuleStack()) > 100) {
 			return new LineTokens(
 				[new Token(offsetDelta, '')],
-				[new ModeTransition(offsetDelta, state.getMode())],
+				[new ModeTransition(offsetDelta, state.getMode().getId())],
 				offsetDelta,
 				state
 			);
@@ -292,7 +279,7 @@ class Tokenizer {
 
 		return new LineTokens(
 			tokens,
-			[new ModeTransition(offsetDelta, freshState.getMode())],
+			[new ModeTransition(offsetDelta, freshState.getMode().getId())],
 			offsetDelta + line.length,
 			freshState
 		);

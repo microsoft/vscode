@@ -9,26 +9,8 @@
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
-				"999999"
-			],
-			"cwd": "${workspaceRoot}",
-			"runtimeArgs": [],
-			"env": {},
-			"sourceMaps": true,
-			"outDir": "${workspaceRoot}/out"
-		},
-		{
-			"name": "Stacks Tests",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"stopOnEntry": false,
-			"args": [
-				"--timeout",
 				"999999",
-				"--colors",
-				"-g",
-				"Stacks"
+				"Emmet"
 			],
 			"cwd": "${workspaceRoot}",
 			"runtimeArgs": [],
@@ -41,6 +23,14 @@
 			"type": "node",
 			"request": "attach",
 			"port": 5870,
+			"sourceMaps": true,
+			"outDir": "${workspaceRoot}/out"
+		},
+		{
+			"name": "Attach to Shared Process",
+			"type": "node",
+			"request": "attach",
+			"port": 5871,
 			"sourceMaps": true,
 			"outDir": "${workspaceRoot}/out"
 		},
@@ -85,13 +75,6 @@
 			"request": "launch",
 			"runtimeExecutable": "${workspaceRoot}/scripts/code.bat",
 			"sourceMaps": true
-		},
-		{
-			"name": "Convert css-schema to browser.js",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceRoot}/src/vs/languages/css/common/buildscripts/generate_browserjs.js",
-			"stopOnEntry": false
 		},
 		{
 			"name": "Debug monaco",

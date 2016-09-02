@@ -132,7 +132,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		var restoreRevealEvent:editorCommon.IViewRevealRangeEvent = {
 			range: newCenteredViewRange,
 			verticalType: editorCommon.VerticalRevealType.Center,
-			revealHorizontal: false
+			revealHorizontal: false,
+			revealCursor: false
 		};
 		this.emit(editorCommon.ViewEventNames.RevealRangeEvent, restoreRevealEvent);
 	}

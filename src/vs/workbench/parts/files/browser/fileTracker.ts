@@ -149,10 +149,10 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private updateActivityBadge(): void {
-		let dirtyCount = this.textFileService.getDirty().length;
+		const dirtyCount = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirtyCount;
 		if (dirtyCount > 0) {
-			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, (num) => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
+			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		} else {
 			this.activityService.clearActivity(VIEWLET_ID);
 		}
@@ -166,50 +166,51 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Handle moves specially when file is opened
 		if (e.gotMoved()) {
-			let before = e.getBefore();
-			let after = e.getAfter();
+			const before = e.getBefore();
+			const after = e.getAfter();
 
-			this.handleMovedFileInVisibleEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
+			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
 		}
 
-		// Dispose all known inputs passed on resource
-		let oldFile = e.getBefore();
-		if ((e.gotMoved() || e.gotDeleted())) {
-			this.handleDelete(oldFile.resource);
+		// Dispose all known inputs passed on resource if deleted or moved
+		const oldFile = e.getBefore();
+		const movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
+		if (e.gotMoved() || e.gotDeleted()) {
+			this.handleDeleteOrMove(oldFile.resource, movedTo);
 		}
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Dispose inputs that got deleted
-		let allDeleted = e.getDeleted();
+		const allDeleted = e.getDeleted();
 		if (allDeleted && allDeleted.length > 0) {
-			allDeleted.forEach((deleted) => {
-				this.handleDelete(deleted.resource);
+			allDeleted.forEach(deleted => {
+				this.handleDeleteOrMove(deleted.resource);
 			});
 		}
 
 		// Dispose models that got changed and are not visible. We do this because otherwise
 		// cached file models will be stale from the contents on disk.
 		e.getUpdated()
-			.map((u) => CACHE.get(u.resource))
-			.filter((model) => {
-				let canDispose = this.canDispose(model);
+			.map(u => CACHE.get(u.resource))
+			.filter(model => {
+				const canDispose = this.canDispose(model);
 				if (!canDispose) {
 					return false;
 				}
 
-				if (Date.now() - model.getLastDirtyTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
+				if (Date.now() - model.getLastSaveAttemptTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
 					return false; // this is a weak check to see if the change came from outside the editor or not
 				}
 
 				return true; // ok boss
 			})
-			.forEach((model) => CACHE.dispose(model.getResource()));
+			.forEach(model => CACHE.dispose(model.getResource()));
 
 		// Update inputs that got updated
-		let editors = this.editorService.getVisibleEditors();
-		editors.forEach((editor) => {
+		const editors = this.editorService.getVisibleEditors();
+		editors.forEach(editor => {
 			let input = editor.input;
 			if (input instanceof DiffEditorInput) {
 				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, e);
@@ -217,28 +218,27 @@ export class FileTracker implements IWorkbenchContribution {
 
 			// File Editor Input
 			if (input instanceof FileEditorInput) {
-				let fileInput = <FileEditorInput>input;
-				let fileInputResource = fileInput.getResource();
+				const fileInput = <FileEditorInput>input;
+				const fileInputResource = fileInput.getResource();
 
 				// Input got added or updated, so check for model and update
 				// Note: we also consider the added event because it could be that a file was added
 				// and updated right after.
 				if (e.contains(fileInputResource, FileChangeType.UPDATED) || e.contains(fileInputResource, FileChangeType.ADDED)) {
-					let textModel = CACHE.get(fileInputResource);
+					const textModel = CACHE.get(fileInputResource);
 
-					// Text file: check for last dirty time
+					// Text file: check for last save time
 					if (textModel) {
-						let state = textModel.getState();
 
 						// We only ever update models that are in good saved state
-						if (state === ModelState.SAVED) {
-							let lastDirtyTime = textModel.getLastDirtyTime();
+						if (textModel.getState() === ModelState.SAVED) {
+							const lastSaveTime = textModel.getLastSaveAttemptTime();
 
 							// Force a reopen of the input if this change came in later than our wait interval before we consider it
-							if (Date.now() - lastDirtyTime > FileTracker.FILE_CHANGE_UPDATE_DELAY) {
-								let codeEditor = (<BaseTextEditor>editor).getControl();
-								let viewState = codeEditor.saveViewState();
-								let currentMtime = textModel.getLastModifiedTime(); // optimize for the case where the file did actually not change
+							if (Date.now() - lastSaveTime > FileTracker.FILE_CHANGE_UPDATE_DELAY) {
+								const codeEditor = (<BaseTextEditor>editor).getControl();
+								const viewState = codeEditor.saveViewState();
+								const currentMtime = textModel.getLastModifiedTime(); // optimize for the case where the file did actually not change
 								textModel.load().done(() => {
 									if (textModel.getLastModifiedTime() !== currentMtime && this.isEditorShowingPath(<BaseEditor>editor, textModel.getResource())) {
 										codeEditor.restoreViewState(viewState);
@@ -278,47 +278,29 @@ export class FileTracker implements IWorkbenchContribution {
 		return input instanceof FileEditorInput && (<FileEditorInput>input).getResource().toString() === resource.toString();
 	}
 
-	private handleMovedFileInVisibleEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
-		let stacks = this.editorGroupService.getStacksModel();
-		let editors = this.editorService.getVisibleEditors();
-		editors.forEach(editor => {
-			let group = stacks.groupAt(editor.position);
-			let input = editor.input;
-			if (input instanceof DiffEditorInput) {
-				input = (<DiffEditorInput>input).modifiedInput;
-			}
+	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
+		const stacks = this.editorGroupService.getStacksModel();
+		stacks.groups.forEach(group => {
+			group.getEditors().forEach(input => {
+				if (input instanceof FileEditorInput) {
+					const resource = input.getResource();
 
-			let inputResource: URI;
-			if (input instanceof FileEditorInput) {
-				inputResource = (<FileEditorInput>input).getResource();
-			}
+					// Update Editor if file (or any parent of the input) got renamed or moved
+					if (paths.isEqualOrParent(resource.fsPath, oldResource.fsPath)) {
+						let reopenFileResource: URI;
+						if (oldResource.toString() === resource.toString()) {
+							reopenFileResource = newResource; // file got moved
+						} else {
+							const index = resource.fsPath.indexOf(oldResource.fsPath);
+							reopenFileResource = URI.file(paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1))); // parent folder got moved
+						}
 
-			// Editor Input with associated Resource
-			if (inputResource) {
-
-				// Update Editor if file (or any parent of the input) got renamed or moved
-				let updateInput = false;
-				if (paths.isEqualOrParent(inputResource.fsPath, oldResource.fsPath)) {
-					updateInput = true;
-				}
-
-				// Do update from move
-				if (updateInput) {
-					let reopenFileResource: URI;
-					if (oldResource.toString() === inputResource.toString()) {
-						reopenFileResource = newResource;
-					} else {
-						let index = inputResource.fsPath.indexOf(oldResource.fsPath);
-						reopenFileResource = URI.file(paths.join(newResource.fsPath, inputResource.fsPath.substr(index + oldResource.fsPath.length + 1))); // update the path by changing the old path value to the new one
-					}
-
-					// Reopen File Input
-					if (input instanceof FileEditorInput) {
+						// Reopen
 						const editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
-						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input) }, editor.position).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
 				}
-			}
+			});
 		});
 	}
 
@@ -327,8 +309,8 @@ export class FileTracker implements IWorkbenchContribution {
 	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, arg: any): FileEditorInput {
 
 		// First try modifiedInput
-		let modifiedInput = input.modifiedInput;
-		let res = this.getMatchingFileEditorInputFromInput(modifiedInput, arg);
+		const modifiedInput = input.modifiedInput;
+		const res = this.getMatchingFileEditorInputFromInput(modifiedInput, arg);
 		if (res) {
 			return res;
 		}
@@ -342,12 +324,12 @@ export class FileTracker implements IWorkbenchContribution {
 	private getMatchingFileEditorInputFromInput(input: EditorInput, arg: any): FileEditorInput {
 		if (input instanceof FileEditorInput) {
 			if (arg instanceof URI) {
-				let deletedResource = <URI>arg;
+				const deletedResource = <URI>arg;
 				if (this.containsResource(input, deletedResource)) {
 					return input;
 				}
 			} else {
-				let updatedFiles = <FileChangesEvent>arg;
+				const updatedFiles = <FileChangesEvent>arg;
 				if (updatedFiles.contains(input.getResource(), FileChangeType.UPDATED)) {
 					return input;
 				}
@@ -357,13 +339,13 @@ export class FileTracker implements IWorkbenchContribution {
 		return null;
 	}
 
-	private handleDelete(resource: URI): void {
+	public handleDeleteOrMove(resource: URI, movedTo?: URI): void {
 		if (this.textFileService.isDirty(resource)) {
 			return; // never dispose dirty resources from a delete
 		}
 
 		// Add existing clients matching resource
-		let inputsContainingPath: EditorInput[] = FileEditorInput.getAll(resource);
+		const inputsContainingPath: EditorInput[] = FileEditorInput.getAll(resource);
 
 		// Collect from history and opened editors and see which ones to pick
 		const candidates = this.historyService.getHistory();
@@ -382,9 +364,16 @@ export class FileTracker implements IWorkbenchContribution {
 			}
 		});
 
-		inputsContainingPath.forEach((input) => {
+		inputsContainingPath.forEach(input => {
 			if (input.isDirty()) {
 				return; // never dispose dirty resources from a delete
+			}
+
+			// Special case: a resource was renamed to the same path with different casing. Since our paths
+			// API is treating the paths as equal (they are on disk), we end up disposing the input we just
+			// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
+			if (input instanceof FileEditorInput && movedTo && movedTo.fsPath === input.getResource().fsPath) {
+				return;
 			}
 
 			// Editor History

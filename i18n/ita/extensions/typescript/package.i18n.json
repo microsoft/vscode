@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "Abilita/Disabilita la convalida JavaScript",
 	"typescript.reloadProjects.title": "Ricarica progetto TypeScript",
 	"typescript.tsdk.desc": "Specifica il percorso della cartella che contiene i file tsserver e lib*.d.ts da usare.",
+	"typescript.tsserver.experimentalAutoBuild": "Abilita la compilazione automatica sperimentale. Richiede la versione 1.9 dev o 2.x tsserver e il riavvio di Visual Studio Code dopo la modifica.",
 	"typescript.tsserver.trace": "Consente la traccia dell'invio dei messaggi al server di Servizi terminal",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Completare le funzioni con la relativa firma del parametro.",
 	"typescript.validate.enable": "Abilita/Disabilita la convalida TypeScript"

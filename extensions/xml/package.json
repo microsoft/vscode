@@ -64,7 +64,7 @@
 			],
 			"firstLine" : "(\\<\\?xml.*)|(\\<svg)|(\\<\\!doctype\\s+svg)",
 			"aliases": [ "XML", "xml" ],
-			"configuration": "./xml.configuration.json"
+			"configuration": "./xml.language-configuration.json"
 		}, {
 			"id": "xsl",
 			"extensions": [
@@ -72,7 +72,7 @@
 				".xslt"
 			],
 			"aliases": [ "XSL", "xsl" ],
-			"configuration": "./xsl.configuration.json"
+			"configuration": "./xsl.language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "xml",

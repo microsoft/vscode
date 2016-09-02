@@ -66,6 +66,7 @@ class ConfigClass implements IConfiguration {
 			scrollBeyondLastLine: true,
 			automaticLayout: false,
 			wrappingColumn: 300,
+			wordWrap: false,
 			wrappingIndent: 'same',
 			wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
 			wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
@@ -83,19 +84,23 @@ class ConfigClass implements IConfiguration {
 			formatOnType: false,
 			suggestOnTriggerCharacters: true,
 			acceptSuggestionOnEnter: true,
-			snippetSuggestions: 'inline',
+			snippetSuggestions: 'bottom',
+			tabCompletion: false,
 			wordBasedSuggestions: true,
 			selectionHighlight: true,
+			codeLens: true,
 			referenceInfos: true,
 			folding: true,
 			renderWhitespace: false,
 			renderControlCharacters: false,
 			renderIndentGuides: false,
+			renderLineHighlight: true,
 			useTabStops: true,
 
 			fontFamily: (
 				platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
 			),
+			fontWeight: 'normal',
 			fontSize: (
 				platform.isMacintosh ? 12 : 14
 			),
@@ -104,4 +109,4 @@ class ConfigClass implements IConfiguration {
 	}
 }
 
-export var DefaultConfig: IConfiguration = new ConfigClass();
+export const DefaultConfig: IConfiguration = new ConfigClass();

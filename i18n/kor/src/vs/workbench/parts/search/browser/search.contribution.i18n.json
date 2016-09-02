@@ -9,10 +9,9 @@
 	"exclude.when": "일치하는 파일의 형제에 대한 추가 검사입니다. $(basename)을 일치하는 파일 이름에 대한 변수로 사용하세요.",
 	"findInFolder": "폴더에서 찾기",
 	"name": "검색",
-	"openAnythingHandlerDescription": "이름으로 파일 및 기호 열기",
+	"openAnythingHandlerDescription": "이름으로 파일 및 전역 기호 열기",
 	"openSymbolDescriptionNormal": "이름으로 기호 열기",
-	"searchConfigurationTitle": "구성 검색",
-	"showSearchViewlet": "검색 표시",
+	"searchConfigurationTitle": "검색",
 	"showTriggerActions": "모든 기호 표시",
 	"view": "보기"
 }

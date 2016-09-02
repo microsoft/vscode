@@ -12,6 +12,8 @@ import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 import {EditorMouseEvent} from 'vs/editor/browser/editorDom';
 import * as dom from 'vs/base/browser/dom';
+import * as browser from 'vs/base/browser/browser';
+import {IViewCursorRenderData} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
 interface IHitTestResult {
 	position: IPosition;
@@ -172,21 +174,39 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(layoutInfo:EditorLayoutInfo, e:EditorMouseEvent, testEventTarget:boolean): IMouseTarget {
+	public createMouseTarget(layoutInfo:EditorLayoutInfo, lastViewCursorsRenderData:IViewCursorRenderData[], e:EditorMouseEvent, testEventTarget:boolean): IMouseTarget {
 		try {
-			let r = this._unsafeCreateMouseTarget(layoutInfo, e, testEventTarget);
+			let r = this._unsafeCreateMouseTarget(layoutInfo, lastViewCursorsRenderData, e, testEventTarget);
 			return r;
 		} catch (e) {
 			return this.createMouseTargetFromUnknownTarget(e.target);
 		}
 	}
 
-	private _unsafeCreateMouseTarget(layoutInfo:EditorLayoutInfo, e:EditorMouseEvent, testEventTarget:boolean): IMouseTarget {
+	private _unsafeCreateMouseTarget(layoutInfo:EditorLayoutInfo, lastViewCursorsRenderData:IViewCursorRenderData[], e:EditorMouseEvent, testEventTarget:boolean): IMouseTarget {
 		let mouseVerticalOffset = Math.max(0, this._viewHelper.getScrollTop() + (e.posy - e.editorPos.top));
 		let mouseContentHorizontalOffset = this._viewHelper.getScrollLeft() + (e.posx - e.editorPos.left) - layoutInfo.contentLeft;
 		let mouseColumn = this._getMouseColumn(mouseContentHorizontalOffset);
 
 		let t = <Element>e.target;
+
+		// Edge has a bug when hit-testing the exact position of a cursor,
+		// instead of returning the correct dom node, it returns the
+		// first or last rendered view line dom node, therefore help it out
+		// and first check if we are on top of a cursor
+		for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
+			let d = lastViewCursorsRenderData[i];
+
+			if (
+				d.contentLeft <= mouseContentHorizontalOffset
+				&& mouseContentHorizontalOffset <= d.contentLeft + d.width
+				&& d.contentTop <= mouseVerticalOffset
+				&& mouseVerticalOffset <= d.contentTop + d.height
+			) {
+				return this.createMouseTargetFromViewCursor(t, d.position.lineNumber, d.position.column, mouseColumn);
+			}
+		}
+
 		let path = this.getClassNamePathTo(t, this._viewHelper.viewDomNode);
 
 		// Is it a content widget?
@@ -274,6 +294,11 @@ export class MouseTargetFactory {
 				if (lineNumberAttribute && columnAttribute) {
 					return this.createMouseTargetFromViewCursor(t, parseInt(lineNumberAttribute, 10), parseInt(columnAttribute, 10), mouseColumn);
 				}
+			} else {
+				// Hit testing completely failed...
+				let possibleLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(mouseVerticalOffset);
+				let maxColumn = this._context.model.getLineMaxColumn(possibleLineNumber);
+				return new MouseTarget(t, MouseTargetType.CONTENT_EMPTY, mouseColumn, new Position(possibleLineNumber, maxColumn));
 			}
 		}
 
@@ -340,7 +365,7 @@ export class MouseTargetFactory {
 	}
 
 	/**
-	 * Most probably WebKit browsers
+	 * Most probably WebKit browsers and Edge
 	 */
 	private _doHitTestWithCaretRangeFromPoint(e: EditorMouseEvent, mouseVerticalOffset: number): IHitTestResult {
 
@@ -390,8 +415,9 @@ export class MouseTargetFactory {
 			let parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
 
 			if (parent3ClassName === ClassNames.VIEW_LINE) {
+				let p = this._viewHelper.getPositionFromDOMInfo(<HTMLElement>parent1, range.startOffset);
 				return {
-					position: this._viewHelper.getPositionFromDOMInfo(<HTMLElement>parent1, range.startOffset),
+					position: p,
 					hitTarget: null
 				};
 			} else {
@@ -404,8 +430,9 @@ export class MouseTargetFactory {
 			let parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
 
 			if (parent2ClassName === ClassNames.VIEW_LINE) {
+				let p = this._viewHelper.getPositionFromDOMInfo(<HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length);
 				return {
-					position: this._viewHelper.getPositionFromDOMInfo(<HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length),
+					position: p,
 					hitTarget: null
 				};
 			} else {
@@ -497,6 +524,11 @@ export class MouseTargetFactory {
 		//    - they have implemented a previous version of the spec which was using document.caretRangeFromPoint
 		// IE:
 		//    - they have a proprietary method on ranges, moveToPoint: https://msdn.microsoft.com/en-us/library/ie/ms536632(v=vs.85).aspx
+
+		// 24.08.2016: Edge has added WebKit's document.caretRangeFromPoint, but it is quite buggy
+		//    - when hit testing the cursor it returns the first or the last line in the viewport
+		//    - it inconsistently hits text nodes or span nodes, while WebKit only hits text nodes
+		//    - when toggling render whitespace on, and hit testing in the empty content after a line, it always hits offset 0 of the first span of the line
 
 		// Thank you browsers for making this so 'easy' :)
 
@@ -611,6 +643,10 @@ export class MouseTargetFactory {
 		let lineWidth = this._viewHelper.getLineWidth(lineNumber);
 
 		if (mouseHorizontalOffset > lineWidth) {
+			if (browser.isEdge && pos.column === 1) {
+				// See https://github.com/Microsoft/vscode/issues/10875
+				return new MouseTarget(target, MouseTargetType.CONTENT_EMPTY, mouseColumn, new Position(lineNumber, this._context.model.getLineMaxColumn(lineNumber)));
+			}
 			return new MouseTarget(target, MouseTargetType.CONTENT_EMPTY, mouseColumn, pos);
 		}
 

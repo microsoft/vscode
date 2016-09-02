@@ -68,15 +68,15 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		// Position has changed
 		this._showAtPosition = new Position(position.lineNumber, position.column);
 		this._isVisible = true;
-		var editorMaxWidth = Math.min(800, parseInt(this._containerDomNode.style.maxWidth, 10));
+		let editorMaxWidth = Math.min(800, parseInt(this._containerDomNode.style.maxWidth, 10));
 
 		// When scrolled horizontally, the div does not want to occupy entire visible area.
 		StyleMutator.setWidth(this._containerDomNode, editorMaxWidth);
 		StyleMutator.setHeight(this._containerDomNode, 0);
 		StyleMutator.setLeft(this._containerDomNode, 0);
 
-		var renderedWidth = Math.min(editorMaxWidth, this._domNode.clientWidth + 5);
-		var renderedHeight = this._domNode.clientHeight + 1;
+		let renderedWidth = Math.min(editorMaxWidth, this._domNode.clientWidth + 5);
+		let renderedHeight = this._domNode.clientHeight + 1;
 
 		StyleMutator.setWidth(this._containerDomNode, renderedWidth);
 		StyleMutator.setHeight(this._containerDomNode, renderedHeight);
@@ -169,9 +169,9 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 			this._domNode.style.display = 'block';
 		}
 
-		var editorLayout = this._editor.getLayoutInfo();
-		var topForLineNumber = this._editor.getTopForLineNumber(this._showAtLineNumber);
-		var editorScrollTop = this._editor.getScrollTop();
+		let editorLayout = this._editor.getLayoutInfo();
+		let topForLineNumber = this._editor.getTopForLineNumber(this._showAtLineNumber);
+		let editorScrollTop = this._editor.getScrollTop();
 
 		this._domNode.style.left = (editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth) + 'px';
 		this._domNode.style.top = (topForLineNumber - editorScrollTop) + 'px';

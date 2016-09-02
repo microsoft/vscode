@@ -6,10 +6,11 @@
 	"contributes": {
 		"languages": [{
 			"id": "ruby",
-			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".pp", ".rake", ".ru" ],
+			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".rake", ".ru" ],
 			"filenames": [ "rakefile", "gemfile", "guardfile" ],
 			"aliases": [ "Ruby", "rb" ],
-			"configuration": "./ruby.configuration.json"
+			"firstLine": "^#!/.*\\bruby\\b",
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "ruby",

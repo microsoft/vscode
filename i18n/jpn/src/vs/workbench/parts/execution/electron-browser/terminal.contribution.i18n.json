@@ -11,5 +11,5 @@
 	"terminal.external.linuxExec": "どのターミナルを Linux で実行するかをカスタマイズします。",
 	"terminal.external.osxExec": "どのターミナル アプリケーションを OS X で実行するかをカスタマイズします。",
 	"terminal.external.windowsExec": "どのターミナルを Windows で実行するかをカスタマイズします。",
-	"terminalConfigurationTitle": "外部ターミナルの構成"
+	"terminalConfigurationTitle": "外部ターミナル"
 }

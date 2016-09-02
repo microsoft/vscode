@@ -5,56 +5,33 @@
 
 'use strict';
 
-import * as crypto from 'crypto';
 import * as fs from 'original-fs';
 import * as path from 'path';
 import * as os from 'os';
 import { app } from 'electron';
-import { mkdirp } from 'vs/base/node/pfs';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import product, { IProductConfiguration } from 'vs/platform/product';
-import { parseArgs } from 'vs/code/node/argv';
-import pkg from 'vs/platform/package';
+import { parseArgs, ParsedArgs } from 'vs/code/node/argv';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
 }
 
-export interface ICommandLineArguments {
-	verboseLogging: boolean;
-	debugExtensionHostPort: number;
-	debugBrkExtensionHost: boolean;
-	debugBrkFileWatcherPort: number;
-	logExtensionHostCommunication: boolean;
-	disableExtensions: boolean;
-	extensionsHomePath: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-	programStart: number;
-	pathArguments?: string[];
-	enablePerformance?: boolean;
-	openNewWindow?: boolean;
-	openInSameWindow?: boolean;
-	gotoLineMode?: boolean;
-	diffMode?: boolean;
-	locale?: string;
-	waitForWindowClose?: boolean;
+export interface ICommandLineArguments extends ParsedArgs {
+	paths?: string[];
 }
 
-export const IEnvironmentService = createDecorator<IEnvironmentService>('mainEnvironmentService');
+export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService');
 
-export interface IEnvironmentService {
+export interface IEnvService {
 	_serviceBrand: any;
 	cliArgs: ICommandLineArguments;
-	userExtensionsHome: string;
-	isTestingFromCli: boolean;
 	isBuilt: boolean;
 	product: IProductConfiguration;
 	updateUrl: string;
@@ -66,27 +43,9 @@ export interface IEnvironmentService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
-
-	createPaths(): TPromise<void>;
 }
 
-function getNumericValue(value: string, defaultValue: number, fallback: number = void 0) {
-	const numericValue = parseInt(value);
-
-	if (types.isNumber(numericValue)) {
-		return numericValue;
-	}
-
-	if (value) {
-		return defaultValue;
-	}
-
-	return fallback;
-}
-
-export class EnvService implements IEnvironmentService {
+export class EnvService implements IEnvService {
 
 	_serviceBrand: any;
 
@@ -95,9 +54,6 @@ export class EnvService implements IEnvironmentService {
 
 	private _userExtensionsHome: string;
 	get userExtensionsHome(): string { return this._userExtensionsHome; }
-
-	private _isTestingFromCli: boolean;
-	get isTestingFromCli(): boolean { return this._isTestingFromCli; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 
@@ -126,12 +82,6 @@ export class EnvService implements IEnvironmentService {
 	private _appKeybindingsPath: string;
 	get appKeybindingsPath(): string { return this._appKeybindingsPath; }
 
-	private _mainIPCHandle: string;
-	get mainIPCHandle(): string { return this._mainIPCHandle; }
-
-	private _sharedIPCHandle: string;
-	get sharedIPCHandle(): string { return this._sharedIPCHandle; }
-
 	constructor() {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._currentWorkingDirectory = process.env['VSCODE_CWD'] || process.cwd();
@@ -152,90 +102,31 @@ export class EnvService implements IEnvironmentService {
 			}
 		}
 
-		// Finally, prepend any extra arguments from the 'argv' file
-		if (fs.existsSync(path.join(this._appRoot, 'argv'))) {
-			const extraargs: string[] = JSON.parse(fs.readFileSync(path.join(this._appRoot, 'argv'), 'utf8'));
-			args = [...extraargs, ...args];
-		}
-
 		const argv = parseArgs(args);
-
-		const debugBrkExtensionHostPort = getNumericValue(argv.debugBrkPluginHost, 5870);
-		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
-		const pathArguments = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
-		const timestamp = parseInt(argv.timestamp);
-		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
+		const paths = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 
 		this._cliArgs = Object.freeze({
-			pathArguments: pathArguments,
-			programStart: types.isNumber(timestamp) ? timestamp : 0,
-			enablePerformance: argv.performance,
-			verboseLogging: argv.verbose,
-			debugExtensionHostPort: debugBrkExtensionHostPort || debugExtensionHostPort,
-			debugBrkExtensionHost: !!debugBrkExtensionHostPort,
+			_: [],
+			paths,
+			performance: argv.performance,
+			verbose: argv.verbose,
+			debugPluginHost: argv.debugPluginHost,
+			debugBrkPluginHost: argv.debugBrkPluginHost,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
-			debugBrkFileWatcherPort: debugBrkFileWatcherPort,
-			openNewWindow: argv['new-window'],
-			openInSameWindow: argv['reuse-window'],
-			gotoLineMode: argv.goto,
-			diffMode: argv.diff && pathArguments.length === 2,
-			extensionsHomePath: normalizePath(argv.extensionHomePath),
+			'new-window': argv['new-window'],
+			'reuse-window': argv['reuse-window'],
+			goto: argv.goto,
+			diff: argv.diff && paths.length === 2,
+			extensionHomePath: normalizePath(argv.extensionHomePath),
 			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
 			extensionTestsPath: normalizePath(argv.extensionTestsPath),
-			disableExtensions: argv['disable-extensions'],
+			'disable-extensions': argv['disable-extensions'],
 			locale: argv.locale,
-			waitForWindowClose: argv.wait
+			wait: argv.wait
 		});
 
-		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
 		this._userHome = path.join(os.homedir(), product.dataFolderName);
-		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
-
-		const prefix = this.getIPCHandleBaseName();
-		const suffix = process.platform === 'win32' ? '-sock' : '.sock';
-
-		this._mainIPCHandle = `${ prefix }-${ pkg.version }${ suffix }`;
-		this._sharedIPCHandle = `${ prefix }-${ pkg.version }-shared${ suffix }`;
-	}
-
-	private getIPCHandleBaseName(): string {
-		let name = pkg.name;
-
-		// Support to run VS Code multiple times as different user
-		// by making the socket unique over the logged in user
-		let userId = EnvService.getUniqueUserId();
-		if (userId) {
-			name += `-${ userId }`;
-		}
-
-		if (process.platform === 'win32') {
-			return `\\\\.\\pipe\\${ name }`;
-		}
-
-		return path.join(os.tmpdir(), name);
-	}
-
-	private static getUniqueUserId(): string {
-		let username: string;
-		if (platform.isWindows) {
-			username = process.env.USERNAME;
-		} else {
-			username = process.env.USER;
-		}
-
-		if (!username) {
-			return ''; // fail gracefully if there is no user name
-		}
-
-		// use sha256 to ensure the userid value can be used in filenames and are unique
-		return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
-	}
-
-	createPaths(): TPromise<void> {
-		const promises = [this.appSettingsHome, this.userHome, this.userExtensionsHome]
-			.map(p => mkdirp(p));
-
-		return TPromise.join(promises) as TPromise<any>;
+		this._userExtensionsHome = this.cliArgs.extensionHomePath || path.join(this._userHome, 'extensions');
 	}
 }
 
@@ -307,14 +198,6 @@ function normalizePath(p?: string): string {
 	return p ? path.normalize(p) : p;
 }
 
-export function getPlatformIdentifier(): string {
-	if (process.platform === 'linux') {
-		return `linux-${process.arch}`;
-	}
-
-	return process.platform;
-}
-
 export interface IParsedPath {
 	path: string;
 	line?: number;
@@ -339,6 +222,10 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 		}
 	});
 
+	if (!path) {
+		throw new Error('Format for `--goto` should be: `FILE:LINE(:COLUMN)`');
+	}
+
 	return {
 		path: path,
 		line: line !== null ? line : void 0,
@@ -346,7 +233,7 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 	};
 }
 
-export function toLineAndColumnPath(parsedPath: IParsedPath): string {
+function toLineAndColumnPath(parsedPath: IParsedPath): string {
 	let segments = [parsedPath.path];
 
 	if (types.isNumber(parsedPath.line)) {

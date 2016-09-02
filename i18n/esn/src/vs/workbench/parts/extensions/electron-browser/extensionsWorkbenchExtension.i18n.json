@@ -8,5 +8,5 @@
 	"outdatedExtensions": "{0} extensiones obsoletas",
 	"reloadNow": "Reiniciar ahora",
 	"success": "Las extensiones se instalaron correctamente. Reinicie para habilitarlas.",
-	"successSingle": "{0} se instaló correctamente. Reinicie para habilitarla."
+	"successSingle": "La extensión se instaló correctamente. Reinicie para habilitarla."
 }

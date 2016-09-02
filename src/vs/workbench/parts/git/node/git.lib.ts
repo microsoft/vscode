@@ -11,9 +11,10 @@ import * as pfs from 'vs/base/node/pfs';
 import { guessMimeTypes, isBinaryMime } from 'vs/base/common/mime';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
+import { sequence } from 'vs/base/common/async';
 import { v4 as UUIDv4 } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
-import { uniqueFilter } from 'vs/base/common/arrays';
+import { uniqueFilter, index } from 'vs/base/common/arrays';
 import { IRawFileStatus, RefType, IRef, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import { detectMimesFromStream } from 'vs/base/node/mime';
 import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
@@ -260,6 +261,11 @@ export class Git {
 	}
 }
 
+export interface ICommit {
+	hash: string;
+	message: string;
+}
+
 export class Repository {
 
 	private git: Git;
@@ -410,7 +416,7 @@ export class Repository {
 		});
 	}
 
-	commit(message: string, all: boolean, amend: boolean): Promise {
+	commit(message: string, all: boolean, amend: boolean, signoff: boolean): Promise {
 		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
 
 		if (all) {
@@ -419,6 +425,10 @@ export class Repository {
 
 		if (amend) {
 			args.push('--amend');
+		}
+
+		if (signoff) {
+			args.push('--signoff');
 		}
 
 		return this.run(args, { input: message || '' }).then(null, (commitErr: GitError) => {
@@ -447,8 +457,11 @@ export class Repository {
 	}
 
 	clean(paths: string[]): Promise {
-		const args = [ 'clean', '-f', '-q', '--' ].concat(paths);
-		return this.run(args);
+		const byDirname = index<string, string[]>(paths, p => path.dirname(p), (p, r) => (r || []).concat([p]));
+		const groups = Object.keys(byDirname).map(key => byDirname[key]);
+		const tasks = groups.map(group => () => this.run([ 'clean', '-f', '-q', '--' ].concat(group)));
+
+		return sequence(tasks);
 	}
 
 	undo(): Promise {
@@ -708,11 +721,27 @@ export class Repository {
 
 			// https://github.com/git/git/blob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#L612
 			const homedir = os.homedir();
-			const templatePath = result.stdout.trim()
+			let templatePath = result.stdout.trim()
 				.replace(/^~([^\/]*)\//, (_, user) => `${ user ? path.join(path.dirname(homedir), user) : homedir }/`);
+
+			if (!path.isAbsolute(templatePath)) {
+				templatePath = path.join(this.repository, templatePath);
+			}
 
 			return pfs.readFile(templatePath, 'utf8').then(null, () => '');
 		}, () => '');
+	}
+
+	getCommit(ref: string): TPromise<ICommit> {
+		return this.run(['show', '-s', '--format=%H\n%B', ref]).then(result => {
+			const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
+
+			if (!match) {
+				return TPromise.wrapError('bad commit format');
+			}
+
+			return { hash: match[1], message: match[2] };
+		});
 	}
 
 	onOutput(listener: (output: string) => void): () => void {

@@ -6,111 +6,112 @@
 
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
+import {editorAction, IActionOptions, EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
 import {BlockCommentCommand} from './blockCommentCommand';
 import {LineCommentCommand, Type} from './lineCommentCommand';
 
-class CommentLineAction extends EditorAction {
-
-	static ID = 'editor.action.commentLine';
+abstract class CommentLineAction extends EditorAction {
 
 	private _type: Type;
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, type: Type) {
-		super(descriptor, editor);
+	constructor(type:Type, opts:IActionOptions) {
+		super(opts);
 		this._type = type;
 	}
 
-	public run(): TPromise<void> {
-		let model = this.editor.getModel();
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		let model = editor.getModel();
 		if (!model) {
 			return;
 		}
 
 		var commands: ICommand[] = [];
-		var selections = this.editor.getSelections();
+		var selections = editor.getSelections();
 		var opts = model.getOptions();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
 		}
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(null);
+		editor.executeCommands(this.id, commands);
 	}
+
 }
 
+@editorAction
 class ToggleCommentLineAction extends CommentLineAction {
-
-	static ID = 'editor.action.commentLine';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Type.Toggle);
+	constructor() {
+		super(Type.Toggle, {
+			id: 'editor.action.commentLine',
+			label: nls.localize('comment.line', "Toggle Line Comment"),
+			alias: 'Toggle Line Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
+			}
+		});
 	}
 }
 
+@editorAction
 class AddLineCommentAction extends CommentLineAction {
-
-	static ID = 'editor.action.addCommentLine';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Type.ForceAdd);
+	constructor() {
+		super(Type.ForceAdd, {
+			id: 'editor.action.addCommentLine',
+			label: nls.localize('comment.line.add', "Add Line Comment"),
+			alias: 'Add Line Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
+			}
+		});
 	}
-
 }
 
+@editorAction
 class RemoveLineCommentAction extends CommentLineAction {
-
-	static ID = 'editor.action.removeCommentLine';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor, Type.ForceRemove);
+	constructor() {
+		super(Type.ForceRemove, {
+			id: 'editor.action.removeCommentLine',
+			label: nls.localize('comment.line.remove', "Remove Line Comment"),
+			alias: 'Remove Line Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
+			}
+		});
 	}
-
 }
 
+@editorAction
 class BlockCommentAction extends EditorAction {
 
-	static ID = 'editor.action.blockComment';
-
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
-		super(descriptor, editor);
+	constructor() {
+		super({
+			id: 'editor.action.blockComment',
+			label: nls.localize('comment.block', "Toggle Block Comment"),
+			alias: 'Toggle Block Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
+			}
+		});
 	}
 
-	public run(): TPromise<boolean> {
-
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 		var commands: ICommand[] = [];
-		var selections = this.editor.getSelections();
+		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new BlockCommentCommand(selections[i]));
 		}
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(null);
+		editor.executeCommands(this.id, commands);
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleCommentLineAction, ToggleCommentLineAction.ID, nls.localize('comment.line', "Toggle Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
-}, 'Toggle Line Comment'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddLineCommentAction, AddLineCommentAction.ID, nls.localize('comment.line.add', "Add Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
-}, 'Add Line Comment'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RemoveLineCommentAction, RemoveLineCommentAction.ID, nls.localize('comment.line.remove', "Remove Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
-}, 'Remove Line Comment'));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(BlockCommentAction, BlockCommentAction.ID, nls.localize('comment.block', "Toggle Block Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
-}, 'Toggle Block Comment'));

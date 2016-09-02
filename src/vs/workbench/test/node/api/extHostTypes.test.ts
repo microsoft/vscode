@@ -16,9 +16,9 @@ function assertToJSON(a: any, expected: any) {
 	assert.deepEqual(actual, expected);
 }
 
-suite('ExtHostTypes', function() {
+suite('ExtHostTypes', function () {
 
-	test('URI, toJSON', function() {
+	test('URI, toJSON', function () {
 
 		let uri = URI.parse('file:///path/test.file');
 		let data = uri.toJSON();
@@ -34,7 +34,7 @@ suite('ExtHostTypes', function() {
 		});
 	});
 
-	test('Disposable', function() {
+	test('Disposable', function () {
 
 		let count = 0;
 		let d = new types.Disposable(() => {
@@ -61,7 +61,7 @@ suite('ExtHostTypes', function() {
 
 	});
 
-	test('Position', function() {
+	test('Position', function () {
 		assert.throws(() => new types.Position(-1, 0));
 		assert.throws(() => new types.Position(0, -1));
 
@@ -75,12 +75,12 @@ suite('ExtHostTypes', function() {
 		assert.equal(character, 0);
 	});
 
-	test('Position, toJSON', function() {
+	test('Position, toJSON', function () {
 		let pos = new types.Position(4, 2);
 		assertToJSON(pos, { line: 4, character: 2 });
 	});
 
-	test('Position, isBefore(OrEqual)?', function() {
+	test('Position, isBefore(OrEqual)?', function () {
 		let p1 = new types.Position(1, 3);
 		let p2 = new types.Position(1, 2);
 		let p3 = new types.Position(0, 4);
@@ -91,7 +91,7 @@ suite('ExtHostTypes', function() {
 		assert.ok(p3.isBefore(p2));
 	});
 
-	test('Position, isAfter(OrEqual)?', function() {
+	test('Position, isAfter(OrEqual)?', function () {
 		let p1 = new types.Position(1, 3);
 		let p2 = new types.Position(1, 2);
 		let p3 = new types.Position(0, 4);
@@ -103,7 +103,7 @@ suite('ExtHostTypes', function() {
 		assert.ok(p1.isAfter(p3));
 	});
 
-	test('Position, compareTo', function() {
+	test('Position, compareTo', function () {
 		let p1 = new types.Position(1, 3);
 		let p2 = new types.Position(1, 2);
 		let p3 = new types.Position(0, 4);
@@ -115,7 +115,7 @@ suite('ExtHostTypes', function() {
 		assert.equal(p1.compareTo(p3), 1);
 	});
 
-	test('Position, translate', function() {
+	test('Position, translate', function () {
 		let p1 = new types.Position(1, 3);
 
 		assert.ok(p1.translate() === p1);
@@ -153,7 +153,7 @@ suite('ExtHostTypes', function() {
 		assert.throws(() => p1.translate(0, -4));
 	});
 
-	test('Position, with', function() {
+	test('Position, with', function () {
 		let p1 = new types.Position(1, 3);
 
 		assert.ok(p1.with() === p1);
@@ -176,7 +176,7 @@ suite('ExtHostTypes', function() {
 		assert.throws(() => p1.with({ character: -1 }));
 	});
 
-	test('Range', function() {
+	test('Range', function () {
 		assert.throws(() => new types.Range(-1, 0, 0, 0));
 		assert.throws(() => new types.Range(0, -1, 0, 0));
 		assert.throws(() => new types.Range(new types.Position(0, 0), undefined));
@@ -189,13 +189,13 @@ suite('ExtHostTypes', function() {
 		assert.throws(() => range.start = new types.Position(0, 3));
 	});
 
-	test('Range, toJSON', function() {
+	test('Range, toJSON', function () {
 
 		let range = new types.Range(1, 2, 3, 4);
 		assertToJSON(range, [{ line: 1, character: 2 }, { line: 3, character: 4 }]);
 	});
 
-	test('Range, sorting', function() {
+	test('Range, sorting', function () {
 		// sorts start/end
 		let range = new types.Range(1, 0, 0, 0);
 		assert.equal(range.start.line, 0);
@@ -206,7 +206,7 @@ suite('ExtHostTypes', function() {
 		assert.equal(range.end.line, 1);
 	});
 
-	test('Range, isEmpty|isSingleLine', function() {
+	test('Range, isEmpty|isSingleLine', function () {
 		let range = new types.Range(1, 0, 0, 0);
 		assert.ok(!range.isEmpty);
 		assert.ok(!range.isSingleLine);
@@ -224,7 +224,7 @@ suite('ExtHostTypes', function() {
 		assert.ok(!range.isSingleLine);
 	});
 
-	test('Range, contains', function() {
+	test('Range, contains', function () {
 		let range = new types.Range(1, 1, 2, 11);
 
 		assert.ok(range.contains(range.start));
@@ -237,7 +237,7 @@ suite('ExtHostTypes', function() {
 		assert.ok(!range.contains(new types.Range(1, 1, 3, 11)));
 	});
 
-	test('Range, intersection', function() {
+	test('Range, intersection', function () {
 		let range = new types.Range(1, 1, 2, 11);
 		let res: types.Range;
 
@@ -267,7 +267,7 @@ suite('ExtHostTypes', function() {
 		assert.throws(() => range.intersection(undefined));
 	});
 
-	test('Range, union', function() {
+	test('Range, union', function () {
 		let ran1 = new types.Range(0, 0, 5, 5);
 		assert.ok(ran1.union(new types.Range(0, 0, 1, 1)) === ran1);
 
@@ -284,7 +284,7 @@ suite('ExtHostTypes', function() {
 		assert.equal(res.start.character, 0);
 	});
 
-	test('Range, with', function() {
+	test('Range, with', function () {
 		let range = new types.Range(1, 1, 2, 11);
 
 		assert.ok(range.with(range.start) === range);
@@ -310,7 +310,7 @@ suite('ExtHostTypes', function() {
 		assert.equal(res.start.line, 1);
 		assert.equal(res.start.character, 1);
 
-		res = range.with({ end: new types.Position(9, 8), start: new types.Position(2, 3)});
+		res = range.with({ end: new types.Position(9, 8), start: new types.Position(2, 3) });
 		assert.equal(res.end.line, 9);
 		assert.equal(res.end.character, 8);
 		assert.equal(res.start.line, 2);
@@ -320,7 +320,7 @@ suite('ExtHostTypes', function() {
 		assert.throws(() => range.with(undefined, null));
 	});
 
-	test('TextEdit', function() {
+	test('TextEdit', function () {
 
 		assert.throws(() => new types.TextEdit(null, 'far'));
 		assert.throws(() => new types.TextEdit(undefined, 'far'));
@@ -337,7 +337,7 @@ suite('ExtHostTypes', function() {
 		assert.equal(edit.newText, '');
 	});
 
-	test('WorkspaceEdit', function() {
+	test('WorkspaceEdit', function () {
 
 		let a = types.Uri.file('a.ts');
 		let b = types.Uri.file('b.ts');
@@ -366,6 +366,11 @@ suite('ExtHostTypes', function() {
 		edit.set(b, [types.TextEdit.insert(new types.Position(0, 0), 'ffff')]);
 		assert.equal(edit.get(b).length, 1);
 
+	});
+
+	test('DocumentLink', function () {
+		assert.throws(() => new types.DocumentLink(null, null));
+		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null));
 	});
 
 	test('toJSON & stringify', function() {
@@ -403,5 +408,12 @@ suite('ExtHostTypes', function() {
 		item.kind = types.CompletionItemKind.Interface;
 		assertToJSON(item, { label: 'complete', kind: 'Interface' });
 
+	});
+
+	test('SymbolInformation, old ctor', function () {
+
+		let info = new types.SymbolInformation('foo', types.SymbolKind.Array, new types.Range(1, 1, 2, 3));
+		assert.ok(info.location instanceof types.Location);
+		assert.equal(info.location.uri, undefined);
 	});
 });

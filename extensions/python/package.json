@@ -3,21 +3,28 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"activationEvents": ["onLanguage:python"],
+	"main": "./out/pythonMain",
 	"contributes": {
 		"languages": [{
 			"id": "python",
 			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi" ],
 			"aliases": [ "Python", "py" ],
 			"firstLine": "^#!/.*\\bpython[0-9.-]*\\b",
-			"configuration": "./python.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "python",
 			"scopeName": "source.python",
-			"path": "./syntaxes/Python.tmLanguage"
+			"path": "./syntaxes/MagicPython.tmLanguage.json"
 		},{
 			"scopeName": "source.regexp.python",
-			"path": "./syntaxes/Regular Expressions (Python).tmLanguage"
+			"path": "./syntaxes/MagicRegExp.tmLanguage.json"
 		}]
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:python",
+		"watch": "gulp watch-extension:python",
+		"update-grammar": "node ../../build/npm/update-grammar.js MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json"
 	}
 }

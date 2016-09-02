@@ -41,7 +41,7 @@ function toReadablePath(path: string): string {
 	return path.replace(/\//g, '\\');
 }
 
-var $ = dom.emmet;
+const $ = dom.$;
 
 export class ActionContainer implements lifecycle.IDisposable {
 

@@ -17,6 +17,7 @@ export interface IMessageWithAction {
 
 export interface IConfirmation {
 	title?: string;
+	type?: 'none' | 'info' | 'error' | 'question' | 'warning';
 	message: string;
 	detail?: string;
 	primaryButton?: string;
@@ -24,7 +25,8 @@ export interface IConfirmation {
 }
 
 export const CloseAction = new Action('close.message', nls.localize('close', "Close"), null, true, () => TPromise.as(true));
-export const CancelAction = new Action('close.message', nls.localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
+export const LaterAction = new Action('later.message', nls.localize('later', "Later"), null, true, () => TPromise.as(true));
+export const CancelAction = new Action('cancel.message', nls.localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
 
 export const IMessageService = createDecorator<IMessageService>('messageService');
 

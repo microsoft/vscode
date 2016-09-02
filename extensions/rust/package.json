@@ -8,7 +8,7 @@
 			"id": "rust",
 			"extensions": [".rs"],
 			"aliases": ["Rust", "rust"],
-			"configuration": "./rust.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "rust",

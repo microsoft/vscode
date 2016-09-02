@@ -9,6 +9,7 @@
 	"closeFolder": "Cerrar carpeta",
 	"closeMessages": "Cerrar mensajes de notificación",
 	"closeWindow": "Cerrar ventana",
+	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "archivos",
 	"folders": "carpetas",
 	"newWindow": "Nueva ventana",

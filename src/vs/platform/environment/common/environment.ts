@@ -4,19 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
 export interface IEnvironmentService {
 	_serviceBrand: any;
 
+	execPath: string;
 	appRoot: string;
+
 	userHome: string;
 	userDataPath: string;
+
+	appSettingsHome: string;
+	appSettingsPath: string;
+	appKeybindingsPath: string;
+
+	disableExtensions: boolean;
 	extensionsPath: string;
 	extensionDevelopmentPath: string;
-	isBuilt: boolean;
+	extensionTestsPath: string;
 
-	createPaths(): TPromise<void>;
+	debugExtensionHost: { port: number; break: boolean; };
+
+	logExtensionHostCommunication: boolean;
+
+	isBuilt: boolean;
+	verbose: boolean;
+	performance: boolean;
+
+	mainIPCHandle: string;
+	sharedIPCHandle: string;
 }

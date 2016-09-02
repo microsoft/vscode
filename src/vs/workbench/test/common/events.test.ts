@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import * as Paths from 'vs/base/common/paths';
 import * as Files from 'vs/platform/files/common/files';
 import {Event, PropertyChangeEvent} from 'vs/base/common/events';
-import {CompositeEvent} from 'vs/workbench/common/events';
 
 let FileChangesEvent = Files.FileChangesEvent;
 
@@ -71,14 +70,4 @@ suite('Workbench Events', () => {
 	function toResource(path) {
 		return URI.file(Paths.join('C:\\', path));
 	}
-
-	test('Composite Event', function () {
-		let compositeId = 'foo.bar';
-		let origEvent = {};
-		let event = new CompositeEvent(compositeId, origEvent);
-
-		assert.strictEqual(event.originalEvent, origEvent);
-		assert.strictEqual(event.compositeId, compositeId);
-		assert(event.time);
-	});
 });

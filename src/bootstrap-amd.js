@@ -20,7 +20,7 @@ var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages:{} };
 
 loader.config({
-	baseUrl: uriFromPath(path.join(__dirname)),
+	baseUrl: uriFromPath(__dirname),
 	catchError: true,
 	nodeRequire: require,
 	nodeMain: __filename,

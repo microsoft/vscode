@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import actions = require('vs/base/common/actions');
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
-import { isMacintosh } from 'vs/base/common/platform';
+import {isMacintosh} from 'vs/base/common/platform';
 import keyboard = require('vs/base/browser/keyboardEvent');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import dom = require('vs/base/browser/dom');
@@ -18,17 +18,17 @@ import mouse = require('vs/base/browser/mouseEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debugviewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import {CopyAction} from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
-const $ = dom.emmet;
+const $ = dom.$;
 
 export class ReplExpressionsDataSource implements tree.IDataSource {
 
@@ -101,12 +101,13 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
 	];
 
+	private static LINE_HEIGHT_PX = 18;
+
 	private width: number;
 	private characterWidth: number;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		// noop
 	}
@@ -117,14 +118,20 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private getHeightForString(s: string): number {
 		if (!s || !s.length || !this.width || this.width <= 0 || !this.characterWidth || this.characterWidth <= 0) {
-			return 18;
-		}
-		let realLength = 0;
-		for (let i = 0; i < s.length; i++) {
-			realLength += strings.isFullWidthCharacter(s.charCodeAt(i)) ? 2 : 1;
+			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		return 18 * Math.ceil(realLength * this.characterWidth / this.width);
+		const lines = s.trim().split(/\r\n|\r|\n/g);
+		const numLines = lines.reduce((lineCount: number, line: string) => {
+			let lineLength = 0;
+			for (let i = 0; i < line.length; i++) {
+				lineLength += strings.isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
+			}
+
+			return lineCount + Math.floor(lineLength * this.characterWidth / this.width);
+		}, lines.length);
+
+		return ReplExpressionsRenderer.LINE_HEIGHT_PX * numLines;
 	}
 
 	public setWidth(fullWidth: number, characterWidth: number): void {
@@ -480,7 +487,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 		debugService: debug.IDebugService,
 		contextMenuService: IContextMenuService,
 		actionProvider: renderer.IActionProvider,
-		private replInput: HTMLInputElement,
+		private replInput: ICodeEditor,
 		focusOnContextMenu = true
 	) {
 		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);

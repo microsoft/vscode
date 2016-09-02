@@ -20,7 +20,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CodeLensProviderRegistry, ICodeLensSymbol, Command} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {ICodeLensData, getCodeLensData} from '../common/codelens';
 
 
@@ -50,6 +50,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	private static ID: number = 0;
 
+	public suppressMouseDown: boolean;
+
 	private _id: string;
 
 	private _domNode: HTMLElement;
@@ -64,6 +66,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget.ID);
 		this._editor = editor;
+
+		this.suppressMouseDown = true;
 
 		this.setSymbolRange(symbolRange);
 
@@ -335,9 +339,10 @@ class CodeLens {
 	}
 }
 
+@editorContribution
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
-	public static ID: string = 'css.editor.codeLens';
+	private static ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 
@@ -354,7 +359,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		@ICommandService private _commandService: ICommandService,
 		@IMessageService private _messageService: IMessageService
 	) {
-		this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 
 		this._globalToDispose = [];
 		this._localToDispose = [];
@@ -366,7 +371,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._globalToDispose.push(this._editor.onDidChangeModelMode(() => this.onModelChange()));
 		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
-			this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 			if (prevIsEnabled !== this._isEnabled) {
 				this.onModelChange();
 			}
@@ -508,11 +513,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		if (!this._editor.getModel()) {
 			return;
 		}
-		if (!symbols) {
-			symbols = [];
-		} else {
-			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(Range.lift(a.symbol.range), Range.lift(b.symbol.range)));
-		}
 
 		let maxLineNumber = this._editor.getModel().getLineCount();
 		let groups: ICodeLensData[][] = [];
@@ -611,7 +611,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
 			const promises = request.map((request, i) => {
 				return asWinJsPromise((token) => {
-					return request.support.resolveCodeLens(model, request.symbol, token);
+					return request.provider.resolveCodeLens(model, request.symbol, token);
 				}).then(symbol => {
 					resolvedSymbols[i] = symbol;
 				});
@@ -627,5 +627,3 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		});
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(CodeLensContribution);

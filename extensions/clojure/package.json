@@ -8,7 +8,7 @@
 			"id": "clojure",
 			"aliases": ["Clojure", "clojure"],
 			"extensions": [".clj", ".cljs", ".cljx", ".clojure", ".edn"],
-			"configuration": "./clojure.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "clojure",

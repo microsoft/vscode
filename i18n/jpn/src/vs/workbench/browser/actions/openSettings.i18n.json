@@ -8,6 +8,7 @@
 	"defaultKeybindingsHeader": "キー バインド ファイル内にキー バインドを挿入して、キー バインドを上書きします。",
 	"defaultName": "既定の設定",
 	"defaultSettingsHeader": "設定ファイル内に設定を挿入して、設定を上書きします。",
+	"defaultSettingsHeader2": "最もよく使用される設定については、http://go.microsoft.com/fwlink/?LinkId=808995 をご覧ください。",
 	"emptyKeybindingsHeader": "既定値を上書きするには、このファイル内にキー バインドを挿入します",
 	"emptySettingsHeader": "既定の設定を上書きするには、このファイル内に設定を挿入します",
 	"emptySettingsHeader1": "既定の設定とユーザー設定を上書きするには、このファイル内に設定を挿入します",

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
-import { StackFrame, Expression, Thread } from 'vs/workbench/parts/debug/common/debugModel';
+import {ViewModel} from 'vs/workbench/parts/debug/common/debugViewModel';
+import {StackFrame, Expression, Thread} from 'vs/workbench/parts/debug/common/debugModel';
 
 suite('Debug - View Model', () => {
 	var model: ViewModel;

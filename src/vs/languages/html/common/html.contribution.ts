@@ -21,6 +21,22 @@ ModesRegistry.registerCompatMode({
 
 var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>platform.Registry.as(ConfigurationRegistry.Extensions.Configuration);
 
+export interface IHTMLFormatConfiguration {
+	wrapLineLength: number;
+	unformatted: string;
+	indentInnerHtml: boolean;
+	preserveNewLines: boolean;
+	maxPreserveNewLines: number;
+	indentHandlebars: boolean;
+	endWithNewline: boolean;
+	extraLiners: string;
+}
+
+export interface IHTMLConfiguration {
+	format: IHTMLFormatConfiguration;
+	suggest: {[providerId:string]:boolean};
+}
+
 configurationRegistry.registerConfiguration({
 	'id': 'html',
 	'order': 20,
@@ -67,5 +83,20 @@ configurationRegistry.registerConfiguration({
 			'default': 'head, body, /html',
 			'description': nls.localize('format.extraLiners', "List of tags, comma separated, that should have an extra newline before them. 'null' defaults to \"head, body, /html\"."),
 		},
+'html.suggest.angular1': {
+	'type': ['boolean'],
+	'default': true,
+	'description': nls.localize('suggest.angular1', "Configures if the built-in HTML language support suggests Angular V1 tags and properties."),
+},
+'html.suggest.ionic': {
+	'type': ['boolean'],
+	'default': true,
+	'description': nls.localize('suggest.ionic', "Configures if the built-in HTML language support suggests Ionic tags, properties and values."),
+},
+'html.suggest.html5': {
+	'type': ['boolean'],
+	'default': true,
+	'description': nls.localize('suggest.html5', "Configures if the built-in HTML language support suggests HTML5 tags, properties and values."),
+},
 	}
 });

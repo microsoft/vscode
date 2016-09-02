@@ -3,20 +3,23 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/shellscript.tmbundle Syntaxes/Shell-Unix-Bash.tmLanguage ./syntaxes/Shell-Unix-Bash.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "shellscript",
 			"aliases": ["Shell Script (Bash)", "shellscript", "bash", "sh", "zsh"],
-			"extensions": [".sh", ".bash", ".bashrc", ".bash_profile", ".bash_login", ".ebuild", ".install", ".profile", ".bash_logout", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv"],
+			"extensions": [".sh", ".bash", ".bashrc", ".bash_aliases", ".bash_profile", ".bash_login", ".ebuild", ".install", ".profile", ".bash_logout", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv"],
 			"filenames": ["PKGBUILD"],
-			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh)|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
-			"configuration": "./shellscript.configuration.json",
+			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+			"configuration": "./language-configuration.json",
 			"mimetypes": ["text/x-shellscript"]
 		}],
 		"grammars": [{
 			"language": "shellscript",
 			"scopeName": "source.shell",
-			"path": "./syntaxes/Shell-Unix-Bash.tmLanguage"
+			"path": "./syntaxes/Shell-Unix-Bash.tmLanguage.json"
 		}]
 	}
 }

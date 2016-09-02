@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
-import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
@@ -24,17 +23,15 @@ import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {Token} from 'vs/editor/common/modes/supports';
-
-interface IModeConfigurationMap { [modeId: string]: any; }
+import {Token} from 'vs/editor/common/core/token';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ id: '', aliases: [], extensions: [] }] }],
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { id: '', extensions: [] } }],
+		defaultSnippets: [{ body: { id: '{{languageId}}', aliases: ['{{label}}'], extensions: ['{{extension}}'], configuration: './language-configuration.json'} }],
 		properties: {
 			id: {
 				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
@@ -82,7 +79,8 @@ let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExten
 			},
 			configuration: {
 				description: nls.localize('vscode.extension.contributes.languages.configuration', 'A relative path to a file containing configuration options for the language.'),
-				type: 'string'
+				type: 'string',
+				default: './language-configuration.json'
 			}
 		}
 	}
@@ -142,7 +140,6 @@ export class ModeServiceImpl implements IModeService {
 
 	private _activationPromises: { [modeId: string]: TPromise<modes.IMode>; };
 	private _instantiatedModes: { [modeId: string]: modes.IMode; };
-	private _config: IModeConfigurationMap;
 
 	private _registry: LanguagesRegistry;
 
@@ -158,49 +155,9 @@ export class ModeServiceImpl implements IModeService {
 
 		this._activationPromises = {};
 		this._instantiatedModes = {};
-		this._config = {};
 
 		this._registry = new LanguagesRegistry();
 		this._registry.onDidAddModes((modes) => this._onDidAddModes.fire(modes));
-	}
-
-	public getConfigurationForMode(modeId:string): any {
-		return this._config[modeId] || {};
-	}
-
-	public configureMode(mimetype: string, options: any): void {
-		var modeId = this.getModeId(mimetype);
-		if (modeId) {
-			this.configureModeById(modeId, options);
-		}
-	}
-
-	public configureModeById(modeId:string, options:any):void {
-		var previousOptions = this._config[modeId] || {};
-		var newOptions = objects.mixin(objects.clone(previousOptions), options);
-
-		if (objects.equals(previousOptions, newOptions)) {
-			// This configure call is a no-op
-			return;
-		}
-
-		this._config[modeId] = newOptions;
-
-		var mode = this.getMode(modeId);
-		if (mode && mode.configSupport) {
-			mode.configSupport.configure(this.getConfigurationForMode(modeId));
-		}
-	}
-
-	public configureAllModes(config:any): void {
-		if (!config) {
-			return;
-		}
-		var modes = this._registry.getRegisteredModes();
-		modes.forEach((modeIdentifier) => {
-			var configuration = config[modeIdentifier];
-			this.configureModeById(modeIdentifier, configuration);
-		});
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -379,12 +336,7 @@ export class ModeServiceImpl implements IModeService {
 
 			return resolvedDeps.then(_ => {
 				let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
-				return this._instantiationService.createInstance(compatModeAsyncDescriptor, modeDescriptor).then((compatMode) => {
-					if (compatMode.configSupport) {
-						compatMode.configSupport.configure(this.getConfigurationForMode(modeId));
-					}
-					return compatMode;
-				});
+				return this._instantiationService.createInstance(compatModeAsyncDescriptor, modeDescriptor);
 			});
 		}
 
@@ -503,7 +455,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	public tokenize(line:string, state:modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
 		if (state instanceof TokenizationState2Adapter) {
 			let actualResult = this._actual.tokenize(line, state.actual);
-			let tokens: modes.IToken[] = [];
+			let tokens: Token[] = [];
 			actualResult.tokens.forEach((t) => {
 				if (typeof t.scopes === 'string') {
 					tokens.push(new Token(t.startIndex + offsetDelta, <string>t.scopes));
@@ -517,7 +469,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 				tokens: tokens,
 				actualStopOffset: offsetDelta + line.length,
 				endState: new TokenizationState2Adapter(state.getMode(), actualResult.endState, state.getStateData()),
-				modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
+				modeTransitions: [new ModeTransition(offsetDelta, state.getMode().getId())],
 			};
 		}
 		throw new Error('Unexpected state to tokenize with!');
@@ -594,7 +546,10 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		// Register based on settings
 		if (configuration.files && configuration.files.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
-				mime.registerTextMime({ mime: this.getMimeForMode(configuration.files.associations[pattern]), filepattern: pattern, userConfigured: true });
+				const langId = configuration.files.associations[pattern];
+				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
+
+				mime.registerTextMime({ mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}
 	}

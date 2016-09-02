@@ -12,7 +12,7 @@ import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEdito
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -20,7 +20,6 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
 /**
@@ -32,12 +31,13 @@ export abstract class TextFileService implements ITextFileService {
 
 	public _serviceBrand: any;
 
-	private listenerToUnbind: IDisposable[];
+	protected listenerToUnbind: IDisposable[];
 
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 
 	private configuredAutoSaveDelay: number;
-	private configuredAutoSaveOnFocusChange: boolean;
+	protected configuredAutoSaveOnFocusChange: boolean;
+	protected configuredAutoSaveOnWindowChange: boolean;
 
 	constructor(
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -45,7 +45,6 @@ export abstract class TextFileService implements ITextFileService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService private eventService: IEventService,
 		@IFileService protected fileService: IFileService,
 		@IModelService protected modelService: IModelService
@@ -73,16 +72,6 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Configuration changes
 		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
-
-		// Editor focus change
-		window.addEventListener('blur', () => this.onEditorsChanged(), true);
-		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-	}
-
-	private onEditorsChanged(): void {
-		if (this.configuredAutoSaveOnFocusChange && this.getDirty().length) {
-			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
-		}
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -93,16 +82,25 @@ export abstract class TextFileService implements ITextFileService {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
 				this.configuredAutoSaveOnFocusChange = false;
+				this.configuredAutoSaveOnWindowChange = false;
 				break;
 
 			case AutoSaveConfiguration.ON_FOCUS_CHANGE:
 				this.configuredAutoSaveDelay = void 0;
 				this.configuredAutoSaveOnFocusChange = true;
+				this.configuredAutoSaveOnWindowChange = false;
+				break;
+
+			case AutoSaveConfiguration.ON_WINDOW_CHANGE:
+				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveOnFocusChange = false;
+				this.configuredAutoSaveOnWindowChange = true;
 				break;
 
 			default:
 				this.configuredAutoSaveDelay = void 0;
 				this.configuredAutoSaveOnFocusChange = false;
+				this.configuredAutoSaveOnWindowChange = false;
 				break;
 		}
 
@@ -231,6 +229,10 @@ export abstract class TextFileService implements ITextFileService {
 			return AutoSaveMode.ON_FOCUS_CHANGE;
 		}
 
+		if (this.configuredAutoSaveOnWindowChange) {
+			return AutoSaveMode.ON_WINDOW_CHANGE;
+		}
+
 		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
 			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY : AutoSaveMode.AFTER_LONG_DELAY;
 		}
@@ -241,7 +243,8 @@ export abstract class TextFileService implements ITextFileService {
 	public getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
 			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
-			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange
+			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange,
+			autoSaveApplicationChange: this.configuredAutoSaveOnWindowChange
 		};
 	}
 

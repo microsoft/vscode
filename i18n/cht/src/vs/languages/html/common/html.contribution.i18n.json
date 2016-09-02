@@ -12,5 +12,5 @@
 	"format.preserveNewLines": "是否應保留項目前方現有的分行符號。僅適用於項目前方，而不適用於標記內或文字。",
 	"format.unformatted": "不應重新格式化的逗號分隔標記清單。'null' 預設為 https://www.w3.org/TR/html5/dom.html#phrasing-content 中列出的所有標記。",
 	"format.wrapLineLength": "每行的字元數上限 (0 = 停用)。",
-	"htmlConfigurationTitle": "HTML 設定"
+	"htmlConfigurationTitle": "HTML"
 }

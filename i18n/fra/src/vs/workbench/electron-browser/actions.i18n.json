@@ -9,6 +9,7 @@
 	"closeFolder": "Fermer un dossier",
 	"closeMessages": "Fermer les messages de notification",
 	"closeWindow": "Fermer la fenêtre",
+	"diffLeftRightLabel": "{0} - {1}",
 	"files": "fichiers",
 	"folders": "dossiers",
 	"newWindow": "Nouvelle fenêtre",
