@@ -346,9 +346,9 @@ export class ThemeService implements IThemeService {
 			if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
-
+			
 			this.knownIconThemes.push({
-				id: iconTheme.id,
+				id: extensionId + '-' + iconTheme.id,
 				label: iconTheme.label || Paths.basename(iconTheme.path),
 				description: iconTheme.description,
 				path: normalizedAbsolutePath,
