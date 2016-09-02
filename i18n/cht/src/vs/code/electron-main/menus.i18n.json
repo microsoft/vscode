@@ -79,7 +79,7 @@
 	"miSaveAll": "全部儲存(&&L)",
 	"miSaveAs": "另存新檔(&&A)...",
 	"miSelectAll": "全選(&&S)",
-	"miSelectTheme": "色彩佈景主題(&&C)",
+	"miSelectColorTheme": "色彩佈景主題(&&C)",
 	"miSplitEditor": "分割編輯器(&&E)",
 	"miSwitchEditor": "切換編輯器(&&E)",
 	"miSwitchGroup": "切換群組(&&G)",

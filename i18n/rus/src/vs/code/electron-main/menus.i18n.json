@@ -79,7 +79,7 @@
 	"miSaveAll": "Сохранить &&все",
 	"miSaveAs": "Сохранить &&как...",
 	"miSelectAll": "&&Выделить все",
-	"miSelectTheme": "Цветовая &&тема",
+	"miSelectColorTheme": "Цветовая &&тема",
 	"miSplitEditor": "Разделить &&редактор",
 	"miSwitchEditor": "Переключить р&&едактор",
 	"miSwitchGroup": "Переключить &&группу",
