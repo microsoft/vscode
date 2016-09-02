@@ -23,11 +23,13 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 	}
 }
 
-export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Thenable<T>): TPromise<T> {
+export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject) => {
+	return new TPromise<T>((resolve, reject, progress) => {
 		let item = callback(source.token);
-		if (isThenable<T>(item)) {
+		if (TPromise.is(item)) {
+			item.then(resolve, reject, progress);
+		} else if (isThenable<T>(item)) {
 			item.then(resolve, reject);
 		} else {
 			resolve(item);
