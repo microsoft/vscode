@@ -304,7 +304,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					versionCheckPromise = window.showInformationMessage<MyMessageItem>(
 						localize(
 							'localTSFound',
-							'The workspace folder contains a TypeScript version {0}. Do you want to use this version instead of the bundled version {1}?',
+							'The workspace folder contains TypeScript version {0}. Do you want to use this version instead of the bundled version {1}?',
 							localVersion, shippedVersion
 						),
 						...[{
