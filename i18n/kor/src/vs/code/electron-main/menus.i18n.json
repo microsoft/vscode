@@ -79,7 +79,7 @@
 	"miSaveAll": "모두 저장(&&L)",
 	"miSaveAs": "다른 이름으로 저장(&&A)...",
 	"miSelectAll": "모두 선택(&&S)",
-	"miSelectTheme": "색 테마(&&C)",
+	"miSelectColorTheme": "색 테마(&&C)",
 	"miSplitEditor": "편집기 분할(&&E)",
 	"miSwitchEditor": "편집기 전환(&&E)",
 	"miSwitchGroup": "그룹 전환(&&G)",
