@@ -14,7 +14,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {MouseTargetFactory} from 'vs/editor/browser/controller/mouseTarget';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {TimeoutTimer} from 'vs/base/common/async';
+import {TimeoutTimer, RunOnceScheduler} from 'vs/base/common/async';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {VisibleRange} from 'vs/editor/common/view/renderingContext';
 import {EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, EditorMouseEvent} from 'vs/editor/browser/editorDom';
@@ -131,6 +131,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	protected mouseTargetFactory: MouseTargetFactory;
 	protected listenersToRemove:IDisposable[];
 	private toDispose:IDisposable[];
+	private _asyncFocus: RunOnceScheduler;
 
 	private _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime:number;
@@ -155,6 +156,8 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		);
 
 		this.toDispose = [];
+		this._asyncFocus = new RunOnceScheduler(() => this.viewHelper.focusTextArea(), 0);
+		this.toDispose.push(this._asyncFocus);
 
 		this.lastMouseLeaveTime = -1;
 
@@ -212,6 +215,11 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		this._mouseDownOperation.onCursorSelectionChanged(e);
+		return false;
+	}
+	private _isFocused = false;
+	public onViewFocusChanged(isFocused:boolean): boolean {
+		this._isFocused = isFocused;
 		return false;
 	}
 	// --- end event handlers
@@ -280,17 +288,11 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		}
 
 		var focus = () => {
-			if (browser.isIE11orEarlier) {
-				// IE does not want to focus when coming in from the browser's address bar
-				if ((<any>e.browserEvent).fromElement) {
-					e.preventDefault();
-					this.viewHelper.focusTextArea();
-				} else {
-					// TODO@Alex -> cancel this if focus is lost
-					setTimeout(() => {
-						this.viewHelper.focusTextArea();
-					});
-				}
+			// In IE11, if the focus is in the browser's address bar and
+			// then you click in the editor, calling preventDefault()
+			// will not move focus properly (focus remains the address bar)
+			if (browser.isIE11orEarlier && !this._isFocused) {
+				this._asyncFocus.schedule();
 			} else {
 				e.preventDefault();
 				this.viewHelper.focusTextArea();
