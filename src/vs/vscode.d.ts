@@ -3017,7 +3017,7 @@ declare namespace vscode {
 		 *
 		 * @param preserveFocus When `true` the terminal will not take focus.
 		 */
-		show(preservceFocus?: boolean): void;
+		show(preserveFocus?: boolean): void;
 
 		/**
 		 * Hide the terminal panel if this terminal is currently showing.
