@@ -393,7 +393,12 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 		this._fixesWidget
 			.update(newQuickFixes)
-			.then(() => this.show(this.position, this.computeRequiredHeight()));
+			.then(() => {
+				const selections = this.editor.getSelections();
+				super.show(this.position, this.computeRequiredHeight());
+				this.editor.setSelections(selections);
+				this.editor.focus();
+			});
 	}
 
 	private computeRequiredHeight() {
