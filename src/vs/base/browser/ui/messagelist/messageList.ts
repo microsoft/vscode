@@ -92,14 +92,14 @@ export class MessageList {
 	public showMessage(severity: Severity, message: IMessageWithAction): () => void;
 	public showMessage(severity: Severity, message: any): () => void {
 		if (Array.isArray(message)) {
-			let closeFns: Function[] = [];
+			const closeFns: Function[] = [];
 			message.forEach((msg: any) => closeFns.push(this.showMessage(severity, msg)));
 
 			return () => closeFns.forEach((fn) => fn());
 		}
 
 		// Return only if we are unable to extract a message text
-		let messageText = this.getMessageText(message);
+		const messageText = this.getMessageText(message);
 		if (!messageText || typeof messageText !== 'string') {
 			return () => {/* empty */ };
 		}
@@ -162,7 +162,7 @@ export class MessageList {
 	}
 
 	private renderMessages(animate: boolean, delta: number): void {
-		let container = withElementById(this.containerElementId);
+		const container = withElementById(this.containerElementId);
 		if (!container) {
 			return; // Cannot build container for messages yet, return
 		}
@@ -182,7 +182,7 @@ export class MessageList {
 
 		// Render Messages as List Items
 		$(this.messageListContainer).ul({ 'class': 'message-list' }, (ul: Builder) => {
-			let messages = this.prepareMessages();
+			const messages = this.prepareMessages();
 			if (messages.length > 0) {
 				this._onMessagesShowing.fire();
 			} else {
@@ -207,14 +207,14 @@ export class MessageList {
 		container.li({ class: 'message-list-entry message-list-entry-with-action' }, (li) => {
 
 			// Actions (if none provided, add one default action to hide message)
-			let messageActions = this.getMessageActions(message);
+			const messageActions = this.getMessageActions(message);
 			li.div({ class: 'actions-container' }, (actionContainer) => {
-				for (let i = messageActions.length - 1; i >= 0; i--) {
-					let action = messageActions[i];
+				for (let i = 0; i < messageActions.length; i++) {
+					const action = messageActions[i];
 					actionContainer.div({ class: 'message-action' }, (div) => {
 						div.a({ class: 'action-button', tabindex: '0', role: 'button' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], (e) => {
 							if (e instanceof KeyboardEvent) {
-								let event = new StandardKeyboardEvent(e);
+								const event = new StandardKeyboardEvent(e);
 								if (!event.equals(CommonKeybindings.ENTER) && !event.equals(CommonKeybindings.SPACE)) {
 									return; // Only handle Enter/Escape for keyboard access
 								}
@@ -241,17 +241,17 @@ export class MessageList {
 			});
 
 			// Text
-			let text = message.text.substr(0, this.options.maxMessageLength);
+			const text = message.text.substr(0, this.options.maxMessageLength);
 			li.div({ class: 'message-left-side' }, (div) => {
 				div.addClass('message-overflow-ellipsis');
 
 				// Severity indicator
-				let sev = message.severity;
-				let label = (sev === Severity.Error) ? nls.localize('error', "Error") : (sev === Severity.Warning) ? nls.localize('warning', "Warn") : nls.localize('info', "Info");
+				const sev = message.severity;
+				const label = (sev === Severity.Error) ? nls.localize('error', "Error") : (sev === Severity.Warning) ? nls.localize('warning', "Warn") : nls.localize('info', "Info");
 				$().span({ class: 'message-left-side severity ' + ((sev === Severity.Error) ? 'app-error' : (sev === Severity.Warning) ? 'app-warning' : 'app-info'), text: label }).appendTo(div);
 
 				// Error message
-				let messageContentElement: HTMLElement = <any>htmlRenderer.renderHtml({
+				const messageContentElement: HTMLElement = <any>htmlRenderer.renderHtml({
 					tagName: 'span',
 					className: 'message-left-side',
 					formattedText: text
@@ -282,12 +282,12 @@ export class MessageList {
 	private prepareMessages(): IMessageEntry[] {
 
 		// Aggregate Messages by text to reduce their count
-		let messages: IMessageEntry[] = [];
-		let handledMessages: { [message: string]: number; } = {};
+		const messages: IMessageEntry[] = [];
+		const handledMessages: { [message: string]: number; } = {};
 
 		let offset = 0;
 		for (let i = 0; i < this.messages.length; i++) {
-			let message = this.messages[i];
+			const message = this.messages[i];
 			if (types.isUndefinedOrNull(handledMessages[message.text])) {
 				message.count = 1;
 				messages.push(message);
@@ -335,7 +335,7 @@ export class MessageList {
 		let messageFound = false;
 
 		for (let i = 0; i < this.messages.length; i++) {
-			let message = this.messages[i];
+			const message = this.messages[i];
 			let hide = false;
 
 			// Hide specific message
@@ -373,7 +373,7 @@ export class MessageList {
 			let counter = 0;
 
 			for (let i = 0; i < this.messages.length; i++) {
-				let message = this.messages[i];
+				const message = this.messages[i];
 
 				// Only purge infos and warnings and only if they are not providing actions
 				if (message.severity !== Severity.Error && !message.actions) {

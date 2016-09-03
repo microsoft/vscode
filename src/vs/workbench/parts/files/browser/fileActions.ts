@@ -129,16 +129,16 @@ export class BaseFileAction extends Action {
 
 	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
 		let actions = [
-			CancelAction,
-			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry())
+			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
+			CancelAction
 		];
 
 		if (extraAction) {
-			actions.push(extraAction);
+			actions.unshift(extraAction);
 		}
 
 		let errorWithRetry: IMessageWithAction = {
-			actions: actions,
+			actions,
 			message: errors.toErrorMessage(error, false)
 		};
 

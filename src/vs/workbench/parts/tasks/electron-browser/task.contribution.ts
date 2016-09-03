@@ -948,7 +948,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					? this.getConfigureAction(buildError.code)
 					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService);
 
-				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [closeAction, action ] });
+				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction ] });
 			} else {
 				this.messageService.show(buildError.severity, buildError.message);
 			}

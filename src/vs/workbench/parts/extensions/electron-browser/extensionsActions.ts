@@ -97,7 +97,7 @@ export class UninstallAction extends Action {
 		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
 			this.messageService.show(severity.Info, {
 				message: localize('postUninstallMessage', "{0} was successfully uninstalled. Restart to deactivate it.", this.extension.displayName),
-				actions: [LaterAction, this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now"))]
+				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
 			});
 		});
 	}
