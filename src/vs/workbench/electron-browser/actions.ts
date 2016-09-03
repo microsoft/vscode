@@ -12,6 +12,7 @@ import {Action} from 'vs/base/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorInput} from 'vs/workbench/common/editor';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
@@ -67,6 +68,39 @@ export class CloseWindowAction extends Action {
 
 	public run(): TPromise<boolean> {
 		this.windowService.getWindow().close();
+
+		return TPromise.as(true);
+	}
+}
+
+export class SwitchWindow extends Action {
+
+	public static ID = 'workbench.action.switchWindow';
+	public static LABEL = nls.localize('switchWindow', "Switch Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		ipc.send('vscode:requestWindows', this.windowService.getWindowId());
+		ipc.once('vscode:respondWindows', (event, windows) => {
+			const picks: IPickOpenEntry[] = windows.map(w => ({
+				label: w.path,
+				description: w.id
+			}));
+			this.quickOpenService.pick(picks).then(selection => {
+				if (!selection) {
+					return;
+				}
+				ipc.send('vscode:showWindow', selection.description);
+			});
+		});
 
 		return TPromise.as(true);
 	}
