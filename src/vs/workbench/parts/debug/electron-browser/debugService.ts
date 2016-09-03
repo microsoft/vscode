@@ -553,7 +553,7 @@ export class DebugService implements debug.IDebugService {
 				if (!this.configurationManager.adapter) {
 					return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 						: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
-							{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+							{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
 				return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
@@ -568,10 +568,10 @@ export class DebugService implements debug.IDebugService {
 						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-						actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+						actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 							this.messageService.hideAll();
 							return this.doCreateSession(configuration);
-						})]
+						}), CloseAction]
 					});
 				}, (err: TaskError) => {
 					if (err.code !== TaskErrors.NotConfigured) {
@@ -580,7 +580,7 @@ export class DebugService implements debug.IDebugService {
 
 					this.messageService.show(err.severity, {
 						message: err.message,
-						actions: [CloseAction, this.taskService.configureAction()]
+						actions: [this.taskService.configureAction(), CloseAction]
 					});
 				});
 			}))));
@@ -704,9 +704,9 @@ export class DebugService implements debug.IDebugService {
 			if (filteredTasks.length !== 1) {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName), {
 					actions: [
-						CloseAction,
+						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
 						this.taskService.configureAction(),
-						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)
+						CloseAction
 					]
 				}));
 			}

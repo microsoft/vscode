@@ -45,8 +45,8 @@ export class UpdateContribution implements IWorkbenchContribution {
 				messageService.show(Severity.Info, {
 					message: nls.localize('releaseNotes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
 					actions: [
-						CloseAction,
-						ShowReleaseNotesAction(product.releaseNotesUrl, true)
+						ShowReleaseNotesAction(product.releaseNotesUrl, true),
+						CloseAction
 					]
 				});
 			}, 0);
@@ -58,8 +58,8 @@ export class UpdateContribution implements IWorkbenchContribution {
 				messageService.show(Severity.Info, {
 					message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", product.nameLong, pkg.version),
 					actions: [
-						CloseAction,
-						LinkAction('update.showLicense', nls.localize('license', "Read License"), product.licenseUrl)
+						LinkAction('update.showLicense', nls.localize('license', "Read License"), product.licenseUrl),
+						CloseAction
 					]
 				});
 			}, 0);
@@ -73,16 +73,16 @@ export class UpdateContribution implements IWorkbenchContribution {
 				messageService.show(Severity.Info, {
 					message: nls.localize('insiderBuilds', "Insider builds are becoming daily builds!", product.nameLong, pkg.version),
 					actions: [
-						CloseAction,
-						new Action('update.neverAgain', nls.localize('neverShowAgain', "Never Show Again"), '', true, () => {
-							storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
-							return TPromise.as(null);
-						}),
 						new Action('update.insiderBuilds', nls.localize('readmore', "Read More"), '', true, () => {
 							shell.openExternal('http://go.microsoft.com/fwlink/?LinkID=798816');
 							storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
 							return TPromise.as(null);
-						})
+						}),
+						new Action('update.neverAgain', nls.localize('neverShowAgain', "Never Show Again"), '', true, () => {
+							storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
+							return TPromise.as(null);
+						}),
+						CloseAction,
 					]
 				});
 			}, 0);

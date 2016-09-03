@@ -70,8 +70,21 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 			const isReadonly = (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const actions: Action[] = [];
 
-			// Cancel
-			actions.push(CancelAction);
+			// Save As
+			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
+				const saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
+				saveAsAction.setResource(resource);
+
+				return saveAsAction.run().then(() => { saveAsAction.dispose(); return true; });
+			}));
+
+			// Discard
+			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
+				const revertFileAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
+				revertFileAction.setResource(resource);
+
+				return revertFileAction.run().then(() => { revertFileAction.dispose(); return true; });
+			}));
 
 			// Retry
 			if (isReadonly) {
@@ -91,21 +104,8 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 				}));
 			}
 
-			// Discard
-			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
-				const revertFileAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-				revertFileAction.setResource(resource);
-
-				return revertFileAction.run().then(() => { revertFileAction.dispose(); return true; });
-			}));
-
-			// Save As
-			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
-				const saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-				saveAsAction.setResource(resource);
-
-				return saveAsAction.run().then(() => { saveAsAction.dispose(); return true; });
-			}));
+			// Cancel
+			actions.push(CancelAction);
 
 			let errorMessage: string;
 			if (isReadonly) {
@@ -116,7 +116,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 
 			message = {
 				message: errorMessage,
-				actions: actions
+				actions
 			};
 		}
 

@@ -148,19 +148,19 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 			this.messageService.show(Severity.Info, {
 				message: nls.localize('workspaceHasSettings', "The currently opened folder contains workspace settings that may override user settings"),
 				actions: [
-					CloseAction,
-					new Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {
-						this.storageService.store(OpenGlobalSettingsAction.SETTINGS_INFO_IGNORE_KEY, true, StorageScope.WORKSPACE);
-
-						return TPromise.as(true);
-					}),
 					new Action('open.workspaceSettings', nls.localize('openWorkspaceSettings', "Open Workspace Settings"), null, true, () => {
 						let editorCount = this.editorService.getVisibleEditors().length;
 
 						return this.editorService.createInput({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) }).then((typedInput) => {
 							return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
 						});
-					})
+					}),
+					new Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {
+						this.storageService.store(OpenGlobalSettingsAction.SETTINGS_INFO_IGNORE_KEY, true, StorageScope.WORKSPACE);
+
+						return TPromise.as(true);
+					}),
+					CloseAction
 				]
 			});
 		}

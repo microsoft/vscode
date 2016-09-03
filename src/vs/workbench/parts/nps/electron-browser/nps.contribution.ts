@@ -85,7 +85,7 @@ class NPSContribution implements IWorkbenchContribution {
 			return TPromise.as(null);
 		});
 
-		const actions = [takeSurveyAction, remindMeLaterAction, neverAgainAction];
+		const actions = [neverAgainAction, remindMeLaterAction, takeSurveyAction ];
 
 		// TODO@Ben need this setTimeout due to #9769
 		setTimeout(() => messageService.show(Severity.Info, { message, actions }));

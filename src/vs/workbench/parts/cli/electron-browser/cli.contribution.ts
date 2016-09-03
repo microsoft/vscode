@@ -78,8 +78,8 @@ class InstallAction extends Action {
 							return this.editorService.openEditor(input).then(() => {
 								const message = nls.localize('again', "Please remove the '{0}' alias from '{1}' before continuing.", product.applicationName, file);
 								const actions = [
-									new Action('cancel', nls.localize('cancel', "Cancel")),
-									new Action('continue', nls.localize('continue', "Continue"), '', true, () => this.run())
+									new Action('continue', nls.localize('continue', "Continue"), '', true, () => this.run()),
+									new Action('cancel', nls.localize('cancel', "Cancel"))
 								];
 
 								this.messageService.show(Severity.Info, { message, actions });
@@ -128,7 +128,6 @@ class InstallAction extends Action {
 		return new TPromise<void>((c, e) => {
 			const message = nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command.");
 			const actions = [
-				new Action('cancel2', nls.localize('cancel2', "Cancel"), '', true, () => { e(new Error(nls.localize('aborted', "Aborted"))); return null; }),
 				new Action('ok', nls.localize('ok', "OK"), '', true, () => {
 					const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';
 
@@ -137,7 +136,8 @@ class InstallAction extends Action {
 						.done(c, e);
 
 					return null;
-				})
+				}),
+				new Action('cancel2', nls.localize('cancel2', "Cancel"), '', true, () => { e(new Error(nls.localize('aborted', "Aborted"))); return null; })
 			];
 
 			this.messageService.show(Severity.Info, { message, actions });
@@ -211,7 +211,7 @@ class DarwinCLIHelper implements IWorkbenchContribution {
 					messageService.show(Severity.Info, nls.localize('laterInfo', "Remember you can always run the '{0}' action from the Command Palette.", installAction.label));
 					return null;
 				});
-				const actions = [later, now];
+				const actions = [now, later];
 
 				messageService.show(Severity.Info, { message, actions });
 			}

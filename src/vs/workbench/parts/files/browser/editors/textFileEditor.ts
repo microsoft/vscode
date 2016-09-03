@@ -175,7 +175,6 @@ export class TextFileEditor extends BaseTextEditor {
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
 				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), {
 					actions: [
-						CancelAction,
 						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 							return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
 
@@ -188,7 +187,8 @@ export class TextFileEditor extends BaseTextEditor {
 									}
 								});
 							});
-						})
+						}),
+						CancelAction
 					]
 				}));
 			}
