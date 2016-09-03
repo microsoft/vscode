@@ -20,10 +20,10 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 
 export function generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string): string {
-	const osVersion = `${ os.type() } ${ os.arch() } ${ os.release() }`;
+	const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 	const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 	const body = encodeURIComponent(
-`- VSCode Version: ${name} ${version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
+		`- VSCode Version: ${name} ${version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
 
 Steps to Reproduce:
@@ -32,7 +32,7 @@ Steps to Reproduce:
 2.`
 	);
 
-	return `${ baseUrl }${queryStringPrefix}body=${body}`;
+	return `${baseUrl}${queryStringPrefix}body=${body}`;
 }
 
 interface IResolvedKeybinding {
@@ -44,7 +44,8 @@ export class VSCodeMenu {
 
 	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
 
-	private static MAX_RECENT_ENTRIES = 10;
+	private static MAX_MENU_RECENT_ENTRIES = 10;
+	private static MAX_TOTAL_RECENT_ENTRIES = 100;
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -253,8 +254,8 @@ export class VSCodeMenu {
 		}
 
 		// Make sure its bounded
-		mru.folders = mru.folders.slice(0, VSCodeMenu.MAX_RECENT_ENTRIES);
-		mru.files = mru.files.slice(0, VSCodeMenu.MAX_RECENT_ENTRIES);
+		mru.folders = mru.folders.slice(0, VSCodeMenu.MAX_TOTAL_RECENT_ENTRIES);
+		mru.files = mru.files.slice(0, VSCodeMenu.MAX_TOTAL_RECENT_ENTRIES);
 
 		this.storageService.setItem(WindowsManager.openedPathsListStorageKey, mru);
 	}
@@ -423,31 +424,27 @@ export class VSCodeMenu {
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		let recentList = this.getOpenedPathsList();
+		let {folders, files} = this.getOpenedPathsList();
 
 		// Folders
-		if (recentList.folders.length > 0) {
+		if (folders.length > 0) {
 			openRecentMenu.append(__separator__());
-			recentList.folders.forEach((folder, index) => {
-				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
-					openRecentMenu.append(this.createOpenRecentMenuItem(folder));
-				}
-			});
+
+			for (let i = 0; i < VSCodeMenu.MAX_MENU_RECENT_ENTRIES && i < folders.length; i++) {
+				openRecentMenu.append(this.createOpenRecentMenuItem(folders[i]));
+			}
 		}
 
 		// Files
-		let files = recentList.files;
 		if (files.length > 0) {
 			openRecentMenu.append(__separator__());
 
-			files.forEach((file, index) => {
-				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
-					openRecentMenu.append(this.createOpenRecentMenuItem(file));
-				}
-			});
+			for (let i = 0; i < VSCodeMenu.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
+				openRecentMenu.append(this.createOpenRecentMenuItem(files[i]));
+			}
 		}
 
-		if (recentList.folders.length || files.length) {
+		if (folders.length || files.length) {
 			openRecentMenu.append(__separator__());
 			openRecentMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miClearItems', comment: ['&& denotes a mnemonic'] }, "&&Clear Items")), click: () => this.clearOpenedPathsList() }));
 		}

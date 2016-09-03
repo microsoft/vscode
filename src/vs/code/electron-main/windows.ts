@@ -777,10 +777,6 @@ export class WindowsManager implements IWindowsService {
 		files = arrays.distinct(files);
 		folders = arrays.distinct(folders);
 
-		// Make sure it is bounded
-		files = files.slice(0, 10);
-		folders = folders.slice(0, 10);
-
 		return { files, folders };
 	}
 
