@@ -91,7 +91,7 @@ export class EnvService implements IEnvService {
 		this._appKeybindingsPath = path.join(this._appSettingsHome, 'keybindings.json');
 
 		// Remove the Electron executable
-		let [, ...args] = process.argv;
+		const [, ...args] = process.argv;
 
 		// If dev, remove the first non-option argument: it's the app location
 		if (!this.isBuilt) {
@@ -205,14 +205,14 @@ export interface IParsedPath {
 }
 
 export function parseLineAndColumnAware(rawPath: string): IParsedPath {
-	let segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
+	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
 
 	let path: string;
 	let line: number = null;
 	let column: number = null;
 
 	segments.forEach(segment => {
-		let segmentAsNumber = Number(segment);
+		const segmentAsNumber = Number(segment);
 		if (!types.isNumber(segmentAsNumber)) {
 			path = !!path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
 		} else if (line === null) {
@@ -234,7 +234,7 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 }
 
 function toLineAndColumnPath(parsedPath: IParsedPath): string {
-	let segments = [parsedPath.path];
+	const segments = [parsedPath.path];
 
 	if (types.isNumber(parsedPath.line)) {
 		segments.push(String(parsedPath.line));

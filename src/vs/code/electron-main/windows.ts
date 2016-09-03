@@ -211,7 +211,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
 			this.logService.log('IPC#vscode-workbenchLoaded');
 
-			let win = this.getWindowById(windowId);
+			const win = this.getWindowById(windowId);
 			if (win) {
 				win.setReady();
 
@@ -241,7 +241,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:closeFolder', (event, windowId: number) => {
 			this.logService.log('IPC#vscode-closeFolder');
 
-			let win = this.getWindowById(windowId);
+			const win = this.getWindowById(windowId);
 			if (win) {
 				this.open({ cli: this.envService.cliArgs, forceEmpty: true, windowToUse: win });
 			}
@@ -256,7 +256,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:reloadWindow', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:reloadWindow');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				this.reload(vscodeWindow);
 			}
@@ -265,7 +265,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:toggleFullScreen', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:toggleFullScreen');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.toggleFullScreen();
 			}
@@ -274,7 +274,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:setFullScreen', (event, windowId: number, fullscreen: boolean) => {
 			this.logService.log('IPC#vscode:setFullScreen');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.win.setFullScreen(fullscreen);
 			}
@@ -283,7 +283,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:toggleDevTools', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:toggleDevTools');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.win.webContents.toggleDevTools();
 			}
@@ -292,7 +292,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:openDevTools', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:openDevTools');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.win.webContents.openDevTools();
 				vscodeWindow.win.show();
@@ -302,7 +302,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:setRepresentedFilename', (event, windowId: number, fileName: string) => {
 			this.logService.log('IPC#vscode:setRepresentedFilename');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.win.setRepresentedFilename(fileName);
 			}
@@ -311,7 +311,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:setMenuBarVisibility', (event, windowId: number, visibility: boolean) => {
 			this.logService.log('IPC#vscode:setMenuBarVisibility');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.win.setMenuBarVisibility(visibility);
 			}
@@ -320,7 +320,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:flashFrame', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:flashFrame');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.win.flashFrame(!vscodeWindow.win.isFocused());
 			}
@@ -329,7 +329,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:openRecent', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:openRecent');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				const recents = this.getRecentlyOpenedPaths(vscodeWindow.config.workspacePath, vscodeWindow.config.filesToOpen);
 
@@ -340,7 +340,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:focusWindow', (event, windowId: number) => {
 			this.logService.log('IPC#vscode:focusWindow');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow) {
 				vscodeWindow.win.focus();
 			}
@@ -349,7 +349,7 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:setDocumentEdited', (event, windowId: number, edited: boolean) => {
 			this.logService.log('IPC#vscode:setDocumentEdited');
 
-			let vscodeWindow = this.getWindowById(windowId);
+			const vscodeWindow = this.getWindowById(windowId);
 			if (vscodeWindow && vscodeWindow.win.isDocumentEdited() !== edited) {
 				vscodeWindow.win.setDocumentEdited(edited);
 			}
@@ -359,8 +359,8 @@ export class WindowsManager implements IWindowsService {
 			this.logService.log('IPC#vscode:toggleMenuBar');
 
 			// Update in settings
-			let menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
-			let newMenuBarHidden = !menuBarHidden;
+			const menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
+			const newMenuBarHidden = !menuBarHidden;
 			this.storageService.setItem(VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
 
 			// Update across windows
@@ -368,7 +368,7 @@ export class WindowsManager implements IWindowsService {
 
 			// Inform user if menu bar is now hidden
 			if (newMenuBarHidden) {
-				let vscodeWindow = this.getWindowById(windowId);
+				const vscodeWindow = this.getWindowById(windowId);
 				if (vscodeWindow) {
 					vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
 				}
@@ -399,9 +399,9 @@ export class WindowsManager implements IWindowsService {
 		});
 
 		ipc.on('vscode:log', (event, logEntry: ILogEntry) => {
-			let args = [];
+			const args = [];
 			try {
-				let parsed = JSON.parse(logEntry.arguments);
+				const parsed = JSON.parse(logEntry.arguments);
 				args.push(...Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
 			} catch (error) {
 				args.push(logEntry.arguments);
@@ -504,16 +504,16 @@ export class WindowsManager implements IWindowsService {
 
 	public open(openConfig: IOpenConfiguration): VSCodeWindow[] {
 		let iPathsToOpen: IPath[];
-		let usedWindows: VSCodeWindow[] = [];
+		const usedWindows: VSCodeWindow[] = [];
 
 		// Find paths from provided paths if any
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
 			iPathsToOpen = openConfig.pathsToOpen.map((pathToOpen) => {
-				let iPath = this.toIPath(pathToOpen, false, openConfig.cli && openConfig.cli.goto);
+				const iPath = this.toIPath(pathToOpen, false, openConfig.cli && openConfig.cli.goto);
 
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
-					let options: Electron.ShowMessageBoxOptions = {
+					const options: Electron.ShowMessageBoxOptions = {
 						title: this.envService.product.nameLong,
 						type: 'info',
 						buttons: [nls.localize('ok', "OK")],
@@ -522,7 +522,7 @@ export class WindowsManager implements IWindowsService {
 						noLink: true
 					};
 
-					let activeWindow = BrowserWindow.getFocusedWindow();
+					const activeWindow = BrowserWindow.getFocusedWindow();
 					if (activeWindow) {
 						dialog.showMessageBox(activeWindow, options);
 					} else {
@@ -548,7 +548,7 @@ export class WindowsManager implements IWindowsService {
 
 		// Otherwise infer from command line arguments
 		else {
-			let ignoreFileNotFound = openConfig.cli.paths.length > 0; // we assume the user wants to create this file from command line
+			const ignoreFileNotFound = openConfig.cli.paths.length > 0; // we assume the user wants to create this file from command line
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
@@ -560,7 +560,7 @@ export class WindowsManager implements IWindowsService {
 		let filesToCreate = iPathsToOpen.filter((iPath) => !!iPath.filePath && iPath.createFilePath && !iPath.installExtensionPath);
 
 		// Diff mode needs special care
-		let candidates = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
+		const candidates = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
 		if (openConfig.diffMode) {
 			if (candidates.length === 2) {
 				filesToDiff = candidates;
@@ -579,7 +579,7 @@ export class WindowsManager implements IWindowsService {
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0 || extensionsToInstall.length > 0)) {
 
-			// Let the user settings override how files are open in a new window or same window unless we are forced
+			// const the user settings override how files are open in a new window or same window unless we are forced
 			let openFilesInNewWindow: boolean;
 			if (openConfig.forceNewWindow) {
 				openFilesInNewWindow = true;
@@ -594,7 +594,7 @@ export class WindowsManager implements IWindowsService {
 			}
 
 			// Open Files in last instance if any and flag tells us so
-			let lastActiveWindow = this.getLastActiveWindow();
+			const lastActiveWindow = this.getLastActiveWindow();
 			if (!openFilesInNewWindow && lastActiveWindow) {
 				lastActiveWindow.focus();
 				lastActiveWindow.ready().then((readyWindow) => {
@@ -615,7 +615,7 @@ export class WindowsManager implements IWindowsService {
 			// Otherwise open instance with files
 			else {
 				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
-				let browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
+				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
 				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
@@ -627,9 +627,9 @@ export class WindowsManager implements IWindowsService {
 		if (foldersToOpen.length > 0) {
 
 			// Check for existing instances
-			let windowsOnWorkspacePath = arrays.coalesce(foldersToOpen.map((iPath) => this.findWindow(iPath.workspacePath)));
+			const windowsOnWorkspacePath = arrays.coalesce(foldersToOpen.map((iPath) => this.findWindow(iPath.workspacePath)));
 			if (windowsOnWorkspacePath.length > 0) {
-				let browserWindow = windowsOnWorkspacePath[0];
+				const browserWindow = windowsOnWorkspacePath[0];
 				browserWindow.focus(); // just focus one of them
 				browserWindow.ready().then((readyWindow) => {
 					readyWindow.send('vscode:openFiles', {
@@ -661,7 +661,7 @@ export class WindowsManager implements IWindowsService {
 				}
 
 				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
-				let browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
 				// Reset these because we handled them
@@ -677,8 +677,8 @@ export class WindowsManager implements IWindowsService {
 		// Handle empty
 		if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
-				let configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli);
-				let browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
+				const configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli);
+				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
 				openInNewWindow = true; // any other folders to open must open in new window then
@@ -717,7 +717,7 @@ export class WindowsManager implements IWindowsService {
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
 		if (openConfig.cli.paths.length === 0 && !openConfig.cli.extensionTestsPath) {
-			let workspaceToOpen = this.windowsState.lastPluginDevelopmentHostWindow && this.windowsState.lastPluginDevelopmentHostWindow.workspacePath;
+			const workspaceToOpen = this.windowsState.lastPluginDevelopmentHostWindow && this.windowsState.lastPluginDevelopmentHostWindow.workspacePath;
 			if (workspaceToOpen) {
 				openConfig.cli.paths = [workspaceToOpen];
 			}
@@ -736,7 +736,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
-		let configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
+		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
 		configuration.appRoot = this.envService.appRoot;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = userEnv;
@@ -754,7 +754,7 @@ export class WindowsManager implements IWindowsService {
 		let folders: string[];
 
 		// Get from storage
-		let storedRecents = this.storageService.getItem<IOpenedPathsList>(WindowsManager.openedPathsListStorageKey);
+		const storedRecents = this.storageService.getItem<IOpenedPathsList>(WindowsManager.openedPathsListStorageKey);
 		if (storedRecents) {
 			files = storedRecents.files || [];
 			folders = storedRecents.folders || [];
@@ -791,9 +791,9 @@ export class WindowsManager implements IWindowsService {
 			anyPath = parsedPath.path;
 		}
 
-		let candidate = path.normalize(anyPath);
+		const candidate = path.normalize(anyPath);
 		try {
-			let candidateStat = fs.statSync(candidate);
+			const candidateStat = fs.statSync(candidate);
 			if (candidateStat) {
 				return candidateStat.isFile() ?
 					{
@@ -831,11 +831,11 @@ export class WindowsManager implements IWindowsService {
 				reopenFolders = (windowConfig && windowConfig.reopenFolders) || ReopenFoldersSetting.ONE;
 			}
 
-			let lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
+			const lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
 
 			// Restore all
 			if (reopenFolders === ReopenFoldersSetting.ALL) {
-				let lastOpenedFolders = this.windowsState.openedFolders.map(o => o.workspacePath);
+				const lastOpenedFolders = this.windowsState.openedFolders.map(o => o.workspacePath);
 
 				// If we have a last active folder, move it to the end
 				if (lastActiveFolder) {
@@ -852,7 +852,7 @@ export class WindowsManager implements IWindowsService {
 			}
 		}
 
-		let iPaths = candidates.map((candidate) => this.toIPath(candidate, ignoreFileNotFound, cli.goto)).filter((path) => !!path);
+		const iPaths = candidates.map((candidate) => this.toIPath(candidate, ignoreFileNotFound, cli.goto)).filter((path) => !!path);
 		if (iPaths.length > 0) {
 			return iPaths;
 		}
@@ -901,7 +901,7 @@ export class WindowsManager implements IWindowsService {
 
 			// Some configuration things get inherited if the window is being reused and we are
 			// in plugin development host mode. These options are all development related.
-			let currentWindowConfig = vscodeWindow.config;
+			const currentWindowConfig = vscodeWindow.config;
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
 				configuration.verbose = currentWindowConfig.verbose;
@@ -932,14 +932,14 @@ export class WindowsManager implements IWindowsService {
 
 		// Known Folder - load from stored settings if any
 		if (configuration.workspacePath) {
-			let stateForWorkspace = this.windowsState.openedFolders.filter(o => this.isPathEqual(o.workspacePath, configuration.workspacePath)).map(o => o.uiState);
+			const stateForWorkspace = this.windowsState.openedFolders.filter(o => this.isPathEqual(o.workspacePath, configuration.workspacePath)).map(o => o.uiState);
 			if (stateForWorkspace.length) {
 				return stateForWorkspace[0];
 			}
 		}
 
 		// First Window
-		let lastActive = this.getLastActiveWindow();
+		const lastActive = this.getLastActiveWindow();
 		if (!lastActive && this.windowsState.lastActiveWindow) {
 			return this.windowsState.lastActiveWindow.uiState;
 		}
@@ -950,7 +950,7 @@ export class WindowsManager implements IWindowsService {
 
 		// We want the new window to open on the same display that the last active one is in
 		let displayToUse: Electron.Display;
-		let displays = screen.getAllDisplays();
+		const displays = screen.getAllDisplays();
 
 		// Single Display
 		if (displays.length === 1) {
@@ -962,7 +962,7 @@ export class WindowsManager implements IWindowsService {
 
 			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
 			if (platform.isMacintosh) {
-				let cursorPoint = screen.getCursorScreenPoint();
+				const cursorPoint = screen.getCursorScreenPoint();
 				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
 			}
 
@@ -977,7 +977,7 @@ export class WindowsManager implements IWindowsService {
 			}
 		}
 
-		let defaultState = defaultWindowState();
+		const defaultState = defaultWindowState();
 		defaultState.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (defaultState.width / 2);
 		defaultState.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (defaultState.height / 2);
 
@@ -989,7 +989,7 @@ export class WindowsManager implements IWindowsService {
 			return state;
 		}
 
-		let existingWindowBounds = WindowsManager.WINDOWS.map((win) => win.getBounds());
+		const existingWindowBounds = WindowsManager.WINDOWS.map((win) => win.getBounds());
 		while (existingWindowBounds.some((b) => b.x === state.x || b.y === state.y)) {
 			state.x += 30;
 			state.y += 30;
@@ -1019,8 +1019,8 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
-		let workingDir = options.path ||  this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
-		let focussedWindow = this.getFocusedWindow();
+		const workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
+		const focussedWindow = this.getFocusedWindow();
 
 		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
 		if (options.pickFiles && options.pickFolders) {
@@ -1047,7 +1047,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	public focusLastActive(cli: ICommandLineArguments): VSCodeWindow {
-		let lastActive = this.getLastActiveWindow();
+		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();
 
@@ -1063,8 +1063,8 @@ export class WindowsManager implements IWindowsService {
 
 	public getLastActiveWindow(): VSCodeWindow {
 		if (WindowsManager.WINDOWS.length) {
-			let lastFocussedDate = Math.max.apply(Math, WindowsManager.WINDOWS.map((w) => w.lastFocusTime));
-			let res = WindowsManager.WINDOWS.filter((w) => w.lastFocusTime === lastFocussedDate);
+			const lastFocussedDate = Math.max.apply(Math, WindowsManager.WINDOWS.map((w) => w.lastFocusTime));
+			const res = WindowsManager.WINDOWS.filter((w) => w.lastFocusTime === lastFocussedDate);
 			if (res && res.length) {
 				return res[0];
 			}
@@ -1077,15 +1077,15 @@ export class WindowsManager implements IWindowsService {
 		if (WindowsManager.WINDOWS.length) {
 
 			// Sort the last active window to the front of the array of windows to test
-			let windowsToTest = WindowsManager.WINDOWS.slice(0);
-			let lastActiveWindow = this.getLastActiveWindow();
+			const windowsToTest = WindowsManager.WINDOWS.slice(0);
+			const lastActiveWindow = this.getLastActiveWindow();
 			if (lastActiveWindow) {
 				windowsToTest.splice(windowsToTest.indexOf(lastActiveWindow), 1);
 				windowsToTest.unshift(lastActiveWindow);
 			}
 
 			// Find it
-			let res = windowsToTest.filter((w) => {
+			const res = windowsToTest.filter((w) => {
 
 				// match on workspace
 				if (typeof w.openedWorkspacePath === 'string' && (this.isPathEqual(w.openedWorkspacePath, workspacePath))) {
@@ -1141,7 +1141,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	public getFocusedWindow(): VSCodeWindow {
-		let win = BrowserWindow.getFocusedWindow();
+		const win = BrowserWindow.getFocusedWindow();
 		if (win) {
 			return this.getWindowById(win.id);
 		}
@@ -1150,7 +1150,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	public getWindowById(windowId: number): VSCodeWindow {
-		let res = WindowsManager.WINDOWS.filter((w) => w.id === windowId);
+		const res = WindowsManager.WINDOWS.filter((w) => w.id === windowId);
 		if (res && res.length === 1) {
 			return res[0];
 		}
@@ -1214,7 +1214,7 @@ export class WindowsManager implements IWindowsService {
 		}
 
 		// On Window close, update our stored state of this window
-		let state: IWindowState = { workspacePath: win.openedWorkspacePath, uiState: win.serializeWindowState() };
+		const state: IWindowState = { workspacePath: win.openedWorkspacePath, uiState: win.serializeWindowState() };
 		if (win.isPluginDevelopmentHost) {
 			this.windowsState.lastPluginDevelopmentHostWindow = state;
 		} else {
@@ -1234,7 +1234,7 @@ export class WindowsManager implements IWindowsService {
 		win.dispose();
 
 		// Remove from our list so that Electron can clean it up
-		let index = WindowsManager.WINDOWS.indexOf(win);
+		const index = WindowsManager.WINDOWS.indexOf(win);
 		WindowsManager.WINDOWS.splice(index, 1);
 
 		// Emit

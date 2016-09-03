@@ -131,7 +131,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		});
 
 		this.raw.on('update-downloaded', (event: any, releaseNotes: string, version: string, date: Date, url: string, rawQuitAndUpdate: () => void) => {
-			let data: IUpdate = {
+			const data: IUpdate = {
 				releaseNotes: releaseNotes,
 				version: version,
 				date: date,

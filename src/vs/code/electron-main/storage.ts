@@ -68,7 +68,7 @@ export class StorageService implements IStorageService {
 			}
 		}
 
-		let oldValue = this.database[key];
+		const oldValue = this.database[key];
 		this.database[key] = data;
 		this.save();
 
@@ -81,7 +81,7 @@ export class StorageService implements IStorageService {
 		}
 
 		if (this.database[key]) {
-			let oldValue = this.database[key];
+			const oldValue = this.database[key];
 			delete this.database[key];
 			this.save();
 
