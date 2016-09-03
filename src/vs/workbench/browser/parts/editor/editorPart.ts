@@ -30,6 +30,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, POSITIONS, Direction} from 'vs/platform/editor/common/editor';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
@@ -658,7 +659,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private doHandleDirty(identifier: EditorIdentifier, ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
-		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.stacks.count(identifier.editor) > 1 /* allow to close a dirty editor if it is opened in another group */)) {
+		if (!identifier || !identifier.editor || !identifier.editor.isDirty() || (ignoreIfOpenedInOtherGroup && this.countEditors(identifier.editor, true /* include diff editors */) > 1 /* allow to close a dirty editor if it is opened in another group */)) {
 			return TPromise.as(false); // no veto
 		}
 
@@ -675,6 +676,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			case ConfirmResult.CANCEL:
 				return TPromise.as(true); // veto
 		}
+	}
+
+	private countEditors(editor: EditorInput, includeDiffEditors: boolean): number {
+		const editors = [editor];
+		if (includeDiffEditors && editor instanceof DiffEditorInput) {
+			editors.push(editor.modifiedInput);
+		}
+
+		return editors.reduce((prev, e) => prev += this.stacks.count(editor), 0);
 	}
 
 	public getStacksModel(): EditorStacksModel {
