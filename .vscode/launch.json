@@ -73,7 +73,15 @@
 			"name": "Launch VSCode",
 			"type": "chrome",
 			"request": "launch",
-			"runtimeExecutable": "${workspaceRoot}/scripts/code.bat",
+			"windows": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.bat"
+			},
+			"osx": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
+			},
 			"sourceMaps": true
 		},
 		{
