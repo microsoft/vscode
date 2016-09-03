@@ -8,7 +8,7 @@
 import 'vs/css!./messageList';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Builder, withElementById, $} from 'vs/base/browser/builder';
+import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -59,17 +59,17 @@ export class MessageList {
 	private messageListPurger: TPromise<void>;
 	private messageListContainer: Builder;
 
-	private containerElementId: string;
+	private container: HTMLElement;
 	private options: IMessageListOptions;
 	private usageLogger: IUsageLogger;
 
 	private _onMessagesShowing: Emitter<void>;
 	private _onMessagesCleared: Emitter<void>;
 
-	constructor(containerElementId: string, usageLogger?: IUsageLogger, options: IMessageListOptions = { purgeInterval: MessageList.DEFAULT_MESSAGE_PURGER_INTERVAL, maxMessages: MessageList.DEFAULT_MAX_MESSAGES, maxMessageLength: MessageList.DEFAULT_MAX_MESSAGE_LENGTH }) {
+	constructor(container: HTMLElement, usageLogger?: IUsageLogger, options: IMessageListOptions = { purgeInterval: MessageList.DEFAULT_MESSAGE_PURGER_INTERVAL, maxMessages: MessageList.DEFAULT_MAX_MESSAGES, maxMessageLength: MessageList.DEFAULT_MAX_MESSAGE_LENGTH }) {
 		this.messages = [];
 		this.messageListPurger = null;
-		this.containerElementId = containerElementId;
+		this.container = container;
 		this.usageLogger = usageLogger;
 		this.options = options;
 
@@ -162,10 +162,7 @@ export class MessageList {
 	}
 
 	private renderMessages(animate: boolean, delta: number): void {
-		const container = withElementById(this.containerElementId);
-		if (!container) {
-			return; // Cannot build container for messages yet, return
-		}
+		const container = $(this.container);
 
 		// Lazily create, otherwise clear old
 		if (!this.messageListContainer) {
