@@ -8,16 +8,19 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import severity from 'vs/base/common/severity';
+import paths = require('vs/base/common/paths');
 import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from '../common/extensionQuery';
+import { shell } from 'electron';
 
 export class InstallAction extends Action {
 
@@ -492,6 +495,31 @@ export class ChangeSortAction extends Action {
 				viewlet.search(this.query.toString());
 				viewlet.focus();
 			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class OpenExtensionsFolderAction extends Action {
+
+	static ID = 'workbench.extensions.action.openExtensionsFolder';
+	static LABEL = localize('openExtensionsFolder', "Open Extensions Folder");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<any> {
+		const extensionsHome = this.environmentService.extensionsPath;
+		shell.showItemInFolder(paths.normalize(extensionsHome, true));
+
+		return TPromise.as(true);
 	}
 
 	protected isEnabled(): boolean {
