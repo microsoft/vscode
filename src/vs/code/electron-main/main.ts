@@ -76,7 +76,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 		if (err) {
 
 			// take only the message and stack property
-			let friendlyError = {
+			const friendlyError = {
 				message: err.message,
 				stack: err.stack
 			};
