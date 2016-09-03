@@ -7,7 +7,6 @@
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import {MessageList, Severity as BaseSeverity} from 'vs/base/browser/ui/messagelist/messageList';
-import {Identifiers} from 'vs/workbench/common/constants';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -30,9 +29,10 @@ export class WorkbenchMessageService implements IMessageService {
 	private messageBuffer: IBufferedMessage[];
 
 	constructor(
+		container: HTMLElement,
 		private telemetryService: ITelemetryService
 	) {
-		this.handler = new MessageList(Identifiers.WORKBENCH_CONTAINER, telemetryService);
+		this.handler = new MessageList(container, telemetryService);
 
 		this.messageBuffer = [];
 		this.canShowMessages = true;
