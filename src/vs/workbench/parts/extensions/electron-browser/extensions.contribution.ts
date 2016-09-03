@@ -101,19 +101,19 @@ const listOutdatedActionDescriptor = new SyncActionDescriptor(ShowOutdatedExtens
 actionRegistry.registerWorkbenchAction(listOutdatedActionDescriptor, 'Extensions: Show Outdated Extensions', ExtensionsLabel);
 
 const recommendationsActionDescriptor = new SyncActionDescriptor(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL);
-actionRegistry.registerWorkbenchAction(recommendationsActionDescriptor, `Extensions: ${ ShowRecommendedExtensionsAction.LABEL }`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(recommendationsActionDescriptor, 'Extensions: Show Recommended Extensions', ExtensionsLabel);
 
 const popularActionDescriptor = new SyncActionDescriptor(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL);
-actionRegistry.registerWorkbenchAction(popularActionDescriptor, `Extensions: ${ ShowPopularExtensionsAction.LABEL }`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(popularActionDescriptor, 'Extensions: Show Popular Extensions', ExtensionsLabel);
 
 const installedActionDescriptor = new SyncActionDescriptor(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL);
-actionRegistry.registerWorkbenchAction(installedActionDescriptor, `Extensions: ${ ShowInstalledExtensionsAction.LABEL }`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(installedActionDescriptor, 'Extensions: Show Installed Extensions', ExtensionsLabel);
 
 const updateAllActionDescriptor = new SyncActionDescriptor(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
-actionRegistry.registerWorkbenchAction(updateAllActionDescriptor, `Extensions: ${ UpdateAllAction.LABEL }`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(updateAllActionDescriptor, 'Extensions: Update All Extensions', ExtensionsLabel);
 
 const openExtensionsFolderActionDescriptor = new SyncActionDescriptor(OpenExtensionsFolderAction, OpenExtensionsFolderAction.ID, OpenExtensionsFolderAction.LABEL);
-actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, `Extensions: ${ OpenExtensionsFolderAction.LABEL }`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
