@@ -37,16 +37,10 @@
 
 .quick-open-widget .quick-open-tree {
 	line-height: 1.8em;
-	height: 0; /* need an initial height to trigger transition on first open */
 }
 
-.quick-open-widget .quick-open-tree.transition {
-	-webkit-transition:	height 100ms ease-in;
-	-ms-transition:		height 100ms ease-in;
-	-moz-transition:	height 100ms ease-in;
-	-khtml-transition:	height 100ms ease-in;
-	-o-transition:		height 100ms ease-in;
-	transition:			height 100ms ease-in;
+.quick-open-widget.content-changing .quick-open-tree .monaco-scrollable-element .slider {
+	display: none; /* scrollbar slider causes some hectic updates when input changes quickly, so hide it while quick open changes */
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry {
