@@ -1427,7 +1427,7 @@ declare namespace vscode {
 		ignoreFocusOut?: boolean;
 
 		/**
-		 * An optional function that will be called to valide input and to give a hint
+		 * An optional function that will be called to validate input and to give a hint
 		 * to the user.
 		 *
 		 * @param value The current value of the input box.
@@ -3002,9 +3002,10 @@ declare namespace vscode {
 		name: string;
 
 		/**
-		 * Send text to the terminal.
+		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
+		 * (shell) of the terminal.
 		 *
-		 * @param text The text to send to the terminal.
+		 * @param text The text to send.
 		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
 		 * required to run a command in the terminal. The character(s) added are \n or \r\n
 		 * depending on the platform. This defaults to `true`.
@@ -3014,9 +3015,9 @@ declare namespace vscode {
 		/**
 		 * Show the terminal panel and reveal this terminal in the UI.
 		 *
-		 * @param preserveFocus When `true` the channel will not take focus.
+		 * @param preserveFocus When `true` the terminal will not take focus.
 		 */
-		show(preservceFocus?: boolean): void;
+		show(preserveFocus?: boolean): void;
 
 		/**
 		 * Hide the terminal panel if this terminal is currently showing.

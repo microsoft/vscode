@@ -14,6 +14,7 @@
 	"continueDebug": "続行",
 	"deactivateBreakpoints": "ブレークポイントの非アクティブ化",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugAddToWatch": "デバッグ: ウォッチに追加",
 	"debugConsoleAction": "デバッグ コンソール",
 	"debugEvaluate": "デバッグ: 評価",
 	"disableAllBreakpoints": "すべてのブレークポイントを無効にする",

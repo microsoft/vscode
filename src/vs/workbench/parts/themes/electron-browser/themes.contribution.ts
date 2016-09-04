@@ -42,11 +42,16 @@ class SelectColorThemeAction extends Action {
 			const currentThemeId = this.themeService.getColorTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
 
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
+
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
 			const selectTheme = (theme, broadcast) => {
+				if (theme === pickInMarketPlace) {
+					theme = currentTheme;
+				}
 				this.themeService.setColorTheme(theme.id, broadcast)
 					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem loading theme: {0}", err.message)));
 			};
@@ -56,22 +61,7 @@ class SelectColorThemeAction extends Action {
 			const delayer = new Delayer<void>(100);
 
 			if (this.extensionGalleryService.isEnabled()) {
-				const run = () => {
-					return this.viewletService.openViewlet(VIEWLET_ID, true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
-						.then(viewlet => {
-							viewlet.search('category:themes');
-							viewlet.focus();
-						});
-				};
-
-				picks.push({
-					id: 'themes.findmore',
-					label: localize('findMore', "Find more in the Marketplace..."),
-					separator: { border: true },
-					alwaysShow: true,
-					run
-				});
+				picks.push(pickInMarketPlace);
 			}
 
 			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }})
@@ -106,6 +96,8 @@ class SelectIconThemeAction extends Action {
 			const currentThemeId = this.themeService.getFileIconTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
 
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
+
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
@@ -113,6 +105,9 @@ class SelectIconThemeAction extends Action {
 			picks.splice(0, 0, { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') });
 
 			const selectTheme = (theme, broadcast) => {
+				if (theme === pickInMarketPlace) {
+					theme = currentTheme;
+				}
 				this.themeService.setFileIconTheme(theme && theme.id, broadcast)
 					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem loading icon theme: {0}", err.message)));
 			};
@@ -121,24 +116,10 @@ class SelectIconThemeAction extends Action {
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentThemeId);
 			const delayer = new Delayer<void>(100);
 
-		/*	if (this.extensionGalleryService.isEnabled()) {
-				const run = () => {
-					return this.viewletService.openViewlet(VIEWLET_ID, true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
-						.then(viewlet => {
-							viewlet.search('category:themes', true); // define our own category
-							viewlet.focus();
-						});
-				};
 
-				picks.push({
-					id: 'themes.findmoreiconthemes',
-					label: localize('findMoreIconThemes', "Find more in the Marketplace..."),
-					separator: { border: true },
-					alwaysShow: true,
-					run
-				});
-			}*/
+			if (this.extensionGalleryService.isEnabled()) {
+				picks.push(pickInMarketPlace);
+			}
 
 			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }})
 				.then(
@@ -148,6 +129,19 @@ class SelectIconThemeAction extends Action {
 				);
 		});
 	}
+}
+
+function findInMarketplacePick(viewletService: IViewletService, query: string) {
+	return {
+		id: 'themes.findmore',
+		label: localize('findMore', "Find more in the Marketplace..."),
+		separator: { border: true },
+		alwaysShow: true,
+		run: () => viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+			(<IExtensionsViewlet>viewlet).search(query);
+			viewlet.focus();
+		})
+	};
 }
 
 const category = localize('preferences', "Preferences");

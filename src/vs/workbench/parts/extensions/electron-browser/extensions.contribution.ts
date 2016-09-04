@@ -21,7 +21,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/co
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from './extensions';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
-import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction } from './extensionsActions';
+import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, UpdateAllAction } from './extensionsActions';
 import { ExtensionsInput } from './extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
@@ -108,6 +108,9 @@ actionRegistry.registerWorkbenchAction(popularActionDescriptor, `Extensions: ${ 
 
 const installedActionDescriptor = new SyncActionDescriptor(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(installedActionDescriptor, `Extensions: ${ ShowInstalledExtensionsAction.LABEL }`, ExtensionsLabel);
+
+const updateAllActionDescriptor = new SyncActionDescriptor(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
+actionRegistry.registerWorkbenchAction(updateAllActionDescriptor, `Extensions: ${ UpdateAllAction.LABEL }`, ExtensionsLabel);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

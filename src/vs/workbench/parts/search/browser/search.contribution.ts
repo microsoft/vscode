@@ -198,7 +198,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.quickOpen.includeSymbols': {
 			'type': 'boolean',
-			'description': nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for quick open."),
+			'description': nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for Quick Open."),
 			'default': false
 		}
 	}

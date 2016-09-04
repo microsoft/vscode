@@ -716,8 +716,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return result;
 	}
 
-	public findMatchingBracketUp(bracket:string, _position:editorCommon.IPosition): Range {
+	public findMatchingBracketUp(_bracket:string, _position:editorCommon.IPosition): Range {
+		let bracket = _bracket.toLowerCase();
 		let position = this.validatePosition(_position);
+
 		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this.getModeId());
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
@@ -779,6 +781,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					// check that we didn't hit a bracket too far away from position
 					if (foundBracket && foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
 						let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
+						foundBracketText = foundBracketText.toLowerCase();
+
 						let r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText]);
 
 						// check that we can actually match this bracket
@@ -812,6 +816,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					// check that we didn't hit a bracket too far away from position
 					if (foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
 						let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
+						foundBracketText = foundBracketText.toLowerCase();
+
 						let r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText]);
 
 						// check that we can actually match this bracket
@@ -889,6 +895,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 						}
 
 						let hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1);
+						hitText = hitText.toLowerCase();
 
 						if (hitText === bracket.open) {
 							count++;
@@ -955,6 +962,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 						}
 
 						let hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1);
+						hitText = hitText.toLowerCase();
 
 						if (hitText === bracket.open) {
 							count++;

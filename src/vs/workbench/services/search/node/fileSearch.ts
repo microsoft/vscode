@@ -130,7 +130,8 @@ export class FileWalker {
 				if (platform.isMacintosh) {
 					this.traversal = Traversal.MacFind;
 					traverse = this.macFindTraversal;
-				} else if (platform.isWindows) {
+				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
+				} else if (false && platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
 				} else if (platform.isLinux) {

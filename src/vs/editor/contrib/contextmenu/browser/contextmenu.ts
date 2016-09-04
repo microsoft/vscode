@@ -16,17 +16,18 @@ import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
-import {ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 
-interface IPosition {
+export interface IPosition {
 	x: number;
 	y: number;
 }
 
-class ContextMenuController implements IEditorContribution {
+@editorContribution
+export class ContextMenuController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.contextmenu';
 
@@ -53,6 +54,11 @@ class ContextMenuController implements IEditorContribution {
 		this._toDispose.push(this._contextMenu);
 
 		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
+		this._toDispose.push(this._editor.onDidScrollChange((e: IScrollEvent) => {
+			if (this._contextMenuIsBeingShownCount > 0) {
+				this._contextViewService.hideContextView();
+			}
+		}));
 		this._toDispose.push(this._editor.onKeyDown((e: IKeyboardEvent) => {
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
@@ -158,6 +164,7 @@ class ContextMenuController implements IEditorContribution {
 		}
 
 		// Show menu
+		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => menuPosition,
 
@@ -231,9 +238,7 @@ class ShowContextMenu extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		var contribution = ContextMenuController.get(editor);
+		let contribution = ContextMenuController.get(editor);
 		contribution.showContextMenu();
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(ContextMenuController);

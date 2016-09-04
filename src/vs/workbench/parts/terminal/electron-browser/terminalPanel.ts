@@ -330,7 +330,6 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 		if (!this.font || this.fontsDiffer(this.font, newFont)) {
 			this.fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
 				`font-family: ${newFont.fontFamily};` +
-				`font-weight: ${newFont.fontWeight};` +
 				`font-size: ${newFont.fontSize};` +
 				`line-height: ${newFont.lineHeight};` +
 				'}';
@@ -344,7 +343,6 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 		return a.charHeight !== b.charHeight ||
 			a.charWidth !== b.charWidth ||
 			a.fontFamily !== b.fontFamily ||
-			a.fontWeight !== b.fontWeight ||
 			a.fontSize !== b.fontSize ||
 			a.lineHeight !== b.lineHeight;
 	}

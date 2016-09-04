@@ -595,13 +595,14 @@ let editorConfiguration:IConfigurationNode = {
 		},
 		'editor.fontWeight' : {
 			'type': 'string',
+			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
 			'default': DefaultConfig.editor.fontWeight,
 			'description': nls.localize('fontWeight', "Controls the font weight.")
 		},
 		'editor.fontSize' : {
 			'type': 'number',
 			'default': DefaultConfig.editor.fontSize,
-			'description': nls.localize('fontSize', "Controls the font size.")
+			'description': nls.localize('fontSize', "Controls the font size in pixels.")
 		},
 		'editor.lineHeight' : {
 			'type': 'number',

@@ -34,10 +34,6 @@
 	box-sizing: initial;
 }
 
-.monaco-editor-hover p {
-	margin: 0;
-}
-
 .monaco-editor.vs-dark .monaco-editor-hover { border-color: #555; }
 .monaco-editor.vs-dark .monaco-editor-hover a { color: #1C5DAF; }
 

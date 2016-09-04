@@ -64,17 +64,13 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
 		},
-		'terminal.integrated.fontWeight': {
-			'description': nls.localize('terminal.integrated.fontWeight', "Controls the font weight of the terminal, this defaults to editor.fontWeight's value."),
-			'type': 'string'
-		},
 		'terminal.integrated.fontLigatures': {
 			'description': nls.localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
 			'type': 'boolean',
 			'default': false
 		},
 		'terminal.integrated.fontSize': {
-			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size of the terminal, this defaults to editor.fontSize's value."),
+			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal, this defaults to editor.fontSize's value."),
 			'type': 'number',
 			'default': 0
 		},
@@ -94,7 +90,7 @@ configurationRegistry.registerConfiguration({
 			'default': platform.isMacintosh
 		},
 		'terminal.integrated.commandsToSkipShell': {
-			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch quick open."),
+			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
 			'type': 'array',
 			'items': {
 				'type': 'string'

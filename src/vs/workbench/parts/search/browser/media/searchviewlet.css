@@ -283,7 +283,7 @@
 }
 
 .vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern,
-.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern:before {
+.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern {
 	background: url('pattern-dark.svg') center center no-repeat;
 }
 

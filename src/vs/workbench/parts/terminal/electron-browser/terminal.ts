@@ -43,7 +43,6 @@ export interface ITerminalConfiguration {
 			},
 			cursorBlinking: boolean,
 			fontFamily: string,
-			fontWeight: string,
 			fontLigatures: boolean,
 			fontSize: number,
 			lineHeight: number,
@@ -88,5 +87,6 @@ export interface ITerminalService {
 
 export interface ITerminalPanel {
 	closeTerminalById(terminalId: number): TPromise<void>;
+	focus(): void;
 	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
 }

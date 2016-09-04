@@ -151,9 +151,7 @@ class ExtensionHostProcessManager {
 				if (this.isExtensionDevelopmentHost && port) {
 					this.windowService.broadcast({
 						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
-						payload: {
-							port: port
-						}
+						payload: { port }
 					}, this.environmentService.extensionDevelopmentPath /* target */);
 				}
 

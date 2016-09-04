@@ -204,7 +204,7 @@ documents.onDidClose(event => {
 	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
-let pendingValidationRequests : {[uri:string]:number} = {};
+let pendingValidationRequests : { [uri: string]: NodeJS.Timer; } = {};
 const validationDelayMs = 200;
 
 function cleanPendingValidation(textDocument: TextDocument): void {

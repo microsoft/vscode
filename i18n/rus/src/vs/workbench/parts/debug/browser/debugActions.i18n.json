@@ -14,6 +14,7 @@
 	"continueDebug": "Продолжить",
 	"deactivateBreakpoints": "Отключить точки останова",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugAddToWatch": "Отладка: добавить контрольное значение",
 	"debugConsoleAction": "Консоль отладки",
 	"debugEvaluate": "Отладка: вычисление",
 	"disableAllBreakpoints": "Отключить все точки останова",

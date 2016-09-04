@@ -49,9 +49,9 @@ suite('Emmet', () => {
 	test('emmet isEnabled', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
-			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}) {
+			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
 				editor.getModel().setMode(new MockMode(mode));
-				let editorAccessor = new EditorAccessor(editor, profile, new MockGrammarContributions(scopeName));
+				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
 			}
 
@@ -84,15 +84,18 @@ suite('Emmet', () => {
 			testIsEnabled('java', 'source.java', true, {
 				'java': 'html'
 			});
+
+			// emmet enabled language that is disabled
+			testIsEnabled('php', 'text.html.php', false, {}, ['php']);
 		});
 	});
 
 	test('emmet syntax profiles', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
-			function testSyntax(mode: string, scopeName: string, expectedSyntax: string, profile = {}) {
+			function testSyntax(mode: string, scopeName: string, expectedSyntax: string, profile = {}, excluded = []) {
 				editor.getModel().setMode(new MockMode(mode));
-				let editorAccessor = new EditorAccessor(editor, profile, new MockGrammarContributions(scopeName));
+				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.getSyntax(), expectedSyntax);
 			}
 

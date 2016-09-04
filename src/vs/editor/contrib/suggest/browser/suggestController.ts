@@ -15,7 +15,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
@@ -24,6 +24,7 @@ import { SuggestModel } from '../common/suggestModel';
 import { ICompletionItem } from '../common/completionModel';
 import { SuggestWidget } from './suggestWidget';
 
+@editorContribution
 export class SuggestController implements IEditorContribution {
 	private static ID: string = 'editor.contrib.suggestController';
 
@@ -281,5 +282,3 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 	}
 }));
-
-EditorBrowserRegistry.registerEditorContribution(SuggestController);

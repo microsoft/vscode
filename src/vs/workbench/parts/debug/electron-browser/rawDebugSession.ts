@@ -52,7 +52,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private startTime: number;
 	private stopServerPending: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
-	private isAttach: boolean;
 	private capabilities: DebugProtocol.Capabilites;
 
 	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -212,10 +211,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		this._onDidEvent.fire(event);
 	}
 
-	public get configuration(): { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites } {
+	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilites } {
 		return {
 			type: this.adapter.type,
-			isAttach: this.isAttach,
 			capabilities: this.capabilities || {}
 		};
 	}
@@ -233,12 +231,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
-		this.isAttach = false;
 		return this.send('launch', args).then(response => this.readCapabilities(response));
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
-		this.isAttach = true;
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
@@ -358,7 +354,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		let command = '';
 
 		if (platform.isWindows) {
-			
+
 			const quote = (s: string) => {
 				s = s.replace(/\"/g, '""');
 				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;

@@ -16,11 +16,12 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {IQuickFix2} from '../common/quickFix';
 import {QuickFixModel} from './quickFixModel';
 import {QuickFixSelectionWidget} from './quickFixSelectionWidget';
 
+@editorContribution
 export class QuickFixController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.quickFixController';
@@ -131,7 +132,10 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		QuickFixController.get(editor).run();
+		let controller = QuickFixController.get(editor);
+		if (controller) {
+			controller.run();
+		}
 	}
 }
 
@@ -204,5 +208,3 @@ CommonEditorRegistry.registerEditorCommand(new QuickFixCommand({
 		primary: KeyCode.PageUp
 	}
 }));
-
-EditorBrowserRegistry.registerEditorContribution(QuickFixController);

@@ -206,6 +206,32 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('showQuickPick, canceled by another picker', function () {
+
+		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			assert.equal(result, undefined);
+		});
+
+		const source = new CancellationTokenSource();
+		source.cancel();
+		window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
+
+		return result;
+	});
+
+	test('showQuickPick, canceled by input', function () {
+
+		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			assert.equal(result, undefined);
+		});
+
+		const source = new CancellationTokenSource();
+		source.cancel();
+		window.showInputBox(undefined, source.token);
+
+		return result;
+	});
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 

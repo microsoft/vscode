@@ -11,16 +11,16 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import Event, { Emitter, once, fromEventEmitter, filterEvent, mapEvent } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import Severity from 'vs/base/common/severity';
 import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -41,6 +41,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { Keybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -108,11 +109,11 @@ export class ExtensionEditor extends BaseEditor {
 	static ID: string = 'workbench.editor.extension';
 
 	private icon: HTMLImageElement;
-	private name: HTMLAnchorElement;
-	private license: HTMLAnchorElement;
-	private publisher: HTMLAnchorElement;
+	private name: HTMLElement;
+	private license: HTMLElement;
+	private publisher: HTMLElement;
 	private installCount: HTMLElement;
-	private rating: HTMLAnchorElement;
+	private rating: HTMLElement;
 	private description: HTMLElement;
 	private extensionActionBar: ActionBar;
 	private navbar: NavBar;
@@ -138,7 +139,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService private themeService: IThemeService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -146,8 +148,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.disposables = [];
 		this.extensionReadme = null;
 		this.extensionManifest = null;
-
-		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
 
 	createEditor(parent: Builder): void {
@@ -160,20 +160,16 @@ export class ExtensionEditor extends BaseEditor {
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
-		this.name = append(title, $<HTMLAnchorElement>('a.name'));
-		this.name.href = '#';
+		this.name = append(title, $('span.name.clickable'));
 
 		const subtitle = append(details, $('.subtitle'));
-		this.publisher = append(subtitle, $<HTMLAnchorElement>('a.publisher'));
-		this.publisher.href = '#';
+		this.publisher = append(subtitle, $('span.publisher.clickable'));
 
 		this.installCount = append(subtitle, $('span.install'));
 
-		this.rating = append(subtitle, $<HTMLAnchorElement>('a.rating'));
-		this.rating.href = '#';
+		this.rating = append(subtitle, $('span.rating.clickable'));
 
-		this.license = append(subtitle, $<HTMLAnchorElement>('a.license'));
-		this.license.href = '#';
+		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
 		this.license.style.display = 'none';
 
@@ -182,6 +178,11 @@ export class ExtensionEditor extends BaseEditor {
 		const extensionActions = append(details, $('.actions'));
 		this.extensionActionBar = new ActionBar(extensionActions, { animated: false });
 		this.disposables.push(this.extensionActionBar);
+
+		let onActionError = fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run');
+		onActionError = mapEvent(onActionError, ({ error }) => error);
+		onActionError = filterEvent(onActionError, error => !!error);
+		onActionError(this.onError, this, this.disposables);
 
 		const body = append(root, $('.body'));
 		this.navbar = new NavBar(body);
@@ -275,7 +276,7 @@ export class ExtensionEditor extends BaseEditor {
 				webview.style(this.themeService.getColorTheme());
 				webview.contents = [body];
 
-				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString()));
+				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString(true)));
 				const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
 				this.contentDisposables.push(webview, linkListener, themeListener);
 			})
@@ -545,12 +546,12 @@ export class ExtensionEditor extends BaseEditor {
 		this.layoutParticipants.forEach(p => p.layout());
 	}
 
-	private onViewletOpen(viewlet: IViewlet): void {
-		if (!viewlet || viewlet.getId() === VIEWLET_ID) {
+	private onError(err: any): void {
+		if (isPromiseCanceledError(err)) {
 			return;
 		}
 
-		this.editorService.closeEditor(this.position, this.input).done(null, onUnexpectedError);
+		this.messageService.show(Severity.Error, err);
 	}
 
 	dispose(): void {
