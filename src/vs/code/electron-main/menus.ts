@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import * as env from 'vs/code/electron-main/env';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
-import { IWindowsService, WindowsManager, IOpenedPathsList } from 'vs/code/electron-main/windows';
+import { IWindowsService } from 'vs/code/electron-main/windows';
 import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
@@ -45,7 +45,6 @@ export class VSCodeMenu {
 	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
-	private static MAX_TOTAL_RECENT_ENTRIES = 100;
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -154,7 +153,6 @@ export class VSCodeMenu {
 	}
 
 	private onOpen(path: IPath): void {
-		this.addToOpenedPathsList(path.filePath || path.workspacePath, !!path.filePath);
 		this.updateMenu();
 	}
 
@@ -237,59 +235,6 @@ export class VSCodeMenu {
 
 			app.dock.setMenu(dockMenu);
 		}
-	}
-
-	private addToOpenedPathsList(path?: string, isFile?: boolean): void {
-		if (!path) {
-			return;
-		}
-
-		const mru = this.getOpenedPathsList();
-		if (isFile) {
-			mru.files.unshift(path);
-			mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
-		} else {
-			mru.folders.unshift(path);
-			mru.folders = arrays.distinct(mru.folders, (f) => platform.isLinux ? f : f.toLowerCase());
-		}
-
-		// Make sure its bounded
-		mru.folders = mru.folders.slice(0, VSCodeMenu.MAX_TOTAL_RECENT_ENTRIES);
-		mru.files = mru.files.slice(0, VSCodeMenu.MAX_TOTAL_RECENT_ENTRIES);
-
-		this.storageService.setItem(WindowsManager.openedPathsListStorageKey, mru);
-	}
-
-	private removeFromOpenedPathsList(path: string): void {
-		const mru = this.getOpenedPathsList();
-
-		let index = mru.files.indexOf(path);
-		if (index >= 0) {
-			mru.files.splice(index, 1);
-		}
-
-		index = mru.folders.indexOf(path);
-		if (index >= 0) {
-			mru.folders.splice(index, 1);
-		}
-
-		this.storageService.setItem(WindowsManager.openedPathsListStorageKey, mru);
-	}
-
-	private clearOpenedPathsList(): void {
-		this.storageService.setItem(WindowsManager.openedPathsListStorageKey, { folders: [], files: [] });
-		app.clearRecentDocuments();
-
-		this.updateMenu();
-	}
-
-	private getOpenedPathsList(): IOpenedPathsList {
-		let mru = this.storageService.getItem<IOpenedPathsList>(WindowsManager.openedPathsListStorageKey);
-		if (!mru) {
-			mru = { folders: [], files: [] };
-		}
-
-		return mru;
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
@@ -424,7 +369,7 @@ export class VSCodeMenu {
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		const {folders, files} = this.getOpenedPathsList();
+		const {folders, files} = this.windowsService.getRecentPathsList();
 
 		// Folders
 		if (folders.length > 0) {
@@ -446,7 +391,7 @@ export class VSCodeMenu {
 
 		if (folders.length || files.length) {
 			openRecentMenu.append(__separator__());
-			openRecentMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miClearItems', comment: ['&& denotes a mnemonic'] }, "&&Clear Items")), click: () => this.clearOpenedPathsList() }));
+			openRecentMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miClearItems', comment: ['&& denotes a mnemonic'] }, "&&Clear Items")), click: () => { this.windowsService.clearRecentPathsList(); this.updateMenu(); } }));
 		}
 	}
 
@@ -455,7 +400,7 @@ export class VSCodeMenu {
 			label: unMnemonicLabel(path), click: () => {
 				const success = !!this.windowsService.open({ cli: this.envService.cliArgs, pathsToOpen: [path] });
 				if (!success) {
-					this.removeFromOpenedPathsList(path);
+					this.windowsService.removeFromRecentPathsList(path);
 					this.updateMenu();
 				}
 			}
