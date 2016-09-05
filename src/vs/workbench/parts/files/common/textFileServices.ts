@@ -63,17 +63,17 @@ export abstract class TextFileService implements ITextFileService {
 		this.registerListeners();
 	}
 
-	public abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
+	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
-	public abstract promptForPath(defaultPath?: string): string;
+	abstract promptForPath(defaultPath?: string): string;
 
-	public abstract confirmBeforeShutdown(): boolean | TPromise<boolean>;
+	abstract confirmSave(resources?: URI[]): ConfirmResult;
 
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
 		return this._onAutoSaveConfigurationChange.event;
 	}
 
-	protected registerListeners(): void {
+	private registerListeners(): void {
 
 		// Lifecycle
 		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
@@ -109,6 +109,31 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		return false; // no veto
+	}
+
+	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
+		const confirm = this.confirmSave();
+
+		// Save
+		if (confirm === ConfirmResult.SAVE) {
+			return this.saveAll(true /* includeUntitled */).then(result => {
+				if (result.results.some(r => !r.success)) {
+					return true; // veto if some saves failed
+				}
+
+				return false; // no veto
+			});
+		}
+
+		// Don't Save
+		else if (confirm === ConfirmResult.DONT_SAVE) {
+			return false; // no veto
+		}
+
+		// Cancel
+		else if (confirm === ConfirmResult.CANCEL) {
+			return true; // veto
+		}
 	}
 
 	private onWindowFocusLost(): void {
@@ -410,10 +435,6 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		return this.untitledEditorService.get(untitledResource).suggestFileName();
-	}
-
-	public confirmSave(resources?: URI[]): ConfirmResult {
-		throw new Error('Unsupported');
 	}
 
 	public revert(resource: URI, force?: boolean): TPromise<boolean> {

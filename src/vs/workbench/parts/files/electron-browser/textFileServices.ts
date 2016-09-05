@@ -68,31 +68,6 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public confirmBeforeShutdown(): boolean | TPromise<boolean> {
-		const confirm = this.confirmSave();
-
-		// Save
-		if (confirm === ConfirmResult.SAVE) {
-			return this.saveAll(true /* includeUntitled */).then(result => {
-				if (result.results.some(r => !r.success)) {
-					return true; // veto if some saves failed
-				}
-
-				return false; // no veto
-			});
-		}
-
-		// Don't Save
-		else if (confirm === ConfirmResult.DONT_SAVE) {
-			return false; // no veto
-		}
-
-		// Cancel
-		else if (confirm === ConfirmResult.CANCEL) {
-			return true; // veto
-		}
-	}
-
 	public confirmSave(resources?: URI[]): ConfirmResult {
 		if (!!this.environmentService.extensionDevelopmentPath) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
