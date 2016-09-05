@@ -149,7 +149,7 @@ export class CompletionModel {
 
 			// compute score against word
 			const wordLowerCase = word.toLowerCase();
-			const score = CompletionModel._score(suggestion.label, word, wordLowerCase);
+			const score = CompletionModel._score(suggestion.insertText, word, wordLowerCase);
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;
