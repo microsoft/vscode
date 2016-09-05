@@ -9,7 +9,7 @@
 	z-index: 10;
 }
 
-.monaco-editor.mac .suggest-widget {
+.monaco-editor.mac .parameter-hints-widget {
 	font-size: 11px;
 }
 
