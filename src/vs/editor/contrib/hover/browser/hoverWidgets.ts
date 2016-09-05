@@ -67,6 +67,9 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 			}
 		}));
 
+		this._editor.onDidLayoutChange(e => this.updateMaxHeight());
+
+		this.updateMaxHeight();
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
 	}
@@ -140,6 +143,12 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 		this._editor.layoutContentWidget(this);
 		this.scrollbar.scanDomNode();
+	}
+
+	private updateMaxHeight(): void {
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+
+		this._domNode.style.maxHeight = `${ height }px`;
 	}
 }
 
