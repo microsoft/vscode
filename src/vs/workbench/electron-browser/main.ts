@@ -20,7 +20,6 @@ import {EventService} from 'vs/platform/event/common/eventService';
 import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
-import {IProcessEnvironment} from 'vs/code/electron-main/env';
 import {ParsedArgs} from 'vs/platform/environment/node/argv';
 import {realpath} from 'vs/base/node/pfs';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
@@ -37,7 +36,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
 	execPath: string;
 
-	userEnv: IProcessEnvironment;
+	userEnv: any; /* vs/code/electron-main/env/IProcessEnvironment*/
 
 	workspacePath?: string;
 
