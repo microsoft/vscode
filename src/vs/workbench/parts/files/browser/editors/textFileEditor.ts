@@ -122,10 +122,14 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Check Model state
 			const textFileModel = <TextFileEditorModel>resolvedModel;
+
+			const hasInput = !!this.getInput();
+			const modelDisposed = textFileModel.isDisposed();
+			const inputChanged = (<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString();
 			if (
-				!this.getInput() ||	// editor got hidden meanwhile
-				textFileModel.isDisposed() || // input got disposed meanwhile
-				(<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString() // a different input was set meanwhile
+				!hasInput ||		// editor got hidden meanwhile
+				modelDisposed || 	// input got disposed meanwhile
+				inputChanged 		// a different input was set meanwhile
 			) {
 				return null;
 			}
