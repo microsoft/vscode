@@ -53,6 +53,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private stopServerPending: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
 	private capabilities: DebugProtocol.Capabilities;
+	private static terminalId: number;
 
 	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
@@ -364,7 +365,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	protected runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
-		return this.terminalService.createNew(args.title || nls.localize('debuggee', "debuggee")).then(id => {
+		return (!RawDebugSession.terminalId ? this.terminalService.createNew(args.title || nls.localize('debuggee', "debuggee")) : TPromise.as(RawDebugSession.terminalId)).then(id => {
+			RawDebugSession.terminalId = id;
 			return this.terminalService.show(false).then(terminalPanel => {
 				this.terminalService.setActiveTerminalById(id);
 				const command = this.prepareCommand(args);
