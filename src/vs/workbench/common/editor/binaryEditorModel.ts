@@ -21,7 +21,7 @@ export class BinaryEditorModel extends EditorModel {
 	constructor(
 		resource: URI,
 		name: string,
-		@IFileService protected fileService: IFileService
+		@IFileService private fileService: IFileService
 	) {
 		super();
 
