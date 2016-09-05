@@ -157,7 +157,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		if (this._isChangingDecorations) {
 			return;
 		}
-		if (this._isVisible) {
+		if (this.isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
@@ -176,7 +176,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		this._hoverOperation.cancel();
 
-		if (this._isVisible) {
+		if (this.isVisible) {
 			// The range might have changed, but the hover is visible
 			// Instead of hiding it completely, filter out messages that are still in the new range and
 			// kick off a new computation

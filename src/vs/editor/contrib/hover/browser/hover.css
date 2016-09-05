@@ -17,6 +17,12 @@
 	-o-user-select: text;
 	user-select: text;
 	box-sizing: initial;
+	animation: fadein 100ms linear;
+	animation: fadein 100ms ease-in;
+}
+
+.monaco-editor-hover.hidden {
+	display: none;
 }
 
 .monaco-editor-hover .monaco-editor-hover-content {

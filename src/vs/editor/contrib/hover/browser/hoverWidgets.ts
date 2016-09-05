@@ -6,6 +6,7 @@
 
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {toggleClass} from 'vs/base/browser/dom';
 import {Position} from 'vs/editor/common/core/position';
 import {IPosition, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -15,7 +16,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 	private _id: string;
 	protected _editor: editorBrowser.ICodeEditor;
-	protected _isVisible: boolean;
+	private _isVisible: boolean;
 	private _containerDomNode: HTMLElement;
 	protected _domNode: HTMLElement;
 	protected _showAtPosition: Position;
@@ -24,6 +25,15 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
+	protected get isVisible(): boolean {
+		return this._isVisible;
+	}
+
+	protected set isVisible(value: boolean) {
+		this._isVisible = value;
+		toggleClass(this._containerDomNode, 'hidden', !this._isVisible);
+	}
+
 	constructor(id: string, editor: editorBrowser.ICodeEditor) {
 		super();
 		this._id = id;
@@ -31,7 +41,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._isVisible = false;
 
 		this._containerDomNode = document.createElement('div');
-		this._containerDomNode.className = 'monaco-editor-hover';
+		this._containerDomNode.className = 'monaco-editor-hover hidden';
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-editor-hover-content';
@@ -67,7 +77,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 		// Position has changed
 		this._showAtPosition = new Position(position.lineNumber, position.column);
-		this._isVisible = true;
+		this.isVisible = true;
 
 		this._editor.layoutContentWidget(this);
 		// Simply force a synchronous render on the editor
@@ -80,10 +90,12 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 
 	public hide(): void {
-		if (!this._isVisible) {
+		if (!this.isVisible) {
 			return;
 		}
-		this._isVisible = false;
+
+		this.isVisible = false;
+
 		this._editor.layoutContentWidget(this);
 		if (this._stoleFocus) {
 			this._editor.focus();
@@ -91,7 +103,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 
 	public getPosition():editorBrowser.IContentWidgetPosition {
-		if (this._isVisible) {
+		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
 				preference: [
