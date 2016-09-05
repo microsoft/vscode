@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import 'vs/css!./../browser/media/repl';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -25,8 +22,8 @@ import {TabCompletionController} from 'vs/editor/contrib/suggest/browser/tabComp
 
 export class ReplEditor extends CodeEditorWidget {
 	constructor(
-		domElement:HTMLElement,
-		options:IEditorOptions,
+		domElement: HTMLElement,
+		options: IEditorOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
