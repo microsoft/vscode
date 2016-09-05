@@ -34,7 +34,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import session = require('vs/workbench/parts/debug/electron-browser/rawDebugSession');
+import {RawDebugSession} from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
@@ -67,7 +67,7 @@ export class DebugService implements debug.IDebugService {
 
 	private _state: debug.State;
 	private _onDidChangeState: Emitter<debug.State>;
-	private session: session.RawDebugSession;
+	private session: RawDebugSession;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -621,7 +621,7 @@ export class DebugService implements debug.IDebugService {
 				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
+			this.session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
 			this.registerSessionListeners();
 
 			return this.session.initialize({
