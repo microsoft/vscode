@@ -11,15 +11,12 @@ import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
-import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/common/textFileServices';
-import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {ITextFileOperationResult, AutoSaveMode, IRawTextContent} from 'vs/workbench/parts/files/common/files';
+import {AutoSaveMode, IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
-import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
@@ -209,178 +206,7 @@ export class TextFileService extends AbstractTextFileService {
 		return label.replace(/&&/g, '&');
 	}
 
-	public saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
-	public saveAll(resources: URI[]): TPromise<ITextFileOperationResult>;
-	public saveAll(arg1?: any): TPromise<ITextFileOperationResult> {
-
-		// get all dirty
-		let toSave: URI[] = [];
-		if (Array.isArray(arg1)) {
-			toSave = this.getDirty(arg1);
-		} else {
-			toSave = this.getDirty();
-		}
-
-		// split up between files and untitled
-		const filesToSave: URI[] = [];
-		const untitledToSave: URI[] = [];
-		toSave.forEach(s => {
-			if (s.scheme === 'file') {
-				filesToSave.push(s);
-			} else if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === 'untitled') {
-				untitledToSave.push(s);
-			}
-		});
-
-		return this.doSaveAll(filesToSave, untitledToSave);
-	}
-
-	private doSaveAll(fileResources: URI[], untitledResources: URI[]): TPromise<ITextFileOperationResult> {
-
-		// Handle files first that can just be saved
-		return super.saveAll(fileResources).then(result => {
-
-			// Preflight for untitled to handle cancellation from the dialog
-			const targetsForUntitled: URI[] = [];
-			for (let i = 0; i < untitledResources.length; i++) {
-				const untitled = this.untitledEditorService.get(untitledResources[i]);
-				if (untitled) {
-					let targetPath: string;
-
-					// Untitled with associated file path don't need to prompt
-					if (this.untitledEditorService.hasAssociatedFilePath(untitled.getResource())) {
-						targetPath = untitled.getResource().fsPath;
-					}
-
-					// Otherwise ask user
-					else {
-						targetPath = this.promptForPath(this.suggestFileName(untitledResources[i]));
-						if (!targetPath) {
-							return TPromise.as({
-								results: [...fileResources, ...untitledResources].map(r => {
-									return {
-										source: r
-									};
-								})
-							});
-						}
-					}
-
-					targetsForUntitled.push(URI.file(targetPath));
-				}
-			}
-
-			// Handle untitled
-			const untitledSaveAsPromises: TPromise<void>[] = [];
-			targetsForUntitled.forEach((target, index) => {
-				const untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then(uri => {
-					result.results.push({
-						source: untitledResources[index],
-						target: uri,
-						success: !!uri
-					});
-				});
-
-				untitledSaveAsPromises.push(untitledSaveAsPromise);
-			});
-
-			return TPromise.join(untitledSaveAsPromises).then(() => {
-				return result;
-			});
-		});
-	}
-
-	public saveAs(resource: URI, target?: URI): TPromise<URI> {
-
-		// Get to target resource
-		if (!target) {
-			let dialogPath = resource.fsPath;
-			if (resource.scheme === 'untitled') {
-				dialogPath = this.suggestFileName(resource);
-			}
-
-			const pathRaw = this.promptForPath(dialogPath);
-			if (pathRaw) {
-				target = URI.file(pathRaw);
-			}
-		}
-
-		if (!target) {
-			return TPromise.as(null); // user canceled
-		}
-
-		// Just save if target is same as models own resource
-		if (resource.toString() === target.toString()) {
-			return this.save(resource).then(() => resource);
-		}
-
-		// Do it
-		return this.doSaveAs(resource, target);
-	}
-
-	private doSaveAs(resource: URI, target?: URI): TPromise<URI> {
-
-		// Retrieve text model from provided resource if any
-		let modelPromise: TPromise<TextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
-		if (resource.scheme === 'file') {
-			modelPromise = TPromise.as(CACHE.get(resource));
-		} else if (resource.scheme === 'untitled') {
-			const untitled = this.untitledEditorService.get(resource);
-			if (untitled) {
-				modelPromise = untitled.resolve();
-			}
-		}
-
-		return modelPromise.then(model => {
-
-			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
-			if (model) {
-				return this.doSaveTextFileAs(model, resource, target);
-			}
-
-			// Otherwise we can only copy
-			return this.fileService.copyFile(resource, target);
-		}).then(() => {
-
-			// Revert the source
-			return this.revert(resource).then(() => {
-
-				// Done: return target
-				return target;
-			});
-		});
-	}
-
-	private doSaveTextFileAs(sourceModel: TextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
-		// create the target file empty if it does not exist already
-		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.createFile(target)).then(stat => {
-			// resolve a model for the file (which can be binary if the file is not a text file)
-			return this.editorService.resolveEditorModel({ resource: target }).then((targetModel: TextFileEditorModel) => {
-				// binary model: delete the file and run the operation again
-				if (targetModel instanceof BinaryEditorModel) {
-					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
-				}
-
-				// text model: take over encoding and model value from source model
-				targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-				targetModel.textEditorModel.setValue(sourceModel.getValue());
-
-				// save model
-				return targetModel.save();
-			});
-		});
-	}
-
-	private suggestFileName(untitledResource: URI): string {
-		const workspace = this.contextService.getWorkspace();
-		if (workspace) {
-			return URI.file(paths.join(workspace.resource.fsPath, this.untitledEditorService.get(untitledResource).suggestFileName())).fsPath;
-		}
-
-		return this.untitledEditorService.get(untitledResource).suggestFileName();
-	}
-
-	private promptForPath(defaultPath?: string): string {
+	public promptForPath(defaultPath?: string): string {
 		return this.windowService.getWindow().showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
