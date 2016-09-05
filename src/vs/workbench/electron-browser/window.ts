@@ -24,15 +24,6 @@ import * as path from 'path';
 
 const dialog = remote.dialog;
 
-export interface IWindowConfiguration {
-	window: {
-		openFilesInNewWindow: boolean;
-		reopenFolders: string;
-		restoreFullscreen: boolean;
-		zoomLevel: number;
-	};
-}
-
 enum DraggedFileType {
 	UNKNOWN,
 	FILE,

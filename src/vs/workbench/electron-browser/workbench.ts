@@ -227,7 +227,7 @@ export class Workbench implements IPartService {
 
 			// Load Editors
 			const editorTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Restoring Editor(s)'));
-			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then((inputsWithOptions) => {
+			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
 				let editorOpenPromise: TPromise<BaseEditor[]>;
 				if (inputsWithOptions.length) {
 					const editors = inputsWithOptions.map((inputWithOptions, index) => {
@@ -264,7 +264,7 @@ export class Workbench implements IPartService {
 			};
 
 			// Join viewlet, panel and editor promises
-			TPromise.join(compositeAndEditorPromises).then(() => workbenchDone(), (error) => workbenchDone(error));
+			TPromise.join(compositeAndEditorPromises).then(() => workbenchDone(), error => workbenchDone(error));
 		} catch (error) {
 
 			// Print out error
@@ -286,7 +286,7 @@ export class Workbench implements IPartService {
 
 			// Files to diff is exclusive
 			if (filesToDiff && filesToDiff.length) {
-				return TPromise.join<EditorInput>(filesToDiff.map((resourceInput) => this.editorService.createInput(resourceInput))).then((inputsToDiff) => {
+				return TPromise.join<EditorInput>(filesToDiff.map(resourceInput => this.editorService.createInput(resourceInput))).then((inputsToDiff) => {
 					return [{ input: new DiffEditorInput(toDiffLabel(filesToDiff[0].resource, filesToDiff[1].resource, this.contextService), null, inputsToDiff[0], inputsToDiff[1]) }];
 				});
 			}
@@ -297,11 +297,11 @@ export class Workbench implements IPartService {
 				const options: EditorOptions[] = [];
 
 				// Files to create
-				inputs.push(...filesToCreate.map((resourceInput) => this.untitledEditorService.createOrGet(resourceInput.resource)));
+				inputs.push(...filesToCreate.map(resourceInput => this.untitledEditorService.createOrGet(resourceInput.resource)));
 				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
 				// Files to open
-				return TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.createInput(resourceInput))).then((inputsToOpen) => {
+				return TPromise.join<EditorInput>(filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput))).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
 					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
 

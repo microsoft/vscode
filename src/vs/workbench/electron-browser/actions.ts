@@ -16,7 +16,7 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
+import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
