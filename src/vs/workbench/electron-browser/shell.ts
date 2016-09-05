@@ -433,7 +433,7 @@ export class WorkbenchShell {
 		}
 	}
 
-	public layout(): void {
+	private layout(): void {
 		const clArea = $(this.container).getClientArea();
 
 		const contentsSize = new Dimension(clArea.width, clArea.height);
