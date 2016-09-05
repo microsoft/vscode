@@ -119,7 +119,7 @@ export class WindowsManager implements IWindowsService {
 	_serviceBrand: any;
 
 	private static MAX_TOTAL_RECENT_ENTRIES = 100;
-	
+
 	private static recentPathsListStorageKey = 'openedPathsList';
 	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 	private static windowsStateStorageKey = 'windowsState';
@@ -602,11 +602,7 @@ export class WindowsManager implements IWindowsService {
 			if (!openFilesInNewWindow && lastActiveWindow) {
 				lastActiveWindow.focus();
 				lastActiveWindow.ready().then(readyWindow => {
-					readyWindow.send('vscode:openFiles', {
-						filesToOpen: filesToOpen,
-						filesToCreate: filesToCreate,
-						filesToDiff: filesToDiff
-					});
+					readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
 
 					if (extensionsToInstall.length) {
 						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
@@ -636,11 +632,7 @@ export class WindowsManager implements IWindowsService {
 				const browserWindow = windowsOnWorkspacePath[0];
 				browserWindow.focus(); // just focus one of them
 				browserWindow.ready().then(readyWindow => {
-					readyWindow.send('vscode:openFiles', {
-						filesToOpen: filesToOpen,
-						filesToCreate: filesToCreate,
-						filesToDiff: filesToDiff
-					});
+					readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
 
 					if (extensionsToInstall.length) {
 						readyWindow.send('vscode:installExtensions', { extensionsToInstall });

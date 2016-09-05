@@ -27,28 +27,19 @@ import {EnvironmentService} from 'vs/platform/environment/node/environmentServic
 import path = require('path');
 import fs = require('fs');
 import gracefulFs = require('graceful-fs');
+import {IPath, IOpenFileRequest} from 'vs/workbench/electron-browser/common';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 const timers = (<any>window).MonacoEnvironment.timers;
 
-export interface IPath {
-	filePath: string;
-	lineNumber?: number;
-	columnNumber?: number;
-}
-
-export interface IWindowConfiguration extends ParsedArgs {
+export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
 	execPath: string;
 
 	userEnv: IProcessEnvironment;
 
 	workspacePath?: string;
-
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
 
 	extensionsToInstall?: string[];
 }
