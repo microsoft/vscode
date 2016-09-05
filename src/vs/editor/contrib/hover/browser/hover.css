@@ -7,7 +7,6 @@
 	cursor: default;
 	position: absolute;
 	overflow: hidden;
-	width: 438px;
 	background-color: #F3F3F3;
 	border: 1px solid #CCC;
 	z-index: 50;
@@ -18,6 +17,10 @@
 	-o-user-select: text;
 	user-select: text;
 	box-sizing: initial;
+}
+
+.monaco-editor-hover .monaco-editor-hover-content {
+	max-width: 438px;
 }
 
 .monaco-editor-hover .hover-row {

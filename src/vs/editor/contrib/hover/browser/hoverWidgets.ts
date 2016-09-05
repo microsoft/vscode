@@ -34,6 +34,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._containerDomNode.className = 'monaco-editor-hover';
 
 		this._domNode = document.createElement('div');
+		this._domNode.className = 'monaco-editor-hover-content';
 		this._containerDomNode.appendChild(this._domNode);
 		this._containerDomNode.tabIndex = 0;
 		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
