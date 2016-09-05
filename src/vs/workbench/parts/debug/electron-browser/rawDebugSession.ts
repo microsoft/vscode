@@ -17,7 +17,7 @@ import severity from 'vs/base/common/severity';
 import stdfork = require('vs/base/node/stdFork');
 import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ITerminalService, ITerminalPanel} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
@@ -340,17 +340,40 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return (new Date().getTime() - this.startTime) / 1000;
 	}
 
+	protected dispatchRequest(request: DebugProtocol.Request): void {
+		const response: DebugProtocol.Response = {
+			type: 'response',
+			seq: 0,
+			command: request.command,
+			request_seq: request.seq,
+			success: true
+		};
+
+		if (request.command === 'runInTerminal') {
+			this.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(() => {
+				(<DebugProtocol.RunInTerminalResponse>response).body = {
+					// nothing to return for now..
+				};
+				this.sendResponse(response);
+			}, e => {
+				response.success = false;
+				response.message = 'error while handling request';
+				this.sendResponse(response);
+			});
+		}
+	}
+
 	protected runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
 		return this.terminalService.createNew(args.title || nls.localize('debuggee', "debuggee")).then(id => {
 			return this.terminalService.show(false).then(terminalPanel => {
 				this.terminalService.setActiveTerminalById(id);
-				this.prepareCommand(terminalPanel, args);
+				const command = this.prepareCommand(args);
+				terminalPanel.sendTextToActiveTerminal(command, true);
 			});
 		});
 	}
 
-	private prepareCommand(terminalPanel: ITerminalPanel, args: DebugProtocol.RunInTerminalRequestArguments) {
-
+	private prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments): string {
 		let command = '';
 
 		if (platform.isWindows) {
@@ -376,7 +399,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				command += '"';
 			}
 		} else {
-
 			const quote = (s: string) => {
 				s = s.replace(/\"/g, '\\"');
 				return s.indexOf(' ') >= 0 ? `"${s}"` : s;
@@ -397,7 +419,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			}
 		}
 
-		terminalPanel.sendTextToActiveTerminal(command, true);
+		return command;
 	}
 
 	private connectServer(port: number): TPromise<void> {
