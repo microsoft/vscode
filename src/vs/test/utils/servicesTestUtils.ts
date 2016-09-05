@@ -103,9 +103,10 @@ export abstract class TestTextFileService extends TextFileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
 		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
-		super(lifecycleService, contextService, instantiationService, configurationService, telemetryService, editorGroupService, editorService, eventService, fileService, modelService);
+		super(lifecycleService, contextService, instantiationService, configurationService, telemetryService, editorGroupService, editorService, eventService, fileService, modelService, untitledEditorService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

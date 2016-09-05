@@ -23,6 +23,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -51,7 +52,8 @@ export abstract class TextFileService implements ITextFileService {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEventService private eventService: IEventService,
 		@IFileService protected fileService: IFileService,
-		@IModelService protected modelService: IModelService
+		@IModelService protected modelService: IModelService,
+		@IUntitledEditorService protected untitledEditorService: IUntitledEditorService
 	) {
 		this.listenerToUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
@@ -133,38 +135,59 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public getDirty(resources?: URI[]): URI[] {
-		return this.getDirtyFileModels(resources).map((m) => m.getResource());
+
+		// Collect files
+		const dirty = this.getDirtyFileModels(resources).map(m => m.getResource());
+
+		// Add untitled ones
+		if (!resources) {
+			dirty.push(...this.untitledEditorService.getDirty());
+		} else {
+			const dirtyUntitled = resources.map(r => this.untitledEditorService.get(r)).filter(u => u && u.isDirty()).map(u => u.getResource());
+			dirty.push(...dirtyUntitled);
+		}
+
+		return dirty;
 	}
 
 	public isDirty(resource?: URI): boolean {
-		return CACHE
+
+		// Check for dirty file
+		let dirty = CACHE
 			.getAll(resource)
-			.some((model) => model.isDirty());
+			.some(model => model.isDirty());
+
+		if (dirty) {
+			return true;
+		}
+
+		// Check for dirty untitled
+		return this.untitledEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
 	}
 
 	public save(resource: URI): TPromise<boolean> {
-		return this.saveAll([resource]).then((result) => result.results.length === 1 && result.results[0].success);
+		return this.saveAll([resource]).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
 	public saveAll(arg1?: any /* URI[] */): TPromise<ITextFileOperationResult> {
-		let dirtyFileModels = this.getDirtyFileModels(Array.isArray(arg1) ? arg1 : void 0 /* Save All */);
+		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(arg1) ? arg1 : void 0 /* Save All */);
 
-		let mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
-		dirtyFileModels.forEach((m) => {
+		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
+		dirtyFileModels.forEach(m => {
 			mapResourceToResult[m.getResource().toString()] = {
 				source: m.getResource()
 			};
 		});
 
-		return TPromise.join(dirtyFileModels.map((model) => {
+		return TPromise.join(dirtyFileModels.map(model => {
 			return model.save().then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}
 			});
-		})).then((r) => {
+		})).then(r => {
 			return {
-				results: Object.keys(mapResourceToResult).map((k) => mapResourceToResult[k])
+				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
 			};
 		});
 	}
@@ -173,8 +196,8 @@ export abstract class TextFileService implements ITextFileService {
 	private getFileModels(resource?: URI): TextFileEditorModel[];
 	private getFileModels(arg1?: any): TextFileEditorModel[] {
 		if (Array.isArray(arg1)) {
-			let models: TextFileEditorModel[] = [];
-			(<URI[]>arg1).forEach((resource) => {
+			const models: TextFileEditorModel[] = [];
+			(<URI[]>arg1).forEach(resource => {
 				models.push(...this.getFileModels(resource));
 			});
 
@@ -187,7 +210,7 @@ export abstract class TextFileService implements ITextFileService {
 	private getDirtyFileModels(resources?: URI[]): TextFileEditorModel[];
 	private getDirtyFileModels(resource?: URI): TextFileEditorModel[];
 	private getDirtyFileModels(arg1?: any): TextFileEditorModel[] {
-		return this.getFileModels(arg1).filter((model) => model.isDirty());
+		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
 	public abstract saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
@@ -197,31 +220,31 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public revert(resource: URI, force?: boolean): TPromise<boolean> {
-		return this.revertAll([resource], force).then((result) => result.results.length === 1 && result.results[0].success);
+		return this.revertAll([resource], force).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
-		let fileModels = force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
+		const fileModels = force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
-		let mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
-		fileModels.forEach((m) => {
+		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
+		fileModels.forEach(m => {
 			mapResourceToResult[m.getResource().toString()] = {
 				source: m.getResource()
 			};
 		});
 
-		return TPromise.join(fileModels.map((model) => {
+		return TPromise.join(fileModels.map(model => {
 			return model.revert().then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}
-			}, (error) => {
+			}, error => {
 
 				// FileNotFound means the file got deleted meanwhile, so dispose
 				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 
 					// Inputs
-					let clients = FileEditorInput.getAll(model.getResource());
+					const clients = FileEditorInput.getAll(model.getResource());
 					clients.forEach(input => input.dispose());
 
 					// Model
@@ -236,10 +259,14 @@ export abstract class TextFileService implements ITextFileService {
 					return TPromise.wrapError(error);
 				}
 			});
-		})).then((r) => {
-			return {
-				results: Object.keys(mapResourceToResult).map((k) => mapResourceToResult[k])
-			};
+		})).then(r => {
+			const operation = { results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k]) };
+
+			// Revert untitled
+			const reverted = this.untitledEditorService.revertAll(resources);
+			reverted.forEach(res => operation.results.push({ source: res, success: true }));
+
+			return operation;
 		});
 	}
 
