@@ -346,7 +346,7 @@ export class ThemeService implements IThemeService {
 			if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
-			
+
 			this.knownIconThemes.push({
 				id: extensionId + '-' + iconTheme.id,
 				label: iconTheme.label || Paths.basename(iconTheme.path),
@@ -630,9 +630,9 @@ function _processThemeObject(themeId: string, themeDocument: IThemeDocument): st
 	let themeSettings : IThemeSetting[] = themeDocument.settings;
 
 	if (Array.isArray(themeSettings)) {
-		cssRules= cssRules.concat(new TokenStylesContribution().contributeStyles(themeId, themeDocument));
-		cssRules= cssRules.concat(new EditorStylesContribution().contributeStyles(themeId, themeDocument));
-		cssRules= cssRules.concat(new SearchViewStylesContribution().contributeStyles(themeId, themeDocument));
+		new TokenStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
+		new EditorStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
+		new SearchViewStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 	}
 
 	return cssRules.join('\n');
