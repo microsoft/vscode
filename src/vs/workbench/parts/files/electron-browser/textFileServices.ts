@@ -86,9 +86,9 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
-		return this.fileService.resolveStreamContent(resource, options).then((streamContent) => {
-			return ModelBuilder.fromStringStream(streamContent.value, this.modelService.getCreationOptions()).then((res) => {
-				let r: IRawTextContent = {
+		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
+			return ModelBuilder.fromStringStream(streamContent.value, this.modelService.getCreationOptions()).then(res => {
+				const r: IRawTextContent = {
 					resource: streamContent.resource,
 					name: streamContent.name,
 					mtime: streamContent.mtime,
@@ -127,7 +127,7 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
-		let confirm = this.confirmSave();
+		const confirm = this.confirmSave();
 
 		// Save
 		if (confirm === ConfirmResult.SAVE) {
@@ -171,13 +171,13 @@ export class TextFileService extends AbstractTextFileService {
 	public getDirty(resources?: URI[]): URI[] {
 
 		// Collect files
-		let dirty = super.getDirty(resources);
+		const dirty = super.getDirty(resources);
 
 		// Add untitled ones
 		if (!resources) {
 			dirty.push(...this.untitledEditorService.getDirty());
 		} else {
-			let dirtyUntitled = resources.map(r => this.untitledEditorService.get(r)).filter(u => u && u.isDirty()).map(u => u.getResource());
+			const dirtyUntitled = resources.map(r => this.untitledEditorService.get(r)).filter(u => u && u.isDirty()).map(u => u.getResource());
 			dirty.push(...dirtyUntitled);
 		}
 
@@ -197,12 +197,12 @@ export class TextFileService extends AbstractTextFileService {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
-		let resourcesToConfirm = this.getDirty(resources);
+		const resourcesToConfirm = this.getDirty(resources);
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
 
-		let message = [
+		const message = [
 			resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", paths.basename(resourcesToConfirm[0].fsPath)) : nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length)
 		];
 
@@ -239,7 +239,7 @@ export class TextFileService extends AbstractTextFileService {
 			buttons.push(save, cancel, dontSave);
 		}
 
-		let opts: Electron.ShowMessageBoxOptions = {
+		const opts: Electron.ShowMessageBoxOptions = {
 			title: product.nameLong,
 			message: message.join('\n'),
 			type: 'warning',
@@ -279,8 +279,8 @@ export class TextFileService extends AbstractTextFileService {
 		}
 
 		// split up between files and untitled
-		let filesToSave: URI[] = [];
-		let untitledToSave: URI[] = [];
+		const filesToSave: URI[] = [];
+		const untitledToSave: URI[] = [];
 		toSave.forEach(s => {
 			if (s.scheme === 'file') {
 				filesToSave.push(s);
@@ -298,9 +298,9 @@ export class TextFileService extends AbstractTextFileService {
 		return super.saveAll(fileResources).then(result => {
 
 			// Preflight for untitled to handle cancellation from the dialog
-			let targetsForUntitled: URI[] = [];
+			const targetsForUntitled: URI[] = [];
 			for (let i = 0; i < untitledResources.length; i++) {
-				let untitled = this.untitledEditorService.get(untitledResources[i]);
+				const untitled = this.untitledEditorService.get(untitledResources[i]);
 				if (untitled) {
 					let targetPath: string;
 
@@ -328,9 +328,9 @@ export class TextFileService extends AbstractTextFileService {
 			}
 
 			// Handle untitled
-			let untitledSaveAsPromises: TPromise<void>[] = [];
+			const untitledSaveAsPromises: TPromise<void>[] = [];
 			targetsForUntitled.forEach((target, index) => {
-				let untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then(uri => {
+				const untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then(uri => {
 					result.results.push({
 						source: untitledResources[index],
 						target: uri,
@@ -382,7 +382,7 @@ export class TextFileService extends AbstractTextFileService {
 		if (resource.scheme === 'file') {
 			modelPromise = TPromise.as(CACHE.get(resource));
 		} else if (resource.scheme === 'untitled') {
-			let untitled = this.untitledEditorService.get(resource);
+			const untitled = this.untitledEditorService.get(resource);
 			if (untitled) {
 				modelPromise = untitled.resolve();
 			}
@@ -429,7 +429,7 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	private suggestFileName(untitledResource: URI): string {
-		let workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace();
 		if (workspace) {
 			return URI.file(paths.join(workspace.resource.fsPath, this.untitledEditorService.get(untitledResource).suggestFileName())).fsPath;
 		}
@@ -442,7 +442,7 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): Electron.SaveDialogOptions {
-		let options: Electron.SaveDialogOptions = {
+		const options: Electron.SaveDialogOptions = {
 			defaultPath: defaultPath
 		};
 
@@ -454,7 +454,7 @@ export class TextFileService extends AbstractTextFileService {
 		// - Bug on Windows: Cannot save file without extension
 		// - Bug on Windows: Untitled files get just the first extension of the list
 		// Until these issues are resolved, we disable the dialog file extension filtering.
-		let disable = true; // Simply using if (true) flags the code afterwards as not reachable.
+		const disable = true; // Simply using if (true) flags the code afterwards as not reachable.
 		if (disable) {
 			return options;
 		}
@@ -462,15 +462,15 @@ export class TextFileService extends AbstractTextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		let ext: string = paths.extname(defaultPath);
+		const ext: string = paths.extname(defaultPath);
 		let matchingFilter: IFilter;
-		let filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
-			let extensions = this.modeService.getExtensions(languageName);
+		const filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
+			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
 			}
 
-			let filter: IFilter = { name: languageName, extensions: extensions.map(e => strings.trim(e, '.')) };
+			const filter: IFilter = { name: languageName, extensions: extensions.map(e => strings.trim(e, '.')) };
 
 			if (ext && extensions.indexOf(ext) >= 0) {
 				matchingFilter = filter;
@@ -484,7 +484,7 @@ export class TextFileService extends AbstractTextFileService {
 		// Filters are a bit weird on Windows, based on having a match or not:
 		// Match: we put the matching filter first so that it shows up selected and the all files last
 		// No match: we put the all files filter first
-		let allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
+		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
 		if (matchingFilter) {
 			filters.unshift(matchingFilter);
 			filters.push(allFilesFilter);

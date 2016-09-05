@@ -361,6 +361,11 @@ export class VSCodeWindow {
 			this._readyState = ReadyState.NAVIGATING;
 		}
 
+		// Make sure to clear any previous edited state
+		if (platform.isMacintosh && this._win.isDocumentEdited()) {
+			this._win.setDocumentEdited(false);
+		}
+
 		// Load URL
 		this._win.loadURL(this.getUrl(config));
 
