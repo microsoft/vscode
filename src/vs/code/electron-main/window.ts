@@ -14,7 +14,7 @@ import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs } from 'vs/code/node/argv';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 
 export interface IWindowState {
 	width?: number;

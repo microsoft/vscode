@@ -17,7 +17,7 @@ import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import product, { IProductConfiguration } from 'vs/platform/product';
-import { parseArgs, ParsedArgs } from 'vs/code/node/argv';
+import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
 
 export interface IProcessEnvironment {
 	[key: string]: string;

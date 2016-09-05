@@ -21,7 +21,7 @@ import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/com
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {IProcessEnvironment} from 'vs/code/electron-main/env';
-import {ParsedArgs} from 'vs/code/node/argv';
+import {ParsedArgs} from 'vs/platform/environment/node/argv';
 import {realpath} from 'vs/base/node/pfs';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
