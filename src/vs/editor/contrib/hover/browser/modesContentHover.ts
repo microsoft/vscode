@@ -248,6 +248,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					},
 					codeBlockRenderer: (modeId, value): string | TPromise<string> => {
 
+						if (!modeId) {
+							modeId = this._editor.getModel().getModeId();
+						}
+
 						let mode = this._modeService.getMode(modeId);
 						if (mode) {
 							return tokenizeToString(value, mode);
