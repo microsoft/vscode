@@ -343,7 +343,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(reference, `variable:${ parent.getId() }:${ name }`, true, namedVariables, indexedVariables, startOfVariables);
+		super(reference, `variable:${parent.getId()}:${name}:${reference}`, true, namedVariables, indexedVariables, startOfVariables);
 		this.value = massageValue(value);
 	}
 }

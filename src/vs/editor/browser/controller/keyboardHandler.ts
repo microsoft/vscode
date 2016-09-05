@@ -109,12 +109,14 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 				let cs = dom.getComputedStyle(this.textArea.actual);
 				if (browser.isFirefox) {
 					// computedStyle.font is empty in Firefox...
-					context.font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontStretch} ${cs.fontSize} / ${cs.lineHeight} '${cs.fontFamily}'`;
+					context.font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontStretch} ${cs.fontSize} / ${cs.lineHeight} ${cs.fontFamily}`;
+					let metrics = context.measureText(e.data);
+					StyleMutator.setWidth(this.textArea.actual, metrics.width + 2); // +2 for Japanese...
 				} else {
 					context.font = cs.font;
+					let metrics = context.measureText(e.data);
+					StyleMutator.setWidth(this.textArea.actual, metrics.width);
 				}
-				let metrics = context.measureText(e.data);
-				StyleMutator.setWidth(this.textArea.actual, metrics.width);
 			}
 		}));
 
