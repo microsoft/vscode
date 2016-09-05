@@ -6,11 +6,8 @@
 
 import {Arrays} from 'vs/editor/common/core/arrays';
 
-/**
- * A token on a line.
- */
-export class LineToken {
-	public _lineTokenBrand: void;
+export class Token {
+	_tokenBrand: void;
 
 	public startIndex:number;
 	public type:string;
@@ -20,18 +17,22 @@ export class LineToken {
 		this.type = type;
 	}
 
-	public equals(other:LineToken): boolean {
+	public toString(): string {
+		return '(' + this.startIndex + ', ' + this.type + ')';
+	}
+
+	public equals(other:Token): boolean {
 		return (
 			this.startIndex === other.startIndex
 			&& this.type === other.type
 		);
 	}
 
-	public static findIndexInSegmentsArray(arr:LineToken[], desiredIndex: number): number {
+	public static findIndexInSegmentsArray(arr:Token[], desiredIndex: number): number {
 		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
 	}
 
-	public static equalsArray(a:LineToken[], b:LineToken[]): boolean {
+	public static equalsArray(a:Token[], b:Token[]): boolean {
 		let aLen = a.length;
 		let bLen = b.length;
 		if (aLen !== bLen) {

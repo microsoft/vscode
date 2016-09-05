@@ -28,7 +28,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
-	constructor(entries: QuickOpenEntry[], public stats: ISearchStats) {
+	constructor(entries: QuickOpenEntry[], public stats?: ISearchStats) {
 		super(entries);
 	}
 }
@@ -121,26 +121,19 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		return this.getResultsWithStats(searchValue)
-			.then(result => result[0]);
-	}
-
-	public getResultsWithStats(searchValue: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	public getResults(searchValue: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		searchValue = searchValue.trim();
-		let promise: TPromise<[QuickOpenEntry[], ISearchStats]>;
 
 		// Respond directly to empty search
 		if (!searchValue) {
-			promise = TPromise.as(<[QuickOpenEntry[], ISearchStats]>[[], undefined]);
-		} else {
-			promise = this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
+			return TPromise.as(new FileQuickOpenModel([]));
 		}
 
-		return promise.then(result => new FileQuickOpenModel(result[0], result[1]));
+		// Do find results
+		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
 	}
 
-	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<[QuickOpenEntry[], ISearchStats]> {
+	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
@@ -164,8 +157,12 @@ export class OpenFileHandler extends QuickOpenHandler {
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, (this.options && this.options.useIcons) ? 'file' : null));
 			}
 
-			return [results, complete.stats];
+			return new FileQuickOpenModel(results, complete.stats);
 		});
+	}
+
+	public hasShortResponseTime(): boolean {
+		return this.isCacheLoaded;
 	}
 
 	public onOpen(): void {

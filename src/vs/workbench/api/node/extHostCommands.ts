@@ -48,7 +48,11 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 		this._commands[id] = { callback, thisArg, description };
 		this._proxy.$registerCommand(id);
 
-		return new extHostTypes.Disposable(() => delete this._commands[id]);
+		return new extHostTypes.Disposable(() => {
+			if (delete this._commands[id]) {
+				this._proxy.$unregisterCommand(id);
+			}
+		});
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {

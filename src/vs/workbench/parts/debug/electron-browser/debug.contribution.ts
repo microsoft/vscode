@@ -8,7 +8,6 @@ import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
@@ -27,7 +26,7 @@ import {StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOu
 	ConfigureAction, ToggleReplAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction} from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
-import {DebugEditorContribution} from 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
+import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
@@ -46,8 +45,6 @@ class OpenDebugViewletAction extends viewlet.ToggleViewletAction {
 		super(id, label, debug.VIEWLET_ID, viewletService, editorService);
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(DebugEditorContribution);
 
 // register viewlet
 (<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
@@ -118,7 +115,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const configurationManager = debugService.getConfigurationManager();
 			return configurationManager.setConfiguration(configuration)
 				.then(() => {
-					return configurationManager.configurationName ? debugService.createSession(false)
+					return configurationManager.configuration ? debugService.createSession(false)
 						: TPromise.wrapError(new Error(nls.localize('launchConfigDoesNotExist', "Launch configuration '{0}' does not exist.", configuration)));
 				});
 		}

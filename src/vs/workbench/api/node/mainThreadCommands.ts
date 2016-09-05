@@ -6,11 +6,13 @@
 
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ICommandService, CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape} from './extHost.protocol';
 
 export class MainThreadCommands extends MainThreadCommandsShape {
 
+	private _disposables: { [id: string]: IDisposable } = Object.create(null);
 	private _proxy: ExtHostCommandsShape;
 
 	constructor(
@@ -21,9 +23,23 @@ export class MainThreadCommands extends MainThreadCommandsShape {
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostCommands);
 	}
 
+	dispose() {
+		for (let id in this._disposables) {
+			this._disposables[id].dispose();
+		}
+	}
+
 	$registerCommand(id: string): TPromise<any> {
-		CommandsRegistry.registerCommand(id, (accessor, ...args) => this._proxy.$executeContributedCommand(id, ...args));
+		this._disposables[id] = CommandsRegistry.registerCommand(id, (accessor, ...args) => this._proxy.$executeContributedCommand(id, ...args));
 		return undefined;
+	}
+
+	$unregisterCommand(id: string): TPromise<any> {
+		if (this._disposables[id]) {
+			this._disposables[id].dispose();
+			delete this._disposables[id];
+		}
+		return;
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {

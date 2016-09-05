@@ -14,6 +14,7 @@
 	"continueDebug": "계속",
 	"deactivateBreakpoints": "중단점 비활성화",
 	"debugActionLabelAndKeybinding": "{0}({1})",
+	"debugAddToWatch": "디버그: 조사식에 추가",
 	"debugConsoleAction": "디버그 콘솔",
 	"debugEvaluate": "디버그: 평가",
 	"disableAllBreakpoints": "모든 중단점 해제",

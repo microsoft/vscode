@@ -22,7 +22,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
 import {SmartSnippetInserter} from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
@@ -36,6 +36,7 @@ const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutError
 
 const INTERESTING_FILE = /keybindings\.json$/;
 
+@editorContribution
 export class DefineKeybindingController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.defineKeybinding';
@@ -469,8 +470,10 @@ export class DefineKeybindingAction extends EditorAction {
 		if (!isInterestingEditorModel(editor)) {
 			return;
 		}
-		var controller = DefineKeybindingController.get(editor);
-		controller.launch();
+		let controller = DefineKeybindingController.get(editor);
+		if (controller) {
+			controller.launch();
+		}
 	}
 
 }
@@ -486,5 +489,3 @@ function isInterestingEditorModel(editor:editorCommon.ICommonCodeEditor): boolea
 	let url = model.uri.toString();
 	return INTERESTING_FILE.test(url);
 }
-
-EditorBrowserRegistry.registerEditorContribution(DefineKeybindingController);

@@ -31,7 +31,13 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseF
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent', fileCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL] }), 'View: Zoom In', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ZoomOutAction, ZoomOutAction.ID, ZoomOutAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS] }), 'View: Zoom Out', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(
+	new SyncActionDescriptor(ZoomOutAction, ZoomOutAction.ID, ZoomOutAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyCode.US_MINUS,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS],
+		linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: []}
+	}), 'View: Zoom Out', viewCategory
+);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL), 'View: Reset Zoom', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL), 'Reload Window');
@@ -74,7 +80,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.enablePreviewFromQuickOpen': {
 			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from quick open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
 			'default': true
 		},
 		'workbench.editor.openPositioning': {
@@ -85,7 +91,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.quickOpen.closeOnFocusLost': {
 			'type': 'boolean',
-			'description': nls.localize('closeOnFocusLost', "Controls if quick open should close automatically once it looses focus."),
+			'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
 			'default': true
 		},
 		'workbench.settings.openDefaultSettings': {

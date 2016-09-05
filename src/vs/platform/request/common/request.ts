@@ -23,6 +23,7 @@ export interface IHTTPConfiguration {
 	http?: {
 		proxy?: string;
 		proxyStrictSSL?: boolean;
+		proxyAuthorization?: string;
 	};
 }
 
@@ -42,6 +43,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				type: 'boolean',
 				default: true,
 				description: localize('strictSSL', "Whether the proxy server certificate should be verified against the list of supplied CAs.")
+			},
+			'http.proxyAuthorization': {
+				type: ['null', 'string'],
+				default: null,
+				description: localize('proxyAuthorization', "The value to send as the 'Proxy-Authorization' header for every network request.")
 			}
 		}
 	});

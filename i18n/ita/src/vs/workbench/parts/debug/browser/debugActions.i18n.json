@@ -14,6 +14,7 @@
 	"continueDebug": "Continua",
 	"deactivateBreakpoints": "Disattiva punti di interruzione",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugAddToWatch": "Debug: Aggiungi a espressione di controllo",
 	"debugConsoleAction": "Console di debug",
 	"debugEvaluate": "Debug: Valuta",
 	"disableAllBreakpoints": "Disabilita tutti i punti di interruzione",

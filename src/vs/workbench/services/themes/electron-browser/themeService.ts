@@ -12,7 +12,7 @@ import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IThemeService, IThemeData, IThemeSetting, IThemeDocument} from 'vs/workbench/services/themes/common/themeService';
-import {TokenStylesContribution, EditorStylesContribution} from 'vs/workbench/services/themes/electron-browser/editorStyles';
+import {TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution} from 'vs/workbench/services/themes/electron-browser/stylesContributions';
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -348,7 +348,7 @@ export class ThemeService implements IThemeService {
 			}
 
 			this.knownIconThemes.push({
-				id: iconTheme.id,
+				id: extensionId + '-' + iconTheme.id,
 				label: iconTheme.label || Paths.basename(iconTheme.path),
 				description: iconTheme.description,
 				path: normalizedAbsolutePath,
@@ -481,8 +481,10 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 				qualifier = baseThemeClassName + ' ' + qualifier;
 			}
 
+			let expanded = '.monaco-tree-row.expanded'; // workaround for #11453
+
 			addSelector(`${qualifier} .folder-icon::before`, associations.folder);
-			addSelector(`${qualifier} .expanded .folder-icon::before`, associations.folderExpanded);
+			addSelector(`${qualifier} ${expanded} .folder-icon::before`, associations.folderExpanded);
 			addSelector(`${qualifier} .file-icon::before`, associations.file);
 
 			let folderNames = associations.folderNames;
@@ -494,7 +496,13 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let folderNamesExpanded = associations.folderNamesExpanded;
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
-					addSelector(`${qualifier} .expanded .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
+					addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
+				}
+			}
+			let languageIds = associations.languageIds;
+			if (languageIds) {
+				for (let languageId in languageIds) {
+					addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`, languageIds[languageId]);
 				}
 			}
 			let fileExtensions = associations.fileExtensions;
@@ -516,12 +524,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
 					}
 					addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[fileName]);
-				}
-			}
-			let languageIds = associations.languageIds;
-			if (languageIds) {
-				for (let languageId in languageIds) {
-					addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`, languageIds[languageId]);
 				}
 			}
 		}
@@ -628,8 +630,9 @@ function _processThemeObject(themeId: string, themeDocument: IThemeDocument): st
 	let themeSettings : IThemeSetting[] = themeDocument.settings;
 
 	if (Array.isArray(themeSettings)) {
-		cssRules= cssRules.concat(new TokenStylesContribution().contributeStyles(themeId, themeDocument));
-		cssRules= cssRules.concat(new EditorStylesContribution().contributeStyles(themeId, themeDocument));
+		new TokenStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
+		new EditorStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
+		new SearchViewStylesContribution().contributeStyles(themeId, themeDocument, cssRules);
 	}
 
 	return cssRules.join('\n');
@@ -726,6 +729,9 @@ const schema: IJSONSchema = {
 				},
 				folderNames: {
 					$ref: '#/definitions/folderNames'
+				},
+				folderNamesExpanded: {
+					$ref: '#/definitions/folderNamesExpanded'
 				},
 				fileExtensions: {
 					$ref: '#/definitions/fileExtensions'
@@ -842,16 +848,14 @@ const schema: IJSONSchema = {
 			$ref: '#/definitions/languageIds'
 		},
 		light: {
-			$ref: '#/definitions/associations'
+			$ref: '#/definitions/associations',
+			description: nls.localize('schema.light', 'Optional associations for file icons in light color themes.')
 		},
 		highContrast: {
-			$ref: '#/definitions/associations'
+			$ref: '#/definitions/associations',
+			description: nls.localize('schema.highContrast', 'Optional associations for file icons in high contrast color themes.')
 		}
-	},
-	required: [
-		'iconDefinitions',
-		'file'
-	]
+	}
 };
 
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);

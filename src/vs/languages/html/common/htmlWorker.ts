@@ -60,7 +60,7 @@ export class HTMLWorker {
 	}
 
 	private getTagProviders(): htmlTags.IHTMLTagProvider[] {
-		if (this._modeId !== 'html') {
+		if (this._modeId !== 'html' || !this._providerConfiguration) {
 			return this._tagProviders;
 		}
 		return this._tagProviders.filter(p => !!this._providerConfiguration[p.getId()]);

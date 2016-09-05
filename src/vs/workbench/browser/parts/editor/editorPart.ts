@@ -632,7 +632,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Thus we make the non-active one active and then close the others
 		else {
 			this.openEditor(except, null, this.stacks.positionOfGroup(group)).done(() => {
-				this.doCloseEditors(group, except, direction);
+
+				// since the opening might have failed, we have to check again for the active editor
+				// being the expected one, otherwise we end up in an endless loop trying to open the
+				// editor
+				if (except.matches(group.activeEditor)) {
+					this.doCloseEditors(group, except, direction);
+				}
 			}, errors.onUnexpectedError);
 		}
 	}
@@ -954,6 +960,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 		}
 
+		let focusGroup = false;
+		const activeGroup = this.stacks.groupAt(activePosition);
+		if (!this.stacks.activeGroup || !activeGroup) {
+			focusGroup = true; // always focus group if this is the first group or we are about to open a new group
+		} else {
+			focusGroup = editors.some(e => !e.options || (!e.options.inactive && !e.options.preserveFocus)); // only focus if the editors to open are not opening as inactive or preserveFocus
+		}
+
 		// Open each input respecting the options. Since there can only be one active editor in each
 		// position, we have to pick the first input from each position and add the others as inactive
 		const promises: TPromise<BaseEditor>[] = [];
@@ -981,8 +995,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		return TPromise.join(promises).then(editors => {
 
-			// Ensure active position
-			this.focusGroup(activePosition);
+			// Adjust focus as needed
+			if (focusGroup) {
+				this.focusGroup(activePosition);
+			}
 
 			// Update stacks model for remaining inactive editors
 			[leftEditors, centerEditors, rightEditors].forEach((editors, index) => {

@@ -22,7 +22,7 @@ import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerServic
 import {IEditorMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {getLinks, Link} from 'vs/editor/contrib/links/common/links';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 
 class LinkOccurence {
 
@@ -71,6 +71,7 @@ class LinkOccurence {
 	}
 }
 
+@editorContribution
 class LinkDetector implements editorCommon.IEditorContribution {
 
 	private static ID: string = 'editor.linkDetector';
@@ -330,11 +331,13 @@ class OpenLinkAction extends EditorAction {
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		let linkDetector = LinkDetector.get(editor);
+		if (!linkDetector) {
+			return;
+		}
+
 		let link = linkDetector.getLinkOccurence(editor.getPosition());
 		if (link) {
 			linkDetector.openLinkOccurence(link, false);
 		}
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(LinkDetector);
