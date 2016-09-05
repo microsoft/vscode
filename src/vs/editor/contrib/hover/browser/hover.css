@@ -19,6 +19,7 @@
 	box-sizing: initial;
 	animation: fadein 100ms linear;
 	animation: fadein 100ms ease-in;
+	line-height: 1.5em;
 }
 
 .monaco-editor-hover.hidden {
@@ -30,7 +31,7 @@
 }
 
 .monaco-editor-hover .hover-row {
-	padding: 0.5em 0.5em;
+	padding: 4px 5px;
 }
 
 .monaco-editor-hover .hover-row:not(:first-child):not(:empty) {
@@ -39,7 +40,7 @@
 
 .monaco-editor-hover p,
 .monaco-editor-hover ul {
-	margin: 0.6em 0;
+	margin: 8px 0;
 }
 
 .monaco-editor-hover p:first-child,
@@ -53,7 +54,6 @@
 }
 
 .monaco-editor-hover ul {
-	line-height: 1.8em;
 	list-style-position: inside;
 	-webkit-padding-start: 6px;
 }
