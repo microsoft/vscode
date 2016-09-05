@@ -231,7 +231,7 @@ declare module DebugProtocol {
 	/** Response to Initialize request. */
 	export interface InitializeResponse extends Response {
 		/** The capabilities of this debug adapter */
-		body?: Capabilites;
+		body?: Capabilities;
 	}
 
 	/** ConfigurationDone request; value of command field is "configurationDone".
@@ -759,7 +759,7 @@ declare module DebugProtocol {
 	//---- Types
 
 	/** Information about the capabilities of a debug adapter. */
-	export interface Capabilites {
+	export interface Capabilities {
 		/** The debug adapter supports the configurationDoneRequest. */
 		supportsConfigurationDoneRequest?: boolean;
 		/** The debug adapter supports functionBreakpoints. */
