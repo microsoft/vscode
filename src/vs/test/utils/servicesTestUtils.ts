@@ -35,7 +35,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {RawText} from 'vs/editor/common/model/textModel';
-import {parseArgs} from 'vs/code/node/argv';
+import {parseArgs} from 'vs/platform/environment/node/argv';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
