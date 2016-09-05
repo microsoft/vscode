@@ -53,7 +53,7 @@ export class GlobalRevealInOSAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			shell.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
 		} else {
@@ -99,7 +99,7 @@ export class GlobalCopyPathAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		let fileInput = activeEditor ? asFileEditorInput(activeEditor.input, true) : void 0;
+		const fileInput = activeEditor ? asFileEditorInput(activeEditor.input, true) : void 0;
 		if (fileInput) {
 			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
 			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
@@ -128,10 +128,10 @@ export class BaseOpenAction extends Action {
 	}
 }
 
-export const OPEN_FILE_ID = 'workbench.action.files.openFile';
-export const OPEN_FILE_LABEL = nls.localize('openFile', "Open File...");
-
 export class OpenFileAction extends Action {
+
+	public static ID = 'workbench.action.files.openFile';
+	public static LABEL = nls.localize('openFile', "Open File...");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -151,20 +151,20 @@ export class OpenFileAction extends Action {
 	}
 }
 
-export const OPEN_FOLDER_ID = 'workbench.action.files.openFolder';
-export const OPEN_FOLDER_LABEL = nls.localize('openFolder', "Open Folder...");
-
 export class OpenFolderAction extends BaseOpenAction {
+
+	public static ID = 'workbench.action.files.openFolder';
+	public static LABEL = nls.localize('openFolder', "Open Folder...");
 
 	constructor(id: string, label: string) {
 		super(id, label, 'vscode:openFolderPicker');
 	}
 }
 
-export const OPEN_FILE_FOLDER_ID = 'workbench.action.files.openFileFolder';
-export const OPEN_FILE_FOLDER_LABEL = nls.localize('openFileFolder', "Open...");
-
 export class OpenFileFolderAction extends BaseOpenAction {
+
+	public static ID = 'workbench.action.files.openFileFolder';
+	public static LABEL = nls.localize('openFileFolder', "Open...");
 
 	constructor(id: string, label: string) {
 		super(id, label, 'vscode:openFileFolderPicker');
@@ -186,7 +186,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			ipc.send('vscode:windowOpen', [fileInput.getResource().fsPath], true /* force new window */); // handled from browser process
 		} else {

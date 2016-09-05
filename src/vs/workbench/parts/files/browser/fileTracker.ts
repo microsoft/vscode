@@ -14,15 +14,18 @@ import arrays = require('vs/base/common/arrays');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {Position} from 'vs/platform/editor/common/editor';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
-import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
+import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -41,14 +44,19 @@ export class FileTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 
+	private activeOutOfWorkspaceWatchers: { [resource: string]: boolean; };
+
 	private pendingDirtyResources: URI[];
 	private pendingDirtyHandle: number;
 
 	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService,
+		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IHistoryService private historyService: IHistoryService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -57,6 +65,7 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
 		this.pendingDirtyResources = [];
+		this.activeOutOfWorkspaceWatchers = Object.create(null);
 
 		this.registerListeners();
 	}
@@ -79,10 +88,14 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Update editors and inputs from disk changes
 		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+
+		// Lifecycle
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private onEditorsChanged(): void {
 		this.disposeUnusedTextFileModels();
+		this.handleOutOfWorkspaceWatchers();
 	}
 
 	private onTextFileDirty(e: TextFileChangeEvent): void {
@@ -438,7 +451,39 @@ export class FileTracker implements IWorkbenchContribution {
 		return true;
 	}
 
+	private handleOutOfWorkspaceWatchers(): void {
+		const visibleOutOfWorkspaceResources = this.editorService.getVisibleEditors().map(editor => {
+			return asFileEditorInput(editor.input, true);
+		}).filter(input => {
+			return !!input && !this.contextService.isInsideWorkspace(input.getResource());
+		}).map(input => {
+			return input.getResource().toString();
+		});
+
+		// Handle no longer visible out of workspace resources
+		Object.keys(this.activeOutOfWorkspaceWatchers).forEach(watchedResource => {
+			if (visibleOutOfWorkspaceResources.indexOf(watchedResource) < 0) {
+				this.fileService.unwatchFileChanges(watchedResource);
+				delete this.activeOutOfWorkspaceWatchers[watchedResource];
+			}
+		});
+
+		// Handle newly visible out of workspace resources
+		visibleOutOfWorkspaceResources.forEach(resourceToWatch => {
+			if (!this.activeOutOfWorkspaceWatchers[resourceToWatch]) {
+				this.fileService.watchFileChanges(URI.parse(resourceToWatch));
+				this.activeOutOfWorkspaceWatchers[resourceToWatch] = true;
+			}
+		});
+	}
+
 	public dispose(): void {
-		dispose(this.toUnbind);
+		this.toUnbind = dispose(this.toUnbind);
+
+		// Dispose watchers if any
+		for (const key in this.activeOutOfWorkspaceWatchers) {
+			this.fileService.unwatchFileChanges(key);
+		}
+		this.activeOutOfWorkspaceWatchers = Object.create(null);
 	}
 }
