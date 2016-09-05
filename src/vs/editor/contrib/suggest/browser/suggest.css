@@ -6,7 +6,6 @@
 /* Suggest */
 .monaco-editor .suggest-widget {
 	background-color: #F3F3F3;
-	font-size: 12px;
 	border: 1px solid rgb(200, 200, 200);
 	z-index: 40;
 	width: 438px;
@@ -17,10 +16,6 @@
 	-moz-transition: left .05s ease-in-out;
 	-o-transition: left .05s ease-in-out;
 	transition: left .05s ease-in-out;
-}
-
-.monaco-editor.mac .suggest-widget {
-	font-size: 11px;
 }
 
 .monaco-editor.mac .suggest-widget .text {
@@ -50,14 +45,14 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	height: 18px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
 	display: none;
 	max-height: 3.4em;
 	overflow: hidden;
-	margin-top: 0.1em;
-	padding-bottom: 0.1em;
+	height: 22px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text {
@@ -68,7 +63,7 @@
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details {
-	font-size: 1.4em;
+	/*font-size: 1.4em;*/
 	opacity: 0.6;
 	width: 14px;
 	height: 14px;
@@ -102,12 +97,6 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .type-label {
 	display: none;
 	margin-left: 0.8em;
-}
-
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .type-label {
-	font-size: 0.9em;
-	color: #0035DD;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .type-label {
@@ -220,9 +209,7 @@
 
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details,
-.monaco-editor.vs-dark .suggest-widget .details > .header > .go-back,
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .type,
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .type-label {
+.monaco-editor.vs-dark .suggest-widget .details > .header > .go-back {
 	color: #4E94CE;
 }
 
@@ -265,9 +252,7 @@
 }
 
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details,
-.monaco-editor.hc-black .suggest-widget .details > .header > .go-back,
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .type,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .type-label {
+.monaco-editor.hc-black .suggest-widget .details > .header > .go-back {
 	color: #4E94CE;
 }
 
