@@ -10,7 +10,7 @@ const replace = require('gulp-replace');
 const rename = require('gulp-rename');
 const shell = require('gulp-shell');
 const es = require('event-stream');
-const symdest = require('gulp-symdest');
+const vfs = require('vinyl-fs');
 const util = require('./lib/util');
 const packageJson = require('../package.json');
 const product = require('../product.json');
@@ -55,22 +55,22 @@ function prepareDebPackage(arch) {
 
 		const prerm = gulp.src('resources/linux/debian/prerm.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('DEBIAN/prerm'))
+			.pipe(rename('DEBIAN/prerm'));
 
 		const postrm = gulp.src('resources/linux/debian/postrm.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('DEBIAN/postrm'))
+			.pipe(rename('DEBIAN/postrm'));
 
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ARCHITECTURE@@', debArch))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
-			.pipe(rename('DEBIAN/postinst'))
+			.pipe(rename('DEBIAN/postinst'));
 
 		const all = es.merge(control, postinst, postrm, prerm, desktop, icon, code);
 
-		return all.pipe(symdest(destination));
+		return all.pipe(vfs.dest(destination));
 	};
 }
 
@@ -124,8 +124,8 @@ function prepareRpmPackage(arch) {
 
 		const all = es.merge(code, desktop, icon, spec, specIcon);
 
-		return all.pipe(symdest(getRpmBuildPath(rpmArch)));
-	}
+		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
+	};
 }
 
 function buildRpmPackage(arch) {
@@ -133,6 +133,7 @@ function buildRpmPackage(arch) {
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
 	const rpmOut = rpmBuildPath + '/RPMS/' + rpmArch;
 	const destination = '.build/linux/rpm/' + rpmArch;
+
 	return shell.task([
 		'mkdir -p ' + destination,
 		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
