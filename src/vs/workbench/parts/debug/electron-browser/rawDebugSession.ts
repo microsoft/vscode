@@ -52,7 +52,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private startTime: number;
 	private stopServerPending: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
-	private capabilities: DebugProtocol.Capabilites;
+	private capabilities: DebugProtocol.Capabilities;
 
 	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
@@ -211,7 +211,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		this._onDidEvent.fire(event);
 	}
 
-	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilites } {
+	public get configuration(): { type: string, capabilities: DebugProtocol.Capabilities } {
 		return {
 			type: this.adapter.type,
 			capabilities: this.capabilities || {}
