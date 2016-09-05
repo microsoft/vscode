@@ -80,6 +80,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 		const configureFont = () => {
 			const fontInfo = this.editor.getConfiguration().fontInfo;
+			main.style.fontSize = `${ fontInfo.fontSize }px`;
 			main.style.fontFamily = fontInfo.fontFamily;
 		};
 
@@ -143,8 +144,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 	}
 }
 
-const FocusHeight = 35;
-const UnfocusedHeight = 19;
+const FocusHeight = 40;
+const UnfocusedHeight = 20;
 
 class Delegate implements IDelegate<ICompletionItem> {
 
