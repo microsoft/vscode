@@ -34,13 +34,11 @@ export abstract class TextFileService implements ITextFileService {
 
 	public _serviceBrand: any;
 
-	protected listenerToUnbind: IDisposable[];
-
+	private listenerToUnbind: IDisposable[];
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
-
 	private configuredAutoSaveDelay: number;
-	protected configuredAutoSaveOnFocusChange: boolean;
-	protected configuredAutoSaveOnWindowChange: boolean;
+	private configuredAutoSaveOnFocusChange: boolean;
+	private configuredAutoSaveOnWindowChange: boolean;
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -206,11 +204,7 @@ export abstract class TextFileService implements ITextFileService {
 	public isDirty(resource?: URI): boolean {
 
 		// Check for dirty file
-		let dirty = CACHE
-			.getAll(resource)
-			.some(model => model.isDirty());
-
-		if (dirty) {
+		if (CACHE.getAll(resource).some(model => model.isDirty())) {
 			return true;
 		}
 
@@ -442,6 +436,19 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
+
+		// Revert files first
+		return this.doRevertAllFiles(resources, force).then(operation => {
+
+			// Revert untitled
+			const reverted = this.untitledEditorService.revertAll(resources);
+			reverted.forEach(res => operation.results.push({ source: res, success: true }));
+
+			return operation;
+		});
+	}
+
+	private doRevertAllFiles(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
 		const fileModels = force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
@@ -478,13 +485,9 @@ export abstract class TextFileService implements ITextFileService {
 				}
 			});
 		})).then(r => {
-			const operation = { results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k]) };
-
-			// Revert untitled
-			const reverted = this.untitledEditorService.revertAll(resources);
-			reverted.forEach(res => operation.results.push({ source: res, success: true }));
-
-			return operation;
+			return {
+				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
+			};
 		});
 	}
 
