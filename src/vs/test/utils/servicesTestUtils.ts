@@ -197,6 +197,7 @@ export class TestPartService implements PartService.IPartService {
 	public setSideBarPosition(position): void { }
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
+	public getWorkbenchElementId(): string { return ''; }
 }
 
 export class TestEventService extends EventEmitter.EventEmitter implements IEventService {
