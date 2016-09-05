@@ -28,6 +28,7 @@
 
 .monaco-editor-hover .monaco-editor-hover-content {
 	max-width: 438px;
+	max-height: 244px;
 }
 
 .monaco-editor-hover .hover-row {

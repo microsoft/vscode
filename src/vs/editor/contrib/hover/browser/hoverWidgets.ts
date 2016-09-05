@@ -11,6 +11,8 @@ import {Position} from 'vs/editor/common/core/position';
 import {IPosition, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {Widget} from 'vs/base/browser/ui/widget';
+import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 
@@ -18,9 +20,11 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	protected _editor: editorBrowser.ICodeEditor;
 	private _isVisible: boolean;
 	private _containerDomNode: HTMLElement;
-	protected _domNode: HTMLElement;
+	private _domNode: HTMLElement;
 	protected _showAtPosition: Position;
 	private _stoleFocus: boolean;
+	private scrollbar: DomScrollableElement;
+	private disposables: IDisposable[] = [];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
@@ -42,11 +46,15 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 		this._containerDomNode = document.createElement('div');
 		this._containerDomNode.className = 'monaco-editor-hover hidden';
+		this._containerDomNode.tabIndex = 0;
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-editor-hover-content';
-		this._containerDomNode.appendChild(this._domNode);
-		this._containerDomNode.tabIndex = 0;
+
+		this.scrollbar = new DomScrollableElement(this._domNode, { canUseTranslate3d: false });
+		this.disposables.push(this.scrollbar);
+		this._containerDomNode.appendChild(this.scrollbar.getDomNode());
+
 		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
 			if (e.equals(CommonKeybindings.ESCAPE)) {
 				this.hide();
@@ -72,9 +80,6 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 
 	public showAt(position:IPosition, focus: boolean): void {
-		// Update the font for the `code` class elements
-		this.updateFont();
-
 		// Position has changed
 		this._showAtPosition = new Position(position.lineNumber, position.column);
 		this.isVisible = true;
@@ -117,6 +122,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 	public dispose(): void {
 		this._editor.removeContentWidget(this);
+		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
 
@@ -125,6 +131,15 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
 
 		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
+	}
+
+	protected updateContents(node: Node): void {
+		this._domNode.textContent = '';
+		this._domNode.appendChild(node);
+		this.updateFont();
+
+		this._editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
 	}
 }
 
