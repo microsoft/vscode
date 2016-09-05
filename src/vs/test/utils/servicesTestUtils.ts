@@ -30,7 +30,6 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {TextFileService} from 'vs/workbench/parts/files/common/textFileServices';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
@@ -96,17 +95,14 @@ export abstract class TestTextFileService extends TextFileService {
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IEventService eventService: IEventService,
 		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
-		super(lifecycleService, contextService, instantiationService, configurationService, telemetryService, editorGroupService, editorService, eventService, fileService, modelService, untitledEditorService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
