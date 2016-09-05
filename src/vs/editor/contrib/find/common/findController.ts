@@ -12,7 +12,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
@@ -255,19 +255,21 @@ export class StartFindAction extends EditorAction {
 
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		let controller = CommonFindController.get(editor);
-		controller.start({
-			forceRevealReplace: false,
-			seedSearchStringFromSelection: true,
-			shouldFocus: FindStartFocusAction.FocusFindInput,
-			shouldAnimate: true
-		});
+		if (controller) {
+			controller.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: true,
+				shouldFocus: FindStartFocusAction.FocusFindInput,
+				shouldAnimate: true
+			});
+		}
 	}
 }
 
 export abstract class MatchFindAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		let controller = CommonFindController.get(editor);
-		if (!this._run(controller)) {
+		if (controller && !this._run(controller)) {
 			controller.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
@@ -328,6 +330,9 @@ export class PreviousMatchFindAction extends MatchFindAction {
 export abstract class SelectionMatchFindAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		let controller = CommonFindController.get(editor);
+		if (!controller) {
+			return;
+		}
 		let selectionSearchString = controller.getSelectionSearchString();
 		if (selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
@@ -411,12 +416,14 @@ export class StartFindReplaceAction extends EditorAction {
 		}
 
 		let controller = CommonFindController.get(editor);
-		controller.start({
-			forceRevealReplace: true,
-			seedSearchStringFromSelection: true,
-			shouldFocus: FindStartFocusAction.FocusReplaceInput,
-			shouldAnimate: true
-		});
+		if (controller) {
+			controller.start({
+				forceRevealReplace: true,
+				seedSearchStringFromSelection: true,
+				shouldFocus: FindStartFocusAction.FocusReplaceInput,
+				shouldAnimate: true
+			});
+		}
 	}
 }
 
@@ -430,6 +437,9 @@ export interface IMultiCursorFindResult {
 
 function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearchString:boolean): IMultiCursorFindResult {
 	let controller = CommonFindController.get(editor);
+	if (!controller) {
+		return null;
+	}
 	let state = controller.getState();
 	let searchText: string;
 	let currentMatch: Selection;
@@ -694,6 +704,7 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 	}
 }
 
+@commonEditorContribution
 export class SelectionHighlighter extends Disposable implements editorCommon.IEditorContribution {
 	private static ID = 'editor.contrib.selectionHighlighter';
 

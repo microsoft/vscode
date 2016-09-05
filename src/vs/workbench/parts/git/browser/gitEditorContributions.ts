@@ -5,6 +5,7 @@
 'use strict';
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IModel, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane, IEditorContribution, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { IGitService, ModelEvents, StatusType } from 'vs/workbench/parts/git/common/git';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -70,6 +71,7 @@ class MergeDecoratorBoundToModel extends Disposable {
 	}
 }
 
+@editorContribution
 export class MergeDecorator extends Disposable implements IEditorContribution {
 
 	static ID = 'vs.git.editor.merge.decorator';

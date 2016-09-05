@@ -61,40 +61,6 @@ suite('Workbench - TerminalConfigHelper', () => {
 		assert.equal(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
 	});
 
-	test('TerminalConfigHelper - getFont fontWeight', function () {
-		let configurationService: IConfigurationService;
-		let configHelper: TerminalConfigHelper;
-
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo',
-				fontWeight: 'lighter'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar',
-					fontWeight: 'bold'
-				}
-			}
-		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getFont().fontWeight, 'bold', 'terminal.integrated.fontWeight should be selected over editor.fontWeight');
-
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo',
-				fontWeight: 'lighter'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 0
-				}
-			}
-		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
-		assert.equal(configHelper.getFont().fontWeight, 'lighter', 'editor.fontWeight should be the fallback when terminal.integrated.fontWeight not set');
-	});
-
 	test('TerminalConfigHelper - getFont fontSize', function () {
 		let configurationService: IConfigurationService;
 		let configHelper: TerminalConfigHelper;

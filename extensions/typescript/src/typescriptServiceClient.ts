@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel }  from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem }  from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, APIVersion }  from './typescriptService';
 
@@ -66,10 +66,39 @@ namespace Trace {
 	}
 }
 
+enum MessageAction {
+	useLocal,
+	alwaysUseLocal,
+	useBundled,
+	doNotCheckAgain
+}
+
+interface MyMessageItem extends MessageItem  {
+	id: MessageAction;
+}
+
+
+function openUrl(url: string) {
+	let cmd: string;
+	switch (process.platform) {
+		case 'darwin':
+			cmd = 'open';
+			break;
+		case 'win32':
+			cmd = 'start';
+			break;
+		default:
+			cmd = 'xdg-open';
+	}
+	return cp.exec(cmd + ' ' + url);
+}
+
+
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
 	private host: ITypescriptServiceClientHost;
 	private storagePath: string;
+	private globalState: Memento;
 	private pathSeparator: string;
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
@@ -94,9 +123,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _apiVersion: APIVersion;
 	private telemetryReporter: TelemetryReporter;
 
-	constructor(host: ITypescriptServiceClientHost, storagePath: string) {
+	constructor(host: ITypescriptServiceClientHost, storagePath: string, globalState: Memento) {
 		this.host = host;
 		this.storagePath = storagePath;
+		this.globalState = globalState;
 		this.pathSeparator = path.sep;
 
 		let p = new Promise<void>((resolve, reject) => {
@@ -250,74 +280,179 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private startService(resendModels: boolean = false): void {
 		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
+		let checkGlobalVersion = true;
+		let showVersionStatusItem = false;
 
 		if (this.tsdk) {
+			checkGlobalVersion = false;
 			if ((<any>path).isAbsolute(this.tsdk)) {
 				modulePath = path.join(this.tsdk, 'tsserver.js');
 			} else if (workspace.rootPath) {
 				modulePath = path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
 			}
 		}
-		this.info(`Using tsserver from location: ${modulePath}`);
-		if (!fs.existsSync(modulePath)) {
-			window.showErrorMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. TypeScript language features will be disabled.', path.dirname(modulePath)));
-			return;
-		}
+		let versionCheckPromise: Thenable<string> = Promise.resolve(modulePath);
+		const doLocalVersionCheckKey: string = 'doLocalVersionCheck';
 
-		let version = this.getTypeScriptVersion(modulePath);
-		if (!version) {
-			version = workspace.getConfiguration().get<string>('typescript.tsdk_version', undefined);
-		}
-		if (version) {
-			this._apiVersion = APIVersion.fromString(version);
-		}
-		const label = version || localize('versionNumber.custom' ,'custom');
-		const tooltip = modulePath;
-		VersionStatus.enable(!!this.tsdk);
-		VersionStatus.setInfo(label, tooltip);
-
-		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
-			try {
-				let options: electron.IForkOptions = {
-					execArgv: [] // [`--debug-brk=5859`]
-				};
-				let value = process.env.TSS_DEBUG;
-				if (value) {
-					let port = parseInt(value);
-					if (!isNaN(port)) {
-						this.info(`TSServer started in debug mode using port ${port}`);
-						options.execArgv = [`--debug=${port}`];
-					}
+		if (!this.tsdk && workspace.rootPath && this.globalState.get(doLocalVersionCheckKey, true)) {
+			let localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+			if (fs.existsSync(localModulePath)) {
+				let localVersion = this.getTypeScriptVersion(localModulePath);
+				let shippedVersion = this.getTypeScriptVersion(modulePath);
+				if (localVersion && localVersion !== shippedVersion) {
+					checkGlobalVersion = false;
+					versionCheckPromise = window.showInformationMessage<MyMessageItem>(
+						localize(
+							'localTSFound',
+							'The workspace folder contains TypeScript version {0}. Do you want to use this version instead of the bundled version {1}?',
+							localVersion, shippedVersion
+						),
+						...[{
+							title: localize('use', 'Use {0}', localVersion),
+							id: MessageAction.useLocal
+						},
+						{
+							title: localize('useBundled', 'Use {0}', shippedVersion),
+							id: MessageAction.useBundled,
+						},
+						{
+							title: localize('useAlways', /*'Always use {0}'*/ 'More Information', localVersion),
+							id: MessageAction.alwaysUseLocal
+						},
+						{
+							title: localize('doNotCheckAgain', 'Don\'t Check Again'),
+							id: MessageAction.doNotCheckAgain,
+							isCloseAffordance: true
+						}].reverse()
+					).then((selected) => {
+						if (!selected) {
+							return modulePath;
+						}
+						switch(selected.id) {
+							case MessageAction.useLocal:
+								showVersionStatusItem = true;
+								return localModulePath;
+							case MessageAction.alwaysUseLocal:
+								window.showInformationMessage(localize('continueWithVersion', 'Continuing with version {0}', shippedVersion));
+								openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
+								return modulePath;
+							case MessageAction.useBundled:
+								return modulePath;
+							case MessageAction.doNotCheckAgain:
+								this.globalState.update(doLocalVersionCheckKey, false);
+								return modulePath;
+							default:
+								return modulePath;
+						}
+					});
 				}
-				electron.fork(modulePath, [], options, (err: any, childProcess: cp.ChildProcess) => {
-					if (err) {
-						this.lastError = err;
-						this.error('Starting TSServer failed with error.', err);
-						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
-						this.logTelemetry('error', {message: err.message});
-						return;
-					}
-					this.lastStart = Date.now();
-					childProcess.on('error', (err: Error) => {
-						this.lastError = err;
-						this.error('TSServer errored with error.', err);
-						this.serviceExited(false);
-					});
-					childProcess.on('exit', (code: any) => {
-						this.error(`TSServer exited with code: ${code ? code : 'unknown'}`);
-						this.serviceExited(true);
-					});
-					this.reader = new Reader<Proto.Response>(childProcess.stdout, (msg) => {
-						this.dispatchMessage(msg);
-					});
-					this._onReady.resolve();
-					resolve(childProcess);
-				});
-			} catch (error) {
-				reject(error);
 			}
+		}
+		versionCheckPromise.then((modulePath) => {
+			this.info(`Using tsserver from location: ${modulePath}`);
+			if (!fs.existsSync(modulePath)) {
+				window.showErrorMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. TypeScript language features will be disabled.', path.dirname(modulePath)));
+				return;
+			}
+
+			let version = this.getTypeScriptVersion(modulePath);
+			if (!version) {
+				version = workspace.getConfiguration().get<string>('typescript.tsdk_version', undefined);
+			}
+			if (version) {
+				this._apiVersion = APIVersion.fromString(version);
+			}
+
+
+			const label = version || localize('versionNumber.custom' ,'custom');
+			const tooltip = modulePath;
+			VersionStatus.enable(!!this.tsdk || showVersionStatusItem);
+			VersionStatus.setInfo(label, tooltip);
+
+			const doGlobalVersionCheckKey: string = 'doGlobalVersionCheck';
+			if (checkGlobalVersion && this.globalState.get(doGlobalVersionCheckKey, true)) {
+				let tscVersion: string = undefined;
+				try {
+					let out = cp.execSync('tsc --version', { encoding: 'utf8' });
+					if (out) {
+						let matches = out.trim().match(/Version\s*(.*)$/);
+						if (matches && matches.length === 2) {
+							tscVersion = matches[1];
+						}
+					}
+				} catch (error) {
+				}
+				if (tscVersion && tscVersion !== version) {
+					window.showInformationMessage(
+						localize('versionMismatch', 'A version mismatch between the globally installed tsc compiler ({0}) and VS Code\'s language service ({1}) has been detected. This might result in inconsistent compile errors.', tscVersion, version),
+						...[{
+							title: localize('moreInformation', 'More Information'),
+							id: 1
+						},
+						{
+							title: localize('doNotCheckAgain', 'Don\'t Check Again'),
+							id: 2,
+							isCloseAffordance: true
+						}].reverse()
+					).then((selected) => {
+						if (!selected) {
+							return;
+						}
+						switch (selected.id) {
+							case 1:
+								openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
+								break;
+							case 2:
+								this.globalState.update(doGlobalVersionCheckKey, false);
+								break;
+						}
+					});
+				}
+			}
+
+			this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
+				try {
+					let options: electron.IForkOptions = {
+						execArgv: [] // [`--debug-brk=5859`]
+					};
+					let value = process.env.TSS_DEBUG;
+					if (value) {
+						let port = parseInt(value);
+						if (!isNaN(port)) {
+							this.info(`TSServer started in debug mode using port ${port}`);
+							options.execArgv = [`--debug=${port}`];
+						}
+					}
+					electron.fork(modulePath, [], options, (err: any, childProcess: cp.ChildProcess) => {
+						if (err) {
+							this.lastError = err;
+							this.error('Starting TSServer failed with error.', err);
+							window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
+							this.logTelemetry('error', {message: err.message});
+							return;
+						}
+						this.lastStart = Date.now();
+						childProcess.on('error', (err: Error) => {
+							this.lastError = err;
+							this.error('TSServer errored with error.', err);
+							this.serviceExited(false);
+						});
+						childProcess.on('exit', (code: any) => {
+							this.error(`TSServer exited with code: ${code ? code : 'unknown'}`);
+							this.serviceExited(true);
+						});
+						this.reader = new Reader<Proto.Response>(childProcess.stdout, (msg) => {
+							this.dispatchMessage(msg);
+						});
+						this._onReady.resolve();
+						resolve(childProcess);
+					});
+				} catch (error) {
+					reject(error);
+				}
+			});
+			this.serviceStarted(resendModels);
 		});
-		this.serviceStarted(resendModels);
 	}
 
 	private serviceStarted(resendModels: boolean): void {

@@ -78,6 +78,7 @@ function ni() { return new Error('Not implemented'); }
 
 export abstract class MainThreadCommandsShape {
 	$registerCommand(id: string): TPromise<any> { throw ni(); }
+	$unregisterCommand(id: string): TPromise<any> { throw ni(); }
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> { throw ni(); }
 	$getCommands(): Thenable<string[]> { throw ni(); }
 }

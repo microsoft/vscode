@@ -17,15 +17,15 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
-import {ILineContext, ILineTokens, IToken, IMode, IState} from 'vs/editor/common/modes';
+import {ILineContext, ILineTokens, IMode, IState} from 'vs/editor/common/modes';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {LineToken} from 'vs/editor/common/model/lineToken';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Position} from 'vs/editor/common/core/position';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {Token} from 'vs/editor/common/core/token';
 
 class ModeToModelBinder implements IDisposable {
 
@@ -149,18 +149,8 @@ class LineContext implements ILineContext {
 		return this._lineTokens.getTokenStartIndex(tokenIndex);
 	}
 
-	public getTokenEndIndex(tokenIndex:number): number {
-		return this._lineTokens.getTokenEndIndex(tokenIndex, this._text.length);
-	}
-
 	public getTokenType(tokenIndex:number): string {
 		return this._lineTokens.getTokenType(tokenIndex);
-	}
-
-	public getTokenText(tokenIndex:number): string {
-		var startIndex = this._lineTokens.getTokenStartIndex(tokenIndex);
-		var endIndex = this._lineTokens.getTokenEndIndex(tokenIndex, this._text.length);
-		return this._text.substring(startIndex, endIndex);
 	}
 
 	public findIndexOfOffset(offset:number): number {
@@ -475,20 +465,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	private static _toLineTokens(tokens:IToken[]): LineToken[] {
-		if (!tokens || tokens.length === 0) {
-			return [];
-		}
-		if (tokens[0] instanceof LineToken) {
-			return <LineToken[]>tokens;
-		}
-		let result:LineToken[] = [];
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			result[i] = new LineToken(tokens[i].startIndex, tokens[i].type);
-		}
-		return result;
-	}
-
 	private _beginBackgroundTokenization(): void {
 		if (this._shouldAutoTokenize() && this._revalidateTokensTimeout === -1) {
 			this._revalidateTokensTimeout = setTimeout(() => {
@@ -623,10 +599,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				if (r && r.actualStopOffset < text.length) {
 					// Treat the rest of the line (if above limit) as one default token
-					r.tokens.push({
-						startIndex: r.actualStopOffset,
-						type: ''
-					});
+					r.tokens.push(new Token(r.actualStopOffset, ''));
 
 					// Use as end state the starting state
 					r.endState = this._lines[lineIndex].getState();
@@ -643,7 +616,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				// Make sure there is at least the transition to the top-most mode
 				r.modeTransitions.push(new ModeTransition(0, this.getModeId()));
 			}
-			this._lines[lineIndex].setTokens(this._tokensInflatorMap, TextModelWithTokens._toLineTokens(r.tokens), this.getModeId(), r.modeTransitions);
+			this._lines[lineIndex].setTokens(this._tokensInflatorMap, r.tokens, this.getModeId(), r.modeTransitions);
 
 			if (this._lines[lineIndex].isInvalid) {
 				this._lines[lineIndex].isInvalid = false;
@@ -743,8 +716,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return result;
 	}
 
-	public findMatchingBracketUp(bracket:string, _position:editorCommon.IPosition): Range {
+	public findMatchingBracketUp(_bracket:string, _position:editorCommon.IPosition): Range {
+		let bracket = _bracket.toLowerCase();
 		let position = this.validatePosition(_position);
+
 		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this.getModeId());
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
@@ -806,6 +781,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					// check that we didn't hit a bracket too far away from position
 					if (foundBracket && foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
 						let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
+						foundBracketText = foundBracketText.toLowerCase();
+
 						let r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText]);
 
 						// check that we can actually match this bracket
@@ -839,6 +816,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					// check that we didn't hit a bracket too far away from position
 					if (foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
 						let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
+						foundBracketText = foundBracketText.toLowerCase();
+
 						let r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText]);
 
 						// check that we can actually match this bracket
@@ -916,6 +895,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 						}
 
 						let hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1);
+						hitText = hitText.toLowerCase();
 
 						if (hitText === bracket.open) {
 							count++;
@@ -982,6 +962,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 						}
 
 						let hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1);
+						hitText = hitText.toLowerCase();
 
 						if (hitText === bracket.open) {
 							count++;

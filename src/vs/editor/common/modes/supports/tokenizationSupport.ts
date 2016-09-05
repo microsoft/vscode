@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
-import {Token} from 'vs/editor/common/modes/supports';
+import {Token} from 'vs/editor/common/core/token';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ILeavingNestedModeData {
@@ -123,7 +123,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	 * Precondition is: nestedModeState.getMode() !== this
 	 * This means we are in a nested mode when parsing starts on this line.
 	 */
-	private _nestedTokenize(buffer:string, nestedModeState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:modes.IToken[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
+	private _nestedTokenize(buffer:string, nestedModeState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:Token[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
 		let myStateBeforeNestedMode = nestedModeState.getStateData();
 		let leavingNestedModeData = this.getLeavingNestedModeData(buffer, myStateBeforeNestedMode);
 
@@ -183,7 +183,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	 * Precondition is: state.getMode() === this
 	 * This means we are in the current mode when parsing starts on this line.
 	 */
-	private _myTokenize(buffer:string, myState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:modes.IToken[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
+	private _myTokenize(buffer:string, myState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:Token[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
 		let lineStream = new LineStream(buffer);
 		let tokenResult:modes.ITokenizationResult, beforeTokenizeStreamPos:number;
 		let previousType:string = null;

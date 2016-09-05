@@ -968,7 +968,7 @@ declare module monaco.editor {
         horizontal?: string;
         /**
          * Cast horizontal and vertical shadows when the content is scrolled.
-         * Defaults to false.
+         * Defaults to true.
          */
         useShadows?: boolean;
         /**
@@ -1164,6 +1164,12 @@ declare module monaco.editor {
          * Defaults to 300.
          */
         wrappingColumn?: number;
+        /**
+         * Control the alternate style of viewport wrapping.
+         * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
+         * Defaults to false.
+         */
+        wordWrap?: boolean;
         /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
          * Defaults to 'none'.

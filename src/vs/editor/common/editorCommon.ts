@@ -9,8 +9,8 @@ import {MarkedString} from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServicesAccessor, IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import {ILineContext, IMode, IToken} from 'vs/editor/common/modes';
+import {ServicesAccessor, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import {ILineContext, IMode} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -18,6 +18,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
@@ -113,7 +114,7 @@ export interface IEditorScrollbarOptions {
 	horizontal?:string;
 	/**
 	 * Cast horizontal and vertical shadows when the content is scrolled.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	useShadows?:boolean;
 	/**
@@ -309,6 +310,12 @@ export interface IEditorOptions {
 	 * Defaults to 300.
 	 */
 	wrappingColumn?:number;
+	/**
+	 * Control the alternate style of viewport wrapping.
+	 * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
+	 * Defaults to false.
+	 */
+	wordWrap?:boolean;
 	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
 	 * Defaults to 'none'.
@@ -1247,7 +1254,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	token: IToken;
+	token: Token;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;
@@ -3502,17 +3509,6 @@ export type IEditorActionContributionCtor = IConstructorSignature2<IEditorAction
  * @internal
  */
 export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
-
-/**
- * An editor contribution descriptor that will be used to construct editor contributions
- * @internal
- */
-export interface ICommonEditorContributionDescriptor {
-	/**
-	 * Create an instance of the contribution
-	 */
-	createInstance(instantiationService:IInstantiationService, editor:ICommonCodeEditor): IEditorContribution;
-}
 
 export interface IEditorAction {
 	id: string;

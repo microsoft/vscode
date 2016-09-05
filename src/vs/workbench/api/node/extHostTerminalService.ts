@@ -15,12 +15,16 @@ export class ExtHostTerminal implements vscode.Terminal {
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
+	private _queuedRequests: ApiRequest[] = [];
 
 	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string) {
 		this._name = name;
 		this._proxy = proxy;
 		this._proxy.$createTerminal(name).then((terminalId) => {
 			this._id = terminalId;
+			this._queuedRequests.forEach((r) => {
+				r.run(this._proxy, this._id);
+			});
 		});
 	}
 
@@ -30,34 +34,39 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	public sendText(text: string, addNewLine: boolean = true): void {
-		this._checkId();
 		this._checkDisposed();
-		this._proxy.$sendText(this._id, text, addNewLine);
+		let request: ApiRequest = new ApiRequest(this._proxy.$sendText, [text, addNewLine]);
+		if (!this._id) {
+			this._queuedRequests.push(request);
+			return;
+		}
+		request.run(this._proxy, this._id);
 	}
 
 	public show(preserveFocus: boolean): void {
-		this._checkId();
 		this._checkDisposed();
-		this._proxy.$show(this._id, preserveFocus);
+		let request: ApiRequest = new ApiRequest(this._proxy.$show, [preserveFocus]);
+		if (!this._id) {
+			this._queuedRequests.push(request);
+			return;
+		}
+		request.run(this._proxy, this._id);
 	}
 
 	public hide(): void {
-		this._checkId();
 		this._checkDisposed();
-		this._proxy.$hide(this._id);
+		let request: ApiRequest = new ApiRequest(this._proxy.$hide, []);
+		if (!this._id) {
+			this._queuedRequests.push(request);
+			return;
+		}
+		request.run(this._proxy, this._id);
 	}
 
 	public dispose(): void {
-		this._checkId();
 		if (!this._disposed) {
 			this._disposed = true;
 			this._proxy.$dispose(this._id);
-		}
-	}
-
-	private _checkId() {
-		if (!this._id) {
-			throw new Error('Terminal has not been initialized yet');
 		}
 	}
 
@@ -78,5 +87,19 @@ export class ExtHostTerminalService {
 
 	public createTerminal(name?: string): vscode.Terminal {
 		return new ExtHostTerminal(this._proxy, -1, name);
+	}
+}
+
+class ApiRequest {
+	private _callback: (...args: any[]) => void;
+	private _args: any[];
+
+	constructor(callback: (...args: any[]) => void, args: any[]) {
+		this._callback = callback;
+		this._args = args;
+	}
+
+	public run(proxy: MainThreadTerminalServiceShape, id: number) {
+		this._callback.apply(proxy, [id].concat(this._args));
 	}
 }

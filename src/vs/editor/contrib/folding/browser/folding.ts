@@ -16,13 +16,14 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {CollapsibleRegion, getCollapsibleRegionsToFoldAtLine, getCollapsibleRegionsToUnfoldAtLine, doesLineBelongsToCollapsibleRegion, IFoldingRange} from 'vs/editor/contrib/folding/common/foldingModel';
 import {computeRanges, limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import {Selection} from 'vs/editor/common/core/selection';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
+@editorContribution
 export class FoldingController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.folding';
@@ -241,22 +242,27 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			return;
 		}
 		let hasChanges = false;
-		let position = this.editor.getPosition();
-		let lineNumber = position.lineNumber;
+		let selections = this.editor.getSelections();
+
 		this.editor.changeDecorations(changeAccessor => {
 			return this.decorations.forEach(dec => {
 				if (dec.isCollapsed) {
 					let decRange = dec.getDecorationRange(model);
-					// reveal if cursor in in one of the collapsed line (not the first)
-					if (decRange && decRange.startLineNumber < lineNumber && lineNumber <= decRange.endLineNumber) {
-						dec.setCollapsed(false, changeAccessor);
-						hasChanges = true;
+					if (decRange) {
+						for (let selection of selections) {
+							// reveal if cursor in in one of the collapsed line (not the first)
+							if (decRange.startLineNumber < selection.selectionStartLineNumber && selection.selectionStartLineNumber <= decRange.endLineNumber) {
+								dec.setCollapsed(false, changeAccessor);
+								hasChanges = true;
+								break;
+							}
+						}
 					}
 				}
 			});
 		});
 		if (hasChanges) {
-			this.updateHiddenAreas(lineNumber);
+			this.updateHiddenAreas(this.editor.getPosition().lineNumber);
 		}
 	}
 
@@ -501,8 +507,11 @@ abstract class FoldingAction<T> extends EditorAction {
 	abstract invoke(foldingController: FoldingController, editor:editorCommon.ICommonCodeEditor, args:T): void;
 
 	public runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: T): void | TPromise<void> {
-		this.reportTelemetry(accessor);
 		let foldingController = FoldingController.get(editor);
+		if (!foldingController) {
+			return;
+		}
+		this.reportTelemetry(accessor);
 		this.invoke(foldingController, editor, args);
 	}
 
@@ -700,8 +709,6 @@ class FoldLevelAction extends FoldingAction<void> {
 		foldingController.foldLevel(this.getFoldingLevel(), this.getSelectedLines(editor));
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(FoldingController);
 
 CommonEditorRegistry.registerEditorAction(
 	new FoldLevelAction({

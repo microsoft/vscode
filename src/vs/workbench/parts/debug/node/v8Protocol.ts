@@ -68,7 +68,7 @@ export abstract class V8Protocol {
 		if (request.command === 'runInTerminal') {
 			this.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(() => {
 				(<DebugProtocol.RunInTerminalResponse>response).body = {
-					processId: 12345	// send back process id
+					// nothing to return for now..
 				};
 				this.sendResponse(response);
 			}, e => {

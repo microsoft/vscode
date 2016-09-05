@@ -22,12 +22,13 @@ import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig
 import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Command} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
 
+@editorContribution
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.accessibilityHelpController';
@@ -212,11 +213,11 @@ class ShowAccessibilityHelpAction extends EditorAction {
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
 		let controller = AccessibilityHelpController.get(editor);
-		controller.show();
+		if (controller) {
+			controller.show();
+		}
 	}
 }
-
-EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 

@@ -5,6 +5,7 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Token} from 'vs/editor/common/core/token';
 
 export class TokenIterator implements editorCommon.ITokenIterator {
 
@@ -101,10 +102,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		let endIndex = this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._model.getLineContent(this._currentLineNumber).length);
 
 		return {
-			token: {
-				startIndex: startIndex,
-				type: type
-			},
+			token: new Token(startIndex, type),
 			lineNumber: this._currentLineNumber,
 			startColumn: startIndex + 1,
 			endColumn: endIndex + 1

@@ -10,13 +10,13 @@ const replace = require('gulp-replace');
 const rename = require('gulp-rename');
 const shell = require('gulp-shell');
 const es = require('event-stream');
-const symdest = require('gulp-symdest');
+const vfs = require('vinyl-fs');
 const util = require('./lib/util');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 
 function getDebPackageArch(arch) {
-	return { x64: 'amd64', ia32: 'i386' }[arch];
+	return { x64: 'amd64', ia32: 'i386', arm: 'armhf' }[arch];
 }
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
@@ -55,22 +55,22 @@ function prepareDebPackage(arch) {
 
 		const prerm = gulp.src('resources/linux/debian/prerm.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('DEBIAN/prerm'))
+			.pipe(rename('DEBIAN/prerm'));
 
 		const postrm = gulp.src('resources/linux/debian/postrm.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('DEBIAN/postrm'))
+			.pipe(rename('DEBIAN/postrm'));
 
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ARCHITECTURE@@', debArch))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
-			.pipe(rename('DEBIAN/postinst'))
+			.pipe(rename('DEBIAN/postinst'));
 
 		const all = es.merge(control, postinst, postrm, prerm, desktop, icon, code);
 
-		return all.pipe(symdest(destination));
+		return all.pipe(vfs.dest(destination));
 	};
 }
 
@@ -89,7 +89,7 @@ function getRpmBuildPath(rpmArch) {
 }
 
 function getRpmPackageArch(arch) {
-	return { x64: 'x86_64', ia32: 'i386' }[arch];
+	return { x64: 'x86_64', ia32: 'i386', arm: 'armhf' }[arch];
 }
 
 function prepareRpmPackage(arch) {
@@ -124,8 +124,8 @@ function prepareRpmPackage(arch) {
 
 		const all = es.merge(code, desktop, icon, spec, specIcon);
 
-		return all.pipe(symdest(getRpmBuildPath(rpmArch)));
-	}
+		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
+	};
 }
 
 function buildRpmPackage(arch) {
@@ -133,6 +133,7 @@ function buildRpmPackage(arch) {
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
 	const rpmOut = rpmBuildPath + '/RPMS/' + rpmArch;
 	const destination = '.build/linux/rpm/' + rpmArch;
+
 	return shell.task([
 		'mkdir -p ' + destination,
 		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
@@ -143,15 +144,21 @@ function buildRpmPackage(arch) {
 
 gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));
 gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/deb/amd64'));
+gulp.task('clean-vscode-linux-arm-deb', util.rimraf('.build/linux/deb/armhf'));
 gulp.task('clean-vscode-linux-ia32-rpm', util.rimraf('.build/linux/rpm/i386'));
 gulp.task('clean-vscode-linux-x64-rpm', util.rimraf('.build/linux/rpm/x86_64'));
+gulp.task('clean-vscode-linux-arm-rpm', util.rimraf('.build/linux/rpm/armhf'));
 
 gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb', 'vscode-linux-ia32-min'], prepareDebPackage('ia32'));
 gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode-linux-x64-min'], prepareDebPackage('x64'));
+gulp.task('vscode-linux-arm-prepare-deb', ['clean-vscode-linux-arm-deb', 'vscode-linux-arm-min'], prepareDebPackage('armhf'));
 gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
 gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
+gulp.task('vscode-linux-arm-build-deb', ['vscode-linux-arm-prepare-deb'], buildDebPackage('armhf'));
 
 gulp.task('vscode-linux-ia32-prepare-rpm', ['clean-vscode-linux-ia32-rpm', 'vscode-linux-ia32-min'], prepareRpmPackage('ia32'));
 gulp.task('vscode-linux-x64-prepare-rpm', ['clean-vscode-linux-x64-rpm', 'vscode-linux-x64-min'], prepareRpmPackage('x64'));
+gulp.task('vscode-linux-arm-prepare-rpm', ['clean-vscode-linux-arm-rpm', 'vscode-linux-arm-min'], prepareRpmPackage('armhf'));
 gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage('ia32'));
 gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage('x64'));
+gulp.task('vscode-linux-arm-build-rpm', ['vscode-linux-arm-prepare-rpm'], buildRpmPackage('armhf'));

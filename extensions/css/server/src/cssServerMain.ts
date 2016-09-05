@@ -44,7 +44,7 @@ connection.onShutdown(() => {
 });
 
 // After the server has started the client sends an initilize request. The server receives
-// in the passed params the rootPath of the workspace plus the client capabilites.
+// in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return {
 		capabilities: {
@@ -90,7 +90,7 @@ function updateConfiguration(settings: Settings) {
 	documents.all().forEach(triggerValidation);
 }
 
-let pendingValidationRequests : {[uri:string]:number} = {};
+let pendingValidationRequests : { [uri:string]: NodeJS.Timer } = {};
 const validationDelayMs = 200;
 
 // The content of a text document has changed. This event is emitted

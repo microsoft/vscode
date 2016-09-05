@@ -146,6 +146,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
+
+		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
+			this.pickOpenWidget.hide(HideReason.CANCELED);
+		}
+
 		const defaultMessage = options.prompt
 			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
@@ -232,6 +237,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			});
 		});
 
+		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
+			this.pickOpenWidget.hide(HideReason.CANCELED);
+		}
+
 		return new TPromise<string | IPickOpenEntry>((resolve, reject, progress) => {
 
 			function onItem(item: IPickOpenEntry): string | IPickOpenEntry {
@@ -296,7 +305,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
 
 			// hide widget when being cancelled
-			token.onCancellationRequested(e => this.pickOpenWidget.hide(HideReason.CANCELED));
+			token.onCancellationRequested(e => {
+				if (this.currentPickerToken === currentPickerToken) {
+					this.pickOpenWidget.hide(HideReason.CANCELED);
+				}
+			});
 
 			let picksPromiseDone = false;
 

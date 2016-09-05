@@ -1,12 +1,1 @@
-<svg id="outline" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
-	<defs>
-		<style>.cls-1,.cls-2{fill:#f6f6f6;}.cls-1{opacity:0;}.cls-3{fill:#424242;}.cls-4{fill:#a1260d;}</style>
-	</defs>
-	<title>Disconnect_16x</title>
-	<rect class="cls-1" width="16" height="16"/>
-		<path class="cls-2" d="M15,4V1a2.76,2.76,0,0,0-2-1,2.76,2.76,0,0,0-2,1A2.76,2.76,0,0,0,9,0,2.57,2.57,0,0,0,8,.25V0H6.27L4.09,2,2.9,0.51A1.61,1.61,0,0,0,1.69,0,1.71,1.71,0,0,0,.5.47a1.65,1.65,0,0,0,0,2.4L1.8,4,0.5,5.17A1.64,1.64,0,0,0,0,6.35,1.66,1.66,0,0,0,.5,7.53,1.72,1.72,0,0,0,1.69,8a1.63,1.63,0,0,0,1.23-.54L4.09,6.05,6.27,8H7v3H9v5h4V11h2V7h1V4H15ZM7,2.56V4H6V4.24L5.8,4Z" transform="translate(0)"/>
-		<path class="cls-3" d="M10,4H8V2A1.05,1.05,0,0,1,9,1a1.05,1.05,0,0,1,1,1V4Z" transform="translate(0)"/>
-		<path class="cls-3" d="M14,2a1,1,0,0,0-2,0V4h2V2Z" transform="translate(0)"/>
-		<polygon class="cls-3" points="7 5 7 5.44 7.47 6 8 6 8 6.64 8 8 8 10 10 10 10 15 12 15 12 10 14 10 14 6 15 6 15 5 7 5"/>
-		<path class="cls-4" d="M4.5,4L7,7H6.66L4,4.61,2.15,6.82a0.71,0.71,0,0,1-1,0,0.65,0.65,0,0,1,0-.94L3.3,4,1.2,2.12a0.65,0.65,0,0,1,0-.94,0.71,0.71,0,0,1,1,0L4,3.39,6.66,1H7Z" transform="translate(0)"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="#A1260D" d="M15 15H1V1h14v14z"/><path fill="#F0EFF1" d="M11 6v1h-1v3H8.5v4h-1v-4H6V7H5V6h6zM7 3.5a.5.5 0 0 0-1 0V5h1V3.5zm3 0a.5.5 0 0 0-1 0V5h1V3.5z"/></svg>

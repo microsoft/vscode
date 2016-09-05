@@ -247,7 +247,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							this._openerService.open(URI.parse(content));
 						},
 						codeBlockRenderer: (modeId, value): string | TPromise<string> => {
-							const mode = this._modeService.getMode(modeId);
+							const mode = modeId ? this._modeService.getMode(modeId) : this._editor.getModel().getModeId();
 							const getMode = mode ? TPromise.as(mode) : this._modeService.getOrCreateMode(modeId);
 
 							return getMode

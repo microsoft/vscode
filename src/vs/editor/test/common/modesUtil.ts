@@ -9,10 +9,16 @@ import {Model} from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {RichEditSupport, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {Token} from 'vs/editor/common/core/token';
+
+export interface ITestToken {
+	startIndex: number;
+	type: string;
+}
 
 export interface ITestItem {
 	line: string;
-	tokens: modes.IToken[];
+	tokens: ITestToken[];
 }
 
 export function assertWords(actual:string[], expected:string[], message?:string): void {
@@ -93,6 +99,6 @@ function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITes
 	}
 }
 
-function assertTokens(actual:modes.IToken[], expected:modes.IToken[], message?:string): void {
+function assertTokens(actual:Token[], expected:ITestToken[], message?:string): void {
 	assert.deepEqual(actual, expected, message + ': ' + JSON.stringify(actual, null, '\t'));
 }
