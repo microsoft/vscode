@@ -17,7 +17,6 @@ import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
-import {Identifiers} from 'vs/workbench/common/constants';
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
@@ -85,6 +84,15 @@ export interface IWorkbenchCallbacks {
 	onServicesCreated?: () => void;
 	onWorkbenchStarted?: (customKeybindingsCount: number) => void;
 }
+
+const Identifiers = {
+	WORKBENCH_CONTAINER: 'workbench.main.container',
+	ACTIVITYBAR_PART: 'workbench.parts.activitybar',
+	SIDEBAR_PART: 'workbench.parts.sidebar',
+	PANEL_PART: 'workbench.parts.panel',
+	EDITOR_PART: 'workbench.parts.editor',
+	STATUSBAR_PART: 'workbench.parts.statusbar'
+};
 
 /**
  * The workbench creates and lays out all parts that make up the workbench.
@@ -810,5 +818,9 @@ export class Workbench implements IPartService {
 		if (this.workbench) {
 			this.workbench.removeClass(clazz);
 		}
+	}
+
+	public getWorkbenchElementId(): string {
+		return Identifiers.WORKBENCH_CONTAINER;
 	}
 }
