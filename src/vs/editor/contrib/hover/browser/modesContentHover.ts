@@ -260,14 +260,13 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				});
 		});
 
-		this._domNode.textContent = '';
-		this._domNode.appendChild(fragment);
-
 		// show
 		this.showAt({
 			lineNumber: renderRange.startLineNumber,
 			column: renderColumn
 		}, this._shouldFocus);
+
+		this.updateContents(fragment);
 
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{
