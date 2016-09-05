@@ -42,7 +42,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -54,7 +54,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IModelService modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(lifecycleService, contextService, instantiationService, configurationService, telemetryService, editorGroupService, editorService, eventService, fileService, modelService);
+		super(lifecycleService, contextService, instantiationService, configurationService, telemetryService, editorGroupService, editorService, eventService, fileService, modelService, untitledEditorService);
 	}
 
 	protected registerListeners(): void {
@@ -133,43 +133,6 @@ export class TextFileService extends AbstractTextFileService {
 
 	private onShutdown(): void {
 		super.dispose();
-	}
-
-	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
-
-		// Revert files
-		return super.revertAll(resources, force).then(r => {
-
-			// Revert untitled
-			const reverted = this.untitledEditorService.revertAll(resources);
-			reverted.forEach(res => r.results.push({ source: res, success: true }));
-
-			return r;
-		});
-	}
-
-	public getDirty(resources?: URI[]): URI[] {
-
-		// Collect files
-		const dirty = super.getDirty(resources);
-
-		// Add untitled ones
-		if (!resources) {
-			dirty.push(...this.untitledEditorService.getDirty());
-		} else {
-			const dirtyUntitled = resources.map(r => this.untitledEditorService.get(r)).filter(u => u && u.isDirty()).map(u => u.getResource());
-			dirty.push(...dirtyUntitled);
-		}
-
-		return dirty;
-	}
-
-	public isDirty(resource?: URI): boolean {
-		if (super.isDirty(resource)) {
-			return true;
-		}
-
-		return this.untitledEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
 	}
 
 	public confirmSave(resources?: URI[]): ConfirmResult {
