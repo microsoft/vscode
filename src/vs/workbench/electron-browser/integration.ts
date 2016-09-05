@@ -6,12 +6,10 @@
 'use strict';
 
 import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
 import Severity from 'vs/base/common/severity';
-import {isMacintosh} from 'vs/base/common/platform';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IAction, Action} from 'vs/base/common/actions';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -27,8 +25,6 @@ import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ElectronWindow} from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
-import {IQuickOpenService, IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {KeyMod} from 'vs/base/common/keyCodes';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -57,7 +53,6 @@ export class ElectronIntegration {
 		@ICommandService private commandService: ICommandService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 	}
@@ -112,11 +107,6 @@ export class ElectronIntegration {
 			this.messageService.show(Severity.Info, message);
 		});
 
-		// Recent files / folders
-		ipc.on('vscode:openRecent', (event, files: string[], folders: string[]) => {
-			this.openRecent(files, folders);
-		});
-
 		// Ensure others can listen to zoom level changes
 		browser.setZoomLevel(webFrame.getZoomLevel());
 
@@ -166,34 +156,6 @@ export class ElectronIntegration {
 				}
 			}
 		});
-	}
-
-	private openRecent(recentFiles: string[], recentFolders: string[]): void {
-		function toPick(path: string, separator: ISeparator): IPickOpenEntry {
-			return {
-				label: paths.basename(path),
-				description: paths.dirname(path),
-				separator,
-				run: (context) => runPick(path, context)
-			};
-		}
-
-		function runPick(path: string, context): void {
-			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-
-			ipc.send('vscode:windowOpen', [path], newWindow);
-		}
-
-		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0));
-		const filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0));
-
-		const hasWorkspace = !!this.contextService.getWorkspace();
-
-		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
-			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
-			matchOnDescription: true
-		}).done(null, errors.onUnexpectedError);
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {
