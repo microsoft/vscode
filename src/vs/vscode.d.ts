@@ -1434,7 +1434,7 @@ declare namespace vscode {
 		 * @return A human readable string which is presented as diagnostic message.
 		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
-		validateInput?: (value: string) => string;
+		validateInput?(value: string): string;
 	}
 
 	/**
@@ -1843,7 +1843,7 @@ declare namespace vscode {
 		 * @return The resolved symbol or a thenable that resolves to that. When no result is returned,
 		 * the given `symbol` is used.
 		 */
-		resolveWorkspaceSymbol?: (symbol: SymbolInformation, token: CancellationToken) => SymbolInformation | Thenable<SymbolInformation>;
+		resolveWorkspaceSymbol?(symbol: SymbolInformation, token: CancellationToken): SymbolInformation | Thenable<SymbolInformation>;
 	}
 
 	/**
@@ -2445,7 +2445,7 @@ declare namespace vscode {
 		 * @param link The link that is to be resolved.
 		 * @param token A cancellation token.
 		 */
-		resolveDocumentLink?: (link: DocumentLink, token: CancellationToken) => DocumentLink | Thenable<DocumentLink>;
+		resolveDocumentLink?(link: DocumentLink, token: CancellationToken): DocumentLink | Thenable<DocumentLink>;
 	}
 
 	/**
