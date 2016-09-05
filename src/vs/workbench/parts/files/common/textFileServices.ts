@@ -12,6 +12,7 @@ import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEdito
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -21,6 +22,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -40,10 +42,12 @@ export abstract class TextFileService implements ITextFileService {
 	protected configuredAutoSaveOnWindowChange: boolean;
 
 	constructor(
+		@ILifecycleService protected lifecycleService: ILifecycleService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEventService private eventService: IEventService,
 		@IFileService protected fileService: IFileService,
@@ -51,15 +55,13 @@ export abstract class TextFileService implements ITextFileService {
 	) {
 		this.listenerToUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
-	}
-
-	protected init(): void {
-		this.registerListeners();
 
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.onConfigurationChange(configuration);
 
 		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
+
+		this.registerListeners();
 	}
 
 	public abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
@@ -72,6 +74,23 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Configuration changes
 		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+
+		// Application & Editor focus change
+		window.addEventListener('blur', () => this.onWindowFocusLost());
+		window.addEventListener('blur', () => this.onEditorFocusChanged(), true);
+		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
+	}
+
+	private onWindowFocusLost(): void {
+		if (this.configuredAutoSaveOnWindowChange && this.isDirty()) {
+			this.saveAll().done(null, errors.onUnexpectedError);
+		}
+	}
+
+	private onEditorFocusChanged(): void {
+		if (this.configuredAutoSaveOnFocusChange && this.isDirty()) {
+			this.saveAll().done(null, errors.onUnexpectedError);
+		}
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {

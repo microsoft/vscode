@@ -12,10 +12,10 @@ import {FileImportedEvent} from 'vs/workbench/parts/files/browser/fileActions';
 suite('Files - Events', () => {
 
 	test('File Change Event (simple)', function () {
-		let origEvent: any = {};
-		let oldValue: any = { foo: 'bar' };
-		let newValue: any = { foo: 'foo' };
-		let event = new LocalFileChangeEvent(oldValue, newValue, origEvent);
+		const origEvent: any = {};
+		const oldValue: any = { foo: 'bar' };
+		const newValue: any = { foo: 'foo' };
+		const event = new LocalFileChangeEvent(oldValue, newValue, origEvent);
 
 		assert.strictEqual(event.originalEvent, origEvent);
 		assert.strictEqual(event.oldValue, oldValue);
@@ -24,8 +24,8 @@ suite('Files - Events', () => {
 	});
 
 	test('File Upload Event', function () {
-		let origEvent: any = {};
-		let value: any = { foo: 'bar' };
+		const origEvent: any = {};
+		const value: any = { foo: 'bar' };
 		let event = new FileImportedEvent(value, true, origEvent);
 
 		assert.strictEqual(event.originalEvent, origEvent);
