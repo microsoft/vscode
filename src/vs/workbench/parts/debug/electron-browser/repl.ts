@@ -43,7 +43,6 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 const $ = dom.$;
 
 const replTreeOptions: tree.ITreeOptions = {
-	indentPixels: 8,
 	twistiePixels: 20,
 	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
 };
@@ -56,8 +55,6 @@ export interface IPrivateReplService {
 	navigateHistory(previous: boolean): void;
 	acceptReplInput(): void;
 }
-
-
 
 export class Repl extends Panel implements IPrivateReplService {
 	public _serviceBrand: any;
