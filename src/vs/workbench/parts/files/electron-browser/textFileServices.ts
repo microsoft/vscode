@@ -12,12 +12,10 @@ import strings = require('vs/base/common/strings');
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {ConfirmResult} from 'vs/workbench/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
 import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/common/textFileServices';
-import {AutoSaveMode, IRawTextContent} from 'vs/workbench/parts/files/common/files';
+import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -37,29 +35,19 @@ export class TextFileService extends AbstractTextFileService {
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
 		@IModeService private modeService: IModeService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWindowService private windowService: IWindowService,
-		@IModelService modelService: IModelService,
+		@IModelService private modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(lifecycleService, contextService, instantiationService, configurationService, telemetryService, editorGroupService, editorService, eventService, fileService, modelService, untitledEditorService);
-	}
-
-	protected registerListeners(): void {
-		super.registerListeners();
-
-		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
-		this.lifecycleService.onShutdown(this.onShutdown, this);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
@@ -80,30 +68,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public beforeShutdown(): boolean | TPromise<boolean> {
-
-		// Dirty files need treatment on shutdown
-		if (this.getDirty().length) {
-
-			// If auto save is enabled, save all files and then check again for dirty files
-			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				return this.saveAll(false /* files only */).then(() => {
-					if (this.getDirty().length) {
-						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
-					}
-
-					return false; // all good, no veto
-				});
-			}
-
-			// Otherwise just confirm what to do
-			return this.confirmBeforeShutdown();
-		}
-
-		return false; // no veto
-	}
-
-	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
+	public confirmBeforeShutdown(): boolean | TPromise<boolean> {
 		const confirm = this.confirmSave();
 
 		// Save
@@ -126,10 +91,6 @@ export class TextFileService extends AbstractTextFileService {
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
-	}
-
-	private onShutdown(): void {
-		super.dispose();
 	}
 
 	public confirmSave(resources?: URI[]): ConfirmResult {

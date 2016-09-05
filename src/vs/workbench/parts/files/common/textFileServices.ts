@@ -16,13 +16,10 @@ import {ConfirmResult} from 'vs/workbench/common/editor';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
@@ -46,17 +43,14 @@ export abstract class TextFileService implements ITextFileService {
 	protected configuredAutoSaveOnWindowChange: boolean;
 
 	constructor(
-		@ILifecycleService protected lifecycleService: ILifecycleService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IEventService private eventService: IEventService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService protected fileService: IFileService,
-		@IModelService protected modelService: IModelService,
-		@IUntitledEditorService protected untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		this.listenerToUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
@@ -73,11 +67,17 @@ export abstract class TextFileService implements ITextFileService {
 
 	public abstract promptForPath(defaultPath?: string): string;
 
+	public abstract confirmBeforeShutdown(): boolean | TPromise<boolean>;
+
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
 		return this._onAutoSaveConfigurationChange.event;
 	}
 
 	protected registerListeners(): void {
+
+		// Lifecycle
+		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
+		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes
 		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
@@ -86,6 +86,29 @@ export abstract class TextFileService implements ITextFileService {
 		window.addEventListener('blur', () => this.onWindowFocusLost());
 		window.addEventListener('blur', () => this.onEditorFocusChanged(), true);
 		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
+	}
+
+	private beforeShutdown(): boolean | TPromise<boolean> {
+
+		// Dirty files need treatment on shutdown
+		if (this.getDirty().length) {
+
+			// If auto save is enabled, save all files and then check again for dirty files
+			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
+				return this.saveAll(false /* files only */).then(() => {
+					if (this.getDirty().length) {
+						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
+					}
+
+					return false; // all good, no veto
+				});
+			}
+
+			// Otherwise just confirm what to do
+			return this.confirmBeforeShutdown();
+		}
+
+		return false; // no veto
 	}
 
 	private onWindowFocusLost(): void {
