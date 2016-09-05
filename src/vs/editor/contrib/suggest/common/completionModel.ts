@@ -138,7 +138,13 @@ export class CompletionModel {
 
 			// no match on label nor codeSnippet -> check on filterText
 			if(!match && typeof suggestion.filterText === 'string') {
-				match = !isFalsyOrEmpty(filter(word, suggestion.filterText));
+				if (!isFalsyOrEmpty(filter(word, suggestion.filterText))) {
+					match = true;
+
+					// try to compute highlights by stripping none-word
+					// characters from the end of the string
+					item.highlights = filter(word.replace(/^\W+|\W+$/, ''), suggestion.label);
+				}
 			}
 
 			if (!match) {
