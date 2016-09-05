@@ -6,24 +6,37 @@
 
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {toggleClass} from 'vs/base/browser/dom';
 import {Position} from 'vs/editor/common/core/position';
 import {IPosition, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {Widget} from 'vs/base/browser/ui/widget';
+import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 
 	private _id: string;
 	protected _editor: editorBrowser.ICodeEditor;
-	protected _isVisible: boolean;
+	private _isVisible: boolean;
 	private _containerDomNode: HTMLElement;
-	protected _domNode: HTMLElement;
+	private _domNode: HTMLElement;
 	protected _showAtPosition: Position;
 	private _stoleFocus: boolean;
+	private scrollbar: DomScrollableElement;
+	private disposables: IDisposable[] = [];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
+
+	protected get isVisible(): boolean {
+		return this._isVisible;
+	}
+
+	protected set isVisible(value: boolean) {
+		this._isVisible = value;
+		toggleClass(this._containerDomNode, 'hidden', !this._isVisible);
+	}
 
 	constructor(id: string, editor: editorBrowser.ICodeEditor) {
 		super();
@@ -32,25 +45,31 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._isVisible = false;
 
 		this._containerDomNode = document.createElement('div');
-		this._containerDomNode.className = 'monaco-editor-hover monaco-editor-background';
+		this._containerDomNode.className = 'monaco-editor-hover hidden';
+		this._containerDomNode.tabIndex = 0;
 
 		this._domNode = document.createElement('div');
-		this._domNode.style.display = 'inline-block';
-		this._containerDomNode.appendChild(this._domNode);
-		this._containerDomNode.tabIndex = 0;
+		this._domNode.className = 'monaco-editor-hover-content';
+
+		this.scrollbar = new DomScrollableElement(this._domNode, { canUseTranslate3d: false });
+		this.disposables.push(this.scrollbar);
+		this._containerDomNode.appendChild(this.scrollbar.getDomNode());
+
 		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
 			if (e.equals(CommonKeybindings.ESCAPE)) {
 				this.hide();
 			}
 		});
 
-		this._editor.applyFontInfo(this._domNode);
 		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
-				this._editor.applyFontInfo(this._domNode);
+				this.updateFont();
 			}
 		}));
 
+		this._editor.onDidLayoutChange(e => this.updateMaxHeight());
+
+		this.updateMaxHeight();
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
 	}
@@ -64,22 +83,9 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 
 	public showAt(position:IPosition, focus: boolean): void {
-
 		// Position has changed
 		this._showAtPosition = new Position(position.lineNumber, position.column);
-		this._isVisible = true;
-		let editorMaxWidth = Math.min(800, parseInt(this._containerDomNode.style.maxWidth, 10));
-
-		// When scrolled horizontally, the div does not want to occupy entire visible area.
-		StyleMutator.setWidth(this._containerDomNode, editorMaxWidth);
-		StyleMutator.setHeight(this._containerDomNode, 0);
-		StyleMutator.setLeft(this._containerDomNode, 0);
-
-		let renderedWidth = Math.min(editorMaxWidth, this._domNode.clientWidth + 5);
-		let renderedHeight = this._domNode.clientHeight + 1;
-
-		StyleMutator.setWidth(this._containerDomNode, renderedWidth);
-		StyleMutator.setHeight(this._containerDomNode, renderedHeight);
+		this.isVisible = true;
 
 		this._editor.layoutContentWidget(this);
 		// Simply force a synchronous render on the editor
@@ -92,10 +98,12 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 
 	public hide(): void {
-		if (!this._isVisible) {
+		if (!this.isVisible) {
 			return;
 		}
-		this._isVisible = false;
+
+		this.isVisible = false;
+
 		this._editor.layoutContentWidget(this);
 		if (this._stoleFocus) {
 			this._editor.focus();
@@ -103,7 +111,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 
 	public getPosition():editorBrowser.IContentWidgetPosition {
-		if (this._isVisible) {
+		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
 				preference: [
@@ -117,7 +125,30 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 	public dispose(): void {
 		this._editor.removeContentWidget(this);
+		this.disposables = dispose(this.disposables);
 		super.dispose();
+	}
+
+	private updateFont(): void {
+		const codeTags: HTMLPhraseElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
+
+		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
+	}
+
+	protected updateContents(node: Node): void {
+		this._domNode.textContent = '';
+		this._domNode.appendChild(node);
+		this.updateFont();
+
+		this._editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
+	}
+
+	private updateMaxHeight(): void {
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+
+		this._domNode.style.maxHeight = `${ height }px`;
 	}
 }
 

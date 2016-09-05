@@ -59,14 +59,14 @@ export class Update {
 		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
 			this.messageService.show(severity.Info, {
 				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
-				actions: [ShowReleaseNotesAction(product.releaseNotesUrl), NotNowAction, ApplyUpdateAction]
+				actions: [ApplyUpdateAction, NotNowAction, ShowReleaseNotesAction(product.releaseNotesUrl)]
 			});
 		});
 
 		ipc.on('vscode:update-available', (event, url: string) => {
 			this.messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
-				actions: [ShowReleaseNotesAction(product.releaseNotesUrl), NotNowAction, DownloadAction(url)]
+				actions: [DownloadAction(url), NotNowAction, ShowReleaseNotesAction(product.releaseNotesUrl)]
 			});
 		});
 

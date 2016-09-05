@@ -344,8 +344,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		if (!/ECONNREFUSED/.test(message)) {
 			const error = createError(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
 				actions: [
-					CloseAction,
-					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
+					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL),
+					CloseAction
 				]
 			});
 

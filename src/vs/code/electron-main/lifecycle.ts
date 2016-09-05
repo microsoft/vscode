@@ -119,7 +119,7 @@ export class LifecycleService implements ILifecycleService {
 
 		// Window Before Closing: Main -> Renderer
 		vscodeWindow.win.on('close', (e) => {
-			let windowId = vscodeWindow.id;
+			const windowId = vscodeWindow.id;
 			this.logService.log('Lifecycle#window-before-close', windowId);
 
 			// The window already acknowledged to be closed
@@ -155,9 +155,9 @@ export class LifecycleService implements ILifecycleService {
 		this.logService.log('Lifecycle#unload()', vscodeWindow.id);
 
 		return new TPromise<boolean>((c) => {
-			let oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
-			let oneTimeOkEvent = 'vscode:ok' + oneTimeEventToken;
-			let oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
+			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
+			const oneTimeOkEvent = 'vscode:ok' + oneTimeEventToken;
+			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
 
 			ipc.once(oneTimeOkEvent, () => {
 				c(false); // no veto

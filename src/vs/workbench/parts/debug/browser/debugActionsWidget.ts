@@ -12,7 +12,7 @@ import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import actions = require('vs/base/common/actions');
 import events = require('vs/base/common/events');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
-import constants = require('vs/workbench/common/constants');
+import {IPartService} from 'vs/workbench/services/part/common/partService';
 import wbext = require('vs/workbench/common/contributions');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {PauseAction, ContinueAction, StepBackAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction} from 'vs/workbench/parts/debug/browser/debugActions';
@@ -47,6 +47,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private partService: IPartService,
 		@IStorageService private storageService: IStorageService
 	) {
 		this.$el = $().div().addClass('debug-actions-widget');
@@ -146,7 +147,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.$el.build(builder.withElementById(constants.Identifiers.WORKBENCH_CONTAINER).getHTMLElement());
+			this.$el.build(builder.withElementById(this.partService.getWorkbenchElementId()).getHTMLElement());
 		}
 
 		this.isVisible = true;

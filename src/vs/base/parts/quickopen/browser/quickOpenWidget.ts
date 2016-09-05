@@ -12,7 +12,6 @@ import browser = require('vs/base/browser/browser');
 import {EventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import uuid = require('vs/base/common/uuid');
 import {IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
@@ -44,7 +43,6 @@ export interface IQuickOpenOptions {
 	inputPlaceHolder: string;
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
-	enableAnimations?: boolean;
 }
 
 export interface IShowOptions {
@@ -92,7 +90,6 @@ export class QuickOpenWidget implements IModelProvider {
 	private isLoosingFocus: boolean;
 	private callbacks: IQuickOpenCallbacks;
 	private toUnbind: IDisposable[];
-	private currentInputToken: string;
 	private quickNavigateConfiguration: IQuickNavigateConfiguration;
 	private container: HTMLElement;
 	private treeElement: HTMLElement;
@@ -100,6 +97,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private usageLogger: IQuickOpenUsageLogger;
 	private layoutDimensions: Dimension;
 	private model: IModel<any>;
+	private inputChangingTimeoutHandle: number;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
 		this.toUnbind = [];
@@ -444,9 +442,6 @@ export class QuickOpenWidget implements IModelProvider {
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {
 			this.inputContainer.hide();
-			if (this.options.enableAnimations) {
-				this.treeContainer.removeClass('transition');
-			}
 			this.builder.show();
 			this.tree.DOMFocus();
 		}
@@ -454,9 +449,6 @@ export class QuickOpenWidget implements IModelProvider {
 		// Otherwise use normal UI
 		else {
 			this.inputContainer.show();
-			if (this.options.enableAnimations) {
-				this.treeContainer.addClass('transition');
-			}
 			this.builder.show();
 			this.inputBox.focus();
 		}
@@ -492,32 +484,25 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	private setInputAndLayout(input: IModel<any>, autoFocus: IAutoFocus): void {
+		this.treeContainer.style({ height: `${this.getHeight(input)}px` });
 
-		// Use a generated token to avoid race conditions from setting input
-		let currentInputToken = uuid.generateUuid();
-		this.currentInputToken = currentInputToken;
+		this.tree.setInput(null).then(() => {
+			this.model = input;
 
-		// setInput and Layout
-		this.setTreeHeightForInput(input).then(() => {
-			if (this.currentInputToken === currentInputToken) {
-				this.tree.setInput(null).then(() => {
-					this.model = input;
+			// ARIA
+			this.inputElement.setAttribute('aria-haspopup', String(input && input.entries && input.entries.length > 0));
 
-					// ARIA
-					this.inputElement.setAttribute('aria-haspopup', String(input && input.entries && input.entries.length > 0));
+			return this.tree.setInput(input);
+		}).done(() => {
 
-					return this.tree.setInput(input);
-				}).done(() => {
-					// Indicate entries to tree
-					this.tree.layout();
+			// Indicate entries to tree
+			this.tree.layout();
 
-					// Handle auto focus
-					if (input && input.entries.some(e => this.isElementVisible(input, e))) {
-						this.autoFocus(input, autoFocus);
-					}
-				}, errors.onUnexpectedError);
+			// Handle auto focus
+			if (input && input.entries.some(e => this.isElementVisible(input, e))) {
+				this.autoFocus(input, autoFocus);
 			}
-		});
+		}, errors.onUnexpectedError);
 	}
 
 	private isElementVisible<T>(input: IModel<T>, e: T): boolean {
@@ -596,54 +581,22 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 
 		// Apply height & Refresh
-		this.setTreeHeightForInput(input).then(() => {
-			this.tree.refresh().done(() => {
+		this.treeContainer.style({ height: `${this.getHeight(input)}px` });
+		this.tree.refresh().done(() => {
 
-				// Indicate entries to tree
-				this.tree.layout();
+			// Indicate entries to tree
+			this.tree.layout();
 
-				let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
-				if (doAutoFocus && !autoFocus.autoFocusPrefixMatch) {
-					doAutoFocus = !this.tree.getFocus(); // if auto focus is not for prefix matches, we do not want to change what the user has focussed already
-				}
+			let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
+			if (doAutoFocus && !autoFocus.autoFocusPrefixMatch) {
+				doAutoFocus = !this.tree.getFocus(); // if auto focus is not for prefix matches, we do not want to change what the user has focussed already
+			}
 
-				// Handle auto focus
-				if (doAutoFocus) {
-					this.autoFocus(input, autoFocus);
-				}
-			}, errors.onUnexpectedError);
-		});
-	}
-
-	private setTreeHeightForInput(input: IModel<any>): TPromise<void> {
-		let newHeight = this.getHeight(input) + 'px';
-		let oldHeight = this.treeContainer.style('height');
-
-		// Apply
-		this.treeContainer.style({ height: newHeight });
-
-		// Return instantly if we don't CSS transition or the height is the same as old
-		if (!this.treeContainer.hasClass('transition') || oldHeight === newHeight) {
-			return TPromise.as(null);
-		}
-
-		// Otherwise return promise that only fulfills when the CSS transition has ended
-		return new TPromise<void>((c, e) => {
-			let unbind: IDisposable[] = [];
-			let complete = false;
-			let completeHandler = () => {
-				if (!complete) {
-					complete = true;
-
-					unbind = dispose(unbind);
-
-					c(null);
-				}
-			};
-
-			this.treeContainer.once('webkitTransitionEnd', completeHandler, unbind);
-			this.treeContainer.once('transitionend', completeHandler, unbind);
-		});
+			// Handle auto focus
+			if (doAutoFocus) {
+				this.autoFocus(input, autoFocus);
+			}
+		}, errors.onUnexpectedError);
 	}
 
 	private getHeight(input: IModel<any>): number {
@@ -761,6 +714,11 @@ export class QuickOpenWidget implements IModelProvider {
 			return;
 		}
 
+		// If the input changes, indicate this to the tree
+		if (!!this.getInput()) {
+			this.onInputChanging();
+		}
+
 		// Adapt tree height to entries and apply input
 		this.setInputAndLayout(input, autoFocus);
 
@@ -768,6 +726,20 @@ export class QuickOpenWidget implements IModelProvider {
 		if (this.inputBox) {
 			this.inputBox.setAriaLabel(ariaLabel || DEFAULT_INPUT_ARIA_LABEL);
 		}
+	}
+
+	private onInputChanging(): void {
+		if (this.inputChangingTimeoutHandle) {
+			clearTimeout(this.inputChangingTimeoutHandle);
+			this.inputChangingTimeoutHandle = null;
+		}
+
+		// when the input is changing in quick open, we indicate this as CSS class to the widget
+		// for a certain timeout. this helps reducing some hectic UI updates when input changes quickly
+		this.builder.addClass('content-changing');
+		this.inputChangingTimeoutHandle = setTimeout(() => {
+			this.builder.removeClass('content-changing');
+		}, 500);
 	}
 
 	public getInput(): IModel<any> {

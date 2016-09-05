@@ -122,10 +122,14 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Check Model state
 			const textFileModel = <TextFileEditorModel>resolvedModel;
+
+			const hasInput = !!this.getInput();
+			const modelDisposed = textFileModel.isDisposed();
+			const inputChanged = (<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString();
 			if (
-				!this.getInput() ||	// editor got hidden meanwhile
-				textFileModel.isDisposed() || // input got disposed meanwhile
-				(<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString() // a different input was set meanwhile
+				!hasInput ||		// editor got hidden meanwhile
+				modelDisposed || 	// input got disposed meanwhile
+				inputChanged 		// a different input was set meanwhile
 			) {
 				return null;
 			}
@@ -175,7 +179,6 @@ export class TextFileEditor extends BaseTextEditor {
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
 				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), {
 					actions: [
-						CancelAction,
 						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 							return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
 
@@ -188,7 +191,8 @@ export class TextFileEditor extends BaseTextEditor {
 									}
 								});
 							});
-						})
+						}),
+						CancelAction
 					]
 				}));
 			}

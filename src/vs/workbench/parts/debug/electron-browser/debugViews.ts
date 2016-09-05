@@ -30,7 +30,6 @@ import IDebugService = debug.IDebugService;
 
 const debugTreeOptions = (ariaLabel: string) => {
 	return <tree.ITreeOptions> {
-		indentPixels: 8,
 		twistiePixels: 20,
 		ariaLabel
 	};

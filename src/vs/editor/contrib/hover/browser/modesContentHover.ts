@@ -7,6 +7,7 @@
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
+import {$} from 'vs/base/browser/dom';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
 import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
@@ -156,7 +157,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		if (this._isChangingDecorations) {
 			return;
 		}
-		if (this._isVisible) {
+		if (this.isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
@@ -175,7 +176,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		this._hoverOperation.cancel();
 
-		if (this._isVisible) {
+		if (this.isVisible) {
 			// The range might have changed, but the hover is visible
 			// Instead of hiding it completely, filter out messages that are still in the new range and
 			// kick off a new computation
@@ -238,39 +239,34 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
-			var row:HTMLElement = document.createElement('div');
-			var container = row;
+			msg.contents
+				.filter(contents => !!contents)
+				.forEach(contents => {
+					const renderedContents = renderMarkedString(contents, {
+						actionCallback: (content) => {
+							this._openerService.open(URI.parse(content));
+						},
+						codeBlockRenderer: (modeId, value): string | TPromise<string> => {
+							const mode = this._modeService.getMode(modeId || this._editor.getModel().getModeId());
+							const getMode = mode => mode ? TPromise.as(mode) : this._modeService.getOrCreateMode(modeId);
 
-			if (msg.contents && msg.contents.length > 0) {
-				container.appendChild(renderMarkedString(msg.contents, {
-					actionCallback: (content) => {
-						this._openerService.open(URI.parse(content));
-					},
-					codeBlockRenderer: (modeId, value): string | TPromise<string> => {
-
-						let mode = this._modeService.getMode(modeId);
-						if (mode) {
-							return tokenizeToString(value, mode);
+							return getMode(mode)
+								.then(null, err => null)
+								.then(mode => `<div class="code">${ tokenizeToString(value, mode) }</div>`);
 						}
+					});
 
-						return this._modeService.getOrCreateMode(modeId).then(
-							mode => tokenizeToString(value, mode),
-							err => tokenizeToString(value, null));
-					}
-				}));
-			}
-
-			fragment.appendChild(row);
+					fragment.appendChild($('div.hover-row', null, renderedContents));
+				});
 		});
-
-		this._domNode.textContent = '';
-		this._domNode.appendChild(fragment);
 
 		// show
 		this.showAt({
 			lineNumber: renderRange.startLineNumber,
 			column: renderColumn
 		}, this._shouldFocus);
+
+		this.updateContents(fragment);
 
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{
