@@ -36,9 +36,9 @@
 		],
 		"iconThemes": [
 			{
-				"id": "vs-standard",
-				"label": "Standard",
-				"path": "./fileicons/vs_standard.json"
+				"id": "vs-minimal",
+				"label": "Minimal (Visual Studio Code)",
+				"path": "./fileicons/vs_minimal_icons.json"
 			}
 		]
 	}
