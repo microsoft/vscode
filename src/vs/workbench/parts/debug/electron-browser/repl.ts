@@ -63,6 +63,8 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private static HISTORY: replhistory.ReplHistory;
 	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
+	private static REPL_INPUT_INITIAL_HEIGHT = 22;
+	private static REPL_INPUT_MAX_HEIGHT = 170;
 
 	private toDispose: lifecycle.IDisposable[];
 	private tree: tree.ITree;
@@ -74,6 +76,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private refreshTimeoutHandle: number;
 	private actions: actions.IAction[];
 	private dimension: builder.Dimension;
+	private replInputHeight: number;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -90,6 +93,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	) {
 		super(debug.REPL_ID, telemetryService);
 
+		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.toDispose = [];
 		this.registerListeners();
 	}
@@ -178,7 +182,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			if (!e.scrollHeightChanged) {
 				return;
 			}
-			this.layout(this.dimension, Math.min(170, e.scrollHeight));
+			this.replInputHeight = Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height);
+			this.layout(this.dimension);
 		}));
 		this.toDispose.push(this.replInput.onDidChangeCursorPosition(e => {
 			onFirstReplLine.set(e.position.lineNumber === 1);
@@ -225,20 +230,21 @@ export class Repl extends Panel implements IPrivateReplService {
 		Repl.HISTORY.evaluated(this.replInput.getValue());
 		this.replInput.setValue('');
 		// Trigger a layout to shrink a potential multi line input
+		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.layout(this.dimension);
 	}
 
-	public layout(dimension: builder.Dimension, replInputHeight = 22): void {
+	public layout(dimension: builder.Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
 			this.renderer.setWidth(dimension.width - 25, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
-			const treeHeight = dimension.height - replInputHeight;
+			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight);
 		}
-		this.replInputContainer.style.height = `${replInputHeight}px`;
+		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
-		this.replInput.layout({ width: dimension.width - 20, height: replInputHeight });
+		this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
 	}
 
 	public focus(): void {
