@@ -12,8 +12,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
+import {IExtensionDescription, IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {ICommandService, ICommand, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
@@ -24,6 +24,8 @@ import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Selection} from 'vs/editor/common/core/selection';
 import Event, {Emitter} from 'vs/base/common/event';
 import {getDefaultValues as getDefaultConfiguration} from 'vs/platform/configuration/common/model';
+import {CommandService} from 'vs/platform/commands/common/commandService';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class SimpleEditor implements IEditor {
 
@@ -198,11 +200,32 @@ export class SimpleMessageService implements IMessageService {
 	}
 }
 
+export class StandaloneCommandService extends CommandService {
+
+	private _dynamicCommands: { [id: string]: ICommand; };
+
+	constructor(
+		instantiationService: IInstantiationService,
+		extensionService: IExtensionService
+	) {
+		super(instantiationService, extensionService);
+
+		this._dynamicCommands = Object.create(null);
+	}
+
+	public addCommand(id:string, command:ICommand): void {
+		this._dynamicCommands[id] = command;
+	}
+
+	protected _getCommand(id:string): ICommand {
+		return super._getCommand(id) || this._dynamicCommands[id];
+	}
+}
+
 export class StandaloneKeybindingService extends KeybindingService {
 	private static LAST_GENERATED_ID = 0;
 
 	private _dynamicKeybindings: IKeybindingItem[];
-	private _dynamicCommands: { [id: string]: ICommandHandler };
 
 	constructor(
 		contextKeyService: IContextKeyService,
@@ -213,7 +236,6 @@ export class StandaloneKeybindingService extends KeybindingService {
 		super(contextKeyService, commandService, messageService);
 
 		this._dynamicKeybindings = [];
-		this._dynamicCommands = Object.create(null);
 
 		this._beginListening(domNode);
 	}
@@ -230,17 +252,21 @@ export class StandaloneKeybindingService extends KeybindingService {
 			weight1: 1000,
 			weight2: 0
 		});
-		this._dynamicCommands[commandId] = handler;
+
+		let commandService = this._commandService;
+		if (commandService instanceof StandaloneCommandService) {
+			commandService.addCommand(commandId, {
+				handler: handler
+			});
+		} else {
+			throw new Error('Unknown command service!');
+		}
 		this.updateResolver();
 		return commandId;
 	}
 
 	protected _getExtraKeybindings(isFirstTime:boolean): IKeybindingItem[] {
 		return this._dynamicKeybindings;
-	}
-
-	protected _getCommandHandler(commandId:string): ICommandHandler {
-		return super._getCommandHandler(commandId) || this._dynamicCommands[commandId];
 	}
 }
 
