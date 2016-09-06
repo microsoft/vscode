@@ -156,8 +156,8 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 
 	private _id: string;
 	protected _editor: editorBrowser.ICodeEditor;
-	protected _isVisible: boolean;
-	protected _domNode: HTMLElement;
+	private _isVisible: boolean;
+	private _domNode: HTMLElement;
 	protected _showAtLineNumber: number;
 
 	constructor(id: string, editor: editorBrowser.ICodeEditor) {
@@ -167,21 +167,28 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this._isVisible = false;
 
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-editor-hover monaco-editor-background';
-		this._domNode.style.display = 'none';
+		this._domNode.className = 'monaco-editor-hover hidden';
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.setAttribute('role', 'presentation');
 
 		this._showAtLineNumber = -1;
 
-		this._editor.applyFontInfo(this._domNode);
 		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
-				this._editor.applyFontInfo(this._domNode);
+				this.updateFont();
 			}
 		}));
 
 		this._editor.addOverlayWidget(this);
+	}
+
+	protected get isVisible(): boolean {
+		return this._isVisible;
+	}
+
+	protected set isVisible(value: boolean) {
+		this._isVisible = value;
+		toggleClass(this._domNode, 'hidden', !this._isVisible);
 	}
 
 	public getId(): string {
@@ -195,25 +202,26 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 	public showAt(lineNumber: number): void {
 		this._showAtLineNumber = lineNumber;
 
-		if (!this._isVisible) {
-			this._isVisible = true;
-			this._domNode.style.display = 'block';
+		if (!this.isVisible) {
+			this.isVisible = true;
 		}
 
-		let editorLayout = this._editor.getLayoutInfo();
-		let topForLineNumber = this._editor.getTopForLineNumber(this._showAtLineNumber);
-		let editorScrollTop = this._editor.getScrollTop();
+		const editorLayout = this._editor.getLayoutInfo();
+		const topForLineNumber = this._editor.getTopForLineNumber(this._showAtLineNumber);
+		const editorScrollTop = this._editor.getScrollTop();
+		const lineHeight = this._editor.getConfiguration().lineHeight;
+		const nodeHeight = this._domNode.clientHeight;
+		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
 
-		this._domNode.style.left = (editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth) + 'px';
-		this._domNode.style.top = (topForLineNumber - editorScrollTop) + 'px';
+		this._domNode.style.left = `${ editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth }px`;
+		this._domNode.style.top = `${ Math.max(Math.round(top), 0) }px`;
 	}
 
 	public hide(): void {
-		if (!this._isVisible) {
+		if (!this.isVisible) {
 			return;
 		}
-		this._isVisible = false;
-		this._domNode.style.display = 'none';
+		this.isVisible = false;
 	}
 
 	public getPosition():editorBrowser.IOverlayWidgetPosition {
@@ -223,5 +231,18 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 	public dispose(): void {
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
+	}
+
+	private updateFont(): void {
+		const codeTags: HTMLPhraseElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
+
+		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
+	}
+
+	protected updateContents(node: Node): void {
+		this._domNode.textContent = '';
+		this._domNode.appendChild(node);
+		this.updateFont();
 	}
 }
