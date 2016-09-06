@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import * as assert from 'assert';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
@@ -12,7 +11,7 @@ import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {textFileServiceInstantiationService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 
 function toResource(path) {
 	return URI.file(join('C:\\', path));
@@ -23,14 +22,13 @@ class ServiceAccessor {
 	}
 }
 
-let accessor: ServiceAccessor;
-
 suite('Files - FileEditorInput', () => {
 
 	let instantiationService: TestInstantiationService;
+	let accessor: ServiceAccessor;
 
 	setup(() => {
-		instantiationService= textFileServiceInstantiationService();
+		instantiationService= workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 

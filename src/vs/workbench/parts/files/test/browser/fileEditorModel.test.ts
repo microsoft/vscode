@@ -14,7 +14,7 @@ import paths = require('vs/base/common/paths');
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventType, ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {textFileServiceInstantiationService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 
 function toResource(path) {
 	return URI.file(paths.join('C:\\', path));
@@ -25,14 +25,14 @@ class ServiceAccessor {
 	}
 }
 
-let accessor: ServiceAccessor;
 
 suite('Files - TextFileEditorModel', () => {
 
 	let instantiationService: TestInstantiationService;
+	let accessor: ServiceAccessor;
 
 	setup(() => {
-		instantiationService = textFileServiceInstantiationService();
+		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 

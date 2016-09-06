@@ -83,7 +83,9 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public revert(): TPromise<boolean> {
-		this.cachedModel.revert();
+		if (this.cachedModel) {
+			this.cachedModel.revert();
+		}
 
 		this.dispose(); // a reverted untitled editor is no longer valid, so we dispose it
 

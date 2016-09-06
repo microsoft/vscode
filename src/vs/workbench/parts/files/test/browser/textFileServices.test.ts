@@ -5,12 +5,11 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {textFileServiceInstantiationService, TestLifecycleService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService, TestLifecycleService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
@@ -37,16 +36,14 @@ class ShutdownEventImpl implements ShutdownEvent {
 	}
 }
 
-
-let accessor: ServiceAccessor;
-
 suite('Files - TextFileServices', () => {
 
 	let instantiationService: TestInstantiationService;
 	let model: TextFileEditorModel;
+	let accessor: ServiceAccessor;
 
 	setup(() => {
-		instantiationService = textFileServiceInstantiationService();
+		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
 		model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/file.txt'), 'utf8');
 		CACHE.add(model.getResource(), model);

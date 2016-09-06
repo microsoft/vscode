@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
@@ -41,7 +42,6 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {UntitledEditorEvent} from 'vs/workbench/common/events';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -142,7 +142,7 @@ export class TestTextFileService extends TextFileService {
 	}
 }
 
-export function textFileServiceInstantiationService(): TestInstantiationService {
+export function workbenchInstantiationService(): TestInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IEventService, new TestEventService());
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
@@ -158,6 +158,7 @@ export function textFileServiceInstantiationService(): TestInstantiationService 
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
+	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 
 	return instantiationService;
@@ -284,9 +285,9 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 export class TestUntitledEditorService implements IUntitledEditorService {
 	public _serviceBrand: any;
 
-	private _onDidChangeDirty = new Emitter<UntitledEditorEvent>();
+	private _onDidChangeDirty = new Emitter<URI>();
 
-	public get onDidChangeDirty(): Event<UntitledEditorEvent> {
+	public get onDidChangeDirty(): Event<URI> {
 		return this._onDidChangeDirty.event;
 	}
 
