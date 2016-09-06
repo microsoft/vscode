@@ -39,6 +39,7 @@ import {getLinks} from 'vs/editor/contrib/links/common/links';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {MainContext, ExtHostContext} from 'vs/workbench/api/node/extHost.protocol';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
+import {ExtHostHeapMonitor} from 'vs/workbench/api/node/extHostHeapMonitor';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -97,7 +98,7 @@ suite('ExtHostLanguageFeatures', function() {
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics);
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, new ExtHostHeapMonitor(), diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
