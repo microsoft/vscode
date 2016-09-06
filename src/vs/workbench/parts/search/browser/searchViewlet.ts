@@ -931,7 +931,7 @@ export class SearchViewlet extends Viewlet {
 		}
 		if (match) {
 			let range= match.range();
-			if (this.viewModel.isReplaceActive()) {
+			if (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) {
 				let replaceString= match.replaceString;
 				return {
 					startLineNumber: range.startLineNumber,

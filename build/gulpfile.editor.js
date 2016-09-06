@@ -32,6 +32,7 @@ var editorResources = [
 	'!out-build/vs/base/browser/ui/splitview/**/*',
 	'!out-build/vs/base/browser/ui/toolbar/**/*',
 	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
+	'!out-build/vs/editor/contrib/defineKeybinding/**/*',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'!out-build/vs/workbench/**',

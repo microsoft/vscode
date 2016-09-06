@@ -70,14 +70,29 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 			const isReadonly = (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const actions: Action[] = [];
 
-			// Cancel
-			actions.push(CancelAction);
+			// Save As
+			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
+				const saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
+				saveAsAction.setResource(resource);
+				saveAsAction.run().done(() => saveAsAction.dispose(), errors.onUnexpectedError);
+
+				return TPromise.as(true);
+			}));
+
+			// Discard
+			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
+				const revertFileAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
+				revertFileAction.setResource(resource);
+				revertFileAction.run().done(() => revertFileAction.dispose(), errors.onUnexpectedError);
+
+				return TPromise.as(true);
+			}));
 
 			// Retry
 			if (isReadonly) {
 				actions.push(new Action('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"), null, true, () => {
 					if (!model.isDisposed()) {
-						return model.save(true /* overwrite readonly */).then(() => true);
+						model.save(true /* overwrite readonly */).done(null, errors.onUnexpectedError);
 					}
 
 					return TPromise.as(true);
@@ -86,26 +101,14 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
 					const saveFileAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
 					saveFileAction.setResource(resource);
+					saveFileAction.run().done(() => saveFileAction.dispose(), errors.onUnexpectedError);
 
-					return saveFileAction.run().then(() => { saveFileAction.dispose(); return true; });
+					return TPromise.as(true);
 				}));
 			}
 
-			// Discard
-			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
-				const revertFileAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-				revertFileAction.setResource(resource);
-
-				return revertFileAction.run().then(() => { revertFileAction.dispose(); return true; });
-			}));
-
-			// Save As
-			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
-				const saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-				saveAsAction.setResource(resource);
-
-				return saveAsAction.run().then(() => { saveAsAction.dispose(); return true; });
-			}));
+			// Cancel
+			actions.push(CancelAction);
 
 			let errorMessage: string;
 			if (isReadonly) {
@@ -116,7 +119,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 
 			message = {
 				message: errorMessage,
-				actions: actions
+				actions
 			};
 		}
 

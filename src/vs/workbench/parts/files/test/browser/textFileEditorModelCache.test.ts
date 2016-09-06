@@ -13,11 +13,11 @@ import {EditorModel} from 'vs/workbench/common/editor';
 suite('Files - TextFileEditorModelCache', () => {
 
 	test('add, remove, clear', function () {
-		let cache = new TextFileEditorModelCache();
+		const cache = new TextFileEditorModelCache();
 
-		let m1 = new EditorModel();
-		let m2 = new EditorModel();
-		let m3 = new EditorModel();
+		const m1 = new EditorModel();
+		const m2 = new EditorModel();
+		const m3 = new EditorModel();
 
 		cache.add(URI.file('/test.html'), <any>m1);
 		cache.add(URI.file('/some/other.html'), <any>m2);

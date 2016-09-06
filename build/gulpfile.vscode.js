@@ -11,7 +11,7 @@ const path = require('path');
 const es = require('event-stream');
 const azure = require('gulp-azure-storage');
 const electron = require('gulp-atom-electron');
-const symdest = require('gulp-symdest');
+const vfs = require('vinyl-fs');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
@@ -130,7 +130,7 @@ gulp.task('electron', ['clean-electron'], () => {
 		.pipe(json({ name }))
 		.pipe(electron(opts))
 		.pipe(filter(['**', '!**/app/package.json']))
-		.pipe(symdest('.build/electron'));
+		.pipe(vfs.dest('.build/electron'));
 });
 
 const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
@@ -243,7 +243,7 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
-		return result.pipe(symdest(destination));
+		return result.pipe(vfs.dest(destination));
 	};
 }
 

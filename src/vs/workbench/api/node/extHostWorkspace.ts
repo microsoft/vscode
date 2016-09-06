@@ -39,7 +39,7 @@ export class ExtHostWorkspace {
 		}
 
 		if (isEqualOrParent(path, this._workspacePath)) {
-			return relative(this._workspacePath, path);
+			return relative(this._workspacePath, path) || path;
 		}
 
 		return path;

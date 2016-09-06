@@ -5,7 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import {formatOptions} from 'vs/code/node/argv';
+import {formatOptions} from 'vs/platform/environment/node/argv';
 
 suite('formatOptions', () => {
 	test('Text should display small columns correctly', () => {

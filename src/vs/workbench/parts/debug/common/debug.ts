@@ -252,7 +252,7 @@ export interface IRawBreakpointContribution {
 }
 
 export interface IRawDebugSession {
-	configuration: { type: string, capabilities: DebugProtocol.Capabilites };
+	configuration: { type: string, capabilities: DebugProtocol.Capabilities };
 
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 

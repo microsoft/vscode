@@ -10,7 +10,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {Range, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
+import {Range, Disposable, CompletionList} from 'vs/workbench/api/node/extHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
@@ -535,18 +535,16 @@ class SuggestAdapter {
 
 			const disposables: IDisposable[] = [];
 			let list: CompletionList;
-			if (Array.isArray(value)) {
-				list = new CompletionList(value);
-			} else if (value instanceof CompletionList) {
-				list = value;
-				result.incomplete = list.isIncomplete;
-			} else if (!value) {
+			if (!value) {
 				// undefined and null are valid results
 				return;
+
+			} else if (Array.isArray(value)) {
+				list = new CompletionList(value);
+
 			} else {
-				// warn about everything else
-				console.warn('INVALID result from completion provider. expected CompletionItem-array or CompletionList but got:', value);
-				return;
+				list = value;
+				result.incomplete = list.isIncomplete;
 			}
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -622,7 +620,7 @@ class SignatureHelpAdapter {
 		const pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
-			if (value instanceof SignatureHelp) {
+			if (value) {
 				return TypeConverters.SignatureHelp.from(value);
 			}
 		});

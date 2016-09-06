@@ -11,10 +11,10 @@ import path = require('path');
 import fs = require('fs');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
-import {ParsedArgs} from 'vs/code/node/argv';
+import {ParsedArgs} from 'vs/platform/environment/node/argv';
 import {WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
-import {parseArgs} from 'vs/code/node/argv';
+import {parseArgs} from 'vs/platform/environment/node/argv';
 import extfs = require('vs/base/node/extfs');
 import {TestEventService} from 'vs/test/utils/servicesTestUtils';
 import uuid = require('vs/base/common/uuid');
@@ -188,17 +188,20 @@ suite('WorkspaceConfigurationService - Node', () => {
 	test('global change triggers event', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			return createService(workspaceDir, globalSettingsFile).then(service => {
-				service.onDidUpdateConfiguration(event => {
-					const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
-					assert.equal(config.testworkbench.editor.icons, true);
-					assert.equal(event.config.testworkbench.editor.icons, true);
+				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.icons": false }');
+				service.reloadConfiguration().then(() => {
+					service.onDidUpdateConfiguration(event => {
+						const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
+						assert.equal(config.testworkbench.editor.icons, true);
+						assert.equal(event.config.testworkbench.editor.icons, true);
 
-					service.dispose();
+						service.dispose();
 
-					cleanUp(done);
+						cleanUp(done);
+					});
+
+					fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.icons": true }');
 				});
-
-				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.icons": true }');
 			});
 		});
 	});

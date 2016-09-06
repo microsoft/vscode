@@ -27,7 +27,7 @@ import {Registry} from 'vs/platform/platform';
 import {EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
 import Event, {Emitter} from 'vs/base/common/event';
-import {Identifiers} from 'vs/workbench/common/constants';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
@@ -104,7 +104,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryService private historyService: IHistoryService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private partService: IPartService
 	) {
 		super(QuickOpenController.ID);
 
@@ -261,7 +262,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Create upon first open
 		if (!this.pickOpenWidget) {
 			this.pickOpenWidget = new QuickOpenWidget(
-				withElementById(Identifiers.WORKBENCH_CONTAINER).getHTMLElement(),
+				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
 				{
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
@@ -499,7 +500,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Create upon first open
 		if (!this.quickOpenWidget) {
 			this.quickOpenWidget = new QuickOpenWidget(
-				withElementById(Identifiers.WORKBENCH_CONTAINER).getHTMLElement(),
+				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
 				{
 					onOk: () => { /* ignore */ },
 					onCancel: () => { /* ignore */ },

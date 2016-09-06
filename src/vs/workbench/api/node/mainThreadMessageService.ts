@@ -49,7 +49,7 @@ export class MainThreadMessageService extends MainThreadMessageServiceShape {
 			});
 
 			if (!hasCloseAffordance) {
-				actions.unshift(new MessageItemAction('__close', nls.localize('close', "Close"), undefined));
+				actions.push(new MessageItemAction('__close', nls.localize('close', "Close"), undefined));
 			}
 
 			messageHide = this._messageService.show(severity, {

@@ -6,7 +6,7 @@
 import { spawn } from 'child_process';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import { parseCLIProcessArgv, buildHelpMessage, ParsedArgs } from 'vs/code/node/argv';
+import { parseCLIProcessArgv, buildHelpMessage, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 
