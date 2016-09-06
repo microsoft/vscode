@@ -109,7 +109,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public isDirty(resource: URI): boolean {
-		let input = this.get(resource);
+		const input = this.get(resource);
 
 		return input && input.isDirty();
 	}
@@ -152,7 +152,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
 
-		let input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
+		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
 
 		const listener = input.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire(new UntitledEditorEvent(resource));

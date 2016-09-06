@@ -92,7 +92,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public suggestFileName(): string {
 		if (!this.hasAssociatedFilePath) {
-			let mime = this.getMime();
+			const mime = this.getMime();
 			if (mime && mime !== MIME_TEXT /* do not suggest when the mime type is simple plain text */) {
 				return suggestFilename(mime, this.getName());
 			}
@@ -131,7 +131,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		}
 
 		// Otherwise Create Model and load
-		let model = this.createModel();
+		const model = this.createModel();
 		return model.load().then((resolvedModel: UntitledEditorModel) => {
 			this.cachedModel = resolvedModel;
 
@@ -140,10 +140,10 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	private createModel(): UntitledEditorModel {
-		let content = '';
+		const content = '';
 		let mime = this.modeId;
 		if (!mime && this.hasAssociatedFilePath) {
-			let mimeFromPath = guessMimeTypes(this.resource.fsPath)[0];
+			const mimeFromPath = guessMimeTypes(this.resource.fsPath)[0];
 			if (!isUnspecific(mimeFromPath)) {
 				mime = mimeFromPath; // take most specific mime type if file path is associated and mime is specific
 			}
@@ -163,7 +163,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		}
 
 		if (otherInput instanceof UntitledEditorInput) {
-			let otherUntitledEditorInput = <UntitledEditorInput>otherInput;
+			const otherUntitledEditorInput = <UntitledEditorInput>otherInput;
 
 			// Otherwise compare by properties
 			return otherUntitledEditorInput.resource.toString() === this.resource.toString();

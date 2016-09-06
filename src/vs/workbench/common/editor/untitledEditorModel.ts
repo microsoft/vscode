@@ -9,6 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
+import {IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
 import {EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
@@ -30,6 +31,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private configuredEncoding: string;
 	private preferredEncoding: string;
 
+	private hasAssociatedFilePath: boolean;
+
 	constructor(
 		value: string,
 		mime: string,
@@ -42,6 +45,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	) {
 		super(value, mime, resource, modeService, modelService);
 
+		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
 
 		this._onDidChangeDirty = new Emitter<void>();
@@ -92,7 +96,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	}
 
 	public setEncoding(encoding: string): void {
-		let oldEncoding = this.getEncoding();
+		const oldEncoding = this.getEncoding();
 		this.preferredEncoding = encoding;
 
 		// Emit if it changed
@@ -119,7 +123,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
 
 			// Listen to content changes
-			this.textModelChangeListener = this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged());
+			this.textModelChangeListener = this.textEditorModel.onDidChangeContent(e => this.onModelContentChanged(e));
 
 			// Emit initial dirty event if we are
 			if (this.dirty) {
@@ -132,9 +136,18 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		});
 	}
 
-	private onModelContentChanged(): void {
+	private onModelContentChanged(e:IModelContentChangedEvent2): void {
+
+		// turn dirty if we were not
 		if (!this.dirty) {
 			this.dirty = true;
+			this._onDidChangeDirty.fire();
+		}
+
+		// mark the untitled editor as non-dirty once its content becomes empty and we do
+		// not have an associated path set
+		else if (!this.hasAssociatedFilePath && !e.text && this.textEditorModel.getValueLength() === 0) {
+			this.dirty = false;
 			this._onDidChangeDirty.fire();
 		}
 	}
