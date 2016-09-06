@@ -28,37 +28,38 @@ This project incorporates components from the projects listed below. The origina
 21.	mmcgrana/textmate-clojure (https://github.com/mmcgrana/textmate-clojure)
 22.	octicons-code version 3.1.0 (https://octicons.github.com)
 23.	octicons-font version 3.1.0 (https://octicons.github.com)
-24.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
-25.	sublimehq/Packages (https://github.com/sublimehq/Packages)
-26.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
-27.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-28.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-29.	textmate/coffee-script.tmbundle (https://github.com/textmate/coffee-script.tmbundle)
-30.	textmate/css.tmbundle (https://github.com/textmate/css.tmbundle)
-31.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-32.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-33.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-34.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-35.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-36.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
-37.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-38.	textmate/less.tmbundle (https://github.com/textmate/less.tmbundle)
-39.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-40.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
-41.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-42.	textmate/objective-c.tmbundle (https://github.com/textmate/objective-c.tmbundle)
-43.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-44.	textmate/php.tmbundle (https://github.com/textmate/php.tmbundle)
-45.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
-46.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-47.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
-48.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
-49.	textmate/xml.tmbundle (https://github.com/textmate/xml.tmbundle)
-50.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-51.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
-52.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-53.	unity-shader-files version 0.1.0 (https://github.com/nashella/unity-shader-files)
-54.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+24.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+25.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
+26.	sublimehq/Packages (https://github.com/sublimehq/Packages)
+27.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
+28.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+29.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+30.	textmate/coffee-script.tmbundle (https://github.com/textmate/coffee-script.tmbundle)
+31.	textmate/css.tmbundle (https://github.com/textmate/css.tmbundle)
+32.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+33.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+34.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+35.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+36.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+37.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
+38.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+39.	textmate/less.tmbundle (https://github.com/textmate/less.tmbundle)
+40.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+41.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
+42.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+43.	textmate/objective-c.tmbundle (https://github.com/textmate/objective-c.tmbundle)
+44.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+45.	textmate/php.tmbundle (https://github.com/textmate/php.tmbundle)
+46.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
+47.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+48.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
+49.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
+50.	textmate/xml.tmbundle (https://github.com/textmate/xml.tmbundle)
+51.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+52.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
+53.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
+54.	unity-shader-files version 0.1.0 (https://github.com/nashella/unity-shader-files)
+55.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 
 
 %% atom/language-c NOTICES AND INFORMATION BEGIN HERE
@@ -1134,6 +1135,31 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 =========================================
 END OF octicons-font NOTICES AND INFORMATION
+
+%% seti-ui NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) 2014 Jesse Weed
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF seti-ui NOTICES AND INFORMATION
 
 %% string_scorer NOTICES AND INFORMATION BEGIN HERE
 =========================================
