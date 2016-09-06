@@ -10,9 +10,10 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {Range, Disposable, CompletionList} from 'vs/workbench/api/node/extHostTypes';
+import {Range, Disposable, CompletionList, CompletionItem} from 'vs/workbench/api/node/extHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
+import {ExtHostHeapMonitor} from 'vs/workbench/api/node/extHostHeapMonitor';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
@@ -503,11 +504,12 @@ interface ISuggestion2 extends modes.ISuggestion {
 class SuggestAdapter {
 
 	private _documents: ExtHostDocuments;
+	private _heapMonitor: ExtHostHeapMonitor;
 	private _provider: vscode.CompletionItemProvider;
-	private _cache: { [key: string]: { list: CompletionList; disposables: IDisposable[]; } } = Object.create(null);
 
-	constructor(documents: ExtHostDocuments, provider: vscode.CompletionItemProvider) {
+	constructor(documents: ExtHostDocuments, heapMonitor: ExtHostHeapMonitor, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
+		this._heapMonitor = heapMonitor;
 		this._provider = provider;
 	}
 
@@ -515,12 +517,6 @@ class SuggestAdapter {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
-
-		const key = resource.toString();
-		if (this._cache[key]) {
-			dispose(this._cache[key].disposables);
-			delete this._cache[key];
-		}
 
 		return asWinJsPromise<vscode.CompletionItem[]|vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
 
@@ -533,7 +529,6 @@ class SuggestAdapter {
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
 				.with({ end: pos });
 
-			const disposables: IDisposable[] = [];
 			let list: CompletionList;
 			if (!value) {
 				// undefined and null are valid results
@@ -550,7 +545,10 @@ class SuggestAdapter {
 			for (let i = 0; i < list.items.length; i++) {
 
 				const item = list.items[i];
+				const disposables: IDisposable[] = [];
 				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item, disposables);
+
+				this._heapMonitor.linkObjects(suggestion, item, () => dispose(disposables));
 
 				if (item.textEdit) {
 
@@ -581,25 +579,22 @@ class SuggestAdapter {
 				result.suggestions.push(suggestion);
 			}
 
-			// cache for details call
-			this._cache[key] = { list, disposables };
-
 			return result;
 		});
 	}
 
 	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
-		if (typeof this._provider.resolveCompletionItem !== 'function' || !this._cache[resource.toString()]) {
+
+		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}
 
-		const {list, disposables} = this._cache[resource.toString()];
-		const item = list.items[Number((<ISuggestion2> suggestion).id)];
+		const item = this._heapMonitor.getInternalObject<CompletionItem>(suggestion);
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
 		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			return TypeConverters.Suggest.from(resolvedItem || item, disposables);
+			return <ISuggestion2> TypeConverters.Suggest.from(resolvedItem || item, []);
 		});
 	}
 }
@@ -670,6 +665,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
+	private _heapMonitor: ExtHostHeapMonitor;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter: { [handle: number]: Adapter } = Object.create(null);
 
@@ -677,12 +673,14 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		threadService: IThreadService,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
+		heapMonitor: ExtHostHeapMonitor,
 		diagnostics: ExtHostDiagnostics
 	) {
 		super();
 		this._proxy = threadService.get(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
+		this._heapMonitor = heapMonitor;
 		this._diagnostics = diagnostics;
 	}
 
@@ -869,7 +867,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SuggestAdapter(this._documents, provider);
+		this._adapter[handle] = new SuggestAdapter(this._documents, this._heapMonitor, provider);
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}
