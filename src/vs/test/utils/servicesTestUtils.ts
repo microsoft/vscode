@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
@@ -12,19 +13,19 @@ import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
-import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
+import {EditorInputEvent, IEditorGroup, ConfirmResult} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import {IConfigurationService, getConfigurationValue, IConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
 import {IWorkspace, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ILifecycleService, ShutdownEvent, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -90,7 +91,9 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 }
 
-export abstract class TestTextFileService extends TextFileService {
+export class TestTextFileService extends TextFileService {
+	private promptPath: string;
+	private confirmResult: ConfirmResult;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -103,6 +106,14 @@ export abstract class TestTextFileService extends TextFileService {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
 		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService);
+	}
+
+	public setPromptPath(path: string): void {
+		this.promptPath = path;
+	}
+
+	public setConfirmResult(result: ConfirmResult): void {
+		this.confirmResult = result;
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
@@ -121,10 +132,18 @@ export abstract class TestTextFileService extends TextFileService {
 			};
 		});
 	}
+
+	public promptForPath(defaultPath?: string): string {
+		return this.promptPath;
+	}
+
+	public confirmSave(resources?: URI[]): ConfirmResult {
+		return this.confirmResult;
+	}
 }
 
-export function textFileServiceInstantiationService(): TestInstantiationService {
-	let instantiationService = new TestInstantiationService();
+export function workbenchInstantiationService(): TestInstantiationService {
+	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IEventService, new TestEventService());
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -136,11 +155,11 @@ export function textFileServiceInstantiationService(): TestInstantiationService 
 	instantiationService.stub(IModeService);
 	instantiationService.stub(IHistoryService, 'getHistory', []);
 	instantiationService.stub(IModelService, createMockModelService(instantiationService));
-	instantiationService.stub(ILifecycleService, NullLifecycleService);
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
-	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(<any>TestTextFileService));
+	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 
 	return instantiationService;
 }
@@ -266,6 +285,12 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 export class TestUntitledEditorService implements IUntitledEditorService {
 	public _serviceBrand: any;
 
+	private _onDidChangeDirty = new Emitter<URI>();
+
+	public get onDidChangeDirty(): Event<URI> {
+		return this._onDidChangeDirty.event;
+	}
+
 	public get(resource: URI) {
 		return null;
 	}
@@ -388,9 +413,9 @@ export class TestEditorGroupService implements IEditorGroupService {
 export class TestEditorService implements IWorkbenchEditorService {
 	public _serviceBrand: any;
 
-	public activeEditorInput;
-	public activeEditorOptions;
-	public activeEditorPosition;
+	public activeEditorInput: IEditorInput;
+	public activeEditorOptions: IEditorOptions;
+	public activeEditorPosition: Position;
 
 	private callback: (method: string) => void;
 
@@ -602,6 +627,10 @@ export class TestLifecycleService implements ILifecycleService {
 
 	public fireShutdown(): void {
 		this._onShutdown.fire();
+	}
+
+	public fireWillShutdown(event: ShutdownEvent): void {
+		this._onWillShutdown.fire(event);
 	}
 
 	public get onWillShutdown(): Event<ShutdownEvent> {

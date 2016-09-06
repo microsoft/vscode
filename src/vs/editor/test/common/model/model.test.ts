@@ -13,7 +13,7 @@ import {
 	IModelContentChangedLinesDeletedEvent, IModelContentChangedLinesInsertedEvent
 } from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import {TextModel, IParsedSearchRequest} from 'vs/editor/common/model/textModel';
+import {TextModel} from 'vs/editor/common/model/textModel';
 
 // --------- utils
 
@@ -599,6 +599,77 @@ suite('Editor Model - Find', () => {
 		);
 	});
 
+	test('multiline find with line beginning regex', () => {
+		assertFindMatches(
+			[
+				'if',
+				'else',
+				'',
+				'if',
+				'else'
+			].join('\n'),
+			'^if\\nelse', true, false, false,
+			[
+				[1, 1, 2, 5],
+				[4, 1, 5, 5]
+			]
+		);
+	});
+
+	test('matching empty lines using boundary expression', () => {
+		assertFindMatches(
+			[
+				'if',
+				'',
+				'else',
+				'  ',
+				'if',
+				' ',
+				'else'
+			].join('\n'),
+			'^\\s*$\\n', true, false, false,
+			[
+				[2, 1, 3, 1],
+				[4, 1, 5, 1],
+				[6, 1, 7, 1]
+			]
+		);
+	});
+
+	test('matching lines starting with A and ending with B', () => {
+		assertFindMatches(
+			[
+				'a if b',
+				'a',
+				'ab',
+				'eb'
+			].join('\n'),
+			'^a.*b$', true, false, false,
+			[
+				[1, 1, 1, 7],
+				[3, 1, 3, 3]
+			]
+		);
+	});
+
+	test('multiline find with line ending regex', () => {
+		assertFindMatches(
+			[
+				'if',
+				'else',
+				'',
+				'if',
+				'elseif',
+				'else'
+			].join('\n'),
+			'if\\nelse$', true, false, false,
+			[
+				[1, 1, 2, 5],
+				[5, 5, 6, 5]
+			]
+		);
+	});
+
 	test('issue #4836 - ^.*$', () => {
 		assertFindMatches(
 			[
@@ -619,7 +690,97 @@ suite('Editor Model - Find', () => {
 		);
 	});
 
-	function assertParseSearchResult(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:IParsedSearchRequest): void {
+	test('findNextMatch without regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('line', { lineNumber: 1, column: 1 }, false, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', {lineNumber: 1, column: 3}, false, false, false);
+		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	test('findNextMatch with beginning boundary regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 3 }, true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	test('findNextMatch with beginning boundary regex and line has repetitive beginnings', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 3 }, true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	test('findNextMatch with beginning boundary multiline regex and line has repetitive beginnings', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nline three\nline four', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line.*\\nline', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line.*\\nline', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(3, 1, 4, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line.*\\nline', { lineNumber: 2, column: 1 }, true, false, false);
+		assert.equal(new Range(2, 1, 3, 5).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	test('findNextMatch with ending boundary regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('line$', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', { lineNumber: 1, column: 4 }, true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 5, 2, 9).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+
+		testObject.dispose();
+	});
+
+	function assertParseSearchResult(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:RegExp): void {
 		let actual = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		assert.deepEqual(actual, expected);
 	}
@@ -631,24 +792,24 @@ suite('Editor Model - Find', () => {
 	});
 
 	test('parseSearchRequest non regex', () => {
-		assertParseSearchResult('foo', false, false, false, { regex: /foo/gi, isMultiline: false });
-		assertParseSearchResult('foo', false, false, true, { regex: /\bfoo\b/gi, isMultiline: false });
-		assertParseSearchResult('foo', false, true, false, { regex: /foo/g, isMultiline: false });
-		assertParseSearchResult('foo', false, true, true, { regex: /\bfoo\b/g, isMultiline: false });
-		assertParseSearchResult('foo\\n', false, false, false, { regex: /foo\\n/gi, isMultiline: false });
-		assertParseSearchResult('foo\\\\n', false, false, false, { regex: /foo\\\\n/gi, isMultiline: false });
-		assertParseSearchResult('foo\\r', false, false, false, { regex: /foo\\r/gi, isMultiline: false });
-		assertParseSearchResult('foo\\\\r', false, false, false, { regex: /foo\\\\r/gi, isMultiline: false });
+		assertParseSearchResult('foo', false, false, false, /foo/gi);
+		assertParseSearchResult('foo', false, false, true, /\bfoo\b/gi);
+		assertParseSearchResult('foo', false, true, false, /foo/g);
+		assertParseSearchResult('foo', false, true, true, /\bfoo\b/g);
+		assertParseSearchResult('foo\\n', false, false, false, /foo\\n/gi);
+		assertParseSearchResult('foo\\\\n', false, false, false, /foo\\\\n/gi);
+		assertParseSearchResult('foo\\r', false, false, false, /foo\\r/gi);
+		assertParseSearchResult('foo\\\\r', false, false, false, /foo\\\\r/gi);
 	});
 
 	test('parseSearchRequest regex', () => {
-		assertParseSearchResult('foo', true, false, false, { regex: /foo/gi, isMultiline: false });
-		assertParseSearchResult('foo', true, false, true, { regex: /\bfoo\b/gi, isMultiline: false });
-		assertParseSearchResult('foo', true, true, false, { regex: /foo/g, isMultiline: false });
-		assertParseSearchResult('foo', true, true, true, { regex: /\bfoo\b/g, isMultiline: false });
-		assertParseSearchResult('foo\\n', true, false, false, { regex: /foo\n/gi, isMultiline: true });
-		assertParseSearchResult('foo\\\\n', true, false, false, { regex: /foo\\n/gi, isMultiline: false });
-		assertParseSearchResult('foo\\r', true, false, false, { regex: /foo\r/gi, isMultiline: true });
-		assertParseSearchResult('foo\\\\r', true, false, false, { regex: /foo\\r/gi, isMultiline: false });
+		assertParseSearchResult('foo', true, false, false, /foo/gi);
+		assertParseSearchResult('foo', true, false, true, /\bfoo\b/gi);
+		assertParseSearchResult('foo', true, true, false, /foo/g);
+		assertParseSearchResult('foo', true, true, true, /\bfoo\b/g);
+		assertParseSearchResult('foo\\n', true, false, false, /foo\n/gim);
+		assertParseSearchResult('foo\\\\n', true, false, false, /foo\\n/gi);
+		assertParseSearchResult('foo\\r', true, false, false, /foo\r/gim);
+		assertParseSearchResult('foo\\\\r', true, false, false, /foo\\r/gi);
 	});
 });

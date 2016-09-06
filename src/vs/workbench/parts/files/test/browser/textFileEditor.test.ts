@@ -13,7 +13,7 @@ import {Registry} from 'vs/platform/platform';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {Extensions} from 'vs/workbench/common/editor';
-import {textFileServiceInstantiationService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 
 const ExtensionId = Extensions.Editors;
 
@@ -38,7 +38,7 @@ suite('Files - TextFileEditor', () => {
 		equal(Registry.as(ExtensionId).getEditors().length, oldEditorCnt + 2);
 		equal(Registry.as(ExtensionId).getEditorInputs().length, oldInputCnt + 2);
 
-		const instantiationService = textFileServiceInstantiationService();
+		const instantiationService = workbenchInstantiationService();
 
 		strictEqual(Registry.as(ExtensionId).getEditor(instantiationService.createInstance(FileEditorInput, URI.file(join('C:\\', '/foo/bar/foobar.html')), 'test-text/html', void 0)), d1);
 		strictEqual(Registry.as(ExtensionId).getEditor(instantiationService.createInstance(FileEditorInput, URI.file(join('C:\\', '/foo/bar/foobar.js')), 'test-text/javascript', void 0)), d1);

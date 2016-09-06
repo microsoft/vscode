@@ -177,10 +177,12 @@ export const TextEdit = {
 				continue;
 			}
 
+			const editOffset = document.offsetAt(edit.range.start);
+
 			for (let j = 0; j < changes.length; j++) {
 				const {originalStart, originalLength, modifiedStart, modifiedLength} = changes[j];
-				const start = fromPosition(<types.Position> document.positionAt(originalStart));
-				const end = fromPosition(<types.Position> document.positionAt(originalStart + originalLength));
+				const start = fromPosition(<types.Position> document.positionAt(editOffset + originalStart));
+				const end = fromPosition(<types.Position> document.positionAt(editOffset + originalStart + originalLength));
 
 				result.push({
 					text: modified.substr(modifiedStart, modifiedLength),
