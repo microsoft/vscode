@@ -555,6 +555,86 @@ suite('Editor Model - TextModel', () => {
 
 		model.dispose();
 	});
+
+	test('findNextMatch without regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('line', { lineNumber: 1, column: 1 }, false, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', {lineNumber: 1, column: 3}, false, false, false);
+		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+	});
+
+	test('findNextMatch with beginning boundary regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 3 }, true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+	});
+
+	test('findNextMatch with beginning boundary regex and line has repetitive beginnings', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', { lineNumber: 1, column: 3 }, true, false, false);
+		assert.equal(new Range(2, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 1, 1, 5).toString(), actual.toString());
+	});
+
+	test('findNextMatch with beginning boundary multiline regex and line has repetitive beginnings', () => {
+		var testObject = new TextModel([], TextModel.toRawText('line line one\nline two\nline three', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('^line.*\\nline', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line.*\\nline', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 1, 2, 5).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('^line.*\\nline', { lineNumber: 2, column: 1 }, true, false, false);
+		assert.equal(new Range(2, 1, 3, 5).toString(), actual.toString());
+	});
+
+	test('findNextMatch with ending boundary regex', () => {
+		var testObject = new TextModel([], TextModel.toRawText('one line line\ntwo line\nthree', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		let actual = testObject.findNextMatch('line$', { lineNumber: 1, column: 1 }, true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', { lineNumber: 1, column: 4 }, true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(2, 5, 2, 9).toString(), actual.toString());
+
+		actual = testObject.findNextMatch('line$', actual.getEndPosition(), true, false, false);
+		assert.equal(new Range(1, 10, 1, 14).toString(), actual.toString());
+	});
 });
 
 suite('TextModel.getLineIndentGuide', () => {

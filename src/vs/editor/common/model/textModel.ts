@@ -884,10 +884,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	}
 
-	private _doFindNextMatchMultiline(searchStart:Position, searchRegex:RegExp): Range {
-		let deltaOffset = this.getOffsetAt(searchStart);
-		let text = this.getValueInRange(new Range(searchStart.lineNumber, searchStart.column, this.getLineCount(), this.getLineMaxColumn(this.getLineCount())));
-
+	private _doFindNextMatchMultiline(searchStart: Position, searchRegex: RegExp): Range {
+		let searchTextStart: editorCommon.IPosition = { lineNumber: searchStart.lineNumber, column: 1 };
+		let deltaOffset = this.getOffsetAt(searchTextStart);
+		let text = this.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, this.getLineCount(), this.getLineMaxColumn(this.getLineCount())));
+		searchRegex.lastIndex = searchStart.column - 1;
 		let m = searchRegex.exec(text);
 		if (m) {
 			let startOffset = deltaOffset + m.index;
@@ -912,8 +913,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		let r: Range;
 
 		// Look in first line
-		text = this._lines[startLineNumber - 1].text.substring(searchStart.column - 1);
-		r = this._findFirstMatchInLine(searchRegex, text, startLineNumber, searchStart.column - 1);
+		text = this._lines[startLineNumber - 1].text;
+		r = this._findFirstMatchInLine(searchRegex, text, startLineNumber, searchStart.column);
 		if (r) {
 			return r;
 		}
@@ -921,7 +922,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		for (let i = 1; i <= lineCount; i++) {
 			let lineIndex = (startLineNumber + i - 1) % lineCount;
 			text = this._lines[lineIndex].text;
-			r = this._findFirstMatchInLine(searchRegex, text, lineIndex + 1, 0);
+			r = this._findFirstMatchInLine(searchRegex, text, lineIndex + 1, 1);
 			if (r) {
 				return r;
 			}
@@ -982,12 +983,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return null;
 	}
 
-	private _findFirstMatchInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number): Range {
-		var m = searchRegex.exec(text);
-		if (!m) {
-			return null;
-		}
-		return new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset);
+	private _findFirstMatchInLine(searchRegex: RegExp, text: string, lineNumber: number, fromColumn: number): Range {
+		// Set regex to search from column
+		searchRegex.lastIndex = fromColumn - 1;
+		var m: RegExpExecArray = searchRegex.exec(text);
+		return m ? new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length) : null;
 	}
 
 	private _findLastMatchInLine(searchRegex:RegExp, text:string, lineNumber:number): Range {
