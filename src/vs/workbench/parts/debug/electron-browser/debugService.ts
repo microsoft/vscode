@@ -946,7 +946,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
-		if (!this.session) {
+		if (!this.session || !this.session.configuration.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
 		}
 		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
