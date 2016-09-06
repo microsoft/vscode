@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {Disposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ContextMenuService} from 'vs/platform/contextview/browser/contextMenuService';
@@ -14,11 +14,10 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
@@ -37,7 +36,7 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService, StandaloneCommandService} from 'vs/editor/browser/standalone/simpleServices';
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
@@ -150,7 +149,6 @@ export interface IStaticServices {
 	modeService: IModeService;
 	extensionService: IExtensionService;
 	markerService: IMarkerService;
-	menuService: IMenuService;
 	contextService: IWorkspaceContextService;
 	messageService: IMessageService;
 	telemetryService: ITelemetryService;
@@ -159,7 +157,6 @@ export interface IStaticServices {
 	editorWorkerService: IEditorWorkerService;
 	eventService: IEventService;
 	storageService: IStorageService;
-	commandService: ICommandService;
 	instantiationService: IInstantiationService;
 }
 
@@ -191,39 +188,54 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 	return services;
 }
 
-export function ensureDynamicPlatformServices(domElement:HTMLElement, services: IEditorOverrideServices): IDisposable[] {
-	let r:IDisposable[] = [];
+export class DynamicStandaloneServices extends Disposable {
 
-	let contextKeyService:IContextKeyService;
-	if (typeof services.contextKeyService === 'undefined') {
-		contextKeyService = new ContextKeyService(services.configurationService);
-		r.push(contextKeyService);
-		services.contextKeyService = contextKeyService;
-	} else {
-		contextKeyService = services.contextKeyService;
-	}
-	if (typeof services.keybindingService === 'undefined') {
-		let keybindingService = new StandaloneKeybindingService(contextKeyService, services.commandService, services.messageService, domElement);
-		r.push(keybindingService);
-		services.keybindingService = keybindingService;
-	}
+	public services: IEditorOverrideServices;
 
-	let contextViewService:IEditorContextViewService;
-	if (typeof services.contextViewService === 'undefined') {
-		contextViewService = new ContextViewService(domElement, services.telemetryService, services.messageService);
-		r.push(contextViewService);
-		services.contextViewService = contextViewService;
-	} else {
-		contextViewService = services.contextViewService;
-	}
+	constructor(domElement:HTMLElement, _services: IEditorOverrideServices) {
+		super();
 
-	if (typeof services.contextMenuService === 'undefined') {
-		let contextMenuService = new ContextMenuService(domElement, services.telemetryService, services.messageService, contextViewService);
-		r.push(contextMenuService);
-		services.contextMenuService = contextMenuService;
-	}
+		let services: IEditorOverrideServices = {};
+		for (var serviceId in _services) {
+			services[serviceId] = _services[serviceId];
+		}
 
-	return r;
+		const serviceCollection = new ServiceCollection();
+		services.instantiationService = new InstantiationService(serviceCollection);
+
+		if (typeof services.contextKeyService === 'undefined') {
+			services.contextKeyService = this._register(new ContextKeyService(services.configurationService));
+		}
+
+		if (typeof services.commandService === 'undefined') {
+			services.commandService = new StandaloneCommandService(services.instantiationService, services.extensionService);
+		}
+
+		if (typeof services.keybindingService === 'undefined') {
+			services.keybindingService = this._register(new StandaloneKeybindingService(services.contextKeyService, services.commandService, services.messageService, domElement));
+		}
+
+		if (typeof services.contextViewService === 'undefined') {
+			services.contextViewService = this._register(new ContextViewService(domElement, services.telemetryService, services.messageService));
+		}
+
+		if (typeof services.contextMenuService === 'undefined') {
+			services.contextMenuService = this._register(new ContextMenuService(domElement, services.telemetryService, services.messageService, services.contextViewService));
+		}
+
+		if (typeof services.menuService === 'undefined') {
+			services.menuService = new MenuService(services.extensionService, services.commandService);
+		}
+
+		for (let serviceId in services) {
+			if (services.hasOwnProperty(serviceId)) {
+				let service = services[serviceId];
+				serviceCollection.set(createDecorator(serviceId), service);
+			}
+		}
+
+		this.services = services;
+	}
 }
 
 // The static services represents a map of services that once 1 editor has been created must be used for all subsequent editors
@@ -257,9 +269,6 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let extensionService = services.extensionService || new SimpleExtensionService();
 	serviceCollection.set(IExtensionService, extensionService);
 
-	let commandService = services.commandService || new CommandService(instantiationService, extensionService);
-	serviceCollection.set(ICommandService, commandService);
-
 	let markerService = services.markerService || new MarkerService();
 	serviceCollection.set(IMarkerService, markerService);
 
@@ -278,17 +287,12 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
 	serviceCollection.set(ICodeEditorService, codeEditorService);
 
-	let menuService = services.menuService || new MenuService(extensionService, commandService);
-	serviceCollection.set(IMenuService, menuService);
-
 	staticServices = {
 		configurationService: configurationService,
 		extensionService: extensionService,
-		commandService: commandService,
 		compatWorkerService: compatWorkerService,
 		modeService: modeService,
 		markerService: markerService,
-		menuService: menuService,
 		contextService: contextService,
 		telemetryService: telemetryService,
 		messageService: messageService,

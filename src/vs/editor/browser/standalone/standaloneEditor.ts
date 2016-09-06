@@ -10,13 +10,10 @@ import {ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from '
 import {ShallowCancelThenPromise} from 'vs/base/common/async';
 import {StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, startup, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
-import {IEditorOverrideServices, ensureDynamicPlatformServices, ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
+import {IEditorOverrideServices, DynamicStandaloneServices, ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {OpenerService} from 'vs/platform/opener/browser/openerService';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -66,7 +63,7 @@ export function create(domElement:HTMLElement, options?:IEditorConstructionOptio
 	}
 
 	var t = prepareServices(domElement, services);
-	var result = t.ctx.instantiationService.createInstance(StandaloneEditor, domElement, options, t.toDispose);
+	var result = t.services.instantiationService.createInstance(StandaloneEditor, domElement, options, t);
 
 	if (editorService) {
 		editorService.setEditor(result);
@@ -91,7 +88,7 @@ export function createDiffEditor(domElement:HTMLElement, options?:IDiffEditorCon
 	}
 
 	var t = prepareServices(domElement, services);
-	var result = t.ctx.instantiationService.createInstance(StandaloneDiffEditor, domElement, options, t.toDispose);
+	var result = t.services.instantiationService.createInstance(StandaloneDiffEditor, domElement, options, t);
 
 	if (editorService) {
 		editorService.setEditor(result);
@@ -117,24 +114,8 @@ export function createDiffNavigator(diffEditor:IStandaloneDiffEditor, opts?:IDif
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function prepareServices(domElement: HTMLElement, services: IEditorOverrideServices): { ctx: IEditorOverrideServices; toDispose: IDisposable[]; } {
-	services = ensureStaticPlatformServices(services);
-	var toDispose = ensureDynamicPlatformServices(domElement, services);
-
-	var collection = new ServiceCollection();
-	for (var legacyServiceId in services) {
-		if (services.hasOwnProperty(legacyServiceId)) {
-			let id = createDecorator(legacyServiceId);
-			let service = services[legacyServiceId];
-			collection.set(id, service);
-		}
-	}
-	services.instantiationService = new InstantiationService(collection);
-
-	return {
-		ctx: services,
-		toDispose: toDispose
-	};
+function prepareServices(domElement: HTMLElement, services: IEditorOverrideServices): DynamicStandaloneServices {
+	return new DynamicStandaloneServices(domElement, ensureStaticPlatformServices(services));
 }
 
 function doCreateModel(value:string, mode:TPromise<modes.IMode>, uri?:URI): IModel {
