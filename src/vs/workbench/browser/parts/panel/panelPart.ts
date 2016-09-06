@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Action, IAction} from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
-import {Dimension,Builder} from 'vs/base/browser/builder';
+import {Builder} from 'vs/base/browser/builder';
 import {Registry} from 'vs/platform/platform';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -105,13 +105,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public hideActivePanel(): TPromise<void> {
 		return this.hideActiveComposite().then(composite => void 0);
-	}
-
-	layout(dimension: Dimension): Dimension[] {
-		const container = this.getContainer().getHTMLElement();
-		container.style.display = dimension.height === 0 ? 'none' : 'block';
-
-		return super.layout(dimension);
 	}
 }
 
