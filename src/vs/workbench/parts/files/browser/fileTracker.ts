@@ -22,7 +22,7 @@ import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITO
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
+import {UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
@@ -78,8 +78,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Update editors and inputs from local changes and saves
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onUntitledEditorSaved(e)));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledEditorDirty(e)));
+		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
@@ -151,12 +150,10 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onUntitledEditorDirty(e: UntitledEditorEvent): void {
-		this.updateActivityBadge();
-	}
+	private onUntitledDidChangeDirty(e: UntitledEditorEvent): void {
+		const gotDirty = this.untitledEditorService.isDirty(e.resource);
 
-	private onUntitledEditorSaved(e: UntitledEditorEvent): void {
-		if (this.lastDirtyCount > 0) {
+		if (gotDirty || this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
 	}

@@ -17,7 +17,6 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 
 import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
 
@@ -53,19 +52,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
-	}
-
-	private onDirtyStateChange(e: UntitledEditorEvent): void {
-		if (e.resource.toString() === this.resource.toString()) {
-			this._onDidChangeDirty.fire();
-		}
 	}
 
 	public getTypeId(): string {
@@ -163,7 +149,12 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			}
 		}
 
-		return this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
+		const model = this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
+
+		// detect dirty state changes on model and re-emit
+		this.toUnbind.push(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+
+		return model;
 	}
 
 	public matches(otherInput: any): boolean {

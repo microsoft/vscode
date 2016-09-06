@@ -25,7 +25,7 @@ import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
-import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
+import {UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
@@ -55,6 +55,7 @@ import { SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import Severity from 'vs/base/common/severity';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 export class SearchViewlet extends Viewlet {
 
@@ -102,7 +103,8 @@ export class SearchViewlet extends Viewlet {
 		@ISearchService private searchService: ISearchService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IReplaceService private replaceService: IReplaceService
+		@IReplaceService private replaceService: IReplaceService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
@@ -114,7 +116,7 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFilesChanged(e)));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e) => this.onUntitledFileSaved(e)));
+		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
@@ -945,15 +947,18 @@ export class SearchViewlet extends Viewlet {
 		return void 0;
 	}
 
-	private onUntitledFileSaved(e: UntitledEditorEvent): void {
+	private onUntitledDidChangeDirty(e: UntitledEditorEvent): void {
 		if (!this.viewModel) {
 			return;
 		}
 
-		let matches = this.viewModel.searchResult.matches();
-		for (let i = 0, len = matches.length; i < len; i++) {
-			if (e.resource.toString() === matches[i].resource().toString()) {
-				this.viewModel.searchResult.remove(matches[i]);
+		// remove search results from this resource as it got disposed
+		if (!this.untitledEditorService.isDirty(e.resource)) {
+			let matches = this.viewModel.searchResult.matches();
+			for (let i = 0, len = matches.length; i < len; i++) {
+				if (e.resource.toString() === matches[i].resource().toString()) {
+					this.viewModel.searchResult.remove(matches[i]);
+				}
 			}
 		}
 	}
