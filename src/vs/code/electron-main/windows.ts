@@ -432,7 +432,7 @@ export class WindowsManager implements IWindowsService {
 			const windows = this.getWindows();
 			const window = this.getWindowById(windowId);
 			window.send('vscode:respondWindows', windows.map(w => {
-				return {path: w.openedWorkspacePath, id: w.id};
+				return {workspace: w.openedWorkspacePath, id: w.id};
 			}));
 		});
 

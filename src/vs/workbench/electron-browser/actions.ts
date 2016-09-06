@@ -5,6 +5,7 @@
 
 'use strict';
 
+import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
@@ -84,16 +85,16 @@ export class SwitchWindow extends Action {
 	public run(): TPromise<boolean> {
 		ipc.send('vscode:requestWindows', this.windowService.getWindowId());
 		ipc.once('vscode:respondWindows', (event, windows) => {
-			const picks: IPickOpenEntry[] = windows.map(w => ({
-				label: w.path,
-				description: w.id
-			}));
-			this.quickOpenService.pick(picks).then(selection => {
-				if (!selection) {
-					return;
-				}
-				ipc.send('vscode:showWindow', selection.description);
+			const picks: IPickOpenEntry[] = windows.filter(w => !!w.workspace).map(w => {
+				return {
+					label: paths.basename(w.workspace),
+					description: paths.dirname(w.workspace),
+					run: () => {
+						ipc.send('vscode:showWindow', w.id);
+					}
+				};
 			});
+			this.quickOpenService.pick(picks, {matchOnDescription: true});
 		});
 
 		return TPromise.as(true);
