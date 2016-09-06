@@ -9,9 +9,7 @@
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
-				"999999",
-				"-g",
-				"Editor Model - Find"
+				"999999"
 			],
 			"cwd": "${workspaceRoot}",
 			"runtimeArgs": [],
