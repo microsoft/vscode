@@ -13,7 +13,7 @@ import {TextEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/wor
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {UntitledEditorEvent} from 'vs/workbench/common/events';
+import URI from 'vs/base/common/uri';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -54,9 +54,9 @@ export class StringEditor extends BaseTextEditor {
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
 
-	private onUntitledDirtyChange(e: UntitledEditorEvent): void {
-		if (!this.untitledEditorService.isDirty(e.resource)) {
-			delete this.mapResourceToEditorViewState[e.resource.toString()]; // untitled file got reverted, so remove view state
+	private onUntitledDirtyChange(resource: URI): void {
+		if (!this.untitledEditorService.isDirty(resource)) {
+			delete this.mapResourceToEditorViewState[resource.toString()]; // untitled file got reverted, so remove view state
 		}
 	}
 

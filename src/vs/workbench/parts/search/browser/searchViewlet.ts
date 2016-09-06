@@ -25,7 +25,6 @@ import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
-import {UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
@@ -947,16 +946,16 @@ export class SearchViewlet extends Viewlet {
 		return void 0;
 	}
 
-	private onUntitledDidChangeDirty(e: UntitledEditorEvent): void {
+	private onUntitledDidChangeDirty(resource: URI): void {
 		if (!this.viewModel) {
 			return;
 		}
 
 		// remove search results from this resource as it got disposed
-		if (!this.untitledEditorService.isDirty(e.resource)) {
+		if (!this.untitledEditorService.isDirty(resource)) {
 			let matches = this.viewModel.searchResult.matches();
 			for (let i = 0, len = matches.length; i < len; i++) {
-				if (e.resource.toString() === matches[i].resource().toString()) {
+				if (resource.toString() === matches[i].resource().toString()) {
 					this.viewModel.searchResult.remove(matches[i]);
 				}
 			}

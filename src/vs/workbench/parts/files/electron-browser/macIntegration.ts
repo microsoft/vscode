@@ -13,7 +13,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ipcRenderer as ipc} from 'electron';
-import {UntitledEditorEvent} from 'vs/workbench/common/events';
+import URI from 'vs/base/common/uri';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 export class MacIntegration implements IWorkbenchContribution {
@@ -46,8 +46,8 @@ export class MacIntegration implements IWorkbenchContribution {
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onUntitledDidChangeDirty(e: UntitledEditorEvent): void {
-		const gotDirty = this.untitledEditorService.isDirty(e.resource);
+	private onUntitledDidChangeDirty(resource: URI): void {
+		const gotDirty = this.untitledEditorService.isDirty(resource);
 
 		if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
 			this.updateDocumentEdited();

@@ -27,7 +27,3 @@ export class ResourceEvent extends Event {
 		this.resource = resource;
 	}
 }
-
-export class UntitledEditorEvent extends ResourceEvent {
-	// No new methods
-}

@@ -22,7 +22,6 @@ import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITO
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
@@ -150,8 +149,8 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onUntitledDidChangeDirty(e: UntitledEditorEvent): void {
-		const gotDirty = this.untitledEditorService.isDirty(e.resource);
+	private onUntitledDidChangeDirty(resource: URI): void {
+		const gotDirty = this.untitledEditorService.isDirty(resource);
 
 		if (gotDirty || this.lastDirtyCount > 0) {
 			this.updateActivityBadge();

@@ -17,7 +17,7 @@ import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {textFileServiceInstantiationService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {IPanel} from 'vs/workbench/common/panel';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
@@ -270,7 +270,7 @@ class TestProgressBar {
 suite('Workbench UI Services', () => {
 
 	test('WorkbenchEditorService', function () {
-		let instantiationService = textFileServiceInstantiationService();
+		let instantiationService = workbenchInstantiationService();
 
 		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 
@@ -333,7 +333,7 @@ suite('Workbench UI Services', () => {
 	});
 
 	test('DelegatingWorkbenchEditorService', function () {
-		let instantiationService = textFileServiceInstantiationService();
+		let instantiationService = workbenchInstantiationService();
 		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 
 		let testEditorPart = new TestEditorPart();
