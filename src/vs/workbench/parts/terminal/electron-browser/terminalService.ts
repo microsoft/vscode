@@ -187,6 +187,7 @@ export class TerminalService implements ITerminalService {
 		// to be stored for when createNew is called from TerminalPanel.create. This has to work
 		// like this as TerminalPanel.setVisible must create a terminal if there is none due to how
 		// the TerminalPanel is restored on launch if it was open previously.
+
 		if (processCount === 0 && !name) {
 			name = this.nextTerminalName;
 			this.nextTerminalName = undefined;
@@ -294,7 +295,7 @@ export class TerminalService implements ITerminalService {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		let env = TerminalService.createTerminalEnv(process.env, this.configHelper.getShell(), this.contextService.getWorkspace(), locale);
 		let terminalProcess = {
-			title: name,
+			title: name ? name : '',
 			process: cp.fork('./terminalProcess', [], {
 				env: env,
 				cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
@@ -308,7 +309,7 @@ export class TerminalService implements ITerminalService {
 			// Only listen for process title changes when a name is not provided
 			terminalProcess.process.on('message', (message) => {
 				if (message.type === 'title') {
-					terminalProcess.title = message.content;
+					terminalProcess.title = message.content ? message.content : '';
 					this._onInstanceTitleChanged.fire();
 				}
 			});
