@@ -20,7 +20,7 @@ import {IConfigurationService, getConfigurationValue, IConfigurationValue} from 
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
@@ -413,9 +413,9 @@ export class TestEditorGroupService implements IEditorGroupService {
 export class TestEditorService implements IWorkbenchEditorService {
 	public _serviceBrand: any;
 
-	public activeEditorInput;
-	public activeEditorOptions;
-	public activeEditorPosition;
+	public activeEditorInput: IEditorInput;
+	public activeEditorOptions: IEditorOptions;
+	public activeEditorPosition: Position;
 
 	private callback: (method: string) => void;
 
