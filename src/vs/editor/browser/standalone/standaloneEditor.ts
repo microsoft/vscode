@@ -8,13 +8,14 @@ import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {ShallowCancelThenPromise} from 'vs/base/common/async';
-import {StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, startup, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
+import {StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
-import {IEditorOverrideServices, DynamicStandaloneServices, ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
+import {IEditorOverrideServices, DynamicStandaloneServices, StaticServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {OpenerService} from 'vs/platform/opener/browser/openerService';
+import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
@@ -23,24 +24,43 @@ import * as modes from 'vs/editor/common/modes';
 import {EditorWorkerClient} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
 import {DiffNavigator} from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
-
-function shallowClone<T>(obj:T): T {
-	let r:T = <any>{};
-	if (obj) {
-		let keys = Object.keys(obj);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let key = keys[i];
-			r[key] = obj[key];
-		}
-	}
-	return r;
-}
+import {IEditorService} from 'vs/platform/editor/common/editor';
+import {ICommandService} from 'vs/platform/commands/common/commands';
+import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 /**
  * @internal
  */
-export function setupServices(services: IEditorOverrideServices): IEditorOverrideServices {
-	return startup.setupServices(services);
+export function setupServices(overrides: IEditorOverrideServices): any {
+	return StaticServices.init(overrides);
+}
+
+function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement:HTMLElement, override:IEditorOverrideServices, callback:(services:DynamicStandaloneServices)=>T): T {
+	let services = new DynamicStandaloneServices(domElement, override);
+
+	// The editorService is a lovely beast. It needs to point back to the code editor instance...
+	let simpleEditorService: SimpleEditorService = null;
+	if (!services.has(IEditorService)) {
+		simpleEditorService = new SimpleEditorService();
+		services.set(IEditorService, simpleEditorService);
+	}
+
+	if (!services.has(IOpenerService)) {
+		services.set(IOpenerService, new OpenerService(services.get(IEditorService), services.get(ICommandService)));
+	}
+
+	let result = callback(services);
+
+	if (simpleEditorService) {
+		simpleEditorService.setEditor(result);
+	}
+
+	return result;
 }
 
 /**
@@ -48,28 +68,20 @@ export function setupServices(services: IEditorOverrideServices): IEditorOverrid
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
-export function create(domElement:HTMLElement, options?:IEditorConstructionOptions, services?:IEditorOverrideServices):IStandaloneCodeEditor {
-	startup.initStaticServicesIfNecessary();
-
-	services = shallowClone(services);
-	var editorService: SimpleEditorService = null;
-	if (!services || !services.editorService) {
-		editorService = new SimpleEditorService();
-		services.editorService = editorService;
-	}
-
-	if (!services.openerService) {
-		services.openerService = new OpenerService(editorService, services.commandService);
-	}
-
-	var t = prepareServices(domElement, services);
-	var result = t.services.instantiationService.createInstance(StandaloneEditor, domElement, options, t);
-
-	if (editorService) {
-		editorService.setEditor(result);
-	}
-
-	return result;
+export function create(domElement:HTMLElement, options?:IEditorConstructionOptions, override?:IEditorOverrideServices):IStandaloneCodeEditor {
+	return withAllStandaloneServices(domElement, override, (services) => {
+		return new StandaloneEditor(
+			domElement,
+			options,
+			services,
+			services.get(IInstantiationService),
+			services.get(ICodeEditorService),
+			services.get(ICommandService),
+			services.get(IContextKeyService),
+			services.get(IKeybindingService),
+			services.get(IContextViewService)
+		);
+	});
 }
 
 /**
@@ -77,24 +89,19 @@ export function create(domElement:HTMLElement, options?:IEditorConstructionOptio
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
-export function createDiffEditor(domElement:HTMLElement, options?:IDiffEditorConstructionOptions, services?: IEditorOverrideServices):IStandaloneDiffEditor {
-	startup.initStaticServicesIfNecessary();
-
-	services = shallowClone(services);
-	var editorService: SimpleEditorService = null;
-	if (!services || !services.editorService) {
-		editorService = new SimpleEditorService();
-		services.editorService = editorService;
-	}
-
-	var t = prepareServices(domElement, services);
-	var result = t.services.instantiationService.createInstance(StandaloneDiffEditor, domElement, options, t);
-
-	if (editorService) {
-		editorService.setEditor(result);
-	}
-
-	return result;
+export function createDiffEditor(domElement:HTMLElement, options?:IDiffEditorConstructionOptions, override?: IEditorOverrideServices):IStandaloneDiffEditor {
+	return withAllStandaloneServices(domElement, override, (services) => {
+		return new StandaloneDiffEditor(
+			domElement,
+			options,
+			services,
+			services.get(IInstantiationService),
+			services.get(IContextKeyService),
+			services.get(IKeybindingService),
+			services.get(IContextViewService),
+			services.get(IEditorWorkerService)
+		);
+	});
 }
 
 export interface IDiffNavigator {
@@ -114,14 +121,8 @@ export function createDiffNavigator(diffEditor:IStandaloneDiffEditor, opts?:IDif
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function prepareServices(domElement: HTMLElement, services: IEditorOverrideServices): DynamicStandaloneServices {
-	return new DynamicStandaloneServices(domElement, ensureStaticPlatformServices(services));
-}
-
 function doCreateModel(value:string, mode:TPromise<modes.IMode>, uri?:URI): IModel {
-	let modelService = ensureStaticPlatformServices(null).modelService;
-
-	return modelService.createModel(value, mode, uri);
+	return StaticServices.modelService.get().createModel(value, mode, uri);
 }
 
 /**
@@ -129,11 +130,7 @@ function doCreateModel(value:string, mode:TPromise<modes.IMode>, uri?:URI): IMod
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
 export function createModel(value:string, language?:string, uri?:URI): IModel {
-	startup.initStaticServicesIfNecessary();
-
 	value = value || '';
-
-	let modeService = ensureStaticPlatformServices(null).modeService;
 
 	if (!language) {
 		let path = uri ? uri.path : null;
@@ -144,73 +141,58 @@ export function createModel(value:string, language?:string, uri?:URI): IModel {
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, modeService.getOrCreateModeByFilenameOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilenameOrFirstLine(path, firstLine), uri);
 	}
-	return doCreateModel(value, modeService.getOrCreateMode(language), uri);
+	return doCreateModel(value, StaticServices.modeService.get().getOrCreateMode(language), uri);
 }
 
 /**
  * Change the language for a model.
  */
 export function setModelLanguage(model:IModel, language:string): void {
-	startup.initStaticServicesIfNecessary();
-	let modeService = ensureStaticPlatformServices(null).modeService;
-
-	model.setMode(modeService.getOrCreateMode(language));
+	model.setMode(StaticServices.modeService.get().getOrCreateMode(language));
 }
 
 /**
  * Set the markers for a model.
  */
 export function setModelMarkers(model:IModel, owner:string, markers: IMarkerData[]): void {
-	startup.initStaticServicesIfNecessary();
-	var markerService = ensureStaticPlatformServices(null).markerService;
-	markerService.changeOne(owner, model.uri, markers);
+	StaticServices.markerService.get().changeOne(owner, model.uri, markers);
 }
 
 /**
  * Get the model that has `uri` if it exists.
  */
 export function getModel(uri: URI): IModel {
-	startup.initStaticServicesIfNecessary();
-	var modelService = ensureStaticPlatformServices(null).modelService;
-	return modelService.getModel(uri);
+	return StaticServices.modelService.get().getModel(uri);
 }
 
 /**
  * Get all the created models.
  */
 export function getModels(): IModel[] {
-	startup.initStaticServicesIfNecessary();
-	var modelService = ensureStaticPlatformServices(null).modelService;
-	return modelService.getModels();
+	return StaticServices.modelService.get().getModels();
 }
 
 /**
  * Emitted when a model is created.
  */
 export function onDidCreateModel(listener:(model:IModel)=>void): IDisposable {
-	startup.initStaticServicesIfNecessary();
-	var modelService = ensureStaticPlatformServices(null).modelService;
-	return modelService.onModelAdded(listener);
+	return StaticServices.modelService.get().onModelAdded(listener);
 }
 
 /**
  * Emitted right before a model is disposed.
  */
 export function onWillDisposeModel(listener:(model:IModel)=>void): IDisposable {
-	startup.initStaticServicesIfNecessary();
-	var modelService = ensureStaticPlatformServices(null).modelService;
-	return modelService.onModelRemoved(listener);
+	return StaticServices.modelService.get().onModelRemoved(listener);
 }
 
 /**
  * Emitted when a different language is set to a model.
  */
 export function onDidChangeModelLanguage(listener:(e:{ model: IModel; oldLanguage: string; })=>void): IDisposable {
-	startup.initStaticServicesIfNecessary();
-	var modelService = ensureStaticPlatformServices(null).modelService;
-	return modelService.onModelModeChanged((e) => {
+	return StaticServices.modelService.get().onModelModeChanged((e) => {
 		listener({
 			model: e.model,
 			oldLanguage: e.oldModeId
@@ -223,10 +205,7 @@ export function onDidChangeModelLanguage(listener:(e:{ model: IModel; oldLanguag
  * @internal
  */
 export function getOrCreateMode(modeId: string):TPromise<modes.IMode> {
-	startup.initStaticServicesIfNecessary();
-	var modeService = ensureStaticPlatformServices(null).modeService;
-
-	return modeService.getOrCreateMode(modeId);
+	return StaticServices.modeService.get().getOrCreateMode(modeId);
 }
 
 /**
@@ -323,29 +302,21 @@ export interface IWebWorkerOptions {
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T>(opts:IWebWorkerOptions): MonacoWebWorker<T> {
-	startup.initStaticServicesIfNecessary();
-	let staticPlatformServices = ensureStaticPlatformServices(null);
-	let modelService = staticPlatformServices.modelService;
-
-	return new MonacoWebWorkerImpl<T>(modelService, opts);
+	return new MonacoWebWorkerImpl<T>(StaticServices.modelService.get(), opts);
 }
 
 /**
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
 export function colorizeElement(domNode:HTMLElement, options:IColorizerElementOptions): TPromise<void> {
-	startup.initStaticServicesIfNecessary();
-	var modeService = ensureStaticPlatformServices(null).modeService;
-	return Colorizer.colorizeElement(modeService, domNode, options);
+	return Colorizer.colorizeElement(StaticServices.modeService.get(), domNode, options);
 }
 
 /**
  * Colorize `text` using language `languageId`.
  */
 export function colorize(text:string, languageId:string, options:IColorizerOptions): TPromise<string> {
-	startup.initStaticServicesIfNecessary();
-	var modeService = ensureStaticPlatformServices(null).modeService;
-	return Colorizer.colorize(modeService, text, languageId, options);
+	return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
 }
 
 /**

@@ -7,9 +7,8 @@
 
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
-import {WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {WorkspaceContextService, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {ensureStaticPlatformServices, IEditorOverrideServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
@@ -26,6 +25,11 @@ import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import * as Timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {SimpleConfigurationService} from 'vs/editor/browser/standalone/simpleServices';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 declare var __dirname: string;
 
@@ -43,13 +47,12 @@ suite('QuickOpen performance', () => {
 		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
 
 		const telemetryService = new TestTelemetryService();
-		const overrides: IEditorOverrideServices = {
-			contextService: new WorkspaceContextService({ resource: URI.file(testWorkspacePath) }),
-			telemetryService
-		};
-
-		const services = ensureStaticPlatformServices(overrides);
-		const instantiationService = services.instantiationService.createChild(new ServiceCollection(
+		const configurationService = new SimpleConfigurationService();
+		const instantiationService = new InstantiationService(new ServiceCollection(
+			[ITelemetryService, telemetryService],
+			[IConfigurationService, new SimpleConfigurationService()],
+			[IModelService, new ModelServiceImpl(null, configurationService, null)],
+			[IWorkspaceContextService, new WorkspaceContextService({ resource: URI.file(testWorkspacePath) })],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],

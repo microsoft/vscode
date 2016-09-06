@@ -740,14 +740,14 @@ declare module monaco.editor {
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
      */
-    export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, services?: IEditorOverrideServices): IStandaloneCodeEditor;
+    export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
 
     /**
      * Create a new diff editor under `domElement`.
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
      */
-    export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, services?: IEditorOverrideServices): IStandaloneDiffEditor;
+    export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
     export interface IDiffNavigator {
         canNavigate(): boolean;
