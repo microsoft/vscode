@@ -9,11 +9,12 @@ import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {TextFileChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {platform, Platform} from 'vs/base/common/platform';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ipcRenderer as ipc} from 'electron';
+import {UntitledEditorEvent} from 'vs/workbench/common/events';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 export class MacIntegration implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
@@ -23,7 +24,8 @@ export class MacIntegration implements IWorkbenchContribution {
 		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		this.toUnbind = [];
 		this.isDocumentedEdited = false;
@@ -34,8 +36,7 @@ export class MacIntegration implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Local text file changes
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, () => this.onUntitledSavedEvent()));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.onUntitledDirtyEvent()));
+		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
@@ -45,14 +46,10 @@ export class MacIntegration implements IWorkbenchContribution {
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onUntitledDirtyEvent(): void {
-		if (!this.isDocumentedEdited) {
-			this.updateDocumentEdited();
-		}
-	}
+	private onUntitledDidChangeDirty(e: UntitledEditorEvent): void {
+		const gotDirty = this.untitledEditorService.isDirty(e.resource);
 
-	private onUntitledSavedEvent(): void {
-		if (this.isDocumentedEdited) {
+		if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
 			this.updateDocumentEdited();
 		}
 	}

@@ -41,6 +41,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import {UntitledEditorEvent} from 'vs/workbench/common/events';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -282,6 +283,12 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 
 export class TestUntitledEditorService implements IUntitledEditorService {
 	public _serviceBrand: any;
+
+	private _onDidChangeDirty = new Emitter<UntitledEditorEvent>();
+
+	public get onDidChangeDirty(): Event<UntitledEditorEvent> {
+		return this._onDidChangeDirty.event;
+	}
 
 	public get(resource: URI) {
 		return null;

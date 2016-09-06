@@ -9,12 +9,19 @@ import {createDecorator, IInstantiationService} from 'vs/platform/instantiation/
 import {EventType} from 'vs/base/common/events';
 import arrays = require('vs/base/common/arrays');
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
+import Event, {Emitter} from 'vs/base/common/event';
+import {UntitledEditorEvent} from 'vs/workbench/common/events';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
 export interface IUntitledEditorService {
 
 	_serviceBrand: any;
+
+	/**
+	 * Events for when untitled editors change (e.g. getting dirty, saved or reverted).
+	 */
+	onDidChangeDirty: Event<UntitledEditorEvent>;
 
 	/**
 	 * Returns the untitled editor input matching the provided resource.
@@ -57,12 +64,20 @@ export interface IUntitledEditorService {
 }
 
 export class UntitledEditorService implements IUntitledEditorService {
+
 	public _serviceBrand: any;
 
 	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
 
+	private _onDidChangeDirty: Emitter<UntitledEditorEvent>;
+
 	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+		this._onDidChangeDirty = new Emitter<UntitledEditorEvent>();
+	}
+
+	public get onDidChangeDirty(): Event<UntitledEditorEvent> {
+		return this._onDidChangeDirty.event;
 	}
 
 	public get(resource: URI): UntitledEditorInput {
@@ -139,10 +154,15 @@ export class UntitledEditorService implements IUntitledEditorService {
 
 		let input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
 
+		const listener = input.onDidChangeDirty(() => {
+			this._onDidChangeDirty.fire(new UntitledEditorEvent(resource));
+		});
+
 		// Remove from cache on dispose
 		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
 			delete UntitledEditorService.CACHE[input.getResource().toString()];
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
+			listener.dispose();
 		});
 
 		// Add to cache

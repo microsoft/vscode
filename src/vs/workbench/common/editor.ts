@@ -121,7 +121,9 @@ export interface IEditorInputFactory {
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
  */
 export abstract class EditorInput extends EventEmitter implements IEditorInput {
+
 	protected _onDidChangeDirty: Emitter<void>;
+	
 	private disposed: boolean;
 
 	constructor() {
