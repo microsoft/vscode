@@ -25,6 +25,7 @@ export class ConfigVariables extends SystemVariables {
 	}
 
 	protected resolveString(value: string): string {
+		const originalValue = value;
 		value = super.resolveString(value);
 
 		let regexp = /\$\{config\.(.*?)\}/g;
@@ -32,9 +33,9 @@ export class ConfigVariables extends SystemVariables {
 			let config = this.configurationService.getConfiguration();
 			let newValue = new Function('_', 'try {return _.' + name + ';} catch (ex) { return "";}')(config);
 			if (Types.isString(newValue)) {
-				return newValue;
-			}
-			else {
+				// Prevent infinite recursion and also support nested references (or tokens)
+				return newValue === originalValue ? '' : this.resolveString(newValue);
+			} else {
 				return this.resolve(newValue) + '';
 			}
 		});
