@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandService, CommandsRegistry} from 'vs/platform/commands/common/commands';
+import {ICommandService, ICommand, CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class CommandService implements ICommandService {
@@ -24,7 +24,7 @@ export class CommandService implements ICommandService {
 
 		return this._extensionService.activateByEvent(`onCommand:${id}`).then(_ => {
 
-			const command = CommandsRegistry.getCommand(id);
+			const command = this._getCommand(id);
 			if (!command) {
 				return TPromise.wrapError(new Error(`command '${id}' not found`));
 			}
@@ -36,5 +36,9 @@ export class CommandService implements ICommandService {
 				return TPromise.wrapError(err);
 			}
 		});
+	}
+
+	protected _getCommand(id:string): ICommand {
+		return CommandsRegistry.getCommand(id);
 	}
 }

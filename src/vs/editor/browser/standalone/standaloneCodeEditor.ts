@@ -65,7 +65,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 	constructor(
 		domElement:HTMLElement,
 		options:IEditorConstructionOptions,
-		toDispose: IDisposable[],
+		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -81,7 +81,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._toDispose2 = toDispose;
+		this._toDispose2 = [toDispose];
 
 		let model: IModel = null;
 		if (typeof options.model === 'undefined') {
@@ -169,7 +169,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	constructor(
 		domElement:HTMLElement,
 		options:IDiffEditorConstructionOptions,
-		toDispose: IDisposable[],
+		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -184,7 +184,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 
-		this._toDispose2 = toDispose;
+		this._toDispose2 = [toDispose];
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}
