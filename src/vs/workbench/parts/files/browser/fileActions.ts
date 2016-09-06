@@ -1564,7 +1564,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
-			this.toDispose.push(this.untitledEditorService.onDidChangeDirty(e => this.updateEnablement(this.untitledEditorService.isDirty(e.resource))));
+			this.toDispose.push(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
 		}
 	}
 
