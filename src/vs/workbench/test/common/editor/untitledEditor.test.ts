@@ -25,6 +25,9 @@ suite('Workbench - Untitled Editor', () => {
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
+	});
+
+	teardown(() => {
 		accessor.untitledEditorService.revertAll();
 	});
 
@@ -33,6 +36,8 @@ suite('Workbench - Untitled Editor', () => {
 		assert.equal(service.getAll().length, 0);
 
 		const input1 = service.createOrGet();
+		assert.equal(input1, service.createOrGet(input1.getResource()));
+
 		const input2 = service.createOrGet();
 
 		// get() / getAll()
