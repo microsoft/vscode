@@ -148,6 +148,31 @@ export class Repl extends Panel implements IPrivateReplService {
 		super.create(parent);
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
 		this.treeContainer = dom.append(container, $('.repl-tree'));
+		this.createReplInput(container);
+
+		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
+		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
+		for (let i = 0; i < 10; i++) {
+			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
+		}
+		this.characterWidthSurveyor.style.fontSize = platform.isMacintosh ? '12px' : '14px';
+
+		this.renderer = this.instantiationService.createInstance(viewer.ReplExpressionsRenderer);
+		this.tree = new treeimpl.Tree(this.treeContainer, {
+			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
+			renderer: this.renderer,
+			accessibilityProvider: new viewer.ReplExpressionsAccessibilityProvider(),
+			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
+		}, replTreeOptions);
+
+		if (!Repl.HISTORY) {
+			Repl.HISTORY = new replhistory.ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
+		}
+
+		return this.tree.setInput(this.debugService.getModel());
+	}
+
+	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
@@ -192,27 +217,6 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
 		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
-
-		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
-		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
-		for (let i = 0; i < 10; i++) {
-			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
-		}
-		this.characterWidthSurveyor.style.fontSize = platform.isMacintosh ? '12px' : '14px';
-
-		this.renderer = this.instantiationService.createInstance(viewer.ReplExpressionsRenderer);
-		this.tree = new treeimpl.Tree(this.treeContainer, {
-			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
-			renderer: this.renderer,
-			accessibilityProvider: new viewer.ReplExpressionsAccessibilityProvider(),
-			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
-		}, replTreeOptions);
-
-		if (!Repl.HISTORY) {
-			Repl.HISTORY = new replhistory.ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
-		}
-
-		return this.tree.setInput(this.debugService.getModel());
 	}
 
 	public navigateHistory(previous: boolean): void {
