@@ -101,7 +101,7 @@ var getReversedRegexForBrackets = once<ISimpleInternalBracket[],RegExp>(
 
 function createOrRegex(pieces:string[]): RegExp {
 	let regexStr = `(${pieces.map(strings.escapeRegExpCharacters).join(')|(')})`;
-	return strings.createRegExp(regexStr, true, false, false, false);
+	return strings.createRegExp(regexStr, true);
 }
 
 function toReversedString(str:string): string {

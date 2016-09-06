@@ -18,11 +18,6 @@ import {IndentRange, computeRanges} from 'vs/editor/common/model/indentRanges';
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
 
-export interface IParsedSearchRequest {
-	regex: RegExp;
-	isMultiline: boolean;
-}
-
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
 	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
 	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
@@ -764,15 +759,16 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return false;
 	}
 
-	public static parseSearchRequest(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IParsedSearchRequest {
+	public static parseSearchRequest(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean): RegExp {
 		if (searchString === '') {
 			return null;
 		}
 
 		// Try to create a RegExp out of the params
-		var regex:RegExp = null;
+		var regex: RegExp = null;
+		var multiline = isRegex && TextModel._isMultiline(searchString);
 		try {
-			regex = strings.createRegExp(searchString, isRegex, matchCase, wholeWord, true);
+			regex = strings.createRegExp(searchString, isRegex, {matchCase, wholeWord, multiline, global: true});
 		} catch (err) {
 			return null;
 		}
@@ -781,15 +777,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			return null;
 		}
 
-		return {
-			regex: regex,
-			isMultiline: isRegex && TextModel._isMultiline(searchString)
-		};
+		return regex;
 	}
 
 	public findMatches(searchString:string, rawSearchScope:any, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount:number = LIMIT_FIND_COUNT): Range[] {
-		let r = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
-		if (!r) {
+		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+		if (!regex) {
 			return [];
 		}
 
@@ -800,10 +793,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			searchRange = this.getFullModelRange();
 		}
 
-		if (r.isMultiline) {
-			return this._doFindMatchesMultiline(searchRange, r.regex, limitResultCount);
+		if (regex.multiline) {
+			return this._doFindMatchesMultiline(searchRange, regex, limitResultCount);
 		}
-		return this._doFindMatchesLineByLine(searchRange, r.regex, limitResultCount);
+		return this._doFindMatchesLineByLine(searchRange, regex, limitResultCount);
 	}
 
 	private _doFindMatchesMultiline(searchRange:Range, searchRegex:RegExp, limitResultCount:number): Range[] {
@@ -871,16 +864,16 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public findNextMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range {
-		let r = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
-		if (!r) {
+		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+		if (!regex) {
 			return null;
 		}
 
 		let searchStart = this.validatePosition(rawSearchStart);
-		if (r.isMultiline) {
-			return this._doFindNextMatchMultiline(searchStart, r.regex);
+		if (regex.multiline) {
+			return this._doFindNextMatchMultiline(searchStart, regex);
 		}
-		return this._doFindNextMatchLineByLine(searchStart, r.regex);
+		return this._doFindNextMatchLineByLine(searchStart, regex);
 
 	}
 
@@ -932,16 +925,16 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public findPreviousMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range {
-		let r = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
-		if (!r) {
+		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
+		if (!regex) {
 			return null;
 		}
 
 		let searchStart = this.validatePosition(rawSearchStart);
-		if (r.isMultiline) {
-			return this._doFindPreviousMatchMultiline(searchStart, r.regex);
+		if (regex.multiline) {
+			return this._doFindPreviousMatchMultiline(searchStart, regex);
 		}
-		return this._doFindPreviousMatchLineByLine(searchStart, r.regex);
+		return this._doFindPreviousMatchLineByLine(searchStart, regex);
 	}
 
 	private _doFindPreviousMatchMultiline(searchStart:Position, searchRegex:RegExp): Range {
