@@ -16,7 +16,7 @@ import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions,
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
-import {IEditorContextViewService, IEditorOverrideServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
+import {IEditorContextViewService} from 'vs/editor/browser/standalone/standaloneServices';
 import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
@@ -230,34 +230,3 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		}
 	}
 }
-
-export var startup = (function() {
-
-	var modesRegistryInitialized = false;
-	var setupServicesCalled = false;
-
-	return {
-		initStaticServicesIfNecessary: function() {
-			if (modesRegistryInitialized) {
-				return;
-			}
-			modesRegistryInitialized = true;
-			getOrCreateStaticServices();
-		},
-
-		setupServices: function(services: IEditorOverrideServices): IEditorOverrideServices {
-			if (setupServicesCalled) {
-				console.error('Call to monaco.editor.setupServices is ignored because it was called before');
-				return;
-			}
-			setupServicesCalled = true;
-			if (modesRegistryInitialized) {
-				console.error('Call to monaco.editor.setupServices is ignored because other API was called before');
-				return;
-			}
-
-			return ensureStaticPlatformServices(services);
-		}
-	};
-
-})();

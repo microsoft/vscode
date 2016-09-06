@@ -10,15 +10,13 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {ContextMenuService} from 'vs/platform/contextview/browser/contextMenuService';
 import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
-import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator, IInstantiationService, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {MarkerService} from 'vs/platform/markers/common/markerService';
@@ -36,7 +34,10 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService, StandaloneCommandService} from 'vs/editor/browser/standalone/simpleServices';
+import {
+	SimpleConfigurationService, SimpleMessageService, SimpleExtensionService,
+	StandaloneKeybindingService, StandaloneCommandService, SimpleProgressService
+} from 'vs/editor/browser/standalone/simpleServices';
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
@@ -49,261 +50,159 @@ export interface IEditorContextViewService extends IContextViewService {
 }
 
 export interface IEditorOverrideServices {
-	/**
-	 * @internal
-	 */
-	compatWorkerService?: ICompatWorkerService;
-	/**
-	 * @internal
-	 */
-	modeService?: IModeService;
-	/**
-	 * @internal
-	 */
-	extensionService?:IExtensionService;
-	/**
-	 * @internal
-	 */
-	instantiationService?:IInstantiationService;
-	/**
-	 * @internal
-	 */
-	messageService?:IMessageService;
-	/**
-	 * @internal
-	 */
-	markerService?:IMarkerService;
-	/**
-	 * @internal
-	 */
-	menuService?:IMenuService;
-	/**
-	 * @internal
-	 */
-	editorService?:IEditorService;
-	/**
-	 * @internal
-	 */
-	commandService?:ICommandService;
-	/**
-	 * @internal
-	 */
-	openerService?:IOpenerService;
-	/**
-	 * @internal
-	 */
-	contextKeyService?:IContextKeyService;
-	/**
-	 * @internal
-	 */
-	keybindingService?:IKeybindingService;
-	/**
-	 * @internal
-	 */
-	contextService?:IWorkspaceContextService;
-	/**
-	 * @internal
-	 */
-	contextViewService?:IEditorContextViewService;
-	/**
-	 * @internal
-	 */
-	contextMenuService?:IContextMenuService;
-	/**
-	 * @internal
-	 */
-	telemetryService?:ITelemetryService;
-	/**
-	 * @internal
-	 */
-	eventService?:IEventService;
-	/**
-	 * @internal
-	 */
-	storageService?:IStorageService;
-	/**
-	 * @internal
-	 */
-	configurationService?:IConfigurationService;
-	/**
-	 * @internal
-	 */
-	progressService?:IProgressService;
-	/**
-	 * @internal
-	 */
-	modelService?: IModelService;
-	/**
-	 * @internal
-	 */
-	codeEditorService?: ICodeEditorService;
-	/**
-	 * @internal
-	 */
-	editorWorkerService?: IEditorWorkerService;
 }
 
-export interface IStaticServices {
-	configurationService: IConfigurationService;
-	compatWorkerService: ICompatWorkerService;
-	modeService: IModeService;
-	extensionService: IExtensionService;
-	markerService: IMarkerService;
-	contextService: IWorkspaceContextService;
-	messageService: IMessageService;
-	telemetryService: ITelemetryService;
-	modelService: IModelService;
-	codeEditorService: ICodeEditorService;
-	editorWorkerService: IEditorWorkerService;
-	eventService: IEventService;
-	storageService: IStorageService;
-	instantiationService: IInstantiationService;
-}
+export module StaticServices {
 
-function shallowClone<T>(obj:T): T {
-	let r:T = <any>{};
-	if (obj) {
-		let keys = Object.keys(obj);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let key = keys[i];
-			r[key] = obj[key];
+	const _serviceCollection = new ServiceCollection();
+
+	export class LazyStaticService<T> {
+		private _serviceId: ServiceIdentifier<T>;
+		private _factory: (overrides: IEditorOverrideServices) => T;
+		private _value: T;
+
+		public get id() { return this._serviceId; }
+
+		constructor(serviceId:ServiceIdentifier<T>, factory:(overrides: IEditorOverrideServices) => T) {
+			this._serviceId = serviceId;
+			this._factory = factory;
+			this._value = null;
 		}
-	}
-	return r;
-}
 
-export function ensureStaticPlatformServices(services: IEditorOverrideServices): IEditorOverrideServices {
-	services = shallowClone(services);
-
-	var statics = getOrCreateStaticServices(services);
-
-	let keys = Object.keys(statics);
-	for (let i = 0, len = keys.length; i < len; i++) {
-		let serviceId = keys[i];
-		if (!services.hasOwnProperty(serviceId)) {
-			services[serviceId] = statics[serviceId];
+		public get(overrides?: IEditorOverrideServices): T {
+			if (!this._value) {
+				if (overrides) {
+					this._value = overrides[this._serviceId.toString()];
+				}
+				if (!this._value) {
+					this._value = this._factory(overrides);
+				}
+				if (!this._value) {
+					throw new Error('Service ' + this._serviceId + ' is missing!');
+				}
+				_serviceCollection.set(this._serviceId, this._value);
+			}
+			return this._value;
 		}
 	}
 
-	return services;
+	let _all: LazyStaticService<any>[] = [];
+
+	function define<T>(serviceId:ServiceIdentifier<T>, factory:(overrides: IEditorOverrideServices) => T): LazyStaticService<T> {
+		let r = new LazyStaticService(serviceId, factory);
+		_all.push(r);
+		return r;
+	}
+
+	export function init(overrides: IEditorOverrideServices): [ServiceCollection, IInstantiationService] {
+		// Create a fresh service collection
+		let result = new ServiceCollection();
+
+		// Initialize the service collection with the overrides
+		for (let serviceId in overrides) {
+			if (overrides.hasOwnProperty(serviceId)) {
+				result.set(createDecorator(serviceId), overrides[serviceId]);
+			}
+		}
+
+		// Make sure the same static services are present in all service collections
+		_all.forEach(service => result.set(service.id, service.get(overrides)));
+
+		// Ensure the collection gets the correct instantiation service
+		let instantiationService = new InstantiationService(result, true);
+		result.set(IInstantiationService, instantiationService);
+
+		return [result, instantiationService];
+	}
+
+	export const instantiationService = define<IInstantiationService>(IInstantiationService, () => new InstantiationService(_serviceCollection, true));
+
+	export const contextService = define(IWorkspaceContextService, () => new WorkspaceContextService({
+		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
+	}));
+
+	export const telemetryService = define(ITelemetryService, () => NullTelemetryService);
+
+	export const eventService = define(IEventService, () => new EventService());
+
+	export const configurationService = define(IConfigurationService, () => new SimpleConfigurationService());
+
+	export const messageService = define(IMessageService, () => new SimpleMessageService());
+
+	export const extensionService = define(IExtensionService, () => new SimpleExtensionService());
+
+	export const markerService = define(IMarkerService, () => new MarkerService());
+
+	export const modeService = define(IModeService, (o) => new MainThreadModeServiceImpl(instantiationService.get(o), extensionService.get(o), configurationService.get(o)));
+
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), messageService.get(o)));
+
+	export const compatWorkerService = define(ICompatWorkerService, (o) => new MainThreadCompatWorkerService(modelService.get(o)));
+
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o)));
+
+	export const codeEditorService = define(ICodeEditorService, () => new CodeEditorServiceImpl());
+
+	export const progressService = define(IProgressService, () => new SimpleProgressService());
+
+	export const storageService = define(IStorageService, () => NullStorageService);
 }
 
 export class DynamicStandaloneServices extends Disposable {
 
-	public services: IEditorOverrideServices;
+	private _serviceCollection: ServiceCollection;
+	private _instantiationService: IInstantiationService;
 
-	constructor(domElement:HTMLElement, _services: IEditorOverrideServices) {
+	constructor(domElement:HTMLElement, overrides: IEditorOverrideServices) {
 		super();
 
-		let services: IEditorOverrideServices = {};
-		for (var serviceId in _services) {
-			services[serviceId] = _services[serviceId];
-		}
+		const [_serviceCollection, _instantiationService] = StaticServices.init(overrides);
+		this._serviceCollection = _serviceCollection;
+		this._instantiationService = _instantiationService;
 
-		const serviceCollection = new ServiceCollection();
-		services.instantiationService = new InstantiationService(serviceCollection);
+		const configurationService = this.get(IConfigurationService);
+		const extensionService = this.get(IExtensionService);
+		const messageService = this.get(IMessageService);
+		const telemetryService = this.get(ITelemetryService);
 
-		if (typeof services.contextKeyService === 'undefined') {
-			services.contextKeyService = this._register(new ContextKeyService(services.configurationService));
-		}
-
-		if (typeof services.commandService === 'undefined') {
-			services.commandService = new StandaloneCommandService(services.instantiationService, services.extensionService);
-		}
-
-		if (typeof services.keybindingService === 'undefined') {
-			services.keybindingService = this._register(new StandaloneKeybindingService(services.contextKeyService, services.commandService, services.messageService, domElement));
-		}
-
-		if (typeof services.contextViewService === 'undefined') {
-			services.contextViewService = this._register(new ContextViewService(domElement, services.telemetryService, services.messageService));
-		}
-
-		if (typeof services.contextMenuService === 'undefined') {
-			services.contextMenuService = this._register(new ContextMenuService(domElement, services.telemetryService, services.messageService, services.contextViewService));
-		}
-
-		if (typeof services.menuService === 'undefined') {
-			services.menuService = new MenuService(services.extensionService, services.commandService);
-		}
-
-		for (let serviceId in services) {
-			if (services.hasOwnProperty(serviceId)) {
-				let service = services[serviceId];
-				serviceCollection.set(createDecorator(serviceId), service);
+		let ensure = <T>(serviceId:ServiceIdentifier<T>, factory:() => T): T => {
+			let value:T = null;
+			if (overrides) {
+				value = overrides[serviceId.toString()];
 			}
+			if (!value) {
+				value = factory();
+			}
+			this._serviceCollection.set(serviceId, value);
+			return value;
+		};
+
+		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
+
+		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService, extensionService));
+
+		ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, messageService, domElement)));
+
+		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(domElement, telemetryService, messageService)));
+
+		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, messageService, contextViewService)));
+
+		ensure(IMenuService, () => new MenuService(extensionService, commandService));
+	}
+
+	public get<T>(serviceId:ServiceIdentifier<T>): T {
+		let r = <T>this._serviceCollection.get(serviceId);
+		if (!r) {
+			throw new Error('Missing service ' + serviceId);
 		}
+		return r;
+	}
 
-		this.services = services;
+	public set<T>(serviceId:ServiceIdentifier<T>, instance: T): void {
+		this._serviceCollection.set(serviceId, instance);
+	}
+
+	public has<T>(serviceId:ServiceIdentifier<T>): boolean {
+		return this._serviceCollection.has(serviceId);
 	}
 }
-
-// The static services represents a map of services that once 1 editor has been created must be used for all subsequent editors
-var staticServices: IStaticServices = null;
-export function getOrCreateStaticServices(services?: IEditorOverrideServices): IStaticServices {
-	if (staticServices) {
-		return staticServices;
-	}
-	services = services || {};
-
-	let serviceCollection = new ServiceCollection();
-	const instantiationService = new InstantiationService(serviceCollection, true);
-
-	let contextService = services.contextService || new WorkspaceContextService({
-		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' })
-	});
-	serviceCollection.set(IWorkspaceContextService, contextService);
-
-	let telemetryService = services.telemetryService || NullTelemetryService;
-	serviceCollection.set(ITelemetryService, telemetryService);
-
-	let eventService = services.eventService || new EventService();
-	serviceCollection.set(IEventService, eventService);
-
-	let configurationService = services.configurationService || new SimpleConfigurationService();
-	serviceCollection.set(IConfigurationService, configurationService);
-
-	let messageService = services.messageService || new SimpleMessageService();
-	serviceCollection.set(IMessageService, messageService);
-
-	let extensionService = services.extensionService || new SimpleExtensionService();
-	serviceCollection.set(IExtensionService, extensionService);
-
-	let markerService = services.markerService || new MarkerService();
-	serviceCollection.set(IMarkerService, markerService);
-
-	let modeService = services.modeService || new MainThreadModeServiceImpl(instantiationService, extensionService, configurationService);
-	serviceCollection.set(IModeService, modeService);
-
-	let modelService = services.modelService || new ModelServiceImpl(markerService, configurationService, messageService);
-	serviceCollection.set(IModelService, modelService);
-
-	let compatWorkerService = services.compatWorkerService || new MainThreadCompatWorkerService(modelService);
-	serviceCollection.set(ICompatWorkerService, compatWorkerService);
-
-	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
-	serviceCollection.set(IEditorWorkerService, editorWorkerService);
-
-	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
-	serviceCollection.set(ICodeEditorService, codeEditorService);
-
-	staticServices = {
-		configurationService: configurationService,
-		extensionService: extensionService,
-		compatWorkerService: compatWorkerService,
-		modeService: modeService,
-		markerService: markerService,
-		contextService: contextService,
-		telemetryService: telemetryService,
-		messageService: messageService,
-		modelService: modelService,
-		codeEditorService: codeEditorService,
-		editorWorkerService: editorWorkerService,
-		eventService: eventService,
-		storageService: services.storageService || NullStorageService,
-		instantiationService: instantiationService
-	};
-
-	return staticServices;
-}
-

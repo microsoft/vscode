@@ -26,6 +26,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {getDefaultValues as getDefaultConfiguration} from 'vs/platform/configuration/common/model';
 import {CommandService} from 'vs/platform/commands/common/commandService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 
 export class SimpleEditor implements IEditor {
 
@@ -161,6 +162,26 @@ export class SimpleEditorService implements IEditorService {
 		}
 
 		return TPromise.as(new SimpleModel(model));
+	}
+}
+
+export class SimpleProgressService implements IProgressService {
+	_serviceBrand: any;
+
+	private static NULL_PROGRESS_RUNNER:IProgressRunner = {
+		done: () => {},
+		total: () => {},
+		worked: () => {}
+	};
+
+	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(total: number, delay?: number): IProgressRunner;
+	show(): IProgressRunner {
+		return SimpleProgressService.NULL_PROGRESS_RUNNER;
+	}
+
+	showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
+		return null;
 	}
 }
 
