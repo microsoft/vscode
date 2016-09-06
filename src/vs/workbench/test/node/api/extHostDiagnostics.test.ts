@@ -159,6 +159,35 @@ suite('ExtHostDiagnostics', () => {
 		collection.dispose();
 	});
 
+	test('diagnostics collection, set tuple overrides, #11547', function () {
+
+		let lastEntries: [URI, IMarkerData[]][];
+		let collection = new DiagnosticCollection('test', new class extends DiagnosticsShape {
+			$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
+				lastEntries = entries;
+				return super.$changeMany(owner, entries);
+			}
+		});
+		let uri = URI.parse('sc:hightower');
+
+		collection.set([[uri, [new Diagnostic(new Range(0, 0, 1, 1), 'error')]]]);
+		assert.equal(collection.get(uri).length, 1);
+		assert.equal(collection.get(uri)[0].message, 'error');
+		assert.equal(lastEntries.length, 1);
+		let [[, data1]] = lastEntries;
+		assert.equal(data1.length, 1);
+		assert.equal(data1[0].message, 'error');
+		lastEntries = undefined;
+
+		collection.set([[uri, [new Diagnostic(new Range(0, 0, 1, 1), 'warning')]]]);
+		assert.equal(collection.get(uri).length, 1);
+		assert.equal(collection.get(uri)[0].message, 'warning');
+		assert.equal(lastEntries.length, 1);
+		let [[, data2]] = lastEntries;
+		assert.equal(data2.length, 1);
+		assert.equal(data2[0].message, 'warning');
+		lastEntries = undefined;
+	});
 
 	test('diagnostic capping', function () {
 
