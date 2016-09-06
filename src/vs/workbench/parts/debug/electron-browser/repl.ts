@@ -120,8 +120,12 @@ export class Repl extends Panel implements IPrivateReplService {
 
 			this.refreshTimeoutHandle = setTimeout(() => {
 				this.refreshTimeoutHandle = null;
+				const previousScrollPosition = this.tree.getScrollPosition();
 				this.tree.refresh().then(() => {
-					this.tree.setScrollPosition(1);
+					if (previousScrollPosition === 1) {
+						// Only scroll if we were scrolled all the way down before tree refreshed #10486
+						this.tree.setScrollPosition(1);
+					}
 
 					// If the last repl element has children - auto expand it #6019
 					const elements = this.debugService.getModel().getReplElements();
