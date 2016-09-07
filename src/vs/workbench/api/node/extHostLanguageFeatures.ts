@@ -13,7 +13,7 @@ import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {Range, Disposable, CompletionList, CompletionItem} from 'vs/workbench/api/node/extHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {ExtHostHeapMonitor} from 'vs/workbench/api/node/extHostHeapMonitor';
+import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
@@ -501,13 +501,13 @@ class RenameAdapter {
 class SuggestAdapter {
 
 	private _documents: ExtHostDocuments;
-	private _heapMonitor: ExtHostHeapMonitor;
+	private _heapService: ExtHostHeapService;
 	private _provider: vscode.CompletionItemProvider;
 	private _disposables: { [id: number]: IDisposable[] } = [];
 
-	constructor(documents: ExtHostDocuments, heapMonitor: ExtHostHeapMonitor, provider: vscode.CompletionItemProvider) {
+	constructor(documents: ExtHostDocuments, heapMonitor: ExtHostHeapService, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
-		this._heapMonitor = heapMonitor;
+		this._heapService = heapMonitor;
 		this._provider = provider;
 	}
 
@@ -545,7 +545,7 @@ class SuggestAdapter {
 				const item = list.items[i];
 				const disposables: IDisposable[] = [];
 				const suggestion = TypeConverters.Suggest.from(item, disposables);
-				const id = this._heapMonitor.keep(item, () => dispose(this._disposables[id]));
+				const id = this._heapService.keep(item, () => dispose(this._disposables[id]));
 				this._disposables[id] = disposables;
 				ObjectIdentifier.mixin(suggestion, id);
 
@@ -586,7 +586,7 @@ class SuggestAdapter {
 		}
 
 		const id = ObjectIdentifier.get(suggestion);
-		const item = this._heapMonitor.get<CompletionItem>(id);
+		const item = this._heapService.get<CompletionItem>(id);
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
@@ -662,7 +662,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
-	private _heapMonitor: ExtHostHeapMonitor;
+	private _heapMonitor: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter: { [handle: number]: Adapter } = Object.create(null);
 
@@ -670,7 +670,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		threadService: IThreadService,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
-		heapMonitor: ExtHostHeapMonitor,
+		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics
 	) {
 		super();
