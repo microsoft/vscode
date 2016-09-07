@@ -12,7 +12,7 @@ import network = require('vs/base/common/network');
 import editorCommon = require('vs/editor/common/editorCommon');
 import modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
-import {IResourceService} from 'vs/editor/common/services/resourceService';
+import {IResourceService, ICompatMirrorModel} from 'vs/editor/common/services/resourceService';
 import {getScanner, IHTMLScanner} from 'vs/languages/html/common/htmlScanner';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
@@ -520,11 +520,10 @@ export class HTMLWorker {
 		};
 	}
 
-	private _computeHTMLLinks(model: editorCommon.IMirrorModel, workspaceResource:URI): modes.ILink[] {
+	private _computeHTMLLinks(model: ICompatMirrorModel, modelAbsoluteUrl:URI, workspaceResource:URI): modes.ILink[] {
 		let lineCount = model.getLineCount(),
 			newLinks: modes.ILink[] = [],
 			state: LinkDetectionState = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC,
-			modelAbsoluteUrl = model.uri,
 			lineNumber: number,
 			lineContent: string,
 			lineContentLength: number,
@@ -600,7 +599,7 @@ export class HTMLWorker {
 
 	public provideLinks(resource: URI, workspaceResource:URI): winjs.TPromise<modes.ILink[]> {
 		let model = this.resourceService.get(resource);
-		return winjs.TPromise.as(this._computeHTMLLinks(model, workspaceResource));
+		return winjs.TPromise.as(this._computeHTMLLinks(model, resource, workspaceResource));
 	}
 }
 

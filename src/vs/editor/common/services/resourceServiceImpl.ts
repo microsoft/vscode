@@ -5,22 +5,21 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {IMirrorModel} from 'vs/editor/common/editorCommon';
-import {IResourceService} from 'vs/editor/common/services/resourceService';
+import {IResourceService, ICompatMirrorModel} from 'vs/editor/common/services/resourceService';
 
-class MirrorModelMap {
+class CompatMirrorModelMap {
 
-	private _data: {[key:string]:IMirrorModel};
+	private _data: {[key:string]:ICompatMirrorModel};
 
 	constructor() {
 		this._data = {};
 	}
 
-	public set(key:string, data:IMirrorModel): void {
+	public set(key:string, data:ICompatMirrorModel): void {
 		this._data[key] = data;
 	}
 
-	public get(key:string): IMirrorModel {
+	public get(key:string): ICompatMirrorModel {
 		return this._data[key] || null;
 	}
 
@@ -36,10 +35,10 @@ class MirrorModelMap {
 export class ResourceService implements IResourceService {
 	public _serviceBrand: any;
 
-	private _map:MirrorModelMap;
+	private _map:CompatMirrorModelMap;
 
 	constructor() {
-		this._map = new MirrorModelMap();
+		this._map = new CompatMirrorModelMap();
 	}
 
 	private static _anonymousModelId(input:string): string {
@@ -63,7 +62,7 @@ export class ResourceService implements IResourceService {
 		return r;
 	}
 
-	public insert(uri:URI, element:IMirrorModel): void {
+	public insert(uri:URI, element:ICompatMirrorModel): void {
 		let key = uri.toString();
 
 		if (this._map.contains(key)) {
@@ -73,7 +72,7 @@ export class ResourceService implements IResourceService {
 		this._map.set(key, element);
 	}
 
-	public get(uri:URI):IMirrorModel {
+	public get(uri:URI):ICompatMirrorModel {
 		let key = uri.toString();
 
 		return this._map.get(key);

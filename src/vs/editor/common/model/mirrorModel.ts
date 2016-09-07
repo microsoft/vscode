@@ -11,6 +11,7 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
+import {ICompatMirrorModel} from 'vs/editor/common/services/resourceService';
 
 export interface IMirrorModelEvents {
 	contentChanged: editorCommon.IModelContentChangedEvent[];
@@ -18,7 +19,7 @@ export interface IMirrorModelEvents {
 
 const NO_TAB_SIZE = 0;
 
-export class AbstractMirrorModel extends TextModelWithTokens implements editorCommon.IMirrorModel {
+export class AbstractMirrorModel extends TextModelWithTokens implements ICompatMirrorModel {
 
 	_associatedResource:URI;
 
@@ -74,7 +75,7 @@ export function createTestMirrorModelFromString(value:string, mode:IMode = null,
 	return new MirrorModel(0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
 }
 
-export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMirrorModel {
+export class MirrorModel extends AbstractMirrorModel implements ICompatMirrorModel {
 
 	constructor(versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
 		super(['changed'], versionId, value, mode, associatedResource);
