@@ -13,19 +13,19 @@
       "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.5.tgz"
     },
     "vscode-jsonrpc": {
-      "version": "2.2.0",
-      "from": "vscode-jsonrpc@>=2.2.0 <3.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-2.2.0.tgz"
+      "version": "2.3.2-next.5",
+      "from": "vscode-jsonrpc@>=2.3.2-next.2 <3.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-2.3.2-next.5.tgz"
     },
     "vscode-languageclient": {
-      "version": "2.4.2-next.3",
+      "version": "2.4.2-next.21",
       "from": "vscode-languageclient@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-2.4.2-next.3.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-2.4.2-next.21.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "1.0.1",
-      "from": "vscode-languageserver-types@>=1.0.0 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-1.0.1.tgz"
+      "version": "1.0.3",
+      "from": "vscode-languageserver-types@>=1.0.3 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-1.0.3.tgz"
     },
     "vscode-nls": {
       "version": "1.0.7",
