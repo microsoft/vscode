@@ -12,7 +12,7 @@ import strings = require('vs/base/common/strings');
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {ConfirmResult} from 'vs/workbench/common/editor';
-import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/common/textFileServices';
+import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/common/textFileService';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
