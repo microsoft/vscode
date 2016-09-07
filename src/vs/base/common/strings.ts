@@ -174,14 +174,21 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-export function createRegExp(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, global:boolean): RegExp {
+export interface RegExpOptions {
+	matchCase?: boolean;
+	wholeWord?: boolean;
+	multiline?: boolean;
+	global?: boolean;
+}
+
+export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
 	if (searchString === '') {
 		throw new Error('Cannot create regex from empty string');
 	}
 	if (!isRegex) {
 		searchString = searchString.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
 	}
-	if (wholeWord) {
+	if (options.wholeWord) {
 		if (!/\B/.test(searchString.charAt(0))) {
 			searchString = '\\b' + searchString;
 		}
@@ -190,11 +197,14 @@ export function createRegExp(searchString: string, isRegex: boolean, matchCase: 
 		}
 	}
 	let modifiers = '';
-	if (global) {
+	if (options.global) {
 		modifiers += 'g';
 	}
-	if (!matchCase) {
+	if (!options.matchCase) {
 		modifiers += 'i';
+	}
+	if (options.multiline) {
+		modifiers += 'm';
 	}
 
 	return new RegExp(searchString, modifiers);

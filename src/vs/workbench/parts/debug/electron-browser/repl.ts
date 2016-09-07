@@ -63,6 +63,8 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private static HISTORY: replhistory.ReplHistory;
 	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
+	private static REPL_INPUT_INITIAL_HEIGHT = 22;
+	private static REPL_INPUT_MAX_HEIGHT = 170;
 
 	private toDispose: lifecycle.IDisposable[];
 	private tree: tree.ITree;
@@ -74,6 +76,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private refreshTimeoutHandle: number;
 	private actions: actions.IAction[];
 	private dimension: builder.Dimension;
+	private replInputHeight: number;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -90,6 +93,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	) {
 		super(debug.REPL_ID, telemetryService);
 
+		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.toDispose = [];
 		this.registerListeners();
 	}
@@ -120,8 +124,12 @@ export class Repl extends Panel implements IPrivateReplService {
 
 			this.refreshTimeoutHandle = setTimeout(() => {
 				this.refreshTimeoutHandle = null;
+				const previousScrollPosition = this.tree.getScrollPosition();
 				this.tree.refresh().then(() => {
-					this.tree.setScrollPosition(1);
+					if (previousScrollPosition === 1) {
+						// Only scroll if we were scrolled all the way down before tree refreshed #10486
+						this.tree.setScrollPosition(1);
+					}
 
 					// If the last repl element has children - auto expand it #6019
 					const elements = this.debugService.getModel().getReplElements();
@@ -140,6 +148,31 @@ export class Repl extends Panel implements IPrivateReplService {
 		super.create(parent);
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
 		this.treeContainer = dom.append(container, $('.repl-tree'));
+		this.createReplInput(container);
+
+		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
+		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
+		for (let i = 0; i < 10; i++) {
+			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
+		}
+		this.characterWidthSurveyor.style.fontSize = platform.isMacintosh ? '12px' : '14px';
+
+		this.renderer = this.instantiationService.createInstance(viewer.ReplExpressionsRenderer);
+		this.tree = new treeimpl.Tree(this.treeContainer, {
+			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
+			renderer: this.renderer,
+			accessibilityProvider: new viewer.ReplExpressionsAccessibilityProvider(),
+			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
+		}, replTreeOptions);
+
+		if (!Repl.HISTORY) {
+			Repl.HISTORY = new replhistory.ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
+		}
+
+		return this.tree.setInput(this.debugService.getModel());
+	}
+
+	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
@@ -174,7 +207,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			if (!e.scrollHeightChanged) {
 				return;
 			}
-			this.layout(this.dimension, Math.min(170, e.scrollHeight));
+			this.replInputHeight = Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height);
+			this.layout(this.dimension);
 		}));
 		this.toDispose.push(this.replInput.onDidChangeCursorPosition(e => {
 			onFirstReplLine.set(e.position.lineNumber === 1);
@@ -183,27 +217,6 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
 		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
-
-		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
-		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
-		for (let i = 0; i < 10; i++) {
-			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
-		}
-		this.characterWidthSurveyor.style.fontSize = platform.isMacintosh ? '12px' : '14px';
-
-		this.renderer = this.instantiationService.createInstance(viewer.ReplExpressionsRenderer);
-		this.tree = new treeimpl.Tree(this.treeContainer, {
-			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
-			renderer: this.renderer,
-			accessibilityProvider: new viewer.ReplExpressionsAccessibilityProvider(),
-			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
-		}, replTreeOptions);
-
-		if (!Repl.HISTORY) {
-			Repl.HISTORY = new replhistory.ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
-		}
-
-		return this.tree.setInput(this.debugService.getModel());
 	}
 
 	public navigateHistory(previous: boolean): void {
@@ -221,20 +234,21 @@ export class Repl extends Panel implements IPrivateReplService {
 		Repl.HISTORY.evaluated(this.replInput.getValue());
 		this.replInput.setValue('');
 		// Trigger a layout to shrink a potential multi line input
+		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.layout(this.dimension);
 	}
 
-	public layout(dimension: builder.Dimension, replInputHeight = 22): void {
+	public layout(dimension: builder.Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
 			this.renderer.setWidth(dimension.width - 25, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
-			const treeHeight = dimension.height - replInputHeight;
+			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight);
 		}
-		this.replInputContainer.style.height = `${replInputHeight}px`;
+		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
-		this.replInput.layout({ width: dimension.width - 20, height: replInputHeight });
+		this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
 	}
 
 	public focus(): void {

@@ -582,7 +582,7 @@ export class VariablesDataSource implements tree.IDataSource {
 		}
 
 		let variable = <model.Variable>element;
-		return variable.reference !== 0 && !strings.equalsIgnoreCase(variable.value, 'null');
+		return variable.reference !== 0 && variable.value && !strings.equalsIgnoreCase(variable.value, 'null');
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {

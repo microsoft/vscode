@@ -555,6 +555,13 @@ export class Workbench implements IPartService {
 	public setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.panelHidden = hidden;
 
+		// Adjust CSS
+		if (hidden) {
+			this.workbench.addClass('nopanel');
+		} else {
+			this.workbench.removeClass('nopanel');
+		}
+
 		// Layout
 		if (!skipLayout) {
 			this.workbenchLayout.layout(true);
@@ -712,6 +719,9 @@ export class Workbench implements IPartService {
 		// Apply sidebar state as CSS class
 		if (this.sideBarHidden) {
 			this.workbench.addClass('nosidebar');
+		}
+		if (this.panelHidden) {
+			this.workbench.addClass('nopanel');
 		}
 
 		// Apply no-workspace state as CSS class

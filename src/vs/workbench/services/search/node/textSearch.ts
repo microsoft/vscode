@@ -45,7 +45,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.rootFolders = config.rootFolders;
 		this.extraFiles = config.extraFiles;
 		this.walker = walker;
-		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, config.contentPattern.isCaseSensitive, config.contentPattern.isWordMatch, true);
+		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, {matchCase: config.contentPattern.isCaseSensitive, wholeWord: config.contentPattern.isWordMatch, multiline: false, global: true});
 		this.isCanceled = false;
 		this.limitReached = false;
 		this.maxResults = config.maxResults;

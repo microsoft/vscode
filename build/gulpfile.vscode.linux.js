@@ -77,7 +77,7 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	const debArch = getDebPackageArch(arch);
 	return shell.task([
-		'chmod 755 ' + product.applicationName + '-' + debArch + '/DEBIAN/postinst ' + product.applicationName + '-' + debArch + '/DEBIAN/prerm',
+		'chmod 755 ' + product.applicationName + '-' + debArch + '/DEBIAN/postinst ' + product.applicationName + '-' + debArch + '/DEBIAN/prerm ' + product.applicationName + '-' + debArch + '/DEBIAN/postrm',
 		'mkdir -p deb',
 		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
