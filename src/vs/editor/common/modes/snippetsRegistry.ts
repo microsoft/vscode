@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {localize} from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import {ISuggestion} from 'vs/editor/common/modes';
@@ -28,15 +29,20 @@ export interface ISnippetsRegistry {
 	/**
 	 * Get all snippet completions for the given position
 	 */
-	getSnippetCompletions(model: IReadOnlyModel, position: IPosition, result: ISuggestion[]): void;
+	getSnippetCompletions(model: IReadOnlyModel, position: IPosition): ISuggestion[];
 
 }
 
 export interface ISnippet {
+	name: string;
 	owner: string;
 	prefix: string;
 	description: string;
 	codeSnippet: string;
+}
+
+interface ISnippetSuggestion extends ISuggestion {
+	disambiguateLabel: string;
 }
 
 class SnippetsRegistry implements ISnippetsRegistry {
@@ -63,11 +69,14 @@ class SnippetsRegistry implements ISnippetsRegistry {
 		}
 	}
 
-	public getSnippetCompletions(model: IReadOnlyModel, position: IPosition, result: ISuggestion[]): void {
+	public getSnippetCompletions(model: IReadOnlyModel, position: IPosition): ISuggestion[] {
 		const modeId = model.getModeId();
 		if (!this._snippets[modeId]) {
 			return;
 		}
+
+		const result: ISnippetSuggestion[] = [];
+
 		const word = model.getWordAtPosition(position);
 		const currentWord = word ? word.word.substring(0, position.column - word.startColumn).toLowerCase() : '';
 		const currentFullWord = getNonWhitespacePrefix(model, position).toLowerCase();
@@ -89,22 +98,38 @@ class SnippetsRegistry implements ISnippetsRegistry {
 				}
 			}
 
-			const suggestion: ISuggestion = {
+			// store in result
+			result.push({
 				type: 'snippet',
 				label: s.prefix,
+				get disambiguateLabel() { return localize('snippetSuggest.longLabel', "{0} - {1}", s.prefix, s.name); },
 				detail: s.owner,
 				documentation: s.description,
 				insertText: s.codeSnippet,
 				noAutoAccept: true,
 				isTMSnippet: true,
 				overwriteBefore
-			};
-
-			// store in result
-			result.push(suggestion);
+			});
 
 			return true;
 		});
+
+		// dismbiguate suggestions with same labels
+		let lastSuggestion: ISnippetSuggestion;
+		for (const suggestion of result.sort(SnippetsRegistry._compareSuggestionsByLabel)) {
+			if (lastSuggestion && lastSuggestion.label === suggestion.label) {
+				// use the disambiguateLabel instead of the actual label
+				lastSuggestion.label = lastSuggestion.disambiguateLabel;
+				suggestion.label = suggestion.disambiguateLabel;
+			}
+			lastSuggestion = suggestion;
+		}
+
+		return result;
+	}
+
+	private static _compareSuggestionsByLabel(a: ISuggestion, b: ISuggestion): number{
+		return strings.compare(a.label, b.label);
 	}
 }
 

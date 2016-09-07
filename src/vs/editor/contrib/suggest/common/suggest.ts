@@ -43,10 +43,10 @@ export const snippetSuggestSupport: ISuggestSupport = {
 	triggerCharacters: [],
 
 	provideCompletionItems(model: IReadOnlyModel, position: Position): ISuggestResult {
-		// currentWord is irrelevant, all suggestion use overwriteBefore
-		const result: ISuggestResult = { suggestions: [], currentWord: '' };
-		Registry.as<ISnippetsRegistry>(Extensions.Snippets).getSnippetCompletions(model, position, result.suggestions);
-		return result;
+		const suggestions = Registry.as<ISnippetsRegistry>(Extensions.Snippets).getSnippetCompletions(model, position);
+		if (suggestions) {
+			return { suggestions, currentWord: '' };
+		}
 	}
 };
 
