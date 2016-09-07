@@ -48,29 +48,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 		return this._associatedResource;
 	}
 
-	public getAllWordsWithRange(): editorCommon.IRangeWithText[] {
-		if (this._lines.length > 10000) {
-			// This is a very heavy method, unavailable for very heavy models
-			return [];
-		}
-
-		var result:editorCommon.IRangeWithText[] = [],
-			i:number;
-
-		var toTextRange = function (info: editorCommon.IWordRange) {
-			var s = line.text.substring(info.start, info.end);
-			var r = { startLineNumber: i + 1, startColumn: info.start + 1, endLineNumber: i + 1, endColumn: info.end + 1 };
-			result.push({ text: s, range: r});
-		};
-
-		for(i = 0; i < this._lines.length; i++) {
-			var line = this._lines[i];
-			this.wordenize(line.text).forEach(toTextRange);
-		}
-
-		return result;
-	}
-
 	public getAllWords(): string[] {
 		var result:string[] = [];
 		this._lines.forEach((line) => {
