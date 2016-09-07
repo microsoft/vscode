@@ -47,6 +47,10 @@ export interface IWebWorkerOptions {
 	 * The data to send over when calling create on the module.
 	 */
 	createData?: any;
+	/**
+	 * A label to be used to identify the web worker for debugging purposes.
+	 */
+	label?: string;
 }
 
 class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
@@ -56,7 +60,7 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 	private _foreignProxy: TPromise<T>;
 
 	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
-		super(modelService);
+		super(modelService, opts.label);
 		this._foreignModuleId = opts.moduleId;
 		this._foreignModuleCreateData = opts.createData || null;
 		this._foreignProxy = null;

@@ -858,6 +858,10 @@ declare module monaco.editor {
          * The data to send over when calling create on the module.
          */
         createData?: any;
+        /**
+         * A label to be used to identify the web worker for debugging purposes.
+         */
+        label?: string;
     }
 
     /**
