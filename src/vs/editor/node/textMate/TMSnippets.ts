@@ -90,13 +90,13 @@ export function readAndRegisterSnippets(modeId: string, filePath: string, ownerN
 	});
 }
 
-function parseSnippetFile(snippetFileContent: string, ownerName: string): ISnippet[] {
+function parseSnippetFile(snippetFileContent: string, owner: string): ISnippet[] {
 	let snippetsObj = parse(snippetFileContent);
 
 	let topLevelProperties = Object.keys(snippetsObj);
 	let result: ISnippet[] = [];
 
-	let processSnippet = (snippet: any, description: string) => {
+	let processSnippet = (snippet: any, name: string) => {
 		let prefix = snippet['prefix'];
 		let bodyStringOrArray = snippet['body'];
 
@@ -106,9 +106,10 @@ function parseSnippetFile(snippetFileContent: string, ownerName: string): ISnipp
 
 		if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
 			result.push({
-				owner: ownerName,
+				name,
+				owner,
 				prefix,
-				description: snippet['description'] || description,
+				description: snippet['description'] || name,
 				codeSnippet: bodyStringOrArray
 			});
 		}
