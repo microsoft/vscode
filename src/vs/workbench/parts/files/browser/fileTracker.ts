@@ -12,7 +12,6 @@ import paths = require('vs/base/common/paths');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, BINARY_FILE_EDITOR_ID, ITextFileService, ModelState} from 'vs/workbench/parts/files/common/files';
@@ -36,8 +35,6 @@ export class FileTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 
-	private activeOutOfWorkspaceWatchers: { [resource: string]: boolean; };
-
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
@@ -51,7 +48,6 @@ export class FileTracker implements IWorkbenchContribution {
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
-		this.activeOutOfWorkspaceWatchers = Object.create(null);
 
 		this.registerListeners();
 	}
@@ -63,7 +59,6 @@ export class FileTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Update editors and inputs from local changes and saves
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
 
 		// Update editors and inputs from disk changes
@@ -72,12 +67,6 @@ export class FileTracker implements IWorkbenchContribution {
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
-
-	private onEditorsChanged(): void {
-		this.handleOutOfWorkspaceWatchers();
-	}
-
-
 
 	// Note: there is some duplication with the other file event handler below. Since we cannot always rely on the disk events
 	// carrying all necessary data in all environments, we also use the local file events to make sure operations are handled.
@@ -303,39 +292,7 @@ export class FileTracker implements IWorkbenchContribution {
 		return false;
 	}
 
-	private handleOutOfWorkspaceWatchers(): void {
-		const visibleOutOfWorkspaceResources = this.editorService.getVisibleEditors().map(editor => {
-			return asFileEditorInput(editor.input, true);
-		}).filter(input => {
-			return !!input && !this.contextService.isInsideWorkspace(input.getResource());
-		}).map(input => {
-			return input.getResource().toString();
-		});
-
-		// Handle no longer visible out of workspace resources
-		Object.keys(this.activeOutOfWorkspaceWatchers).forEach(watchedResource => {
-			if (visibleOutOfWorkspaceResources.indexOf(watchedResource) < 0) {
-				this.fileService.unwatchFileChanges(watchedResource);
-				delete this.activeOutOfWorkspaceWatchers[watchedResource];
-			}
-		});
-
-		// Handle newly visible out of workspace resources
-		visibleOutOfWorkspaceResources.forEach(resourceToWatch => {
-			if (!this.activeOutOfWorkspaceWatchers[resourceToWatch]) {
-				this.fileService.watchFileChanges(URI.parse(resourceToWatch));
-				this.activeOutOfWorkspaceWatchers[resourceToWatch] = true;
-			}
-		});
-	}
-
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
-
-		// Dispose watchers if any
-		for (const key in this.activeOutOfWorkspaceWatchers) {
-			this.fileService.unwatchFileChanges(key);
-		}
-		this.activeOutOfWorkspaceWatchers = Object.create(null);
 	}
 }
