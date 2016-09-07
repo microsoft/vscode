@@ -213,16 +213,16 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Position(out.index + 1, Math.min(out.remainder + 1, lineLength + 1));
 	}
 
-	_increaseVersionId(): void {
+	protected _increaseVersionId(): void {
 		this._setVersionId(this._versionId + 1);
 	}
 
-	_setVersionId(newVersionId:number): void {
+	protected _setVersionId(newVersionId:number): void {
 		this._versionId = newVersionId;
 		this._alternativeVersionId = this._versionId;
 	}
 
-	_overwriteAlternativeVersionId(newAlternativeVersionId:number): void {
+	protected _overwriteAlternativeVersionId(newAlternativeVersionId:number): void {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}
 
@@ -240,7 +240,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		super.dispose();
 	}
 
-	_createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
+	protected _createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedFlush,
 			detail: null,
@@ -266,7 +266,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
+	protected _resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		this._constructLines(newValue);
 
 		this._increaseVersionId();
@@ -636,7 +636,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	_emitModelContentChangedFlushEvent(e:editorCommon.IModelContentChangedFlushEvent): void {
+	protected _emitModelContentChangedFlushEvent(e:editorCommon.IModelContentChangedFlushEvent): void {
 		if (!this._isDisposing) {
 			this.emit(editorCommon.EventType.ModelRawContentChanged, e);
 		}
@@ -700,7 +700,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	_constructLines(rawText:editorCommon.IRawText): void {
+	protected _constructLines(rawText:editorCommon.IRawText): void {
 		const tabSize = rawText.options.tabSize;
 		let rawLines = rawText.lines;
 		let modelLines: ModelLine[] = [];
