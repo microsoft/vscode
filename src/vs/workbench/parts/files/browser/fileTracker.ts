@@ -6,26 +6,21 @@
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
-import nls = require('vs/nls');
 import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, IEditorStacksModel} from 'vs/workbench/common/editor';
-import {Position} from 'vs/platform/editor/common/editor';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, BINARY_FILE_EDITOR_ID, ITextFileService, ModelState} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -38,31 +33,24 @@ export class FileTracker implements IWorkbenchContribution {
 	// This reduces the chance that a save from the client triggers an update of the editor.
 	private static FILE_CHANGE_UPDATE_DELAY = 2000;
 
-	private lastDirtyCount: number;
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 
 	private activeOutOfWorkspaceWatchers: { [resource: string]: boolean; };
 
-	private pendingDirtyResources: URI[];
-	private pendingDirtyHandle: number;
-
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IActivityService private activityService: IActivityService,
 		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IHistoryService private historyService: IHistoryService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
-		this.pendingDirtyResources = [];
 		this.activeOutOfWorkspaceWatchers = Object.create(null);
 
 		this.registerListeners();
@@ -76,11 +64,6 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Update editors and inputs from local changes and saves
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
 		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
 
 		// Update editors and inputs from disk changes
@@ -94,76 +77,7 @@ export class FileTracker implements IWorkbenchContribution {
 		this.handleOutOfWorkspaceWatchers();
 	}
 
-	private onTextFileDirty(e: TextFileChangeEvent): void {
-		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
-			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
-		}
 
-		// If a file becomes dirty but is not opened, we open it in the background
-		// Since it might be the intent of whoever created the model to show it shortly
-		// after, we delay this a little bit and check again if the editor has not been
-		// opened meanwhile
-		this.pendingDirtyResources.push(e.resource);
-		if (!this.pendingDirtyHandle) {
-			this.pendingDirtyHandle = setTimeout(() => this.doOpenDirtyResources(), 250);
-		}
-	}
-
-	private doOpenDirtyResources(): void {
-		const dirtyNotOpenedResources = arrays.distinct(this.pendingDirtyResources.filter(r => !this.stacks.isOpen(r) && this.textFileService.isDirty(r)), r => r.toString());
-
-		// Reset
-		this.pendingDirtyHandle = void 0;
-		this.pendingDirtyResources = [];
-
-		const activeEditor = this.editorService.getActiveEditor();
-		const activePosition = activeEditor ? activeEditor.position : Position.LEFT;
-
-		// Open
-		this.editorService.openEditors(dirtyNotOpenedResources.map(resource => {
-			return {
-				input: {
-					resource,
-					options: { inactive: true, pinned: true, preserveFocus: true }
-				},
-				position: activePosition
-			};
-		})).done(null, errors.onUnexpectedError);
-	}
-
-	private onTextFileSaveError(e: TextFileChangeEvent): void {
-		this.updateActivityBadge();
-	}
-
-	private onTextFileSaved(e: TextFileChangeEvent): void {
-		if (this.lastDirtyCount > 0) {
-			this.updateActivityBadge();
-		}
-	}
-
-	private onTextFileReverted(e: TextFileChangeEvent): void {
-		if (this.lastDirtyCount > 0) {
-			this.updateActivityBadge();
-		}
-	}
-
-	private onUntitledDidChangeDirty(resource: URI): void {
-		const gotDirty = this.untitledEditorService.isDirty(resource);
-
-		if (gotDirty || this.lastDirtyCount > 0) {
-			this.updateActivityBadge();
-		}
-	}
-
-	private updateActivityBadge(): void {
-		const dirtyCount = this.textFileService.getDirty().length;
-		this.lastDirtyCount = dirtyCount;
-		if (dirtyCount > 0) {
-			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
-		} else {
-			this.activityService.clearActivity(VIEWLET_ID);
-		}
-	}
 
 	// Note: there is some duplication with the other file event handler below. Since we cannot always rely on the disk events
 	// carrying all necessary data in all environments, we also use the local file events to make sure operations are handled.
