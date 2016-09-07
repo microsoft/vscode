@@ -1948,6 +1948,48 @@ declare module monaco.editor {
          * Returns iff the model was disposed or not.
          */
         isDisposed(): boolean;
+        /**
+         * Search the model.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @param limitResultCount Limit the number of results
+         * @return The ranges where the matches are. It is empty if not matches have been found.
+         */
+        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+        /**
+         * Search the model.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchScope Limit the searching to only search inside this range.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @param limitResultCount Limit the number of results
+         * @return The ranges where the matches are. It is empty if no matches have been found.
+         */
+        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+        /**
+         * Search the model for the next match. Loops to the beginning of the model if needed.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchStart Start the searching at the specified position.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @return The range where the next match is. It is null if no next match has been found.
+         */
+        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
+        /**
+         * Search the model for the previous match. Loops to the end of the model if needed.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchStart Start the searching at the specified position.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @return The range where the previous match is. It is null if no previous match has been found.
+         */
+        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
     }
 
     export interface IReadOnlyModel extends ITextModel {
@@ -2163,48 +2205,6 @@ declare module monaco.editor {
          * and make all necessary clean-up to release this object to the GC.
          */
         dispose(): void;
-        /**
-         * Search the model.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @param limitResultCount Limit the number of results
-         * @return The ranges where the matches are. It is empty if not matches have been found.
-         */
-        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
-        /**
-         * Search the model.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchScope Limit the searching to only search inside this range.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @param limitResultCount Limit the number of results
-         * @return The ranges where the matches are. It is empty if no matches have been found.
-         */
-        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
-        /**
-         * Search the model for the next match. Loops to the beginning of the model if needed.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchStart Start the searching at the specified position.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @return The range where the next match is. It is null if no next match has been found.
-         */
-        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
-        /**
-         * Search the model for the previous match. Loops to the end of the model if needed.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchStart Start the searching at the specified position.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @return The range where the previous match is. It is null if no previous match has been found.
-         */
-        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
     }
 
     /**

@@ -419,7 +419,6 @@ export class HTMLWorker {
 	public provideDocumentHighlights(resource:URI, position:editorCommon.IPosition, strict:boolean = false): winjs.TPromise<modes.DocumentHighlight[]> {
 		let model = this.resourceService.get(resource),
 			wordAtPosition = model.getWordAtPosition(position),
-			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
 			result:modes.DocumentHighlight[] = [];
 
 
@@ -438,14 +437,12 @@ export class HTMLWorker {
 				});
 			}
 		} else {
-			let words = model.getAllWordsWithRange(),
-				upperBound = Math.min(1000, words.length); // Limit find occurences to 1000 occurences
-
-			for(let i = 0; i < upperBound; i++) {
-				if(words[i].text === currentWord) {
+			if (wordAtPosition) {
+				let results = model.findMatches(wordAtPosition.word, false, false, true, true);
+				for (let i = 0, len = results.length; i < len; i++) {
 					result.push({
-						range: words[i].range,
-					kind: modes.DocumentHighlightKind.Read
+						range: results[i],
+						kind: modes.DocumentHighlightKind.Read
 					});
 				}
 			}

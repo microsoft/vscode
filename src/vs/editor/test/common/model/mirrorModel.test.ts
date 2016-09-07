@@ -10,19 +10,6 @@ import {Position} from 'vs/editor/common/core/position';
 import {MirrorModel as SimpleMirrorModel} from 'vs/editor/common/services/editorSimpleWorker';
 import {DEFAULT_WORD_REGEXP} from 'vs/editor/common/model/wordHelper';
 
-function equalRange(left, right) {
-	if(left.startLineNumber !== right.startLineNumber) {
-		assert.ok(false, 'startLineNumber: actual:' + left.startLineNumber + ' expected:' + right.startLineNumber);
-	} else if(left.endLineNumber !== right.endLineNumber){
-		assert.ok(false, 'endLineNumber: actual:' + left.endLineNumber + ' expected:' + right.endLineNumber);
-	} else if(left.startColumn !== right.startColumn) {
-		assert.ok(false, 'startColumn: actual:' + left.startColumn + ' expected:' + right.startColumn);
-	} else if(left.endColumn !== right.endColumn){
-		assert.ok(false, 'endColumn: actual:' + left.endColumn + ' expected:' + right.endColumn);
-	}
-	assert.ok(true, 'ranges');
-};
-
 function contentChangedFlushEvent(detail: editorCommon.IRawText): editorCommon.IModelContentChangedFlushEvent {
 	return {
 		changeType: editorCommon.EventType.ModelRawContentChangedFlush,
@@ -173,32 +160,6 @@ suite('Editor Model - MirrorModel', () => {
 		assert.equal(mirrorModel.getWordUntilPosition(pos).word, 'li');
 
 	});
-
-	test('words with ranges', () => {
-
-		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 4);
-		assert.equal(wordsWithRanges[0].text, 'line1');
-		equalRange(wordsWithRanges[0].range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
-		assert.equal(wordsWithRanges[1].text, 'line2');
-		equalRange(wordsWithRanges[1].range, { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 6 });
-		assert.equal(wordsWithRanges[2].text, 'line3');
-		equalRange(wordsWithRanges[2].range, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 6 });
-		assert.equal(wordsWithRanges[3].text, 'line4');
-		equalRange(wordsWithRanges[3].range, { startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 6 });
-
-		var model = createTestMirrorModelFromString('foo bar\nfoo\nbar');
-		wordsWithRanges = model.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 4);
-		assert.equal(wordsWithRanges[0].text, 'foo');
-		equalRange(wordsWithRanges[0].range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 4 });
-		assert.equal(wordsWithRanges[1].text, 'bar');
-		equalRange(wordsWithRanges[1].range, { startLineNumber: 1, startColumn: 5, endLineNumber: 1, endColumn: 8 });
-		assert.equal(wordsWithRanges[2].text, 'foo');
-		equalRange(wordsWithRanges[2].range, { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 4 });
-		assert.equal(wordsWithRanges[3].text, 'bar');
-		equalRange(wordsWithRanges[3].range, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4 });
-	});
 });
 
 suite('Editor Model - MirrorModel Eventing', () => {
@@ -241,17 +202,6 @@ suite('Editor Model - MirrorModel Eventing', () => {
 		assert.equal(words[1], 'three');
 		assert.equal(words[2], 'line');
 		assert.equal(words[3], 'four');
-
-		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 4);
-		assert.equal(wordsWithRanges[0].text, 'line');
-		equalRange(wordsWithRanges[0].range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-		assert.equal(wordsWithRanges[1].text, 'three');
-		equalRange(wordsWithRanges[1].range, { startLineNumber: 1, startColumn: 6, endLineNumber: 1, endColumn: 11 });
-		assert.equal(wordsWithRanges[2].text, 'line');
-		equalRange(wordsWithRanges[2].range, { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 5 });
-		assert.equal(wordsWithRanges[3].text, 'four');
-		equalRange(wordsWithRanges[3].range, { startLineNumber: 2, startColumn: 6, endLineNumber: 2, endColumn: 10 });
 	});
 
 	test('delete all lines', () => {
@@ -259,8 +209,6 @@ suite('Editor Model - MirrorModel Eventing', () => {
 
 		var words = mirrorModel.getAllWords();
 		assert.equal(words.length, 0);
-		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 0);
 	});
 
 	test('add single lines', () => {
@@ -270,13 +218,6 @@ suite('Editor Model - MirrorModel Eventing', () => {
 
 		assert.equal(mirrorModel.getLineContent(1), 'foo bar');
 		assert.equal(mirrorModel.getLineContent(2), 'line one');
-
-		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 10);
-		assert.equal(wordsWithRanges[0].text, 'foo');
-		equalRange(wordsWithRanges[0].range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 4 });
-		assert.equal(wordsWithRanges[1].text, 'bar');
-		equalRange(wordsWithRanges[1].range, { startLineNumber: 1, startColumn: 5, endLineNumber: 1, endColumn: 8 });
 	});
 
 
@@ -288,31 +229,14 @@ suite('Editor Model - MirrorModel Eventing', () => {
 		assert.equal(mirrorModel.getLineContent(1), 'foo bar');
 		assert.equal(mirrorModel.getLineContent(2), 'bar foo');
 		assert.equal(mirrorModel.getLineContent(3), 'line one');
-
-		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 12);
-		assert.equal(wordsWithRanges[0].text, 'foo');
-		equalRange(wordsWithRanges[0].range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 4 });
-		assert.equal(wordsWithRanges[1].text, 'bar');
-		equalRange(wordsWithRanges[1].range, { startLineNumber: 1, startColumn: 5, endLineNumber: 1, endColumn: 8 });
-		assert.equal(wordsWithRanges[2].text, 'bar');
-		equalRange(wordsWithRanges[2].range, { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 4 });
-		assert.equal(wordsWithRanges[3].text, 'foo');
-		equalRange(wordsWithRanges[3].range, { startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 8 });
 	});
 
 	test('change line', () => {
 		assert.equal(mirrorModel.getLineContent(1), 'line one');
-		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 8);
 
 		mirrorModel.onEvents(mirrorModelEvents([contentChangedLineChanged(1, 'foobar')]));
 
 		assert.equal(mirrorModel.getLineContent(1), 'foobar');
-		wordsWithRanges = mirrorModel.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 7);
-		assert.equal(wordsWithRanges[0].text, 'foobar');
-		equalRange(wordsWithRanges[0].range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 7 });
 	});
 
 	test('flush model', () => {
@@ -337,8 +261,6 @@ suite('Editor Model - MirrorModel Eventing', () => {
 
 		assert.equal(mirrorModel.getLineContent(1), 'foo');
 		assert.equal(mirrorModel.getLineContent(2), 'bar');
-		var wordsWithRanges = mirrorModel.getAllWordsWithRange();
-		assert.equal(wordsWithRanges.length, 2);
 	});
 
 });
