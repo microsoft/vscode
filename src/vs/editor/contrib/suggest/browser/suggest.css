@@ -43,6 +43,7 @@
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main {
+	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	height: 18px;
@@ -94,9 +95,21 @@
 	color: #186B9E;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .type-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main > .type-label {
 	display: none;
 	margin-left: 0.8em;
+	flex: 1;
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main > .type-label > .monaco-tokenized-source {
+	display: inline;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .text > .main > .type-label {
+	display: inline;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .type-label {

@@ -8,7 +8,7 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, filterEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -26,6 +26,7 @@ import { Context as SuggestContext } from '../common/suggest';
 import { ICompletionItem, CompletionModel } from '../common/completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -86,11 +87,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 		configureFont();
 
-		data.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
-				configureFont();
-			}
-		}));
+		const onFontInfo = filterEvent(this.editor.onDidChangeConfiguration.bind(this.editor), (e: IConfigurationChangedEvent) => e.fontInfo);
+		onFontInfo(configureFont, null, data.disposables);
 
 		return data;
 	}
@@ -117,7 +115,12 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, (<ICompletionItem>element).highlights);
-		data.typeLabel.textContent = suggestion.detail || '';
+
+		const mode = this.editor.getModel().getMode();
+		const typeLabel = (suggestion.detail || '').replace(/\n.*$/m, '');
+		const result = tokenizeToString(typeLabel, mode);
+		data.typeLabel.innerHTML = result;
+
 		data.documentation.textContent = suggestion.documentation || '';
 
 		if (suggestion.documentation) {
