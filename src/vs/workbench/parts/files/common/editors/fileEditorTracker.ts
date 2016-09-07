@@ -89,17 +89,44 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		}
 	}
 
+	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
+		const stacks = this.editorGroupService.getStacksModel();
+		stacks.groups.forEach(group => {
+			group.getEditors().forEach(input => {
+				if (input instanceof FileEditorInput) {
+					const resource = input.getResource();
+
+					// Update Editor if file (or any parent of the input) got renamed or moved
+					if (paths.isEqualOrParent(resource.fsPath, oldResource.fsPath)) {
+						let reopenFileResource: URI;
+						if (oldResource.toString() === resource.toString()) {
+							reopenFileResource = newResource; // file got moved
+						} else {
+							const index = resource.fsPath.indexOf(oldResource.fsPath);
+							reopenFileResource = URI.file(paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1))); // parent folder got moved
+						}
+
+						// Reopen
+						const editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
+						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
+					}
+				}
+			});
+		});
+	}
+
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Dispose inputs that got deleted
-		const allDeleted = e.getDeleted();
-		if (allDeleted && allDeleted.length > 0) {
-			allDeleted.forEach(deleted => {
-				this.handleDeleteOrMove(deleted.resource);
-			});
-		}
+		e.getDeleted().forEach(deleted => {
+			this.handleDeleteOrMove(deleted.resource);
+		});
 
-		// Update inputs that got updated
+		// Handle updates to visible editors
+		this.handleUpdatesToVisibleEditors(e);
+	}
+
+	private handleUpdatesToVisibleEditors(e: FileChangesEvent) {
 		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
 			let input = editor.input;
@@ -169,32 +196,6 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return input instanceof FileEditorInput && (<FileEditorInput>input).getResource().toString() === resource.toString();
 	}
 
-	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
-		const stacks = this.editorGroupService.getStacksModel();
-		stacks.groups.forEach(group => {
-			group.getEditors().forEach(input => {
-				if (input instanceof FileEditorInput) {
-					const resource = input.getResource();
-
-					// Update Editor if file (or any parent of the input) got renamed or moved
-					if (paths.isEqualOrParent(resource.fsPath, oldResource.fsPath)) {
-						let reopenFileResource: URI;
-						if (oldResource.toString() === resource.toString()) {
-							reopenFileResource = newResource; // file got moved
-						} else {
-							const index = resource.fsPath.indexOf(oldResource.fsPath);
-							reopenFileResource = URI.file(paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1))); // parent folder got moved
-						}
-
-						// Reopen
-						const editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
-						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
-					}
-				}
-			});
-		});
-	}
-
 	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, deletedResource: URI): FileEditorInput;
 	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, updatedFiles: FileChangesEvent): FileEditorInput;
 	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, arg: any): FileEditorInput {
@@ -230,7 +231,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return null;
 	}
 
-	public handleDeleteOrMove(resource: URI, movedTo?: URI): void {
+	private handleDeleteOrMove(resource: URI, movedTo?: URI): void {
 		if (this.textFileService.isDirty(resource)) {
 			return; // never dispose dirty resources from a delete
 		}
