@@ -68,10 +68,10 @@ export class CloseWindowAction extends Action {
 	}
 }
 
-export class SwitchWindow extends Action {
+export class SwitchWorkspace extends Action {
 
-	public static ID = 'workbench.action.switchWindow';
-	public static LABEL = nls.localize('switchWindow', "Switch Window");
+	public static ID = 'workbench.action.switchWorkspace';
+	public static LABEL = nls.localize('switchWorkspace', "Switch Workspace");
 
 	constructor(
 		id: string,
@@ -83,12 +83,12 @@ export class SwitchWindow extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		ipc.send('vscode:requestWindows', this.windowService.getWindowId());
-		ipc.once('vscode:respondWindows', (event, windows) => {
-			const picks: IPickOpenEntry[] = windows.filter(w => !!w.workspace).map(w => {
+		ipc.send('vscode:switchWorkspace', this.windowService.getWindowId());
+		ipc.once('vscode:switchWorkspace', (event, workspaces) => {
+			const picks: IPickOpenEntry[] = workspaces.map(w => {
 				return {
-					label: paths.basename(w.workspace),
-					description: paths.dirname(w.workspace),
+					label: paths.basename(w.path),
+					description: paths.dirname(w.path),
 					run: () => {
 						ipc.send('vscode:showWindow', w.id);
 					}
