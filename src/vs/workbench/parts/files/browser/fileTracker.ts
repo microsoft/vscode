@@ -18,10 +18,9 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
@@ -202,7 +201,7 @@ export class FileTracker implements IWorkbenchContribution {
 		// Dispose models that got changed and are not visible. We do this because otherwise
 		// cached file models will be stale from the contents on disk.
 		e.getUpdated()
-			.map(u => CACHE.get(u.resource))
+			.map(u => this.textFileService.models.get(u.resource))
 			.filter(model => {
 				const canDispose = this.canDispose(model);
 				if (!canDispose) {
@@ -215,7 +214,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 				return true; // ok boss
 			})
-			.forEach(model => CACHE.dispose(model.getResource()));
+			.forEach(model => this.textFileService.models.dispose(model.getResource()));
 
 		// Update inputs that got updated
 		const editors = this.editorService.getVisibleEditors();
@@ -234,7 +233,7 @@ export class FileTracker implements IWorkbenchContribution {
 				// Note: we also consider the added event because it could be that a file was added
 				// and updated right after.
 				if (e.contains(fileInputResource, FileChangeType.UPDATED) || e.contains(fileInputResource, FileChangeType.ADDED)) {
-					const textModel = CACHE.get(fileInputResource);
+					const textModel = this.textFileService.models.get(fileInputResource);
 
 					// Text file: check for last save time
 					if (textModel) {
@@ -395,7 +394,7 @@ export class FileTracker implements IWorkbenchContribution {
 		});
 
 		// Clean up model if any
-		CACHE.dispose(resource);
+		this.textFileService.models.dispose(resource);
 	}
 
 	private containsResource(input: FileEditorInput, resource: URI): boolean;
@@ -418,16 +417,16 @@ export class FileTracker implements IWorkbenchContribution {
 		// are not showing up in any opened editor.
 
 		// Get all cached file models
-		CACHE.getAll()
+		this.textFileService.models.getAll()
 
 			// Only take text file models and remove those that are under working files or opened
 			.filter(model => !this.stacks.isOpen(model.getResource()) && this.canDispose(model))
 
 			// Dispose
-			.forEach(model => CACHE.dispose(model.getResource()));
+			.forEach(model => this.textFileService.models.dispose(model.getResource()));
 	}
 
-	private canDispose(textModel: TextFileEditorModel): boolean {
+	private canDispose(textModel: ITextFileEditorModel): boolean {
 		if (!textModel) {
 			return false; // we need data!
 		}

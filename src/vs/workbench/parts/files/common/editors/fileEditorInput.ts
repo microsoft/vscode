@@ -17,7 +17,7 @@ import {IEditorRegistry, Extensions, EditorModel, EncodingMode, ConfirmResult, I
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, EventType as FileEventType, TextFileChangeEvent, IFileEditorDescriptor} from 'vs/workbench/parts/files/common/files';
-import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -114,7 +114,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public getEncoding(): string {
-		let textModel = CACHE.get(this.resource);
+		let textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			return textModel.getEncoding();
 		}
@@ -125,7 +125,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	public setEncoding(encoding: string, mode: EncodingMode): void {
 		this.preferredEncoding = encoding;
 
-		let textModel = CACHE.get(this.resource);
+		let textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			textModel.setEncoding(encoding, mode);
 		}
@@ -160,7 +160,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public isDirty(): boolean {
-		const model = CACHE.get(this.resource);
+		const model = this.textFileService.models.get(this.resource);
 		if (!model) {
 			return false;
 		}
@@ -242,8 +242,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 
 		// Use Cached Model if present
-		let cachedModel = CACHE.get(this.resource);
-		if (cachedModel && !refresh) {
+		let cachedModel = this.textFileService.models.get(this.resource);
+		if (cachedModel instanceof TextFileEditorModel && !refresh) {
 			modelPromise = TPromise.as<EditorModel>(cachedModel);
 		}
 
@@ -261,7 +261,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 		return modelPromise.then((resolvedModel: TextFileEditorModel | BinaryEditorModel) => {
 			if (resolvedModel instanceof TextFileEditorModel) {
-				CACHE.add(this.resource, resolvedModel); // Store into the text model cache unless this file is binary
+				this.textFileService.models.add(this.resource, resolvedModel); // Store into the text model cache unless this file is binary
 			}
 			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = null; // Remove from pending loaders
 

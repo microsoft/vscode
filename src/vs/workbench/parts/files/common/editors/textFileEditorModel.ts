@@ -16,8 +16,8 @@ import types = require('vs/base/common/types');
 import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState} from 'vs/workbench/parts/files/common/files';
-import {EncodingMode, EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
+import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -58,7 +58,7 @@ if (!diag) {
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
-export class TextFileEditorModel extends BaseTextEditorModel implements IEncodingSupport {
+export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
 
 	public static ID = 'workbench.editors.files.textFileEditorModel';
 
@@ -718,53 +718,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 		this.cancelAutoSavePromises();
 
-		CACHE.remove(this.resource);
-
 		super.dispose();
 	}
 }
-
-export class TextFileEditorModelCache {
-	private mapResourcePathToModel: { [resource: string]: TextFileEditorModel; };
-
-	constructor() {
-		this.mapResourcePathToModel = Object.create(null);
-	}
-
-	public dispose(resource: URI): void {
-		const model = this.get(resource);
-		if (model) {
-			if (model.isDirty()) {
-				return; // we never dispose dirty models to avoid data loss
-			}
-
-			model.dispose();
-		}
-	}
-
-	public get(resource: URI): TextFileEditorModel {
-		return this.mapResourcePathToModel[resource.toString()];
-	}
-
-	public getAll(resource?: URI): TextFileEditorModel[] {
-		return Object.keys(this.mapResourcePathToModel)
-			.filter((r) => !resource || resource.toString() === r)
-			.map((r) => this.mapResourcePathToModel[r]);
-	}
-
-	public add(resource: URI, model: TextFileEditorModel): void {
-		this.mapResourcePathToModel[resource.toString()] = model;
-	}
-
-	// Clients should not call this method
-	public clear(): void {
-		this.mapResourcePathToModel = Object.create(null);
-	}
-
-	// Clients should not call this method
-	public remove(resource: URI): void {
-		delete this.mapResourcePathToModel[resource.toString()];
-	}
-}
-
-export const CACHE = new TextFileEditorModelCache();
