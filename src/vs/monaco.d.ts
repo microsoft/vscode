@@ -2026,6 +2026,10 @@ declare module monaco.editor {
          */
         getMode(): languages.IMode;
         /**
+         * Get the language associated with this model.
+         */
+        getModeId(): string;
+        /**
          * Set the current language mode associated with the model.
          */
         setMode(newMode: languages.IMode | Promise<languages.IMode>): void;

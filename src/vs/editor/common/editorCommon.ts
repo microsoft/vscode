@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
+import {BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {MarkedString} from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
@@ -1851,6 +1851,11 @@ export interface ITokenizedModel extends ITextModel {
 	getMode(): IMode;
 
 	/**
+	 * Get the language associated with this model.
+	 */
+	getModeId(): string;
+
+	/**
 	 * Set the current language mode associated with the model.
 	 */
 	setMode(newMode:IMode|TPromise<IMode>): void;
@@ -2276,15 +2281,6 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 export interface IRangeWithText {
 	text:string;
 	range:IRange;
-}
-
-/**
- * @internal
- */
-export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
-	uri: URI;
-
-	getModeId(): string;
 }
 
 /**
