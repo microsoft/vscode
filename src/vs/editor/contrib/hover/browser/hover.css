@@ -64,6 +64,10 @@
 	padding: 0 0.4em;
 }
 
+.monaco-editor-hover .monaco-tokenized-source {
+	white-space: pre-wrap;
+}
+
 .monaco-editor .hoverHighlight {
 	background: rgba(173, 214, 255, 0.15);
 }
