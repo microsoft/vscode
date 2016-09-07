@@ -9,7 +9,9 @@
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
-				"999999"
+				"999999",
+				"-g",
+				"SearchModel"
 			],
 			"cwd": "${workspaceRoot}",
 			"runtimeArgs": [],

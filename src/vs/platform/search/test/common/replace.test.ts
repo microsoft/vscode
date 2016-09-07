@@ -75,7 +75,23 @@ suite('Replace Pattern test', () => {
 		testParse('hello$02', 'hello$&2', true);
 	});
 
-	test('get replace string for a matched string', () => {
+	test('create pattern by passing regExp', () => {
+		let expected = /abc/;
+		let actual= new ReplacePattern('hello', false, expected).regExp;
+		assert.deepEqual(expected, actual);
+
+		expected = /abc/;
+		actual= new ReplacePattern('hello', false, /abc/g).regExp;
+		assert.deepEqual(expected, actual);
+
+		let testObject= new ReplacePattern('hello$0', false, /abc/g);
+		assert.equal(false, testObject.hasParameters);
+
+		testObject= new ReplacePattern('hello$0', true, /abc/g);
+		assert.equal(true, testObject.hasParameters);
+	});
+
+	test('get replace string if given text is a complete match', () => {
 		let testObject= new ReplacePattern('hello', {pattern: 'bla', isRegExp: true});
 		let actual= testObject.getReplaceString('bla');
 		assert.equal('hello', actual);
@@ -100,7 +116,7 @@ suite('Replace Pattern test', () => {
 		assert.equal('import * as something from \'fs\';', actual);
 
 		actual= testObject.getReplaceString('let require(\'fs\')');
-		assert.equal('let require(\'fs\')', actual);
+		assert.equal(null, actual);
 
 		testObject= new ReplacePattern('import * as $1 from \'$1\';', {pattern: 'let\\s+(\\w+)\\s*=\\s*require\\s*\\(\\s*[\'\"]([\\w\.\\-/]+)\\s*[\'\"]\\s*\\)\\s*', isRegExp: true});
 		actual= testObject.getReplaceString('let something = require(\'fs\')');
@@ -112,23 +128,90 @@ suite('Replace Pattern test', () => {
 
 		testObject= new ReplacePattern('import * as $0 from \'$0\';', {pattern: 'let\\s+(\\w+)\\s*=\\s*require\\s*\\(\\s*[\'\"]([\\w\.\\-/]+)\\s*[\'\"]\\s*\\)\\s*', isRegExp: true});
 		actual= testObject.getReplaceString('let something = require(\'fs\');');
-		assert.equal('import * as let something = require(\'fs\') from \'let something = require(\'fs\')\';;', actual);
+		assert.equal('import * as let something = require(\'fs\') from \'let something = require(\'fs\')\';', actual);
 
 		testObject= new ReplacePattern('import * as $1 from \'$2\';', {pattern: 'let\\s+(\\w+)\\s*=\\s*require\\s*\\(\\s*[\'\"]([\\w\.\\-/]+)\\s*[\'\"]\\s*\\)\\s*', isRegExp: false});
 		actual= testObject.getReplaceString('let fs = require(\'fs\');');
-		assert.equal('import * as $1 from \'$2\';', actual);
+		assert.equal(null, actual);
 
 		testObject= new ReplacePattern('cat$1', {pattern: 'for(.*)', isRegExp: true});
 		actual= testObject.getReplaceString('for ()');
 		assert.equal('cat ()', actual);
+	});
 
-		// Not maching cases
-		testObject= new ReplacePattern('hello', {pattern: 'bla', isRegExp: true});
-		actual= testObject.getReplaceString('foo');
-		assert.equal('hello', actual);
+	test('get replace string for no matches', () => {
+		let testObject= new ReplacePattern('hello', {pattern: 'bla', isRegExp: true});
+		let actual= testObject.getReplaceString('foo');
+		assert.equal(null, actual);
 
 		testObject= new ReplacePattern('hello', {pattern: 'bla', isRegExp: false});
 		actual= testObject.getReplaceString('foo');
+		assert.equal(null, actual);
+	});
+
+	test('get replace string if match is sub-string of the text', () => {
+		let testObject= new ReplacePattern('hello', {pattern: 'bla', isRegExp: true});
+		let actual= testObject.getReplaceString('this is a bla text');
 		assert.equal('hello', actual);
+
+		testObject= new ReplacePattern('hello', {pattern: 'bla', isRegExp: false});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('hello', actual);
+
+		testObject= new ReplacePattern('that', {pattern: 'this(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('that', actual);
+
+		testObject= new ReplacePattern('$1at', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('that', actual);
+
+		testObject= new ReplacePattern('$1e', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('the', actual);
+
+		testObject= new ReplacePattern('$1ere', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('there', actual);
+
+		testObject= new ReplacePattern('$1', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('th', actual);
+
+		testObject= new ReplacePattern('ma$1', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('math', actual);
+
+		testObject= new ReplacePattern('ma$1s', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('maths', actual);
+
+		testObject= new ReplacePattern('ma$1s', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('maths', actual);
+
+		testObject= new ReplacePattern('$0', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('this', actual);
+
+		testObject= new ReplacePattern('$0$1', {pattern: '(th)is(?=.*bla)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('thisth', actual);
+
+		testObject= new ReplacePattern('foo', {pattern: 'bla(?=\\stext$)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('foo', actual);
+
+		testObject= new ReplacePattern('f$1', {pattern: 'b(la)(?=\\stext$)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('fla', actual);
+
+		testObject= new ReplacePattern('f$0', {pattern: 'b(la)(?=\\stext$)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('fbla', actual);
+
+		testObject= new ReplacePattern('$0ah', {pattern: 'b(la)(?=\\stext$)', isRegExp: true});
+		actual= testObject.getReplaceString('this is a bla text');
+		assert.equal('blaah', actual);
 	});
 });
