@@ -21,7 +21,7 @@ const NO_TAB_SIZE = 0;
 
 export class AbstractMirrorModel extends TextModelWithTokens implements ICompatMirrorModel {
 
-	_associatedResource:URI;
+	protected _associatedResource:URI;
 
 	constructor(allowedEventTypes:string[], versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
 		super(allowedEventTypes.concat([editorCommon.EventType.ModelDispose]), value, mode);
