@@ -11,11 +11,12 @@ import paths = require('vs/base/common/paths');
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {workbenchInstantiationService, TestLifecycleService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
-import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
+import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
 
 function toResource(path) {
 	return URI.file(paths.join('C:\\', path));
@@ -49,12 +50,12 @@ suite('Files - TextFileService', () => {
 		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
 		model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/file.txt'), 'utf8');
-		CACHE.add(model.getResource(), model);
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 	});
 
 	teardown(() => {
 		model.dispose();
-		CACHE.clear();
+		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		accessor.untitledEditorService.revertAll();
 	});
 

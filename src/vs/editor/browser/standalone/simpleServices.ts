@@ -64,6 +64,10 @@ export class SimpleModel extends EventEmitter implements ITextEditorModel  {
 		this.model = model;
 	}
 
+	public load(): TPromise<SimpleModel> {
+		return TPromise.as(this);
+	}
+
 	public get textEditorModel():editorCommon.IModel {
 		return this.model;
 	}

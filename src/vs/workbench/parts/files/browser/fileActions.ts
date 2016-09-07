@@ -32,7 +32,6 @@ import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEdito
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -1449,7 +1448,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				if (source.scheme === 'untitled') {
 					encodingOfSource = this.untitledEditorService.get(source).getEncoding();
 				} else if (source.scheme === 'file') {
-					let textModel = CACHE.get(source);
+					let textModel = this.textFileService.models.get(source);
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 

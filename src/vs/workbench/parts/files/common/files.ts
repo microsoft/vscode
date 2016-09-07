@@ -10,11 +10,12 @@ import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import {IModel, IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
+import {IEncodingSupport, EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {ITextEditorModel} from 'vs/platform/editor/common/editor';
 
 /**
  * Explorer viewlet id.
@@ -274,8 +275,41 @@ export interface IRawTextContent extends IBaseStat {
 	encoding: string;
 }
 
+export interface ITextFileEditorModelManager {
+
+	dispose(resource: URI): void;
+
+	get(resource: URI): ITextFileEditorModel;
+
+	getAll(resource?: URI): ITextFileEditorModel[];
+
+	add(resource: URI, model: ITextFileEditorModel): void;
+}
+
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
+
+	getResource(): URI;
+
+	getLastSaveAttemptTime(): number;
+
+	getLastModifiedTime(): number;
+
+	getState(): ModelState;
+
+	isDirty(): boolean;
+
+	isResolved(): boolean;
+
+	isDisposed(): boolean;
+}
+
 export interface ITextFileService extends IDisposable {
 	_serviceBrand: any;
+
+	/**
+	 * Access to the manager of text file editor models providing further methods to work with them.
+	 */
+	models: ITextFileEditorModelManager;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
