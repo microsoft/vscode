@@ -25,6 +25,7 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -51,11 +52,12 @@ export abstract class TextFileService implements ITextFileService {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService protected fileService: IFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.listenerToUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
-		this._models = new TextFileEditorModelManager();
+		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
 
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.onConfigurationChange(configuration);
@@ -481,7 +483,7 @@ export abstract class TextFileService implements ITextFileService {
 					clients.forEach(input => input.dispose());
 
 					// Model
-					this._models.dispose(model.getResource());
+					this._models.disposeModel(model.getResource());
 
 					// store as successful revert
 					mapResourceToResult[model.getResource().toString()].success = true;

@@ -91,7 +91,6 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private onEditorsChanged(): void {
-		this.disposeUnusedTextFileModels();
 		this.handleOutOfWorkspaceWatchers();
 	}
 
@@ -214,7 +213,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 				return true; // ok boss
 			})
-			.forEach(model => this.textFileService.models.dispose(model.getResource()));
+			.forEach(model => this.textFileService.models.disposeModel(model.getResource()));
 
 		// Update inputs that got updated
 		const editors = this.editorService.getVisibleEditors();
@@ -394,7 +393,7 @@ export class FileTracker implements IWorkbenchContribution {
 		});
 
 		// Clean up model if any
-		this.textFileService.models.dispose(resource);
+		this.textFileService.models.disposeModel(resource);
 	}
 
 	private containsResource(input: FileEditorInput, resource: URI): boolean;
@@ -409,21 +408,6 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		return false;
-	}
-
-	private disposeUnusedTextFileModels(): void {
-
-		// To not grow our text file model cache infinitly, we dispose models that
-		// are not showing up in any opened editor.
-
-		// Get all cached file models
-		this.textFileService.models.getAll()
-
-			// Only take text file models and remove those that are under working files or opened
-			.filter(model => !this.stacks.isOpen(model.getResource()) && this.canDispose(model))
-
-			// Dispose
-			.forEach(model => this.textFileService.models.dispose(model.getResource()));
 	}
 
 	private canDispose(textModel: ITextFileEditorModel): boolean {

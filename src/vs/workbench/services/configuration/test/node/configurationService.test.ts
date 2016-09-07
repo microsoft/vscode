@@ -185,27 +185,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 		});
 	});
 
-	test('global change triggers event', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
-			return createService(workspaceDir, globalSettingsFile).then(service => {
-				fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.icons": false }');
-				service.reloadConfiguration().then(() => {
-					service.onDidUpdateConfiguration(event => {
-						const config = service.getConfiguration<{ testworkbench: { editor: { icons: boolean } } }>();
-						assert.equal(config.testworkbench.editor.icons, true);
-						assert.equal(event.config.testworkbench.editor.icons, true);
-
-						service.dispose();
-
-						cleanUp(done);
-					});
-
-					fs.writeFileSync(globalSettingsFile, '{ "testworkbench.editor.icons": true }');
-				});
-			});
-		});
-	});
-
 	test('workspace change triggers event', (done: () => void) => {
 		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
 			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });

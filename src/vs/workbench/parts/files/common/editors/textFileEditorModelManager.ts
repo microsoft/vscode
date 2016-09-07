@@ -8,17 +8,42 @@ import URI from 'vs/base/common/uri';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileEditorModelManager} from 'vs/workbench/parts/files/common/files';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {ModelState, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
+
+	private toUnbind: IDisposable[];
+
 	private mapResourceToDisposeListener: { [resource: string]: IDisposable; };
 	private mapResourcePathToModel: { [resource: string]: TextFileEditorModel; };
 
-	constructor() {
+	constructor(
+				@ILifecycleService private lifecycleService: ILifecycleService,
+
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
+		this.toUnbind = [];
+
 		this.mapResourcePathToModel = Object.create(null);
 		this.mapResourceToDisposeListener = Object.create(null);
+
+		this.registerListeners();
 	}
 
-	public dispose(resource: URI): void {
+	private registerListeners(): void {
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		// Lifecycle
+		this.lifecycleService.onShutdown(this.dispose, this);
+	}
+
+	private onEditorsChanged(): void {
+		this.disposeUnusedModels();
+	}
+
+	public disposeModel(resource: URI): void {
 		const model = this.get(resource);
 		if (model) {
 			if (model.isDirty()) {
@@ -75,5 +100,44 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		const keys = Object.keys(this.mapResourceToDisposeListener);
 		dispose(keys.map(k => this.mapResourceToDisposeListener[k]));
 		this.mapResourceToDisposeListener = Object.create(null);
+	}
+
+	private canDispose(textModel: ITextFileEditorModel): boolean {
+		if (!textModel) {
+			return false; // we need data!
+		}
+
+		if (textModel.isDisposed()) {
+			return false; // already disposed
+		}
+
+		if (textModel.textEditorModel && textModel.textEditorModel.isAttachedToEditor()) {
+			return false; // never dispose when attached to editor
+		}
+
+		if (textModel.getState() !== ModelState.SAVED) {
+			return false; // never dispose unsaved models
+		}
+
+		return true;
+	}
+
+	private disposeUnusedModels(): void {
+
+		// To not grow our text file model cache infinitly, we dispose models that
+		// are not showing up in any opened editor.
+
+		// Get all cached file models
+		this.getAll()
+
+			// Only take text file models and remove those that are under working files or opened
+			.filter(model => !this.editorGroupService.getStacksModel().isOpen(model.getResource()) && this.canDispose(model))
+
+			// Dispose
+			.forEach(model => this.disposeModel(model.getResource()));
+	}
+
+	public dispose(): void {
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }
