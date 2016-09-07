@@ -92,7 +92,7 @@ export class FullModelRetokenizer implements IRetokenizeRequest {
 
 	public isFulfilled: boolean;
 
-	_model:TextModelWithTokens;
+	protected _model:TextModelWithTokens;
 	private _retokenizePromise:TPromise<void>;
 	private _isDisposed: boolean;
 
@@ -302,17 +302,17 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	_createRetokenizer(retokenizePromise:TPromise<void>, lineNumber:number): IRetokenizeRequest {
+	protected _createRetokenizer(retokenizePromise:TPromise<void>, lineNumber:number): IRetokenizeRequest {
 		return new FullModelRetokenizer(retokenizePromise, this);
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
+	protected _resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		super._resetValue(e, newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
 	}
 
-	_resetMode(e:editorCommon.IModelModeChangedEvent, newMode:IMode): void {
+	protected _resetMode(e:editorCommon.IModelModeChangedEvent, newMode:IMode): void {
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._mode = newMode;
 		this._resetModeListener(newMode);
@@ -339,7 +339,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	_resetTokenizationState(): void {
+	protected _resetTokenizationState(): void {
 		this._retokenizers = dispose(this._retokenizers);
 		this._scheduleRetokenizeNow.cancel();
 		this._clearTimers();
@@ -397,7 +397,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return new LineContext(this.getModeId(), this._lines[lineNumber - 1], this._tokensInflatorMap);
 	}
 
-	_getInternalTokens(lineNumber:number): editorCommon.ILineTokens {
+	protected _getInternalTokens(lineNumber:number): editorCommon.ILineTokens {
 		this._updateTokensUntilLine(lineNumber, true);
 		return this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
 	}
@@ -454,7 +454,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	_invalidateLine(lineIndex:number): void {
+	protected _invalidateLine(lineIndex:number): void {
 		this._lines[lineIndex].isInvalid = true;
 		if (lineIndex < this._invalidLineStartIndex) {
 			if (this._invalidLineStartIndex < this._lines.length) {
@@ -685,7 +685,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._invalidLineStartIndex > lineNumber - 1;
 	}
 
-	_getWordDefinition(): RegExp {
+	protected _getWordDefinition(): RegExp {
 		return WordHelper.massageWordDefinitionOf(this.getModeId());
 	}
 
