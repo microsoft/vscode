@@ -809,6 +809,27 @@ declare module monaco.editor {
     }) => void): IDisposable;
 
     /**
+     * Create a new web worker that has model syncing capabilities built in.
+     * Specify an AMD module to load that will `create` an object that will be proxied.
+     */
+    export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
+
+    /**
+     * Colorize the contents of `domNode` using attribute `data-lang`.
+     */
+    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
+
+    /**
+     * Colorize `text` using language `languageId`.
+     */
+    export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string>;
+
+    /**
+     * Colorize a line in a model.
+     */
+    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
+
+    /**
      * A web worker that can provide a proxy to an arbitrary file.
      */
     export interface MonacoWebWorker<T> {
@@ -838,27 +859,6 @@ declare module monaco.editor {
          */
         createData?: any;
     }
-
-    /**
-     * Create a new web worker that has model syncing capabilities built in.
-     * Specify an AMD module to load that will `create` an object that will be proxied.
-     */
-    export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
-
-    /**
-     * Colorize the contents of `domNode` using attribute `data-lang`.
-     */
-    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
-
-    /**
-     * Colorize `text` using language `languageId`.
-     */
-    export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string>;
-
-    /**
-     * Colorize a line in a model.
-     */
-    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
 
     /**
      * The options to create an editor.
