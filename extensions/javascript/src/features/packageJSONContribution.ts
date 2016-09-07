@@ -8,6 +8,7 @@ import {MarkedString, CompletionItemKind, CompletionItem, DocumentSelector} from
 import {IJSONContribution, ISuggestionsCollector} from './jsonContributions';
 import {XHRRequest} from 'request-light';
 import {Location} from 'jsonc-parser';
+import {textToMarkedString} from './markedTextUtil';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -214,7 +215,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				htmlContent.push(localize('json.npm.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(infos => {
 					infos.forEach(info => {
-						htmlContent.push({language: 'string', value: info});
+						htmlContent.push(textToMarkedString(info));
 					});
 					return htmlContent;
 				});
