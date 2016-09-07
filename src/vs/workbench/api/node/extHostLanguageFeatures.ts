@@ -503,6 +503,7 @@ class SuggestAdapter {
 	private _documents: ExtHostDocuments;
 	private _heapMonitor: ExtHostHeapMonitor;
 	private _provider: vscode.CompletionItemProvider;
+	private _disposables: { [id: number]: IDisposable[] } = [];
 
 	constructor(documents: ExtHostDocuments, heapMonitor: ExtHostHeapMonitor, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
@@ -544,9 +545,8 @@ class SuggestAdapter {
 				const item = list.items[i];
 				const disposables: IDisposable[] = [];
 				const suggestion = TypeConverters.Suggest.from(item, disposables);
-
-				// assign identifier to suggestion
-				const id = this._heapMonitor.keep(item, () => dispose(disposables));
+				const id = this._heapMonitor.keep(item, () => dispose(this._disposables[id]));
+				this._disposables[id] = disposables;
 				ObjectIdentifier.mixin(suggestion, id);
 
 				if (item.textEdit) {
@@ -585,12 +585,13 @@ class SuggestAdapter {
 			return TPromise.as(suggestion);
 		}
 
-		const item = this._heapMonitor.get<CompletionItem>(ObjectIdentifier.get(suggestion));
+		const id = ObjectIdentifier.get(suggestion);
+		const item = this._heapMonitor.get<CompletionItem>(id);
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
 		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			return TypeConverters.Suggest.from(resolvedItem || item, []);
+			return TypeConverters.Suggest.from(resolvedItem || item, this._disposables[id]);
 		});
 	}
 }
