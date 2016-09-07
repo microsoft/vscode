@@ -5,7 +5,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import {guessMimeTypes, MIME_TEXT} from 'vs/base/common/mime';
+import {guessMimeTypes} from 'vs/base/common/mime';
 import Event, {Emitter} from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
 import {RunOnceScheduler} from 'vs/base/common/async';
@@ -32,11 +32,11 @@ import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
 import {TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import wbeditorcommon = require('vs/workbench/common/editor');
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {RawDebugSession} from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
+import {DebugStringEditorInput, DebugErrorEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import {ConfigurationManager} from 'vs/workbench/parts/debug/node/debugConfigurationManager';
@@ -816,7 +816,7 @@ export class DebugService implements debug.IDebugService {
 	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		const visibleEditors = this.editorService.getVisibleEditors();
 		for (let i = 0; i < visibleEditors.length; i++) {
-			const fileInput = wbeditorcommon.asFileEditorInput(visibleEditors[i].input);
+			const fileInput = asFileEditorInput(visibleEditors[i].input);
 			if ((fileInput && fileInput.getResource().toString() === source.uri.toString()) ||
 				(visibleEditors[i].input instanceof DebugStringEditorInput && (<DebugStringEditorInput>visibleEditors[i].input).getResource().toString() === source.uri.toString())) {
 
@@ -842,7 +842,7 @@ export class DebugService implements debug.IDebugService {
 					return this.getDebugStringEditorInput(source, response.body.content, mime);
 				}, (err: DebugProtocol.ErrorResponse) => {
 					// Display the error from debug adapter using a temporary editor #8836
-					return this.getDebugStringEditorInput(source, err.message, MIME_TEXT);
+					return this.getDebugErrorEditorInput(source, err.message);
 				}).then(editorInput => {
 					return this.editorService.openEditor(editorInput, { preserveFocus, selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 } }, sideBySide);
 				});
@@ -869,7 +869,7 @@ export class DebugService implements debug.IDebugService {
 
 	private sourceIsUnavailable(source: Source, sideBySide: boolean): TPromise<any> {
 		this.model.sourceIsUnavailable(source);
-		const editorInput = this.getDebugStringEditorInput(source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.uri.fsPath), 'text/plain');
+		const editorInput = this.getDebugErrorEditorInput(source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.name));
 
 		return this.editorService.openEditor(editorInput, { preserveFocus: true }, sideBySide);
 	}
@@ -1001,6 +1001,14 @@ export class DebugService implements debug.IDebugService {
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {
 		const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
 		this.toDisposeOnSessionEnd.push(result);
+
+		return result;
+	}
+
+	private getDebugErrorEditorInput(source: Source, value: string): DebugErrorEditorInput {
+		const result = this.instantiationService.createInstance(DebugErrorEditorInput, source.name, value);
+		this.toDisposeOnSessionEnd.push(result);
+
 		return result;
 	}
 
