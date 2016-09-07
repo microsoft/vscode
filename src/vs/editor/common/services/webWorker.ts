@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/standalone-tokens';
 import {ShallowCancelThenPromise} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -50,18 +49,12 @@ export interface IWebWorkerOptions {
 	createData?: any;
 }
 
-/**
- * @internal
- */
-export class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
+class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
 
 	private _foreignModuleId: string;
 	private _foreignModuleCreateData: any;
 	private _foreignProxy: TPromise<T>;
 
-	/**
-	 * @internal
-	 */
 	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
 		super(modelService);
 		this._foreignModuleId = opts.moduleId;
