@@ -382,9 +382,9 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
 		serviceCollection.set(IEditorGroupService, this.editorPart);
 
+		// File Service
 		const fileService = this.instantiationService.createInstance(FileService);
 		serviceCollection.set(IFileService, fileService);
-		this.toDispose.push(fileService);
 
 		// History
 		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));

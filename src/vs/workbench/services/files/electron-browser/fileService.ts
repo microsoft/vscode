@@ -24,6 +24,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
 import {shell} from 'electron';
 
@@ -46,6 +47,7 @@ export class FileService implements IFileService {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService
 	) {
 		this.toUnbind = [];
@@ -107,6 +109,9 @@ export class FileService implements IFileService {
 
 		// Editor changing
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		// Lifecycle
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private onEditorsChanged(): void {
