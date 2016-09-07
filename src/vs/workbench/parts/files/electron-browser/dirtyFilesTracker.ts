@@ -5,30 +5,50 @@
 
 'use strict';
 
+import nls = require('vs/nls');
+import errors = require('vs/base/common/errors');
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {TextFileChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {VIEWLET_ID, TextFileChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {platform, Platform} from 'vs/base/common/platform';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IEventService} from 'vs/platform/event/common/event';
+import {Position} from 'vs/platform/editor/common/editor';
+import {IEditorStacksModel} from 'vs/workbench/common/editor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ipcRenderer as ipc} from 'electron';
 import URI from 'vs/base/common/uri';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import arrays = require('vs/base/common/arrays');
 
-export class MacIntegration implements IWorkbenchContribution {
+import {ipcRenderer as ipc} from 'electron';
+
+export class DirtyFilesTracker implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
-	private toUnbind: IDisposable[];;
+	private toUnbind: IDisposable[];
+
+	private lastDirtyCount: number;
+	private pendingDirtyResources: URI[];
+	private pendingDirtyHandle: number;
+
+	private stacks: IEditorStacksModel;
 
 	constructor(
 		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		this.toUnbind = [];
 		this.isDocumentedEdited = false;
+		this.pendingDirtyResources = [];
+		this.stacks = editorGroupService.getStacksModel();
 
 		this.registerListeners();
 	}
@@ -52,17 +72,60 @@ export class MacIntegration implements IWorkbenchContribution {
 		if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
 			this.updateDocumentEdited();
 		}
+
+		if (gotDirty || this.lastDirtyCount > 0) {
+			this.updateActivityBadge();
+		}
 	}
 
 	private onTextFileDirty(e: TextFileChangeEvent): void {
 		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
+
+		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
+			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
+		}
+
+		// If a file becomes dirty but is not opened, we open it in the background
+		// Since it might be the intent of whoever created the model to show it shortly
+		// after, we delay this a little bit and check again if the editor has not been
+		// opened meanwhile
+		this.pendingDirtyResources.push(e.resource);
+		if (!this.pendingDirtyHandle) {
+			this.pendingDirtyHandle = setTimeout(() => this.doOpenDirtyResources(), 250);
+		}
+	}
+
+	private doOpenDirtyResources(): void {
+		const dirtyNotOpenedResources = arrays.distinct(this.pendingDirtyResources.filter(r => !this.stacks.isOpen(r) && this.textFileService.isDirty(r)), r => r.toString());
+
+		// Reset
+		this.pendingDirtyHandle = void 0;
+		this.pendingDirtyResources = [];
+
+		const activeEditor = this.editorService.getActiveEditor();
+		const activePosition = activeEditor ? activeEditor.position : Position.LEFT;
+
+		// Open
+		this.editorService.openEditors(dirtyNotOpenedResources.map(resource => {
+			return {
+				input: {
+					resource,
+					options: { inactive: true, pinned: true, preserveFocus: true }
+				},
+				position: activePosition
+			};
+		})).done(null, errors.onUnexpectedError);
 	}
 
 	private onTextFileSaved(e: TextFileChangeEvent): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
+		}
+
+		if (this.lastDirtyCount > 0) {
+			this.updateActivityBadge();
 		}
 	}
 
@@ -70,11 +133,27 @@ export class MacIntegration implements IWorkbenchContribution {
 		if (!this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
+
+		this.updateActivityBadge();
 	}
 
 	private onTextFileReverted(e: TextFileChangeEvent): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
+		}
+
+		if (this.lastDirtyCount > 0) {
+			this.updateActivityBadge();
+		}
+	}
+
+	private updateActivityBadge(): void {
+		const dirtyCount = this.textFileService.getDirty().length;
+		this.lastDirtyCount = dirtyCount;
+		if (dirtyCount > 0) {
+			this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
+		} else {
+			this.activityService.clearActivity(VIEWLET_ID);
 		}
 	}
 
@@ -88,7 +167,7 @@ export class MacIntegration implements IWorkbenchContribution {
 	}
 
 	public getId(): string {
-		return 'vs.files.macIntegration';
+		return 'vs.files.dirtyFilesTracker';
 	}
 
 	public dispose(): void {
