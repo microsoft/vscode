@@ -5,7 +5,6 @@
 
 'use strict';
 
-import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
@@ -13,7 +12,6 @@ import {Action} from 'vs/base/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorInput} from 'vs/workbench/common/editor';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
@@ -25,11 +23,10 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import {isMacintosh} from 'vs/base/common/platform';
-import {IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
