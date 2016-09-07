@@ -344,7 +344,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	teardown(() => {
-		thisModel.destroy();
+		thisModel.dispose();
 	});
 
 	test('model getValue', () => {
@@ -376,7 +376,7 @@ suite('Editor Model - Words', () => {
 	});
 
 	teardown(() => {
-		thisModel.destroy();
+		thisModel.dispose();
 	});
 
 	test('Get word at position', () => {
