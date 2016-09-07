@@ -2285,7 +2285,6 @@ export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 	uri: URI;
 
 	getAllWordsWithRange(): IRangeWithText[];
-	getAllUniqueWords(skipWordOnce?:string): string[];
 
 	getModeId(): string;
 }
