@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
+import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/compatMirrorModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Position} from 'vs/editor/common/core/position';

@@ -5,7 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import mm = require('vs/editor/common/model/mirrorModel');
+import mm = require('vs/editor/common/model/compatMirrorModel');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');

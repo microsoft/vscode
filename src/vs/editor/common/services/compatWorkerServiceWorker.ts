@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ICompatWorkerService, ICompatMode, IRawModelData} from 'vs/editor/common/services/compatWorkerService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {ILanguageExtensionPoint, IModeService} from 'vs/editor/common/services/modeService';
-import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
+import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/compatMirrorModel';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
