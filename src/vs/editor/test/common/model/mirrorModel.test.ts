@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IMirrorModelEvents, MirrorModel, createTestMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
+import {IMirrorModelEvents, MirrorModel, createTestMirrorModelFromString} from 'vs/editor/common/model/compatMirrorModel';
 import {Position} from 'vs/editor/common/core/position';
 import {MirrorModel as SimpleMirrorModel} from 'vs/editor/common/services/editorSimpleWorker';
 import {DEFAULT_WORD_REGEXP} from 'vs/editor/common/model/wordHelper';

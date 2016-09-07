@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {createTestMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
+import {createTestMirrorModelFromString} from 'vs/editor/common/model/compatMirrorModel';
 import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
 
 suite('Editor Services - ResourceService', () => {
