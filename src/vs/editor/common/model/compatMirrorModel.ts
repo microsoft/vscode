@@ -30,44 +30,19 @@ export class AbstractMirrorModel extends TextModelWithTokens implements ICompatM
 		this._associatedResource = associatedResource;
 	}
 
-	public getModeId(): string {
-		return this.getMode().getId();
-	}
-
-	public _constructLines(rawText:editorCommon.IRawText):void {
-		super._constructLines(rawText);
-		// Force EOL to be \n
-		this._EOL = '\n';
-	}
-
 	public dispose(): void {
 		this.emit(editorCommon.EventType.ModelDispose);
 		super.dispose();
 	}
 
+	protected _constructLines(rawText:editorCommon.IRawText):void {
+		super._constructLines(rawText);
+		// Force EOL to be \n
+		this._EOL = '\n';
+	}
+
 	public get uri(): URI {
 		return this._associatedResource;
-	}
-
-	public getAllWords(): string[] {
-		var result:string[] = [];
-		this._lines.forEach((line) => {
-			this.wordenize(line.text).forEach((info) => {
-				result.push(line.text.substring(info.start, info.end));
-			});
-		});
-		return result;
-	}
-
-//	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
-	private wordenize(content:string): editorCommon.IWordRange[] {
-		var result:editorCommon.IWordRange[] = [];
-		var match:RegExpExecArray;
-		var wordsRegexp = this._getWordDefinition();
-		while (match = wordsRegexp.exec(content)) {
-			result.push({ start: match.index, end: match.index + match[0].length });
-		}
-		return result;
 	}
 }
 

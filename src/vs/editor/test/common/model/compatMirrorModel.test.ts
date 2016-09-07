@@ -181,14 +181,6 @@ suite('Editor Model - MirrorModel Eventing', () => {
 		mirrorModel.onEvents(mirrorModelEvents([contentChangedLinesDeletedEvent(3, 3)]));
 
 		assert.equal(mirrorModel.getLineContent(3), 'line four');
-		var words = mirrorModel.getAllWords();
-		assert.equal(words.length, 6);
-		assert.equal(words[0], 'line');
-		assert.equal(words[1], 'one');
-		assert.equal(words[2], 'line');
-		assert.equal(words[3], 'two');
-		assert.equal(words[4], 'line');
-		assert.equal(words[5], 'four');
 	});
 
 	test('delete multiple lines', () => {
@@ -196,19 +188,10 @@ suite('Editor Model - MirrorModel Eventing', () => {
 
 		assert.equal(mirrorModel.getLineContent(1), 'line three');
 		assert.equal(mirrorModel.getLineContent(2), 'line four');
-		var words = mirrorModel.getAllWords();
-		assert.equal(words.length, 4);
-		assert.equal(words[0], 'line');
-		assert.equal(words[1], 'three');
-		assert.equal(words[2], 'line');
-		assert.equal(words[3], 'four');
 	});
 
 	test('delete all lines', () => {
 		mirrorModel.onEvents(mirrorModelEvents([contentChangedLinesDeletedEvent(1, 4)]));
-
-		var words = mirrorModel.getAllWords();
-		assert.equal(words.length, 0);
 	});
 
 	test('add single lines', () => {
