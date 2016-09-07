@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/compatMirrorModel';
+import {ICompatMirrorModelEvents, CompatMirrorModel} from 'vs/editor/common/model/compatMirrorModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Position} from 'vs/editor/common/core/position';
@@ -88,7 +88,7 @@ export function assertSyncedModels(text:string, callback:(model:EditableTextMode
 		assertLineMapping(model, 'model');
 	}
 
-	var mirrorModel1 = new MirrorModel(model.getVersionId(), model.toRawText(), null);
+	var mirrorModel1 = new CompatMirrorModel(model.getVersionId(), model.toRawText(), null);
 	assertLineMapping(mirrorModel1, 'mirrorModel1');
 	var mirrorModel1PrevVersionId = model.getVersionId();
 
@@ -101,7 +101,7 @@ export function assertSyncedModels(text:string, callback:(model:EditableTextMode
 			console.warn('Model version id did not advance between edits (1)');
 		}
 		mirrorModel1PrevVersionId = versionId;
-		let mirrorModelEvents:IMirrorModelEvents = {
+		let mirrorModelEvents:ICompatMirrorModelEvents = {
 			contentChanged: [e]
 		};
 		mirrorModel1.onEvents(mirrorModelEvents);
