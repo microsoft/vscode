@@ -8,23 +8,22 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
-import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
 import {ICompatMirrorModel} from 'vs/editor/common/services/resourceService';
 
-export interface IMirrorModelEvents {
+export interface ICompatMirrorModelEvents {
 	contentChanged: editorCommon.IModelContentChangedEvent[];
 }
 
 const NO_TAB_SIZE = 0;
 
-export class AbstractMirrorModel extends TextModelWithTokens implements ICompatMirrorModel {
+export class CompatMirrorModel extends TextModelWithTokens implements ICompatMirrorModel {
 
 	protected _associatedResource:URI;
 
-	constructor(allowedEventTypes:string[], versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
-		super(allowedEventTypes.concat([editorCommon.EventType.ModelDispose]), value, mode);
+	constructor(versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
+		super(['changed', editorCommon.EventType.ModelDispose], value, mode);
 
 		this._setVersionId(versionId);
 		this._associatedResource = associatedResource;
@@ -35,28 +34,17 @@ export class AbstractMirrorModel extends TextModelWithTokens implements ICompatM
 		super.dispose();
 	}
 
+	public get uri(): URI {
+		return this._associatedResource;
+	}
+
 	protected _constructLines(rawText:editorCommon.IRawText):void {
 		super._constructLines(rawText);
 		// Force EOL to be \n
 		this._EOL = '\n';
 	}
 
-	public get uri(): URI {
-		return this._associatedResource;
-	}
-}
-
-export function createTestMirrorModelFromString(value:string, mode:IMode = null, associatedResource?:URI): MirrorModel {
-	return new MirrorModel(0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
-}
-
-export class MirrorModel extends AbstractMirrorModel implements ICompatMirrorModel {
-
-	constructor(versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
-		super(['changed'], versionId, value, mode, associatedResource);
-	}
-
-	public onEvents(events:IMirrorModelEvents) : void {
+	public onEvents(events:ICompatMirrorModelEvents) : void {
 		let changed = false;
 		for (let i = 0, len = events.contentChanged.length; i < len; i++) {
 			let contentChangedEvent = events.contentChanged[i];

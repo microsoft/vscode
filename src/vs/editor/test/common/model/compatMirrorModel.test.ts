@@ -5,10 +5,15 @@
 
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IMirrorModelEvents, MirrorModel, createTestMirrorModelFromString} from 'vs/editor/common/model/compatMirrorModel';
+import {ICompatMirrorModelEvents, CompatMirrorModel} from 'vs/editor/common/model/compatMirrorModel';
 import {Position} from 'vs/editor/common/core/position';
 import {MirrorModel as SimpleMirrorModel} from 'vs/editor/common/services/editorSimpleWorker';
 import {DEFAULT_WORD_REGEXP} from 'vs/editor/common/model/wordHelper';
+import {TextModel} from 'vs/editor/common/model/textModel';
+
+function createTestMirrorModelFromString(value:string): CompatMirrorModel {
+	return new CompatMirrorModel(0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), null);
+}
 
 function contentChangedFlushEvent(detail: editorCommon.IRawText): editorCommon.IModelContentChangedFlushEvent {
 	return {
@@ -54,7 +59,7 @@ function contentChangedLineChanged(lineNumber: number, detail: string): editorCo
 	};
 }
 
-function mirrorModelEvents(contentChanged:editorCommon.IModelContentChangedEvent[]): IMirrorModelEvents {
+function mirrorModelEvents(contentChanged:editorCommon.IModelContentChangedEvent[]): ICompatMirrorModelEvents {
 	return {
 		contentChanged: contentChanged
 	};
@@ -62,7 +67,7 @@ function mirrorModelEvents(contentChanged:editorCommon.IModelContentChangedEvent
 
 suite('Editor Model - MirrorModel', () => {
 
-	var mirrorModel:MirrorModel;
+	var mirrorModel:CompatMirrorModel;
 
 	setup(() => {
 		mirrorModel = createTestMirrorModelFromString('line1\nline2\nline3\nline4');
@@ -164,7 +169,7 @@ suite('Editor Model - MirrorModel', () => {
 
 suite('Editor Model - MirrorModel Eventing', () => {
 
-	var mirrorModel:MirrorModel;
+	var mirrorModel:CompatMirrorModel;
 
 	setup(() => {
 		mirrorModel = createTestMirrorModelFromString('line one\nline two\nline three\nline four');
