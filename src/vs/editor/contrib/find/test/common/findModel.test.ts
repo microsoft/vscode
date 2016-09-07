@@ -1792,4 +1792,136 @@ suite('FindModel', () => {
 		findModel.dispose();
 		findState.dispose();
 	});
+
+	findTest('replace when search string has look ahed regex and replace string has capturing groups', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hel(lo)(?=\\sworld)', replaceString: 'hi$1', isRegex:true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.replace();
+
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			[6, 14, 6, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hello world, Hello!" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hilo world, Hello!" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[8, 14, 8, 19]
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(7), '    cout << "hilo world again" << endl;');
+
+		findModel.replace();
+		assertFindState(
+			editor,
+			[8, 18, 8, 18],
+			null,
+			[ ]
+		);
+		assert.equal(editor.getModel().getLineContent(8), '    cout << "hilo world again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('replaceAll when search string has look ahed regex and replace string has capturing groups', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'wo(rl)d(?=.*;$)', replaceString: 'gi$1', isRegex:true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 20, 6, 25],
+				[7, 20, 7, 25],
+				[8, 20, 8, 25],
+				[9, 19, 9, 24]
+			]
+		);
+
+		findModel.replaceAll();
+
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hello girl, Hello!" << endl;');
+		assert.equal(editor.getModel().getLineContent(7), '    cout << "hello girl again" << endl;');
+		assert.equal(editor.getModel().getLineContent(8), '    cout << "Hello girl again" << endl;');
+		assert.equal(editor.getModel().getLineContent(9), '    cout << "hellogirl again" << endl;');
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[ ]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('replaceAll when search string is multiline and has look ahed regex and replace string has capturing groups', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'wo(rl)d(.*;\\n)(?=.*hello)', replaceString: 'gi$1$2', isRegex:true, matchCase:true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 20, 7, 1],
+				[8, 20, 9, 1]
+			]
+		);
+
+		findModel.replaceAll();
+
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hello girl, Hello!" << endl;');
+		assert.equal(editor.getModel().getLineContent(8), '    cout << "Hello girl again" << endl;');
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[ ]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
 });
