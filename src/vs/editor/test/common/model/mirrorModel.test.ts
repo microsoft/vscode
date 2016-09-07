@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IMirrorModelEvents, MirrorModel, createTestMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
+import {Position} from 'vs/editor/common/core/position';
 
 function equalRange(left, right) {
 	if(left.startLineNumber !== right.startLineNumber) {
@@ -84,16 +85,16 @@ suite('Editor Model - MirrorModel', () => {
 	});
 
 	test('get line start ', () => {
-		assert.equal(mirrorModel.getLineStart(1), 0);
-		assert.equal(mirrorModel.getLineStart(2), 6);
-		assert.equal(mirrorModel.getLineStart(3), 12);
-		assert.equal(mirrorModel.getLineStart(4), 18);
-		assert.equal(mirrorModel.getLineStart(1000), mirrorModel.getLineStart(mirrorModel.getLineCount()));
+		assert.equal(mirrorModel.getOffsetAt(new Position(1, 1)), 0);
+		assert.equal(mirrorModel.getOffsetAt(new Position(2, 1)), 6);
+		assert.equal(mirrorModel.getOffsetAt(new Position(3, 1)), 12);
+		assert.equal(mirrorModel.getOffsetAt(new Position(4, 1)), 18);
+		assert.equal(mirrorModel.getOffsetAt(new Position(1000, 1)), mirrorModel.getOffsetAt(new Position(mirrorModel.getLineCount(), mirrorModel.getLineMaxColumn(mirrorModel.getLineCount()))));
 	});
 
 	test('get line start /flush event/', () => {
-		assert.equal(mirrorModel.getLineStart(2), 6);
-		assert.equal(mirrorModel.getLineStart(3), 12);
+		assert.equal(mirrorModel.getOffsetAt(new Position(2, 1)), 6);
+		assert.equal(mirrorModel.getOffsetAt(new Position(3, 1)), 12);
 
 		mirrorModel.onEvents(mirrorModelEvents([contentChangedFlushEvent({
 			length: -1,
@@ -111,24 +112,24 @@ suite('Editor Model - MirrorModel', () => {
 			}
 		})]));
 
-		assert.equal(mirrorModel.getLineStart(1), 0);
-		assert.equal(mirrorModel.getLineStart(2), 4);
+		assert.equal(mirrorModel.getOffsetAt(new Position(1, 1)), 0);
+		assert.equal(mirrorModel.getOffsetAt(new Position(2, 1)), 4);
 	});
 
 	test('get offset', () => {
-		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 1, column: 1}), 0);
-		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 1, column: 3}), 2);
-		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 2, column: 1}), 6);
-		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 4, column: 6}), 23);
-		assert.equal(mirrorModel.getOffsetFromPosition({lineNumber: 4, column: 7}), 23);
+		assert.equal(mirrorModel.getOffsetAt({lineNumber: 1, column: 1}), 0);
+		assert.equal(mirrorModel.getOffsetAt({lineNumber: 1, column: 3}), 2);
+		assert.equal(mirrorModel.getOffsetAt({lineNumber: 2, column: 1}), 6);
+		assert.equal(mirrorModel.getOffsetAt({lineNumber: 4, column: 6}), 23);
+		assert.equal(mirrorModel.getOffsetAt({lineNumber: 4, column: 7}), 23);
 	});
 
 	test('get position from offset', () => {
-		assert.deepEqual(mirrorModel.getPositionFromOffset(0), {lineNumber: 1, column: 1});
-		assert.deepEqual(mirrorModel.getPositionFromOffset(2), {lineNumber: 1, column: 3});
-		assert.deepEqual(mirrorModel.getPositionFromOffset(6), {lineNumber: 2, column: 1});
-		assert.deepEqual(mirrorModel.getPositionFromOffset(23), {lineNumber: 4, column: 6});
-		assert.deepEqual(mirrorModel.getPositionFromOffset(24), {lineNumber: 4, column: 6});
+		assert.deepEqual(mirrorModel.getPositionAt(0), {lineNumber: 1, column: 1});
+		assert.deepEqual(mirrorModel.getPositionAt(2), {lineNumber: 1, column: 3});
+		assert.deepEqual(mirrorModel.getPositionAt(6), {lineNumber: 2, column: 1});
+		assert.deepEqual(mirrorModel.getPositionAt(23), {lineNumber: 4, column: 6});
+		assert.deepEqual(mirrorModel.getPositionAt(24), {lineNumber: 4, column: 6});
 	});
 
 	test('get (all/unique) words', () => {

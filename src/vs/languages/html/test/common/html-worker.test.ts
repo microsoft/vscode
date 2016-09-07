@@ -48,7 +48,7 @@ suite('HTML - worker', () => {
 		var url = URI.parse('test://1');
 		var env = mockHtmlWorkerEnv(url, content);
 
-		var position = env.model.getPositionFromOffset(idx);
+		var position = env.model.getPositionAt(idx);
 		return env.worker.provideCompletionItems(url, position);
 	};
 
