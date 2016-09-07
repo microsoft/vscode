@@ -11,8 +11,6 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
 
 export interface IMirrorModelEvents {
 	contentChanged: editorCommon.IModelContentChangedEvent[];
@@ -52,44 +50,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 
 	public get uri(): URI {
 		return this._associatedResource;
-	}
-
-	public getRangeFromOffsetAndLength(offset:number, length:number): Range {
-		let startPosition = this.getPositionAt(offset);
-		let endPosition = this.getPositionAt(offset + length);
-		return new Range(
-			startPosition.lineNumber,
-			startPosition.column,
-			endPosition.lineNumber,
-			endPosition.column
-		);
-	}
-
-	public getOffsetAndLengthFromRange(range:editorCommon.IRange):{offset:number; length:number;} {
-		let startOffset = this.getOffsetAt(new Position(range.startLineNumber, range.startColumn));
-		let endOffset = this.getOffsetAt(new Position(range.endLineNumber, range.endColumn));
-		return {
-			offset: startOffset,
-			length: endOffset - startOffset
-		};
-	}
-
-	public getPositionFromOffset(offset:number): Position {
-		return this.getPositionAt(offset);
-	}
-
-	public getOffsetFromPosition(position:editorCommon.IPosition): number {
-		return this.getOffsetAt(position);
-	}
-
-	public getLineStart(lineNumber:number): number {
-		if (lineNumber < 1) {
-			lineNumber = 1;
-		}
-		if (lineNumber > this.getLineCount()) {
-			lineNumber = this.getLineCount();
-		}
-		return this.getOffsetAt(new Position(lineNumber, 1));
 	}
 
 	public getAllWordsWithRange(): editorCommon.IRangeWithText[] {

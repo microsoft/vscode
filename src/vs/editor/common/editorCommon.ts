@@ -2284,12 +2284,6 @@ export interface IRangeWithText {
 export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 	uri: URI;
 
-	getOffsetFromPosition(position:IPosition): number;
-	getPositionFromOffset(offset:number): Position;
-	getOffsetAndLengthFromRange(range:IRange): {offset:number; length:number;};
-	getRangeFromOffsetAndLength(offset:number, length:number): Range;
-	getLineStart(lineNumber:number): number;
-
 	getAllWordsWithRange(): IRangeWithText[];
 	getAllUniqueWords(skipWordOnce?:string): string[];
 
