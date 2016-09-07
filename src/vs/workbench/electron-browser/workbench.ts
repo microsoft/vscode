@@ -52,6 +52,8 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
+import {IFileService} from 'vs/platform/files/common/files';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -379,6 +381,10 @@ export class Workbench implements IPartService {
 		this.editorService = this.instantiationService.createInstance(WorkbenchEditorService, this.editorPart);
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
 		serviceCollection.set(IEditorGroupService, this.editorPart);
+
+		const fileService = this.instantiationService.createInstance(FileService);
+		serviceCollection.set(IFileService, fileService);
+		this.toDispose.push(fileService);
 
 		// History
 		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
