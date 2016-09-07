@@ -25,14 +25,21 @@ import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 registerSingleton(IOutputService, OutputService);
 
 // Register Output Mode
-ModesRegistry.registerCompatMode({
+ModesRegistry.registerLanguage({
 	id: OUTPUT_MODE_ID,
 	extensions: [],
 	aliases: [null],
-	mimetypes: [OUTPUT_MIME],
-	moduleId: 'vs/workbench/parts/output/common/outputMode',
-	ctorName: 'OutputMode'
+	mimetypes: [OUTPUT_MIME]
 });
+
+// ModesRegistry.registerCompatMode({
+// 	id: OUTPUT_MODE_ID,
+// 	extensions: [],
+// 	aliases: [null],
+// 	mimetypes: [OUTPUT_MIME],
+// 	moduleId: 'vs/workbench/parts/output/common/outputMode',
+// 	ctorName: 'OutputMode'
+// });
 
 // Register Output Panel
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(

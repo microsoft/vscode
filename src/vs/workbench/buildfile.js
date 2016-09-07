@@ -29,6 +29,7 @@ exports.collectModules = function(excludes) {
 
 		createModuleDescription('vs/workbench/parts/output/common/outputMode', languageMainExcludes),
 		createModuleDescription('vs/workbench/parts/output/common/outputWorker', languageWorkerExcludes),
+		createModuleDescription('vs/workbench/parts/output/common/outputLinkComputer', ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']),
 		createModuleDescription('vs/workbench/parts/output/browser/outputPanel', excludes),
 
 		createModuleDescription('vs/workbench/parts/debug/browser/debugViewlet', excludes),
