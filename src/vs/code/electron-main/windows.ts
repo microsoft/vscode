@@ -350,6 +350,15 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
+		ipc.on('vscode:showWindow', (event, windowId: number) => {
+			this.logService.log('IPC#vscode:showWindow');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.win.show();
+			}
+		});
+
 		ipc.on('vscode:setDocumentEdited', (event, windowId: number, edited: boolean) => {
 			this.logService.log('IPC#vscode:setDocumentEdited');
 
@@ -421,6 +430,14 @@ export class WindowsManager implements IWindowsService {
 			if (windowOnExtension) {
 				windowOnExtension.win.close();
 			}
+		});
+
+		ipc.on('vscode:switchWorkspace', (event, windowId: number) => {
+			const windows = this.getWindows();
+			const window = this.getWindowById(windowId);
+			window.send('vscode:switchWorkspace', windows.filter(w => !!w.openedWorkspacePath).map(w => {
+				return {path: w.openedWorkspacePath, id: w.id};
+			}));
 		});
 
 		this.updateService.on('update-downloaded', (update: IUpdate) => {
