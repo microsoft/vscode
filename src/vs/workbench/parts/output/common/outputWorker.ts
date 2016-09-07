@@ -48,9 +48,6 @@ export class OutputWorker {
 
 	private _getPatterns(workspaceResource: URI): RegExp[] {
 		if (!equals(this._cachedWorkspaceResource, workspaceResource)) {
-			// received new workspaceResource, recreate patterns
-			console.log('recreating patterns');
-
 			this._cachedWorkspaceResource = workspaceResource;
 			this._cachedPatterns = OutputWorker.createPatterns(this._cachedWorkspaceResource);
 		}
