@@ -236,8 +236,13 @@ class SuggestionDetails {
 			return;
 		}
 
+		const mode = this.editor.getModel().getMode();
+
 		this.title.innerText = item.suggestion.label;
-		this.type.innerText = item.suggestion.detail || '';
+
+		const typeLines = (item.suggestion.detail || '').split('\n');
+		this.type.innerHTML = typeLines.reduce((r, line) => r += tokenizeToString(line, mode), '');
+
 		this.docs.innerText = item.suggestion.documentation;
 		this.back.onmousedown = e => {
 			e.preventDefault();
