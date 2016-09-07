@@ -9,10 +9,16 @@ import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textF
 import {ITextFileEditorModelManager} from 'vs/workbench/parts/files/common/files';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {ModelState, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {ModelState, ITextFileEditorModel, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IEventService} from 'vs/platform/event/common/event';
+import {FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
+
+	// Delay in ms that we wait at minimum before we update a model from a file change event.
+	// This reduces the chance that a save from the client triggers an update of the editor.
+	private static FILE_CHANGE_UPDATE_DELAY = 2000;
 
 	private toUnbind: IDisposable[];
 
@@ -20,8 +26,8 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	private mapResourcePathToModel: { [resource: string]: TextFileEditorModel; };
 
 	constructor(
-				@ILifecycleService private lifecycleService: ILifecycleService,
-
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IEventService private eventService: IEventService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		this.toUnbind = [];
@@ -33,10 +39,48 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	}
 
 	private registerListeners(): void {
+
+		// Editors changing
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		// File changes
+		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
+	}
+
+	private onLocalFileChange(e: LocalFileChangeEvent): void {
+		if (e.gotMoved() || e.gotDeleted()) {
+			this.disposeModel(e.getBefore().resource); // dispose models of moved or deleted files
+		}
+	}
+
+	private onFileChanges(e: FileChangesEvent): void {
+
+		// Dispose inputs that got deleted
+		e.getDeleted().forEach(deleted => {
+			this.disposeModel(deleted.resource);
+		});
+
+		// Dispose models that got changed and are not visible. We do this because otherwise
+		// cached file models will be stale from the contents on disk.
+		e.getUpdated()
+			.map(u => this.get(u.resource))
+			.filter(model => {
+				const canDispose = this.canDispose(model);
+				if (!canDispose) {
+					return false;
+				}
+
+				if (Date.now() - model.getLastSaveAttemptTime() < TextFileEditorModelManager.FILE_CHANGE_UPDATE_DELAY) {
+					return false; // this is a weak check to see if the change came from outside the editor or not
+				}
+
+				return true; // ok boss
+			})
+			.forEach(model => this.disposeModel(model.getResource()));
 	}
 
 	private onEditorsChanged(): void {

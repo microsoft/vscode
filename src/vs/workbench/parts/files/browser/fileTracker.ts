@@ -18,7 +18,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -197,24 +197,6 @@ export class FileTracker implements IWorkbenchContribution {
 			});
 		}
 
-		// Dispose models that got changed and are not visible. We do this because otherwise
-		// cached file models will be stale from the contents on disk.
-		e.getUpdated()
-			.map(u => this.textFileService.models.get(u.resource))
-			.filter(model => {
-				const canDispose = this.canDispose(model);
-				if (!canDispose) {
-					return false;
-				}
-
-				if (Date.now() - model.getLastSaveAttemptTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
-					return false; // this is a weak check to see if the change came from outside the editor or not
-				}
-
-				return true; // ok boss
-			})
-			.forEach(model => this.textFileService.models.disposeModel(model.getResource()));
-
 		// Update inputs that got updated
 		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
@@ -391,9 +373,6 @@ export class FileTracker implements IWorkbenchContribution {
 				input.dispose();
 			}
 		});
-
-		// Clean up model if any
-		this.textFileService.models.disposeModel(resource);
 	}
 
 	private containsResource(input: FileEditorInput, resource: URI): boolean;
@@ -408,26 +387,6 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		return false;
-	}
-
-	private canDispose(textModel: ITextFileEditorModel): boolean {
-		if (!textModel) {
-			return false; // we need data!
-		}
-
-		if (textModel.isDisposed()) {
-			return false; // already disposed
-		}
-
-		if (textModel.textEditorModel && textModel.textEditorModel.isAttachedToEditor()) {
-			return false; // never dispose when attached to editor
-		}
-
-		if (textModel.getState() !== ModelState.SAVED) {
-			return false; // never dispose unsaved models
-		}
-
-		return true;
 	}
 
 	private handleOutOfWorkspaceWatchers(): void {
