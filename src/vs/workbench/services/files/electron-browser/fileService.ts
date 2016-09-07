@@ -45,7 +45,7 @@ export class FileService implements IFileService {
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
 		// adjust encodings
-		let encodingOverride: IEncodingOverride[] = [];
+		const encodingOverride: IEncodingOverride[] = [];
 		encodingOverride.push({ resource: uri.file(environmentService.appSettingsHome), encoding: encoding.UTF8 });
 		if (this.contextService.getWorkspace()) {
 			encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
@@ -57,7 +57,7 @@ export class FileService implements IFileService {
 		}
 
 		// build config
-		let fileServiceConfig: IFileServiceOptions = {
+		const fileServiceConfig: IFileServiceOptions = {
 			errorLogger: (msg: string) => this.onFileServiceError(msg),
 			encoding: configuration.files && configuration.files.encoding,
 			encodingOverride: encodingOverride,
@@ -66,7 +66,7 @@ export class FileService implements IFileService {
 		};
 
 		// create service
-		let workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace();
 		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService);
 
 		// Listeners
@@ -114,8 +114,8 @@ export class FileService implements IFileService {
 	}
 
 	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
-		let contentId = resource.toString();
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
+		const contentId = resource.toString();
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
 
 		return this.raw.resolveContent(resource, options).then((result) => {
 			timerEvent.stop();
@@ -125,8 +125,8 @@ export class FileService implements IFileService {
 	}
 
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
-		let contentId = resource.toString();
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
+		const contentId = resource.toString();
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
 
 		return this.raw.resolveStreamContent(resource, options).then((result) => {
 			timerEvent.stop();
@@ -140,7 +140,7 @@ export class FileService implements IFileService {
 	}
 
 	public updateContent(resource: uri, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Save {0}', resource.toString()));
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Save {0}', resource.toString()));
 
 		return this.raw.updateContent(resource, value, options).then((result) => {
 			timerEvent.stop();
@@ -182,14 +182,14 @@ export class FileService implements IFileService {
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
-		let workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace();
 		if (!workspace) {
 			return TPromise.wrapError<void>('Need a workspace to use this');
 		}
 
-		let absolutePath = resource.fsPath;
+		const absolutePath = resource.fsPath;
 
-		let result = shell.moveItemToTrash(absolutePath);
+		const result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
 			return TPromise.wrapError<void>(new Error(nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 		}
