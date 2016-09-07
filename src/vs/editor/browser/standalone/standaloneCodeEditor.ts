@@ -154,7 +154,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 	_postDetachModelCleanup(detachedModel:IModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
-			detachedModel.destroy();
+			detachedModel.dispose();
 			this._ownsModel = false;
 		}
 	}

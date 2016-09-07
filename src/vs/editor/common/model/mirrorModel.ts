@@ -39,10 +39,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 		this._EOL = '\n';
 	}
 
-	public destroy(): void {
-		this.dispose();
-	}
-
 	public dispose(): void {
 		this.emit(editorCommon.EventType.ModelDispose);
 		super.dispose();

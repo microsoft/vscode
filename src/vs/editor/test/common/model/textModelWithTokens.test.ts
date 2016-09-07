@@ -187,7 +187,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		isNotABracket(model, 2, 6);
 		isNotABracket(model, 2, 7);
 
-		model.destroy();
+		model.dispose();
 	});
 
 	test('bracket matching 2', () => {
@@ -243,7 +243,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			}
 		}
 
-		model.destroy();
+		model.dispose();
 	});
 });
 

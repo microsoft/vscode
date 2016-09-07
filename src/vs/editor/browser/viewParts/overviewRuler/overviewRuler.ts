@@ -24,10 +24,6 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._context.addEventHandler(this);
 	}
 
-	public destroy(): void {
-		this.dispose();
-	}
-
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this._overviewRuler.dispose();
