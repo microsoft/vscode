@@ -114,7 +114,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public getEncoding(): string {
-		let textModel = this.textFileService.models.get(this.resource);
+		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			return textModel.getEncoding();
 		}
@@ -125,7 +125,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	public setEncoding(encoding: string, mode: EncodingMode): void {
 		this.preferredEncoding = encoding;
 
-		let textModel = this.textFileService.models.get(this.resource);
+		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			textModel.setEncoding(encoding, mode);
 		}
@@ -190,21 +190,21 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {
-		let editorRegistry = (<IEditorRegistry>Registry.as(Extensions.Editors));
+		const editorRegistry = (<IEditorRegistry>Registry.as(Extensions.Editors));
 
 		// Lookup Editor by Mime
 		let descriptor: IEditorDescriptor;
-		let mimes = this.mime.split(',');
+		const mimes = this.mime.split(',');
 		for (let m = 0; m < mimes.length; m++) {
-			let mime = strings.trim(mimes[m]);
+			const mime = strings.trim(mimes[m]);
 
 			for (let i = 0; i < candidates.length; i++) {
 				descriptor = editorRegistry.getEditorById(candidates[i]);
 
 				if (types.isFunction((<IFileEditorDescriptor>descriptor).getMimeTypes)) {
-					let mimetypes = (<IFileEditorDescriptor>descriptor).getMimeTypes();
+					const mimetypes = (<IFileEditorDescriptor>descriptor).getMimeTypes();
 					for (let j = 0; j < mimetypes.length; j++) {
-						let mimetype = mimetypes[j];
+						const mimetype = mimetypes[j];
 
 						// Check for direct mime match
 						if (mime === mimetype) {
@@ -226,10 +226,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 		let modelPromise: TPromise<EditorModel>;
-		let resource = this.resource.toString();
+		const resource = this.resource.toString();
 
 		// Keep clients who resolved the input to support proper disposal
-		let clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource];
+		const clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource];
 		if (types.isUndefinedOrNull(clients)) {
 			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource] = [this];
 		} else if (this.indexOfClient() === -1) {
@@ -242,7 +242,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 
 		// Use Cached Model if present
-		let cachedModel = this.textFileService.models.get(this.resource);
+		const cachedModel = this.textFileService.models.get(this.resource);
 		if (cachedModel instanceof TextFileEditorModel && !refresh) {
 			modelPromise = TPromise.as<EditorModel>(cachedModel);
 		}
@@ -277,7 +277,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		const inputs = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()];
 		if (inputs) {
 			for (let i = 0; i < inputs.length; i++) {
-				let client = inputs[i];
+				const client = inputs[i];
 				if (client === this) {
 					return i;
 				}
@@ -288,13 +288,13 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	private createAndLoadModel(): TPromise<EditorModel> {
-		let descriptor = (<IEditorRegistry>Registry.as(Extensions.Editors)).getEditor(this);
+		const descriptor = (<IEditorRegistry>Registry.as(Extensions.Editors)).getEditor(this);
 		if (!descriptor) {
 			throw new Error('Unable to find an editor in the registry for this input.');
 		}
 
 		// Optimistically create a text model assuming that the file is not binary
-		let textModel = this.instantiationService.createInstance(TextFileEditorModel, this.resource, this.preferredEncoding);
+		const textModel = this.instantiationService.createInstance(TextFileEditorModel, this.resource, this.preferredEncoding);
 		return textModel.load().then(() => textModel, (error) => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
@@ -347,11 +347,11 @@ export class FileEditorInput extends CommonFileEditorInput {
 	 * that have been loaded during the session.
 	 */
 	public static getAll(desiredFileOrFolderResource: URI): FileEditorInput[] {
-		let inputsContainingResource: FileEditorInput[] = [];
+		const inputsContainingResource: FileEditorInput[] = [];
 
-		let clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS;
-		for (let resource in clients) {
-			let inputs = clients[resource];
+		const clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS;
+		for (const resource in clients) {
+			const inputs = clients[resource];
 
 			// Check if path is identical or path is a folder that the content is inside
 			if (paths.isEqualOrParent(resource, desiredFileOrFolderResource.toString())) {

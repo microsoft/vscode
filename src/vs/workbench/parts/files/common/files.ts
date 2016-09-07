@@ -84,7 +84,7 @@ export interface IFileResource {
  */
 export function asFileResource(obj: any): IFileResource {
 	if (obj instanceof FileStat) {
-		let stat = <FileStat>obj;
+		const stat = <FileStat>obj;
 
 		return {
 			resource: stat.resource,
