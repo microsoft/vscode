@@ -18,9 +18,9 @@
       "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-2.3.2-next.5.tgz"
     },
     "vscode-languageclient": {
-      "version": "2.4.2-next.21",
+      "version": "2.4.2-next.22",
       "from": "vscode-languageclient@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-2.4.2-next.21.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-2.4.2-next.22.tgz"
     },
     "vscode-languageserver-types": {
       "version": "1.0.3",
