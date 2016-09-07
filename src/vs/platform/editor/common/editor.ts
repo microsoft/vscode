@@ -96,6 +96,11 @@ export interface IEditor {
 	 * Asks the underlying control to focus.
 	 */
 	focus(): void;
+
+	/**
+	 * Finds out if this editor is visible or not.
+	 */
+	isVisible(): boolean;
 }
 
 /**

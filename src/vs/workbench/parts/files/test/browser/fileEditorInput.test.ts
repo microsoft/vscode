@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 
 function toResource(path) {
@@ -18,7 +17,7 @@ function toResource(path) {
 }
 
 class ServiceAccessor {
-	constructor(@IWorkbenchEditorService public editorService: IWorkbenchEditorService) {
+	constructor( @IWorkbenchEditorService public editorService: IWorkbenchEditorService) {
 	}
 }
 
@@ -28,7 +27,7 @@ suite('Files - FileEditorInput', () => {
 	let accessor: ServiceAccessor;
 
 	setup(() => {
-		instantiationService= workbenchInstantiationService();
+		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
@@ -50,7 +49,7 @@ suite('Files - FileEditorInput', () => {
 
 		input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar.html'), 'text/html', void 0);
 
-		const inputToResolve:any = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
+		const inputToResolve: any = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 
 		return accessor.editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
@@ -99,47 +98,5 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(fileEditorInput.matches(null), false);
 		assert.strictEqual(fileEditorInput.matches(fileEditorInput), true);
 		assert.strictEqual(fileEditorInput.matches(contentEditorInput2), true);
-	});
-
-	test('FileTracker - dispose()', function (done) {
-		const tracker = instantiationService.createInstance(FileTracker);
-
-		const inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
-		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
-		return accessor.editorService.resolveEditorModel(inputToResolve).then(function (resolved) {
-			return accessor.editorService.resolveEditorModel(sameOtherInput).then(function (resolved) {
-				tracker.handleDeleteOrMove(toResource('/bar'), []);
-				assert(!inputToResolve.isDisposed());
-				assert(!sameOtherInput.isDisposed());
-
-				tracker.handleDeleteOrMove(toResource('/fooss5/bar/file2.js'), []);
-
-				assert(inputToResolve.isDisposed());
-				assert(sameOtherInput.isDisposed());
-
-				done();
-			});
-		});
-	});
-
-	test('FileEditorInput - dispose() also works for folders', function (done) {
-		const tracker = instantiationService.createInstance(FileTracker);
-
-		const inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
-		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
-		return accessor.editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
-			return accessor.editorService.resolveEditorModel(sameOtherInput, true).then(function (resolved) {
-				tracker.handleDeleteOrMove(toResource('/bar'), []);
-				assert(!inputToResolve.isDisposed());
-				assert(!sameOtherInput.isDisposed());
-
-				tracker.handleDeleteOrMove(toResource('/foo6'), []);
-
-				assert(inputToResolve.isDisposed());
-				assert(sameOtherInput.isDisposed());
-
-				done();
-			});
-		});
 	});
 });

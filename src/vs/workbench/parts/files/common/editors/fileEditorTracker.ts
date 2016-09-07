@@ -10,10 +10,10 @@ import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import {IEditor} from 'vs/editor/common/editorCommon';
+import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {EditorInput, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, BINARY_FILE_EDITOR_ID, ITextFileService, ModelState} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -25,8 +25,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
-// This extension tracks files for changes to update editors and inputs accordingly.
-export class FileTracker implements IWorkbenchContribution {
+export class FileEditorTracker implements IWorkbenchContribution {
 
 	// Delay in ms that we wait at minimum before we update a model from a file change event.
 	// This reduces the chance that a save from the client triggers an update of the editor.
@@ -53,7 +52,7 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	public getId(): string {
-		return 'vs.files.filetracker';
+		return 'vs.files.fileEditorTracker';
 	}
 
 	private registerListeners(): void {
@@ -127,12 +126,12 @@ export class FileTracker implements IWorkbenchContribution {
 							const lastSaveTime = textModel.getLastSaveAttemptTime();
 
 							// Force a reopen of the input if this change came in later than our wait interval before we consider it
-							if (Date.now() - lastSaveTime > FileTracker.FILE_CHANGE_UPDATE_DELAY) {
-								const codeEditor = (<BaseTextEditor>editor).getControl();
+							if (Date.now() - lastSaveTime > FileEditorTracker.FILE_CHANGE_UPDATE_DELAY) {
+								const codeEditor = <IEditor>editor.getControl();
 								const viewState = codeEditor.saveViewState();
 								const currentMtime = textModel.getLastModifiedTime(); // optimize for the case where the file did actually not change
 								textModel.load().done(() => {
-									if (textModel.getLastModifiedTime() !== currentMtime && this.isEditorShowingPath(<BaseEditor>editor, textModel.getResource())) {
+									if (textModel.getLastModifiedTime() !== currentMtime && this.isEditorShowingPath(editor, textModel.getResource())) {
 										codeEditor.restoreViewState(viewState);
 									}
 								}, errors.onUnexpectedError);
@@ -149,7 +148,7 @@ export class FileTracker implements IWorkbenchContribution {
 		});
 	}
 
-	private isEditorShowingPath(editor: BaseEditor, resource: URI): boolean {
+	private isEditorShowingPath(editor: IBaseEditor, resource: URI): boolean {
 
 		// Only relevant if Editor is visible
 		if (!editor.isVisible()) {
@@ -157,7 +156,7 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		// Only relevant if Input is set
-		let input = editor.getInput();
+		let input = editor.input;
 		if (!input) {
 			return false;
 		}

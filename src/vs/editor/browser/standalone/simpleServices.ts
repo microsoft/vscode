@@ -43,6 +43,7 @@ export class SimpleEditor implements IEditor {
 	public getControl():editorCommon.IEditor { return this._widget; }
 	public getSelection():Selection { return this._widget.getSelection(); }
 	public focus():void { this._widget.focus(); }
+	public isVisible():boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback:(editor:ICodeEditor)=>T, diffEditorCallback:(editor:IDiffEditor)=>T): T {
 		if (this._widget.getEditorType() === editorCommon.EditorType.ICodeEditor) {
