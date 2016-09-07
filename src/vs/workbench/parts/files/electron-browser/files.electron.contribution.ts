@@ -16,7 +16,7 @@ import {ITextFileService, asFileResource} from 'vs/workbench/parts/files/common/
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {GlobalNewUntitledFileAction, SaveFileAsAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {MacIntegration} from 'vs/workbench/parts/files/electron-browser/macIntegration';
-import {TextFileService} from 'vs/workbench/parts/files/electron-browser/textFileServices';
+import {TextFileService} from 'vs/workbench/parts/files/electron-browser/textFileService';
 import {OpenFolderAction, OpenFileAction, OpenFileFolderAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';

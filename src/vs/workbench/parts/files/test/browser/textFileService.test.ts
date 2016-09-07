@@ -39,7 +39,7 @@ class ShutdownEventImpl implements ShutdownEvent {
 	}
 }
 
-suite('Files - TextFileServices', () => {
+suite('Files - TextFileService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let model: TextFileEditorModel;
