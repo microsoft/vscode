@@ -33,6 +33,7 @@ export interface ISnippetsRegistry {
 }
 
 export interface ISnippet {
+	owner: string;
 	prefix: string;
 	description: string;
 	codeSnippet: string;
@@ -63,13 +64,13 @@ class SnippetsRegistry implements ISnippetsRegistry {
 	}
 
 	public getSnippetCompletions(model: IReadOnlyModel, position: IPosition, result: ISuggestion[]): void {
-		let modeId = model.getModeId();
+		const modeId = model.getModeId();
 		if (!this._snippets[modeId]) {
 			return;
 		}
-		let word = model.getWordAtPosition(position);
-		let currentWord = word ? word.word.substring(0, position.column - word.startColumn).toLowerCase() : '';
-		let currentFullWord = getNonWhitespacePrefix(model, position).toLowerCase();
+		const word = model.getWordAtPosition(position);
+		const currentWord = word ? word.word.substring(0, position.column - word.startColumn).toLowerCase() : '';
+		const currentFullWord = getNonWhitespacePrefix(model, position).toLowerCase();
 
 		this.visitSnippets(modeId, s => {
 			let overwriteBefore: number;
@@ -77,7 +78,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 				// if there's no prefix, only show snippets at the beginning of the line, or after a whitespace
 				overwriteBefore = 0;
 			} else {
-				let label = s.prefix.toLowerCase();
+				const label = s.prefix.toLowerCase();
 				// force that the current word or full word matches with the snippet prefix
 				if (currentWord.length > 0 && strings.startsWith(label, currentWord)) {
 					overwriteBefore = currentWord.length;
@@ -87,15 +88,21 @@ class SnippetsRegistry implements ISnippetsRegistry {
 					return true;
 				}
 			}
-			result.push({
+
+			const suggestion: ISuggestion = {
 				type: 'snippet',
 				label: s.prefix,
+				detail: s.owner,
 				documentation: s.description,
 				insertText: s.codeSnippet,
 				noAutoAccept: true,
 				isTMSnippet: true,
 				overwriteBefore
-			});
+			};
+
+			// store in result
+			result.push(suggestion);
+
 			return true;
 		});
 	}

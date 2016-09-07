@@ -49,13 +49,13 @@ export class MainProcessTextMateSnippet {
 			for (let i = 0; i < extensions.length; i++) {
 				let tmSnippets = extensions[i].value;
 				for (let j = 0; j < tmSnippets.length; j++) {
-					this._withSnippetContribution(extensions[i].description.extensionFolderPath, tmSnippets[j], extensions[i].collector);
+					this._withSnippetContribution(extensions[i].description.name, extensions[i].description.extensionFolderPath, tmSnippets[j], extensions[i].collector);
 				}
 			}
 		});
 	}
 
-	private _withSnippetContribution(extensionFolderPath: string, snippet: ISnippetsExtensionPoint, collector: IExtensionMessageCollector): void {
+	private _withSnippetContribution(extensionName: string, extensionFolderPath: string, snippet: ISnippetsExtensionPoint, collector: IExtensionMessageCollector): void {
 		if (!snippet.language || (typeof snippet.language !== 'string')) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", snippetsExtensionPoint.name, String(snippet.language)));
 			return;
@@ -75,7 +75,7 @@ export class MainProcessTextMateSnippet {
 			if (mode.getId() !== modeId) {
 				return;
 			}
-			readAndRegisterSnippets(modeId, normalizedAbsolutePath);
+			readAndRegisterSnippets(modeId, normalizedAbsolutePath, extensionName);
 			disposable.dispose();
 		});
 	}
@@ -83,14 +83,14 @@ export class MainProcessTextMateSnippet {
 
 let snippetsRegistry = <ISnippetsRegistry>platform.Registry.as(Extensions.Snippets);
 
-export function readAndRegisterSnippets(modeId: string, filePath: string): TPromise<void> {
+export function readAndRegisterSnippets(modeId: string, filePath: string, ownerName: string): TPromise<void> {
 	return readFile(filePath).then(fileContents => {
-		let snippets = parseSnippetFile(fileContents.toString());
+		let snippets = parseSnippetFile(fileContents.toString(), ownerName);
 		snippetsRegistry.registerSnippets(modeId, snippets, filePath);
 	});
 }
 
-function parseSnippetFile(snippetFileContent: string): ISnippet[] {
+function parseSnippetFile(snippetFileContent: string, ownerName: string): ISnippet[] {
 	let snippetsObj = parse(snippetFileContent);
 
 	let topLevelProperties = Object.keys(snippetsObj);
@@ -106,6 +106,7 @@ function parseSnippetFile(snippetFileContent: string): ISnippet[] {
 
 		if (typeof prefix === 'string' && typeof bodyStringOrArray === 'string') {
 			result.push({
+				owner: ownerName,
 				prefix,
 				description: snippet['description'] || description,
 				codeSnippet: bodyStringOrArray
