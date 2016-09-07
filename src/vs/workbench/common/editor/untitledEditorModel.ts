@@ -10,7 +10,7 @@ import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
 import {EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
-import {EventType as WorkbenchEventType, UntitledEditorEvent, ResourceEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -18,14 +18,19 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IMode} from 'vs/editor/common/modes';
 import {isUnspecific} from 'vs/base/common/mime';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
 	private textModelChangeListener: IDisposable;
 	private configurationChangeListener: IDisposable;
 
 	private dirty: boolean;
+	private _onDidChangeDirty: Emitter<void>;
+
 	private configuredEncoding: string;
 	private preferredEncoding: string;
+
+	private hasAssociatedFilePath: boolean;
 
 	constructor(
 		value: string,
@@ -39,9 +44,16 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	) {
 		super(value, mime, resource, modeService, modelService);
 
+		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
 
+		this._onDidChangeDirty = new Emitter<void>();
+
 		this.registerListeners();
+	}
+
+	public get onDidChangeDirty(): Event<void> {
+		return this._onDidChangeDirty.event;
 	}
 
 	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
@@ -83,7 +95,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	}
 
 	public setEncoding(encoding: string): void {
-		let oldEncoding = this.getEncoding();
+		const oldEncoding = this.getEncoding();
 		this.preferredEncoding = encoding;
 
 		// Emit if it changed
@@ -99,7 +111,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	public revert(): void {
 		this.dirty = false;
 
-		this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_SAVED, new UntitledEditorEvent(this.resource));
+		this._onDidChangeDirty.fire();
 	}
 
 	public load(): TPromise<EditorModel> {
@@ -110,12 +122,12 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
 
 			// Listen to content changes
-			this.textModelChangeListener = this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged());
+			this.textModelChangeListener = this.textEditorModel.onDidChangeContent(e => this.onModelContentChanged());
 
 			// Emit initial dirty event if we are
 			if (this.dirty) {
 				setTimeout(() => {
-					this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_DIRTY, new UntitledEditorEvent(this.resource));
+					this._onDidChangeDirty.fire();
 				}, 0 /* prevent race condition between creating model and emitting dirty event */);
 			}
 
@@ -124,9 +136,18 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	}
 
 	private onModelContentChanged(): void {
+
+		// turn dirty if we were not
 		if (!this.dirty) {
 			this.dirty = true;
-			this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_DIRTY, new UntitledEditorEvent(this.resource));
+			this._onDidChangeDirty.fire();
+		}
+
+		// mark the untitled editor as non-dirty once its content becomes empty and we do
+		// not have an associated path set
+		else if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+			this.dirty = false;
+			this._onDidChangeDirty.fire();
 		}
 	}
 

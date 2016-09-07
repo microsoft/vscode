@@ -24,6 +24,7 @@ import {SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction} from 'vs/
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 export class OutputPanel extends StringEditor {
 
@@ -40,10 +41,11 @@ export class OutputPanel extends StringEditor {
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService
 	) {
 		super(telemetryService, instantiationService, contextService, storageService,
-			messageService, configurationService, eventService, editorService, themeService);
+			messageService, configurationService, eventService, editorService, themeService, untitledEditorService);
 		this.toDispose = [];
 	}
 

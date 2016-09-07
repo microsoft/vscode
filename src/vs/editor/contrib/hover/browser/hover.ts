@@ -60,7 +60,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 			}));
 
 			this._contentWidget = new ModesContentHoverWidget(editor, openerService, modeService);
-			this._glyphWidget = new ModesGlyphHoverWidget(editor);
+			this._glyphWidget = new ModesGlyphHoverWidget(editor, openerService, modeService);
 		}
 	}
 
