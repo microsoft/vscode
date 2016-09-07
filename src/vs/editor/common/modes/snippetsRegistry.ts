@@ -102,7 +102,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 			result.push({
 				type: 'snippet',
 				label: s.prefix,
-				get disambiguateLabel() { return localize('snippetSuggest.longLabel', "{0} - {1}", s.prefix, s.name); },
+				get disambiguateLabel() { return localize('snippetSuggest.longLabel', "{0}, {1}", s.prefix, s.name); },
 				detail: s.owner,
 				documentation: s.description,
 				insertText: s.codeSnippet,
