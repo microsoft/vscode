@@ -16,6 +16,7 @@ import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
@@ -439,7 +440,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Report error only if this was not us restoring previous error state
 		if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
-			const errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), errors.toErrorMessage(e));
+			const errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(e));
 
 			let error: any;
 			if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {

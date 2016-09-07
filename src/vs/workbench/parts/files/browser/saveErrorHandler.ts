@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
@@ -114,7 +115,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 			if (isReadonly) {
 				errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to remove protection.", paths.basename(resource.fsPath));
 			} else {
-				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), errors.toErrorMessage(error, false));
+				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
 			}
 
 			message = {

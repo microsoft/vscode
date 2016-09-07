@@ -10,7 +10,7 @@ import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import aria = require('vs/base/browser/ui/aria/aria');
 import types = require('vs/base/common/types');
 import Event, {Emitter} from 'vs/base/common/event';
@@ -114,7 +114,7 @@ export class MessageList {
 		}
 
 		if (message instanceof Error) {
-			return errors.toErrorMessage(message, false);
+			return toErrorMessage(message, false);
 		}
 
 		if ((<IMessageWithAction>message).message) {

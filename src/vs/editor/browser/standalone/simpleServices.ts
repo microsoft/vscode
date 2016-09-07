@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {toErrorMessage} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
@@ -194,7 +193,7 @@ export class SimpleMessageService implements IMessageService {
 
 		switch(sev) {
 			case Severity.Error:
-				console.error(toErrorMessage(message, true));
+				console.error(message);
 				break;
 			case Severity.Warning:
 				console.warn(message);

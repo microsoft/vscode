@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
@@ -177,7 +178,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Offer to create a file from the error if we have a file not found and the name is valid
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
-				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), {
+				return TPromise.wrapError(errors.create(toErrorMessage(error), {
 					actions: [
 						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 							return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {

@@ -14,6 +14,7 @@ import {MIME_TEXT, isUnspecific, isBinaryMime, guessMimeTypes} from 'vs/base/com
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
 import {Event, EventType as CommonEventType} from 'vs/base/common/events';
 import severity from 'vs/base/common/severity';
@@ -138,7 +139,7 @@ export class BaseFileAction extends Action {
 
 		let errorWithRetry: IMessageWithAction = {
 			actions,
-			message: errors.toErrorMessage(error, false)
+			message: toErrorMessage(error, false)
 		};
 
 		this._messageService.show(Severity.Error, errorWithRetry);
@@ -1394,7 +1395,7 @@ export abstract class BaseActionWithErrorReporting extends Action {
 
 	public run(context?: any): TPromise<boolean> {
 		return this.doRun(context).then(() => true, (error) => {
-			this.messageService.show(Severity.Error, errors.toErrorMessage(error, false));
+			this.messageService.show(Severity.Error, toErrorMessage(error, false));
 		});
 	}
 

@@ -6,7 +6,8 @@
 
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, toErrorMessage} from 'vs/base/common/errors';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
