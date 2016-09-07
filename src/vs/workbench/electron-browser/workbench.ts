@@ -16,6 +16,7 @@ import {Delayer} from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {Registry} from 'vs/platform/platform';
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import {IOptions} from 'vs/workbench/common/options';
@@ -276,7 +277,7 @@ export class Workbench implements IPartService {
 		} catch (error) {
 
 			// Print out error
-			console.error(errors.toErrorMessage(error, true));
+			console.error(toErrorMessage(error, true));
 
 			// Rethrow
 			throw error;

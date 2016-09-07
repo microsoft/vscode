@@ -15,6 +15,7 @@ import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
 import {dispose, IDisposable, Disposables} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
@@ -411,7 +412,7 @@ export class WorkbenchShell {
 	}
 
 	public onUnexpectedError(error: any): void {
-		const errorMsg = errors.toErrorMessage(error, true);
+		const errorMsg = toErrorMessage(error, true);
 		if (!errorMsg) {
 			return;
 		}
