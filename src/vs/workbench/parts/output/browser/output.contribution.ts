@@ -32,15 +32,6 @@ ModesRegistry.registerLanguage({
 	mimetypes: [OUTPUT_MIME]
 });
 
-// ModesRegistry.registerCompatMode({
-// 	id: OUTPUT_MODE_ID,
-// 	extensions: [],
-// 	aliases: [null],
-// 	mimetypes: [OUTPUT_MIME],
-// 	moduleId: 'vs/workbench/parts/output/common/outputMode',
-// 	ctorName: 'OutputMode'
-// });
-
 // Register Output Panel
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
 	'vs/workbench/parts/output/browser/outputPanel',

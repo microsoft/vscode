@@ -16,9 +16,6 @@ function createModuleDescription(name, exclude) {
 }
 
 exports.collectModules = function(excludes) {
-	var languageMainExcludes = ['vs/editor/common/languages.common'];
-	var languageWorkerExcludes = ['vs/base/common/worker/workerServer', 'vs/editor/common/worker/editorWorkerServer'];
-
 	var modules = [
 		createModuleDescription('vs/workbench/parts/search/browser/searchViewlet', excludes),
 		createModuleDescription('vs/workbench/parts/search/browser/openAnythingHandler', excludes),
@@ -27,8 +24,6 @@ exports.collectModules = function(excludes) {
 		createModuleDescription('vs/workbench/parts/git/node/gitApp', []),
 		createModuleDescription('vs/workbench/parts/git/node/askpass', []),
 
-		createModuleDescription('vs/workbench/parts/output/common/outputMode', languageMainExcludes),
-		createModuleDescription('vs/workbench/parts/output/common/outputWorker', languageWorkerExcludes),
 		createModuleDescription('vs/workbench/parts/output/common/outputLinkComputer', ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']),
 		createModuleDescription('vs/workbench/parts/output/browser/outputPanel', excludes),
 
