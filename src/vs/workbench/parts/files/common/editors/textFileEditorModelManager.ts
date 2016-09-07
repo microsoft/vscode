@@ -53,7 +53,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	private onLocalFileChange(e: LocalFileChangeEvent): void {
 		if (e.gotMoved() || e.gotDeleted()) {
-			this.disposeModel(e.getBefore().resource); // dispose models of moved or deleted files
+			this.disposeModelIfPossible(e.getBefore().resource); // dispose models of moved or deleted files
 		}
 	}
 
@@ -61,7 +61,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 		// Dispose inputs that got deleted
 		e.getDeleted().forEach(deleted => {
-			this.disposeModel(deleted.resource);
+			this.disposeModelIfPossible(deleted.resource);
 		});
 
 		// Dispose models that got changed and are not visible. We do this because otherwise
@@ -69,8 +69,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		e.getUpdated()
 			.map(u => this.get(u.resource))
 			.filter(model => {
-				const canDispose = this.canDispose(model);
-				if (!canDispose) {
+				if (!model) {
 					return false;
 				}
 
@@ -80,22 +79,38 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 				return true; // ok boss
 			})
-			.forEach(model => this.disposeModel(model.getResource()));
+			.forEach(model => this.disposeModelIfPossible(model.getResource()));
 	}
 
 	private onEditorsChanged(): void {
 		this.disposeUnusedModels();
 	}
 
-	public disposeModel(resource: URI): void {
+	private disposeModelIfPossible(resource: URI): void {
 		const model = this.get(resource);
-		if (model) {
-			if (model.isDirty()) {
-				return; // we never dispose dirty models to avoid data loss
-			}
-
+		if (this.canDispose(model)) {
 			model.dispose();
 		}
+	}
+
+	private canDispose(textModel: ITextFileEditorModel): boolean {
+		if (!textModel) {
+			return false; // we need data!
+		}
+
+		if (textModel.isDisposed()) {
+			return false; // already disposed
+		}
+
+		if (textModel.textEditorModel && textModel.textEditorModel.isAttachedToEditor()) {
+			return false; // never dispose when attached to editor
+		}
+
+		if (textModel.getState() !== ModelState.SAVED) {
+			return false; // never dispose unsaved models
+		}
+
+		return true;
 	}
 
 	public get(resource: URI): TextFileEditorModel {
@@ -146,26 +161,6 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.mapResourceToDisposeListener = Object.create(null);
 	}
 
-	private canDispose(textModel: ITextFileEditorModel): boolean {
-		if (!textModel) {
-			return false; // we need data!
-		}
-
-		if (textModel.isDisposed()) {
-			return false; // already disposed
-		}
-
-		if (textModel.textEditorModel && textModel.textEditorModel.isAttachedToEditor()) {
-			return false; // never dispose when attached to editor
-		}
-
-		if (textModel.getState() !== ModelState.SAVED) {
-			return false; // never dispose unsaved models
-		}
-
-		return true;
-	}
-
 	private disposeUnusedModels(): void {
 
 		// To not grow our text file model cache infinitly, we dispose models that
@@ -174,11 +169,11 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		// Get all cached file models
 		this.getAll()
 
-			// Only take text file models and remove those that are under working files or opened
-			.filter(model => !this.editorGroupService.getStacksModel().isOpen(model.getResource()) && this.canDispose(model))
+			// Only models that are not open inside the editor area
+			.filter(model => !this.editorGroupService.getStacksModel().isOpen(model.getResource()))
 
 			// Dispose
-			.forEach(model => this.disposeModel(model.getResource()));
+			.forEach(model => this.disposeModelIfPossible(model.getResource()));
 	}
 
 	public dispose(): void {
