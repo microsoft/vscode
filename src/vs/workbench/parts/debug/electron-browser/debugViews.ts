@@ -30,7 +30,6 @@ import IDebugService = debug.IDebugService;
 
 const debugTreeOptions = (ariaLabel: string) => {
 	return <tree.ITreeOptions> {
-		indentPixels: 8,
 		twistiePixels: 20,
 		ariaLabel
 	};
@@ -179,7 +178,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		this.tree.setInput(this.debugService.getModel());
 
 		const addWatchExpressionAction = this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL);
-		const collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
+		const collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, true, 'explorer-action collapse-explorer');
 		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL);
 		this.toolBar.setActions(actionbarregistry.prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 

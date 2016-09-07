@@ -11,9 +11,8 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {IMonarchLanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
-import {ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
+import {StaticServices} from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
-import {startup} from './standaloneCodeEditor';
 import {LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
@@ -68,22 +67,16 @@ export function setLanguageConfiguration(languageId:string, configuration:Langua
  * Set the tokens provider for a language (manual implementation).
  */
 export function setTokensProvider(languageId:string, provider:modes.TokensProvider): IDisposable {
-	startup.initStaticServicesIfNecessary();
-	let staticPlatformServices = ensureStaticPlatformServices(null);
-	return staticPlatformServices.modeService.registerTokenizationSupport2(languageId, provider);
+	return StaticServices.modeService.get().registerTokenizationSupport2(languageId, provider);
 }
 
 /**
  * Set the tokens provider for a language (monarch implementation).
  */
 export function setMonarchTokensProvider(languageId:string, languageDef:IMonarchLanguage): IDisposable {
-	startup.initStaticServicesIfNecessary();
-	let staticPlatformServices = ensureStaticPlatformServices(null);
 	let lexer = compile(languageId, languageDef);
-	let modeService = staticPlatformServices.modeService;
-
-	return modeService.registerTokenizationSupport(languageId, (mode) => {
-		return createTokenizationSupport(modeService, mode, lexer);
+	return StaticServices.modeService.get().registerTokenizationSupport(languageId, (mode) => {
+		return createTokenizationSupport(StaticServices.modeService.get(), mode, lexer);
 	});
 }
 
@@ -149,9 +142,7 @@ export function registerCodeLensProvider(languageId:string, provider:modes.CodeL
 export function registerCodeActionProvider(languageId:string, provider:CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
 		provideCodeActions: (model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): modes.CodeAction[] | Thenable<modes.CodeAction[]> => {
-			startup.initStaticServicesIfNecessary();
-			var markerService = ensureStaticPlatformServices(null).markerService;
-			let markers = markerService.read({resource: model.uri }).filter(m => {
+			let markers = StaticServices.markerService.get().read({resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
 			return provider.provideCodeActions(model, range, { markers }, token);

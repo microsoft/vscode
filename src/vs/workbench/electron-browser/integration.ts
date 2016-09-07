@@ -6,12 +6,10 @@
 'use strict';
 
 import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
 import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import arrays = require('vs/base/common/arrays');
 import Severity from 'vs/base/common/severity';
-import {isMacintosh} from 'vs/base/common/platform';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IAction, Action} from 'vs/base/common/actions';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -23,12 +21,17 @@ import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IWorkspaceContextService}from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ElectronWindow} from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
-import {IQuickOpenService, IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {KeyMod} from 'vs/base/common/keyCodes';
+import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
+import {Position} from 'vs/platform/editor/common/editor';
+import {EditorInput} from 'vs/workbench/common/editor';
+import {IPath, IOpenFileRequest, IWindowConfiguration} from 'vs/workbench/electron-browser/common';
+import {IResourceInput} from 'vs/platform/editor/common/editor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import URI from 'vs/base/common/uri';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -57,8 +60,9 @@ export class ElectronIntegration {
 		@ICommandService private commandService: ICommandService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 	}
 
@@ -102,6 +106,9 @@ export class ElectronIntegration {
 			}
 		});
 
+		// Support openFiles event for existing and new files
+		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => this.onOpenFiles(request));
+
 		// Emit event when vscode has loaded
 		this.partService.joinCreation().then(() => {
 			ipc.send('vscode:workbenchLoaded', this.windowService.getWindowId());
@@ -110,11 +117,6 @@ export class ElectronIntegration {
 		// Message support
 		ipc.on('vscode:showInfoMessage', (event, message: string) => {
 			this.messageService.show(Severity.Info, message);
-		});
-
-		// Recent files / folders
-		ipc.on('vscode:openRecent', (event, files: string[], folders: string[]) => {
-			this.openRecent(files, folders);
 		});
 
 		// Ensure others can listen to zoom level changes
@@ -168,34 +170,6 @@ export class ElectronIntegration {
 		});
 	}
 
-	private openRecent(recentFiles: string[], recentFolders: string[]): void {
-		function toPick(path: string, separator: ISeparator): IPickOpenEntry {
-			return {
-				label: paths.basename(path),
-				description: paths.dirname(path),
-				separator,
-				run: (context) => runPick(path, context)
-			};
-		}
-
-		function runPick(path: string, context): void {
-			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-
-			ipc.send('vscode:windowOpen', [path], newWindow);
-		}
-
-		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0));
-		const filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0));
-
-		const hasWorkspace = !!this.contextService.getWorkspace();
-
-		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
-			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
-			matchOnDescription: true
-		}).done(null, errors.onUnexpectedError);
-	}
-
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; binding: number; }[]> {
 		return this.partService.joinCreation().then(() => {
 			return arrays.coalesce(actionIds.map((id) => {
@@ -215,6 +189,73 @@ export class ElectronIntegration {
 
 				return null;
 			}));
+		});
+	}
+
+	private onOpenFiles(request: IOpenFileRequest): void {
+		let inputs: IResourceInput[] = [];
+		let diffMode = (request.filesToDiff.length === 2);
+
+		if (!diffMode && request.filesToOpen) {
+			inputs.push(...this.toInputs(request.filesToOpen, false));
+		}
+
+		if (!diffMode && request.filesToCreate) {
+			inputs.push(...this.toInputs(request.filesToCreate, true));
+		}
+
+		if (diffMode) {
+			inputs.push(...this.toInputs(request.filesToDiff, false));
+		}
+
+		if (inputs.length) {
+			this.openResources(inputs, diffMode).done(null, errors.onUnexpectedError);
+		}
+	}
+
+	private openResources(resources: IResourceInput[], diffMode: boolean): TPromise<any> {
+		return this.partService.joinCreation().then(() => {
+
+			// In diffMode we open 2 resources as diff
+			if (diffMode) {
+				return TPromise.join(resources.map(f => this.editorService.createInput(f))).then((inputs: EditorInput[]) => {
+					return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(resources[0].resource, resources[1].resource, this.contextService), null, inputs[0], inputs[1]));
+				});
+			}
+
+			// For one file, just put it into the current active editor
+			if (resources.length === 1) {
+				return this.editorService.openEditor(resources[0]);
+			}
+
+			// Otherwise open all
+			const activeEditor = this.editorService.getActiveEditor();
+			return this.editorService.openEditors(resources.map((r, index) => {
+				return {
+					input: r,
+					position: activeEditor ? activeEditor.position : Position.LEFT
+				};
+			}));
+		});
+	}
+
+	private toInputs(paths: IPath[], isNew: boolean): IResourceInput[] {
+		return paths.map(p => {
+			let input = <IResourceInput>{
+				resource: isNew ? this.untitledEditorService.createOrGet(URI.file(p.filePath)).getResource() : URI.file(p.filePath),
+				options: {
+					pinned: true
+				}
+			};
+
+			if (!isNew && p.lineNumber) {
+				input.options.selection = {
+					startLineNumber: p.lineNumber,
+					startColumn: p.columnNumber
+				};
+			}
+
+			return input;
 		});
 	}
 }

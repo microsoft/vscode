@@ -287,12 +287,23 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			result.glyphMarginHoverMessage = breakpoint.message;
 		}
 
-		return result ? result :
-			!session || session.configuration.capabilities.supportsConditionalBreakpoints ? {
+		if (result) {
+			return result;
+		}
+
+		if (!session || session.configuration.capabilities.supportsConditionalBreakpoints) {
+			const mode = modelData.model.getMode();
+			const modeId = mode ? mode.getId() : '';
+			const glyphMarginHoverMessage = `\`\`\`${modeId}\n${ breakpoint.condition }\`\`\``;
+
+			return {
 				glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
-				glyphMarginHoverMessage: breakpoint.condition,
+				glyphMarginHoverMessage,
 				stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-			} : DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
+			};
+		}
+
+		return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 	}
 
 	// editor decorations

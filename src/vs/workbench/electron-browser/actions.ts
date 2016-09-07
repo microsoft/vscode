@@ -14,14 +14,20 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {EditorInput} from 'vs/workbench/common/editor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
+import errors = require('vs/base/common/errors');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
+import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import paths = require('vs/base/common/paths');
+import {isMacintosh} from 'vs/base/common/platform';
+import {IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {KeyMod} from 'vs/base/common/keyCodes';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -371,7 +377,9 @@ export class OpenRecentAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
@@ -379,7 +387,41 @@ export class OpenRecentAction extends Action {
 	public run(): TPromise<boolean> {
 		ipc.send('vscode:openRecent', this.windowService.getWindowId());
 
-		return TPromise.as(true);
+		return new TPromise<boolean>((c, e, p) => {
+			ipc.once('vscode:openRecent', (event, files: string[], folders: string[]) => {
+				this.openRecent(files, folders);
+
+				c(true);
+			});
+		});
+	}
+
+	private openRecent(recentFiles: string[], recentFolders: string[]): void {
+		function toPick(path: string, separator: ISeparator): IPickOpenEntry {
+			return {
+				label: paths.basename(path),
+				description: paths.dirname(path),
+				separator,
+				run: (context) => runPick(path, context)
+			};
+		}
+
+		function runPick(path: string, context): void {
+			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+
+			ipc.send('vscode:windowOpen', [path], newWindow);
+		}
+
+		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0));
+		const filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0));
+
+		const hasWorkspace = !!this.contextService.getWorkspace();
+
+		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
+			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
+			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
+			matchOnDescription: true
+		}).done(null, errors.onUnexpectedError);
 	}
 }
 

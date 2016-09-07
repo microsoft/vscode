@@ -147,7 +147,7 @@ export class WorkbenchShell {
 		const workbenchContainer = $(parent).div();
 
 		// Instantiation service with services
-		const [instantiationService, serviceCollection] = this.initServiceCollection();
+		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		//crash reporting
 		if (!!product.crashReporter) {
@@ -209,7 +209,7 @@ export class WorkbenchShell {
 		}
 	}
 
-	private initServiceCollection(): [InstantiationService, ServiceCollection] {
+	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
 		const sharedProcess = connectNet(process.env['VSCODE_SHARED_IPC_HOOK']);
@@ -272,7 +272,7 @@ export class WorkbenchShell {
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 
-		this.messageService = instantiationService.createInstance(MessageService);
+		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
 
 		const fileService = disposables.add(instantiationService.createInstance(FileService));
@@ -433,7 +433,7 @@ export class WorkbenchShell {
 		}
 	}
 
-	public layout(): void {
+	private layout(): void {
 		const clArea = $(this.container).getClientArea();
 
 		const contentsSize = new Dimension(clArea.width, clArea.height);

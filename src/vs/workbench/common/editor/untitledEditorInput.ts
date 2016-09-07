@@ -17,7 +17,6 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 
 import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
 
@@ -53,19 +52,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
-	}
-
-	private onDirtyStateChange(e: UntitledEditorEvent): void {
-		if (e.resource.toString() === this.resource.toString()) {
-			this._onDidChangeDirty.fire();
-		}
 	}
 
 	public getTypeId(): string {
@@ -97,7 +83,9 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public revert(): TPromise<boolean> {
-		this.cachedModel.revert();
+		if (this.cachedModel) {
+			this.cachedModel.revert();
+		}
 
 		this.dispose(); // a reverted untitled editor is no longer valid, so we dispose it
 
@@ -106,7 +94,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public suggestFileName(): string {
 		if (!this.hasAssociatedFilePath) {
-			let mime = this.getMime();
+			const mime = this.getMime();
 			if (mime && mime !== MIME_TEXT /* do not suggest when the mime type is simple plain text */) {
 				return suggestFilename(mime, this.getName());
 			}
@@ -145,7 +133,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		}
 
 		// Otherwise Create Model and load
-		let model = this.createModel();
+		const model = this.createModel();
 		return model.load().then((resolvedModel: UntitledEditorModel) => {
 			this.cachedModel = resolvedModel;
 
@@ -154,16 +142,21 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	private createModel(): UntitledEditorModel {
-		let content = '';
+		const content = '';
 		let mime = this.modeId;
 		if (!mime && this.hasAssociatedFilePath) {
-			let mimeFromPath = guessMimeTypes(this.resource.fsPath)[0];
+			const mimeFromPath = guessMimeTypes(this.resource.fsPath)[0];
 			if (!isUnspecific(mimeFromPath)) {
 				mime = mimeFromPath; // take most specific mime type if file path is associated and mime is specific
 			}
 		}
 
-		return this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
+		const model = this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
+
+		// detect dirty state changes on model and re-emit
+		this.toUnbind.push(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+
+		return model;
 	}
 
 	public matches(otherInput: any): boolean {
@@ -172,7 +165,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		}
 
 		if (otherInput instanceof UntitledEditorInput) {
-			let otherUntitledEditorInput = <UntitledEditorInput>otherInput;
+			const otherUntitledEditorInput = <UntitledEditorInput>otherInput;
 
 			// Otherwise compare by properties
 			return otherUntitledEditorInput.resource.toString() === this.resource.toString();

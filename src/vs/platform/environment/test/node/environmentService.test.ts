@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { parseArgs } from 'vs/code/node/argv';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 import { parseExtensionHostPort } from 'vs/platform/environment/node/environmentService';
 
 suite('EnvironmentService', () => {

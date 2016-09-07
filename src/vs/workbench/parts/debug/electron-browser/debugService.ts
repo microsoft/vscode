@@ -34,7 +34,7 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import session = require('vs/workbench/parts/debug/electron-browser/rawDebugSession');
+import {RawDebugSession} from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
@@ -67,7 +67,7 @@ export class DebugService implements debug.IDebugService {
 
 	private _state: debug.State;
 	private _onDidChangeState: Emitter<debug.State>;
-	private session: session.RawDebugSession;
+	private session: RawDebugSession;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -553,7 +553,7 @@ export class DebugService implements debug.IDebugService {
 				if (!this.configurationManager.adapter) {
 					return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 						: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
-							{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+							{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
 				return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
@@ -568,10 +568,10 @@ export class DebugService implements debug.IDebugService {
 						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-						actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+						actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 							this.messageService.hideAll();
 							return this.doCreateSession(configuration);
-						})]
+						}), CloseAction]
 					});
 				}, (err: TaskError) => {
 					if (err.code !== TaskErrors.NotConfigured) {
@@ -580,7 +580,7 @@ export class DebugService implements debug.IDebugService {
 
 					this.messageService.show(err.severity, {
 						message: err.message,
-						actions: [CloseAction, this.taskService.configureAction()]
+						actions: [this.taskService.configureAction(), CloseAction]
 					});
 				});
 			}))));
@@ -621,7 +621,7 @@ export class DebugService implements debug.IDebugService {
 				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
+			this.session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
 			this.registerSessionListeners();
 
 			return this.session.initialize({
@@ -704,9 +704,9 @@ export class DebugService implements debug.IDebugService {
 			if (filteredTasks.length !== 1) {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName), {
 					actions: [
-						CloseAction,
+						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
 						this.taskService.configureAction(),
-						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)
+						CloseAction
 					]
 				}));
 			}
@@ -946,7 +946,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
-		if (!this.session) {
+		if (!this.session || !this.session.configuration.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
 		}
 		const focussedStackFrame = this.viewModel.getFocusedStackFrame();

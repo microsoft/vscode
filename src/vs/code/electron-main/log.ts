@@ -19,7 +19,7 @@ export class MainLogService implements ILogService {
 
 	_serviceBrand: any;
 
-	constructor( @IEnvService private envService: IEnvService) {
+	constructor(@IEnvService private envService: IEnvService) {
 	}
 
 	log(...args: any[]): void {

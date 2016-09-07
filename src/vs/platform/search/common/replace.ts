@@ -26,7 +26,7 @@ export class ReplacePattern {
 	constructor(private replaceString: string, private searchPatternInfo: IPatternInfo) {
 		this._replacePattern= replaceString;
 		if (searchPatternInfo.isRegExp) {
-			this._searchRegExp= strings.createRegExp(searchPatternInfo.pattern, searchPatternInfo.isRegExp, searchPatternInfo.isCaseSensitive, searchPatternInfo.isWordMatch, true);
+			this._searchRegExp= strings.createRegExp(searchPatternInfo.pattern, searchPatternInfo.isRegExp, {matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: false, global: true});
 			this.parseReplaceString(replaceString);
 		}
 	}
