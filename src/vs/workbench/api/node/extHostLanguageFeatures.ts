@@ -19,7 +19,7 @@ import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {IWorkspaceSymbolProvider, IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
-import {MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape} from './extHost.protocol';
+import {MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier} from './extHost.protocol';
 import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
 
 // --- adapter
@@ -497,9 +497,6 @@ class RenameAdapter {
 	}
 }
 
-interface ISuggestion2 extends modes.ISuggestion {
-	id: string;
-}
 
 class SuggestAdapter {
 
@@ -546,9 +543,11 @@ class SuggestAdapter {
 
 				const item = list.items[i];
 				const disposables: IDisposable[] = [];
-				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item, disposables);
+				const suggestion = TypeConverters.Suggest.from(item, disposables);
 
-				this._heapMonitor.linkObjects(suggestion, item, () => dispose(disposables));
+				// assign identifier to suggestion
+				const id = this._heapMonitor.keep(item, () => dispose(disposables));
+				ObjectIdentifier.mixin(suggestion, id);
 
 				if (item.textEdit) {
 
@@ -572,9 +571,6 @@ class SuggestAdapter {
 					suggestion.overwriteAfter = 0;
 				}
 
-				// assign identifier to suggestion
-				suggestion.id = String(i);
-
 				// store suggestion
 				result.suggestions.push(suggestion);
 			}
@@ -589,12 +585,12 @@ class SuggestAdapter {
 			return TPromise.as(suggestion);
 		}
 
-		const item = this._heapMonitor.getInternalObject<CompletionItem>(suggestion);
+		const item = this._heapMonitor.get<CompletionItem>(ObjectIdentifier.get(suggestion));
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
 		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			return <ISuggestion2> TypeConverters.Suggest.from(resolvedItem || item, []);
+			return TypeConverters.Suggest.from(resolvedItem || item, []);
 		});
 	}
 }

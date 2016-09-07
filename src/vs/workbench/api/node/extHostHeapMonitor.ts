@@ -13,50 +13,28 @@ export class ExtHostHeapMonitor extends ExtHostHeapMonitorShape {
 	private _data: { [n: number]: any } = Object.create(null);
 	private _callbacks: { [n: number]: Function } = Object.create(null);
 
-	private _mixinObjectIdentifier(obj: any): number {
+	keep(obj:any, callback?:() => any): number {
 		const id = ExtHostHeapMonitor._idPool++;
-
-		Object.defineProperties(obj, {
-			'$heap_ident': {
-				value: id,
-				enumerable: true,
-				configurable: false,
-				writable: false
-			},
-			'$mid': {
-				value: 3,
-				enumerable: true,
-				configurable: false,
-				writable: false
-			}
-		});
-
-		return id;
-	}
-
-	linkObjects(external: any, internal: any, callback?: () => any) {
-		const id = this._mixinObjectIdentifier(external);
-		this._data[id] = internal;
+		this._data[id] = obj;
 		if (typeof callback === 'function') {
 			this._callbacks[id] = callback;
 		}
+		return id;
 	}
 
-	getInternalObject<T>(external: any): T {
-		const id = external.$heap_ident;
-		if (typeof id === 'number') {
-			return this._data[id];
-		}
+	delete(id: number): boolean {
+		delete this._callbacks[id];
+		return this._data[id];
+	}
+
+	get<T>(id: number): T {
+		return this._data[id];
 	}
 
 	$onGarbageCollection(ids: number[]): void {
 		for (const id of ids) {
-			delete this._data[id];
-			const callback = this._callbacks[id];
-			if (callback) {
-				delete this._callbacks[id];
-				setTimeout(callback);
-			}
+			setTimeout(this._callbacks[id]);
+			this.delete(id);
 		}
 	}
 }

@@ -265,6 +265,20 @@ export abstract class ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents) { throw ni(); }
 }
 
+export interface ObjectIdentifier {
+	$ident: number;
+}
+
+export namespace ObjectIdentifier {
+	export function mixin<T>(obj: T, id: number): T & ObjectIdentifier {
+		Object.defineProperty(obj, '$ident', { value: id, enumerable: true });
+		return <T & ObjectIdentifier>obj;
+	}
+	export function get(obj: any): number {
+		return obj['$ident'];
+	}
+}
+
 export abstract class ExtHostHeapMonitorShape {
 	$onGarbageCollection(ids: number[]): void { throw ni(); }
 }
