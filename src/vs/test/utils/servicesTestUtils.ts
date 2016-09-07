@@ -42,6 +42,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -103,9 +104,10 @@ export class TestTextFileService extends TextFileService {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -339,6 +341,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
+		services.set(IConfigurationService, new TestConfigurationService());
 		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);

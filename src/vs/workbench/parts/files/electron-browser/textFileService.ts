@@ -28,6 +28,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelBuilder} from 'vs/editor/node/model/modelBuilder';
 import product from 'vs/platform/product';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -38,6 +39,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
@@ -47,7 +49,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IModelService private modelService: IModelService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
