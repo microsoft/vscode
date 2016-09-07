@@ -8,7 +8,7 @@
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ExtHostContext} from './extHost.protocol';
-import {onDidGarbageCollectSignals, consumeSignals, trackGarbageCollection} from 'gc-signals';
+import {onDidGarbageCollectSignals, consumeSignals} from 'gc-signals';
 
 export class MainThreadHeapMonitor {
 
@@ -28,11 +28,5 @@ export class MainThreadHeapMonitor {
 	dispose() {
 		clearInterval(this._consumeHandle);
 		this._subscription.dispose();
-	}
-
-	trackObject(obj: any) {
-		if (typeof obj.$heap_ident === 'number') {
-			trackGarbageCollection(obj, obj.$heap_ident);
-		}
 	}
 }
