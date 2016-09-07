@@ -9,7 +9,7 @@ import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
 import {Throttler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {MarkedString, textAsCodeBlock} from 'vs/base/common/htmlContent';
+import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -388,7 +388,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					value: text
 				};
 			} else {
-				hoverMessage = textAsCodeBlock(text);
+				hoverMessage = textToMarkedString(text);
 			}
 		}
 
