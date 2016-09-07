@@ -482,9 +482,6 @@ export abstract class TextFileService implements ITextFileService {
 					const clients = FileEditorInput.getAll(model.getResource());
 					clients.forEach(input => input.dispose());
 
-					// Model
-					this._models.disposeModel(model.getResource());
-
 					// store as successful revert
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}

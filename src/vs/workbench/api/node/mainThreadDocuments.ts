@@ -195,7 +195,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			// don't create a new file ontop of an existing file
 			return TPromise.wrapError<boolean>('file already exists on disk');
 		}, err => {
-			let input = this._untitledEditorService.createOrGet(asFileUri); // using file-uri makes it show in 'Working Files' section
+			let input = this._untitledEditorService.createOrGet(asFileUri);
 			return input.resolve(true).then(model => {
 				if (input.getResource().toString() !== uri.toString()) {
 					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);

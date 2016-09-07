@@ -277,8 +277,6 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface ITextFileEditorModelManager {
 
-	disposeModel(resource: URI): void;
-
 	get(resource: URI): ITextFileEditorModel;
 
 	getAll(resource?: URI): ITextFileEditorModel[];
