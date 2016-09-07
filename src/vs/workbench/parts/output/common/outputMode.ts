@@ -28,17 +28,21 @@ export class OutputMode extends CompatMode {
 		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
 
-		modes.LinkProviderRegistry.register(this.getId(), {
-			provideLinks: (model, token): Thenable<modes.ILink[]> => {
-				return wireCancellationToken(token, this._provideLinks(model.uri));
-			}
-		});
 
+		let workspaceResource: URI = null;
 		if (compatWorkerService.isInMainThread) {
 			let workspace = contextService.getWorkspace();
 			if (workspace) {
-				this._configure(workspace.resource);
+				workspaceResource = workspace.resource;
 			}
+		}
+
+		if (workspaceResource) {
+			modes.LinkProviderRegistry.register(this.getId(), {
+				provideLinks: (model, token): Thenable<modes.ILink[]> => {
+					return wireCancellationToken(token, this._provideLinks(workspaceResource, model.uri));
+				}
+			});
 		}
 	}
 
@@ -46,13 +50,8 @@ export class OutputMode extends CompatMode {
 		return this._modeWorkerManager.worker(runner);
 	}
 
-	static $_configure = CompatWorkerAttr(OutputMode, OutputMode.prototype._configure);
-	private _configure(workspaceResource: URI): TPromise<void> {
-		return this._worker((w) => w.configure(workspaceResource));
-	}
-
 	static $_provideLinks = CompatWorkerAttr(OutputMode, OutputMode.prototype._provideLinks);
-	private _provideLinks(resource: URI): TPromise<modes.ILink[]> {
-		return this._worker((w) => w.provideLinks(resource));
+	private _provideLinks(workspaceResource: URI, resource: URI): TPromise<modes.ILink[]> {
+		return this._worker((w) => w.provideLinks(workspaceResource, resource));
 	}
 }

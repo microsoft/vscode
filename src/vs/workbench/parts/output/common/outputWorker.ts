@@ -17,50 +17,63 @@ export interface IResourceCreator {
 	toResource: (workspaceRelativePath: string) => URI;
 }
 
+function equals(a:URI, b:URI): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if ((a && !b) || (!a && b)) {
+		return false;
+	}
+	return a.toString() === b.toString();
+}
+
 /**
  * A base class of text editor worker that helps with detecting links in the text that point to files in the workspace.
  */
 export class OutputWorker {
-	private _workspaceResource: URI;
-	private patterns: RegExp[];
+
 	private resourceService:IResourceService;
-	private _modeId: string;
+
+	private _cachedWorkspaceResource: URI;
+	private _cachedPatterns: RegExp[];
 
 	constructor(
 		modeId: string,
 		@IResourceService resourceService: IResourceService
 	) {
-		this._modeId = modeId;
 		this.resourceService = resourceService;
-		this._workspaceResource = null;
-		this.patterns = [];
+		this._cachedWorkspaceResource = null;
+		this._cachedPatterns = [];
 	}
 
-	public configure(workspaceResource: URI): TPromise<void> {
-		this._workspaceResource = workspaceResource;
-		this.patterns = OutputWorker.createPatterns(this._workspaceResource);
-		return TPromise.as(void 0);
-	}
+	private _getPatterns(workspaceResource: URI): RegExp[] {
+		if (!equals(this._cachedWorkspaceResource, workspaceResource)) {
+			// received new workspaceResource, recreate patterns
+			console.log('recreating patterns');
 
-	public provideLinks(resource: URI): TPromise<ILink[]> {
-		let links: ILink[] = [];
-		if (!this.patterns.length) {
-			return TPromise.as(links);
+			this._cachedWorkspaceResource = workspaceResource;
+			this._cachedPatterns = OutputWorker.createPatterns(this._cachedWorkspaceResource);
 		}
+		return this._cachedPatterns;
+	}
 
+	public provideLinks(workspaceResource: URI, resource: URI): TPromise<ILink[]> {
+		let patterns = this._getPatterns(workspaceResource);
+
+		let links: ILink[] = [];
 		let model = this.resourceService.get(resource);
 
 		let resourceCreator: IResourceCreator = {
 			toResource: (workspaceRelativePath: string): URI => {
-				if (typeof workspaceRelativePath === 'string' && this._workspaceResource) {
-					return URI.file(paths.join(this._workspaceResource.fsPath, workspaceRelativePath));
+				if (typeof workspaceRelativePath === 'string') {
+					return URI.file(paths.join(workspaceResource.fsPath, workspaceRelativePath));
 				}
 				return null;
 			}
 		};
 
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
-			links.push(...OutputWorker.detectLinks(model.getLineContent(i), i, this.patterns, resourceCreator));
+			links.push(...OutputWorker.detectLinks(model.getLineContent(i), i, patterns, resourceCreator));
 		}
 
 		return TPromise.as(links);
