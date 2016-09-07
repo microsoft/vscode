@@ -465,6 +465,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return;
 		}
 
+		const message = err && err.message || '';
+
+		if (/getaddrinfo ENOTFOUND/.test(message)) {
+			return;
+		}
+
 		this.messageService.show(Severity.Error, err);
 	}
 
