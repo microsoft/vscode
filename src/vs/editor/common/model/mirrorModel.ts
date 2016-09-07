@@ -85,22 +85,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 		return result;
 	}
 
-	public getAllUniqueWords(skipWordOnce?:string) : string[] {
-		var foundSkipWord = false;
-		var uniqueWords = {};
-		return this.getAllWords().filter((word) => {
-			if (skipWordOnce && !foundSkipWord && skipWordOnce === word) {
-				foundSkipWord = true;
-				return false;
-			} else if (uniqueWords[word]) {
-				return false;
-			} else {
-				uniqueWords[word] = true;
-				return true;
-			}
-		});
-	}
-
 //	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
 	private wordenize(content:string): editorCommon.IWordRange[] {
 		var result:editorCommon.IWordRange[] = [];

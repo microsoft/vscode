@@ -7,6 +7,8 @@ import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IMirrorModelEvents, MirrorModel, createTestMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
 import {Position} from 'vs/editor/common/core/position';
+import {MirrorModel as SimpleMirrorModel} from 'vs/editor/common/services/editorSimpleWorker';
+import {DEFAULT_WORD_REGEXP} from 'vs/editor/common/model/wordHelper';
 
 function equalRange(left, right) {
 	if(left.startLineNumber !== right.startLineNumber) {
@@ -133,26 +135,14 @@ suite('Editor Model - MirrorModel', () => {
 	});
 
 	test('get (all/unique) words', () => {
-		var model = createTestMirrorModelFromString('foo bar foo bar');
-		var words = model.getAllWords();
-		var uniqueWords = model.getAllUniqueWords();
-		assert.equal(words.length, 4);
-		assert.equal(words[0], 'foo');
-		assert.equal(words[1], 'bar');
-		assert.equal(words[2], 'foo');
-		assert.equal(words[3], 'bar');
+		let model = new SimpleMirrorModel(null, [ 'foo bar foo bar' ], '\n', 1);
+		let uniqueWords = model.getAllUniqueWords(DEFAULT_WORD_REGEXP);
 		assert.equal(uniqueWords.length, 2);
 		assert.equal(uniqueWords[0], 'foo');
 		assert.equal(uniqueWords[1], 'bar');
 
-		model = createTestMirrorModelFromString('foo bar\nfoo\nbar');
-		words = model.getAllWords();
-		uniqueWords = model.getAllUniqueWords();
-		assert.equal(words.length, 4);
-		assert.equal(words[0], 'foo');
-		assert.equal(words[1], 'bar');
-		assert.equal(words[2], 'foo');
-		assert.equal(words[3], 'bar');
+		model = new SimpleMirrorModel(null, [ 'foo bar', 'foo', 'bar' ], '\n', 1);
+		uniqueWords = model.getAllUniqueWords(DEFAULT_WORD_REGEXP);
 		assert.equal(uniqueWords.length, 2);
 		assert.equal(uniqueWords[0], 'foo');
 		assert.equal(uniqueWords[1], 'bar');
