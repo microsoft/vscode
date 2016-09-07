@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ExtHostHeapMonitorShape} from './extHost.protocol';
+import {ExtHostHeapServiceShape} from './extHost.protocol';
 
-export class ExtHostHeapMonitor extends ExtHostHeapMonitorShape {
+export class ExtHostHeapService extends ExtHostHeapServiceShape {
 
 	private static _idPool = 0;
 
@@ -14,7 +14,7 @@ export class ExtHostHeapMonitor extends ExtHostHeapMonitorShape {
 	private _callbacks: { [n: number]: Function } = Object.create(null);
 
 	keep(obj:any, callback?:() => any): number {
-		const id = ExtHostHeapMonitor._idPool++;
+		const id = ExtHostHeapService._idPool++;
 		this._data[id] = obj;
 		if (typeof callback === 'function') {
 			this._callbacks[id] = callback;

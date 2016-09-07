@@ -17,7 +17,7 @@ import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {ExtHostWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
 import {ExtHostQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
-import {ExtHostHeapMonitor} from 'vs/workbench/api/node/extHostHeapMonitor';
+import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
 import {ExtHostStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostOutputService} from 'vs/workbench/api/node/extHostOutputService';
@@ -100,7 +100,7 @@ export class ExtHostAPIImplementation {
 		// Addressable instances
 		const col = new InstanceCollection();
 
-		const extHostHeapMonitor = col.define(ExtHostContext.ExtHostHeapMonitor).set<ExtHostHeapMonitor>(new ExtHostHeapMonitor());
+		const extHostHeapMonitor = col.define(ExtHostContext.ExtHostHeapService).set<ExtHostHeapService>(new ExtHostHeapService());
 		const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set<ExtHostDocuments>(new ExtHostDocuments(threadService));
 		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocuments));
 		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostEditors));

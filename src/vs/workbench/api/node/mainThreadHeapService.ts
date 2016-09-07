@@ -10,13 +10,13 @@ import {IThreadService} from 'vs/workbench/services/thread/common/threadService'
 import {ExtHostContext} from './extHost.protocol';
 import {onDidGarbageCollectSignals, consumeSignals} from 'gc-signals';
 
-export class MainThreadHeapMonitor {
+export class MainThreadHeapService {
 
 	private _subscription: IDisposable;
 	private _consumeHandle: number;
 
 	constructor( @IThreadService threadService: IThreadService) {
-		const proxy = threadService.get(ExtHostContext.ExtHostHeapMonitor);
+		const proxy = threadService.get(ExtHostContext.ExtHostHeapService);
 
 		this._subscription = onDidGarbageCollectSignals(ids => {
 			proxy.$onGarbageCollection(ids);
