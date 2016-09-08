@@ -102,6 +102,7 @@
 	text-align: right;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	opacity: 0.7;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main > .type-label > .monaco-tokenized-source {
@@ -134,17 +135,17 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon					{ background-position: -361px -3px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.method,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.function,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.constructor			{ background-position: 2px -3px; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.constructor			{ background-position: 1px -3px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.field,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.variable 			{ background-position: -18px -3px; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.variable 			{ background-position: -19px -2px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.class 				{ background-position: -41px -3px; }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.interface 			{ background-position: -61px -4px; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.interface 			{ background-position: -62px -2px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.module 				{ background-position: -79px -4px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.property 			{ background-position: -100px -3px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.unit		 			{ background-position: -120px -4px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.value,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.enum		 			{ background-position: -140px -3px; }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.keyword	 			{ background-position: -161px -2px; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.keyword	 			{ background-position: -162px -2px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.snippet		 		{ background-position: -181px -4px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.text		 			{ background-position: -201px -2px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.color		 		{ background-position: -221px -4px; }
