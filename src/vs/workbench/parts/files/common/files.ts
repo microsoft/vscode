@@ -281,7 +281,7 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	add(resource: URI, model: ITextFileEditorModel): void;
+	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
