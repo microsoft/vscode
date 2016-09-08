@@ -8,7 +8,6 @@
 import 'vs/css!./quickFix';
 import * as nls from 'vs/nls';
 import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
-import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -337,12 +336,10 @@ export class QuickFixSelectionWidget implements IContentWidget {
 		this.releaseModel();
 		this.model = newModel;
 
-		var timer: timer.ITimerEvent = null,
-			loadingHandle: number;
+		var loadingHandle: number;
 
 		this.modelListenersToRemove.push(this.model.addListener2('loading', (e: any) => {
 			if (!this.isActive) {
-				timer = this.telemetryService.timedPublicLog('QuickFixSelectionWidgetLoadingTime');
 				this.isLoading = true;
 				this.isAuto = !!e.auto;
 
@@ -397,12 +394,6 @@ export class QuickFixSelectionWidget implements IContentWidget {
 			this.telemetryData = this.telemetryData || {};
 			this.telemetryData.suggestionCount = fixes.length;
 			this.telemetryData.suggestedIndex = bestFixIndex;
-
-			if (timer) {
-				timer.data = { reason: 'results' };
-				timer.stop();
-				timer = null;
-			}
 		}));
 
 		this.modelListenersToRemove.push(this.model.addListener2('empty', (e: { auto: boolean; }) => {
@@ -428,12 +419,6 @@ export class QuickFixSelectionWidget implements IContentWidget {
 			} else {
 				dom.addClass(this.domnode, 'empty');
 			}
-
-			if (timer) {
-				timer.data = { reason: 'empty' };
-				timer.stop();
-				timer = null;
-			}
 		}));
 
 		this.modelListenersToRemove.push(this.model.addListener2('cancel', (e: any) => {
@@ -452,12 +437,6 @@ export class QuickFixSelectionWidget implements IContentWidget {
 					this.telemetryData.wasCancelled = true;
 					this.submitTelemetryData();
 				}
-			}
-
-			if (timer) {
-				timer.data = { reason: 'cancel' };
-				timer.stop();
-				timer = null;
 			}
 		}));
 	}
