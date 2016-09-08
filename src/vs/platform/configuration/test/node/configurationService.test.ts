@@ -132,30 +132,6 @@ suite('ConfigurationService - Node', () => {
 		});
 	});
 
-	test('configuration change event', (done: () => void) => {
-		testFile((testFile, cleanUp) => {
-			fs.writeFileSync(testFile, '{ "testworkbench.editor.tabs": true }');
-
-			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
-			service.reloadConfiguration().then(() => { // ensure loaded
-				service.onDidUpdateConfiguration(event => {
-					const config = <{ testworkbench: { editor: { tabs: boolean } } }>event.config;
-
-					assert.ok(config);
-					assert.ok(config.testworkbench);
-					assert.ok(config.testworkbench.editor);
-					assert.equal(config.testworkbench.editor.tabs, false);
-
-					service.dispose();
-
-					cleanUp(done);
-				});
-
-				fs.writeFileSync(testFile, '{ "testworkbench.editor.tabs": false }');
-			});
-		});
-	});
-
 	test('model defaults', (done: () => void) => {
 		interface ITestSetting {
 			configuration: {

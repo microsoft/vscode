@@ -64,7 +64,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
-
+		
 		// Since we are the one providing save-support for models, we hook up the error handler for saving
 		TextFileEditorModel.setSaveErrorHandler(instantiationService.createInstance(SaveErrorHandler));
 

@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {workbenchInstantiationService, TestLifecycleService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
@@ -42,7 +42,7 @@ class ShutdownEventImpl implements ShutdownEvent {
 
 suite('Files - TextFileService', () => {
 
-	let instantiationService: TestInstantiationService;
+	let instantiationService: IInstantiationService;
 	let model: TextFileEditorModel;
 	let accessor: ServiceAccessor;
 
