@@ -26,7 +26,6 @@ import { Context as SuggestContext } from '../common/suggest';
 import { ICompletionItem, CompletionModel } from '../common/completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -115,11 +114,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, (<ICompletionItem>element).highlights);
-
-		const mode = this.editor.getModel().getMode();
-		const typeLabel = (suggestion.detail || '').replace(/\n.*$/m, '');
-		const result = tokenizeToString(typeLabel, mode);
-		data.typeLabel.innerHTML = result;
+		data.typeLabel.innerText = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		data.documentation.textContent = suggestion.documentation || '';
 
@@ -236,13 +231,8 @@ class SuggestionDetails {
 			return;
 		}
 
-		const mode = this.editor.getModel().getMode();
-
 		this.title.innerText = item.suggestion.label;
-
-		const typeLines = (item.suggestion.detail || '').split('\n');
-		this.type.innerHTML = typeLines.reduce((r, line) => r += tokenizeToString(line, mode), '');
-
+		this.type.innerText = item.suggestion.detail || '';
 		this.docs.innerText = item.suggestion.documentation;
 		this.back.onmousedown = e => {
 			e.preventDefault();
