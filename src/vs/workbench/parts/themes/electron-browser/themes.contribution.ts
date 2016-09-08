@@ -42,7 +42,7 @@ class SelectColorThemeAction extends Action {
 			const currentThemeId = this.themeService.getColorTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
 
-			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
+const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
 
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
@@ -96,7 +96,7 @@ class SelectIconThemeAction extends Action {
 			const currentThemeId = this.themeService.getFileIconTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
 
-			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme');
 
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
