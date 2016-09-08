@@ -83,4 +83,37 @@ suite('Workbench - Untitled Editor', () => {
 
 		untitled.dispose();
 	});
+
+	test('Untitled no longer dirty when content gets empty', function (done) {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		// dirty
+		input.resolve().then((model: UntitledEditorModel) => {
+			model.textEditorModel.setValue('foo bar');
+			assert.ok(model.isDirty());
+
+			model.textEditorModel.setValue('');
+			assert.ok(!model.isDirty());
+
+			done();
+		});
+	});
+
+	test('Untitled with associated path remains dirty when content gets empty', function (done) {
+		const service = accessor.untitledEditorService;
+		const file = URI.file(join('C:\\', '/foo/file.txt'));
+		const input = service.createOrGet(file);
+
+		// dirty
+		input.resolve().then((model: UntitledEditorModel) => {
+			model.textEditorModel.setValue('foo bar');
+			assert.ok(model.isDirty());
+
+			model.textEditorModel.setValue('');
+			assert.ok(model.isDirty());
+
+			done();
+		});
+	});
 });
