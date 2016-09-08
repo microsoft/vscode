@@ -103,15 +103,16 @@ export class MacTerminalService implements ITerminalService {
 
 		return new TPromise<void>( (c, e) => {
 
-			if (terminalApp === DEFAULT_TERMINAL_OSX) {
+			if (terminalApp === DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
 				// On OS X we launch an AppleScript that creates (or reuses) a Terminal window
 				// and then launches the program inside that window.
 
-				const script = uri.parse(require.toUrl('vs/workbench/parts/execution/electron-browser/TerminalHelper.scpt')).fsPath;
+				const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
+				const scriptpath = uri.parse(require.toUrl(`vs/workbench/parts/execution/electron-browser/${script}.scpt`)).fsPath;
 
 				const osaArgs = [
-					script,
+					scriptpath,
 					'-t', title || TERMINAL_TITLE,
 					'-w', dir,
 				];
@@ -142,12 +143,12 @@ export class MacTerminalService implements ITerminalService {
 							const lines = stderr.split('\n', 1);
 							e(new Error(lines[0]));
 						} else {
-							e(new Error(nls.localize('mac.term.failed', "osascript failed with exit code {0}", code)));
+							e(new Error(nls.localize('mac.terminal.script.failed', "script '{0}' failed with exit code {1}", script, code)));
 						}
 					}
 				});
-			} else if (terminalApp === 'iTerm.app') {
-				e(new Error(nls.localize('mac.iterm.failed', "iTerm not yet supported")));
+			} else {
+				e(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
 			}
 		});
 	}
