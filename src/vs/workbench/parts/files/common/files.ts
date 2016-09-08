@@ -97,6 +97,17 @@ export function asFileResource(obj: any): IFileResource {
 }
 
 /**
+ * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
+ */
+export interface ISaveErrorHandler {
+
+	/**
+	 * Called whenever a save fails.
+	 */
+	onSaveError(error: any, model: ITextFileEditorModel): void;
+}
+
+/**
  * List of event types from files.
  */
 export const EventType = {
@@ -293,6 +304,14 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	getLastModifiedTime(): number;
 
 	getState(): ModelState;
+
+	save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void>;
+
+	revert(): TPromise<void>;
+
+	setConflictResolutionMode();
+
+	getValue(): string;
 
 	isDirty(): boolean;
 

@@ -21,10 +21,9 @@ import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -57,7 +56,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 		}
 	}
 
-	public onSaveError(error: any, model: TextFileEditorModel): void {
+	public onSaveError(error: any, model: ITextFileEditorModel): void {
 		let message: IMessageWithAction;
 		const resource = model.getResource();
 
@@ -134,10 +133,10 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 
 	public static ID = 'workbench.editors.files.conflictResolutionDiffEditorInput';
 
-	private model: TextFileEditorModel;
+	private model: ITextFileEditorModel;
 
 	constructor(
-		model: TextFileEditorModel,
+		model: ITextFileEditorModel,
 		name: string,
 		description: string,
 		originalInput: FileOnDiskEditorInput,
@@ -148,7 +147,7 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 		this.model = model;
 	}
 
-	public getModel(): TextFileEditorModel {
+	public getModel(): ITextFileEditorModel {
 		return this.model;
 	}
 
@@ -227,10 +226,10 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 	public message: string;
 	public actions: Action[];
 
-	private model: TextFileEditorModel;
+	private model: ITextFileEditorModel;
 
 	constructor(
-		model: TextFileEditorModel,
+		model: ITextFileEditorModel,
 		message: string,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
