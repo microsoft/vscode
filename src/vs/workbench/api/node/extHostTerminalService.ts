@@ -11,16 +11,18 @@ import {MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
 export class ExtHostTerminal implements vscode.Terminal {
 
 	public _name: string;
+	public _shellPath: string;
 
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
 	private _queuedRequests: ApiRequest[] = [];
 
-	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string) {
+	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string, shellPath?: string) {
 		this._name = name;
+		this._shellPath = shellPath;
 		this._proxy = proxy;
-		this._proxy.$createTerminal(name).then((terminalId) => {
+		this._proxy.$createTerminal(name, shellPath).then((terminalId) => {
 			this._id = terminalId;
 			this._queuedRequests.forEach((r) => {
 				r.run(this._proxy, this._id);
@@ -85,8 +87,8 @@ export class ExtHostTerminalService {
 		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
 	}
 
-	public createTerminal(name?: string): vscode.Terminal {
-		return new ExtHostTerminal(this._proxy, -1, name);
+	public createTerminal(name?: string, shellPath?: string): vscode.Terminal {
+		return new ExtHostTerminal(this._proxy, -1, name, shellPath);
 	}
 }
 
