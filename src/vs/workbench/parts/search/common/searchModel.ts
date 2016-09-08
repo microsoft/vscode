@@ -25,6 +25,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
+import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 
 export class Match {
 
@@ -311,11 +312,14 @@ export class SearchResult extends Disposable {
 	private _showHighlights: boolean;
 	private _replacingAll: boolean = false;
 
+	private _rangeHighlightDecorations: RangeHighlightDecorations;
+
 	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new LinkedMap<URI, FileMatch>();
 		this._unDisposedFileMatches = new LinkedMap<URI, FileMatch>();
+		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
 
 	public set query(query: Search.IPatternInfo) {
@@ -398,9 +402,25 @@ export class SearchResult extends Disposable {
 			return;
 		}
 		this._showHighlights = value;
+		let selectedMatch:Match = null;
 		this.matches().forEach((fileMatch: FileMatch) => {
 			fileMatch.updateHighlights();
+			if (!selectedMatch) {
+				selectedMatch = fileMatch.getSelectedMatch();
+			}
 		});
+		if (this._showHighlights && selectedMatch) {
+			this._rangeHighlightDecorations.highlightRange({
+				resource: selectedMatch.parent().resource(),
+				range: selectedMatch.range()
+			});
+		} else {
+			this._rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+		}
+	}
+
+	public get rangeHighlightDecorations(): RangeHighlightDecorations {
+		return this._rangeHighlightDecorations;
 	}
 
 	private onFileChange(fileMatch: FileMatch): void {
@@ -445,10 +465,12 @@ export class SearchResult extends Disposable {
 		this._unDisposedFileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
 		this._fileMatches.clear();
 		this._unDisposedFileMatches.clear();
+		this._rangeHighlightDecorations.clearCurrentFileRangeDecoration();
 	}
 
 	public dispose(): void {
 		this.disposeMatches();
+		this._rangeHighlightDecorations.dispose();
 		super.dispose();
 	}
 }
