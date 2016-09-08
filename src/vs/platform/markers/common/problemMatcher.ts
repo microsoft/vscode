@@ -44,6 +44,8 @@ export interface ProblemPattern {
 
 	file?: number;
 
+	filePrefix?: number;
+
 	message?: number;
 
 	location?: number;
@@ -67,7 +69,7 @@ export interface ProblemPattern {
 	[key: string]: any;
 }
 
-export let problemPatternProperties = ['file', 'message', 'location', 'line', 'column', 'endLine', 'endColumn', 'code', 'severity', 'loop', 'mostSignifikant'];
+export let problemPatternProperties = ['file', 'filePrefix', 'message', 'location', 'line', 'column', 'endLine', 'endColumn', 'code', 'severity', 'loop', 'mostSignifikant'];
 
 export interface WatchingPattern {
 	regexp: RegExp;
@@ -206,6 +208,7 @@ class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	protected fillProblemData(data: ProblemData, pattern: ProblemPattern, matches: RegExpExecArray): void {
+		this.setFilePrefix(pattern, matches);
 		this.fillProperty(data, 'file', pattern, matches, true);
 		this.fillProperty(data, 'message', pattern, matches, true);
 		this.fillProperty(data, 'code', pattern, matches, true);
@@ -224,6 +227,16 @@ class AbstractLineMatcher implements ILineMatcher {
 				value = Strings.trim(value);
 			}
 			data[property] = value;
+		}
+	}
+
+	protected setFilePrefix(pattern: ProblemPattern, matches: RegExpExecArray) {
+		if (matcher.fileLocation === FileLocationKind.Relative &&
+			!Types.isUndefined(pattern.filePrefix) && pattern.filePrefix < matches.length) {
+			let filePrefix: string = matches[pattern.filePrefix];
+			if (!Types.isUndefined(filePrefix)) {
+				this.matcher.filePrefix = matches[pattern.filePrefix];
+			}
 		}
 	}
 
