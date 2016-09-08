@@ -706,6 +706,10 @@ export class SelectActionItem extends BaseActionItem {
 		}
 	}
 
+	public set enabled(value: boolean) {
+		this.select.disabled = !value;
+	}
+
 	public blur(): void {
 		if (this.select) {
 			this.select.blur();
