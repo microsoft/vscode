@@ -900,6 +900,7 @@ export class SearchViewlet extends Viewlet {
 
 	private onFocus(lineMatch: any, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
+			this.viewModel.searchResult.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
 			return TPromise.as(true);
 		}
 
@@ -919,7 +920,16 @@ export class SearchViewlet extends Viewlet {
 				selection,
 				revealIfVisible: true
 			}
-		}, sideBySide);
+		}, sideBySide).then((editor) => {
+			if (element instanceof Match && preserveFocus) {
+				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange({
+					resource,
+					range: element.range()
+				}, editor);
+			} else {
+				this.viewModel.searchResult.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+			}
+		}, errors.onUnexpectedError);
 	}
 
 	private getSelectionFrom(element: FileMatchOrMatch): any {
