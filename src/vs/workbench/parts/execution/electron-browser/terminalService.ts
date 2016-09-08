@@ -118,7 +118,7 @@ export class MacTerminalService implements ITerminalService {
 				];
 
 				for (let a of args) {
-					osaArgs.push('-pa');
+					osaArgs.push('-a');
 					osaArgs.push(a);
 				}
 
