@@ -83,6 +83,18 @@ suite('Files - TextFileEditorModel', () => {
 		model.dispose();
 	});
 
+	test('disposes when underlying model is destroyed', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.load().then(() => {
+			model.textEditorModel.destroy();
+
+			assert.ok(model.isDisposed());
+
+			done();
+		});
+	});
+
 	test('Load does not trigger save', function (done) {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
 		assert.equal(model.getState(), ModelState.SAVED);

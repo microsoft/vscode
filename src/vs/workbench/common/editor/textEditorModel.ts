@@ -13,6 +13,7 @@ import {ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {RawText} from 'vs/editor/common/model/textModel';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -20,6 +21,7 @@ import {RawText} from 'vs/editor/common/model/textModel';
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
 	private textEditorModelHandle: URI;
 	private createdEditorModel: boolean;
+	private modelDisposeListener: IDisposable;
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -28,24 +30,34 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	) {
 		super();
 
+		if (textEditorModelHandle) {
+			this.handleExistingModel(textEditorModelHandle);
+		}
+	}
+
+	private handleExistingModel(textEditorModelHandle: URI): void {
+
+		// We need the resource to point to an existing model
+		const model = this.modelService.getModel(textEditorModelHandle);
+		if (!model) {
+			throw new Error(`Document with resource ${textEditorModelHandle.toString()} does not exist`);
+		}
+
 		this.textEditorModelHandle = textEditorModelHandle;
 
-		if (textEditorModelHandle) {
+		// Make sure we clean up when this model gets disposed
+		this.registerModelDisposeListener(model);
+	}
 
-			// We need the resource to point to an existing model
-			let model = modelService.getModel(textEditorModelHandle);
-			if (!model) {
-				throw new Error(`Document with resource ${textEditorModelHandle.toString()} does not exist`);
-			}
-
-			// Since we did not create the model, we need to listen to it disposing
-			// and properly trigger our dispose function so that events get emitted
-			const unbind = model.onWillDispose(() => {
-				this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
-				unbind.dispose();
-				this.dispose();
-			});
+	private registerModelDisposeListener(model: IModel): void {
+		if (this.modelDisposeListener) {
+			this.modelDisposeListener.dispose();
 		}
+
+		this.modelDisposeListener = model.onWillDispose(() => {
+			this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
+			this.dispose();
+		});
 	}
 
 	public get textEditorModel(): IModel {
@@ -56,8 +68,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 * Creates the text editor model with the provided value, mime (can be comma separated for multiple values) and optional resource URL.
 	 */
 	protected createTextEditorModel(value: string | IRawText, resource?: URI, mime?: string): TPromise<EditorModel> {
-		let firstLineText = this.getFirstLineText(value);
-		let mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
+		const firstLineText = this.getFirstLineText(value);
+		const mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
 		return TPromise.any<any>([TPromise.timeout(50), mode]).then(() => {
@@ -70,13 +82,16 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		if (!model) {
 			model = this.modelService.createModel(value, mode, resource);
 			this.createdEditorModel = true;
+
+			// Make sure we clean up when this model gets disposed
+			this.registerModelDisposeListener(model);
 		} else {
 			if (typeof value === 'string') {
 				model.setValue(value);
 			} else {
 				model.setValueFromRawText(value);
 			}
-			
+
 			model.setMode(mode);
 		}
 
@@ -87,7 +102,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 	private getFirstLineText(value: string | IRawText): string {
 		if (typeof value === 'string') {
-			let firstLineText = value.substr(0, 100);
+			const firstLineText = value.substr(0, 100);
 
 			let crIndex = firstLineText.indexOf('\r');
 			if (crIndex < 0) {
@@ -142,7 +157,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 * Returns the textual value of this editor model or null if it has not yet been created.
 	 */
 	public getValue(): string {
-		let model = this.textEditorModel;
+		const model = this.textEditorModel;
 		if (model) {
 			return model.getValue(EndOfLinePreference.TextDefined, true /* Preserve BOM */);
 		}
@@ -151,6 +166,11 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	public dispose(): void {
+		if (this.modelDisposeListener) {
+			this.modelDisposeListener.dispose(); // dispose this first because it will trigger another dispose() otherwise
+			this.modelDisposeListener = null;
+		}
+
 		if (this.textEditorModelHandle && this.createdEditorModel) {
 			this.modelService.destroyModel(this.textEditorModelHandle);
 		}
