@@ -12,7 +12,9 @@ import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export interface IEditorService {
+
 	_serviceBrand: any;
+
 	/**
 	 * Specific overload to open an instance of IResourceInput.
 	 */
@@ -25,6 +27,11 @@ export interface IEditorService {
 }
 
 export interface IEditorModel extends IEventEmitter {
+
+	/**
+	 * Loads the model.
+	 */
+	load(): TPromise<IEditorModel>;
 }
 
 export interface ITextEditorModel extends IEditorModel {
@@ -89,6 +96,11 @@ export interface IEditor {
 	 * Asks the underlying control to focus.
 	 */
 	focus(): void;
+
+	/**
+	 * Finds out if this editor is visible or not.
+	 */
+	isVisible(): boolean;
 }
 
 /**

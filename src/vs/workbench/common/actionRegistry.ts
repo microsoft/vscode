@@ -149,10 +149,10 @@ export function createCommandHandler(descriptor: SyncActionDescriptor): ICommand
 
 		let messageService = accessor.get(IMessageService);
 		let instantiationService = accessor.get(IInstantiationService);
-		let telemetryServce = accessor.get(ITelemetryService);
+		let telemetryService = accessor.get(ITelemetryService);
 		let partService = accessor.get(IPartService);
 
-		TPromise.as(triggerAndDisposeAction(instantiationService, telemetryServce, partService, descriptor, args)).done(null, (err) => {
+		TPromise.as(triggerAndDisposeAction(instantiationService, telemetryService, partService, descriptor, args)).done(null, (err) => {
 			messageService.show(Severity.Error, err);
 		});
 	};

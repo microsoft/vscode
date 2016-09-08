@@ -381,8 +381,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this._originalOverviewRuler.dispose();
 		this._modifiedOverviewRuler.dispose();
 
-		this.originalEditor.destroy();
-		this.modifiedEditor.destroy();
+		this.originalEditor.dispose();
+		this.modifiedEditor.dispose();
 
 		this._strategy.dispose();
 

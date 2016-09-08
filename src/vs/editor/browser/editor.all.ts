@@ -8,7 +8,6 @@
 import 'vs/editor/browser/widget/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditorWidget';
 
-import 'vs/editor/contrib/accessibility/browser/accessibility';
 import 'vs/editor/contrib/clipboard/browser/clipboard';
 import 'vs/editor/contrib/codelens/browser/codelens';
 import 'vs/editor/contrib/comment/common/comment';
@@ -41,7 +40,6 @@ import 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import 'vs/editor/contrib/toggleWordWrap/common/toggleWordWrap';
 import 'vs/css!vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
 import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/indentation/common/indentation';
 

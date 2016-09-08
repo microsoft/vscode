@@ -5,6 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
 import {ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
@@ -36,8 +37,8 @@ export interface ICommandHandlerDescription {
 }
 
 export interface ICommandRegistry {
-	registerCommand(id: string, command: ICommandHandler): void;
-	registerCommand(id: string, command: ICommand): void;
+	registerCommand(id: string, command: ICommandHandler): IDisposable;
+	registerCommand(id: string, command: ICommand): IDisposable;
 	getCommand(id: string): ICommand;
 	getCommands(): ICommandsMap;
 }
@@ -50,19 +51,18 @@ function isCommand(thing: any): thing is ICommand {
 
 export const CommandsRegistry: ICommandRegistry = new class implements ICommandRegistry {
 
-	private _commands: { [id: string]: ICommand } = Object.create(null);
+	private _commands: { [id: string]: ICommand | ICommand[] } = Object.create(null);
 
-	registerCommand(id: string, commandOrDesc: ICommandHandler | ICommand): void {
-		// if (this._commands[id] !== void 0) {
-		// 	throw new Error(`command already exists: '${id}'`);
-		// }
+	registerCommand(id: string, commandOrDesc: ICommandHandler | ICommand): IDisposable {
+
 		if (!commandOrDesc) {
 			throw new Error(`invalid command`);
 		}
 
+		let command: ICommand;
 		if (!isCommand(commandOrDesc)) {
 			// simple handler
-			this._commands[id] = { handler: commandOrDesc };
+			command = { handler: commandOrDesc };
 
 		} else {
 			const {handler, description} = commandOrDesc;
@@ -72,7 +72,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 				for (let arg of description.args) {
 					constraints.push(arg.constraint);
 				}
-				this._commands[id] = {
+				command = {
 					description,
 					handler(accessor, ...args: any[]) {
 						validateConstraints(args, constraints);
@@ -81,17 +81,56 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 				};
 			} else {
 				// add as simple handler
-				this._commands[id] = { handler };
+				command = { handler };
 			}
 		}
+
+		// find a place to store the command
+		const commandOrArray = this._commands[id];
+		if (commandOrArray === void 0) {
+			this._commands[id] = command;
+		} else if (Array.isArray(commandOrArray)) {
+			commandOrArray.unshift(command);
+		} else {
+			this._commands[id] = [command, commandOrArray];
+		}
+
+		return {
+			dispose: () => {
+				const commandOrArray = this._commands[id];
+				if (Array.isArray(commandOrArray)) {
+					// remove from array, remove array
+					// if last element removed
+					const idx = commandOrArray.indexOf(command);
+					if (idx >= 0) {
+						commandOrArray.splice(idx, 1);
+						if (commandOrArray.length === 0) {
+							delete this._commands[id];
+						}
+					}
+				} else if (isCommand(commandOrArray)) {
+					// remove from map
+					delete this._commands[id];
+				}
+			}
+		};
 	}
 
 	getCommand(id: string): ICommand {
-		return this._commands[id];
+		const commandOrArray = this._commands[id];
+		if (Array.isArray(commandOrArray)) {
+			return commandOrArray[0];
+		} else {
+			return commandOrArray;
+		}
 	}
 
 	getCommands(): ICommandsMap {
-		return this._commands;
+		const result: ICommandsMap = Object.create(null);
+		for (let id in this._commands) {
+			result[id] = this.getCommand(id);
+		}
+		return result;
 	}
 };
 

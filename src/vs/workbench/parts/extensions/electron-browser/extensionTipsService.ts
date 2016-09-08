@@ -125,7 +125,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 						this.messageService.show(Severity.Info, {
 							message,
-							actions: [CloseAction, neverAgainAction, recommendationsAction]
+							actions: [recommendationsAction, neverAgainAction, CloseAction]
 						});
 					});
 			});

@@ -31,6 +31,10 @@ export abstract class V8Protocol {
 		return this.id;
 	}
 
+	protected abstract onServerError(err: Error): void;
+	protected abstract onEvent(event: DebugProtocol.Event): void;
+	protected abstract dispatchRequest(request: DebugProtocol.Request, response: DebugProtocol.Response);
+
 	protected connect(readable: stream.Readable, writable: stream.Writable): void {
 
 		this.outputStream = writable;
@@ -53,30 +57,6 @@ export abstract class V8Protocol {
 				}
 			});
 		}, () => errorCallback(canceled()));
-	}
-
-	protected dispatchRequest(request: DebugProtocol.Request): void {
-
-		const response: DebugProtocol.Response = {
-			type: 'response',
-			seq: 0,
-			command: request.command,
-			request_seq: request.seq,
-			success: true
-		};
-
-		if (request.command === 'runInTerminal') {
-			this.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(() => {
-				(<DebugProtocol.RunInTerminalResponse>response).body = {
-					processId: 12345	// send back process id
-				};
-				this.sendResponse(response);
-			}, e => {
-				response.success = false;
-				response.message = 'error while handling request';
-				this.sendResponse(response);
-			});
-		}
 	}
 
 	public sendResponse(response: DebugProtocol.Response): void {
@@ -144,10 +124,6 @@ export abstract class V8Protocol {
 		}
 	}
 
-	protected abstract runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void>;
-	protected abstract onServerError(err: Error): void;
-	protected abstract onEvent(event: DebugProtocol.Event): void;
-
 	private dispatch(body: string): void {
 		try {
 			const rawData = JSON.parse(body);
@@ -164,7 +140,15 @@ export abstract class V8Protocol {
 					}
 					break;
 				case 'request':
-					this.dispatchRequest(<DebugProtocol.Request>rawData);
+					const request = <DebugProtocol.Request>rawData;
+					const resp: DebugProtocol.Response = {
+						type: 'response',
+						seq: 0,
+						command: request.command,
+						request_seq: request.seq,
+						success: true
+					};
+					this.dispatchRequest(request, resp);
 					break;
 			}
 		} catch (e) {

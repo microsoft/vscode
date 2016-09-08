@@ -75,11 +75,6 @@
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
-				"typescript.tsdk_version": {
-					"type": ["string", "null"],
-					"default": null,
-					"description": "%typescript.tsdk_version.desc%"
-				},
 				"typescript.tsserver.trace": {
 					"type": "string",
 					"enum": ["off", "messages", "verbose"],

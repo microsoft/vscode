@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
 import DND = require('vs/base/browser/dnd');
 import {Builder, $} from 'vs/base/browser/builder';
-import {Identifiers} from 'vs/workbench/common/constants';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -23,15 +23,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const dialog = remote.dialog;
-
-export interface IWindowConfiguration {
-	window: {
-		openFilesInNewWindow: boolean;
-		reopenFolders: string;
-		restoreFullscreen: boolean;
-		zoomLevel: number;
-	};
-}
 
 enum DraggedFileType {
 	UNKNOWN,
@@ -51,7 +42,8 @@ export class ElectronWindow {
 		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IPartService private partService: IPartService
 	) {
 		this.win = win;
 		this.windowId = win.id;
@@ -98,7 +90,7 @@ export class ElectronWindow {
 
 					return kind === DraggedFileType.FOLDER || kind === DraggedFileType.EXTENSION;
 				})) {
-					dropOverlay = $(window.document.getElementById(Identifiers.WORKBENCH_CONTAINER))
+					dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
 						.div({ id: 'monaco-workbench-drop-overlay' })
 						.on(DOM.EventType.DROP, (e: DragEvent) => {
 							DOM.EventHelper.stop(e, true);

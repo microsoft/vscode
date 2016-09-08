@@ -27,7 +27,7 @@ export class ChokidarWatcherService implements IWatcherService {
 	private spamWarningLogged:boolean;
 
 	public watch(request: IWatcherRequest): TPromise<void> {
-		let watcherOpts: chokidar.IOptions = {
+		const watcherOpts: chokidar.IOptions = {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
@@ -36,7 +36,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			binaryInterval: 1000
 		};
 
-		let chokidarWatcher = chokidar.watch(request.basePath, watcherOpts);
+		const chokidarWatcher = chokidar.watch(request.basePath, watcherOpts);
 
 		// Detect if for some reason the native watcher library fails to load
 		if (process.platform === 'darwin' && !chokidarWatcher.options.useFsEvents) {
@@ -44,7 +44,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
-		let fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
+		const fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
 		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
@@ -86,7 +86,7 @@ export class ChokidarWatcherService implements IWatcherService {
 					}
 
 					// Check for spam
-					let now = Date.now();
+					const now = Date.now();
 					if (undeliveredFileEvents.length === 0) {
 						this.spamWarningLogged = false;
 						this.spamCheckStartTime = now;
@@ -100,11 +100,11 @@ export class ChokidarWatcherService implements IWatcherService {
 
 					// Delay and send buffer
 					fileEventDelayer.trigger(() => {
-						let events = undeliveredFileEvents;
+						const events = undeliveredFileEvents;
 						undeliveredFileEvents = [];
 
 						// Broadcast to clients normalized
-						let res = watcher.normalize(events);
+						const res = watcher.normalize(events);
 						p(res);
 
 						// Logging

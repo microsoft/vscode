@@ -7,6 +7,7 @@
 import {Arrays} from 'vs/editor/common/core/arrays';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 
 export interface TokenText {
 	text: string;
@@ -14,12 +15,12 @@ export interface TokenText {
 }
 
 export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILineContext {
-	var line = '';
-	var processedTokens: modes.IToken[] = [];
+	let line = '';
+	let processedTokens: Token[] = [];
 
-	var indexSoFar = 0;
-	for (var i = 0; i < tokens.length; ++i){
-		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type });
+	let indexSoFar = 0;
+	for (let i = 0; i < tokens.length; ++i){
+		processedTokens.push(new Token(indexSoFar, tokens[i].type));
 		line += tokens[i].text;
 		indexSoFar += tokens[i].text.length;
 	}
@@ -28,16 +29,16 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 }
 
 export function createMockLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
-	return new TestLineContext(line, tokens.tokens, ModeTransition.create(tokens.modeTransitions));
+	return new TestLineContext(line, tokens.tokens, tokens.modeTransitions);
 }
 
 class TestLineContext implements modes.ILineContext {
 
 	public modeTransitions: ModeTransition[];
 	private _line:string;
-	private _tokens: modes.IToken[];
+	private _tokens: Token[];
 
-	constructor(line:string, tokens: modes.IToken[], modeTransitions:ModeTransition[]) {
+	constructor(line:string, tokens: Token[], modeTransitions:ModeTransition[]) {
 		this.modeTransitions = modeTransitions;
 		this._line = line;
 		this._tokens = tokens;
@@ -55,24 +56,11 @@ class TestLineContext implements modes.ILineContext {
 		return this._tokens[tokenIndex].startIndex;
 	}
 
-	public getTokenEndIndex(tokenIndex:number): number {
-		if (tokenIndex + 1 < this._tokens.length) {
-			return this._tokens[tokenIndex + 1].startIndex;
-		}
-		return this._line.length;
-	}
-
 	public getTokenType(tokenIndex:number): string {
 		return this._tokens[tokenIndex].type;
 	}
 
 	public findIndexOfOffset(offset:number): number {
 		return Arrays.findIndexInSegmentsArray(this._tokens, offset);
-	}
-
-	public getTokenText(tokenIndex:number): string {
-		var startIndex = this._tokens[tokenIndex].startIndex;
-		var endIndex = tokenIndex + 1 < this._tokens.length ? this._tokens[tokenIndex + 1].startIndex : this._line.length;
-		return this._line.substring(startIndex, endIndex);
 	}
 }

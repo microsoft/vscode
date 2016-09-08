@@ -22,15 +22,17 @@ export class EditorAccessor implements emmet.Editor {
 
 	private _editor: ICommonCodeEditor;
 	private _syntaxProfiles: any;
+	private _excludedLanguages: any;
 	private _grammars: IGrammarContributions;
 
 	private _hasMadeEdits: boolean;
 
 	private emmetSupportedModes = ['html', 'xhtml', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl'];
 
-	constructor(editor: ICommonCodeEditor, syntaxProfiles: any, grammars: IGrammarContributions) {
+	constructor(editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
 		this._editor = editor;
 		this._syntaxProfiles = syntaxProfiles;
+		this._excludedLanguages = excludedLanguages;
 		this._hasMadeEdits = false;
 		this._grammars = grammars;
 	}
@@ -129,6 +131,10 @@ export class EditorAccessor implements emmet.Editor {
 		let modeId = this._editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
 		let syntax = modeId.split('.').pop();
 
+		if (this._excludedLanguages.indexOf(syntax) !== -1) {
+			return '';
+		}
+
 		// user can overwrite the syntax using the emmet syntaxProfiles setting
 		let profile = this.getSyntaxProfile(syntax);
 		if (profile) {
@@ -139,7 +145,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 
-		if (/\b(razor|handlebars|erb|php|hbs|ejs|twig)\b/.test(syntax)) { // treat like html
+		if (/\b(razor|handlebars)\b/.test(syntax)) { // treat like html
 			return 'html';
 		}
 		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
@@ -166,7 +172,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 		let languages = languageGrammar.split('.');
-		let thisLanguage = languages[languages.length-1];
+		let thisLanguage = languages[languages.length - 1];
 		if (syntax !== thisLanguage || languages.length < 2) {
 			return syntax;
 		}

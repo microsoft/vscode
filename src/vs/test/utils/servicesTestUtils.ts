@@ -5,41 +5,44 @@
 
 'use strict';
 
+import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Paths = require('vs/base/common/paths');
+import {EventEmitter} from 'vs/base/common/eventEmitter';
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import Storage = require('vs/workbench/common/storage');
-import {EditorInputEvent, IEditorGroup} from 'vs/workbench/common/editor';
+import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
+import {EditorInputEvent, IEditorGroup, ConfirmResult} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import {IConfigurationService, getConfigurationValue, IConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
-import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
-import PartService = require('vs/workbench/services/part/common/partService');
-import WorkspaceContextService = require('vs/platform/workspace/common/workspace');
-import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
+import {IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {TextFileService} from 'vs/workbench/parts/files/common/textFileServices';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {TextFileService} from 'vs/workbench/parts/files/common/textFileService';
 import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
 import {RawText} from 'vs/editor/common/model/textModel';
-import {parseArgs} from 'vs/code/node/argv';
+import {parseArgs} from 'vs/platform/environment/node/argv';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -49,7 +52,7 @@ export const TestWorkspace: IWorkspace = {
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
-export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
+export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: any;
 
 	private workspace: any;
@@ -74,53 +77,93 @@ export class TestContextService implements WorkspaceContextService.IWorkspaceCon
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return Paths.isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath);
+			return paths.isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath);
 		}
 
 		return false;
 	}
 
 	public toWorkspaceRelativePath(resource: URI): string {
-		return Paths.makePosixAbsolute(Paths.normalize(resource.fsPath.substr('c:'.length)));
+		return paths.makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length)));
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return URI.file(Paths.join('C:\\', workspaceRelativePath));
+		return URI.file(paths.join('C:\\', workspaceRelativePath));
 	}
 }
 
-export abstract class TestTextFileService extends TextFileService {
+export class TestTextFileService extends TextFileService {
+	private promptPath: string;
+	private confirmResult: ConfirmResult;
 
 	constructor(
-		@WorkspaceContextService.IWorkspaceContextService contextService: WorkspaceContextService.IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@WorkbenchEditorService.IWorkbenchEditorService editorService: WorkbenchEditorService.IWorkbenchEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IEventService eventService: IEventService,
 		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, editorService, eventService, fileService, modelService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
+	}
+
+	public setPromptPath(path: string): void {
+		this.promptPath = path;
+	}
+
+	public setConfirmResult(result: ConfirmResult): void {
+		this.confirmResult = result;
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
 		return this.fileService.resolveContent(resource, options).then((content) => {
 			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
 
-			return <IRawTextContent> {
+			return <IRawTextContent>{
 				resource: content.resource,
-					name: content.name,
-					mtime: content.mtime,
-					etag: content.etag,
-					mime: content.mime,
-					encoding: content.encoding,
-					value: raw,
-					valueLogicalHash: null
+				name: content.name,
+				mtime: content.mtime,
+				etag: content.etag,
+				mime: content.mime,
+				encoding: content.encoding,
+				value: raw,
+				valueLogicalHash: null
 			};
 		});
 	}
+
+	public promptForPath(defaultPath?: string): string {
+		return this.promptPath;
+	}
+
+	public confirmSave(resources?: URI[]): ConfirmResult {
+		return this.confirmResult;
+	}
+}
+
+export function workbenchInstantiationService(): TestInstantiationService {
+	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	instantiationService.stub(IEventService, new TestEventService());
+	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(IStorageService, new TestStorageService());
+	instantiationService.stub(IWorkbenchEditorService, new TestEditorService(function () { }));
+	instantiationService.stub(IPartService, new TestPartService());
+	instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
+	instantiationService.stub(IModeService);
+	instantiationService.stub(IHistoryService, 'getHistory', []);
+	instantiationService.stub(IModelService, createMockModelService(instantiationService));
+	instantiationService.stub(IFileService, TestFileService);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IMessageService, new TestMessageService());
+	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
+
+	return instantiationService;
 }
 
 export class TestMessageService implements IMessageService {
@@ -151,7 +194,7 @@ export class TestMessageService implements IMessageService {
 	}
 }
 
-export class TestPartService implements PartService.IPartService {
+export class TestPartService implements IPartService {
 	public _serviceBrand: any;
 
 	public layout(): void { }
@@ -197,22 +240,23 @@ export class TestPartService implements PartService.IPartService {
 	public setSideBarPosition(position): void { }
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
+	public getWorkbenchElementId(): string { return ''; }
 }
 
-export class TestEventService extends EventEmitter.EventEmitter implements IEventService {
+export class TestEventService extends EventEmitter implements IEventService {
 	public _serviceBrand: any;
 }
 
-export class TestStorageService extends EventEmitter.EventEmitter implements IStorageService {
+export class TestStorageService extends EventEmitter implements IStorageService {
 	public _serviceBrand: any;
 
-	private storage: Storage.Storage;
+	private storage: Storage;
 
 	constructor() {
 		super();
 
 		let context = new TestContextService();
-		this.storage = new Storage.Storage(new Storage.InMemoryLocalStorage(), null, context);
+		this.storage = new Storage(new InMemoryLocalStorage(), null, context);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -243,6 +287,12 @@ export class TestStorageService extends EventEmitter.EventEmitter implements ISt
 export class TestUntitledEditorService implements IUntitledEditorService {
 	public _serviceBrand: any;
 
+	private _onDidChangeDirty = new Emitter<URI>();
+
+	public get onDidChangeDirty(): Event<URI> {
+		return this._onDidChangeDirty.event;
+	}
+
 	public get(resource: URI) {
 		return null;
 	}
@@ -255,7 +305,7 @@ export class TestUntitledEditorService implements IUntitledEditorService {
 		return [];
 	}
 
-	public 	revertAll(resources?: URI[]): URI[] {
+	public revertAll(resources?: URI[]): URI[] {
 		return [];
 	}
 
@@ -291,7 +341,8 @@ export class TestEditorGroupService implements IEditorGroupService {
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
-		services.set(WorkspaceContextService.IWorkspaceContextService, new TestContextService());
+		services.set(IConfigurationService, new TestConfigurationService());
+		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 
@@ -362,12 +413,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 	}
 }
 
-export class TestEditorService implements WorkbenchEditorService.IWorkbenchEditorService {
+export class TestEditorService implements IWorkbenchEditorService {
 	public _serviceBrand: any;
 
-	public activeEditorInput;
-	public activeEditorOptions;
-	public activeEditorPosition;
+	public activeEditorInput: IEditorInput;
+	public activeEditorOptions: IEditorOptions;
+	public activeEditorPosition: Position;
 
 	private callback: (method: string) => void;
 
@@ -442,7 +493,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	}
 }
 
-export class TestQuickOpenService implements QuickOpenService.IQuickOpenService {
+export class TestQuickOpenService implements IQuickOpenService {
 	public _serviceBrand: any;
 
 	private callback: (prefix: string) => void;
@@ -497,7 +548,7 @@ export const TestFileService = {
 			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: new Date().getTime(),
-			name: Paths.basename(resource.fsPath)
+			name: paths.basename(resource.fsPath)
 		});
 	},
 
@@ -505,7 +556,7 @@ export const TestFileService = {
 		return TPromise.as({
 			resource: resource,
 			value: {
-				on: (event:string, callback:Function): void => {
+				on: (event: string, callback: Function): void => {
 					if (event === 'data') {
 						callback('Hello Html');
 					}
@@ -518,7 +569,7 @@ export const TestFileService = {
 			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: new Date().getTime(),
-			name: Paths.basename(resource.fsPath)
+			name: paths.basename(resource.fsPath)
 		});
 	},
 
@@ -530,13 +581,13 @@ export const TestFileService = {
 				mime: 'text/plain',
 				encoding: 'utf8',
 				mtime: new Date().getTime(),
-				name: Paths.basename(res.fsPath)
+				name: paths.basename(res.fsPath)
 			};
 		});
 	}
 };
 
-export class TestConfigurationService extends EventEmitter.EventEmitter implements IConfigurationService {
+export class TestConfigurationService extends EventEmitter implements IConfigurationService {
 	public _serviceBrand: any;
 
 	private configuration = Object.create(null);
@@ -579,6 +630,10 @@ export class TestLifecycleService implements ILifecycleService {
 
 	public fireShutdown(): void {
 		this._onShutdown.fire();
+	}
+
+	public fireWillShutdown(event: ShutdownEvent): void {
+		this._onWillShutdown.fire(event);
 	}
 
 	public get onWillShutdown(): Event<ShutdownEvent> {

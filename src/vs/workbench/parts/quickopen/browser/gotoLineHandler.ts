@@ -161,13 +161,13 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 }
 
 interface IEditorLineDecoration {
-	lineHighlightId: string;
+	rangeHighlightId: string;
 	lineDecorationId: string;
 	position: Position;
 }
 
 export class GotoLineHandler extends QuickOpenHandler {
-	private lineHighlightDecorationId: IEditorLineDecoration;
+	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 
 	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -200,18 +200,18 @@ export class GotoLineHandler extends QuickOpenHandler {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			let deleteDecorations: string[] = [];
 
-			if (this.lineHighlightDecorationId) {
-				deleteDecorations.push(this.lineHighlightDecorationId.lineDecorationId);
-				deleteDecorations.push(this.lineHighlightDecorationId.lineHighlightId);
-				this.lineHighlightDecorationId = null;
+			if (this.rangeHighlightDecorationId) {
+				deleteDecorations.push(this.rangeHighlightDecorationId.lineDecorationId);
+				deleteDecorations.push(this.rangeHighlightDecorationId.rangeHighlightId);
+				this.rangeHighlightDecorationId = null;
 			}
 
 			let newDecorations: IModelDeltaDecoration[] = [
-				// lineHighlight at index 0
+				// rangeHighlight at index 0
 				{
 					range: range,
 					options: {
-						className: 'lineHighlight',
+						className: 'rangeHighlight',
 						isWholeLine: true
 					}
 				},
@@ -230,11 +230,11 @@ export class GotoLineHandler extends QuickOpenHandler {
 			];
 
 			let decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
-			let lineHighlightId = decorations[0];
+			let rangeHighlightId = decorations[0];
 			let lineDecorationId = decorations[1];
 
-			this.lineHighlightDecorationId = {
-				lineHighlightId: lineHighlightId,
+			this.rangeHighlightDecorationId = {
+				rangeHighlightId: rangeHighlightId,
 				lineDecorationId: lineDecorationId,
 				position: position
 			};
@@ -242,20 +242,20 @@ export class GotoLineHandler extends QuickOpenHandler {
 	}
 
 	public clearDecorations(): void {
-		if (this.lineHighlightDecorationId) {
+		if (this.rangeHighlightDecorationId) {
 			this.editorService.getVisibleEditors().forEach((editor) => {
-				if (editor.position === this.lineHighlightDecorationId.position) {
+				if (editor.position === this.rangeHighlightDecorationId.position) {
 					let editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 						changeAccessor.deltaDecorations([
-							this.lineHighlightDecorationId.lineDecorationId,
-							this.lineHighlightDecorationId.lineHighlightId
+							this.rangeHighlightDecorationId.lineDecorationId,
+							this.rangeHighlightDecorationId.rangeHighlightId
 						], []);
 					});
 				}
 			});
 
-			this.lineHighlightDecorationId = null;
+			this.rangeHighlightDecorationId = null;
 		}
 	}
 

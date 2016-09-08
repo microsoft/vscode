@@ -28,7 +28,7 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	let colorsDecorationType = window.createTextEditorDecorationType(decorationType);
 	disposables.push(colorsDecorationType);
 
-	let pendingUpdateRequests : { [key:string]:number; } = {};
+	let pendingUpdateRequests : { [key:string]: NodeJS.Timer; } = {};
 
 	// we care about all visible editors
 	window.visibleTextEditors.forEach(editor => {

@@ -97,7 +97,10 @@ export abstract class EditorCommand extends Command {
 			}
 
 			protected runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
-				this._callback(controllerGetter(editor));
+				let controller = controllerGetter(editor);
+				if (controller) {
+					this._callback(controllerGetter(editor));
+				}
 			}
 		};
 	}
@@ -155,8 +158,10 @@ function getActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEd
 
 		// Substitute for (editor instanceof ICodeEditor)
 		if (editor && typeof editor.getEditorType === 'function') {
-			let codeEditor = <editorCommon.ICommonCodeEditor>editor;
-			return codeEditor;
+			if (editor.getEditorType() === editorCommon.EditorType.ICodeEditor) {
+				return <editorCommon.ICommonCodeEditor>editor;
+			}
+			return (<editorCommon.ICommonDiffEditor>editor).getModifiedEditor();
 		}
 	}
 

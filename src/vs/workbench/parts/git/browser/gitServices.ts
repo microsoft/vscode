@@ -479,15 +479,15 @@ export class GitService extends EventEmitter
 						messageService.show(severity.Warning, {
 							message: localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
 							actions: [
-								CloseAction,
+								new Action('downloadLatest', localize('download', "Download"), '', true, () => {
+									shell.openExternal('https://git-scm.com/');
+									return null;
+								}),
 								new Action('neverShowAgain', localize('neverShowAgain', "Don't show again"), null, true, () => {
 									storageService.store(IgnoreOldGitStorageKey, true, StorageScope.GLOBAL);
 									return null;
 								}),
-								new Action('downloadLatest', localize('download', "Download"), '', true, () => {
-									shell.openExternal('https://git-scm.com/');
-									return null;
-								})
+								CloseAction
 							]
 						});
 					}
@@ -792,7 +792,7 @@ export class GitService extends EventEmitter
 
 			error = createError(
 				localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
-				{ actions: [showOutputAction, cancelAction] }
+				{ actions: [cancelAction, showOutputAction] }
 			);
 
 			(<any>error).gitErrorCode = gitErrorCode;

@@ -43,4 +43,7 @@ Many of the core components and extensions to Code live in their own repositorie
 For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our wiki.
 
 ## License
-[MIT](LICENSE.txt)
+
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+Licensed under the [MIT](LICENSE.txt) License.

@@ -17,7 +17,7 @@ import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IWorkbenchConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
+import {IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -45,7 +45,7 @@ export class BaseTwoEditorsAction extends Action {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService protected fileService: IFileService,
-		@IWorkbenchConfigurationService protected configurationService: IWorkbenchConfigurationService,
+		@IWorkspaceConfigurationService protected configurationService: IWorkspaceConfigurationService,
 		@IMessageService protected messageService: IMessageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
@@ -94,7 +94,7 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
-		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IMessageService messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -130,7 +130,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
-		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IMessageService messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -148,19 +148,19 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 			this.messageService.show(Severity.Info, {
 				message: nls.localize('workspaceHasSettings', "The currently opened folder contains workspace settings that may override user settings"),
 				actions: [
-					CloseAction,
-					new Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {
-						this.storageService.store(OpenGlobalSettingsAction.SETTINGS_INFO_IGNORE_KEY, true, StorageScope.WORKSPACE);
-
-						return TPromise.as(true);
-					}),
 					new Action('open.workspaceSettings', nls.localize('openWorkspaceSettings', "Open Workspace Settings"), null, true, () => {
 						let editorCount = this.editorService.getVisibleEditors().length;
 
 						return this.editorService.createInput({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) }).then((typedInput) => {
 							return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
 						});
-					})
+					}),
+					new Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {
+						this.storageService.store(OpenGlobalSettingsAction.SETTINGS_INFO_IGNORE_KEY, true, StorageScope.WORKSPACE);
+
+						return TPromise.as(true);
+					}),
+					CloseAction
 				]
 			});
 		}
@@ -183,7 +183,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
-		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
 		@IMessageService messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -225,7 +225,7 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 class DefaultSettingsInput extends StringEditorInput {
 	private static INSTANCE: DefaultSettingsInput;
 
-	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkbenchConfigurationService): DefaultSettingsInput {
+	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkspaceConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
 			let editorConfig = configurationService.getConfiguration<any>();
 			let defaults = getDefaultValuesContent(editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');

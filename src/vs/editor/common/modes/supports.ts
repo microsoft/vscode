@@ -7,22 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-
-export class Token implements modes.IToken {
-	_tokenBrand: void;
-
-	public startIndex:number;
-	public type:string;
-
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex;
-		this.type = type;
-	}
-
-	public toString(): string {
-		return '(' + this.startIndex + ', ' + this.type + ')';
-	}
-}
+import {Token} from 'vs/editor/common/core/token';
 
 export class LineTokens implements modes.ILineTokens {
 	_lineTokensBrand: void;
@@ -43,18 +28,18 @@ export class LineTokens implements modes.ILineTokens {
 }
 
 export function handleEvent<T>(context:modes.ILineContext, offset:number, runner:(modeId:string, newContext:modes.ILineContext, offset:number)=>T):T {
-	var modeTransitions = context.modeTransitions;
+	let modeTransitions = context.modeTransitions;
 	if (modeTransitions.length === 1) {
 		return runner(modeTransitions[0].modeId, context, offset);
 	}
 
-	var modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
-	var nestedMode = modeTransitions[modeIndex].mode;
-	var modeStartIndex = modeTransitions[modeIndex].startIndex;
+	let modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
+	let nestedModeId = modeTransitions[modeIndex].modeId;
+	let modeStartIndex = modeTransitions[modeIndex].startIndex;
 
-	var firstTokenInModeIndex = context.findIndexOfOffset(modeStartIndex);
-	var nextCharacterAfterModeIndex = -1;
-	var nextTokenAfterMode = -1;
+	let firstTokenInModeIndex = context.findIndexOfOffset(modeStartIndex);
+	let nextCharacterAfterModeIndex = -1;
+	let nextTokenAfterMode = -1;
 	if (modeIndex + 1 < modeTransitions.length) {
 		nextTokenAfterMode = context.findIndexOfOffset(modeTransitions[modeIndex + 1].startIndex);
 		nextCharacterAfterModeIndex = context.getTokenStartIndex(nextTokenAfterMode);
@@ -63,9 +48,9 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 		nextCharacterAfterModeIndex = context.getLineContent().length;
 	}
 
-	var firstTokenCharacterOffset = context.getTokenStartIndex(firstTokenInModeIndex);
-	var newCtx = new FilteredLineContext(context, nestedMode, firstTokenInModeIndex, nextTokenAfterMode, firstTokenCharacterOffset, nextCharacterAfterModeIndex);
-	return runner(nestedMode.getId(), newCtx, offset - firstTokenCharacterOffset);
+	let firstTokenCharacterOffset = context.getTokenStartIndex(firstTokenInModeIndex);
+	let newCtx = new FilteredLineContext(context, nestedModeId, firstTokenInModeIndex, nextTokenAfterMode, firstTokenCharacterOffset, nextCharacterAfterModeIndex);
+	return runner(nestedModeId, newCtx, offset - firstTokenCharacterOffset);
 }
 
 export class FilteredLineContext implements modes.ILineContext {
@@ -78,11 +63,11 @@ export class FilteredLineContext implements modes.ILineContext {
 	private _firstTokenCharacterOffset:number;
 	private _nextCharacterAfterModeIndex:number;
 
-	constructor(actual:modes.ILineContext, mode:modes.IMode,
+	constructor(actual:modes.ILineContext, modeId:string,
 			firstTokenInModeIndex:number, nextTokenAfterMode:number,
 			firstTokenCharacterOffset:number, nextCharacterAfterModeIndex:number) {
 
-		this.modeTransitions = [new ModeTransition(0, mode)];
+		this.modeTransitions = [new ModeTransition(0, modeId)];
 		this._actual = actual;
 		this._firstTokenInModeIndex = firstTokenInModeIndex;
 		this._nextTokenAfterMode = nextTokenAfterMode;
@@ -107,16 +92,8 @@ export class FilteredLineContext implements modes.ILineContext {
 		return this._actual.getTokenStartIndex(tokenIndex + this._firstTokenInModeIndex) - this._firstTokenCharacterOffset;
 	}
 
-	public getTokenEndIndex(tokenIndex:number): number {
-		return this._actual.getTokenEndIndex(tokenIndex + this._firstTokenInModeIndex) - this._firstTokenCharacterOffset;
-	}
-
 	public getTokenType(tokenIndex:number): string {
 		return this._actual.getTokenType(tokenIndex + this._firstTokenInModeIndex);
-	}
-
-	public getTokenText(tokenIndex:number): string {
-		return this._actual.getTokenText(tokenIndex + this._firstTokenInModeIndex);
 	}
 }
 

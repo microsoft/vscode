@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
 import {IPatternInfo} from 'vs/platform/search/common/search';
@@ -20,14 +19,27 @@ const t_CHAR_CODE = 't'.charCodeAt(0);
 export class ReplacePattern {
 
 	private _replacePattern: string;
-	private _searchRegExp: RegExp;
-	private _hasParameters: boolean= false;
+	private _hasParameters: boolean = false;
+	private _regExp: RegExp;
 
-	constructor(private replaceString: string, private searchPatternInfo: IPatternInfo) {
-		this._replacePattern= replaceString;
-		if (searchPatternInfo.isRegExp) {
-			this._searchRegExp= strings.createRegExp(searchPatternInfo.pattern, searchPatternInfo.isRegExp, searchPatternInfo.isCaseSensitive, searchPatternInfo.isWordMatch, true);
+	constructor(replaceString: string, searchPatternInfo: IPatternInfo)
+	constructor(replaceString: string, parseParameters: boolean, regEx: RegExp)
+	constructor(replaceString: string, arg2: any, arg3?: any) {
+		this._replacePattern = replaceString;
+		let searchPatternInfo: IPatternInfo;
+		let parseParameters: boolean;
+		if (typeof arg2 === 'boolean') {
+			parseParameters = arg2;
+		} else {
+			searchPatternInfo = arg2;
+			parseParameters = searchPatternInfo.isRegExp;
+		}
+		if (parseParameters) {
 			this.parseReplaceString(replaceString);
+		}
+		this._regExp = arg3 ? arg3 : strings.createRegExp(searchPatternInfo.pattern, searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false });
+		if (this._regExp.global) {
+			this._regExp = strings.createRegExp(this._regExp.source, true, { matchCase: !this._regExp.ignoreCase, wholeWord: false, multiline: this._regExp.multiline, global: false });
 		}
 	}
 
@@ -39,11 +51,28 @@ export class ReplacePattern {
 		return this._replacePattern;
 	}
 
-	public getReplaceString(matchedString: string): string {
-		if (this.hasParameters) {
-			return matchedString.replace(this._searchRegExp, this.pattern);
+	public get regExp(): RegExp {
+		return this._regExp;
+	}
+
+	/**
+	* Returns the replace string for the first match in the given text.
+	* If text has no matches then returns null.
+	*/
+	public getReplaceString(text: string): string {
+		this._regExp.lastIndex = 0;
+		let match = this._regExp.exec(text);
+		if (match) {
+			if (this.hasParameters) {
+				if (match[0] === text) {
+					return text.replace(this._regExp, this.pattern);
+				}
+				let replaceString = text.replace(this._regExp, this.pattern);
+				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
+			}
+			return this.pattern;
 		}
-		return this.pattern;
+		return null;
 	}
 
 	/**

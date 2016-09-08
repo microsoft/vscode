@@ -7,7 +7,7 @@
 import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -95,6 +95,10 @@ export function editorAction(ctor:{ new(): EditorAction; }): void {
 	CommonEditorRegistry.registerEditorAction(new ctor());
 }
 
+export function commonEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
+	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
+}
+
 export module CommonEditorRegistry {
 
 	// --- Editor Actions
@@ -108,10 +112,7 @@ export module CommonEditorRegistry {
 
 	// --- Editor Contributions
 
-	export function registerEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
-		EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
-	}
-	export function getEditorContributions(): editorCommon.ICommonEditorContributionDescriptor[] {
+	export function getEditorContributions(): editorCommon.ICommonEditorContributionCtor[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
 
@@ -149,20 +150,8 @@ export module CommonEditorRegistry {
 	}
 }
 
-class SimpleEditorContributionDescriptor implements editorCommon.ICommonEditorContributionDescriptor {
-	private _ctor:editorCommon.ICommonEditorContributionCtor;
-
-	constructor(ctor:editorCommon.ICommonEditorContributionCtor) {
-		this._ctor = ctor;
-	}
-
-	public createInstance(instantiationService: IInstantiationService, editor:editorCommon.ICommonCodeEditor): editorCommon.IEditorContribution {
-		return instantiationService.createInstance(this._ctor, editor);
-	}
-}
-
 // Editor extension points
-var Extensions = {
+const Extensions = {
 	EditorCommonContributions: 'editor.commonContributions'
 };
 
@@ -170,7 +159,7 @@ class EditorContributionRegistry {
 
 	public static INSTANCE = new EditorContributionRegistry();
 
-	private editorContributions: editorCommon.ICommonEditorContributionDescriptor[];
+	private editorContributions: editorCommon.ICommonEditorContributionCtor[];
 	private editorActions: EditorAction[];
 
 	constructor() {
@@ -179,7 +168,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
-		this.editorContributions.push(new SimpleEditorContributionDescriptor(ctor));
+		this.editorContributions.push(ctor);
 	}
 
 	public registerEditorAction(action:EditorAction) {
@@ -194,7 +183,7 @@ class EditorContributionRegistry {
 		this.editorActions.push(action);
 	}
 
-	public getEditorContributions(): editorCommon.ICommonEditorContributionDescriptor[] {
+	public getEditorContributions(): editorCommon.ICommonEditorContributionCtor[] {
 		return this.editorContributions.slice(0);
 	}
 

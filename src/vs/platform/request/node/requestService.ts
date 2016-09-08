@@ -6,6 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { assign } from 'vs/base/common/objects';
 import { IRequestOptions, IRequestContext, request } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/common/request';
@@ -21,6 +22,7 @@ export class RequestService implements IRequestService {
 
 	private proxyUrl: string;
 	private strictSSL: boolean;
+	private authorization: string;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -37,12 +39,17 @@ export class RequestService implements IRequestService {
 	private configure(config: IHTTPConfiguration) {
 		this.proxyUrl = config.http && config.http.proxy;
 		this.strictSSL = config.http && config.http.proxyStrictSSL;
+		this.authorization = config.http && config.http.proxyAuthorization;
 	}
 
 	request(options: IRequestOptions): TPromise<IRequestContext> {
 		if (!options.agent) {
 			const { proxyUrl, strictSSL } = this;
 			options.agent = getProxyAgent(options.url, { proxyUrl, strictSSL });
+		}
+
+		if (this.authorization) {
+			options.headers = assign(options.headers || {}, { 'Proxy-Authorization': this.authorization });
 		}
 
 		return request(options);

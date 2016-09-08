@@ -9,7 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {CommonEditorRegistry, commonEditorContribution} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
@@ -265,12 +265,13 @@ class WordHighlighter {
 		this._decorationIds = this.editor.deltaDecorations(this._decorationIds, decorations);
 	}
 
-	public destroy(): void {
+	public dispose(): void {
 		this._stopAll();
 		this.toUnhook = dispose(this.toUnhook);
 	}
 }
 
+@commonEditorContribution
 class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.wordHighlighter';
@@ -286,9 +287,6 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.wordHighligher.destroy();
+		this.wordHighligher.dispose();
 	}
 }
-
-CommonEditorRegistry.registerEditorContribution(WordHighlighterContribution);
-

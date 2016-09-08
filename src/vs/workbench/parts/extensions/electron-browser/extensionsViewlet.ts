@@ -9,10 +9,10 @@ import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isPromiseCanceledError, onUnexpectedError, create as createError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { assign } from 'vs/base/common/objects';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import EventOf, { mapEvent, filterEvent } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
@@ -20,6 +20,8 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { append, $, addStandardDisposableListener, EventType, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { PagedModel } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,12 +29,16 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
-import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { Query } from '../common/extensionQuery';
+import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 import { IURLService } from 'vs/platform/url/common/url';
 import URI from 'vs/base/common/uri';
 
@@ -60,15 +66,20 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IURLService urlService: IURLService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService
+		@IExtensionTipsService private tipsService: IExtensionTipsService,
+		@IMessageService private messageService: IMessageService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
 		const onOpenExtensionUrl = filterEvent(urlService.onOpenURL, uri => /^extension/.test(uri.path));
 		onOpenExtensionUrl(this.onOpenExtensionUrl, this, this.disposables);
+
+		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -153,6 +164,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	getSecondaryActions(): IAction[] {
 		if (!this.secondaryActions) {
 			this.secondaryActions = [
+				this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL),
+				new Separator(),
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
@@ -178,7 +191,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private triggerSearch(value: string, immediate = false, suggestPopular = false): void {
-		this.searchDelayer.trigger(() => this.doSearch(value, suggestPopular), immediate || !value ? 0 : 500);
+		this.searchDelayer.trigger(() => this.doSearch(value, suggestPopular), immediate || !value ? 0 : 500)
+			.done(null, err => this.onError(err));
 	}
 
 	private doSearch(value: string = '', suggestPopular = false): TPromise<any> {
@@ -207,23 +221,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const query = Query.parse(value);
 		let options: IQueryOptions = {};
 
-		if (/@recommended/i.test(query.value)) {
-			const value = query.value.replace(/@recommended/g, '').trim();
-
-			return this.extensionsWorkbenchService.queryLocal().then(local => {
-				const names = this.tipsService.getRecommendations()
-					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
-					.filter(name => name.indexOf(value) > -1);
-
-				if (!names.length) {
-					return new PagedModel([]);
-				}
-
-				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(result => new PagedModel(result));
-			});
-		}
-
 		switch(query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
 			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
@@ -234,8 +231,27 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
 		}
 
+		if (/@recommended/i.test(query.value)) {
+			const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
+
+			return this.extensionsWorkbenchService.queryLocal().then(local => {
+				const names = this.tipsService.getRecommendations()
+					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
+					.filter(name => name.toLowerCase().indexOf(value) > -1);
+
+				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
+
+				if (!names.length) {
+					return new PagedModel([]);
+				}
+
+				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+					.then(result => new PagedModel(result));
+			});
+		}
+
 		if (query.value) {
-			options = assign(options, { text: query.value });
+			options = assign(options, { text: query.value.substr(0, 200) });
 		}
 
 		return this.extensionsWorkbenchService.queryGallery(options)
@@ -244,7 +260,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private openExtension(extension: IExtension): void {
 		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
-			.done(null, onUnexpectedError);
+			.done(null, err => this.onError(err));
 	}
 
 	private onEnter(): void {
@@ -298,6 +314,46 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private progress<T>(promise: TPromise<T>): TPromise<T> {
 		const progressRunner = this.progressService.show(true);
 		return always(promise, () => progressRunner.done());
+	}
+
+	private onViewletOpen(viewlet: IViewlet): void {
+		if (!viewlet || viewlet.getId() === VIEWLET_ID) {
+			return;
+		}
+
+		const model = this.editorInputService.getStacksModel();
+
+		const promises = model.groups.map(group => {
+			const position = model.positionOfGroup(group);
+			const inputs = group.getEditors().filter(input => input instanceof ExtensionsInput);
+			const promises = inputs.map(input => this.editorService.closeEditor(position, input));
+
+			return TPromise.join(promises);
+		});
+
+		TPromise.join(promises).done(null, onUnexpectedError);
+	}
+
+	private onError(err: any): void {
+		if (isPromiseCanceledError(err)) {
+			return;
+		}
+
+		const message = err && err.message || '';
+
+		if (!/ECONNREFUSED/.test(message)) {
+			const error = createError(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
+				actions: [
+					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL),
+					CloseAction
+				]
+			});
+
+			this.messageService.show(Severity.Error, error);
+			return;
+		}
+
+		this.messageService.show(Severity.Error, err);
 	}
 
 	dispose(): void {

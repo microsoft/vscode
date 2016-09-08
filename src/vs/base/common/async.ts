@@ -23,11 +23,13 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 	}
 }
 
-export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Thenable<T>): TPromise<T> {
+export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject) => {
+	return new TPromise<T>((resolve, reject, progress) => {
 		let item = callback(source.token);
-		if (isThenable<T>(item)) {
+		if (TPromise.is(item)) {
+			item.then(resolve, reject, progress);
+		} else if (isThenable<T>(item)) {
 			item.then(resolve, reject);
 		} else {
 			resolve(item);
@@ -41,15 +43,15 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Th
  * Hook a cancellation token to a WinJS Promise
  */
 export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>, resolveAsUndefinedWhenCancelled?: boolean): Thenable<T> {
-	token.onCancellationRequested(() => promise.cancel());
+	const subscription = token.onCancellationRequested(() => promise.cancel());
 	if (resolveAsUndefinedWhenCancelled) {
-		return promise.then(undefined, err => {
+		promise = promise.then(undefined, err => {
 			if (!errors.isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
 		});
 	}
-	return promise;
+	return always(promise, () => subscription.dispose());
 }
 
 export interface ITask<T> {

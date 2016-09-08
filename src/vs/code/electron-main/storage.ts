@@ -7,19 +7,13 @@
 
 import * as path from 'path';
 import * as fs from 'original-fs';
-import { EventEmitter } from 'events';
 import { IEnvService } from 'vs/code/electron-main/env';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-const EventTypes = {
-	STORE: 'store'
-};
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
 export interface IStorageService {
 	_serviceBrand: any;
-	onStore<T>(clb: (key: string, oldValue: T, newValue: T) => void): () => void;
 	getItem<T>(key: string, defaultValue?: T): T;
 	setItem(key: string, data: any): void;
 	removeItem(key: string): void;
@@ -31,16 +25,9 @@ export class StorageService implements IStorageService {
 
 	private dbPath: string;
 	private database: any = null;
-	private eventEmitter = new EventEmitter();
 
 	constructor(@IEnvService private envService: IEnvService) {
 		this.dbPath = path.join(envService.appHome, 'storage.json');
-	}
-
-	onStore<T>(clb: (key: string, oldValue: T, newValue: T) => void): () => void {
-		this.eventEmitter.addListener(EventTypes.STORE, clb);
-
-		return () => this.eventEmitter.removeListener(EventTypes.STORE, clb);
 	}
 
 	getItem<T>(key: string, defaultValue?: T): T {
@@ -68,11 +55,8 @@ export class StorageService implements IStorageService {
 			}
 		}
 
-		let oldValue = this.database[key];
 		this.database[key] = data;
 		this.save();
-
-		this.eventEmitter.emit(EventTypes.STORE, key, oldValue, data);
 	}
 
 	removeItem(key: string): void {
@@ -81,11 +65,8 @@ export class StorageService implements IStorageService {
 		}
 
 		if (this.database[key]) {
-			let oldValue = this.database[key];
 			delete this.database[key];
 			this.save();
-
-			this.eventEmitter.emit(EventTypes.STORE, key, oldValue, null);
 		}
 	}
 

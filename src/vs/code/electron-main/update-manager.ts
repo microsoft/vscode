@@ -131,7 +131,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		});
 
 		this.raw.on('update-downloaded', (event: any, releaseNotes: string, version: string, date: Date, url: string, rawQuitAndUpdate: () => void) => {
-			let data: IUpdate = {
+			const data: IUpdate = {
 				releaseNotes: releaseNotes,
 				version: version,
 				date: date,
@@ -231,7 +231,9 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 	}
 
 	private getUpdateChannel(): string {
-		const channel = this.configurationService.getConfiguration<string>('update.channel') || 'default';
+		const config = this.configurationService.getConfiguration<{ channel: string; }>('update');
+		const channel = config && config.channel;
+
 		return channel === 'none' ? null : this.envService.quality;
 	}
 

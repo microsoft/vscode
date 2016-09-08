@@ -6,21 +6,25 @@
 
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import uri from 'vs/base/common/uri';
 import timer = require('vs/base/common/timer');
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions} from 'vs/platform/files/common/files';
 import {FileService as NodeFileService, IFileServiceOptions, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Action} from 'vs/base/common/actions';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
 import {shell} from 'electron';
 
@@ -33,19 +37,26 @@ export class FileService implements IFileService {
 
 	private raw: IFileService;
 
-	private configurationChangeListenerUnbind: IDisposable;
+	private toUnbind: IDisposable[];
+	private activeOutOfWorkspaceWatchers: { [resource: string]: boolean; };
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService
 	) {
+		this.toUnbind = [];
+		this.activeOutOfWorkspaceWatchers = Object.create(null);
+
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
 		// adjust encodings
-		let encodingOverride: IEncodingOverride[] = [];
+		const encodingOverride: IEncodingOverride[] = [];
 		encodingOverride.push({ resource: uri.file(environmentService.appSettingsHome), encoding: encoding.UTF8 });
 		if (this.contextService.getWorkspace()) {
 			encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
@@ -57,7 +68,7 @@ export class FileService implements IFileService {
 		}
 
 		// build config
-		let fileServiceConfig: IFileServiceOptions = {
+		const fileServiceConfig: IFileServiceOptions = {
 			errorLogger: (msg: string) => this.onFileServiceError(msg),
 			encoding: configuration.files && configuration.files.encoding,
 			encodingOverride: encodingOverride,
@@ -66,7 +77,7 @@ export class FileService implements IFileService {
 		};
 
 		// create service
-		let workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace();
 		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService);
 
 		// Listeners
@@ -93,8 +104,44 @@ export class FileService implements IFileService {
 
 	private registerListeners(): void {
 
-		// Config Changes
-		this.configurationChangeListenerUnbind = this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
+		// Config changes
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+
+		// Editor changing
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		// Lifecycle
+		this.lifecycleService.onShutdown(this.dispose, this);
+	}
+
+	private onEditorsChanged(): void {
+		this.handleOutOfWorkspaceWatchers();
+	}
+
+	private handleOutOfWorkspaceWatchers(): void {
+		const visibleOutOfWorkspaceResources = this.editorService.getVisibleEditors().map(editor => {
+			return asFileEditorInput(editor.input, true);
+		}).filter(input => {
+			return !!input && !this.contextService.isInsideWorkspace(input.getResource());
+		}).map(input => {
+			return input.getResource().toString();
+		});
+
+		// Handle no longer visible out of workspace resources
+		Object.keys(this.activeOutOfWorkspaceWatchers).forEach(watchedResource => {
+			if (visibleOutOfWorkspaceResources.indexOf(watchedResource) < 0) {
+				this.unwatchFileChanges(watchedResource);
+				delete this.activeOutOfWorkspaceWatchers[watchedResource];
+			}
+		});
+
+		// Handle newly visible out of workspace resources
+		visibleOutOfWorkspaceResources.forEach(resourceToWatch => {
+			if (!this.activeOutOfWorkspaceWatchers[resourceToWatch]) {
+				this.watchFileChanges(uri.parse(resourceToWatch));
+				this.activeOutOfWorkspaceWatchers[resourceToWatch] = true;
+			}
+		});
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -114,8 +161,8 @@ export class FileService implements IFileService {
 	}
 
 	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
-		let contentId = resource.toString();
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
+		const contentId = resource.toString();
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
 
 		return this.raw.resolveContent(resource, options).then((result) => {
 			timerEvent.stop();
@@ -125,8 +172,8 @@ export class FileService implements IFileService {
 	}
 
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
-		let contentId = resource.toString();
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
+		const contentId = resource.toString();
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));
 
 		return this.raw.resolveStreamContent(resource, options).then((result) => {
 			timerEvent.stop();
@@ -140,7 +187,7 @@ export class FileService implements IFileService {
 	}
 
 	public updateContent(resource: uri, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
-		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Save {0}', resource.toString()));
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Save {0}', resource.toString()));
 
 		return this.raw.updateContent(resource, value, options).then((result) => {
 			timerEvent.stop();
@@ -182,14 +229,14 @@ export class FileService implements IFileService {
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
-		let workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace();
 		if (!workspace) {
 			return TPromise.wrapError<void>('Need a workspace to use this');
 		}
 
-		let absolutePath = resource.fsPath;
+		const absolutePath = resource.fsPath;
 
-		let result = shell.moveItemToTrash(absolutePath);
+		const result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
 			return TPromise.wrapError<void>(new Error(nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 		}
@@ -230,12 +277,13 @@ export class FileService implements IFileService {
 	}
 
 	public dispose(): void {
+		this.toUnbind = dispose(this.toUnbind);
 
-		// Listeners
-		if (this.configurationChangeListenerUnbind) {
-			this.configurationChangeListenerUnbind.dispose();
-			this.configurationChangeListenerUnbind = null;
+		// Dispose watchers if any
+		for (const key in this.activeOutOfWorkspaceWatchers) {
+			this.unwatchFileChanges(key);
 		}
+		this.activeOutOfWorkspaceWatchers = Object.create(null);
 
 		// Dispose service
 		this.raw.dispose();

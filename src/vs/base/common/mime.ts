@@ -252,5 +252,5 @@ export function suggestFilename(theMime: string, prefix: string): string {
 		}
 	}
 
-	return null;
+	return prefix; // without any known extension, just return the prefix
 }

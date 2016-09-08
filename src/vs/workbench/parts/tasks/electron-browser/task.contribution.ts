@@ -60,7 +60,7 @@ import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
 import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
-import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -169,10 +169,7 @@ class CleanAction extends AbstractTaskAction {
 	}
 }
 
-class ConfigureTaskRunnerAction extends Action {
-
-	public static ID = 'workbench.action.tasks.configureTaskRunner';
-	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
+abstract class OpenTaskConfigurationAction extends Action {
 
 	private configurationService: IConfigurationService;
 	private fileService: IFileService;
@@ -271,6 +268,35 @@ class ConfigureTaskRunnerAction extends Action {
 			throw new Error(nls.localize('ConfigureTaskRunnerAction.failed', "Unable to create the 'tasks.json' file inside the '.vscode' folder. Consult the task output for details."));
 		});
 	}
+}
+
+class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
+	public static ID = 'workbench.action.tasks.configureTaskRunner';
+	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
+
+	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
+		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
+		@IEnvironmentService environmentService: IEnvironmentService) {
+			super(id, label, configurationService, editorService, fileService, contextService,
+			outputService, messageService, quickOpenService, environmentService);
+		}
+
+}
+
+class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
+	public static ID = 'workbench.action.tasks.configureBuildTask';
+	public static TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
+
+	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
+		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
+		@IEnvironmentService environmentService: IEnvironmentService) {
+			super(id, label, configurationService, editorService, fileService, contextService,
+			outputService, messageService, quickOpenService, environmentService);
+		}
 }
 
 class CloseMessageAction extends Action {
@@ -478,11 +504,17 @@ class StatusBarItem implements IStatusbarItem {
 		}));
 
 		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data:TaskServiceEventData) => {
-			this.activeCount--;
-			if (this.activeCount === 0) {
-				$(progress).hide();
-				clearInterval(this.intervalToken);
-				this.intervalToken = null;
+			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
+			// So try to treat them accordingly.
+			if (this.activeCount > 0) {
+				this.activeCount--;
+				if (this.activeCount === 0) {
+					$(progress).hide();
+					if (this.intervalToken) {
+						clearInterval(this.intervalToken);
+						this.intervalToken = null;
+					}
+				}
 			}
 		}));
 
@@ -512,28 +544,33 @@ interface TaskServiceEventData {
 }
 
 class NullTaskSystem extends EventEmitter implements ITaskSystem {
-	public build(): ITaskRunResult {
+	public build(): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
-	public rebuild(): ITaskRunResult {
+	public rebuild(): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
-	public clean(): ITaskRunResult {
+	public clean(): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
-	public runTest(): ITaskRunResult {
+	public runTest(): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
-	public run(taskIdentifier: string): ITaskRunResult {
+	public run(taskIdentifier: string): ITaskExecuteResult {
 		return {
+			kind: TaskExecuteKind.Started,
 			promise: TPromise.as<ITaskSummary>({})
 		};
 	}
@@ -754,6 +791,12 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.outputService, this.messageService, this.quickOpenService, this.environmentService);
 	}
 
+	private configureBuildTask(): Action {
+		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT,
+			this.configurationService, this.editorService, this.fileService, this.contextService,
+			this.outputService, this.messageService, this.quickOpenService, this.environmentService);
+	}
+
 	public build(): TPromise<ITaskSummary> {
 		return this.executeTarget(taskSystem => taskSystem.build());
 	}
@@ -774,43 +817,50 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.executeTarget(taskSystem => taskSystem.run(taskIdentifier));
 	}
 
-	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskRunResult): TPromise<ITaskSummary> {
+	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskExecuteResult): TPromise<ITaskSummary> {
 		return this.textFileService.saveAll().then((value) => { 				// make sure all dirty files are saved
 			return this.configurationService.reloadConfiguration().then(() => { 	// make sure configuration is up to date
 				return this.taskSystemPromise.
 					then((taskSystem) => {
-						return taskSystem.isActive().then((active) => {
-							if (!active) {
-								return fn(taskSystem);
+						let executeResult = fn(taskSystem);
+						if (executeResult.kind === TaskExecuteKind.Active) {
+							let active = executeResult.active;
+							if (active.same && active.watching) {
+								this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode.'));
 							} else {
 								throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 							}
-						});
-					}).
-					then((runResult: ITaskRunResult) => {
-						if (runResult.restartOnFileChanges) {
-							let pattern = runResult.restartOnFileChanges;
-							this.fileChangesListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
-								let needsRestart = event.changes.some((change) => {
-									return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
-								});
-								if (needsRestart) {
-									this.terminate().done(() => {
-										// We need to give the child process a change to stop.
-										setTimeout(() => {
-											this.executeTarget(fn);
-										}, 2000);
-									});
-								}
-							});
 						}
-						return runResult.promise.then((value) => {
-							if (this.clearTaskSystemPromise) {
-								this._taskSystemPromise = null;
-								this.clearTaskSystemPromise = false;
+						return executeResult;
+					}).
+					then((executeResult: ITaskExecuteResult) => {
+						if (executeResult.kind === TaskExecuteKind.Started) {
+							if (executeResult.started.restartOnFileChanges) {
+								let pattern = executeResult.started.restartOnFileChanges;
+								this.fileChangesListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+									let needsRestart = event.changes.some((change) => {
+										return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
+									});
+									if (needsRestart) {
+										this.terminate().done(() => {
+											// We need to give the child process a change to stop.
+											setTimeout(() => {
+												this.executeTarget(fn);
+											}, 2000);
+										});
+									}
+								});
 							}
-							return value;
-						});
+							return executeResult.promise.then((value) => {
+								if (this.clearTaskSystemPromise) {
+									this._taskSystemPromise = null;
+									this.clearTaskSystemPromise = false;
+								}
+								return value;
+							});
+						} else {
+							return executeResult.promise;
+						}
 					}, (err: any) => {
 						this.handleError(err);
 					});
@@ -878,6 +928,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		return false; // Nothing to do here
 	}
 
+	private getConfigureAction(code: TaskErrors): Action {
+		switch(code) {
+			case TaskErrors.NoBuildTask:
+				return this.configureBuildTask();
+			default:
+				return this.configureAction();
+		}
+	}
 	private handleError(err:any):void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
@@ -887,10 +945,10 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (needsConfig || needsTerminate) {
 				let closeAction = new CloseMessageAction();
 				let action = needsConfig
-					? this.configureAction()
+					? this.getConfigureAction(buildError.code)
 					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService);
 
-				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [closeAction, action ] });
+				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction ] });
 			} else {
 				this.messageService.show(buildError.severity, buildError.message);
 			}

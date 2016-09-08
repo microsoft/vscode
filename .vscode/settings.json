@@ -17,5 +17,11 @@
 	"tslint.enable": true,
 	"tslint.rulesDirectory": "build/lib/tslint",
 	"lcov.path": ["./.build/coverage/lcov.info", "./.build/coverage-single/lcov.info"],
-	"lcov.watcherExec.windows": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file.replace(/^src/,'out').replace(/\\.ts$/,'.js')}"
+	"lcov.watch": [{
+		"pattern": "**/*.test.js",
+		"command": "${workspaceRoot}\\scripts\\test.sh --coverage --run ${file}",
+		"windows": {
+			"command": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file}"
+		}
+	}]
 }

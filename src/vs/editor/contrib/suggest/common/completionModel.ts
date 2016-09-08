@@ -138,7 +138,13 @@ export class CompletionModel {
 
 			// no match on label nor codeSnippet -> check on filterText
 			if(!match && typeof suggestion.filterText === 'string') {
-				match = !isFalsyOrEmpty(filter(word, suggestion.filterText));
+				if (!isFalsyOrEmpty(filter(word, suggestion.filterText))) {
+					match = true;
+
+					// try to compute highlights by stripping none-word
+					// characters from the end of the string
+					item.highlights = filter(word.replace(/^\W+|\W+$/, ''), suggestion.label);
+				}
 			}
 
 			if (!match) {
@@ -149,7 +155,7 @@ export class CompletionModel {
 
 			// compute score against word
 			const wordLowerCase = word.toLowerCase();
-			const score = CompletionModel._score(suggestion.label, word, wordLowerCase);
+			const score = CompletionModel._score(suggestion.insertText, word, wordLowerCase);
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;

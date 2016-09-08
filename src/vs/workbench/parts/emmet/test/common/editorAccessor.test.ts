@@ -1,3 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+'use strict';
+
 import {EditorAccessor, IGrammarContributions} from 'vs/workbench/parts/emmet/node/editorAccessor';
 import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
@@ -33,7 +40,6 @@ class MockGrammarContributions implements IGrammarContributions {
 	}
 }
 
-
 export interface IGrammarContributions {
 	getGrammar(mode: string): string;
 }
@@ -43,9 +49,9 @@ suite('Emmet', () => {
 	test('emmet isEnabled', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
-			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}) {
+			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
 				editor.getModel().setMode(new MockMode(mode));
-				let editorAccessor = new EditorAccessor(editor, profile, new MockGrammarContributions(scopeName));
+				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
 			}
 
@@ -56,7 +62,7 @@ suite('Emmet', () => {
 			});
 
 			// syntaxes mapped to html, hard coded
-			let html = ['razor', 'handlebars', 'erb', 'php', 'hbs', 'ejs', 'twig'];  // twig??
+			let html = ['razor', 'handlebars'];
 			html.forEach(each => {
 				testIsEnabled(each, null);
 			});
@@ -78,15 +84,18 @@ suite('Emmet', () => {
 			testIsEnabled('java', 'source.java', true, {
 				'java': 'html'
 			});
+
+			// emmet enabled language that is disabled
+			testIsEnabled('php', 'text.html.php', false, {}, ['php']);
 		});
 	});
 
 	test('emmet syntax profiles', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
-			function testSyntax(mode: string, scopeName: string, expectedSyntax: string, profile = {}) {
+			function testSyntax(mode: string, scopeName: string, expectedSyntax: string, profile = {}, excluded = []) {
 				editor.getModel().setMode(new MockMode(mode));
-				let editorAccessor = new EditorAccessor(editor, profile, new MockGrammarContributions(scopeName));
+				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.getSyntax(), expectedSyntax);
 			}
 
@@ -97,7 +106,7 @@ suite('Emmet', () => {
 			});
 
 			// syntaxes mapped to html, hard coded
-			let html = ['razor', 'handlebars', 'erb', 'php', 'hbs', 'ejs', 'twig'];  // twig??
+			let html = ['razor', 'handlebars'];
 			html.forEach(each => {
 				testSyntax(each, null, 'html');
 			});

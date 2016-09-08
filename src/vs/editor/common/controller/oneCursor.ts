@@ -599,12 +599,15 @@ export class OneCursor {
 	}
 
 	// -- view
+	public isLastLineVisibleInViewPort(): boolean {
+		return this.viewModelHelper.viewModel.getLineCount() <= this.getCompletelyVisibleViewLinesRangeInViewport().getEndPosition().lineNumber;
+	}
 	public getCompletelyVisibleViewLinesRangeInViewport(): Range {
 		return this.viewModelHelper.getCurrentCompletelyVisibleViewLinesRangeInViewport();
 	}
 	public getRevealViewLinesRangeInViewport(): Range {
 		let visibleRange = this.getCompletelyVisibleViewLinesRangeInViewport().cloneRange();
-		if (visibleRange.endLineNumber > visibleRange.startLineNumber) {
+		if (!this.isLastLineVisibleInViewPort() && visibleRange.endLineNumber > visibleRange.startLineNumber) {
 			visibleRange.endLineNumber = visibleRange.endLineNumber - 1;
 			visibleRange.endColumn = this.viewModelHelper.viewModel.getLineLastNonWhitespaceColumn(visibleRange.endLineNumber);
 		}
@@ -1367,7 +1370,7 @@ export class OneCursorOp {
 			return false;
 		}
 
-		return this._enter(cursor, false, ctx);
+		return this._enter(cursor, false, ctx, cursor.getPosition(), cursor.getSelection());
 	}
 
 	public static lineInsertBefore(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
@@ -1391,19 +1394,13 @@ export class OneCursorOp {
 	}
 
 	public static lineBreakInsert(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
-		return this._enter(cursor, true, ctx);
+		return this._enter(cursor, true, ctx, cursor.getPosition(), cursor.getSelection());
 	}
 
-	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position?: Position, range?: Range): boolean {
-		if (typeof position === 'undefined') {
-			position = cursor.getPosition();
-		}
-		if (typeof range === 'undefined') {
-			range = cursor.getSelection();
-		}
+	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position: Position, range: Range): boolean {
 		ctx.shouldPushStackElementBefore = true;
 
-		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(cursor.model, position.lineNumber, position.column);
+		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(cursor.model, range.startLineNumber, range.startColumn);
 		let enterAction = r.enterAction;
 		let indentation = r.indentation;
 
@@ -1530,22 +1527,16 @@ export class OneCursorOp {
 			return false;
 		}
 
-		let selectionContainsOnlyWhitespace = true,
-			lineNumber:number,
-			startIndex:number,
-			endIndex:number,
-			charIndex:number,
-			charCode:number,
-			lineText:string,
-			_tab = '\t'.charCodeAt(0),
-			_space = ' '.charCodeAt(0);
+		let selectionContainsOnlyWhitespace = true;
+		let _tab = '\t'.charCodeAt(0);
+		let _space = ' '.charCodeAt(0);
 
-		for (lineNumber = selection.startLineNumber; lineNumber <= selection.endLineNumber; lineNumber++) {
-			lineText = cursor.model.getLineContent(lineNumber);
-			startIndex = (lineNumber === selection.startLineNumber ? selection.startColumn - 1 : 0);
-			endIndex = (lineNumber === selection.endLineNumber ? selection.endColumn - 1 : lineText.length);
-			for (charIndex = startIndex; charIndex < endIndex; charIndex++) {
-				charCode = lineText.charCodeAt(charIndex);
+		for (let lineNumber = selection.startLineNumber; lineNumber <= selection.endLineNumber; lineNumber++) {
+			let lineText = cursor.model.getLineContent(lineNumber);
+			let startIndex = (lineNumber === selection.startLineNumber ? selection.startColumn - 1 : 0);
+			let endIndex = (lineNumber === selection.endLineNumber ? selection.endColumn - 1 : lineText.length);
+			for (let charIndex = startIndex; charIndex < endIndex; charIndex++) {
+				let charCode = lineText.charCodeAt(charIndex);
 				if (charCode !== _tab && charCode !== _space) {
 					selectionContainsOnlyWhitespace = false;
 

@@ -16,10 +16,11 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 export class MessageService extends WorkbenchMessageService {
 
 	constructor(
+		container: HTMLElement,
 		@IWindowService private windowService: IWindowService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(telemetryService);
+		super(container, telemetryService);
 	}
 
 	public confirm(confirmation: IConfirmation): boolean {

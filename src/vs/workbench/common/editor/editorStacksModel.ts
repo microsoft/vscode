@@ -115,7 +115,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		this.editorOpenPositioning = config.workbench.editor.openPositioning;
+		this.editorOpenPositioning = config && config.workbench && config.workbench.editor && config.workbench.editor.openPositioning;
 	}
 
 	public get id(): GroupIdentifier {
@@ -346,7 +346,7 @@ export class EditorGroup implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		this.fireEvent(this._onEditorClosed, { editor, pinned }, true);
+		this.fireEvent(this._onEditorClosed, { editor, pinned, index }, true);
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {

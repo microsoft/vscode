@@ -268,7 +268,7 @@ function extractStrings(destFiles:IConcatFile[]):IConcatFile[] {
 		destFile.sources.forEach((source) => {
 			source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, (_, moduleMatch, depsMatch) => {
 				let defineCall = parseDefineCall(moduleMatch, depsMatch);
-				return `define(__m[${replacementMap[defineCall.module]}], __M([${defineCall.deps.map(dep => replacementMap[dep]).join(',')}])`;
+				return `define(__m[${replacementMap[defineCall.module]}/*${defineCall.module}*/], __M([${defineCall.deps.map(dep => replacementMap[dep] + '/*' + dep + '*/').join(',')}])`;
 			});
 		});
 

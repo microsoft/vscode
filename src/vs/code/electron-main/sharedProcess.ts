@@ -26,7 +26,7 @@ function _spawnSharedProcess(options: ISharedProcessOptions): cp.ChildProcess {
 	}
 
 	if (options.debugPort) {
-		execArgv.push(`--debug=${ options.debugPort }`);
+		execArgv.push(`--debug=${options.debugPort}`);
 	}
 
 	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], { env, execArgv });

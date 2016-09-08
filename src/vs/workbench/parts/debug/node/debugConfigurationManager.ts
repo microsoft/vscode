@@ -175,7 +175,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	private systemVariables: ISystemVariables;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
-	private _onDidConfigurationChange: Emitter<string>;
+	private _onDidConfigurationChange: Emitter<debug.IConfig>;
 
 	constructor(
 		configName: string,
@@ -189,7 +189,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@ICommandService private commandService: ICommandService
 	) {
 		this.systemVariables = this.contextService.getWorkspace() ? new ConfigVariables(this.configurationService, this.editorService, this.contextService, this.environmentService) : null;
-		this._onDidConfigurationChange = new Emitter<string>();
+		this._onDidConfigurationChange = new Emitter<debug.IConfig>();
 		this.setConfiguration(configName);
 		this.adapters = [];
 		this.registerListeners();
@@ -252,7 +252,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		});
 	}
 
-	public get onDidConfigurationChange(): Event<string> {
+	public get onDidConfigurationChange(): Event<debug.IConfig> {
 		return this._onDidConfigurationChange.event;
 	}
 
@@ -364,7 +364,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					});
 				}
 			}
-		}).then(() => this._onDidConfigurationChange.fire(this.configurationName));
+		}).then(() => this._onDidConfigurationChange.fire(this.configuration));
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {

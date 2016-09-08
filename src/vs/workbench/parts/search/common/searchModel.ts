@@ -69,7 +69,14 @@ export class Match {
 	}
 
 	public get replaceString(): string {
-		return this.parent().parent().searchModel.replacePattern.getReplaceString(this.getMatchString());
+		let searchModel = this.parent().parent().searchModel;
+		let matchString = this.getMatchString();
+		let replaceString = searchModel.replacePattern.getReplaceString(matchString);
+		// If match string is not matching then regex pattern has a lookahead expression
+		if (replaceString === null) {
+			replaceString = searchModel.replacePattern.getReplaceString(matchString + this._lineText.substring(this._range.endColumn - 1));
+		}
+		return replaceString;
 	}
 
 	public getMatchString(): string {
