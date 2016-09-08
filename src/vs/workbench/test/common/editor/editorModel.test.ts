@@ -31,7 +31,7 @@ suite('Workbench - EditorModel', () => {
 
 	test('EditorModel', function (done) {
 		let m = new MyEditorModel();
-		m.load().then(function (model) {
+		m.load().then(model => {
 			assert(model === m);
 			assert.strictEqual(m.isResolved(), true);
 		}).done(() => done());
@@ -41,9 +41,9 @@ suite('Workbench - EditorModel', () => {
 		let modelService = createMockModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);
-		m.load().then(function (model: any) {
+		m.load().then((model:any) => {
 			assert(model === m);
-			return model.createTextEditorModel('foo', null, 'text/plain').then(function () {
+			return model.createTextEditorModel('foo', null, 'text/plain').then(() => {
 				assert.strictEqual(m.isResolved(), true);
 			});
 		}).done(() => {
@@ -58,7 +58,7 @@ suite('Workbench - EditorModel', () => {
 		let otherInput = instantiationService.createInstance(StringEditorInput, 'name2', 'description', 'value2', 'text/plain', false);
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
-		diffInput.resolve(true).then(function (model: any) {
+		diffInput.resolve(true).then((model: any) => {
 			assert(model);
 			assert(model instanceof TextDiffEditorModel);
 
@@ -66,7 +66,7 @@ suite('Workbench - EditorModel', () => {
 			assert(diffEditorModel.original);
 			assert(diffEditorModel.modified);
 
-			return diffInput.resolve(true).then(function (model: any) {
+			return diffInput.resolve(true).then((model: any) => {
 				assert(model.isResolved());
 
 				assert(diffEditorModel !== model.textDiffEditorModel);

@@ -37,8 +37,8 @@ suite('Files - FileEditorTracker', () => {
 
 		const inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
 		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
-		return accessor.editorService.resolveEditorModel(inputToResolve).then(function (resolved) {
-			return accessor.editorService.resolveEditorModel(sameOtherInput).then(function (resolved) {
+		return accessor.editorService.resolveEditorModel(inputToResolve).then((resolved) => {
+			return accessor.editorService.resolveEditorModel(sameOtherInput).then(resolved => {
 				tracker.handleDeleteOrMove(toResource('/bar'));
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
@@ -47,6 +47,8 @@ suite('Files - FileEditorTracker', () => {
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());
+
+				resolved.dispose();
 
 				done();
 			});
@@ -58,8 +60,8 @@ suite('Files - FileEditorTracker', () => {
 
 		const inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
 		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
-		return accessor.editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
-			return accessor.editorService.resolveEditorModel(sameOtherInput, true).then(function (resolved) {
+		return accessor.editorService.resolveEditorModel(inputToResolve, true).then(resolved => {
+			return accessor.editorService.resolveEditorModel(sameOtherInput, true).then(resolved => {
 				tracker.handleDeleteOrMove(toResource('/bar'));
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
@@ -68,6 +70,8 @@ suite('Files - FileEditorTracker', () => {
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());
+
+				resolved.dispose();
 
 				done();
 			});
