@@ -71,10 +71,10 @@ export class CloseWindowAction extends Action {
 	}
 }
 
-export class SwitchWorkspace extends Action {
+export class SwitchWindow extends Action {
 
-	public static ID = 'workbench.action.switchWorkspace';
-	public static LABEL = nls.localize('switchWorkspace', "Switch Workspace");
+	public static ID = 'workbench.action.switchWindow';
+	public static LABEL = nls.localize('switchWindow', "Switch Window");
 
 	constructor(
 		id: string,
@@ -86,18 +86,17 @@ export class SwitchWorkspace extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		ipc.send('vscode:switchWorkspace', this.windowService.getWindowId());
-		ipc.once('vscode:switchWorkspace', (event, workspaces) => {
+		ipc.send('vscode:switchWindow', this.windowService.getWindowId());
+		ipc.once('vscode:switchWindow', (event, workspaces) => {
 			const picks: IPickOpenEntry[] = workspaces.map(w => {
 				return {
-					label: paths.basename(w.path),
-					description: paths.dirname(w.path),
+					label: w.title,
 					run: () => {
 						ipc.send('vscode:showWindow', w.id);
 					}
 				};
 			});
-			this.quickOpenService.pick(picks, {matchOnDescription: true});
+			this.quickOpenService.pick(picks, {placeHolder: nls.localize('switchWindowPlaceHolder', "Select a window")});
 		});
 
 		return TPromise.as(true);

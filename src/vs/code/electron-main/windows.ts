@@ -432,11 +432,11 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
-		ipc.on('vscode:switchWorkspace', (event, windowId: number) => {
+		ipc.on('vscode:switchWindow', (event, windowId: number) => {
 			const windows = this.getWindows();
 			const window = this.getWindowById(windowId);
-			window.send('vscode:switchWorkspace', windows.filter(w => !!w.openedWorkspacePath).map(w => {
-				return {path: w.openedWorkspacePath, id: w.id};
+			window.send('vscode:switchWindow', windows.map(w => {
+				return {path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id};
 			}));
 		});
 
