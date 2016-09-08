@@ -67,6 +67,8 @@ suite('Workbench - Untitled Editor', () => {
 				assert.ok(!input2.isDirty());
 				assert.ok(!model.isDirty());
 
+				input2.dispose();
+
 				done();
 			});
 
@@ -96,6 +98,8 @@ suite('Workbench - Untitled Editor', () => {
 			model.textEditorModel.setValue('');
 			assert.ok(!model.isDirty());
 
+			input.dispose();
+
 			done();
 		});
 	});
@@ -112,6 +116,8 @@ suite('Workbench - Untitled Editor', () => {
 
 			model.textEditorModel.setValue('');
 			assert.ok(model.isDirty());
+
+			input.dispose();
 
 			done();
 		});

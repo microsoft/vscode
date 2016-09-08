@@ -134,13 +134,13 @@ suite('Workbench BaseEditor', () => {
 		assert(!e.isVisible());
 		assert(!e.getInput());
 		assert(!e.getOptions());
-		e.setInput(input, options).then(function () {
+		e.setInput(input, options).then(() => {
 			assert.strictEqual(input, e.getInput());
 			assert.strictEqual(options, e.getOptions());
 
 			e.setVisible(true);
 			assert(e.isVisible());
-			input.addListener2('dispose', function () {
+			input.addListener2('dispose', () => {
 				assert(false);
 			});
 			e.dispose();
@@ -192,10 +192,10 @@ suite('Workbench BaseEditor', () => {
 
 		let inst = new TestInstantiationService();
 
-		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function (editor) {
+		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(editor => {
 			assert.strictEqual(editor.getId(), 'myEditor');
 
-			return inst.createInstance(EditorRegistry.getEditor(inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function (editor) {
+			return inst.createInstance(EditorRegistry.getEditor(inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(editor => {
 				assert.strictEqual(editor.getId(), 'myOtherEditor');
 
 				(<any>EditorRegistry).setEditors(oldEditors);
@@ -213,7 +213,7 @@ suite('Workbench BaseEditor', () => {
 
 		let inst = new TestInstantiationService();
 
-		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function (editor) {
+		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(editor => {
 			assert.strictEqual('myOtherEditor', editor.getId());
 
 			(<any>EditorRegistry).setEditors(oldEditors);
