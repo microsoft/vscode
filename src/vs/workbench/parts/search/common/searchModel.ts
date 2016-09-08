@@ -13,7 +13,7 @@ import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { LinkedMap } from 'vs/base/common/map';
 import { ArraySet } from 'vs/base/common/set';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
 import * as Search from 'vs/platform/search/common/search';
 import { ISearchProgressItem, ISearchComplete, ISearchQuery } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
@@ -360,14 +360,16 @@ export class SearchResult extends Disposable {
 
 	public replaceAll(progressRunner: IProgressRunner): TPromise<any> {
 		this._replacingAll = true;
-		let replaceAllTimer = this.telemetryService.timedPublicLog('replaceAll.started');
-		return this.replaceService.replace(this.matches(), progressRunner).then(() => {
-			replaceAllTimer.stop();
+
+		const promise = this.replaceService.replace(this.matches(), progressRunner);
+		const onDone = stopwatch(fromPromise(promise));
+		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
+
+		return promise.then(() => {
 			this._replacingAll = false;
 			this.clear();
 		}, () => {
 			this._replacingAll = false;
-			replaceAllTimer.stop();
 		});
 	}
 
@@ -460,9 +462,6 @@ export class SearchModel extends Disposable {
 	private _replacePattern: ReplacePattern = null;
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
-	private progressTimer: timer.ITimerEvent;
-	private doneTimer: timer.ITimerEvent;
-	private timerEvent: timer.ITimerEvent;
 
 	constructor( @ISearchService private searchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
@@ -504,22 +503,34 @@ export class SearchModel extends Disposable {
 		this._searchResult.query = this._searchQuery.contentPattern;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-		this.progressTimer = this.telemetryService.timedPublicLog('searchResultsFirstRender');
-		this.doneTimer = this.telemetryService.timedPublicLog('searchResultsFinished');
-		this.timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
-
+		const timerEvent = timer.start(timer.Topic.WORKBENCH, 'Search');
 		this.currentRequest = this.searchService.search(this._searchQuery);
-		this.currentRequest.then(value => this.onSearchCompleted(value),
+
+		const onDone = fromPromise(this.currentRequest);
+		const onDoneStopwatch = stopwatch(onDone);
+
+		onDone(() => timerEvent.stop());
+		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
+
+		const progressEmitter = new Emitter<void>();
+		const onFirstRender = any(onDone, progressEmitter.event);
+		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+
+		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
+
+		this.currentRequest.then(
+			value => this.onSearchCompleted(value),
 			e => this.onSearchError(e),
-			p => this.onSearchProgress(p));
+			p => {
+				progressEmitter.fire();
+				this.onSearchProgress(p);
+			}
+		);
 
 		return this.currentRequest;
 	}
 
 	private onSearchCompleted(completed: ISearchComplete): ISearchComplete {
-		this.progressTimer.stop();
-		this.timerEvent.stop();
-		this.doneTimer.stop();
 		if (completed) {
 			this._searchResult.add(completed.results, false);
 		}
@@ -530,17 +541,12 @@ export class SearchModel extends Disposable {
 	private onSearchError(e: any): void {
 		if (errors.isPromiseCanceledError(e)) {
 			this.onSearchCompleted(null);
-		} else {
-			this.progressTimer.stop();
-			this.doneTimer.stop();
-			this.timerEvent.stop();
 		}
 	}
 
 	private onSearchProgress(p: ISearchProgressItem): void {
 		if (p.resource) {
 			this._searchResult.add([p], true);
-			this.progressTimer.stop();
 		}
 	}
 

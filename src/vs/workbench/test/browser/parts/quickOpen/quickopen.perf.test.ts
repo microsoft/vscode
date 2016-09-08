@@ -142,20 +142,10 @@ class TestTelemetryService implements ITelemetryService {
 	public _serviceBrand: any;
 	public isOptedIn = true;
 
-	public events: Timer.ITimerEvent[] = [];
-
-	public timedPublicLog(name: string, data?: any): Timer.ITimerEvent {
-		Timer.ENABLE_TIMER = true;
-		const event = Timer.start('TestTelemetry', name);
-		Timer.ENABLE_TIMER = false;
-		if (data) {
-			event.data = data;
-		}
-		this.events.push(event);
-		return event;
-	}
+	public events: any[] = [];
 
 	public publicLog(eventName: string, data?: any): TPromise<void> {
+		this.events.push({ name: eventName, data: data });
 		return TPromise.as<void>(null);
 	}
 

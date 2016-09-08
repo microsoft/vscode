@@ -64,7 +64,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
-		
+
 		// Since we are the one providing save-support for models, we hook up the error handler for saving
 		TextFileEditorModel.setSaveErrorHandler(instantiationService.createInstance(SaveErrorHandler));
 
@@ -135,19 +135,9 @@ export class TextFileEditor extends BaseTextEditor {
 				return null;
 			}
 
-			// log the time it takes the editor to render the resource
-			const mode = textFileModel.textEditorModel.getMode();
-			const setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
-				mode: mode && mode.getId(),
-				resource: textFileModel.textEditorModel.uri.toString(),
-			});
-
 			// Editor
 			const textEditor = this.getControl();
 			textEditor.setModel(textFileModel.textEditorModel);
-
-			// stop the event
-			setModelEvent.stop();
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
 			let optionsGotApplied = false;
