@@ -16,7 +16,7 @@ import types = require('vs/base/common/types');
 import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
@@ -26,34 +26,6 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ITelemetryService, anonymize} from 'vs/platform/telemetry/common/telemetry';
-
-/**
- * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
- */
-export interface ISaveErrorHandler {
-
-	/**
-	 * Called whenever a save fails.
-	 */
-	onSaveError(error: any, model: TextFileEditorModel): void;
-}
-
-class DefaultSaveErrorHandler implements ISaveErrorHandler {
-
-	constructor( @IMessageService private messageService: IMessageService) { }
-
-	public onSaveError(error: any, model: TextFileEditorModel): void {
-		this.messageService.show(Severity.Error, nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));
-	}
-}
-
-// Diagnostics support
-let diag: (...args: any[]) => void;
-if (!diag) {
-	diag = diagnostics.register('TextFileEditorModelDiagnostics', function (...args: any[]) {
-		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
-	});
-}
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -720,4 +692,21 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		super.dispose();
 	}
+}
+
+class DefaultSaveErrorHandler implements ISaveErrorHandler {
+
+	constructor(@IMessageService private messageService: IMessageService) { }
+
+	public onSaveError(error: any, model: TextFileEditorModel): void {
+		this.messageService.show(Severity.Error, nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));
+	}
+}
+
+// Diagnostics support
+let diag: (...args: any[]) => void;
+if (!diag) {
+	diag = diagnostics.register('TextFileEditorModelDiagnostics', function (...args: any[]) {
+		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
+	});
 }
