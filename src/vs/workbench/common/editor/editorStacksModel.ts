@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, {Emitter, once} from 'vs/base/common/event';
 import {IEditorRegistry, Extensions, EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -296,7 +296,8 @@ export class EditorGroup implements IEditorGroup {
 		const unbind: IDisposable[] = [];
 
 		// Re-emit disposal of editor input as our own event
-		unbind.push(editor.addOneTimeDisposableListener('dispose', () => {
+		const onceDispose = once(editor.onDispose);
+		unbind.push(onceDispose(() => {
 			if (this.indexOf(editor) >= 0) {
 				this._onEditorDisposed.fire(editor);
 			}

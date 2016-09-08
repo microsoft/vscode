@@ -6,10 +6,9 @@
 
 import URI from 'vs/base/common/uri';
 import {createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {EventType} from 'vs/base/common/events';
 import arrays = require('vs/base/common/arrays');
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, {Emitter, once} from 'vs/base/common/event';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -158,7 +157,8 @@ export class UntitledEditorService implements IUntitledEditorService {
 		});
 
 		// Remove from cache on dispose
-		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+		const onceDispose = once(input.onDispose);
+		onceDispose(() => {
 			delete UntitledEditorService.CACHE[input.getResource().toString()];
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
 			listener.dispose();

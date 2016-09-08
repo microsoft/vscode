@@ -7,10 +7,10 @@
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
+import {once} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import {getPathLabel, IWorkspaceProvider} from 'vs/base/common/labels';
 import {isBinaryMime} from 'vs/base/common/mime';
-import {EventType} from 'vs/base/common/events';
 import {EditorModel, IFileEditorInput, EditorInput, BaseDiffEditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
@@ -46,13 +46,15 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	private registerListeners(): void {
 
 		// When the original or modified input gets disposed, dispose this diff editor input
-		this._toUnbind.push(this.originalInput.addListener2(EventType.DISPOSE, () => {
+		const onceOriginalDisposed = once(this.originalInput.onDispose);
+		this._toUnbind.push(onceOriginalDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		this._toUnbind.push(this.modifiedInput.addListener2(EventType.DISPOSE, () => {
+		const onceModifiedDisposed = once(this.modifiedInput.onDispose);
+		this._toUnbind.push(onceModifiedDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
