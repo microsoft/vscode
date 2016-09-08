@@ -10,7 +10,7 @@ import {Node, HTMLDocument, parse} from '../parser/htmlParser';
 suite('HTML Parser', () => {
 
 	function toJSON(node: Node): any {
-		return { tag: node.tag, start: node.start, end: node.end, children: node.children.map(toJSON) };
+		return { tag: node.tag, start: node.start, end: node.end, closed: node.closed, children: node.children.map(toJSON) };
 	}
 
 	function assertDocument(input: string, expected: any) {
@@ -21,33 +21,34 @@ suite('HTML Parser', () => {
 	function assertNodeBefore(input: string, offset: number, expectedTag: string) {
 		let document = parse(input);
 		let node = document.findNodeBefore(offset);
-		assert.equal(node ? node.tag : '', expectedTag);
+		assert.equal(node ? node.tag : '', expectedTag, "offset " + offset);
 	}
 
 	test('Simple', () => {
-		assertDocument('<html></html>', [ { tag: 'html', start: 0, end: 13, children: []}] );
-		assertDocument('<html><body></body></html>', [ { tag: 'html', start: 0, end: 26, children: [ { tag: 'body', start: 6, end: 19, children: [] }]}] );
-		assertDocument('<html><head></head><body></body></html>', [ { tag: 'html', start: 0, end: 39, children: [ { tag: 'head', start: 6, end: 19, children: [] }, { tag: 'body', start: 19, end: 32, children: [] }]}] );
+		assertDocument('<html></html>', [ { tag: 'html', start: 0, end: 13, closed: true, children: []}] );
+		assertDocument('<html><body></body></html>', [ { tag: 'html', start: 0, end: 26, closed: true, children: [ { tag: 'body', start: 6, end: 19, closed: true, children: [] }]}] );
+		assertDocument('<html><head></head><body></body></html>', [ { tag: 'html', start: 0, end: 39, closed: true, children: [ { tag: 'head', start: 6, end: 19, closed: true, children: [] }, { tag: 'body', start: 19, end: 32, closed: true, children: [] }]}] );
 	});
 
 	test('SelfClose', () => {
-		assertDocument('<br/>', [ { tag: 'br', start: 0, end: 5, children: []}] );
-		assertDocument('<div><br/><span></span></div>', [ { tag: 'div', start: 0, end: 29, children: [{ tag: 'br', start: 5, end: 10, children: [] }, { tag: 'span', start: 10, end: 23, children: [] }]}] );
+		assertDocument('<br/>', [ { tag: 'br', start: 0, end: 5, closed: true, children: []}] );
+		assertDocument('<div><br/><span></span></div>', [ { tag: 'div', start: 0, end: 29, closed: true, children: [{ tag: 'br', start: 5, end: 10, closed: true, children: [] }, { tag: 'span', start: 10, end: 23, closed: true, children: [] }]}] );
 	});
 
 	test('EmptyTag', () => {
-		assertDocument('<meta>', [ { tag: 'meta', start: 0, end: 6, children: []}] );
-		assertDocument('<div><input type="button"><span><br><br></span></div>', [ { tag: 'div', start: 0, end: 53, children: [
-			{ tag: 'input', start: 5, end: 26, children: [] },
-			{ tag: 'span', start: 26, end: 47, children: [{ tag: 'br', start: 32, end: 36, children: [] }, { tag: 'br', start: 36, end: 40, children: [] }] }
+		assertDocument('<meta>', [ { tag: 'meta', start: 0, end: 6, closed: true, children: []}] );
+		assertDocument('<div><input type="button"><span><br><br></span></div>', [ { tag: 'div', start: 0, end: 53, closed: true, children: [
+			{ tag: 'input', start: 5, end: 26, closed: true, children: [] },
+			{ tag: 'span', start: 26, end: 47, closed: true, children: [{ tag: 'br', start: 32, end: 36, closed: true, children: [] }, { tag: 'br', start: 36, end: 40, closed: true, children: [] }] }
 		]}] );
 	});
 	test('MissingTags', () => {
 		assertDocument('</meta>', [] );
-		assertDocument('<div></div></div>', [ { tag: 'div', start: 0, end: 11, children: [] }] );
-		assertDocument('<div><div></div>', [ { tag: 'div', start: 0, end: 16, children: [ { tag: 'div', start: 5, end: 16, children: [] } ] }] );
-		assertDocument('<title><div></title>', [ { tag: 'title', start: 0, end: 20, children: [ { tag: 'div', start: 7, end: 12, children: [] } ] }] );
-	});
+		assertDocument('<div></div></div>', [ { tag: 'div', start: 0, end: 11, closed: true, children: [] }] );
+		assertDocument('<div><div></div>', [ { tag: 'div', start: 0, end: 16, closed: false, children: [ { tag: 'div', start: 5, end: 16, closed: true, children: [] } ] }] );
+		assertDocument('<title><div></title>', [ { tag: 'title', start: 0, end: 20, closed: true, children: [ { tag: 'div', start: 7, end: 12, closed: false, children: [] } ] }] );
+		assertDocument('<h1><div><span></h1>', [ { tag: 'h1', start: 0, end: 20, closed: true, children: [ { tag: 'div', start: 4, end: 15, closed: false, children: [ { tag: 'span', start: 9, end: 15, closed: false, children: [] }] } ] }] );	
+});
 
 
 	test('FindNodeBefore', () => {
@@ -65,11 +66,18 @@ suite('HTML Parser', () => {
 		assertNodeBefore(str, 37, 'hr');
 		assertNodeBefore(str, 40, 'hr');
 		assertNodeBefore(str, 41, 'hr');
-		assertNodeBefore(str, 41, 'hr');
+		assertNodeBefore(str, 42, 'hr');
 		assertNodeBefore(str, 47, 'span');
 		assertNodeBefore(str, 48, 'span');
 		assertNodeBefore(str, 52, 'span');
 		assertNodeBefore(str, 53, 'div');
 	});
+
+	test('FindNodeBefore - incomplete node', () => {
+		let str = '<div><span><br></div>';
+		assertNodeBefore(str, 15, 'br');
+		assertNodeBefore(str, 18, 'br');
+		assertNodeBefore(str, 21, 'div');
+	});	
 
 });
