@@ -285,6 +285,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 					return finishToken(offset, TokenType.Whitespace, localize('error.unexpectedWhitespace', 'Tag name must directly follow the open bracket.'));
 				}
 				stream.advanceUntilChar(_RAN);
+				state = ScannerState.WithinEndTag;
 				return finishToken(offset, TokenType.Unknown, localize('error.endTagNameExpected', 'End tag name expected.'));
 			case ScannerState.WithinEndTag:
 				if (stream.skipWhitespace()) { // white space is valid here
@@ -307,6 +308,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 					return finishToken(offset, TokenType.Whitespace, localize('error.unexpectedWhitespace', 'Tag name must directly follow the open bracket.'));
 				}
 				stream.advanceUntilChar(_RAN);
+				state = ScannerState.WithinTag;
 				return finishToken(offset, TokenType.Unknown, localize('error.startTagNameExpected', 'Start tag name expected.'));
 			case ScannerState.WithinTag:
 				if (stream.skipWhitespace()) {

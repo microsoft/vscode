@@ -32,9 +32,15 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 	let currentTag: string;
 	let currentAttributeName: string;
 
+	function getReplaceRange(replaceStart: number) : Range {
+		if (replaceStart > offset) {
+			replaceStart = offset;
+		}
+		return { start: document.positionAt(replaceStart), end: document.positionAt(offset)};
+	}
 
 	function collectOpenTagSuggestions(afterOpenBracket: number) : CompletionList {
-		let range : Range = { start: document.positionAt(afterOpenBracket), end: document.positionAt(offset)};
+		let range = getReplaceRange(afterOpenBracket);
 		tagProviders.forEach((provider) => {
 			provider.collectTags((tag, label) => {
 				result.items.push({
@@ -49,21 +55,25 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 	}
 
 	function collectCloseTagSuggestions(afterOpenBracket: number, matchingOnly: boolean) : CompletionList {
-		let range : Range = { start: document.positionAt(afterOpenBracket), end: document.positionAt(offset)};
+		let range = getReplaceRange(afterOpenBracket);
 		let contentAfter = document.getText().substr(offset);
 		let closeTag = isWhiteSpace(contentAfter) || startsWith(contentAfter, '<') ? '>' : '';
-		if (node.parent && node.parent.tag) {
-			let tag = node.parent.tag;
-			result.items.push({
-				label: '/' + tag,
-				kind: CompletionItemKind.Property,
-				filterText: '/' + tag + closeTag,
-				textEdit: { newText: '/' + tag + closeTag, range: range }
-			});
-			return;
+		let curr = node;
+		while (curr) {
+			let tag = curr.tag;
+			if (tag && !curr.closed) {
+				result.items.push({
+					label: '/' + tag,
+					kind: CompletionItemKind.Property,
+					filterText: '/' + tag + closeTag,
+					textEdit: { newText: '/' + tag + closeTag, range: range }
+				});
+				return result;
+			}
+			curr = curr.parent;
 		}
 		if (matchingOnly) {
-			return;
+			return result;
 		}
 
 		tagProviders.forEach((provider) => {
@@ -87,7 +97,7 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 	}
 
 	function collectAttributeNameSuggestions(nameStart: number) : CompletionList {
-		let range : Range = { start: document.positionAt(nameStart), end: document.positionAt(offset)};
+		let range = getReplaceRange(nameStart);
 		tagProviders.forEach((provider) => {
 			provider.collectAttributes(currentTag, (attribute, type) => {
 				let codeSnippet = attribute;
@@ -105,7 +115,7 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 	}
 
 	function collectAttributeValueSuggestions(valueStart: number) : CompletionList {
-		let range : Range = { start: document.positionAt(valueStart), end: document.positionAt(offset)};
+		let range = getReplaceRange(valueStart);
 		tagProviders.forEach((provider) => {
 			provider.collectValues(currentTag, currentAttributeName, (value) => {
 				let codeSnippet = '"' + value + '"';
@@ -162,6 +172,8 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 							return collectAttributeNameSuggestions(scanner.getTokenEnd());
 						case ScannerState.BeforeAttributeValue:
 							return collectAttributeValueSuggestions(scanner.getTokenEnd());
+						case ScannerState.AfterOpeningEndTag:
+							return collectCloseTagSuggestions(scanner.getTokenOffset() - 1, false);
 					}
 				}
 				break;
@@ -170,7 +182,21 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 					return collectCloseTagSuggestions(scanner.getTokenOffset() + 1, false);
 				}
 				break;
-				
+			case TokenType.EndTag:
+				if (offset <= scanner.getTokenEnd()) {
+					let text = document.getText();
+					let start = scanner.getTokenOffset() - 1;
+					while (start >= 0) {
+						let ch = text.charAt(start);
+						if (ch === '/') {
+							return collectCloseTagSuggestions(start, false);
+						} else if (!isWhiteSpace(ch)) {
+							break;
+						}
+						start--;
+					}
+				}
+				break;
 		}
 		token = scanner.scan();
 	}
