@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 function toResource(path) {
 	return URI.file(join('C:\\', path));
@@ -23,7 +23,7 @@ class ServiceAccessor {
 
 suite('Files - FileEditorInput', () => {
 
-	let instantiationService: TestInstantiationService;
+	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
 	setup(() => {

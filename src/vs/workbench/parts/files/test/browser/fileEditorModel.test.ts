@@ -7,29 +7,29 @@
 
 import * as assert from 'assert';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import paths = require('vs/base/common/paths');
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventType, ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
+import {FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
 
 function toResource(path) {
 	return URI.file(paths.join('C:\\', path));
 }
 
 class ServiceAccessor {
-	constructor(@IEventService public eventService: IEventService, @ITextFileService public textFileService: ITextFileService) {
+	constructor( @IEventService public eventService: IEventService, @ITextFileService public textFileService: TestTextFileService) {
 	}
 }
 
-
 suite('Files - TextFileEditorModel', () => {
 
-	let instantiationService: TestInstantiationService;
+	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
 	setup(() => {
@@ -108,8 +108,28 @@ suite('Files - TextFileEditorModel', () => {
 		});
 	});
 
+	test('File not modified error is handled gracefully', function (done) {
+		const model:TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.load().then(() => {
+			const mtime = model.getLastModifiedTime();
+			accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
+				message: 'error',
+				fileOperationResult: FileOperationResult.FILE_NOT_MODIFIED_SINCE
+			});
+
+			model.load().then((model: TextFileEditorModel) => {
+				assert.ok(model);
+				assert.equal(model.getLastModifiedTime(), mtime);
+				model.dispose();
+
+				done();
+			});
+		});
+	});
+
 	test('Conflict Resolution Mode', function (done) {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+		const model:TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
 
 		model.load().then(() => {
 			model.setConflictResolutionMode();
@@ -135,7 +155,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('Auto Save triggered when model changes', function (done) {
 		let eventCounter = 0;
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
+		const model:TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
 
 		(<any>model).autoSaveAfterMillies = 10;
 		(<any>model).autoSaveAfterMilliesEnabled = true;
@@ -203,7 +223,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('Save Participant', function (done) {
 		let eventCounter = 0;
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+		const model:TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
 
 		accessor.eventService.addListener2(EventType.FILE_SAVED, (e) => {
 			assert.equal(model.getValue(), 'bar');

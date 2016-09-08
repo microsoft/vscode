@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {join, basename} from 'vs/base/common/paths';
@@ -45,7 +45,7 @@ function toStat(resource: URI) {
 
 suite('Files - TextFileEditorModelManager', () => {
 
-	let instantiationService: TestInstantiationService;
+	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
 	setup(() => {

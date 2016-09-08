@@ -31,7 +31,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {TextFileService} from 'vs/workbench/parts/files/common/textFileService';
-import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
+import {IFileService, IResolveContentOptions, IFileOperationResult} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
@@ -95,6 +95,7 @@ export class TestContextService implements IWorkspaceContextService {
 export class TestTextFileService extends TextFileService {
 	private promptPath: string;
 	private confirmResult: ConfirmResult;
+	private resolveTextContentError: IFileOperationResult;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -118,7 +119,18 @@ export class TestTextFileService extends TextFileService {
 		this.confirmResult = result;
 	}
 
+	public setResolveTextContentErrorOnce(error: IFileOperationResult): void {
+		this.resolveTextContentError = error;
+	}
+
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+		if (this.resolveTextContentError) {
+			const error = this.resolveTextContentError;
+			this.resolveTextContentError = null;
+
+			return TPromise.wrapError(error);
+		}
+
 		return this.fileService.resolveContent(resource, options).then((content) => {
 			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
 
@@ -144,7 +156,7 @@ export class TestTextFileService extends TextFileService {
 	}
 }
 
-export function workbenchInstantiationService(): TestInstantiationService {
+export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IEventService, new TestEventService());
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));

@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
 import {join} from 'vs/base/common/paths';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
@@ -19,7 +19,7 @@ class ServiceAccessor {
 
 suite('Workbench - Untitled Editor', () => {
 
-	let instantiationService: TestInstantiationService;
+	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
 	setup(() => {

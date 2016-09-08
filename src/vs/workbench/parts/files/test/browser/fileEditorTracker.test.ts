@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -24,7 +24,7 @@ class ServiceAccessor {
 
 suite('Files - FileEditorTracker', () => {
 
-	let instantiationService: TestInstantiationService;
+	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
 	setup(() => {
@@ -39,11 +39,11 @@ suite('Files - FileEditorTracker', () => {
 		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
 		return accessor.editorService.resolveEditorModel(inputToResolve).then(function (resolved) {
 			return accessor.editorService.resolveEditorModel(sameOtherInput).then(function (resolved) {
-				tracker.handleDeleteOrMove(toResource('/bar'), []);
+				tracker.handleDeleteOrMove(toResource('/bar'));
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
 
-				tracker.handleDeleteOrMove(toResource('/fooss5/bar/file2.js'), []);
+				tracker.handleDeleteOrMove(toResource('/fooss5/bar/file2.js'));
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());
@@ -60,11 +60,11 @@ suite('Files - FileEditorTracker', () => {
 		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
 		return accessor.editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 			return accessor.editorService.resolveEditorModel(sameOtherInput, true).then(function (resolved) {
-				tracker.handleDeleteOrMove(toResource('/bar'), []);
+				tracker.handleDeleteOrMove(toResource('/bar'));
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
 
-				tracker.handleDeleteOrMove(toResource('/foo6'), []);
+				tracker.handleDeleteOrMove(toResource('/foo6'));
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());
