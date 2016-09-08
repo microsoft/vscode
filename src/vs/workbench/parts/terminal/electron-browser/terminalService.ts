@@ -30,7 +30,7 @@ export class TerminalService implements ITerminalService {
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
-	private _nextTerminalProcessConfiguration: ITerminalProcessConfiguration;
+	private _nextTerminalProcessConfiguration: ITerminalProcessConfiguration = { name: null, shell: { executable: '', args: [] } };
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 
 	private configHelper: TerminalConfigHelper;
@@ -197,6 +197,14 @@ export class TerminalService implements ITerminalService {
 			this._nextTerminalProcessConfiguration.shell.executable = shellPath;
 		}
 
+		// If user doesn't specify a shell, set it to null and let terminalConfigHelper to getShell()
+		// later.
+		// Todo: Also let user specify shell args
+		const terminalProcessConfiguration: ITerminalProcessConfiguration = {
+			name: name ? name : '',
+			shell: shellPath ? { executable: shellPath, args: [] } : null
+		};
+
 		return this.focus().then((terminalPanel) => {
 			// If the terminal panel has not been initialized yet skip this, the terminal will be
 			// created via a call from TerminalPanel.setVisible
@@ -212,14 +220,6 @@ export class TerminalService implements ITerminalService {
 			}
 
 			this.initConfigHelper(terminalPanel.getContainer());
-			const shell = this.configHelper.getShell();
-			if (shellPath) {
-				shell.executable = shellPath;
-			}
-			const terminalProcessConfiguration: ITerminalProcessConfiguration = {
-				name: name ? name : '',
-				shell: shell
-			};
 			return terminalPanel.createNewTerminalInstance(this.createTerminalProcess(terminalProcessConfiguration), this._terminalFocusContextKey).then((terminalId) => {
 				this._onInstancesChanged.fire();
 				return TPromise.as(terminalId);
@@ -302,9 +302,10 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private createTerminalProcess(terminalProcessConfiguration: ITerminalProcessConfiguration): ITerminalProcess {
-		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
-		let env = TerminalService.createTerminalEnv(process.env, terminalProcessConfiguration.shell, this.contextService.getWorkspace(), locale);
-		let terminalProcess = {
+		const locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+		const shell = terminalProcessConfiguration.shell ? terminalProcessConfiguration.shell : this.configHelper.getShell();
+		const env = TerminalService.createTerminalEnv(process.env, shell, this.contextService.getWorkspace(), locale);
+		const terminalProcess = {
 			title: terminalProcessConfiguration.name,
 			process: cp.fork('./terminalProcess', [], {
 				env: env,
