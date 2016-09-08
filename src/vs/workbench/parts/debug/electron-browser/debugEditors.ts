@@ -57,6 +57,24 @@ export class ReplInputEditor extends CodeEditorWidget {
 	}
 }
 
+export class ReplEditor extends CodeEditorWidget {
+
+	protected _getContributions(): IEditorContributionCtor[] {
+		return [
+			MenuPreventer,
+			SelectionClipboard,
+			ContextMenuController,
+			SuggestController,
+			SnippetController,
+			TabCompletionController,
+		];
+	}
+
+	protected _getActions(): EditorAction[] {
+		return CommonEditorRegistry.getEditorActions();
+	}
+}
+
 export class DebugErrorEditor extends BaseEditor {
 	static ID = 'workbench.editor.debugError';
 	private container: HTMLElement;
