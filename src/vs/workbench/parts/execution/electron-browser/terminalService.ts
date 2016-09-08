@@ -5,7 +5,6 @@
 'use strict';
 
 import cp = require('child_process');
-import fs = require('fs');
 import processes = require('vs/base/node/processes');
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
@@ -36,14 +35,17 @@ export class WinTerminalService implements ITerminalService {
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
 
+		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const terminalConfig = configuration.terminal.external;
+		const exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
+
 		return new TPromise<void>( (c, e) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
 
 			const cmdArgs = [
-				'/c', 'start', title, '/wait',
-				'cmd.exe', '/c', command
+				'/c', 'start', title, '/wait', exec, '/c', command
 			];
 
 			// merge environment variables into a copy of the process.env
@@ -95,49 +97,58 @@ export class MacTerminalService implements ITerminalService {
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
 
+		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const terminalConfig = configuration.terminal.external;
+		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
+
 		return new TPromise<void>( (c, e) => {
 
-			// On OS X we do not launch the program directly but we launch an AppleScript that creates (or reuses) a Terminal window
-			// and then launches the program inside that window.
+			if (terminalApp === DEFAULT_TERMINAL_OSX) {
 
-			const script = uri.parse(require.toUrl('vs/workbench/parts/execution/electron-browser/TerminalHelper.scpt')).fsPath;
+				// On OS X we launch an AppleScript that creates (or reuses) a Terminal window
+				// and then launches the program inside that window.
 
-			const osaArgs = [
-				script,
-				'-t', title || TERMINAL_TITLE,
-				'-w', dir,
-			];
+				const script = uri.parse(require.toUrl('vs/workbench/parts/execution/electron-browser/TerminalHelper.scpt')).fsPath;
 
-			for (let a of args) {
-				osaArgs.push('-pa');
-				osaArgs.push(a);
-			}
+				const osaArgs = [
+					script,
+					'-t', title || TERMINAL_TITLE,
+					'-w', dir,
+				];
 
-			if (envVars) {
-				for (let key in envVars) {
-					osaArgs.push('-e');
-					osaArgs.push(key + '=' + envVars[key]);
+				for (let a of args) {
+					osaArgs.push('-pa');
+					osaArgs.push(a);
 				}
-			}
 
-			let stderr = '';
-			const osa = cp.spawn(MacTerminalService.OSASCRIPT, osaArgs);
-			osa.on('error', e);
-			osa.stderr.on('data', (data) => {
-				stderr += data.toString();
-			});
-			osa.on('exit', (code: number) => {
-				if (code === 0) {	// OK
-					c(null);
-				} else {
-					if (stderr) {
-						const lines = stderr.split('\n', 1);
-						e(new Error(lines[0]));
-					} else {
-						e(new Error(nls.localize('mac.term.failed', "osascript failed with exit code {0}", code)));
+				if (envVars) {
+					for (let key in envVars) {
+						osaArgs.push('-e');
+						osaArgs.push(key + '=' + envVars[key]);
 					}
 				}
-			});
+
+				let stderr = '';
+				const osa = cp.spawn(MacTerminalService.OSASCRIPT, osaArgs);
+				osa.on('error', e);
+				osa.stderr.on('data', (data) => {
+					stderr += data.toString();
+				});
+				osa.on('exit', (code: number) => {
+					if (code === 0) {	// OK
+						c(null);
+					} else {
+						if (stderr) {
+							const lines = stderr.split('\n', 1);
+							e(new Error(lines[0]));
+						} else {
+							e(new Error(nls.localize('mac.term.failed', "osascript failed with exit code {0}", code)));
+						}
+					}
+				});
+			} else if (terminalApp === 'iTerm.app') {
+				e(new Error(nls.localize('mac.iterm.failed', "iTerm not yet supported")));
+			}
 		});
 	}
 
@@ -156,7 +167,6 @@ export class MacTerminalService implements ITerminalService {
 export class LinuxTerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
-	private static LINUX_TERM = '/usr/bin/gnome-terminal';	//private const string LINUX_TERM = "/usr/bin/x-terminal-emulator";
 	private static WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
 	constructor(
@@ -173,12 +183,11 @@ export class LinuxTerminalService implements ITerminalService {
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
 
-		return new TPromise<void>( (c, e) => {
+		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const terminalConfig = configuration.terminal.external;
+		const exec = terminalConfig.linuxExec || DEFAULT_TERMINAL_LINUX;
 
-			if (!fs.existsSync(LinuxTerminalService.LINUX_TERM)) {
-				e(nls.localize('program.not.found', "'{0}' not found", LinuxTerminalService.LINUX_TERM));
-				return;
-			}
+		return new TPromise<void>( (c, e) => {
 
 			const bashCommand = `${quote(args)}; echo; read -p "${LinuxTerminalService.WAIT_MESSAGE}" -n1;`;
 
@@ -196,13 +205,13 @@ export class LinuxTerminalService implements ITerminalService {
 				env: env
 			};
 
-			const cmd = cp.spawn(LinuxTerminalService.LINUX_TERM, termArgs, options);
+			const cmd = cp.spawn(exec, termArgs, options);
 			cmd.on('error', e);
 			cmd.on('exit', (code: number) => {
 				if (code === 0) {	// OK
 					c(null);
 				} else {
-					e(nls.localize('linux.term.failed', "{0} failed with exit code {1}", LinuxTerminalService.LINUX_TERM, code));
+					e(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code));
 				}
 			});
 		});
