@@ -47,7 +47,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
 	name: 'Test Workspace',
-	uid: new Date().getTime()
+	uid: Date.now()
 };
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
@@ -559,7 +559,18 @@ export const TestFileService = {
 			etag: 'index.txt',
 			mime: 'text/plain',
 			encoding: 'utf8',
-			mtime: new Date().getTime(),
+			mtime: Date.now(),
+			name: paths.basename(resource.fsPath)
+		});
+	},
+
+	resolveFile: function (resource) {
+		return TPromise.as({
+			resource: resource,
+			etag: Date.now(),
+			mime: 'text/plain',
+			encoding: 'utf8',
+			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
 	},
@@ -580,7 +591,7 @@ export const TestFileService = {
 			etag: 'index.txt',
 			mime: 'text/plain',
 			encoding: 'utf8',
-			mtime: new Date().getTime(),
+			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
 	},
@@ -592,7 +603,7 @@ export const TestFileService = {
 				etag: 'index.txt',
 				mime: 'text/plain',
 				encoding: 'utf8',
-				mtime: new Date().getTime(),
+				mtime: Date.now(),
 				name: paths.basename(res.fsPath)
 			};
 		});
