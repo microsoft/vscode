@@ -477,6 +477,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.state = state;
 
 		toggleClass(this.element, 'frozen', state === State.Frozen);
+		toggleClass(this.element, 'loading', state === State.Loading);
 
 		switch (state) {
 			case State.Hidden:
@@ -490,7 +491,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			case State.Loading:
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
 				hide(this.listElement, this.details.element);
-				show(this.messageElement);
 				this.show();
 				break;
 			case State.Empty:
