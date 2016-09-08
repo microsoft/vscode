@@ -18,7 +18,6 @@
 	user-select: text;
 	box-sizing: initial;
 	animation: fadein 100ms linear;
-	animation: fadein 100ms ease-in;
 	line-height: 1.5em;
 }
 
