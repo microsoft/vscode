@@ -161,7 +161,7 @@ function extractStrings(destFiles) {
         destFile.sources.forEach(function (source) {
             source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, function (_, moduleMatch, depsMatch) {
                 var defineCall = parseDefineCall(moduleMatch, depsMatch);
-                return "define(__m[" + replacementMap[defineCall.module] + "], __M([" + defineCall.deps.map(function (dep) { return replacementMap[dep]; }).join(',') + "])";
+                return "define(__m[" + replacementMap[defineCall.module] + "/*" + defineCall.module + "*/], __M([" + defineCall.deps.map(function (dep) { return replacementMap[dep] + '/*' + dep + '*/'; }).join(',') + "])";
             });
         });
         destFile.sources.unshift({

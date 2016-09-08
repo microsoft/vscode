@@ -51,9 +51,9 @@ export class ShiftCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
-		let startLine = this._selection.startLineNumber,
-			endLine = this._selection.endLineNumber,
-			_SPACE = ' '.charCodeAt(0);
+		let startLine = this._selection.startLineNumber;
+		let endLine = this._selection.endLineNumber;
+		let _SPACE = ' '.charCodeAt(0);
 
 		if (this._selection.endColumn === 1 && startLine !== endLine) {
 			endLine = endLine - 1;

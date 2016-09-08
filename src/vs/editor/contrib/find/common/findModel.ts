@@ -11,6 +11,7 @@ import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {TextModel} from 'vs/editor/common/model/textModel';
 import {FindDecorations} from './findDecorations';
 import {FindReplaceState, FindReplaceStateChangedEvent} from './findState';
 import {ReplaceAllCommand} from './replaceAllCommand';
@@ -315,9 +316,31 @@ export class FindModelBoundToEditorModel {
 		this._moveToNextMatch(this._editor.getSelection().getEndPosition());
 	}
 
-	private getReplaceString(matchedString:string): string {
-		let replacePattern= new ReplacePattern(this._state.replaceString, {pattern: this._state.searchString, isRegExp: this._state.isRegex, isCaseSensitive: this._state.matchCase, isWordMatch: this._state.wholeWord});
-		return replacePattern.getReplaceString(matchedString);
+	private getReplaceString(matchRange: Range): string {
+		if (this._state.isRegex) {
+			let regExp = TextModel.parseSearchRequest(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+			let replacePattern = new ReplacePattern(this._state.replaceString, true, regExp);
+			let model = this._editor.getModel();
+			let matchedString = model.getValueInRange(matchRange);
+			let replacedString = replacePattern.getReplaceString(matchedString);
+			// If matched string is not matching then regex pattern has a lookahead expression
+			if (replacedString === null) {
+				replacedString = replacePattern.getReplaceString(this._getTextToMatch(matchRange, regExp));
+			}
+			return replacedString;
+		}
+		return this._state.replaceString;
+	}
+
+	private _getTextToMatch(matchRange: Range, regExp: RegExp): string {
+		let model = this._editor.getModel();
+		// If regex is multiline, then return the text from starting of the matching range till end of the model.
+		if (regExp.multiline) {
+			let lineCount = model.getLineCount();
+			return model.getValueInRange(new Range(matchRange.startLineNumber, matchRange.startColumn, lineCount, model.getLineMaxColumn(lineCount)));
+		}
+		// If regex is not multiline, then return the text from starting of the matching range till end of the line.
+		return model.getValueInRange(new Range(matchRange.startLineNumber, matchRange.startColumn, matchRange.endLineNumber, model.getLineMaxColumn(matchRange.endLineNumber)));
 	}
 
 	public replace(): void {
@@ -326,12 +349,11 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let selection = this._editor.getSelection();
-		let selectionText = this._editor.getModel().getValueInRange(selection);
 		let nextMatch = this._getNextMatch(selection.getStartPosition());
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch)) {
 				// selection sits on a find match => replace it!
-				let replaceString = this.getReplaceString(selectionText);
+				let replaceString = this.getReplaceString(selection);
 
 				let command = new ReplaceCommand(selection, replaceString);
 
@@ -356,7 +378,6 @@ export class FindModelBoundToEditorModel {
 			return;
 		}
 
-		let model = this._editor.getModel();
 		let findScope = this._decorations.getFindScope();
 
 		// Get all the ranges (even more than the highlighted ones)
@@ -364,7 +385,7 @@ export class FindModelBoundToEditorModel {
 
 		let replaceStrings:string[] = [];
 		for (let i = 0, len = ranges.length; i < len; i++) {
-			replaceStrings.push(this.getReplaceString(model.getValueInRange(ranges[i])));
+			replaceStrings.push(this.getReplaceString(ranges[i]));
 		}
 
 		let command = new ReplaceAllCommand(this._editor.getSelection(), ranges, replaceStrings);

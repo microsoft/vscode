@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import network = require('vs/base/common/network');
 import Event, {Emitter} from 'vs/base/common/event';
 import {EmitterEvent} from 'vs/base/common/eventEmitter';
-import {MarkedString, textAsCodeBlock} from 'vs/base/common/htmlContent';
+import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -147,7 +147,7 @@ class ModelMarkerHandler {
 			if (source) {
 				message = nls.localize('sourceAndDiagMessage', "[{0}] {1}", source, message);
 			}
-			hoverMessage = [textAsCodeBlock(message)];
+			hoverMessage = [textToMarkedString(message)];
 		}
 
 		return {

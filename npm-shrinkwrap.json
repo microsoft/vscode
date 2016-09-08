@@ -152,6 +152,11 @@
       "from": "bpasero/fsevents#vscode",
       "resolved": "git://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
     },
+    "gc-signals": {
+      "version": "0.0.1",
+      "from": "gc-signals@0.0.1",
+      "resolved": "https://registry.npmjs.org/gc-signals/-/gc-signals-0.0.1.tgz"
+    },
     "getmac": {
       "version": "1.0.7",
       "from": "getmac@1.0.7",

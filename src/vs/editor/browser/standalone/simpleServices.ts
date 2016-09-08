@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {toErrorMessage} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
@@ -44,6 +43,7 @@ export class SimpleEditor implements IEditor {
 	public getControl():editorCommon.IEditor { return this._widget; }
 	public getSelection():Selection { return this._widget.getSelection(); }
 	public focus():void { this._widget.focus(); }
+	public isVisible():boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback:(editor:ICodeEditor)=>T, diffEditorCallback:(editor:IDiffEditor)=>T): T {
 		if (this._widget.getEditorType() === editorCommon.EditorType.ICodeEditor) {
@@ -63,6 +63,10 @@ export class SimpleModel extends EventEmitter implements ITextEditorModel  {
 	constructor(model:editorCommon.IModel) {
 		super();
 		this.model = model;
+	}
+
+	public load(): TPromise<SimpleModel> {
+		return TPromise.as(this);
 	}
 
 	public get textEditorModel():editorCommon.IModel {
@@ -194,7 +198,7 @@ export class SimpleMessageService implements IMessageService {
 
 		switch(sev) {
 			case Severity.Error:
-				console.error(toErrorMessage(message, true));
+				console.error(message);
 				break;
 			case Severity.Warning:
 				console.warn(message);

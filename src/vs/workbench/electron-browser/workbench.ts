@@ -16,6 +16,7 @@ import {Delayer} from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {Registry} from 'vs/platform/platform';
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import {IOptions} from 'vs/workbench/common/options';
@@ -51,6 +52,8 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
+import {IFileService} from 'vs/platform/files/common/files';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -276,7 +279,7 @@ export class Workbench implements IPartService {
 		} catch (error) {
 
 			// Print out error
-			console.error(errors.toErrorMessage(error, true));
+			console.error(toErrorMessage(error, true));
 
 			// Rethrow
 			throw error;
@@ -378,6 +381,10 @@ export class Workbench implements IPartService {
 		this.editorService = this.instantiationService.createInstance(WorkbenchEditorService, this.editorPart);
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
 		serviceCollection.set(IEditorGroupService, this.editorPart);
+
+		// File Service
+		const fileService = this.instantiationService.createInstance(FileService);
+		serviceCollection.set(IFileService, fileService);
 
 		// History
 		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));

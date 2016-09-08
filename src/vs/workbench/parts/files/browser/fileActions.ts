@@ -14,6 +14,7 @@ import {MIME_TEXT, isUnspecific, isBinaryMime, guessMimeTypes} from 'vs/base/com
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
 import {Event, EventType as CommonEventType} from 'vs/base/common/events';
 import severity from 'vs/base/common/severity';
@@ -31,7 +32,6 @@ import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEdito
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -138,7 +138,7 @@ export class BaseFileAction extends Action {
 
 		let errorWithRetry: IMessageWithAction = {
 			actions,
-			message: errors.toErrorMessage(error, false)
+			message: toErrorMessage(error, false)
 		};
 
 		this._messageService.show(Severity.Error, errorWithRetry);
@@ -1394,7 +1394,7 @@ export abstract class BaseActionWithErrorReporting extends Action {
 
 	public run(context?: any): TPromise<boolean> {
 		return this.doRun(context).then(() => true, (error) => {
-			this.messageService.show(Severity.Error, errors.toErrorMessage(error, false));
+			this.messageService.show(Severity.Error, toErrorMessage(error, false));
 		});
 	}
 
@@ -1448,7 +1448,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				if (source.scheme === 'untitled') {
 					encodingOfSource = this.untitledEditorService.get(source).getEncoding();
 				} else if (source.scheme === 'file') {
-					let textModel = CACHE.get(source);
+					let textModel = this.textFileService.models.get(source);
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 

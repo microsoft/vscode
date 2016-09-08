@@ -11,10 +11,11 @@ import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import paths = require('vs/base/common/paths');
-import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventType, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
+import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
 
 function toResource(path) {
 	return URI.file(paths.join('C:\\', path));
@@ -37,7 +38,7 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	teardown(() => {
-		CACHE.clear();
+		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 	});
 
 	test('Load does not trigger save', function (done) {

@@ -6,8 +6,13 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {createTestMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
+import {CompatMirrorModel} from 'vs/editor/common/model/compatMirrorModel';
 import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
+import {TextModel} from 'vs/editor/common/model/textModel';
+
+function createTestMirrorModelFromString(value:string): CompatMirrorModel {
+	return new CompatMirrorModel(0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), null);
+}
 
 suite('Editor Services - ResourceService', () => {
 

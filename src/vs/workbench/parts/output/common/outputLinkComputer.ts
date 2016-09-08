@@ -4,63 +4,66 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {IMirrorModel, IWorkerContext} from 'vs/editor/common/services/editorSimpleWorker';
+import {ILink} from 'vs/editor/common/modes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IResourceService} from 'vs/editor/common/services/resourceService';
 import URI from 'vs/base/common/uri';
+import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
-import paths = require('vs/base/common/paths');
-import {ILink} from 'vs/editor/common/modes';
 import {Range} from 'vs/editor/common/core/range';
+
+export interface ICreateData {
+	workspaceResourceUri: string;
+}
 
 export interface IResourceCreator {
 	toResource: (workspaceRelativePath: string) => URI;
 }
 
-/**
- * A base class of text editor worker that helps with detecting links in the text that point to files in the workspace.
- */
-export class OutputWorker {
+export class OutputLinkComputer {
+
+	private _ctx:IWorkerContext;
+	private _patterns: RegExp[];
 	private _workspaceResource: URI;
-	private patterns: RegExp[];
-	private resourceService:IResourceService;
-	private _modeId: string;
 
-	constructor(
-		modeId: string,
-		@IResourceService resourceService: IResourceService
-	) {
-		this._modeId = modeId;
-		this.resourceService = resourceService;
-		this._workspaceResource = null;
-		this.patterns = [];
+	constructor(ctx:IWorkerContext, createData:ICreateData) {
+		this._ctx = ctx;
+		this._workspaceResource = URI.parse(createData.workspaceResourceUri);
+		this._patterns = OutputLinkComputer.createPatterns(this._workspaceResource);
 	}
 
-	public configure(workspaceResource: URI): TPromise<void> {
-		this._workspaceResource = workspaceResource;
-		this.patterns = OutputWorker.createPatterns(this._workspaceResource);
-		return TPromise.as(void 0);
+	private _getModel(uri:string): IMirrorModel {
+		let models = this._ctx.getMirrorModels();
+		for (let i = 0; i < models.length; i++) {
+			let model = models[i];
+			if (model.uri.toString() === uri) {
+				return model;
+			}
+		}
+		return null;
 	}
 
-	public provideLinks(resource: URI): TPromise<ILink[]> {
-		let links: ILink[] = [];
-		if (!this.patterns.length) {
-			return TPromise.as(links);
+	public computeLinks(uri:string): TPromise<ILink[]> {
+		let model = this._getModel(uri);
+		if (!model) {
+			return;
 		}
 
-		let model = this.resourceService.get(resource);
+		let links: ILink[] = [];
 
 		let resourceCreator: IResourceCreator = {
 			toResource: (workspaceRelativePath: string): URI => {
-				if (typeof workspaceRelativePath === 'string' && this._workspaceResource) {
+				if (typeof workspaceRelativePath === 'string') {
 					return URI.file(paths.join(this._workspaceResource.fsPath, workspaceRelativePath));
 				}
 				return null;
 			}
 		};
 
-		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
-			links.push(...OutputWorker.detectLinks(model.getLineContent(i), i, this.patterns, resourceCreator));
+		let lines = model.getValue().split(/\r\n|\r|\n/);
+		for (let i = 0, len = lines.length; i < len; i++) {
+			links.push(...OutputLinkComputer.detectLinks(lines[i], i + 1, this._patterns, resourceCreator));
 		}
 
 		return TPromise.as(links);
@@ -156,4 +159,8 @@ export class OutputWorker {
 
 		return links;
 	}
+}
+
+export function create(ctx:IWorkerContext, createData:ICreateData): OutputLinkComputer {
+	return new OutputLinkComputer(ctx, createData);
 }

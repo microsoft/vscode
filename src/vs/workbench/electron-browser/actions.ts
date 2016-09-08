@@ -23,11 +23,10 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import {isMacintosh} from 'vs/base/common/platform';
-import {IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -67,6 +66,38 @@ export class CloseWindowAction extends Action {
 
 	public run(): TPromise<boolean> {
 		this.windowService.getWindow().close();
+
+		return TPromise.as(true);
+	}
+}
+
+export class SwitchWindow extends Action {
+
+	public static ID = 'workbench.action.switchWindow';
+	public static LABEL = nls.localize('switchWindow', "Switch Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		ipc.send('vscode:switchWindow', this.windowService.getWindowId());
+		ipc.once('vscode:switchWindow', (event, workspaces) => {
+			const picks: IPickOpenEntry[] = workspaces.map(w => {
+				return {
+					label: w.title,
+					run: () => {
+						ipc.send('vscode:showWindow', w.id);
+					}
+				};
+			});
+			this.quickOpenService.pick(picks, {placeHolder: nls.localize('switchWindowPlaceHolder', "Select a window")});
+		});
 
 		return TPromise.as(true);
 	}

@@ -5,6 +5,7 @@
 
 'use strict';
 
+import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkbenchShell} from 'vs/workbench/electron-browser/shell';
 import {IOptions} from 'vs/workbench/common/options';
@@ -150,10 +151,18 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 			(<any>self).require.config({
 				onError: (err: any) => {
 					if (err.errorCode === 'load') {
-						shell.onUnexpectedError(errors.loaderError(err));
+						shell.onUnexpectedError(loaderError(err));
 					}
 				}
 			});
 		});
 	});
+}
+
+function loaderError(err: Error): Error {
+	if (platform.isWeb) {
+		return new Error(nls.localize('loaderError', "Failed to load a required file. Either you are no longer connected to the internet or the server you are connected to is offline. Please refresh the browser to try again."));
+	}
+
+	return new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err)));
 }

@@ -154,11 +154,14 @@ export class StringEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
+	 * If smart reveal is true will only reveal the last line if the line before last is visible #3351
 	 */
-	public revealLastLine(): void {
+	public revealLastLine(smartReveal = false): void {
 		let codeEditor = <ICodeEditor>this.getControl();
 		let model = codeEditor.getModel();
-		if (model) {
+		const lineBeforeLastRevealed = codeEditor.getScrollTop() + codeEditor.getLayoutInfo().height >= codeEditor.getScrollHeight();
+
+		if (model && (!smartReveal || lineBeforeLastRevealed)) {
 			let lastLine = model.getLineCount();
 			codeEditor.revealLine(lastLine);
 		}

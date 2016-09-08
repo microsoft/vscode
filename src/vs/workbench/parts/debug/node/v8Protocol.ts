@@ -33,7 +33,7 @@ export abstract class V8Protocol {
 
 	protected abstract onServerError(err: Error): void;
 	protected abstract onEvent(event: DebugProtocol.Event): void;
-	protected abstract dispatchRequest(request: DebugProtocol.Request);
+	protected abstract dispatchRequest(request: DebugProtocol.Request, response: DebugProtocol.Response);
 
 	protected connect(readable: stream.Readable, writable: stream.Writable): void {
 
@@ -140,7 +140,15 @@ export abstract class V8Protocol {
 					}
 					break;
 				case 'request':
-					this.dispatchRequest(<DebugProtocol.Request>rawData);
+					const request = <DebugProtocol.Request>rawData;
+					const resp: DebugProtocol.Response = {
+						type: 'response',
+						seq: 0,
+						command: request.command,
+						request_seq: request.seq,
+						success: true
+					};
+					this.dispatchRequest(request, resp);
 					break;
 			}
 		} catch (e) {

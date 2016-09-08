@@ -7,7 +7,6 @@
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
-import {ShallowCancelThenPromise} from 'vs/base/common/async';
 import {StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions} from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IEditorOverrideServices, DynamicStandaloneServices, StaticServices} from 'vs/editor/browser/standalone/standaloneServices';
@@ -17,11 +16,10 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {OpenerService} from 'vs/platform/opener/browser/openerService';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
 import {IModel} from 'vs/editor/common/editorCommon';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
 import {SimpleEditorService} from 'vs/editor/browser/standalone/simpleServices';
 import * as modes from 'vs/editor/common/modes';
-import {EditorWorkerClient} from 'vs/editor/common/services/editorWorkerServiceImpl';
+import {IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker} from 'vs/editor/common/services/webWorker';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
 import {DiffNavigator} from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 import {IEditorService} from 'vs/platform/editor/common/editor';
@@ -208,101 +206,14 @@ export function getOrCreateMode(modeId: string):TPromise<modes.IMode> {
 	return StaticServices.modeService.get().getOrCreateMode(modeId);
 }
 
-/**
- * A web worker that can provide a proxy to an arbitrary file.
- */
-export interface MonacoWebWorker<T> {
-	/**
-	 * Terminate the web worker, thus invalidating the returned proxy.
-	 */
-	dispose(): void;
-	/**
-	 * Get a proxy to the arbitrary loaded code.
-	 */
-	getProxy(): TPromise<T>;
-	/**
-	 * Synchronize (send) the models at `resources` to the web worker,
-	 * making them available in the monaco.worker.getMirrorModels().
-	 */
-	withSyncedResources(resources: URI[]): TPromise<T>;
-}
 
-/**
- * @internal
- */
-export class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
-
-	private _foreignModuleId: string;
-	private _foreignModuleCreateData: any;
-	private _foreignProxy: TPromise<T>;
-
-	/**
-	 * @internal
-	 */
-	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
-		super(modelService);
-		this._foreignModuleId = opts.moduleId;
-		this._foreignModuleCreateData = opts.createData || null;
-		this._foreignProxy = null;
-	}
-
-	private _getForeignProxy(): TPromise<T> {
-		if (!this._foreignProxy) {
-			this._foreignProxy = new ShallowCancelThenPromise(this._getProxy().then((proxy) => {
-				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData).then((foreignMethods) => {
-					this._foreignModuleId = null;
-					this._foreignModuleCreateData = null;
-
-					let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
-						return proxy.fmr(method, args);
-					};
-
-					let createProxyMethod = (method:string, proxyMethodRequest:(method:string, args:any[])=>TPromise<any>): Function => {
-						return function () {
-							let args = Array.prototype.slice.call(arguments, 0);
-							return proxyMethodRequest(method, args);
-						};
-					};
-
-					let foreignProxy = <T><any>{};
-					for (let i = 0; i < foreignMethods.length; i++) {
-						foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
-					}
-
-					return foreignProxy;
-				});
-			}));
-		}
-		return this._foreignProxy;
-	}
-
-	public getProxy(): TPromise<T> {
-		return this._getForeignProxy();
-	}
-
-	public withSyncedResources(resources: URI[]): TPromise<T> {
-		return this._withSyncedResources(resources).then(_ => this.getProxy());
-	}
-}
-
-export interface IWebWorkerOptions {
-	/**
-	 * The AMD moduleId to load.
-	 * It should export a function `create` that should return the exported proxy.
-	 */
-	moduleId: string;
-	/**
-	 * The data to send over when calling create on the module.
-	 */
-	createData?: any;
-}
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T>(opts:IWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(StaticServices.modelService.get(), opts);
+	return actualCreateWebWorker<T>(StaticServices.modelService.get(), opts);
 }
 
 /**

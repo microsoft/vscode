@@ -14,20 +14,25 @@ import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
 import panel = require('vs/workbench/browser/panel');
 import {DebugViewRegistry} from 'vs/workbench/parts/debug/browser/debugViewRegistry';
 import {VariablesView, WatchExpressionsView, CallStackView, BreakpointsView} from 'vs/workbench/parts/debug/electron-browser/debugViews';
 import wbext = require('vs/workbench/common/contributions');
+import {EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import {DebugEditorModelManager} from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
 import {StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, StepBackAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
 	ConfigureAction, ToggleReplAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction} from 'vs/workbench/parts/debug/browser/debugActions';
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
+import {DebugErrorEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
+import {DebugErrorEditor} from 'vs/workbench/parts/debug/browser/debugErrorEditor';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 import IDebugService = debug.IDebugService;
@@ -129,3 +134,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // register service
 registerSingleton(IDebugService, service.DebugService);
+
+// Register Debug Error Editor #9062
+(<IEditorRegistry>platform.Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(DebugErrorEditor.ID,
+	nls.localize('debugErrorEditor', "Debug Error"),
+	'vs/workbench/parts/debug/browser/debugErrorEditor',
+	'DebugErrorEditor'),
+	[new SyncDescriptor(DebugErrorEditorInput)]
+);

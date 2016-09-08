@@ -10,8 +10,8 @@ import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, ITextFileEditorModelManager} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -24,6 +24,8 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
+import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -35,6 +37,8 @@ export abstract class TextFileService implements ITextFileService {
 	public _serviceBrand: any;
 
 	private listenerToUnbind: IDisposable[];
+	private _models: TextFileEditorModelManager;
+
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 	private configuredAutoSaveDelay: number;
 	private configuredAutoSaveOnFocusChange: boolean;
@@ -48,10 +52,12 @@ export abstract class TextFileService implements ITextFileService {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService protected fileService: IFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.listenerToUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
+		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
 
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		this.onConfigurationChange(configuration);
@@ -59,6 +65,10 @@ export abstract class TextFileService implements ITextFileService {
 		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
 
 		this.registerListeners();
+	}
+
+	public get models(): ITextFileEditorModelManager {
+		return this._models;
 	}
 
 	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
@@ -204,7 +214,7 @@ export abstract class TextFileService implements ITextFileService {
 	public isDirty(resource?: URI): boolean {
 
 		// Check for dirty file
-		if (CACHE.getAll(resource).some(model => model.isDirty())) {
+		if (this._models.getAll(resource).some(model => model.isDirty())) {
 			return true;
 		}
 
@@ -332,7 +342,7 @@ export abstract class TextFileService implements ITextFileService {
 			return models;
 		}
 
-		return CACHE.getAll(<URI>arg1);
+		return this._models.getAll(<URI>arg1);
 	}
 
 	private getDirtyFileModels(resources?: URI[]): TextFileEditorModel[];
@@ -374,7 +384,7 @@ export abstract class TextFileService implements ITextFileService {
 		// Retrieve text model from provided resource if any
 		let modelPromise: TPromise<TextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
 		if (resource.scheme === 'file') {
-			modelPromise = TPromise.as(CACHE.get(resource));
+			modelPromise = TPromise.as(this._models.get(resource));
 		} else if (resource.scheme === 'untitled') {
 			const untitled = this.untitledEditorService.get(resource);
 			if (untitled) {
@@ -472,9 +482,6 @@ export abstract class TextFileService implements ITextFileService {
 					const clients = FileEditorInput.getAll(model.getResource());
 					clients.forEach(input => input.dispose());
 
-					// Model
-					CACHE.dispose(model.getResource());
-
 					// store as successful revert
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}
@@ -519,6 +526,6 @@ export abstract class TextFileService implements ITextFileService {
 		this.listenerToUnbind = dispose(this.listenerToUnbind);
 
 		// Clear all caches
-		CACHE.clear();
+		this._models.clear();
 	}
 }

@@ -17,6 +17,9 @@ import {IOutputEvent, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_I
 import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
 import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {OutputLinkProvider} from 'vs/workbench/parts/output/common/outputLinkProvider';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -31,12 +34,16 @@ export class OutputService implements IOutputService {
 	private _onOutputChannel: Emitter<string>;
 	private _onActiveOutputChannel: Emitter<string>;
 
+	private _outputLinkDetector: OutputLinkProvider;
+
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEventService private eventService: IEventService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private panelService: IPanelService,
+		@IWorkspaceContextService contextService:IWorkspaceContextService,
+		@IModelService modelService: IModelService
 	) {
 		this._onOutput = new Emitter<IOutputEvent>();
 		this._onOutputChannel = new Emitter<string>();
@@ -46,6 +53,8 @@ export class OutputService implements IOutputService {
 
 		const channels = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
+
+		this._outputLinkDetector = new OutputLinkProvider(contextService, modelService);
 	}
 
 	public get onOutput(): Event<IOutputEvent> {

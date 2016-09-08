@@ -84,8 +84,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	protected id:number;
 
-	_lifetimeDispose: IDisposable[];
-	_configuration:CommonEditorConfiguration;
+	protected _lifetimeDispose: IDisposable[];
+	protected _configuration:CommonEditorConfiguration;
 
 	protected _contributions:{ [key:string]:editorCommon.IEditorContribution; };
 	protected _actions:{ [key:string]:editorCommon.IEditorAction; };
@@ -705,7 +705,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this._configuration.editor.layoutInfo;
 	}
 
-	_attachModel(model:editorCommon.IModel): void {
+	protected _attachModel(model:editorCommon.IModel): void {
 		this.model = model ? model : null;
 		this.listenersToRemove = [];
 		this.viewModel = null;
@@ -913,7 +913,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	protected abstract _getViewInternalEventBus(): IEventEmitter;
 
-	_postDetachModelCleanup(detachedModel:editorCommon.IModel): void {
+	protected _postDetachModelCleanup(detachedModel:editorCommon.IModel): void {
 		if (detachedModel) {
 			this._decorationTypeKeysToIds = {};
 			if (this._decorationTypeSubtypes) {

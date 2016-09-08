@@ -7,7 +7,7 @@
 
 import * as childProcess from 'child_process';
 import {StringDecoder} from 'string_decoder';
-import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import fs = require('fs');
 import paths = require('path');
 import {Readable} from "stream";
@@ -153,7 +153,7 @@ export class FileWalker {
 							rootFolderDone(err);
 						} else {
 							// fallback
-							const errorMessage = errors.toErrorMessage(err);
+							const errorMessage = toErrorMessage(err);
 							console.error(errorMessage);
 							this.errors.push(errorMessage);
 							this.nodeJSTraversal(rootFolder, onResult, rootFolderDone);

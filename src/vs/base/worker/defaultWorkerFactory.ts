@@ -10,7 +10,7 @@ import {logOnceWebWorkerWarning, IWorker, IWorkerCallback, IWorkerFactory} from 
 import * as dom from 'vs/base/browser/dom';
 
 function defaultGetWorkerUrl(workerId:string, label:string): string {
-	return require.toUrl('./' + workerId);
+	return require.toUrl('./' + workerId) + '#' + label;
 }
 var getWorkerUrl = flags.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 
@@ -130,10 +130,12 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 
 	private static LAST_WORKER_ID = 0;
 
+	private _label: string;
 	private _fallbackToIframe:boolean;
 	private _webWorkerFailedBeforeError:any;
 
-	constructor(fallbackToIframe:boolean) {
+	constructor(label:string, fallbackToIframe:boolean) {
+		this._label = label;
 		this._fallbackToIframe = fallbackToIframe;
 		this._webWorkerFailedBeforeError = false;
 	}
@@ -147,7 +149,7 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 			}
 
 			try {
-				return new WebWorker(moduleId, workerId, 'service' + workerId, onMessageCallback, (err) => {
+				return new WebWorker(moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
 					logOnceWebWorkerWarning(err);
 					this._webWorkerFailedBeforeError = err;
 					onErrorCallback(err);
@@ -161,7 +163,7 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 		if (this._webWorkerFailedBeforeError) {
 			throw this._webWorkerFailedBeforeError;
 		}
-		return new WebWorker(moduleId, workerId, 'service' + workerId, onMessageCallback, (err) => {
+		return new WebWorker(moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._webWorkerFailedBeforeError = err;
 			onErrorCallback(err);

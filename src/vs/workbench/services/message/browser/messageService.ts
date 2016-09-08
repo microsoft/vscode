@@ -5,8 +5,9 @@
 'use strict';
 
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
-import {MessageList, Severity as BaseSeverity} from 'vs/base/browser/ui/messagelist/messageList';
+import {MessageList, Severity as BaseSeverity} from 'vs/workbench/services/message/browser/messagelist/messageList';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -116,7 +117,7 @@ export class WorkbenchMessageService implements IMessageService {
 
 		// Show in Console
 		if (sev === Severity.Error) {
-			console.error(errors.toErrorMessage(message, true));
+			console.error(toErrorMessage(message, true));
 		}
 
 		// Show in Global Handler

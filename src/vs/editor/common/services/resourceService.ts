@@ -6,7 +6,10 @@
 
 import URI from 'vs/base/common/uri';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IMirrorModel} from 'vs/editor/common/editorCommon';
+import {ITokenizedModel} from 'vs/editor/common/editorCommon';
+
+export interface ICompatMirrorModel extends ITokenizedModel {
+}
 
 // Resource Service
 
@@ -15,7 +18,7 @@ export let IResourceService = createDecorator<IResourceService>('resourceService
 export interface IResourceService {
 	_serviceBrand: any;
 
-	insert(url: URI, element: IMirrorModel): void;
-	get(url: URI): IMirrorModel;
+	insert(url: URI, element: ICompatMirrorModel): void;
+	get(url: URI): ICompatMirrorModel;
 	remove(url: URI): void;
 }

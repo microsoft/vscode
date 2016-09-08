@@ -355,12 +355,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				const url = `${ getAssetSource(rawVersion.files, AssetType.VSIX) }?install=true`;
 				const zipPath = path.join(tmpdir(), extension.id);
 				const data = getGalleryExtensionTelemetryData(extension);
-				const timer = this.telemetryService.timedPublicLog('galleryService:downloadVSIX', data);
+				const startTime = new Date().getTime();
+				const log = duration => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
 				return this.getCommonHeaders()
 					.then(headers => this._getAsset({ url, headers }))
 					.then(context => download(zipPath, context))
-					.then(() => timer.stop())
+					.then(() => log(new Date().getTime() - startTime))
 					.then(() => zipPath);
 			});
 		});
