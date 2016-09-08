@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
+import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditor } from 'vs/platform/editor/common/editor';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IEditor} from 'vs/platform/editor/common/editor';
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -48,8 +48,8 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): IEditor {
-		let editorInput = this.editorService.getActiveEditorInput();
-		if (editorInput instanceof FileEditorInput) {
+		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
+		if (editorInput) {
 			if (editorInput.getResource().fsPath === resourceRange.resource.fsPath) {
 				return this.editorService.getActiveEditor();
 			}
