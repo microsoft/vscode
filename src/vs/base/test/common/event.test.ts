@@ -333,17 +333,17 @@ suite('fromPromise', () => {
 
 suite('stopwatch', () => {
 
-	test('should emit when done', () => {
+	test('should emit', () => {
 		const emitter = new Emitter<void>();
 		const event = stopwatch(emitter.event);
 
 		return new TPromise(c => {
 			event(duration => {
-				assert(duration > 5);
+				assert(duration > 100);
 				c(null);
 			});
 
-			setTimeout(() => emitter.fire(), 5);
+			setTimeout(() => emitter.fire(), 100);
 		});
 	});
 });
