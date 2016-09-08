@@ -30,7 +30,7 @@ export class TerminalService implements ITerminalService {
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
-	private nextTerminalName: string;
+	private _nextTerminalProcessConfiguration: ITerminalProcessConfiguration;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 
 	private configHelper: TerminalConfigHelper;
@@ -180,7 +180,7 @@ export class TerminalService implements ITerminalService {
 		return this.focus();
 	}
 
-	public createNew(name?: string): TPromise<number> {
+	public createNew(name?: string, shellPath?: string): TPromise<number> {
 		let processCount = this.terminalProcesses.length;
 
 		// When there are 0 processes it means that the panel is not yet created, so the name needs
@@ -189,10 +189,12 @@ export class TerminalService implements ITerminalService {
 		// the TerminalPanel is restored on launch if it was open previously.
 
 		if (processCount === 0 && !name) {
-			name = this.nextTerminalName;
-			this.nextTerminalName = undefined;
+			name = this._nextTerminalProcessConfiguration.name;
+			shellPath = this._nextTerminalProcessConfiguration.shell.executable;
+			this._nextTerminalProcessConfiguration = undefined;
 		} else {
-			this.nextTerminalName = name;
+			this._nextTerminalProcessConfiguration.name = name;
+			this._nextTerminalProcessConfiguration.shell.executable = shellPath;
 		}
 
 		return this.focus().then((terminalPanel) => {
@@ -210,7 +212,15 @@ export class TerminalService implements ITerminalService {
 			}
 
 			this.initConfigHelper(terminalPanel.getContainer());
-			return terminalPanel.createNewTerminalInstance(this.createTerminalProcess(name), this._terminalFocusContextKey).then((terminalId) => {
+			const shell = this.configHelper.getShell();
+			if (shellPath) {
+				shell.executable = shellPath;
+			}
+			const terminalProcessConfiguration: ITerminalProcessConfiguration = {
+				name: name ? name : '',
+				shell: shell
+			};
+			return terminalPanel.createNewTerminalInstance(this.createTerminalProcess(terminalProcessConfiguration), this._terminalFocusContextKey).then((terminalId) => {
 				this._onInstancesChanged.fire();
 				return TPromise.as(terminalId);
 			});
@@ -291,11 +301,11 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private createTerminalProcess(name?: string): ITerminalProcess {
+	private createTerminalProcess(terminalProcessConfiguration: ITerminalProcessConfiguration): ITerminalProcess {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
-		let env = TerminalService.createTerminalEnv(process.env, this.configHelper.getShell(), this.contextService.getWorkspace(), locale);
+		let env = TerminalService.createTerminalEnv(process.env, terminalProcessConfiguration.shell, this.contextService.getWorkspace(), locale);
 		let terminalProcess = {
-			title: name ? name : '',
+			title: terminalProcessConfiguration.name,
 			process: cp.fork('./terminalProcess', [], {
 				env: env,
 				cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
@@ -305,7 +315,7 @@ export class TerminalService implements ITerminalService {
 		this._onInstancesChanged.fire();
 		this.activeTerminalIndex = this.terminalProcesses.length - 1;
 		this._onActiveInstanceChanged.fire();
-		if (!name) {
+		if (!terminalProcessConfiguration.name) {
 			// Only listen for process title changes when a name is not provided
 			terminalProcess.process.on('message', (message) => {
 				if (message.type === 'title') {
@@ -347,4 +357,9 @@ export class TerminalService implements ITerminalService {
 		}
 		return parts.join('_') + '.UTF-8';
 	}
+}
+
+export interface ITerminalProcessConfiguration {
+	name: string;
+	shell: IShell;
 }
