@@ -152,7 +152,25 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): E
 	};
 }
 
-export function fromPromise<T>(promise: TPromise<Event<T>>): Event<T> {
+export function fromPromise(promise: TPromise<any>): Event<void> {
+	const emitter = new Emitter<void>();
+	let shouldEmit = false;
+
+	promise
+		.then(null, () => null)
+		.then(() => {
+			if (!shouldEmit) {
+				setTimeout(() => emitter.fire(), 0);
+			} else {
+				emitter.fire();
+			}
+		});
+
+	shouldEmit = true;
+	return emitter.event;
+}
+
+export function delayed<T>(promise: TPromise<Event<T>>): Event<T> {
 	let toCancel: TPromise<any> = null;
 	let listener: IDisposable = null;
 
@@ -274,4 +292,9 @@ export class EventBufferer {
 		this.buffers.pop();
 		buffer.forEach(flush => flush());
 	}
+}
+
+export function stopwatch<T>(event: Event<T>): Event<number> {
+	const start = new Date().getTime();
+	return mapEvent(once(event), _ => new Date().getTime() - start);
 }
