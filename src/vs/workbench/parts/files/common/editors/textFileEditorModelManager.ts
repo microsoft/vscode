@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileEditorModelManager} from 'vs/workbench/parts/files/common/files';
@@ -12,6 +13,7 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {ModelState, ITextFileEditorModel, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
@@ -24,16 +26,19 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	private mapResourceToDisposeListener: { [resource: string]: IDisposable; };
 	private mapResourcePathToModel: { [resource: string]: TextFileEditorModel; };
+	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<TextFileEditorModel>};
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEventService private eventService: IEventService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		this.toUnbind = [];
 
 		this.mapResourcePathToModel = Object.create(null);
 		this.mapResourceToDisposeListener = Object.create(null);
+		this.mapResourceToPendingModelLoaders = Object.create(null);
 
 		this.registerListeners();
 	}
@@ -49,6 +54,17 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
+	}
+
+	private onEditorsChanged(): void {
+		this.disposeUnusedModels();
+	}
+
+	private disposeModelIfPossible(resource: URI): void {
+		const model = this.get(resource);
+		if (this.canDispose(model)) {
+			model.dispose();
+		}
 	}
 
 	private onLocalFileChange(e: LocalFileChangeEvent): void {
@@ -82,17 +98,6 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			.forEach(model => this.disposeModelIfPossible(model.getResource()));
 	}
 
-	private onEditorsChanged(): void {
-		this.disposeUnusedModels();
-	}
-
-	private disposeModelIfPossible(resource: URI): void {
-		const model = this.get(resource);
-		if (this.canDispose(model)) {
-			model.dispose();
-		}
-	}
-
 	private canDispose(textModel: ITextFileEditorModel): boolean {
 		if (!textModel) {
 			return false; // we need data!
@@ -115,6 +120,56 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	public get(resource: URI): TextFileEditorModel {
 		return this.mapResourcePathToModel[resource.toString()];
+	}
+
+	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean): TPromise<TextFileEditorModel> {
+
+		// Return early if model is currently being loaded
+		const pendingLoad = this.mapResourceToPendingModelLoaders[resource.toString()];
+		if (pendingLoad) {
+			return pendingLoad;
+		}
+
+		let modelPromise: TPromise<TextFileEditorModel>;
+
+		// Model exists
+		let model = this.get(resource);
+		if (model) {
+			if (!refresh) {
+				modelPromise = TPromise.as(model);
+			} else {
+				modelPromise = model.load();
+			}
+		}
+
+		// Model does not exist
+		else {
+			model = this.instantiationService.createInstance(TextFileEditorModel, resource, encoding);
+			modelPromise = model.load();
+		}
+
+		// Store pending loads to avoid race conditions
+		this.mapResourceToPendingModelLoaders[resource.toString()] = modelPromise;
+
+		return modelPromise.then(model => {
+
+			// Make known to manager (if not already known)
+			this.add(resource, model);
+
+			// Remove from pending loads
+			this.mapResourceToPendingModelLoaders[resource.toString()] = null;
+
+			return model;
+		}, error => {
+
+			// Free resources of this invalid model
+			model.dispose();
+
+			// Remove from pending loads
+			this.mapResourceToPendingModelLoaders[resource.toString()] = null;
+
+			return TPromise.wrapError(error);
+		});
 	}
 
 	public getAll(resource?: URI): TextFileEditorModel[] {

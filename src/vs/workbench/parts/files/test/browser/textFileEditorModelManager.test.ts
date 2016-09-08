@@ -54,7 +54,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('add, remove, clear, get, getAll', function () {
-		const manager = instantiationService.createInstance(TextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const model1 = new EditorModel();
 		const model2 = new EditorModel();
@@ -94,8 +94,33 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.strictEqual(0, result.length);
 	});
 
+	test('loadOrCreate', function (done) {
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+		const resource = URI.file('/test.html');
+		const encoding = 'utf8';
+
+		manager.loadOrCreate(resource, encoding, true).then(model => {
+			assert.ok(model);
+			assert.equal(model.getEncoding(), encoding);
+			assert.equal(manager.get(resource), model);
+
+			return manager.loadOrCreate(resource, encoding).then(model2 => {
+				assert.equal(model2, model);
+
+				model.dispose();
+
+				return manager.loadOrCreate(resource, encoding).then(model3 => {
+					assert.notEqual(model3, model2);
+					assert.equal(manager.get(resource), model3);
+
+					done();
+				});
+			});
+		});
+	});
+
 	test('removed from cache when model disposed', function () {
-		const manager = instantiationService.createInstance(TextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const model1 = new EditorModel();
 		const model2 = new EditorModel();

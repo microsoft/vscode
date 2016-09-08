@@ -17,7 +17,6 @@ import {IEditorRegistry, Extensions, EditorModel, EncodingMode, ConfirmResult, I
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, EventType as FileEventType, TextFileChangeEvent, IFileEditorDescriptor} from 'vs/workbench/parts/files/common/files';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -30,9 +29,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 	// Do ref counting for all inputs that resolved to a model to be able to dispose when count = 0
 	private static FILE_EDITOR_MODEL_CLIENTS: { [resource: string]: FileEditorInput[]; } = Object.create(null);
-
-	// Keep promises that load a file editor model to avoid loading the same model twice
-	private static FILE_EDITOR_MODEL_LOADERS: { [resource: string]: TPromise<EditorModel>; } = Object.create(null);
 
 	private resource: URI;
 	private mime: string;
@@ -225,7 +221,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
-		let modelPromise: TPromise<EditorModel>;
 		const resource = this.resource.toString();
 
 		// Keep clients who resolved the input to support proper disposal
@@ -236,39 +231,14 @@ export class FileEditorInput extends CommonFileEditorInput {
 			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource].push(this);
 		}
 
-		// Check for running loader to ensure the model is only ever loaded once
-		if (FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource]) {
-			return FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource];
-		}
+		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
 
-		// Use Cached Model if present
-		const cachedModel = this.textFileService.models.get(this.resource);
-		if (cachedModel instanceof TextFileEditorModel && !refresh) {
-			modelPromise = TPromise.as<EditorModel>(cachedModel);
-		}
-
-		// Refresh Cached Model if present
-		else if (cachedModel && refresh) {
-			modelPromise = cachedModel.load();
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = modelPromise;
-		}
-
-		// Otherwise Create Model and Load
-		else {
-			modelPromise = this.createAndLoadModel();
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = modelPromise;
-		}
-
-		return modelPromise.then((resolvedModel: TextFileEditorModel | BinaryEditorModel) => {
-			if (resolvedModel instanceof TextFileEditorModel) {
-				this.textFileService.models.add(this.resource, resolvedModel); // Store into the text model cache unless this file is binary
+			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
+			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+				return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
 			}
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = null; // Remove from pending loaders
 
-			return resolvedModel;
-		}, (error) => {
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = null; // Remove from pending loaders in case of an error
-
+			// Bubble any other error up
 			return TPromise.wrapError(error);
 		});
 	}
@@ -285,28 +255,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 
 		return -1;
-	}
-
-	private createAndLoadModel(): TPromise<EditorModel> {
-		const descriptor = (<IEditorRegistry>Registry.as(Extensions.Editors)).getEditor(this);
-		if (!descriptor) {
-			throw new Error('Unable to find an editor in the registry for this input.');
-		}
-
-		// Optimistically create a text model assuming that the file is not binary
-		const textModel = this.instantiationService.createInstance(TextFileEditorModel, this.resource, this.preferredEncoding);
-		return textModel.load().then(() => textModel, (error) => {
-
-			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				textModel.dispose();
-
-				return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
-			}
-
-			// Bubble any other error up
-			return TPromise.wrapError(error);
-		});
 	}
 
 	public dispose(): void {
