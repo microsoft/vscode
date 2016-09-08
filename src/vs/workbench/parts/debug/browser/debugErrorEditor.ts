@@ -21,13 +21,11 @@ export class DebugErrorEditor extends BaseEditor {
 	}
 
 	public createEditor(parent: Builder): void {
-		this.container = dom.append(parent.getHTMLElement(), $('.'));
-		this.container.style.paddingLeft = '20px';
+		this.container = dom.append(parent.getHTMLElement(), $('.debug-error-editor'));
 	}
 
 	public layout(dimension: Dimension): void {
-		// we take the padding we set on create into account
-		this.container.style.width = `${Math.max(dimension.width - 20, 0)}px`;
+		this.container.style.width = `${dimension.width}px`;
 		this.container.style.height = `${dimension.height}px`;
 	}
 
