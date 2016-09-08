@@ -192,7 +192,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 		// store in cache but remove when model gets disposed
 		this.mapResourcePathToModel[resource.toString()] = model;
-		this.mapResourceToDisposeListener[resource.toString()] = model.addListener2('dispose', () => this.remove(resource));
+		this.mapResourceToDisposeListener[resource.toString()] = model.onDispose(() => this.remove(resource));
 	}
 
 	public remove(resource: URI): void {

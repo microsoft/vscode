@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
 import Event, {Emitter} from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
@@ -120,16 +119,16 @@ export interface IEditorInputFactory {
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
  */
-export abstract class EditorInput extends EventEmitter implements IEditorInput {
-
+export abstract class EditorInput implements IEditorInput {
+	private _onDispose: Emitter<void>;
 	protected _onDidChangeDirty: Emitter<void>;
-	
+
 	private disposed: boolean;
 
 	constructor() {
-		super();
-
 		this._onDidChangeDirty = new Emitter<void>();
+		this._onDispose = new Emitter<void>();
+
 		this.disposed = false;
 	}
 
@@ -138,6 +137,13 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	 */
 	public get onDidChangeDirty(): Event<void> {
 		return this._onDidChangeDirty.event;
+	}
+
+	/**
+	 * Fired when the model gets disposed.
+	 */
+	public get onDispose(): Event<void> {
+		return this._onDispose.event;
 	}
 
 	/**
@@ -237,11 +243,11 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	 * resolving the editor input.
 	 */
 	public dispose(): void {
-		this._onDidChangeDirty.dispose();
 		this.disposed = true;
-		this.emit('dispose');
+		this._onDispose.fire();
 
-		super.dispose();
+		this._onDidChangeDirty.dispose();
+		this._onDispose.dispose();
 	}
 
 	/**
@@ -399,7 +405,19 @@ export interface ITextEditorModel extends IEditorModel {
  * connects to the disk to retrieve content and may allow for saving it back or reverting it. Editor models
  * are typically cached for some while because they are expensive to construct.
  */
-export class EditorModel extends EventEmitter implements IEditorModel {
+export class EditorModel implements IEditorModel {
+	private _onDispose: Emitter<void>;
+
+	constructor() {
+		this._onDispose = new Emitter<void>();
+	}
+
+	/**
+	 * Fired when the model gets disposed.
+	 */
+	public get onDispose(): Event<void> {
+		return this._onDispose.event;
+	}
 
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
@@ -419,9 +437,8 @@ export class EditorModel extends EventEmitter implements IEditorModel {
 	 * Subclasses should implement to free resources that have been claimed through loading.
 	 */
 	public dispose(): void {
-		this.emit('dispose');
-
-		super.dispose();
+		this._onDispose.fire();
+		this._onDispose.dispose();
 	}
 }
 

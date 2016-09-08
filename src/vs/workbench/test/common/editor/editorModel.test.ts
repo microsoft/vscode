@@ -30,10 +30,20 @@ suite('Workbench - EditorModel', () => {
 	});
 
 	test('EditorModel', function (done) {
+		let counter = 0;
+
 		let m = new MyEditorModel();
+
+		m.onDispose(() => {
+			assert(true);
+			counter++;
+		});
+
 		m.load().then(model => {
 			assert(model === m);
 			assert.strictEqual(m.isResolved(), true);
+			m.dispose();
+			assert.equal(counter, 1);
 		}).done(() => done());
 	});
 

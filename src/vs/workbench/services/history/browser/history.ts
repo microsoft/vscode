@@ -9,7 +9,6 @@ import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
-import {EventType} from 'vs/base/common/events';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {EditorInput, IGroupEvent, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -23,6 +22,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {Registry} from 'vs/platform/platform';
+import {once} from 'vs/base/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
@@ -276,7 +276,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				}
 
 				// Restore on dispose
-				editor.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+				const onceDispose = once(editor.onDispose);
+				onceDispose(() => {
 					this.restoreInRecentlyClosed(editor);
 				});
 			}
@@ -360,7 +361,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		// Restore on dispose
-		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+		const onceDispose = once(input.onDispose);
+		onceDispose(() => {
 			this.restoreInHistory(input);
 		});
 	}
@@ -498,7 +500,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		// Restore on dispose
-		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+		const onceDispose = once(input.onDispose);
+		onceDispose(() => {
 			this.restoreInStack(input);
 		});
 	}

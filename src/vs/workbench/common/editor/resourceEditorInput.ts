@@ -10,7 +10,6 @@ import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import {IModel} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
-import {EventType} from 'vs/base/common/events';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -42,7 +41,7 @@ export class ResourceEditorInput extends EditorInput {
 		} else {
 			array.unshift(provider);
 		}
-		
+
 		return {
 			dispose() {
 				let array = ResourceEditorInput.registry[scheme];
@@ -158,7 +157,7 @@ export class ResourceEditorInput extends EditorInput {
 		// Otherwise Create Model and handle dispose event
 		return ResourceEditorInput.getOrCreateModel(this.modelService, this.resource).then(() => {
 			let model = this.instantiationService.createInstance(ResourceEditorModel, this.resource);
-			const unbind = model.addListener2(EventType.DISPOSE, () => {
+			const unbind = model.onDispose(() => {
 				this.cachedModel = null; // make sure we do not dispose model again
 				unbind.dispose();
 				this.dispose();

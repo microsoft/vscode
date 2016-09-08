@@ -12,6 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import * as mime from 'vs/base/common/mime';
 import * as paths from 'vs/base/common/paths';
+import { once } from 'vs/base/common/event';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IFileStatus, IGitServiceError, GitErrorCodes, Status, StatusType, AutoFetcherState, IGitConfiguration, IAutoFetcher, ServiceEvents, ServiceState,
@@ -132,7 +133,8 @@ class EditorInputCache {
 					return TPromise.as(new GitDiffEditorInput(localize('gitMergeChanges', "{0} (merge) ↔ {1}", fileSegment, fileSegment), localize('gitMergeChangesDesc', "{0} - Merge changes", folderSegment), leftInput, rightInput, status));
 			}
 		}).then((editorInput: EditorInput) => {
-			editorInput.addOneTimeDisposableListener('dispose', () => {
+			const onceDispose = once(editorInput.onDispose);
+			onceDispose(() => {
 				delete this.cache[status.getId()];
 			});
 
