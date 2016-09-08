@@ -149,6 +149,7 @@ class InternalEditorOptionsHelper {
 	): editorCommon.InternalEditorOptions {
 
 		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
+		let wordWrap = toBoolean(opts.wordWrap);
 
 		let stopRenderingLineAfter:number;
 		if (typeof opts.stopRenderingLineAfter !== 'undefined') {
@@ -196,6 +197,12 @@ class InternalEditorOptionsHelper {
 			bareWrappingInfo = {
 				isViewportWrapping: true,
 				wrappingColumn: Math.max(1, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
+			};
+		} else if (wrappingColumn > 0 && wordWrap === true) {
+			// Enable smart viewport wrapping
+			bareWrappingInfo = {
+				isViewportWrapping: true,
+				wrappingColumn: Math.min(wrappingColumn, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
 			};
 		} else if (wrappingColumn > 0) {
 			// Wrapping is enabled
@@ -247,6 +254,7 @@ class InternalEditorOptionsHelper {
 			renderWhitespace: toBoolean(opts.renderWhitespace),
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
+			renderLineHighlight: toBoolean(opts.renderLineHighlight),
 			scrollbar: scrollbar,
 		});
 
@@ -584,13 +592,14 @@ let editorConfiguration:IConfigurationNode = {
 		},
 		'editor.fontWeight' : {
 			'type': 'string',
+			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
 			'default': DefaultConfig.editor.fontWeight,
 			'description': nls.localize('fontWeight', "Controls the font weight.")
 		},
 		'editor.fontSize' : {
 			'type': 'number',
 			'default': DefaultConfig.editor.fontSize,
-			'description': nls.localize('fontSize', "Controls the font size.")
+			'description': nls.localize('fontSize', "Controls the font size in pixels.")
 		},
 		'editor.lineHeight' : {
 			'type': 'number',
@@ -653,6 +662,11 @@ let editorConfiguration:IConfigurationNode = {
 			'default': DefaultConfig.editor.wrappingColumn,
 			'minimum': -1,
 			'description': nls.localize('wrappingColumn', "Controls after how many characters the editor will wrap to the next line. Setting this to 0 turns on viewport width wrapping (word wrapping). Setting this to -1 forces the editor to never wrap.")
+		},
+		'editor.wordWrap' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.wordWrap,
+			'description': nls.localize('wordWrap', "Controls if lines should wrap. The lines will wrap at min(editor.wrappingColumn, viewportWidthInColumns).")
 		},
 		'editor.wrappingIndent' : {
 			'type': 'string',
@@ -768,6 +782,11 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			default: DefaultConfig.editor.renderIndentGuides,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
+		},
+		'editor.renderLineHighlight': {
+			'type': 'boolean',
+			default: DefaultConfig.editor.renderLineHighlight,
+			description: nls.localize('renderLineHighlight', "Controls whether the editor should render the current line highlight")
 		},
 		'editor.codeLens' : {
 			'type': 'boolean',

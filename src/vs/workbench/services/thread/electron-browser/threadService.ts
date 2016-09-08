@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import {Action} from 'vs/base/common/actions';
-import {toErrorMessage} from 'vs/base/common/errors';
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {stringify} from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
@@ -151,9 +151,7 @@ class ExtensionHostProcessManager {
 				if (this.isExtensionDevelopmentHost && port) {
 					this.windowService.broadcast({
 						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
-						payload: {
-							port: port
-						}
+						payload: { port }
 					}, this.environmentService.extensionDevelopmentPath /* target */);
 				}
 

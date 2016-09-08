@@ -26,16 +26,21 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IQueryOptions, ISearchService, ISearchStats, ISearchQuery} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
+export class FileQuickOpenModel extends QuickOpenModel {
+
+	constructor(entries: QuickOpenEntry[], public stats?: ISearchStats) {
+		super(entries);
+	}
+}
+
 export class FileEntry extends EditorQuickOpenEntry {
-	private name: string;
-	private description: string;
-	private resource: URI;
 	private range: IRange;
 
 	constructor(
-		name: string,
-		description: string,
-		resource: URI,
+		private resource: URI,
+		private name: string,
+		private description: string,
+		private icon: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -61,7 +66,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 	}
 
 	public getIcon(): string {
-		return 'file';
+		return this.icon;
 	}
 
 	public getResource(): URI {
@@ -72,8 +77,12 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
+	public isFile(): boolean {
+		return true; // TODO@Ben debt with editor history merging
+	}
+
 	public getInput(): IResourceInput | EditorInput {
-		let input: IResourceInput = {
+		const input: IResourceInput = {
 			resource: this.resource,
 			options: {
 				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
@@ -88,8 +97,12 @@ export class FileEntry extends EditorQuickOpenEntry {
 	}
 }
 
-export class OpenFileHandler extends QuickOpenHandler {
+export interface IOpenFileOptions {
+	useIcons: boolean;
+}
 
+export class OpenFileHandler extends QuickOpenHandler {
+	private options: IOpenFileOptions;
 	private queryBuilder: QueryBuilder;
 	private cacheState: CacheState;
 
@@ -104,50 +117,52 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		return this.getResultsWithStats(searchValue)
-			.then(result => result[0]);
+	public setOptions(options: IOpenFileOptions) {
+		this.options = options;
 	}
 
-	public getResultsWithStats(searchValue: string, maxSortedResults?: number): TPromise<[QuickOpenModel, ISearchStats]> {
+	public getResults(searchValue: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		searchValue = searchValue.trim();
-		let promise: TPromise<[QuickOpenEntry[], ISearchStats]>;
 
 		// Respond directly to empty search
 		if (!searchValue) {
-			promise = TPromise.as(<[QuickOpenEntry[], ISearchStats]>[[], undefined]);
-		} else {
-			promise = this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
+			return TPromise.as(new FileQuickOpenModel([]));
 		}
 
-		return promise.then(result => [new QuickOpenModel(result[0]), result[1]]);
+		// Do find results
+		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
 	}
 
-	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<[QuickOpenEntry[], ISearchStats]> {
+	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue,
 			cacheKey: cacheKey
 		};
+
 		if (typeof maxSortedResults === 'number') {
 			query.maxResults = maxSortedResults;
 			query.sortByScore = true;
 		}
 
 		return this.searchService.search(this.queryBuilder.file(query)).then((complete) => {
-			let results: QuickOpenEntry[] = [];
+			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
-				let fileMatch = complete.results[i];
+				const fileMatch = complete.results[i];
 
-				let label = paths.basename(fileMatch.resource.fsPath);
-				let description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
+				const label = paths.basename(fileMatch.resource.fsPath);
+				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
 
-				results.push(this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource));
+				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, (this.options && this.options.useIcons) ? 'file' : null));
 			}
 
-			return [results, complete.stats];
+			return new FileQuickOpenModel(results, complete.stats);
 		});
+	}
+
+	public hasShortResponseTime(): boolean {
+		return this.isCacheLoaded;
 	}
 
 	public onOpen(): void {
@@ -158,14 +173,16 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private cacheQuery(cacheKey: string): ISearchQuery {
 		const options: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
-			extraFileResources: [],
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
 			maxResults: 0,
 			sortByScore: true
 		};
+
 		const query = this.queryBuilder.file(options);
 		this.searchService.extendQuery(query);
+
 		return query;
 	}
 
@@ -193,7 +210,7 @@ class CacheState {
 
 	private promise: TPromise<void>;
 
-	constructor (private cacheQuery: (cacheKey: string) => ISearchQuery, private doLoad: (query: ISearchQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
+	constructor(private cacheQuery: (cacheKey: string) => ISearchQuery, private doLoad: (query: ISearchQuery) => TPromise<any>, private doDispose: (cacheKey: string) => TPromise<void>, private previous: CacheState) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });
@@ -222,17 +239,17 @@ class CacheState {
 					this.previous = null;
 				}
 			}, err => {
-				console.error(errors.toErrorMessage(err));
+				errors.onUnexpectedError(err);
 			});
 	}
 
 	public dispose(): void {
-		this.promise.then(null, () => {})
+		this.promise.then(null, () => { })
 			.then(() => {
 				this._isLoaded = false;
 				return this.doDispose(this._cacheKey);
 			}).then(null, err => {
-				console.error(errors.toErrorMessage(err));
+				errors.onUnexpectedError(err);
 			});
 		if (this.previous) {
 			this.previous.dispose();

@@ -254,7 +254,7 @@ export class ViewModelDecorations implements IDisposable {
 				intersectedStartLineNumber = Math.max(startLineNumber, r.startLineNumber);
 				intersectedEndLineNumber = Math.min(endLineNumber, r.endLineNumber);
 				for (j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
-					inlineDecorations[j - startLineNumber].push(inlineDecoration);
+					insert(inlineDecoration, inlineDecorations[j - startLineNumber]);
 				}
 			}
 			if (d.options.beforeContentClassName && r.startLineNumber >= startLineNumber) {
@@ -263,7 +263,7 @@ export class ViewModelDecorations implements IDisposable {
 					new Range(r.startLineNumber, r.startColumn, r.startLineNumber, r.startColumn + 1),
 					d.options.beforeContentClassName
 				);
-				inlineDecorations[r.startLineNumber - startLineNumber].push(inlineDecoration);
+				insert(inlineDecoration, inlineDecorations[r.startLineNumber - startLineNumber]);
 			}
 			if (d.options.afterContentClassName && r.endLineNumber <= endLineNumber) {
 				if (r.endColumn > 1) {
@@ -271,7 +271,7 @@ export class ViewModelDecorations implements IDisposable {
 						new Range(r.endLineNumber, r.endColumn - 1, r.endLineNumber, r.endColumn),
 						d.options.afterContentClassName
 					);
-					inlineDecorations[r.endLineNumber - startLineNumber].push(inlineDecoration);
+					insert(inlineDecoration, inlineDecorations[r.endLineNumber - startLineNumber]);
 				}
 			}
 		}
@@ -281,6 +281,23 @@ export class ViewModelDecorations implements IDisposable {
 			inlineDecorations: inlineDecorations
 		};
 	}
+}
+
+// insert sorted by startColumn. All decorations are already sorted but this is necessary
+// as the startColumn of 'afterContent'-InlineDecoration is different from the decoration startColumn.
+function insert(decoration: InlineDecoration, decorations: InlineDecoration[]) {
+	let startColumn = decoration.range.startColumn;
+	let last = decorations.length - 1;
+	let idx = last;
+	while (idx >= 0 && decorations[idx].range.startColumn > startColumn) {
+		idx--;
+	}
+	if (idx === last) {
+		decorations.push(decoration);
+	} else {
+		decorations.splice(idx + 1, 0, decoration);
+	}
+
 }
 
 function hasInlineChanges(decoration:editorCommon.IModelDecoration) : boolean {

@@ -11,7 +11,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {editorAction, ServicesAccessor, EditorAction, commonEditorContribution} from 'vs/editor/common/editorCommonExtensions';
 import {OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
 import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
@@ -20,6 +20,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
+@commonEditorContribution
 class FormatOnType implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.autoFormat';
@@ -203,6 +204,3 @@ export class FormatAction extends EditorAction {
 		editor.executeCommand(this.id, command);
 	}
 }
-
-// register action
-CommonEditorRegistry.registerEditorContribution(FormatOnType);

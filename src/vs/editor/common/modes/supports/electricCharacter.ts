@@ -143,6 +143,8 @@ export class Brackets {
 			let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, lineText, tokenStart, tokenEnd);
 			if (r) {
 				let text = lineText.substring(r.startColumn - 1, r.endColumn - 1);
+				text = text.toLowerCase();
+
 				let isOpen = this._richEditBrackets.textIsOpenBracket[text];
 				if (!isOpen) {
 					return {

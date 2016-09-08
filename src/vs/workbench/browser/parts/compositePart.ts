@@ -13,6 +13,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import events = require('vs/base/common/events');
 import strings = require('vs/base/common/strings');
+import {Emitter} from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import {CONTEXT as ToolBarContext, ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
@@ -50,6 +51,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private contentAreaSize: Dimension;
 	private telemetryActionsListener: IDisposable;
 	private currentCompositeOpenToken: string;
+	protected _onDidCompositeOpen = new Emitter<IComposite>();
+	protected _onDidCompositeClose = new Emitter<IComposite>();
 
 	constructor(
 		private messageService: IMessageService,
@@ -146,6 +149,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					return composite;
 				});
 			});
+		}).then(composite => {
+			if (composite) {
+				this._onDidCompositeOpen.fire(composite);
+			}
+
+			return composite;
 		});
 	}
 
@@ -177,7 +186,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 					// Remove from Promises Cache since Loaded
 					delete this.compositeLoaderPromises[id];
-					progressService.dispose();
 
 					return composite;
 				});
@@ -390,6 +398,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Empty Actions
 			this.toolBar.setActions([])();
+			this._onDidCompositeClose.fire(composite);
 
 			return composite;
 		});

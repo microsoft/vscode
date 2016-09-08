@@ -74,20 +74,12 @@
 
 /* Allign twistie since repl tree is smaller and sometimes has paired elements */
 
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:before {
-	top: 6px;
-}
-
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:after {
+.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row.has-children > .content.input-output-pair:before {
 	top: 8px;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row.has-children > .content.input-output-pair:before {
-	top: 23px;
-}
-
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row.has-children > .content.input-output-pair:after {
-	top: 25px;
+	top: 10px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper {
@@ -115,11 +107,6 @@
 /* Only show 'stale expansion' info when the element gets expanded. */
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row:not(.expanded) > .content.input-output-pair > .output > .annotation::before  {
 	content: '';
-}
-
-.monaco-workbench .repl .repl-input-wrapper .monaco-editor .current-line {
-	/* Hide selected line highlight */
-	border: none;
 }
 
 .hc-black .monaco-workbench .repl .repl-input-wrapper {

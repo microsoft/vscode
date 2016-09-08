@@ -13,16 +13,6 @@ import {Event} from 'vs/base/common/events';
 export class EventType {
 
 	/**
-	 * Event type for when an untitled file is becoming dirty.
-	 */
-	static UNTITLED_FILE_DIRTY = 'untitledFileDirty';
-
-	/**
-	 * Event type for when an untitled file is saved.
-	 */
-	static UNTITLED_FILE_SAVED = 'untitledFileSaved';
-
-	/**
 	 * Event type for when a resources encoding changes.
 	 */
 	static RESOURCE_ENCODING_CHANGED = 'resourceEncodingChanged';
@@ -36,8 +26,4 @@ export class ResourceEvent extends Event {
 
 		this.resource = resource;
 	}
-}
-
-export class UntitledEditorEvent extends ResourceEvent {
-	// No new methods
 }

@@ -105,10 +105,6 @@ export class Model extends EditableTextModel implements IModel {
 		// console.log('ALIVE MODELS: ' + Object.keys(aliveModels).join('\n'));
 	}
 
-	public getModeId(): string {
-		return this.getMode().getId();
-	}
-
 	public destroy(): void {
 		this.dispose();
 	}

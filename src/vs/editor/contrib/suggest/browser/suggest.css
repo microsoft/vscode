@@ -9,6 +9,7 @@
 	font-size: 12px;
 	border: 1px solid rgb(200, 200, 200);
 	z-index: 40;
+	width: 438px;
 }
 
 .monaco-editor .suggest-widget.visible {

@@ -85,10 +85,10 @@ export class FileDataSource implements IDataSource {
 		else {
 
 			// Resolve
-			let promise = this.fileService.resolveFile(stat.resource, { resolveSingleChildDescendants: true }).then((dirStat: IFileStat) => {
+			const promise = this.fileService.resolveFile(stat.resource, { resolveSingleChildDescendants: true }).then(dirStat => {
 
 				// Convert to view model
-				let modelDirStat = FileStat.create(dirStat);
+				const modelDirStat = FileStat.create(dirStat);
 
 				// Add children to folder
 				for (let i = 0; i < modelDirStat.children.length; i++) {
@@ -182,7 +182,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		}, context);
 
 		if (!isString(arg)) {
-			let action = <IAction>arg;
+			const action = <IAction>arg;
 			if (action.enabled) {
 				return action.run(context);
 			}
@@ -190,7 +190,7 @@ export class FileActionProvider extends ContributableActionProvider {
 			return null;
 		}
 
-		let id = <string>arg;
+		const id = <string>arg;
 		let promise = this.hasActions(tree, stat) ? this.getActions(tree, stat) : TPromise.as([]);
 
 		return promise.then((actions: IAction[]) => {
@@ -307,10 +307,10 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	}
 
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-		let el = $(domElement).clearChildren();
+		const el = $(domElement).clearChildren();
 
 		// Item Container
-		let item = $('.explorer-item');
+		const item = $('.explorer-item');
 		if (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) {
 			item.addClass(...this.folderIconClasses(stat.resource.fsPath));
 		} else {
@@ -325,7 +325,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		item.appendTo(el);
 
 		// File/Folder label
-		let editableData: IEditableData = this.state.getEditableData(stat);
+		const editableData: IEditableData = this.state.getEditableData(stat);
 		if (!editableData) {
 			return this.renderFileFolderLabel(item, stat);
 		}
@@ -335,7 +335,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	}
 
 	private renderFileFolderLabel(container: Builder, stat: IFileStat): IElementCallback {
-		let label = $('.explorer-item-label').appendTo(container);
+		const label = $('.explorer-item-label').appendTo(container);
 		$('a.plain').text(stat.name).title(stat.resource.fsPath).appendTo(label);
 
 		return null;
@@ -344,7 +344,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	private renderNameInput(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
 
 		// Input field (when creating a new file or folder or renaming)
-		let inputBox = new InputBox(container.getHTMLElement(), this.contextViewService, {
+		const inputBox = new InputBox(container.getHTMLElement(), this.contextViewService, {
 			validationOptions: {
 				validation: editableData.validator,
 				showMessage: true
@@ -352,14 +352,14 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 			ariaLabel: nls.localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
 		});
 
-		let value = stat.name || '';
-		let lastDot = value.lastIndexOf('.');
+		const value = stat.name || '';
+		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		let done = async.once(commit => {
+		const done = async.once(commit => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
@@ -489,8 +489,8 @@ export class FileController extends DefaultController {
 	}
 
 	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
-		let payload = { origin: origin };
-		let isDoubleClick = (origin === 'mouse' && event.detail === 2);
+		const payload = { origin: origin };
+		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
 		// Handle Highlight Mode
 		if (tree.getHighlight()) {
@@ -513,7 +513,7 @@ export class FileController extends DefaultController {
 		}
 
 		// Cancel Event
-		let isMouseDown = event && event.browserEvent && event.browserEvent.type === 'mousedown';
+		const isMouseDown = event && event.browserEvent && event.browserEvent.type === 'mousedown';
 		if (!isMouseDown) {
 			event.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
 		}
@@ -527,7 +527,7 @@ export class FileController extends DefaultController {
 
 		// Allow to unselect
 		if (event.shiftKey && !(stat instanceof NewStatPlaceholder)) {
-			let selection = tree.getSelection();
+			const selection = tree.getSelection();
 			if (selection && selection.length > 0 && selection[0] === stat) {
 				tree.clearSelection(payload);
 			}
@@ -535,7 +535,7 @@ export class FileController extends DefaultController {
 
 		// Select, Focus and open files
 		else if (!(stat instanceof NewStatPlaceholder)) {
-			let preserveFocus = !isDoubleClick;
+			const preserveFocus = !isDoubleClick;
 			tree.setFocus(stat, payload);
 
 			if (isDoubleClick) {
@@ -566,7 +566,7 @@ export class FileController extends DefaultController {
 			return true;
 		}
 
-		let anchor = { x: event.posx + 1, y: event.posy };
+		const anchor = { x: event.posx + 1, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {
@@ -598,9 +598,9 @@ export class FileController extends DefaultController {
 			return false;
 		}
 
-		let payload = { origin: 'keyboard' };
+		const payload = { origin: 'keyboard' };
 
-		let stat: FileStat = tree.getFocus();
+		const stat: FileStat = tree.getFocus();
 		if (stat) {
 
 			// Directory: Toggle expansion
@@ -625,7 +625,7 @@ export class FileController extends DefaultController {
 			return false;
 		}
 
-		let stat: FileStat = tree.getFocus();
+		const stat: FileStat = tree.getFocus();
 		if (stat && !stat.isDirectory) {
 			this.openEditor(stat, false, false);
 		}
@@ -640,7 +640,7 @@ export class FileController extends DefaultController {
 			return false;
 		}
 
-		let stat: FileStat = tree.getFocus();
+		const stat: FileStat = tree.getFocus();
 		if (stat && !stat.isDirectory) {
 			this.openEditor(stat, false, true);
 		}
@@ -651,7 +651,7 @@ export class FileController extends DefaultController {
 	}
 
 	private onCopy(tree: ITree, event: IKeyboardEvent): boolean {
-		let stat: FileStat = tree.getFocus();
+		const stat: FileStat = tree.getFocus();
 		if (stat) {
 			this.runAction(tree, stat, 'workbench.files.action.copyFile').done();
 
@@ -662,9 +662,9 @@ export class FileController extends DefaultController {
 	}
 
 	private onPaste(tree: ITree, event: IKeyboardEvent): boolean {
-		let stat: FileStat = tree.getFocus() || tree.getInput() /* root */;
+		const stat: FileStat = tree.getFocus() || tree.getInput() /* root */;
 		if (stat) {
-			let pasteAction = this.instantiationService.createInstance(PasteFileAction, tree, stat);
+			const pasteAction = this.instantiationService.createInstance(PasteFileAction, tree, stat);
 			if (pasteAction._isEnabled()) {
 				pasteAction.run().done(null, errors.onUnexpectedError);
 
@@ -685,7 +685,7 @@ export class FileController extends DefaultController {
 	}
 
 	private onF2(tree: ITree, event: IKeyboardEvent): boolean {
-		let stat: FileStat = tree.getFocus();
+		const stat: FileStat = tree.getFocus();
 
 		if (stat) {
 			this.runAction(tree, stat, 'workbench.files.action.triggerRename').done();
@@ -697,8 +697,8 @@ export class FileController extends DefaultController {
 	}
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		let useTrash = !event.shiftKey;
-		let stat: FileStat = tree.getFocus();
+		const useTrash = !event.shiftKey;
+		const stat: FileStat = tree.getFocus();
 		if (stat) {
 			this.runAction(tree, stat, useTrash ? 'workbench.files.action.moveFileToTrash' : 'workbench.files.action.deleteFile').done();
 
@@ -753,8 +753,8 @@ export class FileFilter implements IFilter {
 	}
 
 	public updateConfiguration(configuration: IFilesConfiguration): boolean {
-		let excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
-		let needsRefresh = !objects.equals(this.hiddenExpression, excludesConfig);
+		const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+		const needsRefresh = !objects.equals(this.hiddenExpression, excludesConfig);
 
 		this.hiddenExpression = objects.clone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
@@ -817,11 +817,15 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public getDragURI(tree: ITree, stat: FileStat): string {
-		return stat.resource && stat.resource.toString();
+		if (stat.isDirectory) {
+			return URI.from({ scheme: 'folder', path: stat.resource.fsPath }).toString(); // indicates that we are dragging a folder
+		}
+
+		return stat.resource.toString();
 	}
 
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
-		let sources: FileStat[] = data.getData();
+		const sources: FileStat[] = data.getData();
 		let source: FileStat = null;
 		if (sources.length > 0) {
 			source = sources[0];
@@ -846,20 +850,20 @@ export class FileDragAndDrop implements IDragAndDrop {
 			return DRAG_OVER_REJECT;
 		}
 
-		let isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
-		let fromDesktop = data instanceof DesktopDragAndDropData;
+		const isCopy = originalEvent && ((originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh));
+		const fromDesktop = data instanceof DesktopDragAndDropData;
 
 		// Desktop DND
 		if (fromDesktop) {
-			let dragData = (<DesktopDragAndDropData>data).getData();
+			const dragData = (<DesktopDragAndDropData>data).getData();
 
-			let types = dragData.types;
-			let typesArray: string[] = [];
+			const types = dragData.types;
+			const typesArray: string[] = [];
 			for (let i = 0; i < types.length; i++) {
 				typesArray.push(types[i]);
 			}
 
-			if (typesArray.length === 0 || !typesArray.some((type) => { return type === 'Files'; })) {
+			if (typesArray.length === 0 || !typesArray.some(type => { return type === 'Files'; })) {
 				return DRAG_OVER_REJECT;
 			}
 		}
@@ -871,7 +875,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 		// In-Explorer DND
 		else {
-			let sources: FileStat[] = data.getData();
+			const sources: FileStat[] = data.getData();
 			if (!Array.isArray(sources)) {
 				return DRAG_OVER_REJECT;
 			}
@@ -916,7 +920,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			let importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
+			const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
 			promise = importAction.run({
 				input: {
 					files: <FileList>(<DesktopDragAndDropData>data).getData().files
@@ -926,14 +930,14 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 		// In-Explorer DND (Move/Copy file)
 		else {
-			let source: FileStat = data.getData()[0];
-			let isCopy = (originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh);
+			const source: FileStat = data.getData()[0];
+			const isCopy = (originalEvent.ctrlKey && !platform.isMacintosh) || (originalEvent.altKey && platform.isMacintosh);
 
 			promise = tree.expand(target).then(() => {
 
 				// Reuse action if user copies
 				if (isCopy) {
-					let copyAction = this.instantiationService.createInstance(DuplicateFileAction, tree, source, target);
+					const copyAction = this.instantiationService.createInstance(DuplicateFileAction, tree, source, target);
 					return copyAction.run();
 				}
 
@@ -967,29 +971,29 @@ export class FileDragAndDrop implements IDragAndDrop {
 				}
 
 				return revertPromise.then(() => {
-					let targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
+					const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
 					let didHandleConflict = false;
 
-					let onMove = (result: IFileStat) => {
+					const onMove = (result: IFileStat) => {
 						this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(source.clone(), result));
 					};
 
 					// Move File/Folder and emit event
-					return this.fileService.moveFile(source.resource, targetResource).then(onMove, (error) => {
+					return this.fileService.moveFile(source.resource, targetResource).then(onMove, error => {
 
 						// Conflict
 						if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 							didHandleConflict = true;
 
-							let confirm: IConfirmation = {
+							const confirm: IConfirmation = {
 								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
 								detail: nls.localize('irreversible', "This action is irreversible!"),
 								primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
 							};
 
 							if (this.messageService.confirm(confirm)) {
-								return this.fileService.moveFile(source.resource, targetResource, true).then((result) => {
-									let fakeTargetState = new FileStat(targetResource);
+								return this.fileService.moveFile(source.resource, targetResource, true).then(result => {
+									const fakeTargetState = new FileStat(targetResource);
 									this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(fakeTargetState, null));
 
 									onMove(result);

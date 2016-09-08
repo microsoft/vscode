@@ -10,7 +10,7 @@ import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { parseMainProcessArgv, ParsedArgs } from 'vs/code/node/argv';
+import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
@@ -69,14 +69,14 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
-	const configurationService = <ConfigurationService<any>>accessor.get(IConfigurationService);
+	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
 		if (err) {
 
 			// take only the message and stack property
-			let friendlyError = {
+			const friendlyError = {
 				message: err.message,
 				stack: err.stack
 			};

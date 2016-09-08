@@ -157,11 +157,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 			id: 'editor.action.sortLinesAscending',
 			label: nls.localize('lines.sortAscending', "Sort Lines Ascending"),
 			alias: 'Sort Lines Ascending',
-			precondition: EditorContextKeys.Writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
-			}
+			precondition: EditorContextKeys.Writable
 		});
 	}
 }
@@ -173,11 +169,7 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 			id: 'editor.action.sortLinesDescending',
 			label: nls.localize('lines.sortDescending', "Sort Lines Descending"),
 			alias: 'Sort Lines Descending',
-			precondition: EditorContextKeys.Writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
-			}
+			precondition: EditorContextKeys.Writable
 		});
 	}
 }

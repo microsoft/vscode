@@ -18,7 +18,7 @@ import mouse = require('vs/base/browser/mouseEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import {CodeEditor} from 'vs/editor/browser/codeEditor';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debugviewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
@@ -121,7 +121,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		const lines = s.split(/\r\n|\r|\n/g);
+		const lines = s.trim().split(/\r\n|\r|\n/g);
 		const numLines = lines.reduce((lineCount: number, line: string) => {
 			let lineLength = 0;
 			for (let i = 0; i < line.length; i++) {
@@ -487,7 +487,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 		debugService: debug.IDebugService,
 		contextMenuService: IContextMenuService,
 		actionProvider: renderer.IActionProvider,
-		private replInput: CodeEditor,
+		private replInput: ICodeEditor,
 		focusOnContextMenu = true
 	) {
 		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);

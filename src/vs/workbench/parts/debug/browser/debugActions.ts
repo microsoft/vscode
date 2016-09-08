@@ -142,12 +142,12 @@ export class RestartAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action restart', debugService, keybindingService);
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			const session = this.debugService.getActiveSession();
-			if (session) {
-				this.updateLabel(session.configuration.isAttach ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
-			}
-		}));
+		this.setLabel(this.debugService.getConfigurationManager().configuration);
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidConfigurationChange(config => this.setLabel(config)));
+	}
+
+	private setLabel(config: debug.IConfig): void {
+		this.updateLabel(config.request === 'attach' ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
 	public run(): TPromise<any> {
@@ -273,8 +273,7 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: debug.State): boolean {
-		const session = this.debugService.getActiveSession();
-		return super.isEnabled(state) && state !== debug.State.Inactive && session && session.configuration.isAttach;
+		return super.isEnabled(state) && state !== debug.State.Inactive;
 	}
 }
 
@@ -615,7 +614,7 @@ class RunToCursorAction extends EditorAction {
 			id: 'editor.debug.action.runToCursor',
 			label: nls.localize('runToCursor', "Debug: Run to Cursor"),
 			alias: 'Debug: Run to Cursor',
-			precondition: debug.CONTEXT_IN_DEBUG_MODE,
+			precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 2
@@ -676,7 +675,7 @@ class SelectionToReplAction extends EditorAction {
 			id: 'editor.debug.action.selectionToRepl',
 			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
 			alias: 'Debug: Evaluate',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
+			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 0
@@ -703,7 +702,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 			id: 'editor.debug.action.selectionToWatch',
 			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE),
+			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, debug.CONTEXT_IN_DEBUG_MODE, debug.CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 1

@@ -14,6 +14,7 @@
 	"continueDebug": "Continuar",
 	"deactivateBreakpoints": "Desactivar puntos de interrupción",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugAddToWatch": "Depuración: Agregar a inspección",
 	"debugConsoleAction": "Consola de depuración",
 	"debugEvaluate": "Depuración: Evaluar",
 	"disableAllBreakpoints": "Deshabilitar todos los puntos de interrupción",

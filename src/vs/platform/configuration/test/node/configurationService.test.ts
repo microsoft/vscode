@@ -12,9 +12,8 @@ import fs = require('fs');
 
 import {Registry} from 'vs/platform/platform';
 import {ConfigurationService} from 'vs/platform/configuration/node/configurationService';
-import {ParsedArgs} from 'vs/code/node/argv';
+import {ParsedArgs, parseArgs} from 'vs/platform/environment/node/argv';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
-import {parseArgs} from 'vs/code/node/argv';
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';

@@ -139,7 +139,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
 		'',
-		nls.localize('openAnythingHandlerDescription', "Open Files and Global Symbols by Name")
+		nls.localize('openAnythingHandlerDescription', "Open Files by Name")
 	)
 );
 
@@ -195,6 +195,11 @@ configurationRegistry.registerConfiguration({
 					}
 				]
 			}
+		},
+		'search.quickOpen.includeSymbols': {
+			'type': 'boolean',
+			'description': nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for Quick Open."),
+			'default': false
 		}
 	}
 });

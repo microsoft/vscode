@@ -905,12 +905,12 @@ export class ReopenClosedEditorAction extends Action {
 
 		// Find an editor that was closed and is currently not opened in the group
 		let lastClosedEditor = this.historyService.popLastClosedEditor();
-		while (lastClosedEditor && stacks.activeGroup && stacks.activeGroup.indexOf(lastClosedEditor) >= 0) {
+		while (lastClosedEditor && stacks.activeGroup && stacks.activeGroup.indexOf(lastClosedEditor.editor) >= 0) {
 			lastClosedEditor = this.historyService.popLastClosedEditor();
 		}
 
 		if (lastClosedEditor) {
-			this.editorService.openEditor(lastClosedEditor, { pinned: true });
+			this.editorService.openEditor(lastClosedEditor.editor, { pinned: true, index: lastClosedEditor.index });
 		}
 
 		return TPromise.as(false);

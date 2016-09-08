@@ -13,7 +13,7 @@ import {TextEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/wor
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {UntitledEditorEvent, EventType} from 'vs/workbench/common/events';
+import URI from 'vs/base/common/uri';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -23,6 +23,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 /**
  * An editor implementation that is capable of showing string inputs or promise inputs that resolve to a string.
@@ -43,17 +44,20 @@ export class StringEditor extends BaseTextEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(StringEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
 
 		this.mapResourceToEditorViewState = Object.create(null);
 
-		this.toUnbind.push(this.eventService.addListener2(EventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onUntitledSavedEvent(e)));
+		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDirtyChange(e)));
 	}
 
-	private onUntitledSavedEvent(e: UntitledEditorEvent): void {
-		delete this.mapResourceToEditorViewState[e.resource.toString()];
+	private onUntitledDirtyChange(resource: URI): void {
+		if (!this.untitledEditorService.isDirty(resource)) {
+			delete this.mapResourceToEditorViewState[resource.toString()]; // untitled file got reverted, so remove view state
+		}
 	}
 
 	public getTitle(): string {
@@ -150,11 +154,14 @@ export class StringEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
+	 * If smart reveal is true will only reveal the last line if the line before last is visible #3351
 	 */
-	public revealLastLine(): void {
+	public revealLastLine(smartReveal = false): void {
 		let codeEditor = <ICodeEditor>this.getControl();
 		let model = codeEditor.getModel();
-		if (model) {
+		const lineBeforeLastRevealed = codeEditor.getScrollTop() + codeEditor.getLayoutInfo().height >= codeEditor.getScrollHeight();
+
+		if (model && (!smartReveal || lineBeforeLastRevealed)) {
 			let lastLine = model.getLineCount();
 			codeEditor.revealLine(lastLine);
 		}

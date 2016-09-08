@@ -14,6 +14,10 @@
 	color: deepskyblue;
 }
 
+.monaco-editor-hover p {
+	margin: 0;
+}
+
 /*.monaco-editor.vs [tabindex="0"]:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4);
 	outline-offset: -1px;

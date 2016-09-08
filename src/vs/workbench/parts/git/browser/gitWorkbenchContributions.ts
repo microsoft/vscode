@@ -24,11 +24,10 @@ import wbar = require('vs/workbench/common/actionRegistry');
 import gitoutput = require('vs/workbench/parts/git/browser/gitOutput');
 import output = require('vs/workbench/parts/output/common/output');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import confregistry = require('vs/platform/configuration/common/configurationRegistry');
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import quickopen = require('vs/workbench/browser/quickopen');
-import editorcontrib = require('vs/workbench/parts/git/browser/gitEditorContributions');
+import 'vs/workbench/parts/git/browser/gitEditorContributions';
 import {IActivityService, ProgressBadge, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -497,9 +496,6 @@ export function registerContributions(): void {
 		'View: Show Git',
 		nls.localize('view', "View")
 	);
-
-	// Register MergeDecorator
-	EditorBrowserRegistry.registerEditorContribution(editorcontrib.MergeDecorator);
 
 	// Register StatusUpdater
 	(<ext.IWorkbenchContributionsRegistry>platform.Registry.as(ext.Extensions.Workbench)).registerWorkbenchContribution(

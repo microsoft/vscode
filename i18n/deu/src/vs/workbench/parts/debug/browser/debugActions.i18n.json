@@ -14,6 +14,7 @@
 	"continueDebug": "Weiter",
 	"deactivateBreakpoints": "Haltepunkte deaktivieren",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugAddToWatch": "Debuggen: Zur Überwachung hinzufügen",
 	"debugConsoleAction": "Debugkonsole",
 	"debugEvaluate": "Debuggen: Auswerten",
 	"disableAllBreakpoints": "Alle Haltepunkte deaktivieren",

@@ -14,7 +14,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {OutputService} from 'vs/workbench/parts/output/browser/outputServices';
-import {ToggleOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
+import {ToggleOutputAction, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {OUTPUT_MIME, OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
 import panel = require('vs/workbench/browser/panel');
 import {EditorContextKeys} from 'vs/editor/common/editorCommon';
@@ -25,13 +25,11 @@ import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 registerSingleton(IOutputService, OutputService);
 
 // Register Output Mode
-ModesRegistry.registerCompatMode({
+ModesRegistry.registerLanguage({
 	id: OUTPUT_MODE_ID,
 	extensions: [],
 	aliases: [null],
-	mimetypes: [OUTPUT_MIME],
-	moduleId: 'vs/workbench/parts/output/common/outputMode',
-	ctorName: 'OutputMode'
+	mimetypes: [OUTPUT_MIME]
 });
 
 // Register Output Panel
@@ -52,6 +50,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 	}
 }), 'View: Toggle Output', nls.localize('viewCategory', "View"));
 
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
+	'View: Clear Output', nls.localize('viewCategory', "View"));
 
 interface IActionDescriptor {
 	id: string;

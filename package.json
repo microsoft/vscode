@@ -1,7 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "electronVersion": "0.37.6",
+  "distro": "221e07c30a60acb4752cc6ba35e5ac4481d8b9d5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -15,8 +16,9 @@
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
-    "chokidar": "1.0.5",
+    "chokidar": "bpasero/chokidar#vscode",
     "emmet": "1.3.1",
+    "gc-signals": "^0.0.1",
     "getmac": "1.0.7",
     "graceful-fs": "4.1.2",
     "http-proxy-agent": "0.2.7",
@@ -27,7 +29,7 @@
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
     "fast-plist": "0.1.1",
     "semver": "4.3.6",
-    "vscode-debugprotocol": "1.11.0",
+    "vscode-debugprotocol": "1.13.0-pre.3",
     "vscode-textmate": "2.1.1",
     "winreg": "1.2.0",
     "xterm": "git+https://github.com/sourcelair/xterm.js.git#220828f",
@@ -42,6 +44,7 @@
     "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
+    "eslint": "^3.4.0",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
     "ghooks": "1.0.3",
@@ -61,7 +64,6 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.6.0",
-    "gulp-symdest": "^1.0.0",
     "gulp-tsb": "^1.10.1",
     "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^1.4.1",
@@ -89,6 +91,7 @@
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
+    "vinyl-fs": "^2.4.3",
     "vscode-nls-dev": "^1.0.0"
   },
   "repository": {

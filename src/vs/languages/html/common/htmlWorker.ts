@@ -12,7 +12,7 @@ import network = require('vs/base/common/network');
 import editorCommon = require('vs/editor/common/editorCommon');
 import modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
-import {IResourceService} from 'vs/editor/common/services/resourceService';
+import {IResourceService, ICompatMirrorModel} from 'vs/editor/common/services/resourceService';
 import {getScanner, IHTMLScanner} from 'vs/languages/html/common/htmlScanner';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
@@ -35,7 +35,8 @@ export class HTMLWorker {
 	private resourceService:IResourceService;
 	private _modeId: string;
 	private _tagProviders: htmlTags.IHTMLTagProvider[];
-	private formatSettings: IHTMLFormatConfiguration;
+	private _formatSettings: IHTMLFormatConfiguration;
+	private _providerConfiguration: {[providerId:string]:boolean};
 
 	constructor(
 		modeId: string,
@@ -49,11 +50,20 @@ export class HTMLWorker {
 		this._tagProviders.push(htmlTags.getHTML5TagProvider());
 
 		this.addCustomTagProviders(this._tagProviders);
+
+		this._providerConfiguration = null;
 	}
 
 	protected addCustomTagProviders(providers: htmlTags.IHTMLTagProvider[]): void {
 		providers.push(htmlTags.getAngularTagProvider());
 		providers.push(htmlTags.getIonicTagProvider());
+	}
+
+	private getTagProviders(): htmlTags.IHTMLTagProvider[] {
+		if (this._modeId !== 'html' || !this._providerConfiguration) {
+			return this._tagProviders;
+		}
+		return this._tagProviders.filter(p => !!this._providerConfiguration[p.getId()]);
 	}
 
 	public provideDocumentRangeFormattingEdits(resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
@@ -86,8 +96,8 @@ export class HTMLWorker {
 	}
 
 	private getFormatOption(key: string, dflt: any): any {
-		if (this.formatSettings && this.formatSettings.hasOwnProperty(key)) {
-			let value = this.formatSettings[key];
+		if (this._formatSettings && this._formatSettings.hasOwnProperty(key)) {
+			let value = this._formatSettings[key];
 			if (value !== null) {
 				return value;
 			}
@@ -107,7 +117,10 @@ export class HTMLWorker {
 	}
 
 	_doConfigure(options: IHTMLConfiguration): winjs.TPromise<void> {
-		this.formatSettings = options && options.format;
+		this._formatSettings = options && options.format;
+		if (options && options.suggest) {
+			this._providerConfiguration = options.suggest;
+		}
 		return winjs.TPromise.as(null);
 	}
 
@@ -172,7 +185,7 @@ export class HTMLWorker {
 		if (scanner.getTokenType() === DELIM_END && scanner.getTokenRange().endColumn === position.column) {
 			let hasClose = collectClosingTagSuggestion(suggestions.currentWord.length + 1);
 			if (!hasClose) {
-				this._tagProviders.forEach((provider) => {
+				this.getTagProviders().forEach((provider) => {
 					provider.collectTags((tag, label) => {
 						suggestions.suggestions.push({
 							label: '/' + tag,
@@ -188,7 +201,7 @@ export class HTMLWorker {
 		} else {
 			collectClosingTagSuggestion(suggestions.currentWord.length);
 
-			this._tagProviders.forEach((provider) => {
+			this.getTagProviders().forEach((provider) => {
 				provider.collectTags((tag, label) => {
 					suggestions.suggestions.push({
 						label: tag,
@@ -219,7 +232,7 @@ export class HTMLWorker {
 			}
 		} while (scanner.scanBack());
 
-		this._tagProviders.forEach((provider) => {
+		this.getTagProviders().forEach((provider) => {
 			provider.collectAttributes(parentTag,(attribute, type) => {
 				let codeSnippet = attribute;
 				if (type !== 'v') {
@@ -256,7 +269,7 @@ export class HTMLWorker {
 			}
 		}
 
-		this._tagProviders.forEach((provider) => {
+		this.getTagProviders().forEach((provider) => {
 			provider.collectValues(parentTag, attribute,(value) => {
 				suggestions.suggestions.push({
 					label: value,
@@ -406,7 +419,6 @@ export class HTMLWorker {
 	public provideDocumentHighlights(resource:URI, position:editorCommon.IPosition, strict:boolean = false): winjs.TPromise<modes.DocumentHighlight[]> {
 		let model = this.resourceService.get(resource),
 			wordAtPosition = model.getWordAtPosition(position),
-			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
 			result:modes.DocumentHighlight[] = [];
 
 
@@ -425,14 +437,12 @@ export class HTMLWorker {
 				});
 			}
 		} else {
-			let words = model.getAllWordsWithRange(),
-				upperBound = Math.min(1000, words.length); // Limit find occurences to 1000 occurences
-
-			for(let i = 0; i < upperBound; i++) {
-				if(words[i].text === currentWord) {
+			if (wordAtPosition) {
+				let results = model.findMatches(wordAtPosition.word, false, false, true, true);
+				for (let i = 0, len = results.length; i < len; i++) {
 					result.push({
-						range: words[i].range,
-					kind: modes.DocumentHighlightKind.Read
+						range: results[i],
+						kind: modes.DocumentHighlightKind.Read
 					});
 				}
 			}
@@ -510,11 +520,10 @@ export class HTMLWorker {
 		};
 	}
 
-	private _computeHTMLLinks(model: editorCommon.IMirrorModel, workspaceResource:URI): modes.ILink[] {
+	private _computeHTMLLinks(model: ICompatMirrorModel, modelAbsoluteUrl:URI, workspaceResource:URI): modes.ILink[] {
 		let lineCount = model.getLineCount(),
 			newLinks: modes.ILink[] = [],
 			state: LinkDetectionState = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC,
-			modelAbsoluteUrl = model.uri,
 			lineNumber: number,
 			lineContent: string,
 			lineContentLength: number,
@@ -590,7 +599,7 @@ export class HTMLWorker {
 
 	public provideLinks(resource: URI, workspaceResource:URI): winjs.TPromise<modes.ILink[]> {
 		let model = this.resourceService.get(resource);
-		return winjs.TPromise.as(this._computeHTMLLinks(model, workspaceResource));
+		return winjs.TPromise.as(this._computeHTMLLinks(model, resource, workspaceResource));
 	}
 }
 

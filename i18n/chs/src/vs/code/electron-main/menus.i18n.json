@@ -79,7 +79,7 @@
 	"miSaveAll": "全部保存(&&L)",
 	"miSaveAs": "另存为(&&A)...",
 	"miSelectAll": "全选(&&S)",
-	"miSelectTheme": "颜色主题(&&C)",
+	"miSelectColorTheme": "颜色主题(&&C)",
 	"miSplitEditor": "拆分编辑器(&&E)",
 	"miSwitchEditor": "切换编辑器(&&E)",
 	"miSwitchGroup": "切换组(&&G)",

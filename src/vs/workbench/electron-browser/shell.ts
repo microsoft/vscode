@@ -15,6 +15,7 @@ import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
 import {dispose, IDisposable, Disposables} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
@@ -35,7 +36,6 @@ import {MessageService} from 'vs/workbench/services/message/electron-browser/mes
 import {IRequestService} from 'vs/platform/request/common/request';
 import {RequestService} from 'vs/platform/request/node/requestService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
@@ -55,7 +55,6 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IFileService} from 'vs/platform/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
@@ -147,7 +146,7 @@ export class WorkbenchShell {
 		const workbenchContainer = $(parent).div();
 
 		// Instantiation service with services
-		const [instantiationService, serviceCollection] = this.initServiceCollection();
+		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		//crash reporting
 		if (!!product.crashReporter) {
@@ -209,7 +208,7 @@ export class WorkbenchShell {
 		}
 	}
 
-	private initServiceCollection(): [InstantiationService, ServiceCollection] {
+	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
 		const sharedProcess = connectNet(process.env['VSCODE_SHARED_IPC_HOOK']);
@@ -272,11 +271,8 @@ export class WorkbenchShell {
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 
-		this.messageService = instantiationService.createInstance(MessageService);
+		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
-
-		const fileService = disposables.add(instantiationService.createInstance(FileService));
-		serviceCollection.set(IFileService, fileService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
@@ -411,7 +407,7 @@ export class WorkbenchShell {
 	}
 
 	public onUnexpectedError(error: any): void {
-		const errorMsg = errors.toErrorMessage(error, true);
+		const errorMsg = toErrorMessage(error, true);
 		if (!errorMsg) {
 			return;
 		}
@@ -433,7 +429,7 @@ export class WorkbenchShell {
 		}
 	}
 
-	public layout(): void {
+	private layout(): void {
 		const clArea = $(this.container).getClientArea();
 
 		const contentsSize = new Dimension(clArea.width, clArea.height);

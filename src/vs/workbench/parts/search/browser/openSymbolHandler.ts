@@ -143,12 +143,13 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		let promise: TPromise<QuickOpenEntry[]>;
-
 		// Respond directly to empty search
 		if (!searchValue) {
-			promise = TPromise.as([]);
-		} else if (!this.options.skipDelay) {
+			return TPromise.as(new QuickOpenModel([]));
+		}
+
+		let promise: TPromise<QuickOpenEntry[]>;
+		if (!this.options.skipDelay) {
 			promise = this.delayer.trigger(() => this.doGetResults(searchValue)); // Run search with delay as needed
 		} else {
 			promise = this.doGetResults(searchValue);
@@ -179,7 +180,6 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 		// Convert to Entries
 		for (let element of types) {
-
 			if (this.options.skipLocalSymbols && !!element.containerName) {
 				continue; // ignore local symbols if we are told so
 			}

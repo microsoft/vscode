@@ -20,7 +20,8 @@ interface IEmmetConfiguration {
 	emmet: {
 		preferences: any;
 		syntaxProfiles: any;
-		triggerExpansionOnTab: boolean
+		triggerExpansionOnTab: boolean,
+		excludeLanguages: string[]
 	};
 }
 
@@ -89,27 +90,18 @@ class LazyEmmet {
 	}
 
 	private updateEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet) {
-		let preferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		for (let key in preferences) {
-			try {
-				_emmet.preferences.set(key, preferences[key]);
-			} catch (err) {
-				_emmet.preferences.define(key, preferences[key]);
-			}
+		let emmetPreferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet;
+		try {
+			_emmet.loadPreferences(emmetPreferences.preferences);
+			_emmet.loadProfiles(emmetPreferences.syntaxProfiles);
+		} catch (err) {
+			// ignore
 		}
-		let syntaxProfiles = configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles;
-		_emmet.profile.reset();
-		_emmet.loadProfiles(syntaxProfiles);
 	}
 
 	private resetEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet) {
-		let preferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet.preferences;
-		for (let key in preferences) {
-			try {
-				_emmet.preferences.remove(key);
-			} catch (err) {
-			}
-		}
+		_emmet.preferences.reset();
+		_emmet.profile.reset();
 	}
 
 	private _withEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet, callback: (_emmet: typeof emmet) => void): void {
@@ -149,6 +141,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		let editorAccessor = new EditorAccessor(
 			editor,
 			configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles,
+			configurationService.getConfiguration<IEmmetConfiguration>().emmet.excludeLanguages,
 			new GrammarContributions()
 		);
 

@@ -233,6 +233,34 @@ suite('SearchModel', () => {
 		assert.ok(target.calledOnce);
 	});
 
+	test('getReplaceString returns proper replace string for regExpressions', function () {
+		let results= [aRawMatch('file://c:/1', aLineMatch('preview 1', 1, [[1, 3], [4, 7]]))];
+		instantiationService.stub(ISearchService, 'search',  PPromise.as({results: results}));
+
+		let testObject: SearchModel= instantiationService.createInstance(SearchModel);
+		testObject.search({ contentPattern: { pattern: 're' }, type: 1 });
+		testObject.replaceString = 'hello';
+		let match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('hello', match.replaceString);
+
+		testObject.search({ contentPattern: { pattern: 're', isRegExp: true }, type: 1 });
+		match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('hello', match.replaceString);
+
+		testObject.search({ contentPattern: { pattern: 're(?:vi)', isRegExp: true }, type: 1 });
+		match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('hello', match.replaceString);
+
+		testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1 });
+		match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('hello', match.replaceString);
+
+		testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1 });
+		testObject.replaceString = 'hello$1';
+		match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('helloe', match.replaceString);
+	});
+
 	function aRawMatch(resource: string, ...lineMatches: ILineMatch[]): IFileMatch {
 		return { resource: URI.parse(resource), lineMatches };
 	}

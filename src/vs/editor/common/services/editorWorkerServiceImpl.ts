@@ -106,7 +106,7 @@ class WorkerManager extends Disposable {
 	public withWorker(): TPromise<EditorWorkerClient> {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new EditorWorkerClient(this._modelService);
+			this._editorWorkerClient = new EditorWorkerClient(this._modelService, 'editorWorkerService');
 		}
 		return TPromise.as(this._editorWorkerClient);
 	}
@@ -253,10 +253,10 @@ export class EditorWorkerClient extends Disposable {
 	private _workerFactory: DefaultWorkerFactory;
 	private _modelManager: EditorModelManager;
 
-	constructor(modelService: IModelService) {
+	constructor(modelService: IModelService, label:string) {
 		super();
 		this._modelService = modelService;
-		this._workerFactory = new DefaultWorkerFactory(/*do not use iframe*/false);
+		this._workerFactory = new DefaultWorkerFactory(label, /*do not use iframe*/false);
 		this._worker = null;
 		this._modelManager = null;
 	}
@@ -322,7 +322,7 @@ export class EditorWorkerClient extends Disposable {
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getModeId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
@@ -335,7 +335,7 @@ export class EditorWorkerClient extends Disposable {
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getModeId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);

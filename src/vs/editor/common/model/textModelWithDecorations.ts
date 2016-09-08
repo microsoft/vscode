@@ -113,7 +113,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		super.dispose();
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
+	protected _resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my decorations
@@ -289,7 +289,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return result;
 	}
 
-	_withDeferredEvents(callback:(deferredEventsBuilder:DeferredEventsBuilder)=>any): any {
+	protected _withDeferredEvents(callback:(deferredEventsBuilder:DeferredEventsBuilder)=>any): any {
 		return this.deferredEmit(() => {
 			var createDeferredEvents = this._currentDeferredEvents ? false : true;
 			if (createDeferredEvents) {

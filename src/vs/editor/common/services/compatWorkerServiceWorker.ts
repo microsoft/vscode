@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ICompatWorkerService, ICompatMode, IRawModelData} from 'vs/editor/common/services/compatWorkerService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {ILanguageExtensionPoint, IModeService} from 'vs/editor/common/services/modeService';
-import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
+import {ICompatMirrorModelEvents, CompatMirrorModel} from 'vs/editor/common/model/compatMirrorModel';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
@@ -63,7 +63,7 @@ export class CompatWorkerServiceWorker implements ICompatWorkerService {
 
 	private _acceptNewModel(data: IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
-		let mirrorModel = new MirrorModel(data.versionId, data.value, null, data.url);
+		let mirrorModel = new CompatMirrorModel(data.versionId, data.value, null, data.url);
 		this.resourceService.insert(mirrorModel.uri, mirrorModel);
 
 		// Block worker execution until the mode is instantiated
@@ -82,13 +82,13 @@ export class CompatWorkerServiceWorker implements ICompatWorkerService {
 	}
 
 	private _acceptDidDisposeModel(uri: URI): void {
-		let model = <MirrorModel>this.resourceService.get(uri);
+		let model = <CompatMirrorModel>this.resourceService.get(uri);
 		this.resourceService.remove(uri);
 		model.dispose();
 	}
 
-	private _acceptModelEvents(uri: URI, events: IMirrorModelEvents): void {
-		let model = <MirrorModel>this.resourceService.get(uri);
+	private _acceptModelEvents(uri: URI, events: ICompatMirrorModelEvents): void {
+		let model = <CompatMirrorModel>this.resourceService.get(uri);
 		try {
 			model.onEvents(events);
 		} catch (err) {

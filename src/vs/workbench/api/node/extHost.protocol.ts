@@ -31,8 +31,7 @@ import {ConfigurationTarget} from 'vs/workbench/services/configuration/common/co
 
 import {IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
-import {TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent} from './mainThreadEditorsTracker';
-import {EndOfLine} from './extHostTypes';
+import {IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent} from './mainThreadEditorsTracker';
 
 export interface InstanceSetter<T> {
 	set<R extends T>(instance:T): R;
@@ -79,6 +78,7 @@ function ni() { return new Error('Not implemented'); }
 
 export abstract class MainThreadCommandsShape {
 	$registerCommand(id: string): TPromise<any> { throw ni(); }
+	$unregisterCommand(id: string): TPromise<any> { throw ni(); }
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> { throw ni(); }
 	$getCommands(): Thenable<string[]> { throw ni(); }
 }
@@ -110,7 +110,7 @@ export abstract class MainThreadEditorsShape {
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any> { throw ni(); }
 	$tryRevealRange(id: string, range: editorCommon.IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
 	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
-	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], setEndOfLine:EndOfLine): TPromise<boolean> { throw ni(); }
+	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts:IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
@@ -265,6 +265,24 @@ export abstract class ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents) { throw ni(); }
 }
 
+export interface ObjectIdentifier {
+	$ident: number;
+}
+
+export namespace ObjectIdentifier {
+	export function mixin<T>(obj: T, id: number): T & ObjectIdentifier {
+		Object.defineProperty(obj, '$ident', { value: id, enumerable: true });
+		return <T & ObjectIdentifier>obj;
+	}
+	export function get(obj: any): number {
+		return obj['$ident'];
+	}
+}
+
+export abstract class ExtHostHeapServiceShape {
+	$onGarbageCollection(ids: number[]): void { throw ni(); }
+}
+
 export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]> { throw ni(); }
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> { throw ni(); }
@@ -321,6 +339,7 @@ export const ExtHostContext = {
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments', ExtHostDocumentsShape),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ExtHostEditorsShape),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService', ExtHostFileSystemEventServiceShape),
+	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor', ExtHostHeapServiceShape),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen', ExtHostQuickOpenShape),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),

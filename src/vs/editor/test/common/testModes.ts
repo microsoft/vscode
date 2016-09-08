@@ -138,20 +138,6 @@ export class ModelMode2 extends MockMode {
 	}
 }
 
-export class BracketMode extends MockMode {
-
-	constructor() {
-		super();
-		LanguageConfigurationRegistry.register(this.getId(), {
-			brackets: [
-				['{', '}'],
-				['[', ']'],
-				['(', ')'],
-			]
-		});
-	}
-}
-
 export class NState extends AbstractState {
 
 	private n:number;

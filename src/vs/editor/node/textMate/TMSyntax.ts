@@ -10,10 +10,11 @@ import * as paths from 'vs/base/common/paths';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ILineTokens, IMode, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
-import {LineTokens, Token} from 'vs/editor/common/modes/supports';
+import {LineTokens} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IGrammar, Registry, StackElement} from 'vscode-textmate';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -247,11 +248,11 @@ class Tokenizer {
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
 		// Do not attempt to tokenize if a line has over 20k
-		// or if the rule stack contains more than 30 rules (indicator of broken grammar that forgets to pop rules)
-		if (line.length >= 20000 || depth(state.getRuleStack()) > 30) {
+		// or if the rule stack contains more than 100 rules (indicator of broken grammar that forgets to pop rules)
+		if (line.length >= 20000 || depth(state.getRuleStack()) > 100) {
 			return new LineTokens(
 				[new Token(offsetDelta, '')],
-				[new ModeTransition(offsetDelta, state.getMode())],
+				[new ModeTransition(offsetDelta, state.getMode().getId())],
 				offsetDelta,
 				state
 			);
@@ -278,7 +279,7 @@ class Tokenizer {
 
 		return new LineTokens(
 			tokens,
-			[new ModeTransition(offsetDelta, freshState.getMode())],
+			[new ModeTransition(offsetDelta, freshState.getMode().getId())],
 			offsetDelta + line.length,
 			freshState
 		);

@@ -227,7 +227,9 @@ export class WorkerClient {
 	}
 
 	private _postMessage(msg:any): void {
-		this._worker.postMessage(stringify(msg));
+		if (this._worker) {
+			this._worker.postMessage(stringify(msg));
+		}
 	}
 
 	private _onSerializedMessage(msg:string): void {

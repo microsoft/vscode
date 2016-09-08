@@ -18,25 +18,6 @@
 			"outDir": "${workspaceRoot}/out"
 		},
 		{
-			"name": "Stacks Tests",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"stopOnEntry": false,
-			"args": [
-				"--timeout",
-				"999999",
-				"--colors",
-				"-g",
-				"Stacks"
-			],
-			"cwd": "${workspaceRoot}",
-			"runtimeArgs": [],
-			"env": {},
-			"sourceMaps": true,
-			"outDir": "${workspaceRoot}/out"
-		},
-		{
 			"name": "Attach to Extension Host",
 			"type": "node",
 			"request": "attach",
@@ -91,7 +72,15 @@
 			"name": "Launch VSCode",
 			"type": "chrome",
 			"request": "launch",
-			"runtimeExecutable": "${workspaceRoot}/scripts/code.bat",
+			"windows": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.bat"
+			},
+			"osx": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
+			},
 			"sourceMaps": true
 		},
 		{

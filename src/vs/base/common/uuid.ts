@@ -39,8 +39,7 @@ class V4UUID extends ValueUUID {
 	private static _timeHighBits = ['8', '9', 'a', 'b'];
 
 	private static _oneOf(array:string[]):string {
-		var idx = Math.floor(array.length * Math.random());
-		return array[idx];
+		return array[Math.floor(array.length * Math.random())];
 	}
 
 	private static _randomHex():string {
@@ -92,22 +91,27 @@ class V4UUID extends ValueUUID {
 /**
  * An empty UUID that contains only zeros.
  */
-export var empty:UUID = new ValueUUID('00000000-0000-0000-0000-000000000000');
+export const empty:UUID = new ValueUUID('00000000-0000-0000-0000-000000000000');
 
 export function v4():UUID {
 	return new V4UUID();
 }
 
-var _UUIDPattern = /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/;
+const _UUIDPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUUID(value: string): boolean {
+	return _UUIDPattern.test(value);
+}
 
 /**
  * Parses a UUID that is of the format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.
  * @param value A uuid string.
  */
 export function parse(value:string):UUID {
-	if(!_UUIDPattern.test(value)) {
+	if(!isUUID(value)) {
 		throw new Error('invalid uuid');
 	}
+
 	return new ValueUUID(value);
 }
 

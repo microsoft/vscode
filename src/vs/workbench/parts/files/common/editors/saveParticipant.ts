@@ -59,15 +59,15 @@ export class SaveParticipant implements IWorkbenchContribution {
 	 */
 	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
 		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
-		let cursors: IPosition[] = [];
+		const cursors: IPosition[] = [];
 
 		// Find `prevSelection` in any case do ensure a good undo stack when pushing the edit
 		// Collect active cursors in `cursors` only if `isAutoSaved` to avoid having the cursors jump
 		if (model.isAttachedToEditor()) {
-			let allEditors = this.codeEditorService.listCodeEditors();
+			const allEditors = this.codeEditorService.listCodeEditors();
 			for (let i = 0, len = allEditors.length; i < len; i++) {
-				let editor = allEditors[i];
-				let editorModel = editor.getModel();
+				const editor = allEditors[i];
+				const editorModel = editor.getModel();
 
 				if (!editorModel) {
 					continue; // empty editor
@@ -87,7 +87,7 @@ export class SaveParticipant implements IWorkbenchContribution {
 			}
 		}
 
-		let ops = trimTrailingWhitespace(model, cursors);
+		const ops = trimTrailingWhitespace(model, cursors);
 		if (!ops.length) {
 			return; // Nothing to do
 		}

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
+import {BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {MarkedString} from 'vs/base/common/htmlContent';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ServicesAccessor, IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import {ILineContext, IMode, IToken} from 'vs/editor/common/modes';
+import {ServicesAccessor, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import {ILineContext, IMode} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -18,6 +18,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {Token} from 'vs/editor/common/core/token';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
@@ -113,7 +114,7 @@ export interface IEditorScrollbarOptions {
 	horizontal?:string;
 	/**
 	 * Cast horizontal and vertical shadows when the content is scrolled.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	useShadows?:boolean;
 	/**
@@ -310,6 +311,12 @@ export interface IEditorOptions {
 	 */
 	wrappingColumn?:number;
 	/**
+	 * Control the alternate style of viewport wrapping.
+	 * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
+	 * Defaults to false.
+	 */
+	wordWrap?:boolean;
+	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
 	 * Defaults to 'none'.
 	 */
@@ -434,9 +441,14 @@ export interface IEditorOptions {
 	renderControlCharacters?: boolean;
 	/**
 	 * Enable rendering of indent guides.
-	 * Defaults to true.
+	 * Defaults to false.
 	 */
 	renderIndentGuides?: boolean;
+	/**
+	 * Enable rendering of current line highlight.
+	 * Defaults to true.
+	 */
+	renderLineHighlight?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -635,6 +647,7 @@ export class InternalEditorViewOptions {
 	renderWhitespace: boolean;
 	renderControlCharacters: boolean;
 	renderIndentGuides: boolean;
+	renderLineHighlight: boolean;
 	scrollbar:InternalEditorScrollbarOptions;
 
 	/**
@@ -662,6 +675,7 @@ export class InternalEditorViewOptions {
 		renderWhitespace: boolean;
 		renderControlCharacters: boolean;
 		renderIndentGuides: boolean;
+		renderLineHighlight: boolean;
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
 		this.theme = String(source.theme);
@@ -685,6 +699,7 @@ export class InternalEditorViewOptions {
 		this.renderWhitespace = Boolean(source.renderWhitespace);
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
+		this.renderLineHighlight = Boolean(source.renderLineHighlight);
 		this.scrollbar = source.scrollbar.clone();
 	}
 
@@ -742,6 +757,7 @@ export class InternalEditorViewOptions {
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.renderIndentGuides === other.renderIndentGuides
+			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
 		);
 	}
@@ -772,6 +788,7 @@ export class InternalEditorViewOptions {
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
 			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
+			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
 		};
 	}
@@ -806,6 +823,7 @@ export interface IViewConfigurationChangedEvent {
 	renderWhitespace:  boolean;
 	renderControlCharacters: boolean;
 	renderIndentGuides:  boolean;
+	renderLineHighlight:  boolean;
 	scrollbar: boolean;
 }
 
@@ -1236,7 +1254,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	token: IToken;
+	token: Token;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;
@@ -1709,6 +1727,49 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isTooLargeForHavingARichMode(): boolean;
+
+	/**
+	 * Search the model.
+	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+	 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
+	 * @param isRegex Used to indicate that `searchString` is a regular expression.
+	 * @param matchCase Force the matching to match lower/upper case exactly.
+	 * @param wholeWord Force the matching to match entire words only.
+	 * @param limitResultCount Limit the number of results
+	 * @return The ranges where the matches are. It is empty if not matches have been found.
+	 */
+	findMatches(searchString:string, searchOnlyEditableRange:boolean, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): Range[];
+	/**
+	 * Search the model.
+	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+	 * @param searchScope Limit the searching to only search inside this range.
+	 * @param isRegex Used to indicate that `searchString` is a regular expression.
+	 * @param matchCase Force the matching to match lower/upper case exactly.
+	 * @param wholeWord Force the matching to match entire words only.
+	 * @param limitResultCount Limit the number of results
+	 * @return The ranges where the matches are. It is empty if no matches have been found.
+	 */
+	findMatches(searchString:string, searchScope:IRange, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): Range[];
+	/**
+	 * Search the model for the next match. Loops to the beginning of the model if needed.
+	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+	 * @param searchStart Start the searching at the specified position.
+	 * @param isRegex Used to indicate that `searchString` is a regular expression.
+	 * @param matchCase Force the matching to match lower/upper case exactly.
+	 * @param wholeWord Force the matching to match entire words only.
+	 * @return The range where the next match is. It is null if no next match has been found.
+	 */
+	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range;
+	/**
+	 * Search the model for the previous match. Loops to the end of the model if needed.
+	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+	 * @param searchStart Start the searching at the specified position.
+	 * @param isRegex Used to indicate that `searchString` is a regular expression.
+	 * @param matchCase Force the matching to match lower/upper case exactly.
+	 * @param wholeWord Force the matching to match entire words only.
+	 * @return The range where the previous match is. It is null if no previous match has been found.
+	 */
+	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range;
 }
 
 export interface IReadOnlyModel extends ITextModel {
@@ -1788,6 +1849,11 @@ export interface ITokenizedModel extends ITextModel {
 	 * Get the current language mode associated with the model.
 	 */
 	getMode(): IMode;
+
+	/**
+	 * Get the language associated with this model.
+	 */
+	getModeId(): string;
 
 	/**
 	 * Set the current language mode associated with the model.
@@ -2193,49 +2259,6 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	dispose(): void;
 
 	/**
-	 * Search the model.
-	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
-	 * @param isRegex Used to indicate that `searchString` is a regular expression.
-	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wholeWord Force the matching to match entire words only.
-	 * @param limitResultCount Limit the number of results
-	 * @return The ranges where the matches are. It is empty if not matches have been found.
-	 */
-	findMatches(searchString:string, searchOnlyEditableRange:boolean, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): Range[];
-	/**
-	 * Search the model.
-	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchScope Limit the searching to only search inside this range.
-	 * @param isRegex Used to indicate that `searchString` is a regular expression.
-	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wholeWord Force the matching to match entire words only.
-	 * @param limitResultCount Limit the number of results
-	 * @return The ranges where the matches are. It is empty if no matches have been found.
-	 */
-	findMatches(searchString:string, searchScope:IRange, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): Range[];
-	/**
-	 * Search the model for the next match. Loops to the beginning of the model if needed.
-	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchStart Start the searching at the specified position.
-	 * @param isRegex Used to indicate that `searchString` is a regular expression.
-	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wholeWord Force the matching to match entire words only.
-	 * @return The range where the next match is. It is null if no next match has been found.
-	 */
-	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range;
-	/**
-	 * Search the model for the previous match. Loops to the end of the model if needed.
-	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchStart Start the searching at the specified position.
-	 * @param isRegex Used to indicate that `searchString` is a regular expression.
-	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wholeWord Force the matching to match entire words only.
-	 * @return The range where the previous match is. It is null if no previous match has been found.
-	 */
-	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range;
-
-	/**
 	 * @internal
 	 */
 	onBeforeAttached(): void;
@@ -2258,24 +2281,6 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 export interface IRangeWithText {
 	text:string;
 	range:IRange;
-}
-
-/**
- * @internal
- */
-export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
-	uri: URI;
-
-	getOffsetFromPosition(position:IPosition): number;
-	getPositionFromOffset(offset:number): Position;
-	getOffsetAndLengthFromRange(range:IRange): {offset:number; length:number;};
-	getRangeFromOffsetAndLength(offset:number, length:number): Range;
-	getLineStart(lineNumber:number): number;
-
-	getAllWordsWithRange(): IRangeWithText[];
-	getAllUniqueWords(skipWordOnce?:string): string[];
-
-	getModeId(): string;
 }
 
 /**
@@ -3491,17 +3496,6 @@ export type IEditorActionContributionCtor = IConstructorSignature2<IEditorAction
  * @internal
  */
 export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
-
-/**
- * An editor contribution descriptor that will be used to construct editor contributions
- * @internal
- */
-export interface ICommonEditorContributionDescriptor {
-	/**
-	 * Create an instance of the contribution
-	 */
-	createInstance(instantiationService:IInstantiationService, editor:ICommonCodeEditor): IEditorContribution;
-}
 
 export interface IEditorAction {
 	id: string;

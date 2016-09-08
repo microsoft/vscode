@@ -6,6 +6,7 @@
 
 import * as assert from 'assert';
 import Severity from 'vs/base/common/severity';
+import * as UUID from 'vs/base/common/uuid';
 
 import * as Platform from 'vs/base/common/platform';
 import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
@@ -117,11 +118,13 @@ class TaskBuilder {
 
 class ProblemMatcherBuilder {
 
+	public static DEFAULT_UUID = UUID.generateUuid();
+
 	public result: ProblemMatcher;
 
 	constructor(public parent: TaskBuilder) {
 		this.result = {
-			owner: 'external',
+			owner: ProblemMatcherBuilder.DEFAULT_UUID,
 			applyTo: ApplyToKind.allDocuments,
 			severity: undefined,
 			fileLocation: FileLocationKind.Relative,
@@ -957,7 +960,15 @@ suite('Tasks Configuration parsing tests', () => {
 	}
 
 	function assertProblemMatcher(actual: ProblemMatcher, expected: ProblemMatcher) {
-		assert.strictEqual(actual.owner, expected.owner);
+		if (expected.owner === ProblemMatcherBuilder.DEFAULT_UUID) {
+			try {
+				UUID.parse(actual.owner);
+			} catch (err) {
+				assert.fail(actual.owner, 'Owner must be a UUID');
+			}
+		} else {
+			assert.strictEqual(actual.owner, expected.owner);
+		}
 		assert.strictEqual(actual.applyTo, expected.applyTo);
 		assert.strictEqual(actual.severity, expected.severity);
 		assert.strictEqual(actual.fileLocation, expected.fileLocation);

@@ -79,7 +79,7 @@
 	"miSaveAll": "すべて保存(&&L)",
 	"miSaveAs": "名前を付けて保存(&&A)...",
 	"miSelectAll": "すべて選択(&&S)",
-	"miSelectTheme": "配色テーマ(&&C)",
+	"miSelectColorTheme": "配色テーマ(&&C)",
 	"miSplitEditor": "エディターを分割(&&E)",
 	"miSwitchEditor": "エディターの切り替え(&&E)",
 	"miSwitchGroup": "グループの切り替え(&&G)",

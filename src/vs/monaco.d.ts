@@ -740,14 +740,14 @@ declare module monaco.editor {
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
      */
-    export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, services?: IEditorOverrideServices): IStandaloneCodeEditor;
+    export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
 
     /**
      * Create a new diff editor under `domElement`.
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
      */
-    export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, services?: IEditorOverrideServices): IStandaloneDiffEditor;
+    export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
     export interface IDiffNavigator {
         canNavigate(): boolean;
@@ -809,6 +809,27 @@ declare module monaco.editor {
     }) => void): IDisposable;
 
     /**
+     * Create a new web worker that has model syncing capabilities built in.
+     * Specify an AMD module to load that will `create` an object that will be proxied.
+     */
+    export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
+
+    /**
+     * Colorize the contents of `domNode` using attribute `data-lang`.
+     */
+    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
+
+    /**
+     * Colorize `text` using language `languageId`.
+     */
+    export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string>;
+
+    /**
+     * Colorize a line in a model.
+     */
+    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
+
+    /**
      * A web worker that can provide a proxy to an arbitrary file.
      */
     export interface MonacoWebWorker<T> {
@@ -837,28 +858,11 @@ declare module monaco.editor {
          * The data to send over when calling create on the module.
          */
         createData?: any;
+        /**
+         * A label to be used to identify the web worker for debugging purposes.
+         */
+        label?: string;
     }
-
-    /**
-     * Create a new web worker that has model syncing capabilities built in.
-     * Specify an AMD module to load that will `create` an object that will be proxied.
-     */
-    export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
-
-    /**
-     * Colorize the contents of `domNode` using attribute `data-lang`.
-     */
-    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
-
-    /**
-     * Colorize `text` using language `languageId`.
-     */
-    export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string>;
-
-    /**
-     * Colorize a line in a model.
-     */
-    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
 
     /**
      * The options to create an editor.
@@ -968,7 +972,7 @@ declare module monaco.editor {
         horizontal?: string;
         /**
          * Cast horizontal and vertical shadows when the content is scrolled.
-         * Defaults to false.
+         * Defaults to true.
          */
         useShadows?: boolean;
         /**
@@ -1165,6 +1169,12 @@ declare module monaco.editor {
          */
         wrappingColumn?: number;
         /**
+         * Control the alternate style of viewport wrapping.
+         * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
+         * Defaults to false.
+         */
+        wordWrap?: boolean;
+        /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
          * Defaults to 'none'.
          */
@@ -1283,9 +1293,14 @@ declare module monaco.editor {
         renderControlCharacters?: boolean;
         /**
          * Enable rendering of indent guides.
-         * Defaults to true.
+         * Defaults to false.
          */
         renderIndentGuides?: boolean;
+        /**
+         * Enable rendering of current line highlight.
+         * Defaults to true.
+         */
+        renderLineHighlight?: boolean;
         /**
          * Inserting and deleting whitespace follows tab stops.
          */
@@ -1383,6 +1398,7 @@ declare module monaco.editor {
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
+        renderLineHighlight: boolean;
         scrollbar: InternalEditorScrollbarOptions;
     }
 
@@ -1408,6 +1424,7 @@ declare module monaco.editor {
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
+        renderLineHighlight: boolean;
         scrollbar: boolean;
     }
 
@@ -1935,6 +1952,48 @@ declare module monaco.editor {
          * Returns iff the model was disposed or not.
          */
         isDisposed(): boolean;
+        /**
+         * Search the model.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @param limitResultCount Limit the number of results
+         * @return The ranges where the matches are. It is empty if not matches have been found.
+         */
+        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+        /**
+         * Search the model.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchScope Limit the searching to only search inside this range.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @param limitResultCount Limit the number of results
+         * @return The ranges where the matches are. It is empty if no matches have been found.
+         */
+        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+        /**
+         * Search the model for the next match. Loops to the beginning of the model if needed.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchStart Start the searching at the specified position.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @return The range where the next match is. It is null if no next match has been found.
+         */
+        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
+        /**
+         * Search the model for the previous match. Loops to the end of the model if needed.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchStart Start the searching at the specified position.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @return The range where the previous match is. It is null if no previous match has been found.
+         */
+        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
     }
 
     export interface IReadOnlyModel extends ITextModel {
@@ -1970,6 +2029,10 @@ declare module monaco.editor {
          * Get the current language mode associated with the model.
          */
         getMode(): languages.IMode;
+        /**
+         * Get the language associated with this model.
+         */
+        getModeId(): string;
         /**
          * Set the current language mode associated with the model.
          */
@@ -2150,48 +2213,6 @@ declare module monaco.editor {
          * and make all necessary clean-up to release this object to the GC.
          */
         dispose(): void;
-        /**
-         * Search the model.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @param limitResultCount Limit the number of results
-         * @return The ranges where the matches are. It is empty if not matches have been found.
-         */
-        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
-        /**
-         * Search the model.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchScope Limit the searching to only search inside this range.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @param limitResultCount Limit the number of results
-         * @return The ranges where the matches are. It is empty if no matches have been found.
-         */
-        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
-        /**
-         * Search the model for the next match. Loops to the beginning of the model if needed.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchStart Start the searching at the specified position.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @return The range where the next match is. It is null if no next match has been found.
-         */
-        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
-        /**
-         * Search the model for the previous match. Loops to the end of the model if needed.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchStart Start the searching at the specified position.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @return The range where the previous match is. It is null if no previous match has been found.
-         */
-        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
     }
 
     /**

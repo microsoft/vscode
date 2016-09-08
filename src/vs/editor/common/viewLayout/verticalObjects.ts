@@ -302,7 +302,7 @@ export class VerticalObjects {
 				}
 			}
 
-			if (currentVerticalOffset > verticalOffset2) {
+			if (currentVerticalOffset >= verticalOffset2) {
 				// We have covered the entire viewport area, time to stop
 				endLineNumber = lineNumber;
 				break;

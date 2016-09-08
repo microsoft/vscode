@@ -25,7 +25,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import {getCodeActions, IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 
@@ -393,7 +393,12 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 		this._fixesWidget
 			.update(newQuickFixes)
-			.then(() => this.show(this.position, this.computeRequiredHeight()));
+			.then(() => {
+				const selections = this.editor.getSelections();
+				super.show(this.position, this.computeRequiredHeight());
+				this.editor.setSelections(selections);
+				this.editor.focus();
+			});
 	}
 
 	private computeRequiredHeight() {
@@ -433,7 +438,12 @@ class MarkerNavigationAction extends EditorAction {
 	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
 		const telemetryService = accessor.get(ITelemetryService);
 
-		let model = MarkerController.get(editor).getOrCreateModel();
+		let controller = MarkerController.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		let model = controller.getOrCreateModel();
 		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error' });
 		if (model) {
 			if (this._isNext) {
@@ -446,6 +456,7 @@ class MarkerNavigationAction extends EditorAction {
 	}
 }
 
+@editorContribution
 class MarkerController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.markerController';
@@ -572,5 +583,3 @@ CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
-
-EditorBrowserRegistry.registerEditorContribution(MarkerController);

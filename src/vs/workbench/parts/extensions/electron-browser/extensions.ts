@@ -58,3 +58,7 @@ export interface IExtensionsWorkbenchService {
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
 }
+
+export interface IExtensionsConfiguration {
+	autoUpdate: boolean;
+}

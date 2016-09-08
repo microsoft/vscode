@@ -6,7 +6,7 @@
 {
 	"channelName": "TypeScript",
 	"noServerFound": "Il percorso {0} non punta a un'installazione valida di tsserver. Le funzionalità del linguaggio TypeScript verranno disabilitate.",
-	"serverCouldNotBeStarted": "Non è stato possibile avviare il linguaggio TypeScript. Messaggio di errore: {0}",
+	"serverCouldNotBeStarted": "Non è stato possibile avviare il server di linguaggio TypeScript. Messaggio di errore: {0}",
 	"serverDied": "Il servizio di linguaggio Typescript è stato arrestato in modo imprevisto per cinque volte negli ultimi cinque minuti. Provare ad aprire una segnalazione bug.",
 	"serverDiedAfterStart": "Il servizio di linguaggio TypeScript è stato arrestato in modo imprevisto per cinque volte dopo che è stato avviato e non verrà riavviato. Aprire una segnalazione bug.",
 	"versionNumber.custom": "personalizzato"

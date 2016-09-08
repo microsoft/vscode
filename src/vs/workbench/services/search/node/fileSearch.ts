@@ -7,6 +7,7 @@
 
 import * as childProcess from 'child_process';
 import {StringDecoder} from 'string_decoder';
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import fs = require('fs');
 import paths = require('path');
 import {Readable} from "stream";
@@ -129,7 +130,8 @@ export class FileWalker {
 				if (platform.isMacintosh) {
 					this.traversal = Traversal.MacFind;
 					traverse = this.macFindTraversal;
-				} else if (platform.isWindows) {
+				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
+				} else if (false && platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
 				} else if (platform.isLinux) {
@@ -151,7 +153,9 @@ export class FileWalker {
 							rootFolderDone(err);
 						} else {
 							// fallback
-							this.errors.push(String(err));
+							const errorMessage = toErrorMessage(err);
+							console.error(errorMessage);
+							this.errors.push(errorMessage);
 							this.nodeJSTraversal(rootFolder, onResult, rootFolderDone);
 						}
 					} else {
@@ -181,6 +185,11 @@ export class FileWalker {
 				relativeFiles.pop();
 			}
 
+			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
+				done(new Error('Splitting up files failed'));
+				return;
+			}
+
 			this.matchFiles(rootFolder, relativeFiles, onResult);
 
 			done();
@@ -188,7 +197,7 @@ export class FileWalker {
 	}
 
 	private windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d'], { cwd: rootFolder });
+		const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d', rootFolder]);
 		this.readStdout(cmd, 'ucs2', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
@@ -201,6 +210,11 @@ export class FileWalker {
 			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
 			if (!relativeFiles[n - 1]) {
 				relativeFiles.pop();
+			}
+
+			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
+				done(new Error('Splitting up files failed'));
+				return;
 			}
 
 			this.matchFiles(rootFolder, relativeFiles, onResult);
@@ -223,6 +237,11 @@ export class FileWalker {
 			relativeFiles[n - 1] = relativeFiles[n - 1].trim();
 			if (!relativeFiles[n - 1]) {
 				relativeFiles.pop();
+			}
+
+			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
+				done(new Error('Splitting up files failed'));
+				return;
 			}
 
 			this.matchFiles(rootFolder, relativeFiles, onResult);

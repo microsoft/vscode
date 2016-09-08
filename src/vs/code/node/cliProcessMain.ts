@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import * as path from 'path';
-import { ParsedArgs } from 'vs/code/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { IPager } from 'vs/base/common/paging';

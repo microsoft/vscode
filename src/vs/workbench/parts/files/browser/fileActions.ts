@@ -14,6 +14,7 @@ import {MIME_TEXT, isUnspecific, isBinaryMime, guessMimeTypes} from 'vs/base/com
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
 import {Event, EventType as CommonEventType} from 'vs/base/common/events';
 import severity from 'vs/base/common/severity';
@@ -23,7 +24,6 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
@@ -32,7 +32,6 @@ import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEdito
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -129,17 +128,17 @@ export class BaseFileAction extends Action {
 
 	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
 		let actions = [
-			CancelAction,
-			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry())
+			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
+			CancelAction
 		];
 
 		if (extraAction) {
-			actions.push(extraAction);
+			actions.unshift(extraAction);
 		}
 
 		let errorWithRetry: IMessageWithAction = {
-			actions: actions,
-			message: errors.toErrorMessage(error, false)
+			actions,
+			message: toErrorMessage(error, false)
 		};
 
 		this._messageService.show(Severity.Error, errorWithRetry);
@@ -1395,7 +1394,7 @@ export abstract class BaseActionWithErrorReporting extends Action {
 
 	public run(context?: any): TPromise<boolean> {
 		return this.doRun(context).then(() => true, (error) => {
-			this.messageService.show(Severity.Error, errors.toErrorMessage(error, false));
+			this.messageService.show(Severity.Error, toErrorMessage(error, false));
 		});
 	}
 
@@ -1449,7 +1448,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				if (source.scheme === 'untitled') {
 					encodingOfSource = this.untitledEditorService.get(source).getEncoding();
 				} else if (source.scheme === 'file') {
-					let textModel = CACHE.get(source);
+					let textModel = this.textFileService.models.get(source);
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
@@ -1565,8 +1564,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
-			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.updateEnablement(true)));
-			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, () => this.updateEnablement(false)));
+			this.toDispose.push(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
 		}
 	}
 

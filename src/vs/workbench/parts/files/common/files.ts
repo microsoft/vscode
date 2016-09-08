@@ -10,11 +10,12 @@ import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import {IModel, IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
+import {IEncodingSupport, EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {ITextEditorModel} from 'vs/platform/editor/common/editor';
 
 /**
  * Explorer viewlet id.
@@ -83,7 +84,7 @@ export interface IFileResource {
  */
 export function asFileResource(obj: any): IFileResource {
 	if (obj instanceof FileStat) {
-		let stat = <FileStat>obj;
+		const stat = <FileStat>obj;
 
 		return {
 			resource: stat.resource,
@@ -93,6 +94,17 @@ export function asFileResource(obj: any): IFileResource {
 	}
 
 	return null;
+}
+
+/**
+ * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
+ */
+export interface ISaveErrorHandler {
+
+	/**
+	 * Called whenever a save fails.
+	 */
+	onSaveError(error: any, model: ITextFileEditorModel): void;
 }
 
 /**
@@ -274,8 +286,47 @@ export interface IRawTextContent extends IBaseStat {
 	encoding: string;
 }
 
+export interface ITextFileEditorModelManager {
+
+	get(resource: URI): ITextFileEditorModel;
+
+	getAll(resource?: URI): ITextFileEditorModel[];
+
+	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean): TPromise<ITextEditorModel>;
+}
+
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
+
+	getResource(): URI;
+
+	getLastSaveAttemptTime(): number;
+
+	getLastModifiedTime(): number;
+
+	getState(): ModelState;
+
+	save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void>;
+
+	revert(): TPromise<void>;
+
+	setConflictResolutionMode();
+
+	getValue(): string;
+
+	isDirty(): boolean;
+
+	isResolved(): boolean;
+
+	isDisposed(): boolean;
+}
+
 export interface ITextFileService extends IDisposable {
 	_serviceBrand: any;
+
+	/**
+	 * Access to the manager of text file editor models providing further methods to work with them.
+	 */
+	models: ITextFileEditorModelManager;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
