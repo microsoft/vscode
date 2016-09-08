@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable}  from 'vs/base/common/lifecycle';
+import {IDisposable, dispose}  from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -214,6 +214,21 @@ export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
 
 export function filterEvent<T>(event: Event<T>, filter: (e:T)=>boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+export function any(...events: Event<any>[]): Event<void> {
+	let listeners = [];
+
+	const emitter = new Emitter<void>({
+		onFirstListenerAdd() {
+			listeners = events.map(e => e(() => emitter.fire(), null));
+		},
+		onLastListenerRemove() {
+			listeners = dispose(listeners);
+		}
+	});
+
+	return emitter.event;
 }
 
 export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100): Event<O> {
