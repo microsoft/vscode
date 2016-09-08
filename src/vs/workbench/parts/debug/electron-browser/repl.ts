@@ -31,7 +31,7 @@ import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
-import {ReplEditor} from 'vs/workbench/parts/debug/electron-browser/replEditor';
+import {ReplInputEditor} from 'vs/workbench/parts/debug/electron-browser/debugEditors';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
@@ -71,7 +71,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private renderer: viewer.ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
 	private treeContainer: HTMLElement;
-	private replInput: ReplEditor;
+	private replInput: ReplInputEditor;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: number;
 	private actions: actions.IAction[];
@@ -185,7 +185,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(ReplEditor, this.replInputContainer, this.getReplInputOptions());
+		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
 		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
 		this.replInput.setModel(model);
 

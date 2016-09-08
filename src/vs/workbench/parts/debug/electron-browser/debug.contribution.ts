@@ -29,7 +29,7 @@ import {StepOverAction, ClearReplAction, FocusReplAction, StepIntoAction, StepOu
 import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidget');
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
 import {DebugErrorEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
-import {DebugErrorEditor} from 'vs/workbench/parts/debug/browser/debugErrorEditor';
+import {DebugErrorEditor} from 'vs/workbench/parts/debug/electron-browser/debugEditors';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/common/editor';
