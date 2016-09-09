@@ -34,6 +34,17 @@
 			]
 		},
 		{
+			"begin": "<!--",
+			"end": "--\\s*>",
+			"name": "comment.buffered.block.jade",
+			"patterns": [
+				{
+					"match": "--",
+					"name": "invalid.illegal.comment.comment.block.jade"
+				}
+			]
+		},
+		{
 			"begin": "^(\\s*)-$",
 			"comment": "Unbuffered code block.",
 			"end": "^(?!(\\1\\s)|\\s*$)",
