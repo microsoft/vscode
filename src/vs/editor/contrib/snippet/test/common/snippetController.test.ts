@@ -281,18 +281,5 @@ suite('SnippetController', () => {
 			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), first.toString());
 			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
 		});
-
-		snippetTest((editor, cursor, codeSnippet, snippetController) => {
-			editor.setSelections([
-				new Selection(2, 7, 2, 7)
-			]);
-
-			codeSnippet = CodeSnippet.fromInternal('xx{{}}yy');
-			snippetController.run(codeSnippet, 1, 0, false);
-
-			assert.equal(editor.getSelections().length, 1);
-			const [first] = editor.getSelections();
-			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 8, endLineNumber: 2, endColumn: 8 }), first.toString());
-		});
 	});
 });
