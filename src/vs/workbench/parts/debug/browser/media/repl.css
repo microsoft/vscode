@@ -21,6 +21,8 @@
 	visibility: hidden;
 }
 
+/* TODO@Isidor cleanup repl-tree css */
+
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content {
 	line-height: 18px;
 	-webkit-user-select: text;

@@ -8,32 +8,25 @@ import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
-import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import actions = require('vs/base/common/actions');
 import builder = require('vs/base/browser/builder');
 import dom = require('vs/base/browser/dom');
-import platform = require('vs/base/common/platform');
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {KeyCode} from 'vs/base/common/keyCodes';
-import tree = require('vs/base/parts/tree/browser/tree');
-import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import {IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
+import {EditOperation} from 'vs/editor/common/core/editOperation';
 import * as modes from 'vs/editor/common/modes';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
-import {ReplInputEditor} from 'vs/workbench/parts/debug/electron-browser/debugEditors';
+import {ReplEditor, ReplInputEditor} from 'vs/workbench/parts/debug/electron-browser/debugEditors';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
 import {Panel} from 'vs/workbench/browser/panel';
@@ -41,11 +34,6 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 
 const $ = dom.$;
-
-const replTreeOptions: tree.ITreeOptions = {
-	twistiePixels: 20,
-	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
-};
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplService');
@@ -59,32 +47,23 @@ export interface IPrivateReplService {
 export class Repl extends Panel implements IPrivateReplService {
 	public _serviceBrand: any;
 
-	private static HALF_WIDTH_TYPICAL = 'n';
-
 	private static HISTORY: replhistory.ReplHistory;
-	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
 	private static REPL_INPUT_INITIAL_HEIGHT = 22;
 	private static REPL_INPUT_MAX_HEIGHT = 170;
 
 	private toDispose: lifecycle.IDisposable[];
-	private tree: tree.ITree;
-	private renderer: viewer.ReplExpressionsRenderer;
-	private characterWidthSurveyor: HTMLElement;
-	private treeContainer: HTMLElement;
 	private replInput: ReplInputEditor;
 	private replInputContainer: HTMLElement;
-	private refreshTimeoutHandle: number;
+	private replEditor: ReplEditor;
+	private replEditorContainer: HTMLElement;
 	private actions: actions.IAction[];
 	private dimension: builder.Dimension;
 	private replInputHeight: number;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
 		@IStorageService private storageService: IStorageService,
 		@IPanelService private panelService: IPanelService,
 		@IThemeService private themeService: IThemeService,
@@ -99,77 +78,58 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
-			this.onReplElementsUpdated();
+		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(elements => {
+			this.onReplElementsUpdated(elements);
 		}));
-		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
-			if (panel.getId() === debug.REPL_ID) {
-				const elements = this.debugService.getModel().getReplElements();
-				if (elements.length > 0) {
-					return this.tree.reveal(elements[elements.length - 1]);
-				}
-			}
+		this.toDispose.push(this.themeService.onDidColorThemeChange(e => {
+			this.replEditor.updateOptions(this.getReplEditorOptions());
+			this.replInput.updateOptions(this.getReplInputOptions());
 		}));
-		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
 	}
 
-	private onReplElementsUpdated(): void {
-		if (this.tree) {
-			if (this.refreshTimeoutHandle) {
-				return; // refresh already triggered
+	private onReplElementsUpdated(elements: debug.ITreeElement[]): void {
+		if (this.replEditor) {
+			if (!elements && this.debugService.getModel().getReplElements().length === 0) {
+				this.replEditor.setValue('');
+				return;
 			}
 
-			const elements = this.debugService.getModel().getReplElements();
-			const delay = elements.length > 0 ? Repl.REFRESH_DELAY : 0;
+			const model = this.replEditor.getModel();
+			const lastLine = model.getLineCount();
+			const text = elements.map(element => element.getId()).join('\n') + '\n';
+			this.replEditor.getModel().applyEdits([EditOperation.insert(new Position(lastLine, 1), text)]);
 
-			this.refreshTimeoutHandle = setTimeout(() => {
-				this.refreshTimeoutHandle = null;
-				const previousScrollPosition = this.tree.getScrollPosition();
-				this.tree.refresh().then(() => {
-					if (previousScrollPosition === 1) {
-						// Only scroll if we were scrolled all the way down before tree refreshed #10486
-						this.tree.setScrollPosition(1);
-					}
+			// Auto scroll only if the last line is revealed
+			const lineBeforeLastRevealed = this.replEditor.getScrollTop() + this.replEditor.getLayoutInfo().height >= this.replEditor.getScrollHeight();
+			if (lineBeforeLastRevealed) {
+				this.replEditor.revealLine(model.getLineCount());
+			}
 
-					// If the last repl element has children - auto expand it #6019
-					const elements = this.debugService.getModel().getReplElements();
-					const lastElement = elements.length > 0 ? elements[elements.length - 1] : null;
-					if (lastElement instanceof Expression && lastElement.reference > 0) {
-						return this.tree.expand(elements[elements.length - 1]).then(() =>
-							this.tree.reveal(elements[elements.length - 1], 0)
-						);
-					}
-				}, errors.onUnexpectedError);
-			}, delay);
+			// TODO@Isidor auto expand the last repl element if it has children
 		}
 	}
 
 	public create(parent: builder.Builder): TPromise<void> {
 		super.create(parent);
 		const container = dom.append(parent.getHTMLElement(), $('.repl'));
-		this.treeContainer = dom.append(container, $('.repl-tree'));
+		this.createRepl(container);
 		this.createReplInput(container);
 
-		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
-		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
-		for (let i = 0; i < 10; i++) {
-			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
-		}
-		this.characterWidthSurveyor.style.fontSize = platform.isMacintosh ? '12px' : '14px';
-
-		this.renderer = this.instantiationService.createInstance(viewer.ReplExpressionsRenderer);
-		this.tree = new treeimpl.Tree(this.treeContainer, {
-			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
-			renderer: this.renderer,
-			accessibilityProvider: new viewer.ReplExpressionsAccessibilityProvider(),
-			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
-		}, replTreeOptions);
 
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new replhistory.ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
 		}
 
-		return this.tree.setInput(this.debugService.getModel());
+		return TPromise.as(null);
+	}
+
+	private createRepl(container: HTMLElement): void {
+		this.replEditorContainer = dom.append(container, $('.repl-editor'));
+		this.replEditor = this.instantiationService.createInstance(ReplEditor, this.replEditorContainer, this.getReplEditorOptions());
+		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:repl`));
+		this.replEditor.setModel(model);
+
+		// TODO@Isidor add a bunch of listeners for expand / collapse
 	}
 
 	private createReplInput(container: HTMLElement): void {
@@ -239,12 +199,12 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public layout(dimension: builder.Dimension): void {
+		// TODO@Isidor check layout which is overflowing up
 		this.dimension = dimension;
-		if (this.tree) {
-			this.renderer.setWidth(dimension.width - 25, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
-			const treeHeight = dimension.height - this.replInputHeight;
-			this.treeContainer.style.height = `${treeHeight}px`;
-			this.tree.layout(treeHeight);
+		if (this.replEditor) {
+			const replEditorHeight = dimension.height - this.replInputHeight;
+			this.replEditorContainer.style.height = `${replEditorHeight}px`;
+			this.replEditor.layout({height: replEditorHeight, width: dimension.width});
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
@@ -293,8 +253,16 @@ export class Repl extends Panel implements IPrivateReplService {
 		};
 	}
 
+	private getReplEditorOptions(): IEditorOptions {
+		const result = this.getReplInputOptions();
+		result.readOnly = true;
+
+		return result;
+	};
+
 	public dispose(): void {
 		this.replInput.destroy();
+		this.replEditor.destroy();
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
