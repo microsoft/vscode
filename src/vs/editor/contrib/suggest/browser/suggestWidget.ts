@@ -64,6 +64,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>Object.create(null);
 		data.disposables = [];
 		data.root = container;
+		data.root.style.lineHeight = `${UnfocusedHeight}px`;
+
 		data.icon = append(container, $('.icon'));
 		data.colorspan = append(data.icon, $('span.colorspan'));
 
@@ -113,8 +115,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			}
 		}
 
-		data.highlightedLabel.set(suggestion.label, (<ICompletionItem>element).highlights);
-		data.typeLabel.innerText = (suggestion.detail || '').replace(/\n.*$/m, '');
+		data.highlightedLabel.set(suggestion.label, element.highlights);
+		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		data.documentation.textContent = suggestion.documentation || '';
 
@@ -177,6 +179,7 @@ class SuggestionDetails {
 
 	private el: HTMLElement;
 	private title: HTMLElement;
+	private titleLabel: HighlightedLabel;
 	private back: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
@@ -197,6 +200,9 @@ class SuggestionDetails {
 
 		const header = append(this.el, $('.header'));
 		this.title = append(header, $('span.title'));
+		this.titleLabel = new HighlightedLabel(this.title);
+		this.disposables.push(this.titleLabel);
+
 		this.back = append(header, $('span.go-back'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
@@ -211,11 +217,8 @@ class SuggestionDetails {
 
 		this.configureFont();
 
-		this.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
-				this.configureFont();
-			}
-		}));
+		const onFontInfo = filterEvent(this.editor.onDidChangeConfiguration.bind(this.editor), (e: IConfigurationChangedEvent) => e.fontInfo);
+		onFontInfo(this.configureFont, this, this.disposables);
 	}
 
 	get element() {
@@ -224,16 +227,16 @@ class SuggestionDetails {
 
 	render(item: ICompletionItem): void {
 		if (!item) {
-			this.title.textContent = '';
+			this.titleLabel.set('');
 			this.type.textContent = '';
 			this.docs.textContent = '';
 			this.ariaLabel = null;
 			return;
 		}
 
-		this.title.innerText = item.suggestion.label;
-		this.type.innerText = item.suggestion.detail || '';
-		this.docs.innerText = item.suggestion.documentation;
+		this.titleLabel.set(item.suggestion.label, item.highlights);
+		this.type.textContent = item.suggestion.detail || '';
+		this.docs.textContent = item.suggestion.documentation;
 		this.back.onmousedown = e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -271,8 +274,12 @@ class SuggestionDetails {
 
 	private configureFont() {
 		const fontInfo = this.editor.getConfiguration().fontInfo;
+		const fontSize = `${ fontInfo.fontSize }px`;
+
 		this.title.style.fontFamily = fontInfo.fontFamily;
+		this.title.style.fontSize = fontSize;
 		this.type.style.fontFamily = fontInfo.fontFamily;
+		this.type.style.fontSize = fontSize;
 	}
 
 	dispose(): void {
@@ -489,12 +496,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				}
 				break;
 			case State.Loading:
-				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
+				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
 				hide(this.listElement, this.details.element);
 				this.show();
 				break;
 			case State.Empty:
-				this.messageElement.innerText = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
+				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				hide(this.listElement, this.details.element);
 				show(this.messageElement);
 				this.show();
