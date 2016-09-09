@@ -24,7 +24,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();
@@ -132,7 +132,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	/**
 	 * Returns element to focus after removing the given element
 	 */
-	protected getElementToFocusAfterRemoved(viewer: ITree, elementToBeRemoved: FileMatchOrMatch): FileMatchOrMatch {
+	public getElementToFocusAfterRemoved(viewer: ITree, elementToBeRemoved: FileMatchOrMatch): FileMatchOrMatch {
 		let elementToFocus = this.getNextElementAfterRemoved(viewer, elementToBeRemoved);
 		if (!elementToFocus) {
 			elementToFocus = this.getPreviousElementAfterRemoved(viewer, elementToBeRemoved);
@@ -140,7 +140,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		return elementToFocus;
 	}
 
-	protected getNextElementAfterRemoved(viewer: ITree, element: FileMatchOrMatch): FileMatchOrMatch {
+	public getNextElementAfterRemoved(viewer: ITree, element: FileMatchOrMatch): FileMatchOrMatch {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		if (element instanceof FileMatch) {
 			// If file match is removed then next element is the next file match
@@ -151,7 +151,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		return navigator.current();
 	}
 
-	protected getPreviousElementAfterRemoved(viewer: ITree, element: FileMatchOrMatch): FileMatchOrMatch {
+	public getPreviousElementAfterRemoved(viewer: ITree, element: FileMatchOrMatch): FileMatchOrMatch {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		let previousElement = navigator.previous();
 		if (element instanceof Match && element.parent().matches().length === 1) {
@@ -272,9 +272,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasToOpenFile(): boolean {
-		let activeInput = this.editorService.getActiveEditorInput();
-		if (activeInput instanceof FileEditorInput) {
-			return activeInput.getResource().fsPath === this.element.parent().resource().fsPath;
+		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
+		if (editorInput) {
+			return editorInput.getResource().fsPath === this.element.parent().resource().fsPath;
 		}
 		return false;
 	}
