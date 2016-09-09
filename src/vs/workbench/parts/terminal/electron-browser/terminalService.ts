@@ -327,11 +327,19 @@ export class TerminalService implements ITerminalService {
 		shell.args.forEach((arg, i) => {
 			env[`PTYSHELLARG${i}`] = arg;
 		});
-		env['PTYCWD'] = workspace ? workspace.resource.fsPath : os.homedir();
+		env['PTYCWD'] = this.sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
 		if (locale) {
 			env['LANG'] = this.getLangEnvVariable(locale);
 		}
 		return env;
+	}
+
+	private static sanitizeCwd(cwd: string) {
+		// Make the drive letter uppercase on Windows (see #9448)
+		if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
+			return cwd[0].toUpperCase() + cwd.substr(1);
+		}
+		return cwd;
 	}
 
 	private static cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
