@@ -27,6 +27,8 @@ import { ICompletionItem, CompletionModel } from '../common/completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
+const sticky = false; // for development purposes
+
 interface ISuggestionTemplateData {
 	root: HTMLElement;
 	icon: HTMLElement;
@@ -144,7 +146,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 	}
 }
 
-const FocusHeight = 40;
+const FocusHeight = 42;
 const UnfocusedHeight = 20;
 
 class Delegate implements IDelegate<ICompletionItem> {
@@ -384,6 +386,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onEditorBlur(): void {
+		if (sticky) {
+			return;
+		}
+
 		this.editorBlurTimeout = TPromise.timeout(150).then(() => {
 			if (!this.editor.isFocused()) {
 				this.setState(State.Hidden);
