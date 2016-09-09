@@ -946,7 +946,7 @@ export class SearchViewlet extends Viewlet {
 				let replaceString= match.replaceString;
 				return {
 					startLineNumber: range.startLineNumber,
-					startColumn: range.startColumn + replaceString.length,
+					startColumn: range.startColumn,
 					endLineNumber: range.startLineNumber,
 					endColumn: range.startColumn + replaceString.length
 				};
