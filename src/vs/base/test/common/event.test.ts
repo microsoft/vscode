@@ -337,13 +337,18 @@ suite('stopwatch', () => {
 		const emitter = new Emitter<void>();
 		const event = stopwatch(emitter.event);
 
-		return new TPromise(c => {
+		return new TPromise((c, e) => {
 			event(duration => {
-				assert(duration > 100);
+				try {
+					assert(duration > 0);
+				} catch (err) {
+					e(err);
+				}
+
 				c(null);
 			});
 
-			setTimeout(() => emitter.fire(), 100);
+			setTimeout(() => emitter.fire(), 10);
 		});
 	});
 });
