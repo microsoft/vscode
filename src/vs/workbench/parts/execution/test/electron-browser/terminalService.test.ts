@@ -79,6 +79,30 @@ suite('Execution - TerminalService', () => {
 		);
 	});
 
+	test("WinTerminalService - uses default terminal when configuration.terminal.external.windowsExec is undefined", done => {
+		let testShell = 'cmd';
+		let testCwd = 'c:/foo';
+		let mockSpawner = {
+			spawn: (command, args, opts) => {
+				// assert
+				equal(opts.cwd, 'C:/foo', 'cwd should be uppercase regardless of the case that\'s passed in');
+				done();
+				return {
+					on: (evt) => evt
+				}
+			}
+		};
+		let testService = new WinTerminalService(mockConfig);
+		(<any>testService).spawnTerminal(
+			mockSpawner,
+			mockConfig,
+			testShell,
+			testCwd,
+			mockOnExit,
+			mockOnError
+		);
+	});
+
 	test("MacTerminalService - uses terminal from configuration", done => {
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {
