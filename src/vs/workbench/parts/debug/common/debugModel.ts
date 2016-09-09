@@ -456,7 +456,7 @@ export class Model implements debug.IModel {
 	private _onDidChangeBreakpoints: Emitter<void>;
 	private _onDidChangeCallStack: Emitter<void>;
 	private _onDidChangeWatchExpressions: Emitter<debug.IExpression>;
-	private _onDidChangeREPLElements: Emitter<void>;
+	private _onDidChangeReplElements: Emitter<debug.ITreeElement[]>;
 
 	constructor(
 		private breakpoints: debug.IBreakpoint[],
@@ -471,7 +471,7 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints = new Emitter<void>();
 		this._onDidChangeCallStack = new Emitter<void>();
 		this._onDidChangeWatchExpressions = new Emitter<debug.IExpression>();
-		this._onDidChangeREPLElements = new Emitter<void>();
+		this._onDidChangeReplElements = new Emitter<debug.ITreeElement[]>();
 	}
 
 	public getId(): string {
@@ -490,8 +490,8 @@ export class Model implements debug.IModel {
 		return this._onDidChangeWatchExpressions.event;
 	}
 
-	public get onDidChangeReplElements(): Event<void> {
-		return this._onDidChangeREPLElements.event;
+	public get onDidChangeReplElements(): Event<debug.ITreeElement[]> {
+		return this._onDidChangeReplElements.event;
 	}
 
 	public getThreads(): { [reference: number]: debug.IThread; } {
@@ -636,7 +636,7 @@ export class Model implements debug.IModel {
 		const expression = new Expression(name, true);
 		this.addReplElements([expression]);
 		return evaluateExpression(session, stackFrame, expression, 'repl')
-			.then(() => this._onDidChangeREPLElements.fire());
+			.then(result => this._onDidChangeReplElements.fire([result]));
 	}
 
 	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
@@ -663,7 +663,7 @@ export class Model implements debug.IModel {
 		if (elements.length) {
 			this.addReplElements(elements);
 		}
-		this._onDidChangeREPLElements.fire();
+		this._onDidChangeReplElements.fire(elements);
 	}
 
 	public appendReplOutput(value: string, severity?: severity): void {
@@ -686,7 +686,7 @@ export class Model implements debug.IModel {
 		});
 
 		this.addReplElements(elements);
-		this._onDidChangeREPLElements.fire();
+		this._onDidChangeReplElements.fire(elements);
 	}
 
 	private addReplElements(newElements: debug.ITreeElement[]): void {
@@ -699,7 +699,7 @@ export class Model implements debug.IModel {
 	public removeReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
-			this._onDidChangeREPLElements.fire();
+			this._onDidChangeReplElements.fire();
 		}
 	}
 

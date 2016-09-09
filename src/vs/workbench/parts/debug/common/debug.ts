@@ -180,7 +180,7 @@ export interface IModel extends ITreeElement {
 	onDidChangeBreakpoints: Event<void>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
-	onDidChangeReplElements: Event<void>;
+	onDidChangeReplElements: Event<ITreeElement[]>;
 };
 
 // service enums
