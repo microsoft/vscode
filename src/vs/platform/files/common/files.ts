@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
@@ -27,50 +27,50 @@ export interface IFileService {
 	 * the stat service is asked to automatically resolve child folders that only
 	 * contain a single element.
 	 */
-	resolveFile(resource: URI, options?: IResolveFileOptions): winjs.TPromise<IFileStat>;
+	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
 
 	/**
 	 *Finds out if a file identified by the resource exists.
 	 */
-	existsFile(resource: URI): winjs.TPromise<boolean>;
+	existsFile(resource: URI): TPromise<boolean>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the full value as string.
 	 */
-	resolveContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IContent>;
+	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the value as a readable stream.
 	 */
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IStreamContent>;
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent>;
 
 	/**
 	 * Returns the contents of all files by the given array of file resources.
 	 */
-	resolveContents(resources: URI[]): winjs.TPromise<IContent[]>;
+	resolveContents(resources: URI[]): TPromise<IContent[]>;
 
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): winjs.TPromise<IFileStat>;
+	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	moveFile(source: URI, target: URI, overwrite?: boolean): winjs.TPromise<IFileStat>;
+	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
 
 	/**
 	 * Copies the file to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	copyFile(source: URI, target: URI, overwrite?: boolean): winjs.TPromise<IFileStat>;
+	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new file with the given path. The returned promise
@@ -78,30 +78,30 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string): winjs.TPromise<IFileStat>;
+	createFile(resource: URI, content?: string): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	createFolder(resource: URI): winjs.TPromise<IFileStat>;
+	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
 	 * Renames the provided file to use the new name. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	rename(resource: URI, newName: string): winjs.TPromise<IFileStat>;
+	rename(resource: URI, newName: string): TPromise<IFileStat>;
 
 	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
-	del(resource: URI, useTrash?: boolean): winjs.TPromise<void>;
+	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	/**
 	 * Imports the file to the parent identified by the resource.
 	 */
-	importFile(source: URI, targetFolder: URI): winjs.TPromise<IImportResult>;
+	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
