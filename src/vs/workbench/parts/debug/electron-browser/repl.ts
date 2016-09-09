@@ -87,7 +87,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		}));
 	}
 
-	private onReplElementsUpdated(elements: debug.ITreeElement[]): void {
+	private onReplElementsUpdated(elements: debug.IReplElement[]): void {
 		if (this.replEditor) {
 			if (!elements && this.debugService.getModel().getReplElements().length === 0) {
 				this.replEditor.setValue('');
@@ -96,7 +96,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 			const model = this.replEditor.getModel();
 			const lastLine = model.getLineCount();
-			const text = elements.map(element => element.getId()).join('\n') + '\n';
+			const text = elements.map(element => element.toString()).join('\n') + '\n';
 			this.replEditor.getModel().applyEdits([EditOperation.insert(new Position(lastLine, 1), text)]);
 
 			// Auto scroll only if the last line is revealed

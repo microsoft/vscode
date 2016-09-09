@@ -388,7 +388,7 @@ export class DebugService implements debug.IDebugService {
 		let result: model.Expression[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string } ) => {
-				return new model.Expression(watchStoredData.name, false, watchStoredData.id);
+				return new model.Expression(watchStoredData.name, watchStoredData.id);
 			});
 		} catch (e) { }
 

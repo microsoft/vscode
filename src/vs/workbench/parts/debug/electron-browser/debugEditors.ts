@@ -48,7 +48,7 @@ export class ReplInputEditor extends CodeEditorWidget {
 			ContextMenuController,
 			SuggestController,
 			SnippetController,
-			TabCompletionController,
+			TabCompletionController
 		];
 	}
 
@@ -60,13 +60,14 @@ export class ReplInputEditor extends CodeEditorWidget {
 export class ReplEditor extends CodeEditorWidget {
 
 	protected _getContributions(): IEditorContributionCtor[] {
+		// TODO@Isidor check contributions, add find contribution, remove suggest
 		return [
 			MenuPreventer,
 			SelectionClipboard,
 			ContextMenuController,
 			SuggestController,
 			SnippetController,
-			TabCompletionController,
+			TabCompletionController
 		];
 	}
 

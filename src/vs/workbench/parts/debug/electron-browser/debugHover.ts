@@ -160,7 +160,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		const matchingExpression = lineContent.substring(expressionRange.startColumn - 1, expressionRange.endColumn);
 
 		const evaluatedExpression = session.configuration.capabilities.supportsEvaluateForHovers ?
-			evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression, true), 'hover') :
+			evaluateExpression(session, focusedStackFrame, new Expression(matchingExpression), 'hover') :
 			this.findExpressionInStackFrame(matchingExpression.split('.').map(word => word.trim()).filter(word => !!word));
 
 		return evaluatedExpression.then(expression => {

@@ -147,19 +147,7 @@ export class Thread implements debug.IThread {
 	}
 }
 
-export class OutputElement implements debug.ITreeElement {
-	private static ID_COUNTER = 0;
-
-	constructor(private id = OutputElement.ID_COUNTER++) {
-		// noop
-	}
-
-	public getId(): string {
-		return `outputelement:${ this.id }`;
-	}
-}
-
-export class ValueOutputElement extends OutputElement {
+export class ValueOutputElement implements debug.IReplElement {
 
 	constructor(
 		public value: string,
@@ -167,21 +155,49 @@ export class ValueOutputElement extends OutputElement {
 		public category?: string,
 		public counter: number = 1
 	) {
-		super();
+		// noop
+	}
+
+	public toString(): string {
+		return this.value;
+	}
+
+	public toggleExpansion(): TPromise<void> {
+		return TPromise.as(null);
 	}
 }
 
-export class KeyValueOutputElement extends OutputElement {
+export class KeyValueOutputElement implements debug.IReplElement {
 
 	private static MAX_CHILDREN = 1000; // upper bound of children per value
 
-	private children: debug.ITreeElement[];
+	private children: debug.IReplElement[];
 	private _valueName: string;
+	private expanded: boolean;
 
 	constructor(public key: string, public valueObj: any, public annotation?: string) {
-		super();
-
 		this._valueName = null;
+		this.expanded = false;
+	}
+
+	public toString(): string {
+		// TODO@isidor take children into account
+		return this.value;
+	}
+
+	public toggleExpansion(debugService: debug.IDebugService): TPromise<void> {
+		if (!this.children) {
+			if (Array.isArray(this.valueObj)) {
+				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null));
+			} else if (types.isObject(this.valueObj)) {
+				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null));
+			} else {
+				this.children = [];
+			}
+		}
+		this.expanded = !this.expanded;
+
+		return TPromise.as(null);
 	}
 
 	public get value(): string {
@@ -205,20 +221,6 @@ export class KeyValueOutputElement extends OutputElement {
 
 		return this._valueName;
 	}
-
-	public getChildren(): debug.ITreeElement[] {
-		if (!this.children) {
-			if (Array.isArray(this.valueObj)) {
-				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null));
-			} else if (types.isObject(this.valueObj)) {
-				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null));
-			} else {
-				this.children = [];
-			}
-		}
-
-		return this.children;
-	}
 }
 
 export abstract class ExpressionContainer implements debug.IExpressionContainer {
@@ -234,7 +236,6 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	constructor(
 		public reference: number,
 		private id: string,
-		private cacheChildren: boolean,
 		public namedVariables: number,
 		public indexedVariables: number,
 		private startOfVariables = 0
@@ -243,7 +244,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 
 	public getChildren(debugService: debug.IDebugService): TPromise<debug.IExpression[]> {
-		if (!this.cacheChildren || !this.children) {
+		if (!this.children) {
 			const session = debugService.getActiveSession();
 			// only variables with reference > 0 have children.
 			if (!session || this.reference <= 0) {
@@ -314,16 +315,27 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 	}
 }
 
-export class Expression extends ExpressionContainer implements debug.IExpression {
+export class Expression extends ExpressionContainer implements debug.IExpression, debug.IReplElement {
 	static DEFAULT_VALUE = 'not available';
 
 	public available: boolean;
 	public type: string;
+	private expanded: boolean;
 
-	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
-		super(0, id, cacheChildren, 0, 0);
+	constructor(public name: string, id = uuid.generateUuid()) {
+		super(0, id, 0, 0);
 		this.value = Expression.DEFAULT_VALUE;
 		this.available = false;
+		this.expanded = false;
+	}
+
+	public toString(): string {
+		// TODO@isidor take children into account
+		return this.value;
+	}
+
+	public toggleExpansion(debugService: debug.IDebugService): TPromise<void> {
+		return this.getChildren(debugService).then(children => { this.expanded = !this.expanded; });
 	}
 }
 
@@ -343,7 +355,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(reference, `variable:${parent.getId()}:${name}:${reference}`, true, namedVariables, indexedVariables, startOfVariables);
+		super(reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = massageValue(value);
 	}
 }
@@ -358,7 +370,7 @@ export class Scope extends ExpressionContainer implements debug.IScope {
 		namedVariables: number,
 		indexedVariables: number
 	) {
-		super(reference, `scope:${threadId}:${name}:${reference}`, true, namedVariables, indexedVariables);
+		super(reference, `scope:${threadId}:${name}:${reference}`, namedVariables, indexedVariables);
 	}
 }
 
@@ -452,11 +464,11 @@ export class Model implements debug.IModel {
 
 	private threads: { [reference: number]: debug.IThread; };
 	private toDispose: lifecycle.IDisposable[];
-	private replElements: debug.ITreeElement[];
+	private replElements: debug.IReplElement[];
 	private _onDidChangeBreakpoints: Emitter<void>;
 	private _onDidChangeCallStack: Emitter<void>;
 	private _onDidChangeWatchExpressions: Emitter<debug.IExpression>;
-	private _onDidChangeReplElements: Emitter<debug.ITreeElement[]>;
+	private _onDidChangeReplElements: Emitter<debug.IReplElement[]>;
 
 	constructor(
 		private breakpoints: debug.IBreakpoint[],
@@ -471,7 +483,7 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints = new Emitter<void>();
 		this._onDidChangeCallStack = new Emitter<void>();
 		this._onDidChangeWatchExpressions = new Emitter<debug.IExpression>();
-		this._onDidChangeReplElements = new Emitter<debug.ITreeElement[]>();
+		this._onDidChangeReplElements = new Emitter<debug.IReplElement[]>();
 	}
 
 	public getId(): string {
@@ -490,7 +502,7 @@ export class Model implements debug.IModel {
 		return this._onDidChangeWatchExpressions.event;
 	}
 
-	public get onDidChangeReplElements(): Event<debug.ITreeElement[]> {
+	public get onDidChangeReplElements(): Event<debug.IReplElement[]> {
 		return this._onDidChangeReplElements.event;
 	}
 
@@ -628,19 +640,19 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public getReplElements(): debug.ITreeElement[] {
+	public getReplElements(): debug.IReplElement[] {
 		return this.replElements;
 	}
 
 	public addReplExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
-		const expression = new Expression(name, true);
+		const expression = new Expression(name);
 		this.addReplElements([expression]);
 		return evaluateExpression(session, stackFrame, expression, 'repl')
 			.then(result => this._onDidChangeReplElements.fire([result]));
 	}
 
 	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
-		let elements:OutputElement[] = [];
+		let elements:debug.IReplElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 
 		// string message
@@ -667,7 +679,7 @@ export class Model implements debug.IModel {
 	}
 
 	public appendReplOutput(value: string, severity?: severity): void {
-		const elements: OutputElement[] = [];
+		const elements: debug.IReplElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 		let lines = value.split('\n');
 		let groupTogether = !!previousOutput && (previousOutput.category === 'output' && severity === previousOutput.severity);
@@ -689,7 +701,7 @@ export class Model implements debug.IModel {
 		this._onDidChangeReplElements.fire(elements);
 	}
 
-	private addReplElements(newElements: debug.ITreeElement[]): void {
+	private addReplElements(newElements: debug.IReplElement[]): void {
 		this.replElements.push(...newElements);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
@@ -708,7 +720,7 @@ export class Model implements debug.IModel {
 	}
 
 	public addWatchExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
-		const we = new Expression(name, false);
+		const we = new Expression(name);
 		this.watchExpressions.push(we);
 		if (!name) {
 			this._onDidChangeWatchExpressions.fire(we);

@@ -51,6 +51,11 @@ export interface ITreeElement {
 	getId(): string;
 }
 
+export interface IReplElement {
+	toString(): string;
+	toggleExpansion(debugService: IDebugService): TPromise<void>;
+}
+
 export interface IExpressionContainer extends ITreeElement {
 	reference: number;
 	getChildren(debugService: IDebugService): TPromise<IExpression[]>;
@@ -175,12 +180,12 @@ export interface IModel extends ITreeElement {
 	getFunctionBreakpoints(): IFunctionBreakpoint[];
 	getExceptionBreakpoints(): IExceptionBreakpoint[];
 	getWatchExpressions(): IExpression[];
-	getReplElements(): ITreeElement[];
+	getReplElements(): IReplElement[];
 
 	onDidChangeBreakpoints: Event<void>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
-	onDidChangeReplElements: Event<ITreeElement[]>;
+	onDidChangeReplElements: Event<IReplElement[]>;
 };
 
 // service enums
