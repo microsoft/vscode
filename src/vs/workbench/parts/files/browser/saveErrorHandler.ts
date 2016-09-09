@@ -23,7 +23,7 @@ import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/p
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -36,6 +36,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IEventService private eventService: IEventService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.messages = Object.create(null);
@@ -44,8 +45,8 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 	}
 
 	private registerListeners(): void {
-		this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
-		this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
+		this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource));
+		this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource));
 	}
 
 	private onFileSavedOrReverted(resource: URI): void {

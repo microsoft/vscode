@@ -16,7 +16,7 @@ import assert = require('vs/base/common/assert');
 import {IEditorRegistry, Extensions, EditorModel, EncodingMode, ConfirmResult, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, EventType as FileEventType, TextFileChangeEvent, IFileEditorDescriptor} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, TextFileModelChangeEvent, IFileEditorDescriptor} from 'vs/workbench/parts/files/common/files';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -66,13 +66,13 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelDirty(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
 	}
 
-	private onDirtyStateChange(e: TextFileChangeEvent): void {
+	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
 		if (e.resource.toString() === this.resource.toString()) {
 			this._onDidChangeDirty.fire();
 		}
