@@ -28,10 +28,14 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
+import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 
 // A handler for save error happening with conflict resolution actions
-export class SaveErrorHandler implements ISaveErrorHandler {
+export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
 	private messages: { [resource: string]: () => void };
+	private toUnbind: IDisposable[];
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -40,13 +44,21 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.messages = Object.create(null);
+		this.toUnbind = [];
 
 		this.registerListeners();
+
+		// Hook into model
+		TextFileEditorModel.setSaveErrorHandler(this);
+	}
+
+	public getId(): string {
+		return 'vs.files.saveerrorhandler';
 	}
 
 	private registerListeners(): void {
-		this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource));
-		this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource));
+		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
+		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
 	}
 
 	private onFileSavedOrReverted(resource: URI): void {
@@ -126,6 +138,10 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		this.messages[model.getResource().toString()] = this.messageService.show(Severity.Error, message);
+	}
+
+	public dispose(): void {
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }
 

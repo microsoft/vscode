@@ -14,7 +14,7 @@ import paths = require('vs/base/common/paths');
 import {EncodingMode} from 'vs/workbench/common/editor';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType, ITextFileService, ModelState, StateChange} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, ModelState, StateChange} from 'vs/workbench/parts/files/common/files';
 import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
 import {FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
@@ -40,6 +40,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
+		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 	});
 
 	test('Save', function (done) {
@@ -287,11 +288,13 @@ suite('Files - TextFileEditorModel', () => {
 			}
 		});
 
-		accessor.eventService.addListener2(EventType.FILE_SAVING, (e) => {
-			assert.ok(model.isDirty());
-			model.textEditorModel.setValue('bar');
-			assert.ok(model.isDirty());
-			eventCounter++;
+		TextFileEditorModel.setSaveParticipant({
+			participate: (model) => {
+				assert.ok(model.isDirty());
+				model.textEditorModel.setValue('bar');
+				assert.ok(model.isDirty());
+				eventCounter++;
+			}
 		});
 
 		model.load().then(() => {
