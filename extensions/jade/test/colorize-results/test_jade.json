@@ -1595,6 +1595,17 @@
 		}
 	},
 	{
+		"c": ".",
+		"t": "inline.jade.tag",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
 		"c": "]",
 		"t": "entity.function.inline.jade.name",
 		"r": {
