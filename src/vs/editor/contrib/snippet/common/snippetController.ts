@@ -484,7 +484,7 @@ export class SnippetController {
 		const edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		const selections = this._editor.getSelections();
 		let lineDelta = 0;
-		let columnDeltaOrValue = 0;
+		let columnDelta = 0;
 
 		for (let i = 0; i < selections.length; i++) {
 			let {adaptedSnippet, typeRange} = SnippetController._prepareSnippet(this._editor, selections[i], snippet, overwriteBefore, overwriteAfter, stripPrefix);
@@ -492,13 +492,12 @@ export class SnippetController {
 
 			if (i === 0 && snippet.isSingleTabstopOnly) {
 				const finalCursorPos = SnippetController._getSnippetCursorOnly(adaptedSnippet);
+				const editEnd = typeRange.getEndPosition();
+				editEnd.lineNumber += adaptedSnippet.lines.length - 1;
+				editEnd.column = adaptedSnippet.lines[adaptedSnippet.lines.length - 1].length + 1;
 
-				lineDelta = finalCursorPos.lineNumber - typeRange.startLineNumber;
-				if (lineDelta === 0) {
-					columnDeltaOrValue = finalCursorPos.column - typeRange.startColumn;
-				} else {
-					columnDeltaOrValue = finalCursorPos.column;
-				}
+				lineDelta = finalCursorPos.lineNumber - editEnd.lineNumber;
+				columnDelta = finalCursorPos.column - editEnd.column;
 			}
 		}
 
@@ -510,15 +509,11 @@ export class SnippetController {
 
 			return inverseEdits.map((edit, i) => {
 
-				let {startLineNumber, startColumn} = edit.range;
-				if (lineDelta === 0) {
-					startColumn += columnDeltaOrValue;
-				} else {
-					startLineNumber += lineDelta;
-					startColumn += columnDeltaOrValue;
-				}
+				let {endLineNumber, endColumn} = edit.range;
+				endLineNumber += lineDelta;
+				endColumn += columnDelta;
 
-				return new Selection(startLineNumber, startColumn, startLineNumber, startColumn);
+				return new Selection(endLineNumber, endColumn, endLineNumber, endColumn);
 			});
 		};
 
