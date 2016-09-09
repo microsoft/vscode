@@ -144,6 +144,9 @@ export class TerminalService implements ITerminalService {
 					complete(<TerminalPanel>panel);
 				});
 			} else {
+				if (focus) {
+					panel.focus();
+				}
 				complete(<TerminalPanel>panel);
 			}
 		});
