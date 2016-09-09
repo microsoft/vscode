@@ -25,9 +25,9 @@ export class RangeHighlightDecorations implements IDisposable {
 	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 	}
 
-	public clearCurrentFileRangeDecoration() {
+	public removeHighlightRange() {
 		if (this.editor && this.rangeHighlightDecorationId) {
-			this.doClearRangeDecoration(this.editor, this.rangeHighlightDecorationId);
+			this.doRemoveRangeHighlight(this.editor, this.rangeHighlightDecorationId);
 		}
 		this.rangeHighlightDecorationId = null;
 	}
@@ -40,11 +40,11 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private doHighlightRange(editor: editorCommon.ICommonCodeEditor, selectionRange: IRangeHighlightDecoration) {
-		this.clearCurrentFileRangeDecoration();
+		this.removeHighlightRange();
 		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			this.rangeHighlightDecorationId = changeAccessor.addDecoration(selectionRange.range, this.createRangeHighlightDecoration());
 		});
-		this.updateEditor(editor);
+		this.setEditor(editor);
 	}
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): IEditor {
@@ -57,7 +57,7 @@ export class RangeHighlightDecorations implements IDisposable {
 		return null;
 	}
 
-	private updateEditor(editor: editorCommon.ICommonCodeEditor) {
+	private setEditor(editor: editorCommon.ICommonCodeEditor) {
 		if (this.editor !== editor) {
 			this.disposeEditorListeners();
 			this.editor = editor;
@@ -67,12 +67,12 @@ export class RangeHighlightDecorations implements IDisposable {
 					|| e.reason === editorCommon.CursorChangeReason.Undo
 					|| e.reason === editorCommon.CursorChangeReason.Redo
 				) {
-					this.doClearRangeDecoration(this.editor, this.rangeHighlightDecorationId);
+					this.doRemoveRangeHighlight(this.editor, this.rangeHighlightDecorationId);
 				}
 			}));
-			this.editorDisposables.push(this.editor.onDidChangeModel(() => { this.doClearRangeDecoration(this.editor, this.rangeHighlightDecorationId); }));
+			this.editorDisposables.push(this.editor.onDidChangeModel(() => { this.doRemoveRangeHighlight(this.editor, this.rangeHighlightDecorationId); }));
 			this.editorDisposables.push(this.editor.onDidDispose(() => {
-				this.doClearRangeDecoration(this.editor, this.rangeHighlightDecorationId);
+				this.doRemoveRangeHighlight(this.editor, this.rangeHighlightDecorationId);
 				this.editor = null;
 			}));
 		}
@@ -83,7 +83,7 @@ export class RangeHighlightDecorations implements IDisposable {
 		this.editorDisposables = [];
 	}
 
-	private doClearRangeDecoration(model: editorCommon.ICommonCodeEditor, rangeHighlightDecorationId: string) {
+	private doRemoveRangeHighlight(model: editorCommon.ICommonCodeEditor, rangeHighlightDecorationId: string) {
 		model.deltaDecorations([rangeHighlightDecorationId], []);
 	}
 
@@ -96,7 +96,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	public dispose() {
-		this.clearCurrentFileRangeDecoration();
+		this.removeHighlightRange();
 		this.disposeEditorListeners();
 		this.editor = null;
 	}

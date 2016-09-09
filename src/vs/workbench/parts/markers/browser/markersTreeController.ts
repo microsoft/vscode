@@ -53,7 +53,7 @@ export class Controller extends treedefaults.DefaultController {
 			tree.setSelection([element]);
 			return this.openFileAtElement(tree.getFocus(), true, false, false);
 		} else {
-			this.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+			this.rangeHighlightDecorations.removeHighlightRange();
 		}
 		return super.onSpace(tree, event);
 	}
@@ -79,12 +79,12 @@ export class Controller extends treedefaults.DefaultController {
 				if (preserveFocus) {
 					this.rangeHighlightDecorations.highlightRange(element, editor);
 				} else {
-					this.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+					this.rangeHighlightDecorations.removeHighlightRange();
 				}
 			}, errors.onUnexpectedError);
 			return true;
 		} else {
-			this.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+			this.rangeHighlightDecorations.removeHighlightRange();
 		}
 		return false;
 	}
