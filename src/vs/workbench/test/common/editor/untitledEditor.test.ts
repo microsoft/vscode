@@ -11,9 +11,10 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
+import {UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 class ServiceAccessor {
-	constructor(@IUntitledEditorService public untitledEditorService: IUntitledEditorService) {
+	constructor(@IUntitledEditorService public untitledEditorService: UntitledEditorService) {
 	}
 }
 
@@ -29,6 +30,7 @@ suite('Workbench - Untitled Editor', () => {
 
 	teardown(() => {
 		accessor.untitledEditorService.revertAll();
+		accessor.untitledEditorService.dispose();
 	});
 
 	test('Untitled Editor Service', function (done) {
@@ -116,6 +118,29 @@ suite('Workbench - Untitled Editor', () => {
 
 			model.textEditorModel.setValue('');
 			assert.ok(model.isDirty());
+
+			input.dispose();
+
+			done();
+		});
+	});
+
+	test('encoding change event', function (done) {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		let counter = 0;
+
+		service.onDidChangeEncoding(r => {
+			counter++;
+			assert.equal(r.toString(), input.getResource().toString());
+		});
+
+		// dirty
+		input.resolve().then((model: UntitledEditorModel) => {
+			model.setEncoding('utf16');
+
+			assert.equal(counter, 1);
 
 			input.dispose();
 
