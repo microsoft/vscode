@@ -19,7 +19,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IAction } from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -212,8 +212,8 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onEditorsChanged(): void {
-		let activeInput = this.editorService.getActiveEditorInput();
-		this.currentActiveFile = activeInput instanceof FileEditorInput ? activeInput.getResource() : null;
+		const editorInput = asFileEditorInput(this.editorService.getActiveEditorInput());
+		this.currentActiveFile = editorInput ? editorInput.getResource() : null;
 		this.autoReveal();
 	}
 
