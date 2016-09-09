@@ -198,6 +198,7 @@
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
+	line-height: 1.5em;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
@@ -209,8 +210,8 @@
 	padding: 4px 5px;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:not(:first-child) {
-	border-top: 1px solid rgba(204, 204, 204, 0.5);
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {
+	display: none;
 }
 
 /* Dark theme */
@@ -220,8 +221,7 @@
 }
 
 
-.monaco-editor.vs-dark .suggest-widget .details > .header,
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > p {
+.monaco-editor.vs-dark .suggest-widget .details > .header {
 	border-color: rgba(85,85,85,0.5);
 }
 
