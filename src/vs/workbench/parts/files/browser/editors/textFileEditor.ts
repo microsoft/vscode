@@ -132,6 +132,7 @@ export class TextFileEditor extends BaseTextEditor {
 				modelDisposed || 	// input got disposed meanwhile
 				inputChanged 		// a different input was set meanwhile
 			) {
+				console.warn('TextFileEditor', 'resource: ', textFileModel.getResource().toString(), 'hasInput: ', hasInput, 'modelDisposed: ', modelDisposed, 'inputChanged: ', inputChanged); // TODO@Ben remove me
 				return null;
 			}
 

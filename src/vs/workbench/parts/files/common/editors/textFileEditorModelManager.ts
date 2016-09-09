@@ -205,7 +205,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 		return modelPromise.then(model => {
 			if (model.isDisposed()) {
-				console.error('Adding disposed model into cache!!!'); // TODO@Ben remove me
+				console.warn('Adding disposed model into cache!!!', model.getResource().toString()); // TODO@Ben remove me
 			}
 
 			// Make known to manager (if not already known)
