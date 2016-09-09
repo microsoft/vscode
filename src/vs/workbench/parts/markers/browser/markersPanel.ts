@@ -128,7 +128,7 @@ export class MarkersPanel extends Panel {
 	public setVisible(visible: boolean): TPromise<void> {
 		let promise: TPromise<void> = super.setVisible(visible);
 		if (!visible) {
-			this.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+			this.rangeHighlightDecorations.removeHighlightRange();
 		}
 		return promise;
 	}
@@ -313,7 +313,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	private updateRangeHighlights() {
-		this.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+		this.rangeHighlightDecorations.removeHighlightRange();
 		if (this.tree.isDOMFocused()) {
 			this.highlightCurrentSelectedMarkerRange();
 		}

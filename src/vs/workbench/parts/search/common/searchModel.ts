@@ -415,7 +415,7 @@ export class SearchResult extends Disposable {
 				range: selectedMatch.range()
 			});
 		} else {
-			this._rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+			this._rangeHighlightDecorations.removeHighlightRange();
 		}
 	}
 
@@ -465,7 +465,7 @@ export class SearchResult extends Disposable {
 		this._unDisposedFileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
 		this._fileMatches.clear();
 		this._unDisposedFileMatches.clear();
-		this._rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
 	public dispose(): void {

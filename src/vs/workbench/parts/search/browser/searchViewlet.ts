@@ -900,7 +900,7 @@ export class SearchViewlet extends Viewlet {
 
 	private onFocus(lineMatch: any, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
-			this.viewModel.searchResult.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			return TPromise.as(true);
 		}
 
@@ -927,7 +927,7 @@ export class SearchViewlet extends Viewlet {
 					range: element.range()
 				}, editor);
 			} else {
-				this.viewModel.searchResult.rangeHighlightDecorations.clearCurrentFileRangeDecoration();
+				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			}
 		}, errors.onUnexpectedError);
 	}
