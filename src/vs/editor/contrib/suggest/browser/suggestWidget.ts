@@ -235,7 +235,7 @@ class SuggestionDetails {
 		}
 
 		this.titleLabel.set(item.suggestion.label, item.highlights);
-		this.type.textContent = item.suggestion.detail || '';
+		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
 		this.back.onmousedown = e => {
 			e.preventDefault();
