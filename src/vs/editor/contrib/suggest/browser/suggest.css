@@ -55,7 +55,8 @@
 	display: none;
 	max-height: 3.4em;
 	overflow: hidden;
-	height: 22px;
+	height: 24px;
+	line-height: 24px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text {
@@ -67,12 +68,13 @@
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details {
-	/*font-size: 1.4em;*/
 	opacity: 0.6;
 	width: 14px;
-	height: 14px;
+	height: 100%;
 	background-image: url('./info.svg');
 	background-size: 14px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }
 
 .monaco-editor .suggest-widget .details > .header > .go-back,
@@ -183,6 +185,8 @@
 	height: 14px;
 	background-image: url('./back.svg');
 	background-size: 14px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }
 
 .monaco-editor .suggest-widget .details > .header > .go-back:hover {
