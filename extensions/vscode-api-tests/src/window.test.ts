@@ -232,6 +232,20 @@ suite('window namespace tests', () => {
 		return result;
 	});
 
+	test('showQuickPick, native promise - #11754', function () {
+
+		const data = new Promise<string[]>(resolve => {
+			resolve(['a', 'b', 'c']);
+		});
+
+		const source = new CancellationTokenSource();
+		const result = window.showQuickPick(data, undefined, source.token);
+		source.cancel();
+		return result.then(value => {
+			assert.equal(value, undefined);
+		});
+	});
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
