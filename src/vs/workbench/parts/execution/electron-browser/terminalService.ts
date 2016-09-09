@@ -190,20 +190,19 @@ export class LinuxTerminalService implements ITerminalService {
 
 		return new TPromise<void>( (c, e) => {
 
-			let termArgs: string[];
-
+			let termArgs: string[] = [];
+			//termArgs.push('--title');
+			//termArgs.push(`"${TERMINAL_TITLE}"`);
 			if (exec.indexOf('gnome-terminal') >= 0) {
-				const bashCommand = `${quote(args)}; echo; read -p "${LinuxTerminalService.WAIT_MESSAGE}" -n1;`;
-				termArgs = [
-					'--title', `"${TERMINAL_TITLE}"`,
-					'-x', 'bash', '-c',
-					`''${bashCommand}''` 	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
-				];
+				termArgs.push('-x');
 			} else {
-				termArgs = [
-					'-e', `''${quote(args)}''` 	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
-				];
+				termArgs.push('-e');
 			}
+			termArgs.push('bash');
+			termArgs.push('-c');
+
+			const bashCommand = `${quote(args)}; echo; read -p "${LinuxTerminalService.WAIT_MESSAGE}" -n1;`;
+			termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 			// merge environment variables into a copy of the process.env
 			const env = extendObject(extendObject( { }, process.env), envVars);
