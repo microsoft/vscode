@@ -14,7 +14,6 @@ import {IPosition, IModel} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 
 // The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
@@ -24,7 +23,6 @@ export class SaveParticipant implements ISaveParticipant, IWorkbenchContribution
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEventService private eventService: IEventService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService
 	) {
 		this.toUnbind = [];

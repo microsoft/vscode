@@ -34,7 +34,6 @@ import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -241,7 +240,6 @@ export class EditorStatus implements IStatusbarItem {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
