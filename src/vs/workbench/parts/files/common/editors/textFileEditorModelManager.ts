@@ -204,6 +204,9 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.mapResourceToPendingModelLoaders[resource.toString()] = modelPromise;
 
 		return modelPromise.then(model => {
+			if (model.isDisposed()) {
+				console.error('Adding disposed model into cache!!!'); // TODO@Ben remove me
+			}
 
 			// Make known to manager (if not already known)
 			this.add(resource, model);

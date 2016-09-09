@@ -312,4 +312,18 @@ suite('Files - TextFileEditorModelManager', () => {
 			});
 		});
 	});
+
+	test('disposing model takes it out of the manager', function (done) {
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+
+		const resource = toResource('/path/index_something.txt');
+
+		manager.loadOrCreate(resource, 'utf8').then(model => {
+			model.dispose();
+
+			assert.ok(!manager.get(resource));
+			manager.dispose();
+			done();
+		});
+	});
 });
