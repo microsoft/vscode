@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import cp = require('child_process');
@@ -70,6 +71,11 @@ export class WinTerminalService implements ITerminalService {
 		// The '""' argument is the window title. Without this, exec doesn't work when the path
 		// contains spaces
 		let cmdArgs = ['/c', 'start', '/wait', '""', exec];
+
+		// Make the drive letter uppercase on Windows (see #9448)
+		if (path && path[1] === ':') {
+			path = path[0].toUpperCase() + path.substr(1);
+		}
 
 		return new TPromise<void>((c, e) => {
 			let env = path ? { cwd: path } : void 0;
