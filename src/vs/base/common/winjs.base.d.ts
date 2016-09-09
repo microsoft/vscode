@@ -85,6 +85,10 @@ export declare class TPromise<V> {
 	public static join<ValueType>(promises:Thenable<ValueType>[]):Thenable<ValueType[]>;
 	public static join<ValueType>(promises: {[n:string]:TPromise<ValueType>}):TPromise<{[n:string]:ValueType}>;
 	public static any<ValueType>(promises:TPromise<ValueType>[]):TPromise<{ key:string; value:TPromise<ValueType>;}>;
+
+	public static wrap<ValueType>(value: Thenable<ValueType>): TPromise<ValueType>;
+	public static wrap<ValueType>(value: ValueType): TPromise<ValueType>;
+
 	public static wrapError<ValueType>(error:any):TPromise<ValueType>;
 }
 
