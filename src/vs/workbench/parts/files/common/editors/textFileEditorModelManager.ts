@@ -32,7 +32,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	private mapResourceToDisposeListener: { [resource: string]: IDisposable; };
 	private mapResourceToStateChangeListener: { [resource: string]: IDisposable; };
 	private mapResourcePathToModel: { [resource: string]: TextFileEditorModel; };
-	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<TextFileEditorModel>};
+	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<TextFileEditorModel> };
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -183,15 +183,19 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			// Install state change listener
 			this.mapResourceToStateChangeListener[resource.toString()] = model.onDidStateChange(state => {
 				const event = new TextFileModelChangeEvent(model, state);
-				switch(state) {
+				switch (state) {
 					case StateChange.DIRTY:
 						this._onModelDirty.fire(event);
+						break;
 					case StateChange.SAVE_ERROR:
 						this._onModelSaveError.fire(event);
+						break;
 					case StateChange.SAVED:
 						this._onModelSaved.fire(event);
+						break;
 					case StateChange.REVERTED:
 						this._onModelReverted.fire(event);
+						break;
 				}
 			});
 		}

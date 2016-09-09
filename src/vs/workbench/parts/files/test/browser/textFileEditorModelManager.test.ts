@@ -301,6 +301,10 @@ suite('Files - TextFileEditorModelManager', () => {
 						model2.dispose();
 
 						return model1.revert().then(() => { // should not trigger another event if disposed
+							assert.equal(dirtyCounter, 2);
+							assert.equal(revertedCounter, 1);
+							assert.equal(savedCounter, 1);
+
 							done();
 						});
 					});
