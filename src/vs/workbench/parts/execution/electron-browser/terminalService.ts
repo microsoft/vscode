@@ -190,13 +190,20 @@ export class LinuxTerminalService implements ITerminalService {
 
 		return new TPromise<void>( (c, e) => {
 
-			const bashCommand = `${quote(args)}; echo; read -p "${LinuxTerminalService.WAIT_MESSAGE}" -n1;`;
+			let termArgs: string[];
 
-			const termArgs = [
-				'--title', `"${TERMINAL_TITLE}"`,
-				'-x', 'bash', '-c',
-				`''${bashCommand}''` 	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
-			];
+			if (exec.indexOf('gnome-terminal') >= 0) {
+				const bashCommand = `${quote(args)}; echo; read -p "${LinuxTerminalService.WAIT_MESSAGE}" -n1;`;
+				termArgs = [
+					'--title', `"${TERMINAL_TITLE}"`,
+					'-x', 'bash', '-c',
+					`''${bashCommand}''` 	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
+				];
+			} else {
+				termArgs = [
+					'-e', `''${quote(args)}''` 	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
+				];
+			}
 
 			// merge environment variables into a copy of the process.env
 			const env = extendObject(extendObject( { }, process.env), envVars);
@@ -206,13 +213,22 @@ export class LinuxTerminalService implements ITerminalService {
 				env: env
 			};
 
+			let stderr = '';
 			const cmd = cp.spawn(exec, termArgs, options);
 			cmd.on('error', e);
+			cmd.stderr.on('data', (data) => {
+				stderr += data.toString();
+			});
 			cmd.on('exit', (code: number) => {
 				if (code === 0) {	// OK
 					c(null);
 				} else {
-					e(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code));
+					if (stderr) {
+						const lines = stderr.split('\n', 1);
+						e(new Error(lines[0]));
+					} else {
+						e(new Error(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code)));
+					}
 				}
 			});
 		});
