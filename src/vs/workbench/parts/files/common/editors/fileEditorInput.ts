@@ -20,7 +20,6 @@ import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEdito
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IEventService} from 'vs/platform/event/common/event';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -47,7 +46,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 		resource: URI,
 		mime: string,
 		preferredEncoding: string,
-		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService

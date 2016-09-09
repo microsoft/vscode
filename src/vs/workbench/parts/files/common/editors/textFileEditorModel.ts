@@ -20,7 +20,6 @@ import {ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorMod
 import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -64,7 +63,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IMessageService private messageService: IMessageService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IEventService private eventService: IEventService,
 		@IFileService private fileService: IFileService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,

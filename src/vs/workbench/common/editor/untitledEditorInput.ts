@@ -16,7 +16,6 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IEventService} from 'vs/platform/event/common/event';
 import Event, {Emitter} from 'vs/base/common/event';
 
 import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
@@ -46,8 +45,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IEventService private eventService: IEventService
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 

@@ -11,7 +11,6 @@ import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {VIEWLET_ID, TextFileModelChangeEvent, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {platform, Platform} from 'vs/base/common/platform';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IEventService} from 'vs/platform/event/common/event';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorStacksModel} from 'vs/workbench/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -36,7 +35,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 
 	constructor(
-		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
