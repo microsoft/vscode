@@ -5,6 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
+import Event, {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {toErrorMessage} from 'vs/base/common/errorMessage';
@@ -16,7 +17,7 @@ import types = require('vs/base/common/types');
 import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/files';
+import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveErrorHandler, StateChange} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
@@ -55,6 +56,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
+	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
 		resource: URI,
@@ -75,6 +77,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			throw new Error('TextFileEditorModel can only handle file:// resources.');
 		}
 
+		this._onDidStateChange = new Emitter<StateChange>();
 		this.preferredEncoding = preferredEncoding;
 		this.textModelChangeListener = null;
 		this.dirty = false;
@@ -99,6 +102,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.autoSaveAfterMillies = void 0;
 			this.autoSaveAfterMilliesEnabled = false;
 		}
+	}
+
+	public get onDidStateChange(): Event<StateChange> {
+		return this._onDidStateChange.event;
 	}
 
 	/**
@@ -143,12 +150,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.load(true /* force */).then(() => {
 
 			// Emit file change event
-			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			this._onDidStateChange.fire(StateChange.REVERTED);
 		}, (error) => {
 
 			// FileNotFound means the file got deleted meanwhile, so emit revert event because thats ok
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
 			// Set flags back to previous values, we are still dirty if revert failed and we where
@@ -296,7 +303,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Emit event
 			if (wasDirty) {
-				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
 			return;
@@ -325,7 +332,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
-			this.emitEvent(FileEventType.FILE_DIRTY, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			this._onDidStateChange.fire(StateChange.DIRTY);
 		}
 	}
 
@@ -454,7 +461,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.updateVersionOnDiskStat(stat);
 
 			// Emit File Saved Event
-			this.emitEvent(FileEventType.FILE_SAVED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			this._onDidStateChange.fire(StateChange.SAVED);
 		}, (error) => {
 			diag('doSave(' + versionId + ') - exit - resulted in a save error: ' + error.toString(), this.resource, new Date());
 
@@ -468,7 +475,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.onSaveError(error);
 
 			// Emit as event
-			this.emitEvent(FileEventType.FILE_SAVE_ERROR, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			this._onDidStateChange.fire(StateChange.SAVE_ERROR);
 		});
 
 		return this.mapPendingSaveToVersionId[versionId];
@@ -675,6 +682,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.disposed = true;
 		this.inConflictResolutionMode = false;
 		this.inErrorMode = false;
+
+		this._onDidStateChange.dispose();
 
 		this.createTextEditorModelPromise = null;
 

@@ -24,7 +24,7 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import {asFileEditorInput, getUntitledOrFileResource, UntitledEditorInput, IEditorIdentifier} from 'vs/workbench/common/editor';
@@ -1558,10 +1558,10 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	private registerListeners(): void {
 
 		// listen to files being changed locally
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.updateEnablement(true)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.updateEnablement(false)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.updateEnablement(false)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.updateEnablement(true)));
+		this.toDispose.push(this.textFileService.models.onModelDirty(e => this.updateEnablement(true)));
+		this.toDispose.push(this.textFileService.models.onModelSaved(e => this.updateEnablement(false)));
+		this.toDispose.push(this.textFileService.models.onModelReverted(e => this.updateEnablement(false)));
+		this.toDispose.push(this.textFileService.models.onModelSaveError(e => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
 			this.toDispose.push(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));

@@ -20,7 +20,7 @@ import { IFileStatus, IGitServiceError, GitErrorCodes, Status, StatusType, AutoF
 import { Model } from 'vs/workbench/parts/git/common/gitModel';
 import { NativeGitIndexStringEditorInput, GitIndexDiffEditorInput, GitWorkingTreeDiffEditorInput, GitDiffEditorInput } from 'vs/workbench/parts/git/browser/gitEditorInputs';
 import { GitOperation } from 'vs/workbench/parts/git/browser/gitOperations';
-import { EventType as WorkbenchFileEventType, TextFileChangeEvent } from 'vs/workbench/parts/files/common/files';
+import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IFileService, EventType as FileEventType, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer, PeriodThrottledDelayer } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
@@ -396,6 +396,7 @@ export class GitService extends EventEmitter
 	private eventService: IEventService;
 	private contextService: IWorkspaceContextService;
 	private messageService: IMessageService;
+	private textFileService: ITextFileService;
 	private instantiationService: IInstantiationService;
 	private editorService: IWorkbenchEditorService;
 	private lifecycleService: ILifecycleService;
@@ -433,6 +434,7 @@ export class GitService extends EventEmitter
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
+		@ITextFileService textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService storageService: IStorageService,
@@ -444,6 +446,7 @@ export class GitService extends EventEmitter
 		this.eventService = eventService;
 		this.messageService = messageService;
 		this.editorService = editorService;
+		this.textFileService = textFileService;
 		this.outputService = outputService;
 		this.contextService = contextService;
 		this.lifecycleService = lifecycleService;
@@ -500,8 +503,8 @@ export class GitService extends EventEmitter
 
 	private registerListeners(): void {
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFileChanges(e)));
-		this.toDispose.push(this.eventService.addListener2(WorkbenchFileEventType.FILE_SAVED, (e) => this.onTextFileChange(e)));
-		this.toDispose.push(this.eventService.addListener2(WorkbenchFileEventType.FILE_REVERTED, (e) => this.onTextFileChange(e)));
+		this.toDispose.push(this.textFileService.models.onModelSaved((e) => this.onTextFileChange(e)));
+		this.toDispose.push(this.textFileService.models.onModelReverted((e) => this.onTextFileChange(e)));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => {
 			if (this._allowHugeRepositories) {
 				return;
@@ -529,7 +532,7 @@ export class GitService extends EventEmitter
 		this.toDispose.push(blurEvent(() => this.isFocused = false));
 	}
 
-	private onTextFileChange(e: TextFileChangeEvent): void {
+	private onTextFileChange(e: TextFileModelChangeEvent): void {
 		var shouldTriggerStatus = paths.basename(e.resource.fsPath) === '.gitignore';
 
 		if (!shouldTriggerStatus) {

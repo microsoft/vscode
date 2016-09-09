@@ -113,30 +113,9 @@ export interface ISaveErrorHandler {
 export const EventType = {
 
 	/**
-	 * Indicates that a file content has changed but not yet saved.
-	 */
-	FILE_DIRTY: 'files:fileDirty',
-
-	/**
 	 * Indicates that a file is being saved.
 	 */
 	FILE_SAVING: 'files:fileSaving',
-
-	/**
-	 * Indicates that a file save resulted in an error.
-	 */
-	FILE_SAVE_ERROR: 'files:fileSaveError',
-
-	/**
-	 * Indicates that a file content has been saved to the disk.
-	 */
-	FILE_SAVED: 'files:fileSaved',
-
-	/**
-	 * Indicates that a file content has been reverted to the state
-	 * on disk.
-	 */
-	FILE_REVERTED: 'files:fileReverted'
 };
 
 /**
@@ -236,6 +215,32 @@ export class TextFileChangeEvent extends BaseEvent {
 	}
 }
 
+export enum StateChange {
+	DIRTY,
+	SAVING,
+	SAVE_ERROR,
+	SAVED,
+	REVERTED
+}
+
+export class TextFileModelChangeEvent {
+	private _resource: URI;
+	private _kind: StateChange;
+
+	constructor(model: ITextFileEditorModel, kind: StateChange) {
+		this._resource = model.getResource();
+		this._kind = kind;
+	}
+
+	public get resource(): URI {
+		return this._resource;
+	}
+
+	public get kind(): StateChange {
+		return this._kind;
+	}
+}
+
 export const TEXT_FILE_SERVICE_ID = 'textFileService';
 
 export interface ITextFileOperationResult {
@@ -287,6 +292,11 @@ export interface IRawTextContent extends IBaseStat {
 }
 
 export interface ITextFileEditorModelManager {
+
+	onModelDirty: Event<TextFileModelChangeEvent>;
+	onModelSaveError: Event<TextFileModelChangeEvent>;
+	onModelSaved: Event<TextFileModelChangeEvent>;
+	onModelReverted: Event<TextFileModelChangeEvent>;
 
 	get(resource: URI): ITextFileEditorModel;
 
