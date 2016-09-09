@@ -13,7 +13,7 @@ import {workbenchInstantiationService, TestLifecycleService, TestTextFileService
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {ConfirmResult} from 'vs/workbench/common/editor';
+import {ConfirmResult, EncodingMode} from 'vs/workbench/common/editor';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
@@ -56,6 +56,7 @@ suite('Files - TextFileService', () => {
 	teardown(() => {
 		model.dispose();
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
+		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledEditorService.revertAll();
 	});
 

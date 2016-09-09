@@ -16,7 +16,6 @@ import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
 import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
-import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
 import {ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
@@ -223,7 +222,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (this.preferredEncoding) {
 				this.updatePreferredEncoding(this.contentEncoding); // make sure to reflect the real encoding of the file (never out of sync)
 			} else if (oldEncoding !== this.contentEncoding) {
-				this.eventService.emit(WorkbenchEventType.RESOURCE_ENCODING_CHANGED, new ResourceEvent(this.resource));
+				this._onDidStateChange.fire(StateChange.ENCODING);
 			}
 
 			// Update Existing Model
@@ -644,7 +643,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredEncoding = encoding;
 
 		// Emit
-		this.eventService.emit(WorkbenchEventType.RESOURCE_ENCODING_CHANGED, new ResourceEvent(this.resource));
+		this._onDidStateChange.fire(StateChange.ENCODING);
 	}
 
 	private isNewEncoding(encoding: string): boolean {

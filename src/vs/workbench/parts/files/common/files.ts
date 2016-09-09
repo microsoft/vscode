@@ -185,7 +185,8 @@ export enum StateChange {
 	SAVING,
 	SAVE_ERROR,
 	SAVED,
-	REVERTED
+	REVERTED,
+	ENCODING
 }
 
 export class TextFileModelChangeEvent {
@@ -262,6 +263,7 @@ export interface ITextFileEditorModelManager {
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
 	onModelReverted: Event<TextFileModelChangeEvent>;
+	onModelEncodingChanged: Event<TextFileModelChangeEvent>;
 
 	get(resource: URI): ITextFileEditorModel;
 

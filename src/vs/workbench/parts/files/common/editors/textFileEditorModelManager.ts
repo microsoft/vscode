@@ -28,6 +28,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	private _onModelSaveError: Emitter<TextFileModelChangeEvent>;
 	private _onModelSaved: Emitter<TextFileModelChangeEvent>;
 	private _onModelReverted: Emitter<TextFileModelChangeEvent>;
+	private _onModelEncodingChanged: Emitter<TextFileModelChangeEvent>;
 
 	private mapResourceToDisposeListener: { [resource: string]: IDisposable; };
 	private mapResourceToStateChangeListener: { [resource: string]: IDisposable; };
@@ -46,11 +47,13 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this._onModelSaveError = new Emitter<TextFileModelChangeEvent>();
 		this._onModelSaved = new Emitter<TextFileModelChangeEvent>();
 		this._onModelReverted = new Emitter<TextFileModelChangeEvent>();
+		this._onModelEncodingChanged = new Emitter<TextFileModelChangeEvent>();
 
 		this.toUnbind.push(this._onModelDirty);
 		this.toUnbind.push(this._onModelSaveError);
 		this.toUnbind.push(this._onModelSaved);
 		this.toUnbind.push(this._onModelReverted);
+		this.toUnbind.push(this._onModelEncodingChanged);
 
 		this.mapResourcePathToModel = Object.create(null);
 		this.mapResourceToDisposeListener = Object.create(null);
@@ -151,6 +154,10 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return this._onModelReverted.event;
 	}
 
+	public get onModelEncodingChanged(): Event<TextFileModelChangeEvent> {
+		return this._onModelEncodingChanged.event;
+	}
+
 	public get(resource: URI): TextFileEditorModel {
 		return this.mapResourcePathToModel[resource.toString()];
 	}
@@ -195,6 +202,9 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 						break;
 					case StateChange.REVERTED:
 						this._onModelReverted.fire(event);
+						break;
+					case StateChange.ENCODING:
+						this._onModelEncodingChanged.fire(event);
 						break;
 				}
 			});

@@ -273,6 +273,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		let dirtyCounter = 0;
 		let revertedCounter = 0;
 		let savedCounter = 0;
+		let encodingCounter = 0;
 
 		manager.onModelDirty(e => {
 			dirtyCounter++;
@@ -289,9 +290,15 @@ suite('Files - TextFileEditorModelManager', () => {
 			assert.equal(e.resource.toString(), resource1.toString());
 		});
 
+		manager.onModelEncodingChanged(e => {
+			encodingCounter++;
+			assert.equal(e.resource.toString(), resource1.toString());
+		});
+
 		manager.loadOrCreate(resource1, 'utf8').then(model1 => {
 			return manager.loadOrCreate(resource2, 'utf8').then(model2 => {
 				model1.textEditorModel.setValue('changed');
+				model1.updatePreferredEncoding('utf16');
 
 				return model1.revert().then(() => {
 					model1.textEditorModel.setValue('changed again');
@@ -304,6 +311,7 @@ suite('Files - TextFileEditorModelManager', () => {
 							assert.equal(dirtyCounter, 2);
 							assert.equal(revertedCounter, 1);
 							assert.equal(savedCounter, 1);
+							assert.equal(encodingCounter, 2);
 
 							done();
 						});

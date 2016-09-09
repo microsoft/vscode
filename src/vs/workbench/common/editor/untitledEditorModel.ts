@@ -9,11 +9,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
-import {EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
-import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
+import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IMode} from 'vs/editor/common/modes';
@@ -26,6 +24,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	private dirty: boolean;
 	private _onDidChangeDirty: Emitter<void>;
+	private _onDidChangeEncoding: Emitter<void>;
 
 	private configuredEncoding: string;
 	private preferredEncoding: string;
@@ -39,7 +38,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		hasAssociatedFilePath: boolean,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(value, mime, resource, modeService, modelService);
@@ -48,12 +46,17 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
 
 		this._onDidChangeDirty = new Emitter<void>();
+		this._onDidChangeEncoding = new Emitter<void>();
 
 		this.registerListeners();
 	}
 
 	public get onDidChangeDirty(): Event<void> {
 		return this._onDidChangeDirty.event;
+	}
+
+	public get onDidChangeEncoding(): Event<void> {
+		return this._onDidChangeEncoding.event;
 	}
 
 	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
@@ -100,7 +103,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 		// Emit if it changed
 		if (oldEncoding !== this.preferredEncoding) {
-			this.eventService.emit(WorkbenchEventType.RESOURCE_ENCODING_CHANGED, new ResourceEvent(this.resource));
+			this._onDidChangeEncoding.fire();
 		}
 	}
 
@@ -163,5 +166,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configurationChangeListener.dispose();
 			this.configurationChangeListener = null;
 		}
+
+		this._onDidChangeDirty.dispose();
+		this._onDidChangeEncoding.dispose();
 	}
 }
