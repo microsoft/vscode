@@ -36,8 +36,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
 			completionProvider: { resolveProvider: false, triggerCharacters: ['"', ':'] },
-			hoverProvider: true,
-			documentSymbolProvider: true,
+		//	hoverProvider: true,
+		//	documentSymbolProvider: true,
 			documentRangeFormattingProvider: true,
 			documentFormattingProvider: true
 		}
@@ -138,15 +138,32 @@ connection.onCompletion(textDocumentPosition => {
 // 	return languageService.findDocumentSymbols(document, htmlDocument);
 // });
 
-// connection.onDocumentFormatting(formatParams => {
-// 	let document = documents.get(formatParams.textDocument.uri);
-// 	return languageService.format(document, null, formatParams.options);
-// });
+function merge(src: any, dst: any) : any {
+	for (var key in src) {
+		if (src.hasOwnProperty(key)) {
+			dst[key] = src[key];
+		}
+	}
+	return dst;
+}
 
-// connection.onDocumentRangeFormatting(formatParams => {
-// 	let document = documents.get(formatParams.textDocument.uri);
-// 	return languageService.format(document, formatParams.range, formatParams.options);
-// });
+function getFormattingOptions(formatParams : any) {
+	let formatSettings = languageSettings && languageSettings.format;
+	if (!formatSettings) {
+		return formatParams;
+	}
+	return merge(formatParams, merge(formatSettings, {}));
+}
+
+connection.onDocumentFormatting(formatParams => {
+	let document = documents.get(formatParams.textDocument.uri);
+	return languageService.format(document, null, getFormattingOptions(formatParams));
+});
+
+connection.onDocumentRangeFormatting(formatParams => {
+	let document = documents.get(formatParams.textDocument.uri);
+	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams));
+});
 
 // Listen on the connection
 connection.listen();

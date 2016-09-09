@@ -5,12 +5,15 @@
 'use strict';
 import { parse} from './parser/htmlParser';
 import { doComplete } from './services/htmlCompletion';
+import { format } from './services/htmlFormatter';
 import { TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, FormattingOptions, MarkedString } from 'vscode-languageserver-types';
 
 export { TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, FormattingOptions, MarkedString };
 
 
 export interface HTMLFormatConfiguration {
+	tabSize: number;
+	insertSpaces: boolean;
 	wrapLineLength: number;
 	unformatted: string;
 	indentInnerHtml: boolean;
@@ -37,7 +40,7 @@ export interface LanguageService {
 	doComplete(document: TextDocument, position: Position, doc: HTMLDocument): CompletionList;
 //	findDocumentSymbols(document: TextDocument, doc: HTMLDocument): SymbolInformation[];
 //	doHover(document: TextDocument, position: Position, doc: HTMLDocument): Hover;
-//	format(document: TextDocument, range: Range, options: FormattingOptions): TextEdit[];
+	format(document: TextDocument, range: Range, options: HTMLFormatConfiguration): TextEdit[];
 }
 
 export function getLanguageService() : LanguageService {
@@ -46,6 +49,7 @@ export function getLanguageService() : LanguageService {
 
 		configure: (settings) => {},
 		parseHTMLDocument: (document) => parse(document.getText()),
-		doComplete
+		doComplete,
+		format
 	};
 }
