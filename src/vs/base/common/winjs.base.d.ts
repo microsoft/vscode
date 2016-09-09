@@ -34,7 +34,7 @@ export declare class Promise {
 	// static timeout(delay:number):Promise;
 
 	static wrapError(error:any):Promise;
-	static is(value: any): boolean;
+	static is(value: any): value is Thenable<any>;
 	static addEventListener(type:string, fn:EventCallback):void;
 
 	public then(success?:ValueCallback, error?:ErrorCallback, progress?:ProgressCallback):Promise;
@@ -79,7 +79,7 @@ export declare class TPromise<V> {
 	public cancel():void;
 
 	public static as<ValueType>(value:ValueType):TPromise<ValueType>;
-	public static is(value: any): value is TPromise<any>;
+	public static is(value: any): value is Thenable<any>;
 	public static timeout(delay:number):TPromise<void>;
 	public static join<ValueType>(promises:TPromise<ValueType>[]):TPromise<ValueType[]>;
 	public static join<ValueType>(promises:Thenable<ValueType>[]):Thenable<ValueType[]>;
