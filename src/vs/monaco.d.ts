@@ -75,12 +75,16 @@ declare module monaco {
         public cancel(): void;
 
         public static as<ValueType>(value: ValueType): Promise<ValueType>;
-        public static is(value: any): value is Promise<any>;
+        public static is(value: any): value is Thenable<any>;
         public static timeout(delay: number): Promise<void>;
         public static join<ValueType>(promises: Promise<ValueType>[]): Promise<ValueType[]>;
         public static join<ValueType>(promises: Thenable<ValueType>[]): Thenable<ValueType[]>;
         public static join<ValueType>(promises: { [n: string]: Promise<ValueType> }): Promise<{ [n: string]: ValueType }>;
         public static any<ValueType>(promises: Promise<ValueType>[]): Promise<{ key: string; value: Promise<ValueType>; }>;
+
+        public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
+        public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
+
         public static wrapError<ValueType>(error: any): Promise<ValueType>;
     }
 

@@ -231,7 +231,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return null;
 	}
 
-	private handleDeleteOrMove(resource: URI, movedTo?: URI): void {
+	public handleDeleteOrMove(resource: URI, movedTo?: URI): void {
 		if (this.textFileService.isDirty(resource)) {
 			return; // never dispose dirty resources from a delete
 		}

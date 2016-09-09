@@ -13,7 +13,6 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
 import {cloneAndChange, mixin} from 'vs/base/common/objects';
 import {Registry} from 'vs/platform/platform';
 
@@ -37,7 +36,6 @@ export class TelemetryService implements ITelemetryService {
 	private _userOptIn: boolean;
 
 	private _disposables: IDisposable[] = [];
-	private _timeKeeper: TimeKeeper;
 	private _cleanupPatterns: [RegExp, string][] = [];
 
 	constructor(
@@ -62,10 +60,6 @@ export class TelemetryService implements ITelemetryService {
 			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
 		);
 
-		this._timeKeeper = new TimeKeeper();
-		this._disposables.push(this._timeKeeper);
-		this._disposables.push(this._timeKeeper.addListener(events => this._onTelemetryTimerEventStop(events)));
-
 		if (this._configurationService) {
 			this._updateUserOptIn();
 			this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
@@ -76,15 +70,6 @@ export class TelemetryService implements ITelemetryService {
 	private _updateUserOptIn(): void {
 		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
-	}
-
-	private _onTelemetryTimerEventStop(events: ITimerEvent[]): void {
-		for (let i = 0; i < events.length; i++) {
-			let event = events[i];
-			let data = event.data || {};
-			data.duration = event.timeTaken();
-			this.publicLog(event.name, data);
-		}
 	}
 
 	get isOptedIn(): boolean {
@@ -104,15 +89,6 @@ export class TelemetryService implements ITelemetryService {
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
-	}
-
-	timedPublicLog(name: string, data?: any): ITimerEvent {
-		let topic = 'public';
-		let event = this._timeKeeper.start(topic, name);
-		if (data) {
-			event.data = data;
-		}
-		return event;
 	}
 
 	publicLog(eventName: string, data?: any): TPromise<any> {

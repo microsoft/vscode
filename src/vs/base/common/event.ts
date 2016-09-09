@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable}  from 'vs/base/common/lifecycle';
+import {IDisposable, dispose}  from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -152,7 +152,25 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): E
 	};
 }
 
-export function fromPromise<T>(promise: TPromise<Event<T>>): Event<T> {
+export function fromPromise(promise: TPromise<any>): Event<void> {
+	const emitter = new Emitter<void>();
+	let shouldEmit = false;
+
+	promise
+		.then(null, () => null)
+		.then(() => {
+			if (!shouldEmit) {
+				setTimeout(() => emitter.fire(), 0);
+			} else {
+				emitter.fire();
+			}
+		});
+
+	shouldEmit = true;
+	return emitter.event;
+}
+
+export function delayed<T>(promise: TPromise<Event<T>>): Event<T> {
 	let toCancel: TPromise<any> = null;
 	let listener: IDisposable = null;
 
@@ -196,6 +214,21 @@ export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
 
 export function filterEvent<T>(event: Event<T>, filter: (e:T)=>boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+export function any(...events: Event<any>[]): Event<void> {
+	let listeners = [];
+
+	const emitter = new Emitter<void>({
+		onFirstListenerAdd() {
+			listeners = events.map(e => e(() => emitter.fire(), null));
+		},
+		onLastListenerRemove() {
+			listeners = dispose(listeners);
+		}
+	});
+
+	return emitter.event;
 }
 
 export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100): Event<O> {
@@ -274,4 +307,9 @@ export class EventBufferer {
 		this.buffers.pop();
 		buffer.forEach(flush => flush());
 	}
+}
+
+export function stopwatch<T>(event: Event<T>): Event<number> {
+	const start = new Date().getTime();
+	return mapEvent(once(event), _ => new Date().getTime() - start);
 }

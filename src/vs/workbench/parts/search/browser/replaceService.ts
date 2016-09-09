@@ -90,7 +90,7 @@ class EditorInputCache {
 							this.createRightInput(fileMatch)]).then(inputs => {
 			const [left, right] = inputs;
 			let editorInput= new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), undefined, <EditorInput>left, <EditorInput>right);
-			editorInput.addListener2('dispose', () => this.cleanInput(fileMatch.resource()));
+			editorInput.onDispose(() => this.cleanInput(fileMatch.resource()));
 			return editorInput;
 		});
 	}

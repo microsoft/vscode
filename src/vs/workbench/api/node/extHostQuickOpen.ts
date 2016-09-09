@@ -29,7 +29,7 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
 
-		const itemsPromise = <TPromise<Item[]>> TPromise.as(itemsOrItemsPromise);
+		const itemsPromise = <TPromise<Item[]>>TPromise.wrap(itemsOrItemsPromise);
 
 		const quickPickWidget = this._proxy.$show({
 			autoFocus: { autoFocusFirstEntry: true },

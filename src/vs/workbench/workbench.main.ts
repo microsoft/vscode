@@ -38,24 +38,32 @@ import 'vs/workbench/parts/files/browser/files.contribution';
 import 'vs/workbench/parts/files/electron-browser/files.electron.contribution';
 
 import 'vs/workbench/parts/search/browser/search.contribution';
+import 'vs/workbench/parts/search/browser/searchViewlet'; // can be packaged separately
+import 'vs/workbench/parts/search/browser/openAnythingHandler'; // can be packaged separately
 
 import 'vs/workbench/parts/git/electron-browser/git.contribution';
 import 'vs/workbench/parts/git/browser/gitQuickOpen';
 import 'vs/workbench/parts/git/browser/gitActions.contribution';
+import 'vs/workbench/parts/git/browser/gitViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
 import 'vs/workbench/parts/debug/electron-browser/repl';
+import 'vs/workbench/parts/debug/browser/debugViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/markers/markers.contribution';
+import 'vs/workbench/parts/markers/browser/markersPanel'; // can be packaged separately
 
 import 'vs/workbench/parts/html/browser/html.contribution';
 
 import 'vs/workbench/parts/extensions/electron-browser/extensions.contribution';
 import 'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen';
+import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/output/browser/output.contribution';
+import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately
 
 import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';
+import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be packaged separately
 
 import 'vs/workbench/electron-browser/workbench';
 

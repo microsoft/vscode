@@ -11,7 +11,6 @@ import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import Telemetry = require('vs/platform/telemetry/common/telemetry');
 import Errors = require('vs/base/common/errors');
-import Timer = require('vs/base/common/timer');
 import * as sinon from 'sinon';
 import {getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 
@@ -191,40 +190,6 @@ suite('TelemetryService', () => {
 			service.dispose();
 		});
 	});
-
-	test('Telemetry Timer events', sinon.test(function () {
-		Timer.ENABLE_TIMER = true;
-
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appender: testAppender }, undefined);
-
-		let t1 = service.timedPublicLog('editorDance');
-		this.clock.tick(20);
-		let t2 = service.timedPublicLog('editorSwoon', null);
-		this.clock.tick(20);
-
-		t1.stop(new Date());
-		t2.stop(new Date());
-
-		let t3 = service.timedPublicLog('editorMove', { someData: 'data' });
-		this.clock.tick(30);
-		t3.stop(new Date());
-
-		assert.equal(testAppender.getEventsCount(), 3);
-
-		assert.equal(testAppender.events[0].eventName, 'editorDance');
-		assert.equal(testAppender.events[0].data.duration, 40);
-
-		assert.equal(testAppender.events[1].eventName, 'editorSwoon');
-		assert.equal(testAppender.events[1].data.duration, 20);
-
-		assert.equal(testAppender.events[2].eventName, 'editorMove');
-		assert.equal(testAppender.events[2].data.duration, 30);
-		assert.equal(testAppender.events[2].data.someData, 'data');
-
-		service.dispose();
-		Timer.ENABLE_TIMER = false;
-	}));
 
 	test('enableTelemetry on by default', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();

@@ -21,6 +21,7 @@ import {AutoSaveConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/comm
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileEditorTracker} from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
+import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
 import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
@@ -48,7 +49,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 }
 
 // Register Viewlet
-(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 	'vs/workbench/parts/files/browser/explorerViewlet',
 	'ExplorerViewlet',
 	VIEWLET_ID,
@@ -57,14 +58,14 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 	0
 ));
 
-(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).setDefaultViewletId(VIEWLET_ID);
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).setDefaultViewletId(VIEWLET_ID);
 
-let openViewletKb: IKeybindings = {
+const openViewletKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E
 };
 
 // Register Action to Open Viewlet
-const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
 	'View: Show Explorer',
@@ -72,7 +73,7 @@ registry.registerWorkbenchAction(
 );
 
 // Register file editors
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new FileEditorDescriptor(
 		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('textFileEditor', "Text File Editor"),
@@ -92,7 +93,7 @@ registry.registerWorkbenchAction(
 	]
 );
 
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new FileEditorDescriptor(
 		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('binaryFileEditor', "Binary File Editor"),
@@ -115,8 +116,8 @@ registry.registerWorkbenchAction(
 // Note: because of service injection, the descriptor needs to have the exact count
 // of arguments as the FileEditorInput constructor. Otherwise when creating an
 // instance through the instantiation service he will inject the services wrong!
-let descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerDefaultFileInput(descriptor);
+const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(descriptor);
 
 interface ISerializedFileInput {
 	resource: string;
@@ -128,8 +129,8 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	constructor() { }
 
 	public serialize(editorInput: EditorInput): string {
-		let fileEditorInput = <FileEditorInput>editorInput;
-		let fileInput: ISerializedFileInput = {
+		const fileEditorInput = <FileEditorInput>editorInput;
+		const fileInput: ISerializedFileInput = {
 			resource: fileEditorInput.getResource().toString()
 		};
 
@@ -137,26 +138,31 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		let fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
+		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 
 		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), void 0, void 0);
 	}
 }
 
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
 
 // Register File Editor Tracker
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	FileEditorTracker
 );
 
 // Register Save Participant
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	SaveParticipant
 );
 
+// Register Save Error Handler
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	SaveErrorHandler
+);
+
 // Configuration
-let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 configurationRegistry.registerConfiguration({
 	'id': 'files',

@@ -8,7 +8,7 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, filterEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -26,6 +26,8 @@ import { Context as SuggestContext } from '../common/suggest';
 import { ICompletionItem, CompletionModel } from '../common/completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+const sticky = false; // for development purposes
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -64,6 +66,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>Object.create(null);
 		data.disposables = [];
 		data.root = container;
+		data.root.style.lineHeight = `${UnfocusedHeight}px`;
+
 		data.icon = append(container, $('.icon'));
 		data.colorspan = append(data.icon, $('span.colorspan'));
 
@@ -80,16 +84,14 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 		const configureFont = () => {
 			const fontInfo = this.editor.getConfiguration().fontInfo;
+			main.style.fontSize = `${ fontInfo.fontSize }px`;
 			main.style.fontFamily = fontInfo.fontFamily;
 		};
 
 		configureFont();
 
-		data.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
-				configureFont();
-			}
-		}));
+		const onFontInfo = filterEvent(this.editor.onDidChangeConfiguration.bind(this.editor), (e: IConfigurationChangedEvent) => e.fontInfo);
+		onFontInfo(configureFont, null, data.disposables);
 
 		return data;
 	}
@@ -115,8 +117,9 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			}
 		}
 
-		data.highlightedLabel.set(suggestion.label, (<ICompletionItem>element).highlights);
-		data.typeLabel.textContent = suggestion.detail || '';
+		data.highlightedLabel.set(suggestion.label, element.highlights);
+		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
+
 		data.documentation.textContent = suggestion.documentation || '';
 
 		if (suggestion.documentation) {
@@ -143,8 +146,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 	}
 }
 
-const FocusHeight = 35;
-const UnfocusedHeight = 19;
+const FocusHeight = 42;
+const UnfocusedHeight = 20;
 
 class Delegate implements IDelegate<ICompletionItem> {
 
@@ -178,6 +181,7 @@ class SuggestionDetails {
 
 	private el: HTMLElement;
 	private title: HTMLElement;
+	private titleLabel: HighlightedLabel;
 	private back: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
@@ -198,6 +202,9 @@ class SuggestionDetails {
 
 		const header = append(this.el, $('.header'));
 		this.title = append(header, $('span.title'));
+		this.titleLabel = new HighlightedLabel(this.title);
+		this.disposables.push(this.titleLabel);
+
 		this.back = append(header, $('span.go-back'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
@@ -212,11 +219,8 @@ class SuggestionDetails {
 
 		this.configureFont();
 
-		this.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
-				this.configureFont();
-			}
-		}));
+		const onFontInfo = filterEvent(this.editor.onDidChangeConfiguration.bind(this.editor), (e: IConfigurationChangedEvent) => e.fontInfo);
+		onFontInfo(this.configureFont, this, this.disposables);
 	}
 
 	get element() {
@@ -225,16 +229,16 @@ class SuggestionDetails {
 
 	render(item: ICompletionItem): void {
 		if (!item) {
-			this.title.textContent = '';
+			this.titleLabel.set('');
 			this.type.textContent = '';
 			this.docs.textContent = '';
 			this.ariaLabel = null;
 			return;
 		}
 
-		this.title.innerText = item.suggestion.label;
+		this.titleLabel.set(item.suggestion.label, item.highlights);
 		this.type.innerText = item.suggestion.detail || '';
-		this.docs.innerText = item.suggestion.documentation;
+		this.docs.textContent = item.suggestion.documentation;
 		this.back.onmousedown = e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -272,8 +276,12 @@ class SuggestionDetails {
 
 	private configureFont() {
 		const fontInfo = this.editor.getConfiguration().fontInfo;
+		const fontSize = `${ fontInfo.fontSize }px`;
+
 		this.title.style.fontFamily = fontInfo.fontFamily;
+		this.title.style.fontSize = fontSize;
 		this.type.style.fontFamily = fontInfo.fontFamily;
+		this.type.style.fontSize = fontSize;
 	}
 
 	dispose(): void {
@@ -378,6 +386,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onEditorBlur(): void {
+		if (sticky) {
+			return;
+		}
+
 		this.editorBlurTimeout = TPromise.timeout(150).then(() => {
 			if (!this.editor.isFocused()) {
 				this.setState(State.Hidden);
@@ -478,6 +490,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.state = state;
 
 		toggleClass(this.element, 'frozen', state === State.Frozen);
+		toggleClass(this.element, 'loading', state === State.Loading);
 
 		switch (state) {
 			case State.Hidden:
@@ -489,13 +502,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				}
 				break;
 			case State.Loading:
-				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
+				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
 				hide(this.listElement, this.details.element);
-				show(this.messageElement);
 				this.show();
 				break;
 			case State.Empty:
-				this.messageElement.innerText = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
+				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				hide(this.listElement, this.details.element);
 				show(this.messageElement);
 				this.show();

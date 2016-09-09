@@ -36,7 +36,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	public _serviceBrand: any;
 
-	private listenerToUnbind: IDisposable[];
+	private toUnbind: IDisposable[];
 	private _models: TextFileEditorModelManager;
 
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
@@ -55,7 +55,7 @@ export abstract class TextFileService implements ITextFileService {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.listenerToUnbind = [];
+		this.toUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
 
@@ -88,12 +88,12 @@ export abstract class TextFileService implements ITextFileService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes
-		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Application & Editor focus change
 		window.addEventListener('blur', () => this.onWindowFocusLost());
 		window.addEventListener('blur', () => this.onEditorFocusChanged(), true);
-		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
 	private beforeShutdown(): boolean | TPromise<boolean> {
@@ -523,7 +523,7 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public dispose(): void {
-		this.listenerToUnbind = dispose(this.listenerToUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 
 		// Clear all caches
 		this._models.clear();

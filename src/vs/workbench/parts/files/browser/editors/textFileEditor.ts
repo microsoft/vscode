@@ -16,7 +16,6 @@ import {Action} from 'vs/base/common/actions';
 import {Scope} from 'vs/workbench/common/memento';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {VIEWLET_ID, TEXT_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
-import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, EditorModel} from 'vs/workbench/common/editor';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
@@ -64,9 +63,6 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
-
-		// Since we are the one providing save-support for models, we hook up the error handler for saving
-		TextFileEditorModel.setSaveErrorHandler(instantiationService.createInstance(SaveErrorHandler));
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFilesChanged(e)));
@@ -132,22 +128,13 @@ export class TextFileEditor extends BaseTextEditor {
 				modelDisposed || 	// input got disposed meanwhile
 				inputChanged 		// a different input was set meanwhile
 			) {
+				console.warn('TextFileEditor', 'resource: ', textFileModel.getResource().toString(), 'hasInput: ', hasInput, 'modelDisposed: ', modelDisposed, 'inputChanged: ', inputChanged); // TODO@Ben remove me
 				return null;
 			}
-
-			// log the time it takes the editor to render the resource
-			const mode = textFileModel.textEditorModel.getMode();
-			const setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
-				mode: mode && mode.getId(),
-				resource: textFileModel.textEditorModel.uri.toString(),
-			});
 
 			// Editor
 			const textEditor = this.getControl();
 			textEditor.setModel(textFileModel.textEditorModel);
-
-			// stop the event
-			setModelEvent.stop();
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
 			let optionsGotApplied = false;
