@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {IModel, IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
+import {IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IEncodingSupport, EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
@@ -107,16 +107,13 @@ export interface ISaveErrorHandler {
 	onSaveError(error: any, model: ITextFileEditorModel): void;
 }
 
-/**
- * List of event types from files.
- */
-export const EventType = {
+export interface ISaveParticipant {
 
 	/**
-	 * Indicates that a file is being saved.
+	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	FILE_SAVING: 'files:fileSaving',
-};
+	participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): void;
+}
 
 /**
  * States the text text file editor model can be in.
@@ -180,38 +177,6 @@ export class LocalFileChangeEvent extends PropertyChangeEvent {
 	 */
 	public gotDeleted(): boolean {
 		return !!this.oldValue && !this.newValue;
-	}
-}
-
-/**
- * Text file change events are emitted when files are saved or reverted.
- */
-export class TextFileChangeEvent extends BaseEvent {
-	private _resource: URI;
-	private _model: IModel;
-	private _isAutoSaved: boolean;
-
-	constructor(resource: URI, model: IModel) {
-		super();
-
-		this._resource = resource;
-		this._model = model;
-	}
-
-	public get resource(): URI {
-		return this._resource;
-	}
-
-	public get model(): IModel {
-		return this._model;
-	}
-
-	public setAutoSaved(autoSaved: boolean): void {
-		this._isAutoSaved = autoSaved;
-	}
-
-	public get isAutoSaved(): boolean {
-		return this._isAutoSaved;
 	}
 }
 
