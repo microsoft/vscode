@@ -5,7 +5,6 @@
 
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditor} from 'vs/platform/editor/common/editor';
@@ -13,7 +12,7 @@ import {asFileEditorInput} from 'vs/workbench/common/editor';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
-	range: Range;
+	range: editorCommon.IRange;
 }
 
 export class RangeHighlightDecorations implements IDisposable {
