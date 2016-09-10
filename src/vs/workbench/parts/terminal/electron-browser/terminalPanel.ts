@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import DOM = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import {Action, IAction} from 'vs/base/common/actions';
-import {Dimension} from 'vs/base/browser/builder';
+import {Builder, Dimension} from 'vs/base/browser/builder';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ITerminalPanel, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalPanel, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {Panel} from 'vs/workbench/browser/panel';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 export class TerminalPanel extends Panel implements ITerminalPanel {
 
@@ -19,12 +21,39 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 
 	private actions: IAction[];
 	//private contextMenuActions: IAction[];
+	private parentDomElement: HTMLElement;
+	private terminalContainer: HTMLElement;
+	//private currentBaseThemeId: string;
+	//private themeStyleElement: HTMLElement;
+	//private fontStyleElement: HTMLElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ITerminalService private terminalService: ITerminalService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
+	}
+
+	public create(parent: Builder): TPromise<any> {
+		super.create(parent);
+		this.parentDomElement = parent.getHTMLElement();
+		DOM.addClass(this.parentDomElement, 'integrated-terminal');
+		//this.themeStyleElement = document.createElement('style');
+		//this.fontStyleElement = document.createElement('style');
+
+		this.terminalContainer = document.createElement('div');
+		DOM.addClass(this.terminalContainer, 'terminal-outer-container');
+		//this.parentDomElement.appendChild(this.themeStyleElement);
+		//this.parentDomElement.appendChild(this.fontStyleElement);
+		this.parentDomElement.appendChild(this.terminalContainer);
+
+		//this.attachEventListeners();
+
+		//this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, parent);
+
+		this.terminalService.setContainers(this.getContainer(), this.terminalContainer);
+		return TPromise.as(void 0);
 	}
 
 	public layout(dimension?: Dimension): void {

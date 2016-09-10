@@ -45,14 +45,15 @@ export class TerminalInstance implements ITerminalInstance {
 		private onExitCallback: (TerminalInstance) => void,
 		private configHelper: TerminalConfigHelper,
 		private container: HTMLElement,
-		private contextService: IWorkspaceContextService,
-		private messageService: IMessageService,
-		private terminalService: ITerminalService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IMessageService private messageService: IMessageService,
+		@ITerminalService private terminalService: ITerminalService
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
 		this.createProcess();
 
 		if (container) {
+			console.log('attach to element', container);
 			this.attachToElement(container);
 		}
 	}
@@ -66,11 +67,36 @@ export class TerminalInstance implements ITerminalInstance {
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.terminalDomElement = document.createElement('div');
 
+		this.xterm = xterm();
 		this.xterm.open(this.terminalDomElement);
 
-		this.wrapperElement = document.createElement('div');
-		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
-		this.terminalDomElement = document.createElement('div');
+		this.process.on('message', (message) => {
+			if (message.type === 'data') {
+				this.xterm.write(message.content);
+			}
+		});
+		this.xterm.on('data', (data) => {
+			this.process.send({
+				event: 'input',
+				data: this.sanitizeInput(data)
+			});
+			return false;
+		});
+		this.xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
+			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
+			// be escaped
+			let standardKeyboardEvent = new StandardKeyboardEvent(event);
+			if (this.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+				event.preventDefault();
+				return false;
+			}
+
+			// If tab focus mode is on, tab is not passed to the terminal
+			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+				return false;
+			}
+		});
+
 		let xtermHelper: HTMLElement = this.xterm.element.querySelector('.xterm-helpers');
 		let focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
@@ -137,12 +163,6 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			});
 		}
-		this.xterm = xterm();
-		this.process.on('message', (message) => {
-			if (message.type === 'data') {
-				this.xterm.write(message.content);
-			}
-		});
 		this.process.on('exit', (exitCode) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this.isExiting) {
@@ -152,27 +172,6 @@ export class TerminalInstance implements ITerminalInstance {
 					this.messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
 				}
 				this.onExitCallback(this);
-			}
-		});
-		this.xterm.on('data', (data) => {
-			this.process.send({
-				event: 'input',
-				data: this.sanitizeInput(data)
-			});
-			return false;
-		});
-		this.xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
-			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
-			// be escaped
-			let standardKeyboardEvent = new StandardKeyboardEvent(event);
-			if (this.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
-				event.preventDefault();
-				return false;
-			}
-
-			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
-				return false;
 			}
 		});
 	}

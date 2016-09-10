@@ -50,6 +50,8 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createInstance(): ITerminalInstance {
+		console.log('creating instance');
+		console.log('config helper', this.configHelper);
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
 			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this.configHelper, this.terminalContainer);
 		this.terminalInstances.push(terminalInstance);
@@ -105,6 +107,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void {
+		console.log('set containers');
 		this.terminalContainer = terminalContainer;
 		this._terminalInstances.forEach(terminalInstance => {
 			terminalInstance.attachToElement(this.terminalContainer);
