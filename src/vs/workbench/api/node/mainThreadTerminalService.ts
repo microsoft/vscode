@@ -19,8 +19,8 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		this._terminalService = terminalService;
 	}
 
-	public $createTerminal(name?: string): TPromise<number> {
-		return this._terminalService.createNew(name);
+	public $createTerminal(name?: string, shellPath?: string): TPromise<number> {
+		return this._terminalService.createNew(name, shellPath);
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
