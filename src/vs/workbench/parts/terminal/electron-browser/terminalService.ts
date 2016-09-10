@@ -50,9 +50,9 @@ export class TerminalService implements ITerminalService {
 		this._configHelper = <TerminalConfigHelper>this.instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 	}
 
-	public createInstance(): ITerminalInstance {
+	public createInstance(name?: string, shellPath?: string): ITerminalInstance {
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
-			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this._configHelper, this.terminalContainer);
+			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this._configHelper, name, shellPath, this.terminalContainer);
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be focused
@@ -523,3 +523,9 @@ export class TerminalService implements ITerminalService {
 // 		return parts.join('_') + '.UTF-8';
 // 	}
 // }
+=======
+export interface ITerminalProcessConfiguration {
+	name: string;
+	shell: IShell;
+}
+>>>>>>> origin/master

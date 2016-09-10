@@ -48,13 +48,15 @@ export class TerminalInstance implements ITerminalInstance {
 		private onExitCallback: (TerminalInstance) => void,
 		private configHelper: TerminalConfigHelper,
 		private container: HTMLElement,
+		name: string,
+		shellPath: string,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@ITerminalService private terminalService: ITerminalService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
-		this.createProcess();
+		this.createProcess(name, shellPath);
 
 		if (container) {
 			console.log('attach to element', container);
@@ -149,9 +151,10 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private createProcess(name?: string) {
+	private createProcess(name?: string, shellPath?: string) {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
-		let env = this.createTerminalEnv(process.env, this.configHelper.getShell(), this.contextService.getWorkspace(), locale);
+		let shell = shellPath ? { executable: shellPath, args: [] } : this.configHelper.getShell();
+		let env = this.createTerminalEnv(process.env, shell, this.contextService.getWorkspace(), locale);
 		this._title = name ? name : '';
 		this.process = cp.fork('./terminalProcess', [], {
 			env: env,

@@ -26,7 +26,7 @@ suite('Workbench - TerminalService', () => {
 	// 	assert.ok(env1['ok'], 'Parent environment is copied');
 	// 	assert.deepStrictEqual(parentEnv1, { ok: true }, 'Parent environment is unchanged');
 	// 	assert.equal(env1['PTYPID'], process.pid.toString(), 'PTYPID is equal to the current PID');
-	// 	assert.equal(env1['PTYSHELL'], '/bin/foosh', 'PTYSHELL is equal to the requested shell');
+	// 	assert.equal(env1['PTYSHELL'], '/bin/foosh', 'PTYSHELL is equal to the provided shell');
 	// 	assert.equal(env1['PTYSHELLARG0'], '-bar', 'PTYSHELLARG0 is equal to the first shell argument');
 	// 	assert.equal(env1['PTYSHELLARG1'], 'baz', 'PTYSHELLARG1 is equal to the first shell argument');
 	// 	assert.ok(!('PTYSHELLARG2' in env1), 'PTYSHELLARG2 is unset');

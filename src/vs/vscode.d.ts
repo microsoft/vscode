@@ -3497,9 +3497,10 @@ declare namespace vscode {
 		 * [Terminal.show](#Terminal.show) in order to show the terminal panel.
 		 *
 		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
+		 * @param shellPath Optional path to a custom shell executable to be used in the terminal.
 		 * @return A new Terminal.
 		 */
-		export function createTerminal(name?: string): Terminal;
+		export function createTerminal(name?: string, shellPath?: string): Terminal;
 	}
 
 	/**
