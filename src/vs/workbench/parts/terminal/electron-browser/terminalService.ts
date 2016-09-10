@@ -63,7 +63,7 @@ export class TerminalService implements ITerminalService {
 		return terminalInstance;
 	}
 
-	public getInstanceTitles(): string[] {
+	public getInstanceLabels(): string[] {
 		return this._terminalInstances.map((instance, index) => `${index + 1}: ${instance.title}`);
 	}
 
@@ -117,7 +117,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void {
-		console.log('set containers');
 		this.terminalContainer = terminalContainer;
 		this._terminalInstances.forEach(terminalInstance => {
 			terminalInstance.attachToElement(this.terminalContainer);
