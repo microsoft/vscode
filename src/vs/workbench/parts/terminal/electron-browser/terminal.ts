@@ -95,16 +95,17 @@ export interface ITerminalConfiguration {
 export interface ITerminalService {
 	_serviceBrand: any;
 
+	activeTerminalInstanceIndex: number;
+	configHelper: TerminalConfigHelper;
 	onActiveInstanceChanged: Event<string>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
-
-	activeTerminalInstanceIndex: number;
-	configHelper: TerminalConfigHelper;
+	// If this needed if getTerminalInstanceTitles is exposed?
 	terminalInstances: ITerminalInstance[];
 
 	createInstance(name?: string, shellPath?: string): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getInstanceTitles(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
@@ -118,6 +119,7 @@ export interface ITerminalService {
 
 export interface ITerminalInstance {
 	id: number;
+	onTitleChanged: Event<string>;
 	title: string;
 	//ptyProcess: cp.ChildProcess;
 	//xterm: any;

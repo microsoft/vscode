@@ -241,7 +241,8 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 	}
 
 	private updateItems(): void {
-		this.setOptions(this.terminalService.terminalInstances.map((t) => t.title), this.terminalService.activeTerminalInstanceIndex);
+		console.log('updateItems');
+		this.setOptions(this.terminalService.getInstanceTitles(), this.terminalService.activeTerminalInstanceIndex);
 	}
 }
 
