@@ -5,10 +5,10 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
-import cp = require('child_process');
+//import cp = require('child_process');
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
-import {Builder} from 'vs/base/browser/builder';
+//import {Builder} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
@@ -52,41 +52,86 @@ export interface ITerminalConfiguration {
 	};
 }
 
-export interface ITerminalProcess {
-	title: string;
-	process: cp.ChildProcess;
-}
+// export interface ITerminalProcess {
+// 	title: string;
+// 	process: cp.ChildProcess;
+// }
+
+// export interface ITerminalService {
+// 	_serviceBrand: any;
+// 	onActiveInstanceChanged: Event<string>;
+// 	onInstancesChanged: Event<string>;
+// 	onInstanceTitleChanged: Event<string>;
+
+// 	close(): TPromise<any>;
+// 	copySelection(): TPromise<any>;
+// 	createNew(name?: string): TPromise<number>;
+// 	focusNext(): TPromise<any>;
+// 	focusPrevious(): TPromise<any>;
+// 	hide(): TPromise<any>;
+// 	hideTerminalInstance(terminalId: number): TPromise<any>;
+// 	paste(): TPromise<any>;
+// 	runSelectedText(): TPromise<any>;
+// 	scrollDown(): TPromise<any>;
+// 	scrollUp(): TPromise<any>;
+// 	show(focus: boolean): TPromise<ITerminalPanel>;
+// 	setActiveTerminal(index: number): TPromise<any>;
+// 	setActiveTerminalById(terminalId: number): void;
+// 	toggle(): TPromise<any>;
+
+// 	getActiveTerminalIndex(): number;
+// 	getTerminalInstanceTitles(): string[];
+// 	initConfigHelper(panelContainer: Builder): void;
+// 	killTerminalProcess(terminalProcess: ITerminalProcess): void;
+// }
+
+// export interface ITerminalPanel {
+// 	closeTerminalById(terminalId: number): TPromise<void>;
+// 	focus(): void;
+// 	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
+// }
 
 export interface ITerminalService {
 	_serviceBrand: any;
+
 	onActiveInstanceChanged: Event<string>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 
-	close(): TPromise<any>;
-	copySelection(): TPromise<any>;
-	createNew(name?: string): TPromise<number>;
-	focusNext(): TPromise<any>;
-	focusPrevious(): TPromise<any>;
-	hide(): TPromise<any>;
-	hideTerminalInstance(terminalId: number): TPromise<any>;
-	paste(): TPromise<any>;
-	runSelectedText(): TPromise<any>;
-	scrollDown(): TPromise<any>;
-	scrollUp(): TPromise<any>;
-	show(focus: boolean): TPromise<ITerminalPanel>;
-	setActiveTerminal(index: number): TPromise<any>;
-	setActiveTerminalById(terminalId: number): void;
-	toggle(): TPromise<any>;
+	activeTerminalInstanceIndex: number;
+	terminalInstances: ITerminalInstance[];
 
-	getActiveTerminalIndex(): number;
-	getTerminalInstanceTitles(): string[];
-	initConfigHelper(panelContainer: Builder): void;
-	killTerminalProcess(terminalProcess: ITerminalProcess): void;
+	createInstance(name?: string): ITerminalInstance;
+	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getActiveInstance(): ITerminalInstance;
+	setActiveInstance(terminalInstance: ITerminalInstance): void;
+	setActiveInstanceByIndex(terminalIndex: number): void;
+	setActiveInstanceToNext(): void;
+	setActiveInstanceToPrevious(): void;
+
+	showPanel(focus?: boolean): TPromise<void>;
+	togglePanel(): TPromise<void>;
+	// Sets the terminal panel so it can be used by terminalInstances and also initialized the config helper
+	setContainer(terminalPanel: ITerminalPanel): void;
+}
+
+export interface ITerminalInstance {
+	id: number;
+	title: string;
+	//ptyProcess: cp.ChildProcess;
+	//xterm: any;
+
+	attachToElement(container: HTMLElement): void;
+	dispose(): void;
+	copySelection(): void;
+	focus(): void;
+	paste(): void;
+	sendText(text: string, addNewLine: boolean): void;
+	setVisible(visible: boolean): void;
+	scrollDown(): void;
+	scrollUp(): void;
 }
 
 export interface ITerminalPanel {
-	closeTerminalById(terminalId: number): TPromise<void>;
-	focus(): void;
-	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
+
 }

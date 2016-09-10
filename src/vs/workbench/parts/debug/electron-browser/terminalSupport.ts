@@ -6,13 +6,13 @@
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalService, ITerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {ITerminalService as IExternalTerminalService} from 'vs/workbench/parts/execution/common/execution';
 
 
 export class TerminalSupport {
 
-	private static terminalId: number;
+	private static integratedTerminalInstance: ITerminalInstance;
 
 	public static runInTerminal(terminalService: ITerminalService, nativeTerminalService: IExternalTerminalService, args: DebugProtocol.RunInTerminalRequestArguments, response: DebugProtocol.RunInTerminalResponse): TPromise<void> {
 
@@ -24,14 +24,14 @@ export class TerminalSupport {
 
 	private static runInIntegratedTerminal(terminalService: ITerminalService, args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
 
-		return (!TerminalSupport.terminalId ? terminalService.createNew(args.title || nls.localize('debuggee', "debuggee")) : TPromise.as(TerminalSupport.terminalId)).then(id => {
-			TerminalSupport.terminalId = id;
-			return terminalService.show(false).then(terminalPanel => {
-				terminalService.setActiveTerminalById(id);
-				const command = this.prepareCommand(args);
-				terminalPanel.sendTextToActiveTerminal(command, true);
-			});
-		});
+		if (!TerminalSupport.integratedTerminalInstance) {
+			TerminalSupport.integratedTerminalInstance = terminalService.createInstance(args.title || nls.localize('debuggee', "debuggee"));
+		}
+		terminalService.setActiveInstance(TerminalSupport.integratedTerminalInstance);
+		terminalService.showPanel(true);
+		const command = this.prepareCommand(args);
+		TerminalSupport.integratedTerminalInstance.sendText(command, true);
+		return TPromise.as(void 0);
 	}
 
 	private static prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments): string {
