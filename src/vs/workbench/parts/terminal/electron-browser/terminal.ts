@@ -12,7 +12,7 @@ import {Builder, Dimension} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {TerminalConfigHelper, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -100,6 +100,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<string>;
 
 	activeTerminalInstanceIndex: number;
+	configHelper: TerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
 
 	createInstance(name?: string): ITerminalInstance;
