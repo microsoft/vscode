@@ -64,7 +64,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this.createProcess(name, shellPath);
 
 		if (container) {
-			console.log('attach to element', container);
 			this.attachToElement(container);
 		}
 	}

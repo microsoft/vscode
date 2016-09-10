@@ -100,12 +100,11 @@ export interface ITerminalService {
 	onActiveInstanceChanged: Event<string>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
-	// If this needed if getTerminalInstanceTitles is exposed?
 	terminalInstances: ITerminalInstance[];
 
 	createInstance(name?: string, shellPath?: string): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
-	getInstanceTitles(): string[];
+	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
@@ -121,8 +120,6 @@ export interface ITerminalInstance {
 	id: number;
 	onTitleChanged: Event<string>;
 	title: string;
-	//ptyProcess: cp.ChildProcess;
-	//xterm: any;
 
 	dispose(): void;
 	copySelection(): void;
