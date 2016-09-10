@@ -103,7 +103,7 @@ export interface ITerminalService {
 	configHelper: TerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(name?: string): ITerminalInstance;
+	createInstance(name?: string, shellPath?: string): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
