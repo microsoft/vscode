@@ -8,10 +8,11 @@ import Event from 'vs/base/common/event';
 //import cp = require('child_process');
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
-import {Builder} from 'vs/base/browser/builder';
+import {Builder, Dimension} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -120,15 +121,20 @@ export interface ITerminalInstance {
 	//ptyProcess: cp.ChildProcess;
 	//xterm: any;
 
-	attachToElement(container: HTMLElement): void;
 	dispose(): void;
 	copySelection(): void;
 	focus(): void;
 	paste(): void;
 	sendText(text: string, addNewLine: boolean): void;
-	setVisible(visible: boolean): void;
 	scrollDown(): void;
 	scrollUp(): void;
+
+	attachToElement(container: HTMLElement): void;
+	layout(dimension: Dimension): void;
+	setCursorBlink(blink: boolean): void;
+	setCommandsToSkipShell(commands: string[]): void;
+	setFont(font: ITerminalFont): void;
+	setVisible(visible: boolean): void;
 }
 
 export interface ITerminalPanel {

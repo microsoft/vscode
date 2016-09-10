@@ -12,11 +12,13 @@ import os = require('os');
 import path = require('path');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
+import {Dimension} from 'vs/base/browser/builder';
 import {IContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalInstance, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IStringDictionary} from 'vs/base/common/collections';
-import {IShell, TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {TerminalConfigHelper, IShell, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -39,15 +41,17 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: Improve HTML element names?
 	private wrapperElement: HTMLDivElement;
 	private terminalDomElement: HTMLDivElement;
+	private font: ITerminalFont;
 
 	public constructor(
 		private terminalFocusContextKey: IContextKey<boolean>,
 		private onExitCallback: (TerminalInstance) => void,
 		private configHelper: TerminalConfigHelper,
 		private container: HTMLElement,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
 		this.createProcess();
@@ -213,6 +217,49 @@ export class TerminalInstance implements ITerminalInstance {
 			parts[n - 1] = parts[n - 1].toUpperCase();
 		}
 		return parts.join('_') + '.UTF-8';
+	}
+
+	public setFont(font: ITerminalFont): void {
+		this.font = font;
+	}
+
+	public setCursorBlink(blink: boolean): void {
+		if (this.xterm && this.xterm.cursorBlink !== blink) {
+			this.xterm.cursorBlink = blink;
+			this.xterm.refresh(0, this.xterm.rows - 1);
+		}
+	}
+
+	public setCommandsToSkipShell(commands: string[]): void {
+		this.skipTerminalKeybindings = commands.map((c) => {
+			return this.keybindingService.lookupKeybindings(c);
+		}).reduce((prev, curr) => {
+			return prev.concat(curr);
+		});
+	}
+
+	public layout(dimension: Dimension): void {
+		if (!this.font || !this.font.charWidth || !this.font.charHeight) {
+			return;
+		}
+		if (!dimension.height) { // Minimized
+			return;
+		}
+		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
+		let innerWidth = dimension.width - leftPadding;
+		let cols = Math.floor(innerWidth / this.font.charWidth);
+		let rows = Math.floor(dimension.height / this.font.charHeight);
+		if (this.xterm) {
+			this.xterm.resize(cols, rows);
+			this.xterm.element.style.width = innerWidth + 'px';
+		}
+		if (this.process.connected) {
+			this.process.send({
+				event: 'resize',
+				cols: cols,
+				rows: rows
+			});
+		}
 	}
 }
 

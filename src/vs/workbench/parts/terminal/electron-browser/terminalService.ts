@@ -81,6 +81,10 @@ export class TerminalService implements ITerminalService {
 	public setActiveInstanceByIndex(terminalIndex: number): void {
 		this._activeTerminalInstanceIndex = terminalIndex;
 		// TODO: Inform the panel
+		this._terminalInstances.forEach((terminalInstance, i) => {
+			console.log('setting visibility', i === terminalIndex);
+			terminalInstance.setVisible(i === terminalIndex);
+		});
 		this._onActiveInstanceChanged.fire();
 	}
 
