@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import {Action, IAction} from 'vs/base/common/actions';
 import {Builder, Dimension} from 'vs/base/browser/builder';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
@@ -20,7 +21,7 @@ import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceActio
 import {Panel} from 'vs/workbench/browser/panel';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {TerminalConfigHelper, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 
@@ -38,7 +39,7 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 	private font: ITerminalFont;
 
 	constructor(
-		private configHelper: TerminalConfigHelper,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
@@ -65,6 +66,12 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 		this.attachEventListeners();
 
 		this.terminalService.setContainers(this.getContainer(), this.terminalContainer);
+
+		this.toDispose.push(this.themeService.onDidColorThemeChange(this.updateTheme.bind(this)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(this.updateConfig.bind(this)));
+		this.updateTheme();
+		this.updateConfig();
+
 		return TPromise.as(void 0);
 	}
 
@@ -188,7 +195,7 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 		}
 		this.currentBaseThemeId = baseThemeId;
 
-		let theme = this.configHelper.getTheme(baseThemeId);
+		let theme = this.terminalService.configHelper.getTheme(baseThemeId);
 
 		let css = '';
 		theme.forEach((color: string, index: number) => {
@@ -222,8 +229,8 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 		if (this.terminalService.terminalInstances.length === 0) {
 			return;
 		}
-		let newFont = this.configHelper.getFont();
-		DOM.toggleClass(this.parentDomElement, 'enable-ligatures', this.configHelper.getFontLigaturesEnabled());
+		let newFont = this.terminalService.configHelper.getFont();
+		DOM.toggleClass(this.parentDomElement, 'enable-ligatures', this.terminalService.configHelper.getFontLigaturesEnabled());
 		if (!this.font || this.fontsDiffer(this.font, newFont)) {
 			this.fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
 				`font-family: ${newFont.fontFamily};` +
@@ -246,13 +253,13 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 
 	private updateCursorBlink(): void {
 		this.terminalService.terminalInstances.forEach((instance) => {
-			instance.setCursorBlink(this.configHelper.getCursorBlink());
+			instance.setCursorBlink(this.terminalService.configHelper.getCursorBlink());
 		});
 	}
 
 	private updateCommandsToSkipShell(): void {
 		this.terminalService.terminalInstances.forEach((instance) => {
-			instance.setCommandsToSkipShell(this.configHelper.getCommandsToSkipShell());
+			instance.setCommandsToSkipShell(this.terminalService.configHelper.getCommandsToSkipShell());
 		});
 	}
 }

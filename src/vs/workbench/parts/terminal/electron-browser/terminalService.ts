@@ -20,8 +20,10 @@ export class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
 	private _activeTerminalInstanceIndex: number = 0;
+	private _configHelper: TerminalConfigHelper;
 	private _terminalInstances: ITerminalInstance[] = [];
 	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
+	public get configHelper(): TerminalConfigHelper { return this._configHelper; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
 	private _onActiveInstanceChanged: Emitter<string>;
@@ -32,7 +34,6 @@ export class TerminalService implements ITerminalService {
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
 
 	private terminalContainer: HTMLElement;
-	private configHelper: TerminalConfigHelper;
 	private terminalFocusContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -46,15 +47,17 @@ export class TerminalService implements ITerminalService {
 		this._onInstancesChanged = new Emitter<string>();
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this.terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.contextKeyService);
-		this.configHelper = <TerminalConfigHelper>this.instantiationService.createInstance(TerminalConfigHelper, platform.platform);
+		this._configHelper = <TerminalConfigHelper>this.instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 	}
 
 	public createInstance(): ITerminalInstance {
-		console.log('creating instance');
-		console.log('config helper', this.configHelper);
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
-			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this.configHelper, this.terminalContainer);
+			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this._configHelper, this.terminalContainer);
 		this.terminalInstances.push(terminalInstance);
+		if (this.terminalInstances.length === 1) {
+			// It's the first instance so it should be focused
+			this.setActiveInstanceByIndex(0);
+		}
 		this._onInstancesChanged.fire();
 		return terminalInstance;
 	}
@@ -116,7 +119,7 @@ export class TerminalService implements ITerminalService {
 		this._terminalInstances.forEach(terminalInstance => {
 			terminalInstance.attachToElement(this.terminalContainer);
 		});
-		this.configHelper.panelContainer = panelContainer;
+		this._configHelper.panelContainer = panelContainer;
 	}
 
 	public showPanel(focus?: boolean): TPromise<void> {
