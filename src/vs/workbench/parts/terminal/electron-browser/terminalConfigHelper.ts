@@ -87,12 +87,13 @@ export interface IShell {
  * specific test cases can be written.
  */
 export class TerminalConfigHelper {
+	public panelContainer: Builder;
+
 	private charMeasureElement: HTMLElement;
 
 	public constructor(
 		private platform: Platform,
-		private configurationService: IConfigurationService,
-		private panelContainer: Builder) {
+		private configurationService: IConfigurationService) {
 	}
 
 	public getTheme(baseThemeId: string): string[] {
