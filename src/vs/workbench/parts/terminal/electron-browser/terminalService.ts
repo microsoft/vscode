@@ -52,7 +52,7 @@ export class TerminalService implements ITerminalService {
 
 	public createInstance(name?: string, shellPath?: string): ITerminalInstance {
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
-			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this._configHelper, name, shellPath, this.terminalContainer);
+			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this._configHelper, this.terminalContainer, name, shellPath);
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be focused
@@ -523,9 +523,8 @@ export class TerminalService implements ITerminalService {
 // 		return parts.join('_') + '.UTF-8';
 // 	}
 // }
-=======
-export interface ITerminalProcessConfiguration {
-	name: string;
-	shell: IShell;
-}
->>>>>>> origin/master
+
+// export interface ITerminalProcessConfiguration {
+// 	name: string;
+// 	shell: IShell;
+// }
