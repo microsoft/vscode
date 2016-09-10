@@ -8,7 +8,7 @@ import Event from 'vs/base/common/event';
 //import cp = require('child_process');
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
-//import {Builder} from 'vs/base/browser/builder';
+import {Builder} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
@@ -111,8 +111,7 @@ export interface ITerminalService {
 
 	showPanel(focus?: boolean): TPromise<void>;
 	togglePanel(): TPromise<void>;
-	// Sets the terminal panel so it can be used by terminalInstances and also initialized the config helper
-	setContainer(terminalPanel: ITerminalPanel): void;
+	setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void;
 }
 
 export interface ITerminalInstance {

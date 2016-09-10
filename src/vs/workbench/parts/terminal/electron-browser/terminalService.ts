@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import platform = require('vs/base/common/platform');
+import {Builder} from 'vs/base/browser/builder';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITerminalInstance, ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 
 export class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -27,10 +31,12 @@ export class TerminalService implements ITerminalService {
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
 
-	private container: HTMLElement;
-	private _terminalFocusContextKey: IContextKey<boolean>;
+	private terminalContainer: HTMLElement;
+	private configHelper: TerminalConfigHelper;
+	private terminalFocusContextKey: IContextKey<boolean>;
 
 	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPanelService private panelService: IPanelService,
@@ -39,12 +45,13 @@ export class TerminalService implements ITerminalService {
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 		this._onInstanceTitleChanged = new Emitter<string>();
-		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.contextKeyService);
+		this.terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.contextKeyService);
+		this.configHelper = <TerminalConfigHelper>this.instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 	}
 
 	public createInstance(): ITerminalInstance {
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
-			this._terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this.container);
+			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this.configHelper, this.terminalContainer);
 		this.terminalInstances.push(terminalInstance);
 		this._onInstancesChanged.fire();
 		return terminalInstance;
@@ -97,13 +104,12 @@ export class TerminalService implements ITerminalService {
 		this.setActiveInstanceByIndex(newIndex);
 	}
 
-	public setContainer(container: HTMLElement): void {
-		// TODO: Do we need to keep the panel or just a container?
-		this.container = container;
+	public setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void {
+		this.terminalContainer = terminalContainer;
 		this._terminalInstances.forEach(terminalInstance => {
-			terminalInstance.attachToElement(this.container);
+			terminalInstance.attachToElement(this.terminalContainer);
 		});
-		// TODO: Init config helper, update instances?
+		this.configHelper.panelContainer = panelContainer;
 	}
 
 	public showPanel(focus?: boolean): TPromise<void> {

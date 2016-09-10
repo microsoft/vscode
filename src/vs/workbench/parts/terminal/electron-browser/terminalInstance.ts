@@ -17,7 +17,7 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalInstance, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IStringDictionary} from 'vs/base/common/collections';
 import {IShell, TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
