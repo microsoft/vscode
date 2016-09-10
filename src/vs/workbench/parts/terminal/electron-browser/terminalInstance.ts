@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import DOM = require('vs/base/browser/dom');
+import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import cp = require('child_process');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -28,10 +29,13 @@ export class TerminalInstance implements ITerminalInstance {
 	private static ID_COUNTER = 1;
 	private static EOL_REGEX = /\r?\n/g;
 
+
 	private _id: number;
 	private _title: string;
+	private _onTitleChanged: Emitter<string>;
 	public get id(): number { return this._id; }
 	public get title(): string { return this._title; }
+	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 
 	private isExiting: boolean = false;
 	private toDispose: lifecycle.IDisposable[] = [];
@@ -56,6 +60,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
+		this._onTitleChanged = new Emitter<string>();
 		this.createProcess(name, shellPath);
 
 		if (container) {
@@ -164,9 +169,9 @@ export class TerminalInstance implements ITerminalInstance {
 			// Only listen for process title changes when a name is not provided
 			this.process.on('message', (message) => {
 				if (message.type === 'title') {
-					process.title = message.content ? message.content : '';
+					this._title = message.content ? message.content : '';
 					// TODO: Send title change notification to service/panel
-					//this._onInstanceTitleChanged.fire();
+					this._onTitleChanged.fire();
 				}
 			});
 		}

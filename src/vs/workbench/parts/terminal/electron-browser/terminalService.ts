@@ -21,17 +21,16 @@ export class TerminalService implements ITerminalService {
 
 	private _activeTerminalInstanceIndex: number = 0;
 	private _configHelper: TerminalConfigHelper;
-	private _terminalInstances: ITerminalInstance[] = [];
-	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
-	public get configHelper(): TerminalConfigHelper { return this._configHelper; }
-	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
-
 	private _onActiveInstanceChanged: Emitter<string>;
 	private _onInstancesChanged: Emitter<string>;
 	private _onInstanceTitleChanged: Emitter<string>;
+	private _terminalInstances: ITerminalInstance[] = [];
+	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
+	public get configHelper(): TerminalConfigHelper { return this._configHelper; }
 	public get onActiveInstanceChanged(): Event<string> { return this._onActiveInstanceChanged.event; }
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
+	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
 	private terminalContainer: HTMLElement;
 	private terminalFocusContextKey: IContextKey<boolean>;
@@ -53,6 +52,8 @@ export class TerminalService implements ITerminalService {
 	public createInstance(name?: string, shellPath?: string): ITerminalInstance {
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
 			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this._configHelper, this.terminalContainer, name, shellPath);
+		// TODO: Dispose when terminalInstance is disposed
+		terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged);
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be focused
@@ -60,6 +61,10 @@ export class TerminalService implements ITerminalService {
 		}
 		this._onInstancesChanged.fire();
 		return terminalInstance;
+	}
+
+	public getInstanceTitles(): string[] {
+		return this._terminalInstances.map((instance, index) => `${index + 1}: ${instance.title}`);
 	}
 
 	private onTerminalInstanceDispose(terminalInstance: TerminalInstance): void {
@@ -83,9 +88,7 @@ export class TerminalService implements ITerminalService {
 
 	public setActiveInstanceByIndex(terminalIndex: number): void {
 		this._activeTerminalInstanceIndex = terminalIndex;
-		// TODO: Inform the panel
 		this._terminalInstances.forEach((terminalInstance, i) => {
-			console.log('setting visibility', i === terminalIndex);
 			terminalInstance.setVisible(i === terminalIndex);
 		});
 		this._onActiveInstanceChanged.fire();
