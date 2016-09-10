@@ -93,7 +93,7 @@ export class TerminalConfigHelper {
 
 	public constructor(
 		private platform: Platform,
-		private configurationService: IConfigurationService) {
+		@IConfigurationService private configurationService: IConfigurationService) {
 	}
 
 	public getTheme(baseThemeId: string): string[] {
