@@ -144,7 +144,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public copySelection(): void {
-		// TODO: Implement
+		if (document.activeElement.classList.contains('xterm')) {
+			document.execCommand('copy');
+		} else {
+			this.messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
+		}
 	}
 
 	public dispose(): void {
@@ -179,7 +183,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public paste(): void {
-		// TODO: Implement
+		this.focus();
+		document.execCommand('paste');
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
