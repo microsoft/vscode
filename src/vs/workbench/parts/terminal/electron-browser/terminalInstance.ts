@@ -191,11 +191,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public scrollDown(): void {
-		// TODO: Implement
+		this.xterm.scrollDisp(1);
 	}
 
 	public scrollUp(): void {
-		// TODO: Implement
+		this.xterm.scrollDisp(-1);
 	}
 
 	private sanitizeInput(data: any) {
