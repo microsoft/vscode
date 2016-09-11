@@ -45,6 +45,7 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: Improve HTML element names?
 	private wrapperElement: HTMLDivElement;
 	private terminalDomElement: HTMLDivElement;
+	// TODO: Is font needed, just grab off configHelper?
 	private font: ITerminalFont;
 
 	public constructor(
@@ -72,6 +73,8 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this.wrapperElement) {
 			throw new Error('The terminal instance has already been attached to a container');
 		}
+
+		this.setFont(this.configHelper.getFont());
 
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
@@ -136,6 +139,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this.wrapperElement.appendChild(this.terminalDomElement);
 		this.container.appendChild(this.wrapperElement);
+
+		this.layout(new Dimension(this.container.offsetWidth, this.container.offsetHeight));
 	}
 
 	public copySelection(): void {}
