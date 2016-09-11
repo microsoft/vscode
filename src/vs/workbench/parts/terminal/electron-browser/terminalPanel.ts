@@ -79,9 +79,7 @@ export class TerminalPanel extends Panel {
 		if (!dimension) {
 			return;
 		}
-		console.log('layout panel', dimension);
 		this.terminalService.terminalInstances.forEach((t) => {
-			console.log('layout instance t');
 			t.layout(dimension);
 		});
 	}
@@ -242,9 +240,6 @@ export class TerminalPanel extends Panel {
 				`line-height: ${newFont.lineHeight};` +
 				'}';
 			this.font = newFont;
-			this.terminalService.terminalInstances.forEach((t) => {
-				t.setFont(newFont);
-			});
 		}
 		this.layout(new Dimension(this.parentDomElement.offsetWidth, this.parentDomElement.offsetHeight));
 	}

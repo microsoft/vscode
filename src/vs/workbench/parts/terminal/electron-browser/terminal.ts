@@ -12,7 +12,7 @@ import {Builder, Dimension} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {TerminalConfigHelper, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -130,6 +130,5 @@ export interface ITerminalInstance {
 	layout(dimension: Dimension): void;
 	setCursorBlink(blink: boolean): void;
 	setCommandsToSkipShell(commands: string[]): void;
-	setFont(font: ITerminalFont): void;
 	setVisible(visible: boolean): void;
 }
