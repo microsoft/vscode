@@ -167,8 +167,15 @@ export class TerminalInstance implements ITerminalInstance {
 		this.onExitCallback(this);
 	}
 
-	public focus(): void {
-		// TODO: Implement
+	// TODO: Document, the purpose of force is not clear
+	public focus(force?: boolean): void {
+		if (!this.xterm) {
+			return;
+		}
+		let text = window.getSelection().toString();
+		if (!text || force) {
+			this.xterm.focus();
+		}
 	}
 
 	public paste(): void {
