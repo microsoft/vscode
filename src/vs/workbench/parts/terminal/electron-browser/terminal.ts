@@ -53,45 +53,6 @@ export interface ITerminalConfiguration {
 	};
 }
 
-// export interface ITerminalProcess {
-// 	title: string;
-// 	process: cp.ChildProcess;
-// }
-
-// export interface ITerminalService {
-// 	_serviceBrand: any;
-// 	onActiveInstanceChanged: Event<string>;
-// 	onInstancesChanged: Event<string>;
-// 	onInstanceTitleChanged: Event<string>;
-
-// 	close(): TPromise<any>;
-// 	copySelection(): TPromise<any>;
-// 	createNew(name?: string): TPromise<number>;
-// 	focusNext(): TPromise<any>;
-// 	focusPrevious(): TPromise<any>;
-// 	hide(): TPromise<any>;
-// 	hideTerminalInstance(terminalId: number): TPromise<any>;
-// 	paste(): TPromise<any>;
-// 	runSelectedText(): TPromise<any>;
-// 	scrollDown(): TPromise<any>;
-// 	scrollUp(): TPromise<any>;
-// 	show(focus: boolean): TPromise<ITerminalPanel>;
-// 	setActiveTerminal(index: number): TPromise<any>;
-// 	setActiveTerminalById(terminalId: number): void;
-// 	toggle(): TPromise<any>;
-
-// 	getActiveTerminalIndex(): number;
-// 	getTerminalInstanceTitles(): string[];
-// 	initConfigHelper(panelContainer: Builder): void;
-// 	killTerminalProcess(terminalProcess: ITerminalProcess): void;
-// }
-
-// export interface ITerminalPanel {
-// 	closeTerminalById(terminalId: number): TPromise<void>;
-// 	focus(): void;
-// 	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
-// }
-
 export interface ITerminalService {
 	_serviceBrand: any;
 
