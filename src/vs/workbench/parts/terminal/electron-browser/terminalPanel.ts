@@ -5,25 +5,25 @@
 
 import DOM = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
-import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
-import {Action, IAction} from 'vs/base/common/actions';
-import {Builder, Dimension} from 'vs/base/browser/builder';
-import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
-import {Panel} from 'vs/workbench/browser/panel';
-import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {getBaseThemeId} from 'vs/platform/theme/common/themes';
+import platform = require('vs/base/common/platform');
+import { Action, IAction } from 'vs/base/common/actions';
+import { Builder, Dimension } from 'vs/base/browser/builder';
+import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITerminalFont } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { Panel } from 'vs/workbench/browser/panel';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { getBaseThemeId } from 'vs/platform/theme/common/themes';
 
 export class TerminalPanel extends Panel {
 
