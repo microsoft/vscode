@@ -52,8 +52,7 @@ export class TerminalService implements ITerminalService {
 	public createInstance(name?: string, shellPath?: string): ITerminalInstance {
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
 			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this._configHelper, this.terminalContainer, name, shellPath);
-		// TODO: Dispose this event handler when the terminalInstance is disposed
-		terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged);
+		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically

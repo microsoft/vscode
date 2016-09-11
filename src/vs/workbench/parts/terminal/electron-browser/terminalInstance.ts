@@ -42,9 +42,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private skipTerminalKeybindings: Keybinding[] = [];
 	private process: cp.ChildProcess;
 	private xterm: any;
-	// TODO: Improve HTML element names?
 	private wrapperElement: HTMLDivElement;
-	private terminalDomElement: HTMLDivElement;
+	private xtermElement: HTMLDivElement;
 
 	public constructor(
 		private terminalFocusContextKey: IContextKey<boolean>,
@@ -67,6 +66,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
+	public addDisposable(disposable: lifecycle.IDisposable): void {
+		this.toDispose.push(disposable);
+	}
+
 	public attachToElement(container: HTMLElement): void {
 		if (this.wrapperElement) {
 			throw new Error('The terminal instance has already been attached to a container');
@@ -74,10 +77,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
-		this.terminalDomElement = document.createElement('div');
+		this.xtermElement = document.createElement('div');
 
 		this.xterm = xterm();
-		this.xterm.open(this.terminalDomElement);
+		this.xterm.open(this.xtermElement);
 
 		this.process.on('message', (message) => {
 			if (message.type === 'data') {
@@ -133,7 +136,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this.terminalFocusContextKey.reset();
 		}));
 
-		this.wrapperElement.appendChild(this.terminalDomElement);
+		this.wrapperElement.appendChild(this.xtermElement);
 		this.container.appendChild(this.wrapperElement);
 
 		this.layout(new Dimension(this.container.offsetWidth, this.container.offsetHeight));
