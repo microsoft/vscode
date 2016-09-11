@@ -171,7 +171,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this.onExitCallback(this);
 	}
 
-	// TODO: Document, the purpose of force is not clear
 	public focus(force?: boolean): void {
 		if (!this.xterm) {
 			return;
@@ -227,7 +226,6 @@ export class TerminalInstance implements ITerminalInstance {
 			this.process.on('message', (message) => {
 				if (message.type === 'title') {
 					this._title = message.content ? message.content : '';
-					// TODO: Send title change notification to service/panel
 					this._onTitleChanged.fire();
 				}
 			});
