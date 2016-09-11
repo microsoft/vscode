@@ -19,7 +19,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITerminalInstance, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IStringDictionary} from 'vs/base/common/collections';
-import {TerminalConfigHelper, IShell, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import {TerminalConfigHelper, IShell} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -45,8 +45,6 @@ export class TerminalInstance implements ITerminalInstance {
 	// TODO: Improve HTML element names?
 	private wrapperElement: HTMLDivElement;
 	private terminalDomElement: HTMLDivElement;
-	// TODO: Is font needed, just grab off configHelper?
-	private font: ITerminalFont;
 
 	public constructor(
 		private terminalFocusContextKey: IContextKey<boolean>,
@@ -73,8 +71,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this.wrapperElement) {
 			throw new Error('The terminal instance has already been attached to a container');
 		}
-
-		this.setFont(this.configHelper.getFont());
 
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
@@ -281,10 +277,6 @@ export class TerminalInstance implements ITerminalInstance {
 		return parts.join('_') + '.UTF-8';
 	}
 
-	public setFont(font: ITerminalFont): void {
-		this.font = font;
-	}
-
 	public setCursorBlink(blink: boolean): void {
 		if (this.xterm && this.xterm.cursorBlink !== blink) {
 			this.xterm.cursorBlink = blink;
@@ -301,7 +293,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public layout(dimension: Dimension): void {
-		if (!this.font || !this.font.charWidth || !this.font.charHeight) {
+		let font = this.configHelper.getFont();
+		if (!font || !font.charWidth || !font.charHeight) {
 			return;
 		}
 		if (!dimension.height) { // Minimized
@@ -309,8 +302,8 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
 		let innerWidth = dimension.width - leftPadding;
-		let cols = Math.floor(innerWidth / this.font.charWidth);
-		let rows = Math.floor(dimension.height / this.font.charHeight);
+		let cols = Math.floor(innerWidth / font.charWidth);
+		let rows = Math.floor(dimension.height / font.charHeight);
 		if (this.xterm) {
 			this.xterm.resize(cols, rows);
 			this.xterm.element.style.width = innerWidth + 'px';
