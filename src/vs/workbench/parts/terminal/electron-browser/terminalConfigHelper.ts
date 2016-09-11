@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {Platform} from 'vs/base/common/platform';
-import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ITerminalConfiguration} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {Builder} from 'vs/base/browser/builder';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import { Builder } from 'vs/base/browser/builder';
+import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { IConfiguration } from 'vs/editor/common/config/defaultConfig';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITerminalConfiguration } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { Platform } from 'vs/base/common/platform';
 
 const DEFAULT_LINE_HEIGHT = 1.2;
 

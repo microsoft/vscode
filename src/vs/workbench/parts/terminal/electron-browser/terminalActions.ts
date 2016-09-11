@@ -5,12 +5,12 @@
 
 import nls = require('vs/nls');
 import os = require('os');
-import {Action, IAction} from 'vs/base/common/actions';
-import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { Action, IAction } from 'vs/base/common/actions';
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ITerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export class ToggleTerminalAction extends Action {
 

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
-import {Builder} from 'vs/base/browser/builder';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {ITerminalInstance, ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import {TerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
+import { Builder } from 'vs/base/browser/builder';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { ITerminalInstance, ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 
 export class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -40,7 +41,8 @@ export class TerminalService implements ITerminalService {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPanelService private panelService: IPanelService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
@@ -51,7 +53,13 @@ export class TerminalService implements ITerminalService {
 
 	public createInstance(name?: string, shellPath?: string): ITerminalInstance {
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
-			this.terminalFocusContextKey, this.onTerminalInstanceDispose.bind(this), this._configHelper, this.terminalContainer, name, shellPath);
+			this.terminalFocusContextKey,
+			this.onTerminalInstanceDispose.bind(this),
+			this._configHelper,
+			this.terminalContainer,
+			this.workspaceContextService.getWorkspace(),
+			name,
+			shellPath);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {

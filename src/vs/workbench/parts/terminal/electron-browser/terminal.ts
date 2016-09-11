@@ -5,14 +5,13 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
-//import cp = require('child_process');
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
-import {Builder, Dimension} from 'vs/base/browser/builder';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { Builder, Dimension } from 'vs/base/browser/builder';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 

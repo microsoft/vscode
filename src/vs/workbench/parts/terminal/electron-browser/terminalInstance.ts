@@ -13,17 +13,17 @@ import os = require('os');
 import path = require('path');
 import platform = require('vs/base/common/platform');
 import xterm = require('xterm');
-import {Dimension} from 'vs/base/browser/builder';
-import {IContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {ITerminalInstance, ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {IStringDictionary} from 'vs/base/common/collections';
-import {TerminalConfigHelper, IShell} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {Keybinding} from 'vs/base/common/keyCodes';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
+import { Dimension } from 'vs/base/browser/builder';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { ITerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { Keybinding } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
+import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance implements ITerminalInstance {
 	private static ID_COUNTER = 1;
@@ -50,16 +50,15 @@ export class TerminalInstance implements ITerminalInstance {
 		private onExitCallback: (TerminalInstance) => void,
 		private configHelper: TerminalConfigHelper,
 		private container: HTMLElement,
+		private workspace: IWorkspace,
 		name: string,
 		shellPath: string,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService,
-		@ITerminalService private terminalService: ITerminalService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IMessageService private messageService: IMessageService
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
 		this._onTitleChanged = new Emitter<string>();
-		this.createProcess(name, shellPath);
+		this.createProcess(workspace, name, shellPath);
 
 		if (container) {
 			this.attachToElement(container);
@@ -211,10 +210,10 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private createProcess(name?: string, shellPath?: string) {
+	private createProcess(workspace: IWorkspace, name?: string, shellPath?: string) {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		let shell = shellPath ? { executable: shellPath, args: [] } : this.configHelper.getShell();
-		let env = this.createTerminalEnv(process.env, shell, this.contextService.getWorkspace(), locale);
+		let env = this.createTerminalEnv(process.env, shell, workspace, locale);
 		this._title = name ? name : '';
 		this.process = cp.fork('./terminalProcess', [], {
 			env: env,
