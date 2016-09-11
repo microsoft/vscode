@@ -224,7 +224,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this.process.on('message', (message) => {
 				if (message.type === 'title') {
 					this._title = message.content ? message.content : '';
-					this._onTitleChanged.fire();
+					this._onTitleChanged.fire(this._title);
 				}
 			});
 		}
