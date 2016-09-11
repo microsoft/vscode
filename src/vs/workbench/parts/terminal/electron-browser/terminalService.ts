@@ -145,7 +145,9 @@ export class TerminalService implements ITerminalService {
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
 				return this.panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
 					panel = this.panelService.getActivePanel();
-					//complete(<TerminalPanel>panel);
+					if (focus) {
+						this.getActiveInstance().focus(true);
+					}
 					complete(void 0);
 				});
 			} else {
@@ -153,7 +155,6 @@ export class TerminalService implements ITerminalService {
 					this.getActiveInstance().focus(true);
 				}
 				complete(void 0);
-				//complete(<TerminalPanel>panel);
 			}
 		});
 	}
