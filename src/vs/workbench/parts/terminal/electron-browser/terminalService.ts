@@ -113,7 +113,7 @@ export class TerminalService implements ITerminalService {
 		if (this.terminalInstances.length <= 1) {
 			return;
 		}
-		let newIndex = this.activeTerminalInstanceIndex++;
+		let newIndex = this._activeTerminalInstanceIndex + 1;
 		if (newIndex >= this.terminalInstances.length) {
 			newIndex = 0;
 		}
@@ -124,7 +124,7 @@ export class TerminalService implements ITerminalService {
 		if (this.terminalInstances.length <= 1) {
 			return;
 		}
-		let newIndex = this.activeTerminalInstanceIndex--;
+		let newIndex = this._activeTerminalInstanceIndex - 1;
 		if (newIndex < 0) {
 			newIndex = this.terminalInstances.length - 1;
 		}
