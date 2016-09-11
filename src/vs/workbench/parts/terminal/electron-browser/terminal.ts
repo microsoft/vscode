@@ -79,8 +79,23 @@ export interface ITerminalService {
 }
 
 export interface ITerminalInstance {
+	/**
+	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
+	 * terminal instance.
+	 */
 	id: number;
+
+	/**
+	 * An event that fires when the terminal instance's title changes.
+	 */
 	onTitleChanged: Event<string>;
+
+	/**
+	 * The title of the terminal. This is either title or the process currently running or an
+	 * explicit name given to the terminal instance through the extension API.
+	 *
+	 * @readonly
+	 */
 	title: string;
 
 	/**
@@ -126,9 +141,38 @@ export interface ITerminalInstance {
 	 */
 	scrollUp(): void;
 
+	/**
+	 * Attaches the terminal instance to an element on the DOM, before this is called the terminal
+	 * instance process may run in the background but cannot be displayed on the UI.
+	 *
+	 * @param container The element to attach the terminal instance to.
+	 */
 	attachToElement(container: HTMLElement): void;
-	layout(dimension: Dimension): void;
+
+	/**
+	 * Sets whether the terminal instance's cursor will blink or be solid.
+	 *
+	 * @param blink Whether the cursor will blink.
+	 */
 	setCursorBlink(blink: boolean): void;
+
+	/**
+	 * Sets the array of commands that skip the shell process so they can be handled by VS Code's
+	 * keybinding system.
+	 */
 	setCommandsToSkipShell(commands: string[]): void;
+
+	/**
+	 * Configure the dimensions of the terminal instance.
+	 *
+	 * @param dimension The dimensions of the container.
+	 */
+	layout(dimension: Dimension): void;
+
+	/**
+	 * Sets whether the terminal instance's element is visible in the DOM.
+	 *
+	 * @param visible Whether the element is visible.
+	 */
 	setVisible(visible: boolean): void;
 }
