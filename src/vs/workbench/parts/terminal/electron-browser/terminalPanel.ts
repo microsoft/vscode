@@ -92,6 +92,8 @@ export class TerminalPanel extends Panel implements ITerminalPanel {
 			} else {
 				return super.setVisible(visible).then(() => {
 					this.terminalService.createInstance();
+					this.updateConfig();
+					this.updateTheme();
 				});
 			}
 		}
