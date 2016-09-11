@@ -122,12 +122,47 @@ export interface ITerminalInstance {
 	onTitleChanged: Event<string>;
 	title: string;
 
+	/**
+	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
+	 */
 	dispose(): void;
+
+	/**
+	 * Copies the terminal selection to the clipboard.
+	 */
 	copySelection(): void;
+
+	/**
+	 * Focuses the terminal instance.
+	 *
+	 * @param focus Force focus even if there is a selection.
+	 */
 	focus(force?: boolean): void;
+
+	/**
+	 * Focuses and pastes the contents of the clipboard into the terminal instance.
+	 */
 	paste(): void;
+
+	/**
+	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
+	 * process (shell) of the terminal instance.
+	 *
+	 * @param text The text to send.
+	 * @param addNewLine Whether to add a new line to the text being sent, this is normally
+	 * required to run a command in the terminal. The character(s) added are \n or \r\n
+	 * depending on the platform. This defaults to `true`.
+	 */
 	sendText(text: string, addNewLine: boolean): void;
+
+	/**
+	 * Scroll the terminal buffer down 1 line.
+	 */
 	scrollDown(): void;
+
+	/**
+	 * Scroll the terminal buffer up 1 line.
+	 */
 	scrollUp(): void;
 
 	attachToElement(container: HTMLElement): void;
