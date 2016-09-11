@@ -68,7 +68,22 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private onTerminalInstanceDispose(terminalInstance: TerminalInstance): void {
-		// TODO: Handle terminal exit here
+		let index = this.terminalInstances.indexOf(terminalInstance);
+		let wasActiveInstance = terminalInstance === this.getActiveInstance();
+		if (index !== -1) {
+			this.terminalInstances.splice(index, 1);
+		}
+		if (wasActiveInstance && this.terminalInstances.length > 0) {
+			let newIndex = index < this.terminalInstances.length ? index : this.terminalInstances.length - 1;
+			this.setActiveInstanceByIndex(newIndex);
+		}
+		if (this.terminalInstances.length === 0) {
+			this.hidePanel();
+		}
+		this._onInstancesChanged.fire();
+		if (wasActiveInstance) {
+			this._onActiveInstanceChanged.fire();
+		}
 	}
 
 	public getActiveInstance(): ITerminalInstance {
@@ -141,6 +156,13 @@ export class TerminalService implements ITerminalService {
 				//complete(<TerminalPanel>panel);
 			}
 		});
+	}
+
+	public hidePanel(): void {
+		const panel = this.panelService.getActivePanel();
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			this.partService.setPanelHidden(true);
+		}
 	}
 
 	public togglePanel(): TPromise<any> {

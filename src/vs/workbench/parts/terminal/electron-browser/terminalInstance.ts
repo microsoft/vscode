@@ -143,18 +143,53 @@ export class TerminalInstance implements ITerminalInstance {
 		this.layout(new Dimension(this.container.offsetWidth, this.container.offsetHeight));
 	}
 
-	public copySelection(): void {}
-	public dispose(): void {}
-	public focus(): void {}
-	public paste(): void {}
-	public sendText(text: string, addNewLine: boolean): void {}
+	public copySelection(): void {
+		// TODO: Implement
+	}
+
+	public dispose(): void {
+		if (this.wrapperElement) {
+			this.container.removeChild(this.wrapperElement);
+			this.wrapperElement = null;
+		}
+		if (this.xterm) {
+			this.xterm.destroy();
+			this.xterm = null;
+		}
+		if (this.process) {
+			if (this.process.connected) {
+				this.process.disconnect();
+				this.process.kill();
+			}
+			this.process = null;
+		}
+		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.onExitCallback(this);
+	}
+
+	public focus(): void {
+		// TODO: Implement
+	}
+
+	public paste(): void {
+		// TODO: Implement
+	}
+
+	public sendText(text: string, addNewLine: boolean): void {
+		// TODO: Implement
+	}
 
 	public setVisible(visible: boolean): void {
 		DOM.toggleClass(this.wrapperElement, 'active', visible);
 	}
 
-	public scrollDown(): void {}
-	public scrollUp(): void {}
+	public scrollDown(): void {
+		// TODO: Implement
+	}
+
+	public scrollUp(): void {
+		// TODO: Implement
+	}
 
 	private sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
@@ -187,7 +222,6 @@ export class TerminalInstance implements ITerminalInstance {
 				if (exitCode) {
 					this.messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
 				}
-				this.onExitCallback(this);
 			}
 		});
 	}

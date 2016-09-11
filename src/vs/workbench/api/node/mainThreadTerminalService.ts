@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {MainThreadTerminalServiceShape} from './extHost.protocol';
@@ -33,10 +33,7 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 
 	public $hide(terminalId: number): void {
 		if (this.terminalService.getActiveInstance().id === terminalId) {
-			const panel = this.panelService.getActivePanel();
-			if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-				this.partService.setPanelHidden(true);
-			}
+			this.terminalService.hidePanel();
 		}
 	}
 
