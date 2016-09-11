@@ -15,7 +15,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ITerminalPanel, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {Panel} from 'vs/workbench/browser/panel';
@@ -25,7 +25,7 @@ import {ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/termin
 import {TPromise} from 'vs/base/common/winjs.base';
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 
-export class TerminalPanel extends Panel implements ITerminalPanel {
+export class TerminalPanel extends Panel {
 
 	private toDispose: lifecycle.IDisposable[] = [];
 
