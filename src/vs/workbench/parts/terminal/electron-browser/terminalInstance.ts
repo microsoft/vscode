@@ -188,7 +188,13 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		// TODO: Implement
+		if (addNewLine && text.substr(text.length - os.EOL.length) !== os.EOL) {
+			text += os.EOL;
+		}
+		this.process.send({
+			event: 'input',
+			data: text
+		});
 	}
 
 	public setVisible(visible: boolean): void {
