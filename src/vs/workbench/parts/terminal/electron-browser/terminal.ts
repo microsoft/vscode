@@ -172,7 +172,3 @@ export interface ITerminalInstance {
 	setFont(font: ITerminalFont): void;
 	setVisible(visible: boolean): void;
 }
-
-export interface ITerminalPanel {
-
-}
