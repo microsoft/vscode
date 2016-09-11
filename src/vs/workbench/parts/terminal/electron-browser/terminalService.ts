@@ -150,7 +150,7 @@ export class TerminalService implements ITerminalService {
 				});
 			} else {
 				if (focus) {
-					panel.focus();
+					this.getActiveInstance().focus(true);
 				}
 				complete(void 0);
 				//complete(<TerminalPanel>panel);

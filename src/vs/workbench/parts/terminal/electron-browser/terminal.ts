@@ -124,7 +124,7 @@ export interface ITerminalInstance {
 
 	dispose(): void;
 	copySelection(): void;
-	focus(): void;
+	focus(force?: boolean): void;
 	paste(): void;
 	sendText(text: string, addNewLine: boolean): void;
 	scrollDown(): void;
