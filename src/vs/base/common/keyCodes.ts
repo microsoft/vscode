@@ -427,6 +427,17 @@ const enum BinaryKeybindingsMask {
 	KeyCode = 0x00000fff
 }
 
+export const enum KeyMod {
+	CtrlCmd = 1 << 15,
+	Shift = 1 << 14,
+	Alt = 1 << 13,
+	WinCtrl = 1 << 12,
+}
+
+export function KeyChord(firstPart:number, secondPart:number): number {
+	return firstPart | ((secondPart & 0x0000ffff) << 16);
+}
+
 export class BinaryKeybindings {
 
 	public static extractFirstPart(keybinding:number): number {
@@ -460,19 +471,6 @@ export class BinaryKeybindings {
 	public static extractKeyCode(keybinding:number): KeyCode {
 		return (keybinding & BinaryKeybindingsMask.KeyCode);
 	}
-}
-
-
-
-export class KeyMod {
-	public static CtrlCmd:number = BinaryKeybindingsMask.CtrlCmd;
-	public static Shift:number = BinaryKeybindingsMask.Shift;
-	public static Alt:number = BinaryKeybindingsMask.Alt;
-	public static WinCtrl:number = BinaryKeybindingsMask.WinCtrl;
-}
-
-export function KeyChord(firstPart:number, secondPart:number): number {
-	return firstPart | ((secondPart & 0x0000ffff) << 16);
 }
 
 /**
