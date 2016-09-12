@@ -170,7 +170,6 @@ declare module monaco {
         toJSON(): any;
         static revive(data: any): Uri;
     }
-
     /**
      * Virtual Key Codes, the value does not hold any inherent meaning.
      * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -341,6 +340,7 @@ declare module monaco {
         NUMPAD_DIVIDE = 108,
         /**
          * Placed last to cover the length of the enum.
+         * Please do not depend on this value!
          */
         MAX_VALUE = 109,
     }
