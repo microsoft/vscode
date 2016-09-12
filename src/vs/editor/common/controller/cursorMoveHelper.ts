@@ -50,13 +50,13 @@ export interface IConfiguration {
 	getIndentationOptions(): IInternalIndentationOptions;
 }
 
-function isHighSurrogate(model, lineNumber, column) {
-	var code = model.getLineContent(lineNumber).charCodeAt(column - 1);
+function isHighSurrogate(model:ICursorMoveHelperModel, lineNumber:number, column:number) {
+	let code = model.getLineContent(lineNumber).charCodeAt(column - 1);
 	return 0xD800 <= code && code <= 0xDBFF;
 }
 
-function isLowSurrogate(model, lineNumber, column) {
-	var code = model.getLineContent(lineNumber).charCodeAt(column - 1);
+function isLowSurrogate(model:ICursorMoveHelperModel, lineNumber:number, column:number) {
+	let code = model.getLineContent(lineNumber).charCodeAt(column - 1);
 	return 0xDC00 <= code && code <= 0xDFFF;
 }
 

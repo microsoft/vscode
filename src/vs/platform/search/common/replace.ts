@@ -119,7 +119,7 @@ export class ReplacePattern {
 				}
 			}
 
-			if (chCode === CharCode.Dollar) {
+			if (chCode === CharCode.DollarSign) {
 
 				// move to next char
 				i++;
