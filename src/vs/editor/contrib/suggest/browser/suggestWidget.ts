@@ -146,7 +146,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 	}
 }
 
-enum State {
+const enum State {
 	Hidden,
 	Loading,
 	Empty,

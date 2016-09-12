@@ -38,7 +38,7 @@ export function testApplyEditsWithSyncedModels(original:string[], edits:editorCo
 	});
 }
 
-enum AssertDocumentLineMappingDirection {
+const enum AssertDocumentLineMappingDirection {
 	OffsetToPosition,
 	PositionToOffset
 }

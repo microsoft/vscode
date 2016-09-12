@@ -20,7 +20,7 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
-export enum FindStartFocusAction {
+export const enum FindStartFocusAction {
 	NoFocusChange,
 	FocusFindInput,
 	FocusReplaceInput
