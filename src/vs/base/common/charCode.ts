@@ -12,8 +12,17 @@
  */
 export const enum CharCode {
 	Null = 0,
+	/**
+	 * The `\t` character.
+	 */
 	Tab = 9,
+	/**
+	 * The `\n` character.
+	 */
 	LineFeed = 10,
+	/**
+	 * The `\r` character.
+	 */
 	CarriageReturn = 13,
 	Space = 32,
 	/**

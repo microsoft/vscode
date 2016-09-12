@@ -8,6 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import {WrappingIndent} from 'vs/editor/common/editorCommon';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {ILineMapperFactory, ILineMapping, OutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
+import {CharCode} from 'vs/base/common/charCode';
 import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
 
 const enum CharacterClass {
@@ -85,7 +86,6 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 		let wrappedTextIndentVisibleColumn = 0;
 		let wrappedTextIndent = '';
-		const TAB_CHAR_CODE = '\t'.charCodeAt(0);
 
 		let firstNonWhitespaceIndex = -1;
 		if (hardWrappingIndent !== WrappingIndent.None) {
@@ -93,7 +93,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			if (firstNonWhitespaceIndex !== -1) {
 				wrappedTextIndent = lineText.substring(0, firstNonWhitespaceIndex);
 				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, lineText.charCodeAt(i) === TAB_CHAR_CODE, 1);
+					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, lineText.charCodeAt(i) === CharCode.Tab, 1);
 				}
 				if (hardWrappingIndent === WrappingIndent.Indent) {
 					wrappedTextIndent += '\t';
@@ -125,7 +125,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			// but the character at `i` might not fit
 
 			let charCode = lineText.charCodeAt(i);
-			let charCodeIsTab = (charCode === TAB_CHAR_CODE);
+			let charCodeIsTab = (charCode === CharCode.Tab);
 			let charCodeClass = classifier.get(charCode);
 
 			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
