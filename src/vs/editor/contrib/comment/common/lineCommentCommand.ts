@@ -37,7 +37,7 @@ export interface ISimpleModel {
 	getLineContent(lineNumber:number): string;
 }
 
-export enum Type {
+export const enum Type {
 	Toggle = 0,
 	ForceAdd = 1,
 	ForceRemove = 2

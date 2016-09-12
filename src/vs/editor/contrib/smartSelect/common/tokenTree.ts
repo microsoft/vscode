@@ -13,7 +13,7 @@ import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
-export enum TokenTreeBracket {
+export const enum TokenTreeBracket {
 	None = 0,
 	Open = 1,
 	Close = -1

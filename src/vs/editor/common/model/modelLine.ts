@@ -66,7 +66,7 @@ var NO_OP_MARKERS_ADJUSTER: IMarkersAdjuster = {
 	finish: () => {}
 };
 
-enum MarkerMoveSemantics {
+const enum MarkerMoveSemantics {
 	MarkerDefined = 0,
 	ForceMove = 1,
 	ForceStay = 2
