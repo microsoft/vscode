@@ -66,7 +66,6 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>Object.create(null);
 		data.disposables = [];
 		data.root = container;
-		data.root.style.lineHeight = `${UnfocusedHeight}px`;
 
 		data.icon = append(container, $('.icon'));
 		data.colorspan = append(data.icon, $('span.colorspan'));
@@ -84,7 +83,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 		const configureFont = () => {
 			const fontInfo = this.editor.getConfiguration().fontInfo;
-			main.style.fontSize = `${ fontInfo.fontSize }px`;
+			data.root.style.fontSize = `${ fontInfo.fontSize }px`;
 			main.style.fontFamily = fontInfo.fontFamily;
 		};
 
@@ -143,28 +142,6 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
 		templateData.highlightedLabel.dispose();
 		templateData.disposables = dispose(templateData.disposables);
-	}
-}
-
-const FocusHeight = 42;
-const UnfocusedHeight = 20;
-
-class Delegate implements IDelegate<ICompletionItem> {
-
-	constructor(private listProvider: () => List<ICompletionItem>) { }
-
-	getHeight(element: ICompletionItem): number {
-		const focus = this.listProvider().getFocusedElements()[0];
-
-		if (element.suggestion.documentation && element === focus) {
-			return FocusHeight;
-		}
-
-		return UnfocusedHeight;
-	}
-
-	getTemplateId(element: ICompletionItem): string {
-		return 'suggestion';
 	}
 }
 
@@ -278,10 +255,9 @@ class SuggestionDetails {
 		const fontInfo = this.editor.getConfiguration().fontInfo;
 		const fontSize = `${ fontInfo.fontSize }px`;
 
+		this.el.style.fontSize = fontSize;
 		this.title.style.fontFamily = fontInfo.fontFamily;
-		this.title.style.fontSize = fontSize;
 		this.type.style.fontFamily = fontInfo.fontFamily;
-		this.type.style.fontSize = fontSize;
 	}
 
 	dispose(): void {
@@ -289,7 +265,7 @@ class SuggestionDetails {
 	}
 }
 
-export class SuggestWidget implements IContentWidget, IDisposable {
+export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>, IDisposable {
 
 	private static ID: string = 'editor.widget.suggestWidget';
 
@@ -309,7 +285,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
-	private delegate: IDelegate<ICompletionItem>;
 	private list: List<ICompletionItem>;
 
 	private suggestWidgetVisible: IContextKey<boolean>;
@@ -343,10 +318,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
-		this.delegate = new Delegate(() => this.list);
-		this.list = new List(this.listElement, this.delegate, [renderer], {
-			useShadows: false
-		});
+		this.list = new List(this.listElement, this, [renderer], { useShadows: false });
 
 		this.toDispose = [
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
@@ -734,19 +706,20 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		let height = 0;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
-			height = UnfocusedHeight;
+			height = this.unfocusedHeight;
 		} else if (this.state === State.Details) {
-			height = 12 * UnfocusedHeight;
+			height = 12 * this.unfocusedHeight;
 		} else {
 			const focus = this.list.getFocusedElements()[0];
-			const focusHeight = focus ? this.delegate.getHeight(focus) : UnfocusedHeight;
+			const focusHeight = focus ? this.getHeight(focus) : this.unfocusedHeight;
 			height = focusHeight;
 
-			const suggestionCount = (this.list.contentHeight - focusHeight) / UnfocusedHeight;
-			height += Math.min(suggestionCount, 11) * UnfocusedHeight;
+			const suggestionCount = (this.list.contentHeight - focusHeight) / this.unfocusedHeight;
+			height += Math.min(suggestionCount, 11) * this.unfocusedHeight;
 		}
 
-		this.element.style.height = height + 'px';
+		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
+		this.element.style.height = `${height}px`;
 		this.list.layout(height);
 		this.editor.layoutContentWidget(this);
 
@@ -759,6 +732,33 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		} else {
 			this.details.render(this.list.getFocusedElements()[0]);
 		}
+	}
+
+	// Heights
+
+	private get focusHeight(): number {
+		return Math.round(this.unfocusedHeight * 2.1);
+	}
+
+	private get unfocusedHeight(): number {
+		const fontInfo = this.editor.getConfiguration().fontInfo;
+		return fontInfo.lineHeight;
+	}
+
+	// IDelegate
+
+	getHeight(element: ICompletionItem): number {
+		const focus = this.list.getFocusedElements()[0];
+
+		if (element.suggestion.documentation && element === focus) {
+			return this.focusHeight;
+		}
+
+		return this.unfocusedHeight;
+	}
+
+	getTemplateId(element: ICompletionItem): string {
+		return 'suggestion';
 	}
 
 	dispose(): void {

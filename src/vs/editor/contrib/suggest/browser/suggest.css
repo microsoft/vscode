@@ -37,18 +37,20 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
 	-mox-box-sizing: border-box;
 	box-sizing: border-box;
-	line-height: 1.2em;
 	padding: 0 10px 0 22px;
 	background-repeat: no-repeat;
 	background-position: 2px 2px;
 	white-space: nowrap;
 }
 
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text {
+	height: 100%;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main {
 	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	height: 18px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
@@ -56,7 +58,6 @@
 	max-height: 3.4em;
 	overflow: hidden;
 	height: 24px;
-	line-height: 24px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text {
@@ -202,7 +203,6 @@
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
-	line-height: 1.5em;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
