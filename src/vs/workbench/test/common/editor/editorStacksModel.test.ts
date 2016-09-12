@@ -1483,13 +1483,16 @@ suite('Editor Stacks Model', () => {
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(group1.contains(input1Resource));
 		assert.equal(model.count(input1Resource), 1);
+		assert.equal(group1.getEditor(input1Resource), input1);
 
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(!group1.contains(input1Resource));
+		assert.ok(!group1.getEditor(input1Resource));
 		assert.ok(group2.contains(input1Resource));
+		assert.equal(group2.getEditor(input1Resource), input1);
 		assert.equal(model.count(input1Resource), 1);
 
 		const input1ResourceClone = URI.file('/hello/world.txt');
@@ -1502,6 +1505,7 @@ suite('Editor Stacks Model', () => {
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(group1.contains(input1Resource));
+		assert.equal(group1.getEditor(input1Resource), input1Clone);
 		assert.ok(!group2.contains(input1Resource));
 
 		group1.closeEditor(input1Clone);

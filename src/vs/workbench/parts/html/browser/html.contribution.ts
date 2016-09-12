@@ -16,6 +16,7 @@ import {Registry} from 'vs/platform/platform';
 import {EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/common/editor';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
@@ -28,9 +29,27 @@ import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: ServicesAccessor, resource: URI | string, position?: EditorPosition, label?: string) {
 
-	let uri = resource instanceof URI ? resource : URI.parse(resource);
+	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	label = label || uri.fsPath;
-	let input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri);
+
+	let input: HtmlInput;
+
+	// Find already opened HTML input if any
+	const stacks = accessor.get(IEditorGroupService).getStacksModel();
+	const targetGroup = stacks.groupAt(position) || stacks.activeGroup;
+	if (targetGroup) {
+		const existingInput = targetGroup.getEditor(uri);
+		if (existingInput instanceof HtmlInput) {
+			input = existingInput;
+		}
+	}
+
+	// Otherwise, create new input and open it
+	if (!input) {
+		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri);
+	} else {
+		input.setName(label); // make sure to use passed in label
+	}
 
 	return accessor.get(IWorkbenchEditorService)
 		.openEditor(input, { pinned: true }, position)
