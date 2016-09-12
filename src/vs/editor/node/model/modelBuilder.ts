@@ -10,6 +10,7 @@ import {DefaultEndOfLine, ITextModelCreationOptions, ITextModelResolvedOptions, 
 import * as strings from 'vs/base/common/strings';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {CharCode} from 'vs/base/common/charCode';
 
 export class ModelBuilderResult {
 	rawText: IRawText;
@@ -162,7 +163,7 @@ export class ModelBuilder {
 		if (this.leftoverEndsInCR) {
 			chunk = '\r' + chunk;
 		}
-		if (chunk.charCodeAt(chunk.length - 1) === 13 /*\r*/) {
+		if (chunk.charCodeAt(chunk.length - 1) === CharCode.CarriageReturn) {
 			this.leftoverEndsInCR = true;
 			chunk = chunk.substr(0, chunk.length - 1);
 		} else {

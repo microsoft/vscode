@@ -91,14 +91,6 @@
 	opacity: 0.3;
 }
 
-/* Bare row */
-
-.monaco-tree.bare .monaco-tree-wrapper.drop-target,
-.monaco-tree.bare .monaco-tree-row {
-	color: inherit !important;
-	background-color: inherit !important;
-}
-
 /* Default style */
 
 .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 					{ background-color: #DCEBFC; }

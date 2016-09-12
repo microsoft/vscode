@@ -29,6 +29,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -56,6 +57,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
+		@IHistoryService private historyService: IHistoryService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
@@ -85,6 +87,14 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Detect options
 		const forceOpen = options && options.forceOpen;
+
+		// We have a current input in this editor and are about to either open a new editor or jump to a different
+		// selection inside the editor. Thus we store the current selection into the navigation history so that
+		// a user can navigate back to the exact position he left off.
+		if (oldInput) {
+			const selection = this.getControl().getSelection();
+			this.historyService.add(oldInput, { selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn } });
+		}
 
 		// Same Input
 		if (!forceOpen && input.matches(oldInput)) {
@@ -128,7 +138,6 @@ export class TextFileEditor extends BaseTextEditor {
 				modelDisposed || 	// input got disposed meanwhile
 				inputChanged 		// a different input was set meanwhile
 			) {
-				console.warn('TextFileEditor', 'resource: ', textFileModel.getResource().toString(), 'hasInput: ', hasInput, 'modelDisposed: ', modelDisposed, 'inputChanged: ', inputChanged); // TODO@Ben remove me
 				return null;
 			}
 

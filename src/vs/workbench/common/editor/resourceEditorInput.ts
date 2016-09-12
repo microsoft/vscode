@@ -143,8 +143,22 @@ export class ResourceEditorInput extends EditorInput {
 		return this.name;
 	}
 
+	public setName(name: string): void {
+		if (this.name !== name) {
+			this.name = name;
+			this._onDidChangeLabel.fire();
+		}
+	}
+
 	public getDescription(): string {
 		return this.description;
+	}
+
+	public setDescription(description: string): void {
+		if (this.description !== description) {
+			this.description = description;
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-const __space = ' '.charCodeAt(0);
-const __tab = '\t'.charCodeAt(0);
+import {CharCode} from 'vs/base/common/charCode';
 
 /**
  * Compute the diff in spaces between two line's indentation.
@@ -31,7 +30,7 @@ function spacesDiff(a:string, aLength:number, b:string, bLength:number): number 
 	let aSpacesCnt = 0, aTabsCount = 0;
 	for (let j = i; j < aLength; j++) {
 		let aCharCode = a.charCodeAt(j);
-		if (aCharCode === __space) {
+		if (aCharCode === CharCode.Space) {
 			aSpacesCnt++;
 		} else {
 			aTabsCount++;
@@ -41,7 +40,7 @@ function spacesDiff(a:string, aLength:number, b:string, bLength:number): number 
 	let bSpacesCnt = 0, bTabsCount = 0;
 	for (let j = i; j < bLength; j++) {
 		let bCharCode = b.charCodeAt(j);
-		if (bCharCode === __space) {
+		if (bCharCode === CharCode.Space) {
 			bSpacesCnt++;
 		} else {
 			bTabsCount++;
@@ -103,9 +102,9 @@ export function guessIndentation(lines:string[], defaultTabSize:number, defaultI
 		for (let j = 0, lenJ = currentLineText.length; j < lenJ; j++) {
 			let charCode = currentLineText.charCodeAt(j);
 
-			if (charCode === __tab) {
+			if (charCode === CharCode.Tab) {
 				currentLineTabsCount++;
-			} else if (charCode === __space) {
+			} else if (charCode === CharCode.Space) {
 				currentLineSpacesCount++;
 			} else {
 				// Hit non whitespace character on this line
