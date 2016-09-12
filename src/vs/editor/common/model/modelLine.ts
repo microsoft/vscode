@@ -7,16 +7,11 @@
 import * as strings from 'vs/base/common/strings';
 import {ILineTokens, IReadOnlyLineMarker} from 'vs/editor/common/editorCommon';
 import {IState} from 'vs/editor/common/modes';
-import {TokensBinaryEncoding, TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
+import {TokensBinaryEncoding, TokensBinaryEncodingValues, TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {Token} from 'vs/editor/common/core/token';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {CharCode} from 'vs/base/common/charCode';
-
-const START_INDEX_MASK = TokensBinaryEncoding.START_INDEX_MASK;
-const TYPE_MASK = TokensBinaryEncoding.TYPE_MASK;
-const START_INDEX_OFFSET = TokensBinaryEncoding.START_INDEX_OFFSET;
-const TYPE_OFFSET = TokensBinaryEncoding.TYPE_OFFSET;
 
 export interface ILineEdit {
 	startColumn: number;
@@ -233,14 +228,14 @@ export class ModelLine {
 
 				if (currentTokenStartIndex > 0 && delta !== 0) {
 					// adjust token's `startIndex` by `delta`
-					let deflatedType = (tokens[tokensIndex] / TYPE_OFFSET) & TYPE_MASK;
+					let deflatedType = (tokens[tokensIndex] / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 					let newStartIndex = Math.max(minimumAllowedIndex, currentTokenStartIndex + delta);
-					let newToken = deflatedType * TYPE_OFFSET + newStartIndex * START_INDEX_OFFSET;
+					let newToken = deflatedType * TokensBinaryEncodingValues.TYPE_OFFSET + newStartIndex * TokensBinaryEncodingValues.START_INDEX_OFFSET;
 
 					if (delta < 0) {
 						// pop all previous tokens that have become `collapsed`
 						while (tokensIndex > 0) {
-							let prevTokenStartIndex = (tokens[tokensIndex - 1] / START_INDEX_OFFSET) & START_INDEX_MASK;
+							let prevTokenStartIndex = (tokens[tokensIndex - 1] / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 							if (prevTokenStartIndex >= newStartIndex) {
 								// Token at `tokensIndex` - 1 is now `collapsed` => pop it
 								tokens.splice(tokensIndex - 1, 1);
@@ -257,7 +252,7 @@ export class ModelLine {
 				tokensIndex++;
 
 				if (tokensIndex < tokensLength) {
-					currentTokenStartIndex = (tokens[tokensIndex] / START_INDEX_OFFSET) & START_INDEX_MASK;
+					currentTokenStartIndex = (tokens[tokensIndex] / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 				}
 			}
 			// console.log('after call: tokensIndex: ' + tokensIndex + ': ' + String(this.getTokens()));
@@ -288,7 +283,7 @@ export class ModelLine {
 
 			// Remove overflowing tokens
 			while (tokens.length > 0) {
-				let lastTokenStartIndex = (tokens[tokens.length - 1] / START_INDEX_OFFSET) & START_INDEX_MASK;
+				let lastTokenStartIndex = (tokens[tokens.length - 1] / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 				if (lastTokenStartIndex < lineTextLength) {
 					// Valid token
 					break;
@@ -534,10 +529,10 @@ export class ModelLine {
 				for (let i = 0, len = otherTokens.length; i < len; i++) {
 					let token = otherTokens[i];
 
-					let deflatedStartIndex = (token / START_INDEX_OFFSET) & START_INDEX_MASK;
-					let deflatedType = (token / TYPE_OFFSET) & TYPE_MASK;
+					let deflatedStartIndex = (token / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
+					let deflatedType = (token / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 					let newStartIndex = deflatedStartIndex + thisTextLength;
-					let newToken = deflatedType * TYPE_OFFSET + newStartIndex * START_INDEX_OFFSET;
+					let newToken = deflatedType * TokensBinaryEncodingValues.TYPE_OFFSET + newStartIndex * TokensBinaryEncodingValues.START_INDEX_OFFSET;
 
 					otherTokens[i] = newToken;
 				}
