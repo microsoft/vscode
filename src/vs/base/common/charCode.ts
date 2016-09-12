@@ -11,7 +11,7 @@
  * Please leave the const keyword such that it gets inlined when compiled to JavaScript!
  */
 export const enum CharCode {
-
+	Null = 0,
 	Tab = 9,
 	LineFeed = 10,
 	CarriageReturn = 13,
@@ -212,4 +212,17 @@ export const enum CharCode {
 	 * The `~` character.
 	 */
 	Tilde = 126,
+
+	/**
+	 * Unicode Character 'LINE SEPARATOR' (U+2028)
+	 * http://www.fileformat.info/info/unicode/char/2028/index.htm
+	 */
+	LINE_SEPARATOR_2028 = 8232,
+
+	/**
+	 * UTF-8 BOM
+	 * Unicode Character 'ZERO WIDTH NO-BREAK SPACE' (U+FEFF)
+	 * http://www.fileformat.info/info/unicode/char/feff/index.htm
+	 */
+	UTF8_BOM = 65279
 }
