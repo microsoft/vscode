@@ -25,6 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
+import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 
 export interface ISearchWidgetOptions {
@@ -86,6 +87,8 @@ export class SearchWidget extends Widget {
 	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar: ActionBar;
 
+	private searchHistory: HistoryNavigator<string>;
+
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
 	public onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
 
@@ -107,6 +110,7 @@ export class SearchWidget extends Widget {
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
 					private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
+		this.searchHistory = new HistoryNavigator<string>();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
 		this.searchInputBoxFocussed = Constants.SearchInputBoxFocussedKey.bindTo(this.keyBindingService);
 		this.render(container, options);
@@ -156,6 +160,20 @@ export class SearchWidget extends Widget {
 		}
 	}
 
+	public showNextSearchTerm() {
+		let next = this.searchHistory.next();
+		if (next) {
+			this.searchInput.setValue(next);
+		}
+	}
+
+	public showPreviousSearchTerm() {
+		let previous = this.searchHistory.previous();
+		if (previous) {
+			this.searchInput.setValue(previous);
+		}
+	}
+
 	public searchInputHasFocus(): boolean {
 		return this.searchInputBoxFocussed.get();
 	}
@@ -193,6 +211,9 @@ export class SearchWidget extends Widget {
 		this.searchInput.setRegex(!!options.isRegex);
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
 		this.searchInput.setWholeWords(!!options.isWholeWords);
+		this._register(this.onSearchSubmit(() => {
+			this.searchHistory.add(this.searchInput.getValue());
+		}));
 
 		this.searchInputFocusTracker = dom.trackFocus(this.searchInput.inputBox.inputElement);
 		this._register(this.searchInputFocusTracker.addFocusListener(() => {
