@@ -737,7 +737,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	// Heights
 
 	private get focusHeight(): number {
-		return Math.round(this.unfocusedHeight * 2.1);
+		return this.unfocusedHeight * 2;
 	}
 
 	private get unfocusedHeight(): number {

@@ -55,9 +55,8 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
 	display: none;
-	max-height: 3.4em;
 	overflow: hidden;
-	height: 24px;
+	font-size: 95%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text {
@@ -71,7 +70,7 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details {
 	opacity: 0.6;
 	width: 14px;
-	height: 100%;
+	height: 14px;
 	background-image: url('./info.svg');
 	background-size: 14px;
 	background-position: center center;
@@ -212,6 +211,7 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p {
 	margin: 0;
 	padding: 4px 5px;
+	font-size: 95%;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {
