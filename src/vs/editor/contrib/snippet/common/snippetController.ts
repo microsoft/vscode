@@ -381,7 +381,7 @@ export class SnippetController {
 
 	public run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
 		this._runAndRestoreController(() => {
-			if (snippet.isInsertOnly || snippet.isSingleTabstopOnly) {
+			if (snippet.isInsertOnly/* || snippet.isSingleTabstopOnly*/) {
 				// Only inserts text, not placeholders, tabstops etc
 				// Only cursor endposition
 				this._runForAllSelections(snippet, overwriteBefore, overwriteAfter, stripPrefix);
