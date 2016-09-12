@@ -15,10 +15,12 @@ import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } fr
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, {Emitter, filterEvent} from 'vs/base/common/event';
+import {domEvent, stop} from 'vs/base/browser/event';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
+import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 
 const $ = dom.$;
 
@@ -151,11 +153,6 @@ export class ParameterHintsModel extends Disposable {
 	}
 }
 
-interface ISignatureView {
-	top: number;
-	height: number;
-}
-
 export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private static ID = 'editor.widget.parameterHintsWidget';
@@ -164,12 +161,12 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private keyVisible: IContextKey<boolean>;
 	private keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
-	private signatures: HTMLElement;
+	private signature: HTMLElement;
+	private docs: HTMLElement;
 	private overloads: HTMLElement;
-	private signatureViews: ISignatureView[];
 	private currentSignature: number;
 	private visible: boolean;
-	private parameterHints: SignatureHelp;
+	private hints: SignatureHelp;
 	private announcedLabel: string;
 	private disposables: IDisposable[];
 
@@ -183,12 +180,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.visible = false;
 		this.disposables = [];
 
-		this.disposables.push(this.model.onHint((e:IHintEvent) => {
+		this.disposables.push(this.model.onHint(e => {
 			this.show();
-			this.parameterHints = e.hints;
-			this.render(e.hints);
+			this.hints = e.hints;
 			this.currentSignature = e.hints.activeSignature;
-			this.select(this.currentSignature);
+			this.render();
 		}));
 
 		this.disposables.push(this.model.onCancel(() => {
@@ -196,33 +192,28 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}));
 
 		this.element = $('.editor-widget.parameter-hints-widget');
+		const wrapper = dom.append(this.element, $('.wrapper'));
 
-		this.disposables.push(dom.addDisposableListener(this.element, 'click', () => {
-			this.next();
-			this.editor.focus();
-		}));
+		const onClick = stop(domEvent(this.element, 'click'));
+		onClick(this.next, this, this.disposables);
 
-		const wrapper = dom.append(this.element, $('.wrapper.monaco-editor-background'));
 		const buttons = dom.append(wrapper, $('.buttons'));
 		const previous = dom.append(buttons, $('.button.previous'));
 		const next = dom.append(buttons, $('.button.next'));
 
-		this.disposables.push(dom.addDisposableListener(previous, 'click', e => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.previous();
-		}));
+		const onPreviousClick = stop(domEvent(previous, 'click'));
+		onPreviousClick(this.previous, this, this.disposables);
 
-		this.disposables.push(dom.addDisposableListener(next, 'click', e => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.next();
-		}));
+		const onNextClick = stop(domEvent(next, 'click'));
+		onNextClick(this.next, this, this.disposables);
 
 		this.overloads = dom.append(wrapper, $('.overloads'));
-		this.signatures = dom.append(wrapper, $('.signatures'));
 
-		this.signatureViews = [];
+		const body = dom.append(wrapper, $('.body'));
+
+		this.signature = dom.append(body, $('.signature'));
+		this.docs = dom.append(body, $('.docs'));
+
 		this.currentSignature = 0;
 
 		this.editor.addContentWidget(this);
@@ -233,6 +224,19 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 				this.editor.layoutContentWidget(this);
 			}
 		}));
+
+		const updateFont = () => {
+			const fontInfo = this.editor.getConfiguration().fontInfo;
+			this.element.style.fontSize = `${fontInfo.fontSize}px`;
+		};
+
+		updateFont();
+
+		const onFontInfo = filterEvent(this.editor.onDidChangeConfiguration.bind(this.editor), (e: IConfigurationChangedEvent) => e.fontInfo);
+		onFontInfo(updateFont, null, this.disposables);
+
+		this.disposables.push(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
+		this.updateMaxHeight();
 	}
 
 	private show(): void {
@@ -253,7 +257,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.keyVisible.reset();
 		this.visible = false;
-		this.parameterHints = null;
+		this.hints = null;
 		this.announcedLabel = null;
 		dom.removeClass(this.element, 'visible');
 		this.editor.layoutContentWidget(this);
@@ -269,61 +273,68 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		return null;
 	}
 
-	private render(hints:SignatureHelp): void {
-		if (hints.signatures.length > 1) {
-			dom.addClass(this.element, 'multiple');
-		} else {
-			dom.removeClass(this.element, 'multiple');
-		}
+	private render(): void {
+		const multiple = this.hints.signatures.length > 1;
+		dom.toggleClass(this.element, 'multiple', multiple);
+		this.keyMultipleSignatures.set(multiple);
 
-		this.signatures.innerHTML = '';
-		this.signatureViews = [];
-		let height = 0;
+		this.signature.innerHTML = '';
+		this.docs.innerHTML = '';
 
-		for (let i = 0, len = hints.signatures.length; i < len; i++) {
-			const signature = hints.signatures[i];
-			const signatureElement = this.renderSignature(this.signatures, signature, hints.activeParameter);
+		const signature = this.hints.signatures[this.currentSignature];
 
-			this.renderDocumentation(signatureElement, signature, hints.activeParameter);
-
-			const signatureHeight = dom.getContentHeight(signatureElement);
-
-			this.signatureViews.push({
-				top: height,
-				height: signatureHeight
-			});
-
-			height += signatureHeight;
-		}
-
-		this.keyMultipleSignatures.set(this.signatureViews.length > 1);
-	}
-
-	private applyFont(element: HTMLElement): void {
-		const fontInfo = this.editor.getConfiguration().fontInfo;
-		element.style.fontFamily = fontInfo.fontFamily;
-	}
-
-	private renderSignature(element: HTMLElement, signature:SignatureInformation, currentParameter:number): HTMLElement {
-		const signatureElement = dom.append(element, $('.signature'));
-		const code = dom.append(signatureElement, $('.code'));
+		const code = dom.append(this.signature, $('.code'));
 		const hasParameters = signature.parameters.length > 0;
 
-		this.applyFont(code);
+		const fontInfo = this.editor.getConfiguration().fontInfo;
+		code.style.fontSize = `${fontInfo.fontSize}px`;
+		code.style.fontFamily = fontInfo.fontFamily;
 
 		if(!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
 
 		} else {
-			this.renderParameters(code, signature, currentParameter);
+			this.renderParameters(code, signature, this.hints.activeParameter);
 		}
 
-		return signatureElement;
+		const activeParameter = signature.parameters[this.hints.activeParameter];
+
+		if(activeParameter && activeParameter.documentation) {
+			const documentation = $('span.documentation');
+			documentation.textContent = activeParameter.documentation;
+			dom.append(this.docs, $('p', null, documentation));
+		}
+
+		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
+
+		if(signature.documentation) {
+			dom.append(this.docs, $('p', null, signature.documentation));
+		}
+
+		let currentOverload = String(this.currentSignature + 1);
+
+		if (this.hints.signatures.length < 10) {
+			currentOverload += `/${this.hints.signatures.length}`;
+		}
+
+		this.overloads.textContent = currentOverload;
+
+		if (activeParameter) {
+			const labelToAnnounce = activeParameter.label;
+			// Select method gets called on every user type while parameter hints are visible.
+			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
+
+			if (this.announcedLabel !== labelToAnnounce) {
+				aria.alert(nls.localize('hint', "{0}, hint", labelToAnnounce));
+				this.announcedLabel = labelToAnnounce;
+			}
+		}
+
+		this.editor.layoutContentWidget(this);
 	}
 
 	private renderParameters(parent: HTMLElement, signature: SignatureInformation, currentParameter: number): void {
-
 		let end = signature.label.length;
 		let idx = 0;
 		let element: HTMLSpanElement;
@@ -357,88 +368,62 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		element = document.createElement('span');
 		element.textContent = signature.label.substring(0, end);
 		dom.prepend(parent, element);
-
 	}
 
-	private renderDocumentation(element: HTMLElement, signature:SignatureInformation, activeParameterIdx:number): void {
-		if(signature.documentation) {
-			const documentation = $('.documentation');
-			documentation.textContent = signature.documentation;
-			dom.append(element, documentation);
-		}
+	// private select(position: number): void {
+	// 	const signature = this.signatureViews[position];
 
-		const activeParameter = signature.parameters[activeParameterIdx];
+	// 	if (!signature) {
+	// 		return;
+	// 	}
 
-		if(activeParameter && activeParameter.documentation) {
-			const parameter = $('.documentation-parameter');
-			const label = $('span.parameter');
-			this.applyFont(label);
-			label.textContent = activeParameter.label;
+	// 	this.signatures.style.height = `${ signature.height }px`;
+	// 	this.signatures.scrollTop = signature.top;
 
-			const documentation = $('span.documentation');
-			documentation.textContent = activeParameter.documentation;
+	// 	let overloads = '' + (position + 1);
 
-			dom.append(parameter, label);
-			dom.append(parameter, documentation);
-			dom.append(element, parameter);
-		}
-	}
+	// 	if (this.signatureViews.length < 10) {
+	// 		overloads += '/' + this.signatureViews.length;
+	// 	}
 
-	private select(position: number): void {
-		const signature = this.signatureViews[position];
+	// 	this.overloads.textContent = overloads;
 
-		if (!signature) {
-			return;
-		}
+	// 	if (this.hints && this.hints.signatures[position].parameters[this.hints.activeParameter]) {
+	// 		const labelToAnnounce = this.hints.signatures[position].parameters[this.hints.activeParameter].label;
+	// 		// Select method gets called on every user type while parameter hints are visible.
+	// 		// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
+	// 		if (this.announcedLabel !== labelToAnnounce) {
+	// 			aria.alert(nls.localize('hint', "{0}, hint", labelToAnnounce));
+	// 			this.announcedLabel = labelToAnnounce;
+	// 		}
+	// 	}
 
-		this.signatures.style.height = `${ signature.height }px`;
-		this.signatures.scrollTop = signature.top;
-
-		let overloads = '' + (position + 1);
-
-		if (this.signatureViews.length < 10) {
-			overloads += '/' + this.signatureViews.length;
-		}
-
-		this.overloads.textContent = overloads;
-
-		if (this.parameterHints && this.parameterHints.signatures[position].parameters[this.parameterHints.activeParameter]) {
-			const labelToAnnounce = this.parameterHints.signatures[position].parameters[this.parameterHints.activeParameter].label;
-			// Select method gets called on every user type while parameter hints are visible.
-			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
-			if (this.announcedLabel !== labelToAnnounce) {
-				aria.alert(nls.localize('hint', "{0}, hint", labelToAnnounce));
-				this.announcedLabel = labelToAnnounce;
-			}
-		}
-
-		this.editor.layoutContentWidget(this);
-	}
+	// 	this.editor.layoutContentWidget(this);
+	// }
 
 	next(): boolean {
-		if (this.signatureViews.length < 2) {
+		const length = this.hints.signatures.length;
+
+		if (length < 2) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature = (this.currentSignature + 1) % this.signatureViews.length;
-		this.select(this.currentSignature);
+		this.currentSignature = (this.currentSignature + 1) % length;
+		this.render();
 		return true;
 	}
 
 	previous(): boolean {
-		if (this.signatureViews.length < 2) {
+		const length = this.hints.signatures.length;
+
+		if (length < 2) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature--;
-
-		if (this.currentSignature < 0) {
-			this.currentSignature = this.signatureViews.length - 1;
-		}
-
-		this.select(this.currentSignature);
+		this.currentSignature = (this.currentSignature - 1 + length) % length;
+		this.render();
 		return true;
 	}
 
@@ -456,6 +441,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	trigger(): void {
 		this.model.trigger(0);
+	}
+
+	private updateMaxHeight(): void {
+		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
+		this.element.style.maxHeight = `${ height }px`;
 	}
 
 	dispose(): void {
