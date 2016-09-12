@@ -213,7 +213,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private createProcess(workspace: IWorkspace, name?: string, shellPath?: string) {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		let shell = shellPath ? { executable: shellPath, args: [] } : this.configHelper.getShell();
-		let env = this.createTerminalEnv(process.env, shell, workspace, locale);
+		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
 		this._title = name ? name : '';
 		this.process = cp.fork('./terminalProcess', [], {
 			env: env,
@@ -240,21 +240,21 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 	}
 
-	public createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
-		let env = this.cloneEnv(parentEnv);
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
+		let env = TerminalInstance.cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		shell.args.forEach((arg, i) => {
 			env[`PTYSHELLARG${i}`] = arg;
 		});
-		env['PTYCWD'] = this.sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
+		env['PTYCWD'] = TerminalInstance.sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
 		if (locale) {
-			env['LANG'] = this.getLangEnvVariable(locale);
+			env['LANG'] = TerminalInstance.getLangEnvVariable(locale);
 		}
 		return env;
 	}
 
-	private sanitizeCwd(cwd: string) {
+	private static sanitizeCwd(cwd: string) {
 		// Make the drive letter uppercase on Windows (see #9448)
 		if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
 			return cwd[0].toUpperCase() + cwd.substr(1);
@@ -262,7 +262,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return cwd;
 	}
 
-	private cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
+	private static cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
 		let newEnv: IStringDictionary<string> = Object.create(null);
 		Object.keys(env).forEach((key) => {
 			newEnv[key] = env[key];
@@ -270,7 +270,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return newEnv;
 	}
 
-	private getLangEnvVariable(locale: string) {
+	private static getLangEnvVariable(locale: string) {
 		const parts = locale.split('-');
 		const n = parts.length;
 		if (n > 1) {
