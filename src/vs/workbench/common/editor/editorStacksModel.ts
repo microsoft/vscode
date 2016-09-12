@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, {Emitter, once} from 'vs/base/common/event';
-import {IEditorRegistry, Extensions, EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
+import {IEditorRegistry, Extensions, EditorInput, getResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -16,9 +16,6 @@ import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-
-// TODO@Ben currently only files and untitled editors are tracked with their resources in the stacks model
-// Once the resource is a base concept of all editor inputs, every resource should be tracked for any editor
 
 export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
@@ -69,6 +66,7 @@ export class EditorGroup implements IEditorGroup {
 	private _onEditorClosed: Emitter<GroupEvent>;
 	private _onEditorDisposed: Emitter<EditorInput>;
 	private _onEditorDirty: Emitter<EditorInput>;
+	private _onEditorLabelChange: Emitter<EditorInput>;
 	private _onEditorMoved: Emitter<EditorInput>;
 	private _onEditorPinned: Emitter<EditorInput>;
 	private _onEditorUnpinned: Emitter<EditorInput>;
@@ -93,13 +91,14 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorClosed = new Emitter<GroupEvent>();
 		this._onEditorDisposed = new Emitter<EditorInput>();
 		this._onEditorDirty = new Emitter<EditorInput>();
+		this._onEditorLabelChange = new Emitter<EditorInput>();
 		this._onEditorMoved = new Emitter<EditorInput>();
 		this._onEditorPinned = new Emitter<EditorInput>();
 		this._onEditorUnpinned = new Emitter<EditorInput>();
 		this._onEditorStateChanged = new Emitter<EditorInput>();
 		this._onEditorsStructureChanged = new Emitter<EditorInput>();
 
-		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorDisposed, this._onEditorDirty, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorStateChanged, this._onEditorsStructureChanged);
+		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorStateChanged, this._onEditorsStructureChanged);
 
 		if (typeof arg1 === 'object') {
 			this.deserialize(arg1);
@@ -154,6 +153,10 @@ export class EditorGroup implements IEditorGroup {
 		return this._onEditorDirty.event;
 	}
 
+	public get onEditorLabelChange(): Event<EditorInput> {
+		return this._onEditorLabelChange.event;
+	}
+
 	public get onEditorMoved(): Event<EditorInput> {
 		return this._onEditorMoved.event;
 	}
@@ -178,8 +181,27 @@ export class EditorGroup implements IEditorGroup {
 		return mru ? this.mru.slice(0) : this.editors.slice(0);
 	}
 
-	public getEditor(index: number): EditorInput {
-		return this.editors[index];
+	public getEditor(index: number): EditorInput;
+	public getEditor(resource: URI): EditorInput;
+	public getEditor(arg1: any): EditorInput {
+		if (typeof arg1 === 'number') {
+			return this.editors[arg1];
+		}
+
+		const resource: URI = arg1;
+		if (!this.contains(resource)) {
+			return null; // fast check for resource opened or not
+		}
+
+		for (let i = 0; i < this.editors.length; i++) {
+			const editor = this.editors[i];
+			const editorResource = getResource(editor);
+			if (editorResource && editorResource.toString() === resource.toString()) {
+				return editor;
+			}
+		}
+
+		return null;
 	}
 
 	public get activeEditor(): EditorInput {
@@ -306,6 +328,11 @@ export class EditorGroup implements IEditorGroup {
 		// Re-Emit dirty state changes
 		unbind.push(editor.onDidChangeDirty(() => {
 			this.fireEvent(this._onEditorDirty, editor, false);
+		}));
+
+		// Re-Emit label changes
+		unbind.push(editor.onDidChangeLabel(() => {
+			this.fireEvent(this._onEditorLabelChange, editor, false);
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
@@ -514,7 +541,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
-		const resource = getUntitledOrFileResource(editor, true /* include diff editors */);
+		const resource = getResource(editor);
 		if (resource) {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
@@ -663,6 +690,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupRenamed: Emitter<EditorGroup>;
 	private _onEditorDisposed: Emitter<EditorIdentifier>;
 	private _onEditorDirty: Emitter<EditorIdentifier>;
+	private _onEditorLabelChange: Emitter<EditorIdentifier>;
 	private _onEditorClosed: Emitter<GroupEvent>;
 	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
@@ -686,9 +714,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onModelChanged = new Emitter<IStacksModelChangeEvent>();
 		this._onEditorDisposed = new Emitter<EditorIdentifier>();
 		this._onEditorDirty = new Emitter<EditorIdentifier>();
+		this._onEditorLabelChange = new Emitter<EditorIdentifier>();
 		this._onEditorClosed = new Emitter<GroupEvent>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorClosed);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorClosed);
 
 		this.registerListeners();
 	}
@@ -731,6 +760,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	public get onEditorDirty(): Event<EditorIdentifier> {
 		return this._onEditorDirty.event;
+	}
+
+	public get onEditorLabelChange(): Event<EditorIdentifier> {
+		return this._onEditorLabelChange.event;
 	}
 
 	public get onEditorClosed(): Event<GroupEvent> {
@@ -1064,6 +1097,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}));
 		unbind.push(group.onEditorDisposed(editor => this._onEditorDisposed.fire({ editor, group })));
 		unbind.push(group.onEditorDirty(editor => this._onEditorDirty.fire({ editor, group })));
+		unbind.push(group.onEditorLabelChange(editor => this._onEditorLabelChange.fire({ editor, group })));
 		unbind.push(this.onGroupClosed(g => {
 			if (g === group) {
 				dispose(unbind);
