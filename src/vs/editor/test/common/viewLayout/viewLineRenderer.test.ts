@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
+import {CharCode} from 'vs/base/common/charCode';
 
 suite('viewLineRenderer.renderLine', () => {
 
@@ -43,7 +44,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 	test('replaces some bad characters', () => {
 		assertCharacterReplacement('a\0b', 4, 'a&#00;b', [0, 1, 2, 3]);
-		assertCharacterReplacement('a' + String.fromCharCode(65279) + 'b', 4, 'a\ufffdb', [0, 1, 2, 3]);
+		assertCharacterReplacement('a' + String.fromCharCode(CharCode.UTF8_BOM) + 'b', 4, 'a\ufffdb', [0, 1, 2, 3]);
 		assertCharacterReplacement('a\u2028b', 4, 'a\ufffdb', [0, 1, 2, 3]);
 		assertCharacterReplacement('a\rb', 4, 'a&#8203b', [0, 1, 2, 3]);
 	});

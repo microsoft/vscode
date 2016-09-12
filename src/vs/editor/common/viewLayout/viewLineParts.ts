@@ -9,6 +9,7 @@ import {Arrays} from 'vs/editor/common/core/arrays';
 import {Range} from 'vs/editor/common/core/range';
 import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
+import {CharCode} from 'vs/base/common/charCode';
 
 function cmpLineDecorations(a:InlineDecoration, b:InlineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
@@ -93,9 +94,6 @@ function trimEmptyTrailingPart(parts: ViewLineToken[], lineContent: string): Vie
 	return parts.slice(0, parts.length - 1);
 }
 
-const _tab = '\t'.charCodeAt(0);
-const _space = ' '.charCodeAt(0);
-
 function insertOneCustomLineDecoration(dest:InlineDecoration[], lineNumber:number, startColumn:number, endColumn:number, className:string): void {
 	dest.push(new InlineDecoration(new Range(lineNumber, startColumn, lineNumber, endColumn), className));
 }
@@ -135,8 +133,8 @@ function insertWhitespaceLineDecorations(lineNumber:number, lineContent: string,
 	let hasTab = false;
 
 	for (let i = Math.max(firstNonWhitespaceIndex, fauxIndentLength); i <= lastNonWhitespaceIndex; ++i) {
-		let currentCharIsTab = lineContent.charCodeAt(i) === _tab;
-		if (currentCharIsTab || lineContent.charCodeAt(i) === _space) {
+		let currentCharIsTab = lineContent.charCodeAt(i) === CharCode.Tab;
+		if (currentCharIsTab || lineContent.charCodeAt(i) === CharCode.Space) {
 			if (currentCharIsTab) {
 				hasTab = true;
 			}
@@ -185,7 +183,7 @@ function insertCustomLineDecorationsWithStateMachine(lineNumber:number, lineCont
 	for (let index = 0; index < lineLength; index++) {
 		let chCode = lineContent.charCodeAt(index);
 
-		if (chCode === _tab) {
+		if (chCode === CharCode.Tab) {
 			tmpIndent = tabSize;
 		} else {
 			tmpIndent++;
