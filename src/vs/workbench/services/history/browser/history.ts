@@ -111,10 +111,14 @@ export abstract class BaseHistoryService {
 		// Propagate to history
 		this.onEditorEvent(activeEditor);
 
-		// Apply listener for dirty changes
+		// Apply listener for dirty and label changes
 		if (activeInput instanceof EditorInput) {
 			this.activeEditorListeners.push(activeInput.onDidChangeDirty(() => {
 				this.updateWindowTitle(activeInput); // Calculate New Window Title when dirty state changes
+			}));
+
+			this.activeEditorListeners.push(activeInput.onDidChangeLabel(() => {
+				this.updateWindowTitle(activeInput); // Calculate New Window Title when label changes
 			}));
 		}
 
