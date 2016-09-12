@@ -110,10 +110,11 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 			return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents);
 		}
 
-		return this.editorService.openEditor({
+		// Create as needed and open in editor
+		return this.createIfNotExists(settingsResource, emptySettingsContents).then(() => this.editorService.openEditor({
 			resource: settingsResource,
 			options: { pinned: true }
-		}).then(() => null);
+		}).then(() => null));
 	}
 }
 
