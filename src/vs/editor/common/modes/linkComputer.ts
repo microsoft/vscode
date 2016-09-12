@@ -13,25 +13,109 @@ export interface ILinkComputerTarget {
 	getLineContent(lineNumber:number): string;
 }
 
+const enum State {
+	Invalid = 0,
+	Start = 1,
+	H = 2,
+	HT = 3,
+	HTT = 4,
+	HTTP = 5,
+	F = 6,
+	FI = 7,
+	FIL = 8,
+	BeforeColon = 9,
+	AfterColon = 10,
+	AlmostThere = 11,
+	End = 12,
+	Accept = 13
+}
+
+type Edge = [State,number,State];
+
+class StateMachine {
+
+	private _states: State[][];
+	private _maxCharCode: number;
+
+	constructor(edges:Edge[]) {
+		let maxCharCode = 0;
+		let maxState = State.Invalid;
+		for (let i = 0, len = edges.length; i < len; i++) {
+			let [from, chCode, to] = edges[i];
+			if (chCode > maxCharCode) {
+				maxCharCode = chCode;
+			}
+			if (from > maxState) {
+				maxState = from;
+			}
+			if (to > maxState) {
+				maxState = to;
+			}
+		}
+
+		let states:number[][] = [];
+		for (let i = 0; i <= maxState; i++) {
+			let tmp:number[] = [];
+			for (let j = 0; j <= maxCharCode; j++) {
+				tmp[j] = State.Invalid;
+			}
+			states[i] = tmp;
+		}
+
+		for (let i = 0, len = edges.length; i < len; i++) {
+			let [from, chCode, to] = edges[i];
+			states[from][chCode] = to;
+		}
+
+		this._states = states;
+		this._maxCharCode = maxCharCode;
+	}
+
+	public nextState(currentState:State, chCode:number): State {
+		if (chCode < 0 || chCode > this._maxCharCode) {
+			return State.Invalid;
+		}
+		return this._states[currentState][chCode];
+	}
+}
+
 // State machine for http:// or https:// or file://
-const STATE_MAP:{[ch:string]:number}[] = [];
-const START_STATE = 1;
-const END_STATE = 12;
-const ACCEPT_STATE = 13;
+let stateMachine = new StateMachine([
+	[State.Start, CharCode.h, State.H],
+	[State.Start, CharCode.H, State.H],
+	[State.Start, CharCode.f, State.F],
+	[State.Start, CharCode.F, State.F],
 
-STATE_MAP[1] = { 'h': 2, 'H': 2, 'f': 6, 'F': 6 };
-STATE_MAP[2] = { 't': 3, 'T': 3 };
-STATE_MAP[3] = { 't': 4, 'T': 4 };
-STATE_MAP[4] = { 'p': 5, 'P': 5 };
-STATE_MAP[5] = { 's': 9, 'S': 9, ':': 10 };
-STATE_MAP[6] = { 'i': 7, 'I': 7 };
-STATE_MAP[7] = { 'l': 8, 'L': 8 };
-STATE_MAP[8] = { 'e': 9, 'E': 9 };
-STATE_MAP[9] = { ':': 10 };
-STATE_MAP[10] = { '/': 11 };
-STATE_MAP[11] = { '/': END_STATE };
+	[State.H, CharCode.t, State.HT],
+	[State.H, CharCode.T, State.HT],
 
-enum CharacterClass {
+	[State.HT, CharCode.t, State.HTT],
+	[State.HT, CharCode.T, State.HTT],
+
+	[State.HTT, CharCode.p, State.HTTP],
+	[State.HTT, CharCode.P, State.HTTP],
+
+	[State.HTTP, CharCode.s, State.BeforeColon],
+	[State.HTTP, CharCode.S, State.BeforeColon],
+	[State.HTTP, CharCode.Colon, State.AfterColon],
+
+	[State.F, CharCode.i, State.FI],
+	[State.F, CharCode.I, State.FI],
+
+	[State.FI, CharCode.l, State.FIL],
+	[State.FI, CharCode.L, State.FIL],
+
+	[State.FIL, CharCode.e, State.BeforeColon],
+	[State.FIL, CharCode.E, State.BeforeColon],
+
+	[State.BeforeColon, CharCode.Colon, State.AfterColon],
+
+	[State.AfterColon, CharCode.Slash, State.AlmostThere],
+
+	[State.AlmostThere, CharCode.Slash, State.End],
+]);
+
+const enum CharacterClass {
 	None = 0,
 	ForceTermination = 1,
 	CannotEndIn = 2
@@ -86,7 +170,7 @@ class LinkComputer {
 
 			let j = 0;
 			let linkBeginIndex = 0;
-			let state = START_STATE;
+			let state = State.Start;
 			let hasOpenParens = false;
 			let hasOpenSquareBracket = false;
 			let hasOpenCurlyBracket = false;
@@ -94,9 +178,9 @@ class LinkComputer {
 			while (j < len) {
 
 				let resetStateMachine = false;
+				const chCode = line.charCodeAt(j);
 
-				if (state === ACCEPT_STATE) {
-					const chCode = line.charCodeAt(j);
+				if (state === State.Accept) {
 					let chClass:CharacterClass;
 					switch (chCode) {
 						case CharCode.OpenParen:
@@ -129,27 +213,24 @@ class LinkComputer {
 						result.push(LinkComputer._createLink(line, i, linkBeginIndex, j));
 						resetStateMachine = true;
 					}
-				} else if (state === END_STATE) {
-					const chCode = line.charCodeAt(j);
+				} else if (state === State.End) {
 					const chClass = classifier.get(chCode);
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
 						resetStateMachine = true;
 					} else {
-						state = ACCEPT_STATE;
+						state = State.Accept;
 					}
 				} else {
-					const ch = line.charAt(j);
-					if (STATE_MAP[state].hasOwnProperty(ch)) {
-						state = STATE_MAP[state][ch];
-					} else {
+					state = stateMachine.nextState(state, chCode);
+					if (state === State.Invalid) {
 						resetStateMachine = true;
 					}
 				}
 
 				if (resetStateMachine) {
-					state = START_STATE;
+					state = State.Start;
 					hasOpenParens = false;
 					hasOpenSquareBracket = false;
 					hasOpenCurlyBracket = false;
@@ -161,7 +242,7 @@ class LinkComputer {
 				j++;
 			}
 
-			if (state === ACCEPT_STATE) {
+			if (state === State.Accept) {
 				result.push(LinkComputer._createLink(line, i, linkBeginIndex, len));
 			}
 
