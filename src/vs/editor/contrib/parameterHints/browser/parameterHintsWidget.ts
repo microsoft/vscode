@@ -15,7 +15,7 @@ import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } fr
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, {Emitter, filterEvent} from 'vs/base/common/event';
+import Event, {Emitter, chain} from 'vs/base/common/event';
 import {domEvent, stop} from 'vs/base/browser/event';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -238,8 +238,9 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		updateFont();
 
-		const onFontInfo = filterEvent(this.editor.onDidChangeConfiguration.bind(this.editor), (e: IConfigurationChangedEvent) => e.fontInfo);
-		onFontInfo(updateFont, null, this.disposables);
+		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+			.filter(e => e.fontInfo)
+			.on(updateFont, null, this.disposables);
 
 		this.disposables.push(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
 		this.updateMaxHeight();

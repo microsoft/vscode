@@ -8,7 +8,7 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import Event, { Emitter, filterEvent } from 'vs/base/common/event';
+import Event, { Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -89,8 +89,9 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 		configureFont();
 
-		const onFontInfo = filterEvent(this.editor.onDidChangeConfiguration.bind(this.editor), (e: IConfigurationChangedEvent) => e.fontInfo);
-		onFontInfo(configureFont, null, data.disposables);
+		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+			.filter(e => e.fontInfo)
+			.on(configureFont, null, data.disposables);
 
 		return data;
 	}
@@ -196,8 +197,9 @@ class SuggestionDetails {
 
 		this.configureFont();
 
-		const onFontInfo = filterEvent(this.editor.onDidChangeConfiguration.bind(this.editor), (e: IConfigurationChangedEvent) => e.fontInfo);
-		onFontInfo(this.configureFont, this, this.disposables);
+		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+			.filter(e => e.fontInfo)
+			.on(this.configureFont, this, this.disposables);
 	}
 
 	get element() {
