@@ -470,8 +470,12 @@ export class KeyMod {
 	public static WinCtrl = BIN_WINCTRL_MASK;
 
 	public static chord(firstPart:number, secondPart:number): number {
-		return firstPart | ((secondPart & 0x0000ffff) << 16);
+		return KeyChord(firstPart, secondPart);
 	}
+}
+
+export function KeyChord(firstPart:number, secondPart:number): number {
+	return firstPart | ((secondPart & 0x0000ffff) << 16);
 }
 
 /**
@@ -682,7 +686,7 @@ export class Keybinding {
 			result |= KeyMod.WinCtrl;
 		}
 		result |= keyCode;
-		return KeyMod.chord(result, chord);
+		return KeyChord(result, chord);
 	}
 
 	public value:number;

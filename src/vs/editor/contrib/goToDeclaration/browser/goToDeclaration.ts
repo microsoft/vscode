@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import {Throttler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
@@ -184,7 +184,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 			precondition: ModeContextKeys.hasDefinitionProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
 			}
 		});
 	}

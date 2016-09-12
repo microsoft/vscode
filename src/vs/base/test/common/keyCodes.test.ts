@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {KeyCode, KeyMod, BinaryKeybindings, Keybinding} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, KeyChord, BinaryKeybindings} from 'vs/base/common/keyCodes';
 
 interface ITestKeybinding {
 	ctrlCmd?: boolean;
@@ -39,7 +39,7 @@ suite('keyCodes', () => {
 
 		test(null, 0);
 		test({ key: KeyCode.Enter }, KeyCode.Enter);
-		test({ key: KeyCode.Enter, chord: { key: KeyCode.Tab } }, KeyMod.chord(KeyCode.Enter, KeyCode.Tab));
+		test({ key: KeyCode.Enter, chord: { key: KeyCode.Tab } }, KeyChord(KeyCode.Enter, KeyCode.Tab));
 		test({ ctrlCmd: false, shift: false, alt: false, winCtrl: false, key: KeyCode.Enter }, KeyCode.Enter);
 		test({ ctrlCmd: false, shift: false, alt: false, winCtrl:  true, key: KeyCode.Enter }, KeyMod.WinCtrl | KeyCode.Enter);
 		test({ ctrlCmd: false, shift: false, alt:  true, winCtrl: false, key: KeyCode.Enter }, KeyMod.Alt | KeyCode.Enter);
@@ -57,7 +57,7 @@ suite('keyCodes', () => {
 		test({ ctrlCmd:  true, shift:  true, alt:  true, winCtrl: false, key: KeyCode.Enter }, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
 		test({ ctrlCmd:  true, shift:  true, alt:  true, winCtrl:  true, key: KeyCode.Enter }, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
 
-		let encoded = KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z);
+		let encoded = KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z);
 		let encodedFirstPart = BinaryKeybindings.extractFirstPart(encoded);
 		let encodedSecondPart = BinaryKeybindings.extractChordPart(encoded);
 
