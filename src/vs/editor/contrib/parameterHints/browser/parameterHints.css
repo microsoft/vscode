@@ -8,10 +8,15 @@
 	background-color: #F3F3F3;
 	border: 1px solid rgb(200, 200, 200);
 	/*padding: 0 0.5em 0 0.5em;*/
+	display: flex;
+	flex-direction: column;
 }
 
 .monaco-editor .parameter-hints-widget > .wrapper {
 	max-width: 440px;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
 }
 
 .monaco-editor .parameter-hints-widget.multiple {
@@ -31,6 +36,12 @@
 	margin: 8px 0;
 }
 
+.monaco-editor .parameter-hints-widget .body,
+.monaco-editor .parameter-hints-widget .body > .monaco-scrollable-element {
+	display: flex;
+	flex-direction: column;
+}
+
 .monaco-editor .parameter-hints-widget.multiple .body {
 	height: 100%;
 	border-left: 1px solid rgba(204, 204, 204, 0.5);
@@ -45,7 +56,8 @@
 }
 
 .monaco-editor .parameter-hints-widget .docs {
-	padding: 0 5px;
+	height: 100%;
+	padding: 0 10px 0 5px;
 	font-size: 95%;
 }
 
