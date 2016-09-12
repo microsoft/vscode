@@ -5,6 +5,7 @@
 'use strict';
 
 import {testModelBuilder, testDifferentHash} from 'vs/editor/test/node/model/modelBuilder.test';
+import {CharCode} from 'vs/base/common/charCode';
 
 const GENERATE_TESTS = false;
 
@@ -44,7 +45,7 @@ function getRandomString(minLength: number, maxLength: number): string {
 	let length = getRandomInt(minLength, maxLength);
 	let r = '';
 	for (let i = 0; i < length; i++) {
-		r += String.fromCharCode(getRandomInt('a'.charCodeAt(0), 'z'.charCodeAt(0)));
+		r += String.fromCharCode(getRandomInt(CharCode.a, CharCode.z));
 	}
 	return r;
 }

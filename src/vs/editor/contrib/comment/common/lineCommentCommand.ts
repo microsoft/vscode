@@ -13,6 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICommentsConfiguration} from 'vs/editor/common/modes';
 import {BlockCommentCommand} from './blockCommentCommand';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {CharCode} from 'vs/base/common/charCode';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -114,7 +115,6 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			lineNumber:number,
 			shouldRemoveComments:boolean,
 			lineContent: string,
-			_space = ' '.charCodeAt(0),
 			onlyWhitespaceLines = true;
 
 		if (type === Type.Toggle) {
@@ -162,7 +162,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 
 			if (shouldRemoveComments) {
 				commentStrEndOffset = lineContentStartOffset + lineData.commentStrLength;
-				if (commentStrEndOffset < lineContent.length && lineContent.charCodeAt(commentStrEndOffset) === _space) {
+				if (commentStrEndOffset < lineContent.length && lineContent.charCodeAt(commentStrEndOffset) === CharCode.Space) {
 					lineData.commentStrLength += 1;
 				}
 			}
@@ -414,8 +414,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			lineContent: string,
 			j: number,
 			lenJ: number,
-			currentVisibleColumn: number,
-			_tab = '\t'.charCodeAt(0);
+			currentVisibleColumn: number;
 
 		for (i = 0, len = lines.length; i < len; i++) {
 			if (lines[i].ignore) {
@@ -426,7 +425,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 
 			currentVisibleColumn = 0;
 			for (j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
-				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === _tab, 1);
+				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
 			}
 
 			if (currentVisibleColumn < minVisibleColumn) {
@@ -445,7 +444,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 
 			currentVisibleColumn = 0;
 			for (j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
-				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === _tab, 1);
+				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
 			}
 
 			if (currentVisibleColumn > minVisibleColumn) {
