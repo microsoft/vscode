@@ -166,7 +166,7 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#131313' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
