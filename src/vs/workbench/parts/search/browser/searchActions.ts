@@ -39,6 +39,36 @@ export function appendKeyBindingLabel(label: string, keyBinding: any, keyBinding
 	return label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')';
 }
 
+export class FocusNextInputAction extends Action {
+
+	public static ID = 'search.focus.nextInputBox';
+	public static LABEL = nls.localize('focusNextInputbox', "Focus next input box");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		(<SearchViewlet>this.viewletService.getActiveViewlet()).focusNextInputBox();
+		return TPromise.as(null);
+	}
+}
+
+export class FocusPreviousInputAction extends Action {
+
+	public static ID = 'search.focus.previousInputbox';
+	public static LABEL = nls.localize('focusPreviousInputbox', "Focus previous input box");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		(<SearchViewlet>this.viewletService.getActiveViewlet()).focusPreviousInputBox();
+		return TPromise.as(null);
+	}
+}
+
 export class OpenSearchViewletAction extends ToggleViewletAction {
 
 	public static ID = Constants.VIEWLET_ID;
