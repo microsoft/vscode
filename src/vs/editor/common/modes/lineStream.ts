@@ -5,53 +5,55 @@
 'use strict';
 
 import {IStream} from 'vs/editor/common/modes';
+import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
+
+class CharacterSet {
+
+	private static _CACHE:{ [key:string]:CharacterSet; } = {}; // TODO@Alex unbounded cache
+
+	public static getOrCreate(source:string): CharacterSet {
+		if (!CharacterSet._CACHE.hasOwnProperty(source)) {
+			CharacterSet._CACHE[source] = new CharacterSet(source);
+		}
+		return CharacterSet._CACHE[source];
+	}
+
+	private _classifier: CharacterClassifier<boolean>;
+
+	constructor(source:string) {
+		this._classifier = new CharacterClassifier<boolean>(false);
+		for (let i = 0, len = source.length; i < len; i++) {
+			this._classifier.set(source.charCodeAt(i), true);
+		}
+	}
+
+	public contains(charCode:number): boolean {
+		return this._classifier.get(charCode);
+	}
+}
 
 export class LineStream implements IStream {
 
-	static STRING_TO_ARRAY_CACHE:{ [key:string]:boolean[]; } = {};
-
-	/*protected*/ _source:string;
-	private sourceLength:number;
-	/*protected*/ _pos:number;
-	private whitespace:string;
-	private whitespaceArr:boolean[];
-	private separators:string;
-	private separatorsArr:boolean[];
-	private tokenStart:number;
-	private tokenEnd:number;
+	private _source:string;
+	private _sourceLength:number;
+	private _pos:number;
+	private _whitespace:string;
+	private _whitespaceArr:CharacterSet;
+	private _separators:string;
+	private _separatorsArr:CharacterSet;
+	private _tokenStart:number;
+	private _tokenEnd:number;
 
 	constructor(source:string) {
 		this._source = source;
-		this.sourceLength = source.length;
+		this._sourceLength = source.length;
 		this._pos = 0;
-		this.whitespace = '\t \u00a0';
-		this.whitespaceArr = this.stringToArray(this.whitespace);
-		this.separators = '';
-		this.separatorsArr = this.stringToArray(this.separators);
-		this.tokenStart = -1;
-		this.tokenEnd = -1;
-	}
-
-	private stringToArray(str:string):boolean[] {
-		if (!LineStream.STRING_TO_ARRAY_CACHE.hasOwnProperty(str)) {
-			LineStream.STRING_TO_ARRAY_CACHE[str] = this.actualStringToArray(str);
-		}
-		return LineStream.STRING_TO_ARRAY_CACHE[str];
-	}
-
-	private actualStringToArray(str:string):boolean[] {
-		let maxCharCode = 0;
-		for (let i = 0; i < str.length; i++) {
-			maxCharCode = Math.max(maxCharCode, str.charCodeAt(i));
-		}
-		let r:boolean[] = [];
-		for (let i = 0; i <= maxCharCode; i++) {
-			r[i] = false;
-		}
-		for (let i = 0; i < str.length; i++) {
-			r[str.charCodeAt(i)] = true;
-		}
-		return r;
+		this._whitespace = '\t \u00a0';
+		this._whitespaceArr = CharacterSet.getOrCreate(this._whitespace);
+		this._separators = '';
+		this._separatorsArr = CharacterSet.getOrCreate(this._separators);
+		this._tokenStart = -1;
+		this._tokenEnd = -1;
 	}
 
 	public pos():number {
@@ -59,12 +61,12 @@ export class LineStream implements IStream {
 	}
 
 	public eos() {
-		return this._pos >= this.sourceLength;
+		return this._pos >= this._sourceLength;
 	}
 
 	public peek():string {
 		// Check EOS
-		if (this._pos >= this.sourceLength) {
+		if (this._pos >= this._sourceLength) {
 			throw new Error('Stream is at the end');
 		}
 		return this._source[this._pos];
@@ -72,26 +74,26 @@ export class LineStream implements IStream {
 
 	public next():string {
 		// Check EOS
-		if (this._pos >= this.sourceLength) {
+		if (this._pos >= this._sourceLength) {
 			throw new Error('Stream is at the end');
 		}
 
 		// Reset peeked token
-		this.tokenStart = -1;
-		this.tokenEnd = -1;
+		this._tokenStart = -1;
+		this._tokenEnd = -1;
 
 		return this._source[this._pos++];
 	}
 
 	public next2(): void {
 		// Check EOS
-		if (this._pos >= this.sourceLength) {
+		if (this._pos >= this._sourceLength) {
 			throw new Error('Stream is at the end');
 		}
 
 		// Reset peeked token
-		this.tokenStart = -1;
-		this.tokenEnd = -1;
+		this._tokenStart = -1;
+		this._tokenEnd = -1;
 
 		this._pos++;
 	}
@@ -100,11 +102,11 @@ export class LineStream implements IStream {
 		if (n === 0) {
 			return '';
 		}
-		var oldPos = this._pos;
+		const oldPos = this._pos;
 		this._pos += n;
 		// Reset peeked token
-		this.tokenStart = -1;
-		this.tokenEnd = -1;
+		this._tokenStart = -1;
+		this._tokenEnd = -1;
 		return this._source.substring(oldPos, this._pos);
 	}
 
@@ -114,14 +116,14 @@ export class LineStream implements IStream {
 		}
 		this._pos += n;
 		// Reset peeked token
-		this.tokenStart = -1;
-		this.tokenEnd = -1;
+		this._tokenStart = -1;
+		this._tokenEnd = -1;
 		return n;
 	}
 
 	public advanceToEOS():string {
-		var oldPos = this._pos;
-		this._pos = this.sourceLength;
+		const oldPos = this._pos;
+		this._pos = this._sourceLength;
 		this.resetPeekedToken();
 		return this._source.substring(oldPos, this._pos);
 	}
@@ -131,10 +133,10 @@ export class LineStream implements IStream {
 		this.resetPeekedToken();
 	}
 
-	private createPeeker(condition:any):()=>number {
+	private createPeeker(condition:RegExp|string):()=>number {
 		if (condition instanceof RegExp) {
 			return () => {
-				var result = condition.exec(this._source.substr(this._pos));
+				let result = condition.exec(this._source.substr(this._pos));
 				if (result === null) {
 					return 0;
 				} else if (result.index !== 0) {
@@ -142,13 +144,14 @@ export class LineStream implements IStream {
 				}
 				return result[0].length;
 			};
-		} else if ((condition instanceof String || (typeof condition) === 'string') && condition) {
+		} else if ((typeof condition === 'string') && condition) {
 			return () => {
-				var len = (<String> condition).length, match = this._pos + len <= this.sourceLength;
-				for (var i = 0; match && i < len; i++) {
-					match = this._source.charCodeAt(this._pos + i) === (<String> condition).charCodeAt(i);
+				const len = condition.length;
+				let match = (this._pos + len <= this._sourceLength);
+				for (let i = 0; match && i < len; i++) {
+					match = this._source.charCodeAt(this._pos + i) === condition.charCodeAt(i);
 				}
-				return match ? len : 0;
+				return (match ? len : 0);
 			};
 		}
 		throw new Error('Condition must be either a regular expression, function or a non-empty string');
@@ -156,16 +159,15 @@ export class LineStream implements IStream {
 
 	// --- BEGIN `_advanceIfStringCaseInsensitive`
 	private _advanceIfStringCaseInsensitive(condition:string): number {
-		var oldPos = this._pos,
-			source = this._source,
-			len = condition.length,
-			i:number;
+		const oldPos = this._pos;
+		const source = this._source;
+		const len = condition.length;
 
-		if (len < 1 || oldPos + len > this.sourceLength) {
+		if (len < 1 || oldPos + len > this._sourceLength) {
 			return 0;
 		}
 
-		for (i = 0; i < len; i++) {
+		for (let i = 0; i < len; i++) {
 			if (source.charAt(oldPos + i).toLowerCase() !== condition.charAt(i).toLowerCase()) {
 				return 0;
 			}
@@ -183,16 +185,15 @@ export class LineStream implements IStream {
 
 	// --- BEGIN `advanceIfString`
 	private _advanceIfString(condition: string): number {
-		var oldPos = this._pos,
-			source = this._source,
-			len = condition.length,
-			i:number;
+		const oldPos = this._pos;
+		const source = this._source;
+		const len = condition.length;
 
-		if (len < 1 || oldPos + len > this.sourceLength) {
+		if (len < 1 || oldPos + len > this._sourceLength) {
 			return 0;
 		}
 
-		for (i = 0; i < len; i++) {
+		for (let i = 0; i < len; i++) {
 			if (source.charCodeAt(oldPos + i) !== condition.charCodeAt(i)) {
 				return 0;
 			}
@@ -210,7 +211,7 @@ export class LineStream implements IStream {
 
 	// --- BEGIN `advanceIfString`
 	private _advanceIfCharCode(charCode:number): number {
-		if (this._pos < this.sourceLength && this._source.charCodeAt(this._pos) === charCode) {
+		if (this._pos < this._sourceLength && this._source.charCodeAt(this._pos) === charCode) {
 			return 1;
 		}
 
@@ -226,7 +227,7 @@ export class LineStream implements IStream {
 
 	// --- BEGIN `advanceIfRegExp`
 	private _advanceIfRegExp(condition:RegExp): number {
-		if (this._pos >= this.sourceLength) {
+		if (this._pos >= this._sourceLength) {
 			return 0;
 		}
 		if (!condition.test(this._source.substr(this._pos))) {
@@ -242,14 +243,14 @@ export class LineStream implements IStream {
 	}
 	// --- END
 
-	private advanceLoop(condition:any, isWhile:boolean, including:boolean):string {
+	private advanceLoop(condition:RegExp|string, isWhile:boolean, including:boolean):string {
 		if (this.eos()) {
 			return '';
 		}
-		var peeker = this.createPeeker(condition);
-		var oldPos = this._pos;
-		var n = 0;
-		var f = null;
+		const peeker = this.createPeeker(condition);
+		const oldPos = this._pos;
+		let n = 0;
+		let f = null;
 		if (isWhile) {
 			f = (n) => {
 				return n > 0;
@@ -272,11 +273,11 @@ export class LineStream implements IStream {
 		return this._source.substring(oldPos, this._pos);
 	}
 
-	public advanceWhile(condition:any):string {
+	public advanceWhile(condition:RegExp|string):string {
 		return this.advanceLoop(condition, true, false);
 	}
 
-	public advanceUntil(condition:any, including:boolean):string {
+	public advanceUntil(condition:RegExp|string, including:boolean):string {
 		return this.advanceLoop(condition, false, including);
 	}
 
@@ -286,12 +287,12 @@ export class LineStream implements IStream {
 			return 0;
 		}
 
-		var oldPos = this._pos;
-		var index = this._source.indexOf(condition, oldPos);
+		const oldPos = this._pos;
+		const index = this._source.indexOf(condition, oldPos);
 
 		if (index === -1) {
 			// String was not found => advanced to `eos`
-			return (this.sourceLength - oldPos);
+			return (this._sourceLength - oldPos);
 		}
 
 		if (including) {
@@ -311,16 +312,16 @@ export class LineStream implements IStream {
 	// --- END
 
 	private resetPeekedToken() {
-		this.tokenStart = -1;
-		this.tokenEnd = -1;
+		this._tokenStart = -1;
+		this._tokenEnd = -1;
 	}
 
 	public setTokenRules(separators:string, whitespace:string):void {
-		if (this.separators !== separators || this.whitespace !== whitespace) {
-			this.separators = separators;
-			this.separatorsArr = this.stringToArray(this.separators);
-			this.whitespace = whitespace;
-			this.whitespaceArr = this.stringToArray(this.whitespace);
+		if (this._separators !== separators || this._whitespace !== whitespace) {
+			this._separators = separators;
+			this._separatorsArr = CharacterSet.getOrCreate(this._separators);
+			this._whitespace = whitespace;
+			this._whitespaceArr = CharacterSet.getOrCreate(this._whitespace);
 			this.resetPeekedToken();
 		}
 	}
@@ -328,15 +329,16 @@ export class LineStream implements IStream {
 	// --- tokens
 
 	public peekToken():string {
-		if (this.tokenStart !== -1) {
-			return this._source.substring(this.tokenStart, this.tokenEnd);
+		if (this._tokenStart !== -1) {
+			return this._source.substring(this._tokenStart, this._tokenEnd);
 		}
 
-		var	source = this._source,
-			sourceLength = this.sourceLength,
-			whitespaceArr = this.whitespaceArr,
-			separatorsArr = this.separatorsArr,
-			tokenStart = this._pos;
+		const source = this._source;
+		const sourceLength = this._sourceLength;
+		const whitespaceArr = this._whitespaceArr;
+		const separatorsArr = this._separatorsArr;
+
+		let tokenStart = this._pos;
 
 		// Check EOS
 		if (tokenStart >= sourceLength) {
@@ -344,48 +346,48 @@ export class LineStream implements IStream {
 		}
 
 		// Skip whitespace
-		while (whitespaceArr[source.charCodeAt(tokenStart)] && tokenStart < sourceLength) {
+		while (whitespaceArr.contains(source.charCodeAt(tokenStart)) && tokenStart < sourceLength) {
 			tokenStart++;
 		}
 
 		var tokenEnd = tokenStart;
 		// If a separator is hit, it is a token
-		if (separatorsArr[source.charCodeAt(tokenEnd)] && tokenEnd < sourceLength) {
+		if (separatorsArr.contains(source.charCodeAt(tokenEnd)) && tokenEnd < sourceLength) {
 			tokenEnd++;
 		} else {
 			// Advance until a separator or a whitespace is hit
-			while (!separatorsArr[source.charCodeAt(tokenEnd)] && !whitespaceArr[source.charCodeAt(tokenEnd)] && tokenEnd < sourceLength) {
+			while (!separatorsArr.contains(source.charCodeAt(tokenEnd)) && !whitespaceArr.contains(source.charCodeAt(tokenEnd)) && tokenEnd < sourceLength) {
 				tokenEnd++;
 			}
 		}
 
 		// Cache peeked token
-		this.tokenStart = tokenStart;
-		this.tokenEnd = tokenEnd;
+		this._tokenStart = tokenStart;
+		this._tokenEnd = tokenEnd;
 
 		return source.substring(tokenStart, tokenEnd);
 	}
 
 	public nextToken():string {
 		// Check EOS
-		if (this._pos >= this.sourceLength) {
+		if (this._pos >= this._sourceLength) {
 			throw new Error('Stream is at the end');
 		}
 
 		// Peek token if necessary
-		var result:string;
-		if (this.tokenStart === -1)  {
+		let result:string;
+		if (this._tokenStart === -1)  {
 			result = this.peekToken();
 		} else {
-			result = this._source.substring(this.tokenStart, this.tokenEnd);
+			result = this._source.substring(this._tokenStart, this._tokenEnd);
 		}
 
 		// Advance to tokenEnd
-		this._pos = this.tokenEnd;
+		this._pos = this._tokenEnd;
 
 		// Reset peeked token
-		this.tokenStart = -1;
-		this.tokenEnd = -1;
+		this._tokenStart = -1;
+		this._tokenEnd = -1;
 
 		return result;
 	}
@@ -393,26 +395,26 @@ export class LineStream implements IStream {
 	// -- whitespace
 
 	public peekWhitespace():string {
-		var	source = this._source,
-			sourceLength = this.sourceLength,
-			whitespaceArr = this.whitespaceArr,
-			peek = this._pos;
+		const source = this._source;
+		const sourceLength = this._sourceLength;
+		const whitespaceArr = this._whitespaceArr;
 
-		while (whitespaceArr[source.charCodeAt(peek)] && peek < sourceLength) {
+		let peek = this._pos;
+		while (whitespaceArr.contains(source.charCodeAt(peek)) && peek < sourceLength) {
 			peek++;
 		}
 		return source.substring(this._pos, peek);
 	}
 
-	// --- BEGIN `advanceIfRegExp`
+	// --- BEGIN `skipWhitespace`
 	private _skipWhitespace(): number {
-		var source = this._source,
-			sourceLength = this.sourceLength,
-			whitespaceArr = this.whitespaceArr,
-			oldPos = this._pos,
-			peek = this._pos;
+		const source = this._source;
+		const sourceLength = this._sourceLength;
+		const whitespaceArr = this._whitespaceArr;
+		const oldPos = this._pos;
 
-		while (whitespaceArr[source.charCodeAt(peek)] && peek < sourceLength) {
+		let peek = this._pos;
+		while (whitespaceArr.contains(source.charCodeAt(peek)) && peek < sourceLength) {
 			peek++;
 		}
 
