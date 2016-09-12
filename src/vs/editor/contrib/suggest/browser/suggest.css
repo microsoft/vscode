@@ -56,7 +56,6 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
 	display: none;
 	overflow: hidden;
-	font-size: 95%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text {
@@ -211,7 +210,6 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p {
 	margin: 0;
 	padding: 4px 5px;
-	font-size: 95%;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {
