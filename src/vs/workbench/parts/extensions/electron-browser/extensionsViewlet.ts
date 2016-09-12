@@ -13,7 +13,7 @@ import { isPromiseCanceledError, onUnexpectedError, create as createError } from
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { assign } from 'vs/base/common/objects';
-import EventOf, { mapEvent, filterEvent } from 'vs/base/common/event';
+import EventOf, { mapEvent, chain } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -76,8 +76,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
-		const onOpenExtensionUrl = filterEvent(urlService.onOpenURL, uri => /^extension/.test(uri.path));
-		onOpenExtensionUrl(this.onOpenExtensionUrl, this, this.disposables);
+		chain(urlService.onOpenURL)
+			.filter(uri => /^extension/.test(uri.path))
+			.on(this.onOpenExtensionUrl, this, this.disposables);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
@@ -99,29 +100,25 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
 
-		const onRawKeyDown = domEvent(this.searchBox, 'keydown');
-		const onKeyDown = mapEvent(onRawKeyDown, e => new StandardKeyboardEvent(e));
-		const onEnter = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Enter);
-		const onEscape = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Escape);
-		const onUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow);
-		const onDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow);
-		const onPageUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageUp);
-		const onPageDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageDown);
+		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e));
 
-		onEnter(this.onEnter, this, this.disposables);
-		onEscape(this.onEscape, this, this.disposables);
-		onUpArrow(this.onUpArrow, this, this.disposables);
-		onDownArrow(this.onDownArrow, this, this.disposables);
-		onPageUpArrow(this.onPageUpArrow, this, this.disposables);
-		onPageDownArrow(this.onPageDownArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
 
 		const onSearchInput = domEvent(this.searchBox, 'input') as EventOf<SearchInputEvent>;
 		onSearchInput(e => this.triggerSearch(e.target.value, e.immediate), null, this.disposables);
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
-		onSelectedExtension(this.openExtension, this, this.disposables);
+		chain(this.list.onSelectionChange)
+			.map(e => e.elements[0])
+			.filter(e => !!e)
+			.on(this.openExtension, this, this.disposables);
 
 		return TPromise.as(null);
 	}

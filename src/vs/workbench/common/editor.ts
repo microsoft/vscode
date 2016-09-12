@@ -122,11 +122,13 @@ export interface IEditorInputFactory {
 export abstract class EditorInput implements IEditorInput {
 	private _onDispose: Emitter<void>;
 	protected _onDidChangeDirty: Emitter<void>;
+	protected _onDidChangeLabel: Emitter<void>;
 
 	private disposed: boolean;
 
 	constructor() {
 		this._onDidChangeDirty = new Emitter<void>();
+		this._onDidChangeLabel = new Emitter<void>();
 		this._onDispose = new Emitter<void>();
 
 		this.disposed = false;
@@ -137,6 +139,13 @@ export abstract class EditorInput implements IEditorInput {
 	 */
 	public get onDidChangeDirty(): Event<void> {
 		return this._onDidChangeDirty.event;
+	}
+
+	/**
+	 * Fired when the label this input changes.
+	 */
+	public get onDidChangeLabel(): Event<void> {
+		return this._onDidChangeLabel.event;
 	}
 
 	/**
@@ -247,6 +256,7 @@ export abstract class EditorInput implements IEditorInput {
 		this._onDispose.fire();
 
 		this._onDidChangeDirty.dispose();
+		this._onDidChangeLabel.dispose();
 		this._onDispose.dispose();
 	}
 
@@ -739,16 +749,19 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 
 	// File
 	let fileInput = asFileEditorInput(input, supportDiff);
-	return fileInput && fileInput && fileInput.getResource();
+
+	return fileInput && fileInput.getResource();
 }
 
+// TODO@Ben every editor should have an associated resource
 export function getResource(input: IEditorInput): URI {
-	if (input && typeof (<any>input).getResource === 'function') {
+	if (input instanceof EditorInput && typeof (<any>input).getResource === 'function') {
 		let candidate = (<any>input).getResource();
 		if (candidate instanceof URI) {
 			return candidate;
 		}
 	}
+
 	return getUntitledOrFileResource(input, true);
 }
 
@@ -827,6 +840,7 @@ export interface IEditorGroup {
 	previewEditor: IEditorInput;
 
 	getEditor(index: number): IEditorInput;
+	getEditor(resource: URI): IEditorInput;
 	indexOf(editor: IEditorInput): number;
 
 	contains(editor: IEditorInput): boolean;

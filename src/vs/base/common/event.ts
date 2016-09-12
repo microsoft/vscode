@@ -208,14 +208,6 @@ export function once<T>(event: Event<T>): Event<T> {
 	};
 }
 
-export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
-	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
-}
-
-export function filterEvent<T>(event: Event<T>, filter: (e:T)=>boolean): Event<T> {
-	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
-}
-
 export function any(...events: Event<any>[]): Event<void> {
 	let listeners = [];
 
@@ -307,6 +299,44 @@ export class EventBufferer {
 		this.buffers.pop();
 		buffer.forEach(flush => flush());
 	}
+}
+
+export interface IChainableEvent<T> {
+	event: Event<T>;
+	map<O>(fn: (i: T) => O): IChainableEvent<O>;
+	filter(fn: (e: T) => boolean): IChainableEvent<T>;
+	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+}
+
+export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
+	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
+}
+
+export function filterEvent<T>(event: Event<T>, filter: (e:T)=>boolean): Event<T> {
+	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+}
+
+class ChainableEvent<T> implements IChainableEvent<T> {
+
+	get event(): Event<T> { return this._event; }
+
+	constructor(private _event: Event<T>) {}
+
+	map(fn) {
+		return new ChainableEvent(mapEvent(this._event, fn));
+	}
+
+	filter(fn) {
+		return new ChainableEvent(filterEvent(this._event, fn));
+	}
+
+	on(listener, thisArgs, disposables) {
+		return this._event(listener, thisArgs, disposables);
+	}
+}
+
+export function chain<T>(event: Event<T>): IChainableEvent<T> {
+	return new ChainableEvent(event);
 }
 
 export function stopwatch<T>(event: Event<T>): Event<number> {

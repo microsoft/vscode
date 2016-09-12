@@ -111,10 +111,14 @@ export abstract class BaseHistoryService {
 		// Propagate to history
 		this.onEditorEvent(activeEditor);
 
-		// Apply listener for dirty changes
+		// Apply listener for dirty and label changes
 		if (activeInput instanceof EditorInput) {
 			this.activeEditorListeners.push(activeInput.onDidChangeDirty(() => {
 				this.updateWindowTitle(activeInput); // Calculate New Window Title when dirty state changes
+			}));
+
+			this.activeEditorListeners.push(activeInput.onDidChangeLabel(() => {
+				this.updateWindowTitle(activeInput); // Calculate New Window Title when label changes
 			}));
 		}
 
@@ -445,7 +449,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				};
 			}
 
-			this.addToStack(editor.input, options);
+			this.add(editor.input, options);
 		}
 	}
 
@@ -455,24 +459,31 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // do not push same editor input again
 		}
 
-		this.addToStack(editor.input);
+		this.add(editor.input);
+	}
+
+	public add(input: IEditorInput, options?: ITextEditorOptions): void {
+		if (!this.blockStackChanges) {
+			this.addToStack(input, options);
+		}
 	}
 
 	private addToStack(input: IEditorInput, options?: ITextEditorOptions): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
-		// with editor options to indicate that this entry is more specific.
+		// with editor options to indicate that this entry is more specific. Also
+		// prevent entries that have the exact same options.
 		let replace = false;
 		if (this.stack[this.index]) {
 			const currentEntry = this.stack[this.index];
-			if (currentEntry.input.matches(input) && !currentEntry.options) {
+			if (currentEntry.input.matches(input) && this.sameOptions(currentEntry.options, options)) {
 				replace = true;
 			}
 		}
 
 		const entry = {
-			input: input,
-			options: options
+			input,
+			options
 		};
 
 		// If we are not at the end of history, we remove anything after
@@ -504,6 +515,29 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		onceDispose(() => {
 			this.restoreInStack(input);
 		});
+	}
+
+	private sameOptions(optionsA?: ITextEditorOptions, optionsB?: ITextEditorOptions): boolean {
+		if (!optionsA && !optionsB) {
+			return true;
+		}
+
+		if ((!optionsA && optionsB) || (optionsA && !optionsB)) {
+			return false;
+		}
+
+		const s1 = optionsA.selection;
+		const s2 = optionsB.selection;
+
+		if (!s1 && !s2) {
+			return true;
+		}
+
+		if ((!s1 && s2) || (s1 && !s2)) {
+			return false;
+		}
+
+		return s1.startLineNumber === s2.startLineNumber; // we consider the history entry same if we are on the same line
 	}
 
 	private restoreInStack(input: IEditorInput): void {

@@ -32,7 +32,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	private mapResourceToDisposeListener: { [resource: string]: IDisposable; };
 	private mapResourceToStateChangeListener: { [resource: string]: IDisposable; };
-	private mapResourcePathToModel: { [resource: string]: TextFileEditorModel; };
+	private mapResourceToModel: { [resource: string]: TextFileEditorModel; };
 	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<TextFileEditorModel> };
 
 	constructor(
@@ -55,7 +55,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.toUnbind.push(this._onModelReverted);
 		this.toUnbind.push(this._onModelEncodingChanged);
 
-		this.mapResourcePathToModel = Object.create(null);
+		this.mapResourceToModel = Object.create(null);
 		this.mapResourceToDisposeListener = Object.create(null);
 		this.mapResourceToStateChangeListener = Object.create(null);
 		this.mapResourceToPendingModelLoaders = Object.create(null);
@@ -135,6 +135,10 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			return false; // never dispose unsaved models
 		}
 
+		if (this.mapResourceToPendingModelLoaders[textModel.getResource().toString()]) {
+			return false; // never dispose models that we are about to load at the same time
+		}
+
 		return true;
 	}
 
@@ -159,7 +163,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	}
 
 	public get(resource: URI): TextFileEditorModel {
-		return this.mapResourcePathToModel[resource.toString()];
+		return this.mapResourceToModel[resource.toString()];
 	}
 
 	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean): TPromise<TextFileEditorModel> {
@@ -214,9 +218,6 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.mapResourceToPendingModelLoaders[resource.toString()] = modelPromise;
 
 		return modelPromise.then(model => {
-			if (model.isDisposed()) {
-				console.warn('Adding disposed model into cache!!!', model.getResource().toString()); // TODO@Ben remove me
-			}
 
 			// Make known to manager (if not already known)
 			this.add(resource, model);
@@ -238,13 +239,13 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	}
 
 	public getAll(resource?: URI): TextFileEditorModel[] {
-		return Object.keys(this.mapResourcePathToModel)
+		return Object.keys(this.mapResourceToModel)
 			.filter(r => !resource || resource.toString() === r)
-			.map(r => this.mapResourcePathToModel[r]);
+			.map(r => this.mapResourceToModel[r]);
 	}
 
 	public add(resource: URI, model: TextFileEditorModel): void {
-		const knownModel = this.mapResourcePathToModel[resource.toString()];
+		const knownModel = this.mapResourceToModel[resource.toString()];
 		if (knownModel === model) {
 			return; // already cached
 		}
@@ -256,12 +257,12 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		}
 
 		// store in cache but remove when model gets disposed
-		this.mapResourcePathToModel[resource.toString()] = model;
+		this.mapResourceToModel[resource.toString()] = model;
 		this.mapResourceToDisposeListener[resource.toString()] = model.onDispose(() => this.remove(resource));
 	}
 
 	public remove(resource: URI): void {
-		delete this.mapResourcePathToModel[resource.toString()];
+		delete this.mapResourceToModel[resource.toString()];
 
 		const disposeListener = this.mapResourceToDisposeListener[resource.toString()];
 		if (disposeListener) {
@@ -279,7 +280,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	public clear(): void {
 
 		// model cache
-		this.mapResourcePathToModel = Object.create(null);
+		this.mapResourceToModel = Object.create(null);
 
 		// dispose dispose listeners
 		let keys = Object.keys(this.mapResourceToDisposeListener);
