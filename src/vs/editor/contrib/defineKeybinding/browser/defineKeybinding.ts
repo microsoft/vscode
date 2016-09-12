@@ -9,7 +9,7 @@ import 'vs/css!./defineKeybinding';
 import * as nls from 'vs/nls';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {MarkedString} from 'vs/base/common/htmlContent';
-import {CommonKeybindings, KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
+import {CommonKeybindings, KeyCode, KeyMod, KeyChord, Keybinding} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
@@ -461,7 +461,7 @@ export class DefineKeybindingAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json')),
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
 			}
 		});
 	}

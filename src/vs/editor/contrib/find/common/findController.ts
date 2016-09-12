@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {Range} from 'vs/editor/common/core/range';
@@ -599,7 +599,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.Focus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)
 			}
 		});
 	}
