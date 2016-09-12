@@ -5,7 +5,7 @@
 'use strict';
 
 import {Emitter} from 'vs/base/common/event';
-import {KeyMod} from 'vs/base/common/keyCodes';
+import {KeyMod as ConstKeyMod, KeyChord} from 'vs/base/common/keyCodes';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
@@ -13,6 +13,20 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
+
+// --------------------------------------------
+// This is repeated here so it can be exported
+// --------------------------------------------
+export class KeyMod {
+	public static CtrlCmd:number = ConstKeyMod.CtrlCmd;
+	public static Shift:number = ConstKeyMod.Shift;
+	public static Alt:number = ConstKeyMod.Alt;
+	public static WinCtrl:number = ConstKeyMod.WinCtrl;
+
+	public static chord(firstPart:number, secondPart:number): number {
+		return KeyChord(firstPart, secondPart);
+	}
+}
 
 // --------------------------------------------
 // This is repeated here so it can be exported
