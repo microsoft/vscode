@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
-import dom = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
+import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action } from 'vs/base/common/actions';
@@ -16,7 +16,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -25,6 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
+import * as Constants from 'vs/workbench/parts/search/common/constants';
 
 export interface ISearchWidgetOptions {
 	value?:string;
@@ -65,7 +66,6 @@ class ReplaceAllAction extends Action {
 
 export class SearchWidget extends Widget {
 
-	static REPLACE_ACTIVE_CONTEXT_KEY= new RawContextKey<boolean>('replaceActive', false);
 	private static REPLACE_ALL_DISABLED_LABEL= nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static REPLACE_ALL_ENABLED_LABEL=(keyBindingService2: IKeybindingService):string=>{
 		let keybindings = keyBindingService2.lookupKeybindings(ReplaceAllAction.ID);
@@ -74,7 +74,11 @@ export class SearchWidget extends Widget {
 
 	public domNode: HTMLElement;
 	public searchInput: FindInput;
+	private searchInputBoxFocussed: IContextKey<boolean>;
 	private replaceInput: InputBox;
+
+	public searchInputFocusTracker: dom.IFocusTracker;
+	public replaceInputFocusTracker: dom.IFocusTracker;
 
 	private replaceContainer: HTMLElement;
 	private toggleReplaceButton: Button;
@@ -97,16 +101,14 @@ export class SearchWidget extends Widget {
 	private _onReplaceValueChanged = this._register(new Emitter<string>());
 	public onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
 
-	private _onKeyDownArrow = this._register(new Emitter<void>());
-	public onKeyDownArrow: Event<void> = this._onKeyDownArrow.event;
-
 	private _onReplaceAll = this._register(new Emitter<void>());
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(container: Builder, private contextViewService: IContextViewService, options: ISearchWidgetOptions= Object.create(null),
 					private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService, private instantiationService: IInstantiationService) {
 		super();
-		this.replaceActive = SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY.bindTo(this.keyBindingService);
+		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
+		this.searchInputBoxFocussed = Constants.SearchInputBoxFocussedKey.bindTo(this.keyBindingService);
 		this.render(container, options);
 	}
 
@@ -154,6 +156,14 @@ export class SearchWidget extends Widget {
 		}
 	}
 
+	public searchInputHasFocus(): boolean {
+		return this.searchInputBoxFocussed.get();
+	}
+
+	public replaceInputHasFocus(): boolean {
+		return this.replaceInput.hasFocus();
+	}
+
 	private render(container: Builder, options: ISearchWidgetOptions): void {
 		this.domNode = container.div({ 'class': 'search-widget' }).style({ position: 'relative' }).getHTMLElement();
 		this.renderToggleReplaceButton(this.domNode);
@@ -179,11 +189,18 @@ export class SearchWidget extends Widget {
 		let searchInputContainer= dom.append(parent, dom.$('.search-container.input-box'));
 		this.searchInput = this._register(new FindInput(searchInputContainer, this.contextViewService, inputOptions));
 		this.searchInput.onKeyUp((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyUp(keyboardEvent));
-		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
 		this.searchInput.setRegex(!!options.isRegex);
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
 		this.searchInput.setWholeWords(!!options.isWholeWords);
+
+		this.searchInputFocusTracker = dom.trackFocus(this.searchInput.inputBox.inputElement);
+		this._register(this.searchInputFocusTracker.addFocusListener(() => {
+			this.searchInputBoxFocussed.set(true);
+		}));
+		this._register(this.searchInputFocusTracker.addBlurListener(() => {
+			this.searchInputBoxFocussed.set(false);
+		}));
 	}
 
 	private renderReplaceInput(parent: HTMLElement): void {
@@ -193,7 +210,6 @@ export class SearchWidget extends Widget {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace")
 		}));
-		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
 		this.onkeyup(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyUp(keyboardEvent));
 		this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire());
 		this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged());
@@ -203,6 +219,8 @@ export class SearchWidget extends Widget {
 		this.replaceAllAction.label = SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 		this.replaceActionBar = this._register(new ActionBar(this.replaceContainer));
 		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
+
+		this.replaceInputFocusTracker = dom.trackFocus(this.replaceInput.inputElement);
 	}
 
 	triggerReplaceAll(): TPromise<any> {
@@ -274,23 +292,6 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
-		let handled= false;
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.DownArrow:
-				if (this.isReplaceShown()) {
-					this.focus(true, true);
-				} else {
-					this._onKeyDownArrow.fire();
-				}
-				handled= true;
-				break;
-		}
-		if (handled) {
-			keyboardEvent.preventDefault();
-		}
-	}
-
 	private onReplaceInputKeyUp(keyboardEvent: IKeyboardEvent) {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
@@ -305,23 +306,6 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
-		let handled= false;
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.UpArrow:
-				this.focus(true);
-				handled= true;
-				break;
-			case KeyCode.DownArrow:
-				this._onKeyDownArrow.fire();
-				handled= true;
-				break;
-		}
-		if (handled) {
-			keyboardEvent.preventDefault();
-		}
-	}
-
 	private submitSearch(refresh: boolean= true): void {
 		if (this.searchInput.getValue()) {
 			this._onSearchSubmit.fire(refresh);
@@ -332,6 +316,12 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 		this.replaceAllAction.searchWidget= null;
 		this.replaceActionBar = null;
+		if (this.searchInputFocusTracker) {
+			this.searchInputFocusTracker.dispose();
+		}
+		if (this.replaceInputFocusTracker) {
+			this.replaceInputFocusTracker.dispose();
+		}
 		super.dispose();
 	}
 }
@@ -339,7 +329,7 @@ export class SearchWidget extends Widget {
 export function registerContributions() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({id: ReplaceAllAction.ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: ContextKeyExpr.and(ContextKeyExpr.has('searchViewletVisible'), SearchWidget.REPLACE_ACTIVE_CONTEXT_KEY, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
+		when: ContextKeyExpr.and(ContextKeyExpr.has('searchViewletVisible'), Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
 			if (isSearchViewletFocussed(accessor.get(IViewletService))) {
