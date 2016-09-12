@@ -20,7 +20,7 @@ suite('viewLineRenderer.renderLine', () => {
 			tabSize,
 			0,
 			-1,
-			false,
+			'none',
 			false,
 			[createPart(0, '')]
 		));
@@ -62,7 +62,7 @@ suite('viewLineRenderer.renderLine', () => {
 			tabSize,
 			0,
 			-1,
-			false,
+			'none',
 			false,
 			parts
 		));
@@ -93,7 +93,7 @@ suite('viewLineRenderer.renderLine', () => {
 			4,
 			10,
 			6,
-			true,
+			'boundary',
 			false,
 			[
 				createPart( 0,  '0'),
@@ -182,7 +182,7 @@ suite('viewLineRenderer.renderLine', () => {
 			4,
 			10,
 			-1,
-			true,
+			'boundary',
 			false,
 			lineParts
 		));
@@ -237,7 +237,7 @@ suite('viewLineRenderer.renderLine', () => {
 			4,
 			10,
 			-1,
-			false,
+			'none',
 			false,
 			lineParts
 		));
@@ -292,7 +292,7 @@ suite('viewLineRenderer.renderLine', () => {
 			4,
 			10,
 			-1,
-			false,
+			'none',
 			false,
 			lineParts
 		));

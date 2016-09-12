@@ -14,10 +14,10 @@ function cmpLineDecorations(a:InlineDecoration, b:InlineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
-export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:InlineDecoration[], renderWhitespace:boolean): LineParts {
-	if (renderWhitespace) {
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:InlineDecoration[], renderWhitespace:'none' | 'boundary' | 'all'): LineParts {
+	if (renderWhitespace !== 'none') {
 		let oldLength = rawLineDecorations.length;
-		rawLineDecorations = insertWhitespaceLineDecorations(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
+		rawLineDecorations = insertWhitespaceLineDecorations(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), renderWhitespace, rawLineDecorations);
 		if (rawLineDecorations.length !== oldLength) {
 			rawLineDecorations.sort(cmpLineDecorations);
 		}
@@ -100,17 +100,9 @@ function insertOneCustomLineDecoration(dest:InlineDecoration[], lineNumber:numbe
 	dest.push(new InlineDecoration(new Range(lineNumber, startColumn, lineNumber, endColumn), className));
 }
 
-function insertWhitespaceLineDecorations(lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
+function insertWhitespaceLineDecorations(lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', rawLineDecorations: InlineDecoration[]): InlineDecoration[] {
 	let lineLength = lineContent.length;
 	if (lineLength === fauxIndentLength) {
-		return rawLineDecorations;
-	}
-
-	let firstChar = lineContent.charCodeAt(fauxIndentLength);
-	let lastChar = lineContent.charCodeAt(lineLength - 1);
-
-	if (firstChar !== _tab && firstChar !== _space && lastChar !== _tab && lastChar !== _space) {
-		// This line contains no leading nor trailing whitespace => fast path
 		return rawLineDecorations;
 	}
 
@@ -138,6 +130,33 @@ function insertWhitespaceLineDecorations(lineNumber:number, lineContent: string,
 		sm_decoration.push('leading whitespace');
 
 	}
+
+	let startOfWhitespace = -1;
+	let hasTab = false;
+
+	for (let i = Math.max(firstNonWhitespaceIndex, fauxIndentLength); i <= lastNonWhitespaceIndex; ++i) {
+		let currentCharIsTab = lineContent.charCodeAt(i) === _tab;
+		if (currentCharIsTab || lineContent.charCodeAt(i) === _space) {
+			if (currentCharIsTab) {
+				hasTab = true;
+			}
+			if (startOfWhitespace === -1) {
+				startOfWhitespace = i;
+			}
+		} else if (startOfWhitespace !== -1) {
+			if (renderWhitespace === 'all' || renderWhitespace === 'boundary' && (hasTab || i - startOfWhitespace >= 2)) {
+				sm_endIndex.push(startOfWhitespace - 1);
+				sm_decoration.push(null);
+
+				sm_endIndex.push(i - 1);
+				sm_decoration.push('embedded whitespace');
+			}
+
+			startOfWhitespace = -1;
+			hasTab = false;
+		}
+	}
+
 	// add content state
 	sm_endIndex.push(lastNonWhitespaceIndex);
 	sm_decoration.push(null);

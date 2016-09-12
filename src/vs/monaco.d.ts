@@ -1286,10 +1286,10 @@ declare module monaco.editor {
          */
         folding?: boolean;
         /**
-         * Enable rendering of leading whitespace.
-         * Defaults to false.
+         * Enable rendering of whitespace.
+         * Defaults to none.
          */
-        renderWhitespace?: boolean;
+        renderWhitespace?: 'none' | 'boundary' | 'all';
         /**
          * Enable rendering of control characters.
          * Defaults to false.
@@ -1399,7 +1399,7 @@ declare module monaco.editor {
         scrollBeyondLastLine: boolean;
         editorClassName: string;
         stopRenderingLineAfter: number;
-        renderWhitespace: boolean;
+        renderWhitespace: 'none' | 'boundary' | 'all';
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
         renderLineHighlight: boolean;
