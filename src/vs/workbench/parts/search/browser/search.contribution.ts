@@ -25,7 +25,7 @@ import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {OpenSearchViewletAction, ReplaceInFilesAction, FocusNextInputAction, FocusPreviousInputAction} from 'vs/workbench/parts/search/browser/searchActions';
+import {OpenSearchViewletAction, ReplaceInFilesAction, ShowNextSearchTermAction, ShowPreviousSearchTermAction, FocusNextInputAction, FocusPreviousInputAction} from 'vs/workbench/parts/search/browser/searchActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
@@ -164,6 +164,14 @@ const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.Workbenc
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ACTION_ID, ACTION_LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_T
 }), 'Show All Symbols');
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextSearchTermAction, ShowNextSearchTermAction.ID, ShowNextSearchTermAction.LABEL, {
+	primary: KeyMod.Alt | KeyCode.DownArrow
+}, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousSearchTermAction, ShowPreviousSearchTermAction.ID, ShowPreviousSearchTermAction.LABEL, {
+	primary: KeyMod.Alt | KeyCode.UpArrow
+}, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextInputAction, FocusNextInputAction.ID, FocusNextInputAction.LABEL, {
 	primary: KeyCode.DownArrow
