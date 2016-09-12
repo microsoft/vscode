@@ -55,7 +55,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
-	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace:boolean, expected:ViewLineToken[]): void {
+	function testCreateLineParts(lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace:'none' | 'boundary' | 'all', expected:ViewLineToken[]): void {
 		let lineParts = createLineParts(1, 1, lineContent, 4, new ViewLineTokens(tokens, fauxIndentLength, lineContent.length), [], renderWhitespace);
 		let actual = lineParts.getParts();
 
@@ -69,7 +69,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(0, '')
 			],
 			0,
-			false,
+			'none',
 			[
 				new ViewLineToken(0, '')
 			]
@@ -83,7 +83,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(6, 'b')
 			],
 			0,
-			false,
+			'none',
 			[
 				new ViewLineToken(0, 'a'),
 				new ViewLineToken(6, 'b')
@@ -99,7 +99,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(6, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(4, 'a'),
@@ -117,7 +117,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(10, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(4, ' leading whitespace'),
@@ -137,7 +137,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(4, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(1, ' leading whitespace'),
@@ -156,7 +156,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(8, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(3, ' leading whitespace'),
@@ -179,7 +179,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(8, 'b')
 			],
 			0,
-			true,
+			'boundary',
 			[
 				new ViewLineToken(0, ' leading whitespace'),
 				new ViewLineToken(3, ' leading whitespace'),
@@ -203,7 +203,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(6, 'b')
 			],
 			2,
-			true,
+			'boundary',
 			[
 				new ViewLineToken(0, ''),
 				new ViewLineToken(2, ' leading whitespace'),
@@ -213,6 +213,49 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 				new ViewLineToken(18, 'b trailing whitespace'),
 				new ViewLineToken(21, 'b trailing whitespace'),
 				new ViewLineToken(25, 'b trailing whitespace'),
+			]
+		);
+	});
+
+	test('createLineParts render whitespace in middle but not for one space', () => {
+		testCreateLineParts(
+			'it  it it  it',
+			[
+				new ViewLineToken(0, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(7, 'b')
+			],
+			0,
+			'boundary',
+			[
+				new ViewLineToken(0, ''),
+				new ViewLineToken(2, ' embedded whitespace'),
+				new ViewLineToken(4, ''),
+				new ViewLineToken(6, 'a'),
+				new ViewLineToken(7, 'b'),
+				new ViewLineToken(9, 'b embedded whitespace'),
+				new ViewLineToken(11, 'b'),
+			]
+		);
+	});
+
+	test('createLineParts render whitespace for all in middle', () => {
+		testCreateLineParts(
+			' Hello world!\t',
+			[
+				new ViewLineToken(0, ''),
+				new ViewLineToken(4, 'a'),
+				new ViewLineToken(6, 'b')
+			],
+			0,
+			'all',
+			[
+				new ViewLineToken(0, ' leading whitespace'),
+				new ViewLineToken(1, ''),
+				new ViewLineToken(4, 'a'),
+				new ViewLineToken(6, 'b embedded whitespace'),
+				new ViewLineToken(7, 'b'),
+				new ViewLineToken(13, 'b trailing whitespace'),
 			]
 		);
 	});
@@ -287,7 +330,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	});
 
 	function createTestGetColumnOfLinePartOffset(lineContent:string, tabSize:number, parts:ViewLineToken[]): (partIndex:number, partLength:number, offset:number, expected:number)=>void {
-		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, false, false, parts));
+		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, 'none', false, parts));
 
 		return (partIndex:number, partLength:number, offset:number, expected:number) => {
 			let actual = getColumnOfLinePartOffset(-1, parts, lineContent.length + 1, renderLineOutput.charOffsetInPart, partIndex, partLength, offset);
