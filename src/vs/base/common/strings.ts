@@ -5,6 +5,7 @@
 'use strict';
 
 import {BoundedLinkedMap} from 'vs/base/common/map';
+import {CharCode} from 'vs/base/common/charCode';
 
 /**
  * The empty string.
@@ -261,7 +262,8 @@ export function normalizeNFC(str: string): string {
  */
 export function firstNonWhitespaceIndex(str: string): number {
 	for (let i = 0, len = str.length; i < len; i++) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
 	}
@@ -274,7 +276,8 @@ export function firstNonWhitespaceIndex(str: string): number {
  */
 export function getLeadingWhitespace(str: string): string {
 	for (let i = 0, len = str.length; i < len; i++) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return str.substring(0, i);
 		}
 	}
@@ -287,7 +290,8 @@ export function getLeadingWhitespace(str: string): string {
  */
 export function lastNonWhitespaceIndex(str: string, startIndex: number = str.length - 1): number {
 	for (let i = startIndex; i >= 0; i--) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
 	}
@@ -305,7 +309,7 @@ export function compare(a: string, b: string): number {
 }
 
 function isAsciiChar(code: number): boolean {
-	return (code >= 97 && code <= 122) || (code >= 65 && code <= 90);
+	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
