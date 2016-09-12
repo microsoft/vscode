@@ -111,7 +111,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 			page.promiseIndexes.unset(index);
 
-			if (page.promiseIndexes.elements.length === 0) {
+			if (page.promiseIndexes.size === 0) {
 				page.promise.cancel();
 			}
 		});
