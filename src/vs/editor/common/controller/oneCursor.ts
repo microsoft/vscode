@@ -17,6 +17,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IElectricAction, IndentAction} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {CharCode} from 'vs/base/common/charCode';
+import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -2272,7 +2273,7 @@ class CursorHelper {
 		let wordType = W_NONE;
 		for (let chIndex = position.column - 2; chIndex >= 0; chIndex--) {
 			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+			let chClass = wordSeparators.get(chCode);
 
 			if (chClass === CH_REGULAR) {
 				if (wordType === W_SEPARATOR) {
@@ -2298,11 +2299,11 @@ class CursorHelper {
 		return null;
 	}
 
-	private _findEndOfWord(lineContent:string, wordSeparators:CharacterClass[], wordType:WordType, startIndex:number): number {
+	private _findEndOfWord(lineContent:string, wordSeparators:WordCharacterClassifier, wordType:WordType, startIndex:number): number {
 		let len = lineContent.length;
 		for (let chIndex = startIndex; chIndex < len; chIndex++) {
 			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+			let chClass = wordSeparators.get(chCode);
 
 			if (chClass === CH_WHITESPACE) {
 				return chIndex;
@@ -2326,7 +2327,7 @@ class CursorHelper {
 
 		for (let chIndex = position.column - 1; chIndex < len; chIndex++) {
 			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+			let chClass = wordSeparators.get(chCode);
 
 			if (chClass === CH_REGULAR) {
 				if (wordType === W_SEPARATOR) {
@@ -2352,10 +2353,10 @@ class CursorHelper {
 		return null;
 	}
 
-	private _findStartOfWord(lineContent:string, wordSeparators:CharacterClass[], wordType:WordType, startIndex:number): number {
+	private _findStartOfWord(lineContent:string, wordSeparators:WordCharacterClassifier, wordType:WordType, startIndex:number): number {
 		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
 			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+			let chClass = wordSeparators.get(chCode);
 
 			if (chClass === CH_WHITESPACE) {
 				return chIndex + 1;
@@ -2371,38 +2372,33 @@ class CursorHelper {
 	}
 }
 
-function once<T, R>(keyFn:(input:T)=>string, computeFn:(input:T)=>R):(input:T)=>R {
-	let cache: {[key:string]:R;} = {};
-	return (input:T):R => {
-		let key = keyFn(input);
-		if (!cache.hasOwnProperty(key)) {
-			cache[key] = computeFn(input);
+class WordCharacterClassifier extends CharacterClassifier<CharacterClass> {
+
+	constructor(wordSeparators:string) {
+		super(CharacterClass.Regular);
+
+		for (let i = 0, len = wordSeparators.length; i < len; i++) {
+			this.set(wordSeparators.charCodeAt(i), CharacterClass.WordSeparator);
 		}
-		return cache[key];
+
+		this.set(CharCode.Space, CharacterClass.Whitespace);
+		this.set(CharCode.Tab, CharacterClass.Whitespace);
+	}
+
+}
+
+function once<R>(computeFn:(input:string)=>R):(input:string)=>R {
+	let cache: {[key:string]:R;} = {}; // TODO@Alex unbounded cache
+	return (input:string):R => {
+		if (!cache.hasOwnProperty(input)) {
+			cache[input] = computeFn(input);
+		}
+		return cache[input];
 	};
 }
 
-// TODO@Alex : Extract a fast Character Classifier
-let getMapForWordSeparators = once<string,CharacterClass[]>(
-	(input) => input,
-	(input) => {
-
-		let r:CharacterClass[] = [];
-
-		// Make array fast for ASCII text
-		for (let chCode = 0; chCode < 256; chCode++) {
-			r[chCode] = CharacterClass.Regular;
-		}
-
-		for (let i = 0, len = input.length; i < len; i++) {
-			r[input.charCodeAt(i)] = CharacterClass.WordSeparator;
-		}
-
-		r[CharCode.Space] = CharacterClass.Whitespace;
-		r[CharCode.Tab] = CharacterClass.Whitespace;
-
-		return r;
-	}
+let getMapForWordSeparators = once<WordCharacterClassifier>(
+	(input) => new WordCharacterClassifier(input)
 );
 
 class Utils {
