@@ -8,8 +8,9 @@ import * as strings from 'vs/base/common/strings';
 import {WrappingIndent} from 'vs/editor/common/editorCommon';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {ILineMapperFactory, ILineMapping, OutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
+import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
 
-enum CharacterClass {
+const enum CharacterClass {
 	NONE = 0,
 	BREAK_BEFORE = 1,
 	BREAK_AFTER = 2,
@@ -17,57 +18,25 @@ enum CharacterClass {
 	BREAK_IDEOGRAPHIC = 4 // for Han and Kana.
 }
 
-class CharacterClassifier {
-
-	/**
-	 * Maintain a compact (fully initialized ASCII map for quickly classifying ASCII characters - used more often in code).
-	 */
-	private _asciiMap: CharacterClass[];
-
-	/**
-	 * The entire map (sparse array).
-	 */
-	private _map: CharacterClass[];
+class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 
 	constructor(BREAK_BEFORE:string, BREAK_AFTER:string, BREAK_OBTRUSIVE:string) {
-
-		this._asciiMap = [];
-		for (let i = 0; i < 256; i++) {
-			this._asciiMap[i] = CharacterClass.NONE;
-		}
-
-		this._map = [];
+		super(CharacterClass.NONE);
 
 		for (let i = 0; i < BREAK_BEFORE.length; i++) {
-			this._set(BREAK_BEFORE.charCodeAt(i), CharacterClass.BREAK_BEFORE);
+			this.set(BREAK_BEFORE.charCodeAt(i), CharacterClass.BREAK_BEFORE);
 		}
 
 		for (let i = 0; i < BREAK_AFTER.length; i++) {
-			this._set(BREAK_AFTER.charCodeAt(i), CharacterClass.BREAK_AFTER);
+			this.set(BREAK_AFTER.charCodeAt(i), CharacterClass.BREAK_AFTER);
 		}
 
 		for (let i = 0; i < BREAK_OBTRUSIVE.length; i++) {
-			this._set(BREAK_OBTRUSIVE.charCodeAt(i), CharacterClass.BREAK_OBTRUSIVE);
+			this.set(BREAK_OBTRUSIVE.charCodeAt(i), CharacterClass.BREAK_OBTRUSIVE);
 		}
 	}
 
-	private _set(charCode:number, charClass:CharacterClass): void {
-		if (charCode < 256) {
-			this._asciiMap[charCode] = charClass;
-		}
-		this._map[charCode] = charClass;
-	}
-
-	public classify(charCode:number): CharacterClass {
-		if (charCode < 256) {
-			return this._asciiMap[charCode];
-		}
-
-		let charClass = this._map[charCode];
-		if (charClass) {
-			return charClass;
-		}
-
+	public get(charCode:number): CharacterClass {
 		// Initialize CharacterClass.BREAK_IDEOGRAPHIC for these Unicode ranges:
 		// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
 		// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
@@ -80,16 +49,16 @@ class CharacterClassifier {
 			return CharacterClass.BREAK_IDEOGRAPHIC;
 		}
 
-		return CharacterClass.NONE;
+		return super.get(charCode);
 	}
 }
 
 export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactory {
 
-	private classifier:CharacterClassifier;
+	private classifier:WrappingCharacterClassifier;
 
 	constructor(breakBeforeChars:string, breakAfterChars:string, breakObtrusiveChars:string) {
-		this.classifier = new CharacterClassifier(breakBeforeChars, breakAfterChars, breakObtrusiveChars);
+		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars, breakObtrusiveChars);
 	}
 
 	// TODO@Alex -> duplicated in lineCommentCommand
@@ -157,7 +126,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 			let charCode = lineText.charCodeAt(i);
 			let charCodeIsTab = (charCode === TAB_CHAR_CODE);
-			let charCodeClass = classifier.classify(charCode);
+			let charCodeClass = classifier.get(charCode);
 
 			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
 				// This is a character that indicates that a break should happen before it
@@ -170,7 +139,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			// CJK breaking : before break
 			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0) {
 				let prevCode = lineText.charCodeAt(i - 1);
-				let prevClass = classifier.classify(prevCode);
+				let prevClass = classifier.get(prevCode);
 				if (prevClass !== CharacterClass.BREAK_BEFORE) { // Kinsoku Shori: Don't break after a leading character, like an open bracket
 					niceBreakOffset = i;
 					niceBreakVisibleColumn = 0;
@@ -245,7 +214,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			// CJK breaking : after break
 			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i < len - 1) {
 				let nextCode = lineText.charCodeAt(i + 1);
-				let nextClass = classifier.classify(nextCode);
+				let nextClass = classifier.get(nextCode);
 				if (nextClass !== CharacterClass.BREAK_AFTER) { // Kinsoku Shori: Don't break before a trailing character, like a period
 					niceBreakOffset = i + 1;
 					niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
