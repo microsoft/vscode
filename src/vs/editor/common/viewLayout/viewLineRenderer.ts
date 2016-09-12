@@ -209,9 +209,8 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 						break;
 
 					default:
-						let characterCode = lineText.charCodeAt(charIndex);
-						if (renderControlCharacters && isControlCharacter(characterCode)) {
-							out += controlCharacterToPrintable(characterCode);
+						if (renderControlCharacters && isControlCharacter(charCode)) {
+							out += controlCharacterToPrintable(charCode);
 						} else {
 							out += lineText.charAt(charIndex);
 						}
