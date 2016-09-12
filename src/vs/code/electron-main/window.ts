@@ -430,7 +430,12 @@ export class VSCodeWindow {
 	public serializeWindowState(): IWindowState {
 		if (this.win.isFullScreen()) {
 			return {
-				mode: WindowMode.Fullscreen
+				mode: WindowMode.Fullscreen,
+				// still carry over window dimensions from previous sessions!
+				width: this.windowState.width,
+				height: this.windowState.height,
+				x: this.windowState.x,
+				y: this.windowState.y
 			};
 		}
 
@@ -494,7 +499,7 @@ export class VSCodeWindow {
 				return state;
 			}
 
-			return null;
+			state.mode = WindowMode.Normal; // if we do not allow fullscreen, treat this state as normal window state
 		}
 
 		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {
