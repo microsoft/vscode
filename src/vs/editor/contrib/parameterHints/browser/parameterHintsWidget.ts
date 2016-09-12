@@ -21,6 +21,7 @@ import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/commo
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 const $ = dom.$;
 
@@ -168,6 +169,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private visible: boolean;
 	private hints: SignatureHelp;
 	private announcedLabel: string;
+	private scrollbar: DomScrollableElement;
 	private disposables: IDisposable[];
 
 	// Editor.IContentWidget.allowEditorOverflow
@@ -212,7 +214,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		const body = dom.append(wrapper, $('.body'));
 
 		this.signature = dom.append(body, $('.signature'));
-		this.docs = dom.append(body, $('.docs'));
+
+		this.docs = $('.docs');
+		this.scrollbar = new DomScrollableElement(this.docs, { canUseTranslate3d: false });
+		this.disposables.push(this.scrollbar);
+		body.appendChild(this.scrollbar.getDomNode());
 
 		this.currentSignature = 0;
 
@@ -332,6 +338,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 
 		this.editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
 	}
 
 	private renderParameters(parent: HTMLElement, signature: SignatureInformation, currentParameter: number): void {
