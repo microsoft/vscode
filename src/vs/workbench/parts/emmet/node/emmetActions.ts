@@ -20,7 +20,8 @@ interface IEmmetConfiguration {
 	emmet: {
 		preferences: any;
 		syntaxProfiles: any;
-		triggerExpansionOnTab: boolean
+		triggerExpansionOnTab: boolean,
+		excludeLanguages: string[]
 	};
 }
 
@@ -90,8 +91,12 @@ class LazyEmmet {
 
 	private updateEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet) {
 		let emmetPreferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet;
-		_emmet.loadPreferences(emmetPreferences.preferences);
-		_emmet.loadProfiles(emmetPreferences.syntaxProfiles);
+		try {
+			_emmet.loadPreferences(emmetPreferences.preferences);
+			_emmet.loadProfiles(emmetPreferences.syntaxProfiles);
+		} catch (err) {
+			// ignore
+		}
 	}
 
 	private resetEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet) {
@@ -136,6 +141,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		let editorAccessor = new EditorAccessor(
 			editor,
 			configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles,
+			configurationService.getConfiguration<IEmmetConfiguration>().emmet.excludeLanguages,
 			new GrammarContributions()
 		);
 

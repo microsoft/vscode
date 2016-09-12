@@ -64,17 +64,13 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
 		},
-		'terminal.integrated.fontWeight': {
-			'description': nls.localize('terminal.integrated.fontWeight', "Controls the font weight of the terminal, this defaults to editor.fontWeight's value."),
-			'type': 'string'
-		},
 		'terminal.integrated.fontLigatures': {
 			'description': nls.localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
 			'type': 'boolean',
 			'default': false
 		},
 		'terminal.integrated.fontSize': {
-			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size of the terminal, this defaults to editor.fontSize's value."),
+			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal, this defaults to editor.fontSize's value."),
 			'type': 'number',
 			'default': 0
 		},
@@ -94,7 +90,7 @@ configurationRegistry.registerConfiguration({
 			'default': platform.isMacintosh
 		},
 		'terminal.integrated.commandsToSkipShell': {
-			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch quick open."),
+			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
 			'type': 'array',
 			'items': {
 				'type': 'string'
@@ -130,35 +126,36 @@ registerSingleton(ITerminalService, TerminalService);
 ));
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
+const category = nls.localize('terminalCategory', "Terminal");
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), KillTerminalAction.LABEL);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), 'Terminal: Kill the Active Terminal Instance', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
 	// Don't apply to Mac since cmd+c works
 	mac: { primary: null }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), CopyTerminalSelectionAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Copy Selection', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
-}), CreateNewTerminalAction.LABEL);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), FocusTerminalAction.LABEL);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), KillTerminalAction.LABEL);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), KillTerminalAction.LABEL);
+}), 'Terminal: Create New Integrated Terminal', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalAction, FocusTerminalAction.ID, FocusTerminalAction.LABEL), 'Terminal: Focus Terminal', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), 'Terminal: Focus Next Terminal', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), 'Terminal: Focus Previous Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V,
 	// Don't apply to Mac since cmd+v works
 	mac: { primary: null }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), CopyTerminalSelectionAction.LABEL);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), RunSelectedTextInTerminalAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), 'Terminal: Run Selected Text In Active Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
-}), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
+}), 'View: Toggle Integrated Terminal', nls.localize('viewCategory', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownTerminalAction, ScrollDownTerminalAction.ID, ScrollDownTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), ScrollDownTerminalAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Down', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpTerminalAction, ScrollUpTerminalAction.ID, ScrollUpTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), ScrollUpTerminalAction.LABEL);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up', category);

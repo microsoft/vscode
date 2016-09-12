@@ -79,7 +79,7 @@
 	"miSaveAll": "Guardar t&&odo",
 	"miSaveAs": "Guardar &&como...",
 	"miSelectAll": "&&Seleccionar todo",
-	"miSelectTheme": "&&Tema de color",
+	"miSelectColorTheme": "&&Tema de color",
 	"miSplitEditor": "Dividir &&editor",
 	"miSwitchEditor": "Cambiar &&editor",
 	"miSwitchGroup": "Cambiar &&grupo",

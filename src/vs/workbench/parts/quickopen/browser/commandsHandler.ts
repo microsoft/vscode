@@ -12,7 +12,7 @@ import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
 import {IAction, Action} from 'vs/base/common/actions';
-import {toErrorMessage} from 'vs/base/common/errors';
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {Mode, IEntryRunContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {SyncActionDescriptor, ExecuteCommandAction, IMenuService} from 'vs/platform/actions/common/actions';

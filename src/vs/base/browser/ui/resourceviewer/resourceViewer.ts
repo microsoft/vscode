@@ -13,6 +13,7 @@ import paths = require('vs/base/common/paths');
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {BoundedLinkedMap} from 'vs/base/common/map';
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes = {
@@ -67,6 +68,29 @@ export interface IResourceDescriptor {
 	resource: URI;
 	name: string;
 	size: number;
+	etag: string;
+}
+
+// Chrome is caching images very aggressively and so we use the ETag information to find out if
+// we need to bypass the cache or not. We could always bypass the cache everytime we show the image
+// however that has very bad impact on memory consumption because each time the image gets shown,
+// memory grows (see also https://github.com/electron/electron/issues/6275)
+const IMAGE_RESOURCE_ETAG_CACHE = new BoundedLinkedMap<{ etag: string, src: string }>(100);
+function imageSrc(descriptor: IResourceDescriptor): string {
+	const src = descriptor.resource.toString();
+
+	let cached = IMAGE_RESOURCE_ETAG_CACHE.get(src);
+	if (!cached) {
+		cached = { etag: descriptor.etag, src };
+		IMAGE_RESOURCE_ETAG_CACHE.set(src, cached);
+	}
+
+	if (cached.etag !== descriptor.etag) {
+		cached.etag = descriptor.etag;
+		cached.src = `${src}?${Date.now()}`; // bypass cache with this trick
+	}
+
+	return cached.src;
 }
 
 /**
@@ -98,9 +122,8 @@ export class ResourceViewer {
 			$(container)
 				.empty()
 				.addClass('image')
-				.img({
-					src: descriptor.resource.toString() // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-				}).on(DOM.EventType.LOAD, (e, img) => {
+				.img({ src: imageSrc(descriptor) })
+				.on(DOM.EventType.LOAD, (e, img) => {
 					const imgElement = <HTMLImageElement>img.getHTMLElement();
 					if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
 						$(container).addClass('oversized');
@@ -115,47 +138,6 @@ export class ResourceViewer {
 					// Update title when we know the image bounds
 					img.title(nls.localize('imgTitle', "{0} ({1}x{2})", paths.basename(descriptor.resource.fsPath), imgElement.naturalWidth, imgElement.naturalHeight));
 
-					scrollbar.scanDomNode();
-				});
-		}
-
-		// Embed Object (only PDF for now)
-		else if (false /* PDF is currently not supported in Electron it seems */ && mime.indexOf('pdf') >= 0) {
-			$(container)
-				.empty()
-				.element('object')
-				.attr({
-					data: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					width: '100%',
-					height: '100%',
-					type: mime
-				});
-		}
-
-		// Embed Audio (if supported in browser)
-		else if (false /* disabled due to unknown impact on memory usage */ && mime.indexOf('audio/') >= 0) {
-			$(container)
-				.empty()
-				.element('audio')
-				.attr({
-					src: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275  + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
-					controls: 'controls'
-				}).on(DOM.EventType.LOAD, () => {
-					scrollbar.scanDomNode();
-				});
-		}
-
-		// Embed Video (if supported in browser)
-		else if (false /* disabled due to unknown impact on memory usage */ && mime.indexOf('video/') >= 0) {
-			$(container)
-				.empty()
-				.element('video')
-				.attr({
-					src: descriptor.resource.toString(), // disabled due to https://github.com/electron/electron/issues/6275 + '?' + Date.now(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
-					controls: 'controls'
-				}).on(DOM.EventType.LOAD, () => {
 					scrollbar.scanDomNode();
 				});
 		}

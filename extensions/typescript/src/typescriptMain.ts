@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -67,7 +67,7 @@ export function activate(context: ExtensionContext): void {
 			modeIds: [MODE_ID_JS, MODE_ID_JSX],
 			extensions: ['.js', '.jsx']
 		}
-	], context.storagePath);
+	], context.storagePath, context.globalState);
 
 	let client = clientHost.serviceClient;
 
@@ -251,7 +251,6 @@ class LanguageProvider {
 
 	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
 		this.syntaxDiagnostics[file] = diagnostics;
-		this.currentDiagnostics.set(Uri.file(file), diagnostics);
 	}
 
 	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
@@ -273,7 +272,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[];
 	private languagePerId: Map<LanguageProvider>;
 
-	constructor(descriptions: LanguageDescription[], storagePath: string) {
+	constructor(descriptions: LanguageDescription[], storagePath: string, globalState: Memento) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -288,7 +287,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		watcher.onDidDelete(handleProjectCreateOrDelete);
 		watcher.onDidChange(handleProjectChange);
 
-		this.client = new TypeScriptServiceClient(this, storagePath);
+		this.client = new TypeScriptServiceClient(this, storagePath, globalState);
 		this.languages = [];
 		this.languagePerId = Object.create(null);
 		descriptions.forEach(description => {

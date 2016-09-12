@@ -43,7 +43,6 @@ export interface ITerminalConfiguration {
 			},
 			cursorBlinking: boolean,
 			fontFamily: string,
-			fontWeight: string,
 			fontLigatures: boolean,
 			fontSize: number,
 			lineHeight: number,
@@ -66,7 +65,7 @@ export interface ITerminalService {
 
 	close(): TPromise<any>;
 	copySelection(): TPromise<any>;
-	createNew(name?: string): TPromise<number>;
+	createNew(name?: string, shellPath?: string): TPromise<number>;
 	focusNext(): TPromise<any>;
 	focusPrevious(): TPromise<any>;
 	hide(): TPromise<any>;
@@ -88,5 +87,6 @@ export interface ITerminalService {
 
 export interface ITerminalPanel {
 	closeTerminalById(terminalId: number): TPromise<void>;
+	focus(): void;
 	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
 }

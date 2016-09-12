@@ -5,6 +5,7 @@
 
 'use strict';
 
+import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkbenchShell} from 'vs/workbench/electron-browser/shell';
 import {IOptions} from 'vs/workbench/common/options';
@@ -20,35 +21,25 @@ import {EventService} from 'vs/platform/event/common/eventService';
 import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
-import {IProcessEnvironment} from 'vs/code/electron-main/env';
-import {ParsedArgs} from 'vs/code/node/argv';
+import {ParsedArgs} from 'vs/platform/environment/node/argv';
 import {realpath} from 'vs/base/node/pfs';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import fs = require('fs');
 import gracefulFs = require('graceful-fs');
+import {IPath, IOpenFileRequest} from 'vs/workbench/electron-browser/common';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 const timers = (<any>window).MonacoEnvironment.timers;
 
-export interface IPath {
-	filePath: string;
-	lineNumber?: number;
-	columnNumber?: number;
-}
-
-export interface IWindowConfiguration extends ParsedArgs {
+export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
 	execPath: string;
 
-	userEnv: IProcessEnvironment;
+	userEnv: any; /* vs/code/electron-main/env/IProcessEnvironment*/
 
 	workspacePath?: string;
-
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
 
 	extensionsToInstall?: string[];
 }
@@ -160,10 +151,18 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 			(<any>self).require.config({
 				onError: (err: any) => {
 					if (err.errorCode === 'load') {
-						shell.onUnexpectedError(errors.loaderError(err));
+						shell.onUnexpectedError(loaderError(err));
 					}
 				}
 			});
 		});
 	});
+}
+
+function loaderError(err: Error): Error {
+	if (platform.isWeb) {
+		return new Error(nls.localize('loaderError', "Failed to load a required file. Either you are no longer connected to the internet or the server you are connected to is offline. Please refresh the browser to try again."));
+	}
+
+	return new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err)));
 }

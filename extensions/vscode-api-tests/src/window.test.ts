@@ -206,6 +206,46 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('showQuickPick, canceled by another picker', function () {
+
+		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			assert.equal(result, undefined);
+		});
+
+		const source = new CancellationTokenSource();
+		source.cancel();
+		window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
+
+		return result;
+	});
+
+	test('showQuickPick, canceled by input', function () {
+
+		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			assert.equal(result, undefined);
+		});
+
+		const source = new CancellationTokenSource();
+		source.cancel();
+		window.showInputBox(undefined, source.token);
+
+		return result;
+	});
+
+	test('showQuickPick, native promise - #11754', function () {
+
+		const data = new Promise<string[]>(resolve => {
+			resolve(['a', 'b', 'c']);
+		});
+
+		const source = new CancellationTokenSource();
+		const result = window.showQuickPick(data, undefined, source.token);
+		source.cancel();
+		return result.then(value => {
+			assert.equal(value, undefined);
+		});
+	});
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 

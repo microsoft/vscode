@@ -87,13 +87,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private static LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
-	private static UNCACHED_FILE_SEARCH_DELAY = 300; // use a delay if we are not running through the cache to prevent heavy searches on each keystroke
+	private static FILE_SEARCH_DELAY = 300;
+	private static SYMBOL_SEARCH_DELAY = 500; // go easier on those symbols!
 
 	private static MAX_DISPLAYED_RESULTS = 512;
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
-	private fileSearchDelayer: ThrottledDelayer<QuickOpenModel>;
+	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
@@ -109,7 +110,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		super();
 
 		this.scorerCache = Object.create(null);
-		this.fileSearchDelayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.UNCACHED_FILE_SEARCH_DELAY);
+		this.searchDelayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.FILE_SEARCH_DELAY);
 
 		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
@@ -140,8 +141,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		const timerEvent = this.telemetryService.timedPublicLog('openAnything');
-		const startTime = timerEvent.startTime ? timerEvent.startTime.getTime() : Date.now(); // startTime is undefined when telemetry is disabled
+		const startTime = Date.now();
 
 		this.cancelPendingSearch();
 		this.isClosed = false; // Treat this call as the handler being in use
@@ -166,7 +166,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			const resultPromises: TPromise<QuickOpenModel|FileQuickOpenModel>[] = [];
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResultsWithStats(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS));
+			resultPromises.push(this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS));
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange && !paths.isAbsolute(searchValue)) {
@@ -211,7 +211,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					fileSearchStats = (<FileQuickOpenModel>results[1]).stats;
 				}
 
-				timerEvent.data = this.createTimerEventData(startTime, {
+				const duration = new Date().getTime() - startTime;
+				const data = this.createTimerEventData(startTime, {
 					searchLength: searchValue.length,
 					unsortedResultTime,
 					sortedResultTime,
@@ -219,7 +220,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					symbols: { fromCache: false },
 					files: fileSearchStats
 				});
-				timerEvent.stop();
+
+				this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
@@ -231,11 +233,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
-		return this.hasShortResponseTime() ? promiseFactory() : this.fileSearchDelayer.trigger(promiseFactory);
+		return this.hasShortResponseTime() ? promiseFactory() : this.searchDelayer.trigger(promiseFactory, this.includeSymbols ? OpenAnythingHandler.SYMBOL_SEARCH_DELAY : OpenAnythingHandler.FILE_SEARCH_DELAY);
 	}
 
 	public hasShortResponseTime(): boolean {
-		return this.openFileHandler.isCacheLoaded;
+		if (!this.includeSymbols) {
+			return this.openFileHandler.hasShortResponseTime();
+		}
+
+		return this.openFileHandler.hasShortResponseTime() && this.openSymbolHandler.hasShortResponseTime();
 	}
 
 	private extractRange(value: string): ISearchWithRange {

@@ -14,7 +14,7 @@ import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs } from 'vs/code/node/argv';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 
 export interface IWindowState {
 	width?: number;
@@ -166,7 +166,7 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#131313' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -361,6 +361,11 @@ export class VSCodeWindow {
 			this._readyState = ReadyState.NAVIGATING;
 		}
 
+		// Make sure to clear any previous edited state
+		if (platform.isMacintosh && this._win.isDocumentEdited()) {
+			this._win.setDocumentEdited(false);
+		}
+
 		// Load URL
 		this._win.loadURL(this.getUrl(config));
 
@@ -425,7 +430,12 @@ export class VSCodeWindow {
 	public serializeWindowState(): IWindowState {
 		if (this.win.isFullScreen()) {
 			return {
-				mode: WindowMode.Fullscreen
+				mode: WindowMode.Fullscreen,
+				// still carry over window dimensions from previous sessions!
+				width: this.windowState.width,
+				height: this.windowState.height,
+				x: this.windowState.x,
+				y: this.windowState.y
 			};
 		}
 
@@ -489,7 +499,7 @@ export class VSCodeWindow {
 				return state;
 			}
 
-			return null;
+			state.mode = WindowMode.Normal; // if we do not allow fullscreen, treat this state as normal window state
 		}
 
 		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {

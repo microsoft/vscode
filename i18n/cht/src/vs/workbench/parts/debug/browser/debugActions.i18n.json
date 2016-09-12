@@ -14,6 +14,7 @@
 	"continueDebug": "繼續",
 	"deactivateBreakpoints": "停用中斷點",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugAddToWatch": "偵錯: 加入監看",
 	"debugConsoleAction": "偵錯主控台",
 	"debugEvaluate": "偵錯: 評估",
 	"disableAllBreakpoints": "停用所有中斷點",

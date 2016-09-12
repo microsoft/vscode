@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "dependencies": {
     "agent-base": {
       "version": "1.0.2",
@@ -48,9 +48,9 @@
       "resolved": "https://registry.npmjs.org/balanced-match/-/balanced-match-0.4.2.tgz"
     },
     "binary-extensions": {
-      "version": "1.5.0",
+      "version": "1.6.0",
       "from": "binary-extensions@>=1.0.0 <2.0.0",
-      "resolved": "https://registry.npmjs.org/binary-extensions/-/binary-extensions-1.5.0.tgz"
+      "resolved": "https://registry.npmjs.org/binary-extensions/-/binary-extensions-1.6.0.tgz"
     },
     "brace-expansion": {
       "version": "1.1.6",
@@ -151,6 +151,11 @@
       "version": "0.3.8",
       "from": "bpasero/fsevents#vscode",
       "resolved": "git://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
+    },
+    "gc-signals": {
+      "version": "0.0.1",
+      "from": "gc-signals@0.0.1",
+      "resolved": "https://registry.npmjs.org/gc-signals/-/gc-signals-0.0.1.tgz"
     },
     "getmac": {
       "version": "1.0.7",
@@ -400,9 +405,9 @@
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.11.0",
-      "from": "vscode-debugprotocol@1.11.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.11.0.tgz"
+      "version": "1.13.0-pre.3",
+      "from": "vscode-debugprotocol@1.13.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.13.0-pre.3.tgz"
     },
     "vscode-textmate": {
       "version": "2.1.1",

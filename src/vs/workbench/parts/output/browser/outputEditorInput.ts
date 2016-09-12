@@ -77,7 +77,7 @@ export class OutputEditorInput extends StringEditorInput {
 		this.bufferedOutput = '';
 
 		const panel = this.panelService.getActivePanel();
-		(<OutputPanel>panel).revealLastLine();
+		(<OutputPanel>panel).revealLastLine(true);
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {

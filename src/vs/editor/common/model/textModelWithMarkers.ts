@@ -62,7 +62,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		super.dispose();
 	}
 
-	_resetValue(e:IModelContentChangedFlushEvent, newValue:IRawText): void {
+	protected _resetValue(e:IModelContentChangedFlushEvent, newValue:IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my markers
@@ -195,7 +195,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		}
 	}
 
-	_getMarkersInMap(markersMap:{[markerId:string]:boolean;}): ILineMarker[] {
+	protected _getMarkersInMap(markersMap:{[markerId:string]:boolean;}): ILineMarker[] {
 		let result: ILineMarker[] = [];
 		let keys = Object.keys(markersMap);
 		for (let i = 0, len = keys.length; i < len; i++) {

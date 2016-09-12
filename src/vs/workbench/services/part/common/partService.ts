@@ -100,4 +100,9 @@ export interface IPartService {
 	 * Removes a class from the workbench part.
 	 */
 	removeClass(clazz: string): void;
+
+	/**
+	 * Returns the identifier of the element that contains the workbench.
+	 */
+	getWorkbenchElementId(): string;
 }

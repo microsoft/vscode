@@ -49,6 +49,7 @@ export interface IPatternInfo {
 	pattern: string;
 	isRegExp?: boolean;
 	isWordMatch?: boolean;
+	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
 }
 

@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
@@ -20,32 +21,44 @@ import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
+import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 
 // A handler for save error happening with conflict resolution actions
-export class SaveErrorHandler implements ISaveErrorHandler {
+export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
 	private messages: { [resource: string]: () => void };
+	private toUnbind: IDisposable[];
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IEventService private eventService: IEventService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.messages = Object.create(null);
+		this.toUnbind = [];
 
 		this.registerListeners();
+
+		// Hook into model
+		TextFileEditorModel.setSaveErrorHandler(this);
+	}
+
+	public getId(): string {
+		return 'vs.files.saveerrorhandler';
 	}
 
 	private registerListeners(): void {
-		this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
-		this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
+		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
+		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
 	}
 
 	private onFileSavedOrReverted(resource: URI): void {
@@ -56,7 +69,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 		}
 	}
 
-	public onSaveError(error: any, model: TextFileEditorModel): void {
+	public onSaveError(error: any, model: ITextFileEditorModel): void {
 		let message: IMessageWithAction;
 		const resource = model.getResource();
 
@@ -70,14 +83,29 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 			const isReadonly = (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const actions: Action[] = [];
 
-			// Cancel
-			actions.push(CancelAction);
+			// Save As
+			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
+				const saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
+				saveAsAction.setResource(resource);
+				saveAsAction.run().done(() => saveAsAction.dispose(), errors.onUnexpectedError);
+
+				return TPromise.as(true);
+			}));
+
+			// Discard
+			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
+				const revertFileAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
+				revertFileAction.setResource(resource);
+				revertFileAction.run().done(() => revertFileAction.dispose(), errors.onUnexpectedError);
+
+				return TPromise.as(true);
+			}));
 
 			// Retry
 			if (isReadonly) {
 				actions.push(new Action('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"), null, true, () => {
 					if (!model.isDisposed()) {
-						return model.save(true /* overwrite readonly */).then(() => true);
+						model.save(true /* overwrite readonly */).done(null, errors.onUnexpectedError);
 					}
 
 					return TPromise.as(true);
@@ -86,42 +114,34 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
 					const saveFileAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
 					saveFileAction.setResource(resource);
+					saveFileAction.run().done(() => saveFileAction.dispose(), errors.onUnexpectedError);
 
-					return saveFileAction.run().then(() => { saveFileAction.dispose(); return true; });
+					return TPromise.as(true);
 				}));
 			}
 
-			// Discard
-			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
-				const revertFileAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-				revertFileAction.setResource(resource);
-
-				return revertFileAction.run().then(() => { revertFileAction.dispose(); return true; });
-			}));
-
-			// Save As
-			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
-				const saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-				saveAsAction.setResource(resource);
-
-				return saveAsAction.run().then(() => { saveAsAction.dispose(); return true; });
-			}));
+			// Cancel
+			actions.push(CancelAction);
 
 			let errorMessage: string;
 			if (isReadonly) {
 				errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to remove protection.", paths.basename(resource.fsPath));
 			} else {
-				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), errors.toErrorMessage(error, false));
+				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
 			}
 
 			message = {
 				message: errorMessage,
-				actions: actions
+				actions
 			};
 		}
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		this.messages[model.getResource().toString()] = this.messageService.show(Severity.Error, message);
+	}
+
+	public dispose(): void {
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }
 
@@ -130,10 +150,10 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 
 	public static ID = 'workbench.editors.files.conflictResolutionDiffEditorInput';
 
-	private model: TextFileEditorModel;
+	private model: ITextFileEditorModel;
 
 	constructor(
-		model: TextFileEditorModel,
+		model: ITextFileEditorModel,
 		name: string,
 		description: string,
 		originalInput: FileOnDiskEditorInput,
@@ -144,7 +164,7 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 		this.model = model;
 	}
 
-	public getModel(): TextFileEditorModel {
+	public getModel(): ITextFileEditorModel {
 		return this.model;
 	}
 
@@ -223,10 +243,10 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 	public message: string;
 	public actions: Action[];
 
-	private model: TextFileEditorModel;
+	private model: ITextFileEditorModel;
 
 	constructor(
-		model: TextFileEditorModel,
+		model: ITextFileEditorModel,
 		message: string,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,

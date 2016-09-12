@@ -7,7 +7,7 @@
 
 import * as childProcess from 'child_process';
 import {StringDecoder} from 'string_decoder';
-import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import fs = require('fs');
 import paths = require('path');
 import {Readable} from "stream";
@@ -130,7 +130,8 @@ export class FileWalker {
 				if (platform.isMacintosh) {
 					this.traversal = Traversal.MacFind;
 					traverse = this.macFindTraversal;
-				} else if (platform.isWindows) {
+				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
+				} else if (false && platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
 				} else if (platform.isLinux) {
@@ -152,7 +153,7 @@ export class FileWalker {
 							rootFolderDone(err);
 						} else {
 							// fallback
-							const errorMessage = errors.toErrorMessage(err);
+							const errorMessage = toErrorMessage(err);
 							console.error(errorMessage);
 							this.errors.push(errorMessage);
 							this.nodeJSTraversal(rootFolder, onResult, rootFolderDone);

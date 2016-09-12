@@ -47,6 +47,7 @@ Name: "traditionalChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.z
 Type: filesandordirs; Name: {app}\resources\app\plugins
 Type: filesandordirs; Name: {app}\resources\app\extensions
 Type: filesandordirs; Name: {app}\resources\app\node_modules
+Type: files; Name: {app}\resources\app\Credits_45.0.2454.85.html
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

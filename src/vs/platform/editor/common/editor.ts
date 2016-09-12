@@ -6,13 +6,15 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import Event from 'vs/base/common/event';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export interface IEditorService {
+
 	_serviceBrand: any;
+
 	/**
 	 * Specific overload to open an instance of IResourceInput.
 	 */
@@ -24,7 +26,17 @@ export interface IEditorService {
 	resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
-export interface IEditorModel extends IEventEmitter {
+export interface IEditorModel {
+
+	/**
+	 * Loads the model.
+	 */
+	load(): TPromise<IEditorModel>;
+
+	/**
+	 * Dispose associated resources
+	 */
+	dispose(): void;
 }
 
 export interface ITextEditorModel extends IEditorModel {
@@ -89,6 +101,11 @@ export interface IEditor {
 	 * Asks the underlying control to focus.
 	 */
 	focus(): void;
+
+	/**
+	 * Finds out if this editor is visible or not.
+	 */
+	isVisible(): boolean;
 }
 
 /**
@@ -113,7 +130,9 @@ export enum Direction {
 	RIGHT
 }
 
-export interface IEditorInput extends IEventEmitter {
+export interface IEditorInput {
+
+	onDispose: Event<void>;
 
 	/**
 	 * Returns the display name of this input.

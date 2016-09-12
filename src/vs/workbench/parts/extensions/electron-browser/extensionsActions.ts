@@ -8,16 +8,19 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import severity from 'vs/base/common/severity';
+import paths = require('vs/base/common/paths');
 import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from '../common/extensionQuery';
+import { shell } from 'electron';
 
 export class InstallAction extends Action {
 
@@ -94,7 +97,7 @@ export class UninstallAction extends Action {
 		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
 			this.messageService.show(severity.Info, {
 				message: localize('postUninstallMessage', "{0} was successfully uninstalled. Restart to deactivate it.", this.extension.displayName),
-				actions: [LaterAction, this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now"))]
+				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('restartNow', "Restart Now")), LaterAction]
 			});
 		});
 	}
@@ -264,12 +267,17 @@ export class EnableAction extends Action {
 
 export class UpdateAllAction extends Action {
 
+	static ID = 'extensions.update-all';
+	static LABEL = localize('updateAll', "Update All Extensions");
+
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		id = UpdateAllAction.ID,
+		label = UpdateAllAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.update-all', localize('updateAll', "Update All Extensions"), '', false);
+		super(id, label, '', false);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
@@ -465,7 +473,7 @@ export class ChangeSortAction extends Action {
 	) {
 		super(id, label, null, true);
 
-		if (this.sortBy === undefined && this.sortOrder === undefined) {
+		if (sortBy === undefined && sortOrder === undefined) {
 			throw new Error('bad arguments');
 		}
 
@@ -477,7 +485,7 @@ export class ChangeSortAction extends Action {
 	private onSearchChange(value: string): void {
 		const query = Query.parse(value);
 		this.query = new Query(query.value, this.sortBy || query.sortBy, this.sortOrder || query.sortOrder);
-		this.enabled = this.query.isValid() && !this.query.equals(query);
+		this.enabled = value && this.query.isValid() && !this.query.equals(query);
 	}
 
 	run(): TPromise<void> {
@@ -487,6 +495,31 @@ export class ChangeSortAction extends Action {
 				viewlet.search(this.query.toString());
 				viewlet.focus();
 			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class OpenExtensionsFolderAction extends Action {
+
+	static ID = 'workbench.extensions.action.openExtensionsFolder';
+	static LABEL = localize('openExtensionsFolder', "Open Extensions Folder");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<any> {
+		const extensionsHome = this.environmentService.extensionsPath;
+		shell.showItemInFolder(paths.normalize(extensionsHome, true));
+
+		return TPromise.as(true);
 	}
 
 	protected isEnabled(): boolean {

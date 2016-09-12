@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
@@ -26,11 +25,6 @@ export interface ITelemetryService {
 	 */
 	publicLog(eventName: string, data?: any): TPromise<void>;
 
-	/**
-	 * Starts a telemetry timer. Call stop() to send the event.
-	 */
-	timedPublicLog(name: string, data?: any): ITimerEvent;
-
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
 	isOptedIn: boolean;
@@ -38,9 +32,6 @@ export interface ITelemetryService {
 
 export const NullTelemetryService: ITelemetryService = {
 	_serviceBrand: undefined,
-	timedPublicLog(name: string, data?: any) {
-		return nullEvent;
-	},
 	publicLog(eventName: string, data?: any) {
 		return TPromise.as<void>(null);
 	},

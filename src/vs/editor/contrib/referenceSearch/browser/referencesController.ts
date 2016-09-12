@@ -10,6 +10,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
+import { fromPromise, stopwatch } from 'vs/base/common/event';
 import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
 import {IContextKey, IContextKeyService, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -19,7 +20,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {ReferencesModel, OneReference} from './referencesModel';
 import {ReferenceWidget, LayoutData} from './referencesWidget';
@@ -32,6 +33,7 @@ export interface RequestOptions {
 	onGoto?: (reference: OneReference) => TPromise<any>;
 }
 
+@editorContribution
 export class ReferencesController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.referencesController';
@@ -45,7 +47,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 	private _referenceSearchVisible: IContextKey<boolean>;
 
-	public static getController(editor:editorCommon.ICommonCodeEditor): ReferencesController {
+	public static get(editor:editorCommon.ICommonCodeEditor): ReferencesController {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
@@ -136,11 +138,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 
 		const requestId = ++this._requestIdPool;
-		const timer = this._telemetryService.timedPublicLog('findReferences', {
-			mode: this._editor.getModel().getMode().getId()
-		});
 
-		modelPromise.then(model => {
+		const promise = modelPromise.then(model => {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
@@ -176,10 +175,14 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		}, error => {
 			this._messageService.show(Severity.Error, error);
-
-		}).done(() => {
-			timer.stop();
 		});
+
+		const onDone = stopwatch(fromPromise(promise));
+
+		onDone(duration => this._telemetryService.publicLog('findReferences', {
+			duration,
+			mode: this._editor.getModel().getMode().getId()
+		}));
 	}
 
 	public closeWidget(): void {
@@ -238,6 +241,3 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}
 	}
 }
-
-
-EditorBrowserRegistry.registerEditorContribution(ReferencesController);

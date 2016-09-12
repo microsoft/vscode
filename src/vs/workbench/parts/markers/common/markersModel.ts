@@ -28,7 +28,15 @@ export class Resource {
 export class Marker {
 	constructor(public id:string, public marker: IMarker,
 								public labelMatches: IMatch[] = [],
-								public sourceMatches: IMatch[] = []){}
+								public sourceMatches: IMatch[] = []) { }
+
+	public get resource(): URI {
+		return this.marker.resource;
+	}
+
+	public get range(): Range {
+		return new Range(this.marker.startLineNumber, this.marker.startColumn, this.marker.endLineNumber, this.marker.endLineNumber);
+	}
 }
 
 export class FilterOptions {

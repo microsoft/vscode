@@ -57,7 +57,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
-import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
 import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
@@ -948,7 +948,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					? this.getConfigureAction(buildError.code)
 					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService, this.messageService, this.contextService);
 
-				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [closeAction, action ] });
+				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction ] });
 			} else {
 				this.messageService.show(buildError.severity, buildError.message);
 			}

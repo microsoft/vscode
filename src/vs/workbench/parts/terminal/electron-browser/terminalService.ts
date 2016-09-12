@@ -30,7 +30,7 @@ export class TerminalService implements ITerminalService {
 
 	private activeTerminalIndex: number = 0;
 	private terminalProcesses: ITerminalProcess[] = [];
-	private nextTerminalName: string;
+	private _nextTerminalProcessConfiguration: ITerminalProcessConfiguration = { name: null, shell: { executable: '', args: [] } };
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 
 	private configHelper: TerminalConfigHelper;
@@ -69,7 +69,6 @@ export class TerminalService implements ITerminalService {
 		return this.show(false).then((terminalPanel) => {
 			this.activeTerminalIndex = index;
 			terminalPanel.setActiveTerminal(this.activeTerminalIndex);
-			terminalPanel.focus();
 			this._onActiveInstanceChanged.fire();
 		});
 	}
@@ -145,6 +144,9 @@ export class TerminalService implements ITerminalService {
 					complete(<TerminalPanel>panel);
 				});
 			} else {
+				if (focus) {
+					panel.focus();
+				}
 				complete(<TerminalPanel>panel);
 			}
 		});
@@ -181,21 +183,38 @@ export class TerminalService implements ITerminalService {
 		return this.focus();
 	}
 
-	public createNew(name?: string): TPromise<number> {
+	public createNew(name?: string, shellPath?: string): TPromise<number> {
 		let processCount = this.terminalProcesses.length;
 
 		// When there are 0 processes it means that the panel is not yet created, so the name needs
 		// to be stored for when createNew is called from TerminalPanel.create. This has to work
 		// like this as TerminalPanel.setVisible must create a terminal if there is none due to how
 		// the TerminalPanel is restored on launch if it was open previously.
+
 		if (processCount === 0 && !name) {
-			name = this.nextTerminalName;
-			this.nextTerminalName = undefined;
+			name = this._nextTerminalProcessConfiguration.name;
+			shellPath = this._nextTerminalProcessConfiguration.shell.executable;
+			this._nextTerminalProcessConfiguration = undefined;
 		} else {
-			this.nextTerminalName = name;
+			this._nextTerminalProcessConfiguration.name = name;
+			this._nextTerminalProcessConfiguration.shell.executable = shellPath;
 		}
 
+		// If user doesn't specify a shell, set it to null and let terminalConfigHelper to getShell()
+		// later.
+		// Todo: Also let user specify shell args
+		const terminalProcessConfiguration: ITerminalProcessConfiguration = {
+			name: name ? name : '',
+			shell: shellPath ? { executable: shellPath, args: [] } : null
+		};
+
 		return this.focus().then((terminalPanel) => {
+			// If the terminal panel has not been initialized yet skip this, the terminal will be
+			// created via a call from TerminalPanel.setVisible
+			if (terminalPanel === null) {
+				return;
+			}
+
 			// Only create a new process if none have been created since toggling the terminal
 			// panel. This happens when createNew is called when the panel is either empty or no yet
 			// created.
@@ -204,7 +223,7 @@ export class TerminalService implements ITerminalService {
 			}
 
 			this.initConfigHelper(terminalPanel.getContainer());
-			return terminalPanel.createNewTerminalInstance(this.createTerminalProcess(name), this._terminalFocusContextKey).then((terminalId) => {
+			return terminalPanel.createNewTerminalInstance(this.createTerminalProcess(terminalProcessConfiguration), this._terminalFocusContextKey).then((terminalId) => {
 				this._onInstancesChanged.fire();
 				return TPromise.as(terminalId);
 			});
@@ -285,11 +304,12 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private createTerminalProcess(name?: string): ITerminalProcess {
-		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
-		let env = TerminalService.createTerminalEnv(process.env, this.configHelper.getShell(), this.contextService.getWorkspace(), locale);
-		let terminalProcess = {
-			title: name,
+	private createTerminalProcess(terminalProcessConfiguration: ITerminalProcessConfiguration): ITerminalProcess {
+		const locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+		const shell = terminalProcessConfiguration.shell ? terminalProcessConfiguration.shell : this.configHelper.getShell();
+		const env = TerminalService.createTerminalEnv(process.env, shell, this.contextService.getWorkspace(), locale);
+		const terminalProcess = {
+			title: terminalProcessConfiguration.name,
 			process: cp.fork('./terminalProcess', [], {
 				env: env,
 				cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
@@ -299,11 +319,11 @@ export class TerminalService implements ITerminalService {
 		this._onInstancesChanged.fire();
 		this.activeTerminalIndex = this.terminalProcesses.length - 1;
 		this._onActiveInstanceChanged.fire();
-		if (!name) {
+		if (!terminalProcessConfiguration.name) {
 			// Only listen for process title changes when a name is not provided
 			terminalProcess.process.on('message', (message) => {
 				if (message.type === 'title') {
-					terminalProcess.title = message.content;
+					terminalProcess.title = message.content ? message.content : '';
 					this._onInstanceTitleChanged.fire();
 				}
 			});
@@ -318,11 +338,19 @@ export class TerminalService implements ITerminalService {
 		shell.args.forEach((arg, i) => {
 			env[`PTYSHELLARG${i}`] = arg;
 		});
-		env['PTYCWD'] = workspace ? workspace.resource.fsPath : os.homedir();
+		env['PTYCWD'] = this.sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
 		if (locale) {
 			env['LANG'] = this.getLangEnvVariable(locale);
 		}
 		return env;
+	}
+
+	private static sanitizeCwd(cwd: string) {
+		// Make the drive letter uppercase on Windows (see #9448)
+		if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
+			return cwd[0].toUpperCase() + cwd.substr(1);
+		}
+		return cwd;
 	}
 
 	private static cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
@@ -341,4 +369,9 @@ export class TerminalService implements ITerminalService {
 		}
 		return parts.join('_') + '.UTF-8';
 	}
+}
+
+export interface ITerminalProcessConfiguration {
+	name: string;
+	shell: IShell;
 }

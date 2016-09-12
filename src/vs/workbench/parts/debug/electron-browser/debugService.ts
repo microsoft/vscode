@@ -5,7 +5,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import {guessMimeTypes, MIME_TEXT} from 'vs/base/common/mime';
+import {guessMimeTypes} from 'vs/base/common/mime';
 import Event, {Emitter} from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
 import {RunOnceScheduler} from 'vs/base/common/async';
@@ -32,11 +32,11 @@ import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
 import {TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import wbeditorcommon = require('vs/workbench/common/editor');
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import session = require('vs/workbench/parts/debug/electron-browser/rawDebugSession');
+import {RawDebugSession} from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
+import {DebugStringEditorInput, DebugErrorEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import {ConfigurationManager} from 'vs/workbench/parts/debug/node/debugConfigurationManager';
@@ -67,7 +67,7 @@ export class DebugService implements debug.IDebugService {
 
 	private _state: debug.State;
 	private _onDidChangeState: Emitter<debug.State>;
-	private session: session.RawDebugSession;
+	private session: RawDebugSession;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -553,7 +553,7 @@ export class DebugService implements debug.IDebugService {
 				if (!this.configurationManager.adapter) {
 					return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 						: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
-							{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+							{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
 				return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
@@ -568,10 +568,10 @@ export class DebugService implements debug.IDebugService {
 						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-						actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+						actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 							this.messageService.hideAll();
 							return this.doCreateSession(configuration);
-						})]
+						}), CloseAction]
 					});
 				}, (err: TaskError) => {
 					if (err.code !== TaskErrors.NotConfigured) {
@@ -580,7 +580,7 @@ export class DebugService implements debug.IDebugService {
 
 					this.messageService.show(err.severity, {
 						message: err.message,
-						actions: [CloseAction, this.taskService.configureAction()]
+						actions: [this.taskService.configureAction(), CloseAction]
 					});
 				});
 			}))));
@@ -621,7 +621,7 @@ export class DebugService implements debug.IDebugService {
 				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
+			this.session = this.instantiationService.createInstance(RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.customTelemetryService);
 			this.registerSessionListeners();
 
 			return this.session.initialize({
@@ -704,9 +704,9 @@ export class DebugService implements debug.IDebugService {
 			if (filteredTasks.length !== 1) {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName), {
 					actions: [
-						CloseAction,
+						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
 						this.taskService.configureAction(),
-						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)
+						CloseAction
 					]
 				}));
 			}
@@ -739,11 +739,7 @@ export class DebugService implements debug.IDebugService {
 
 	private rawAttach(port: number): TPromise<any> {
 		if (this.session) {
-			if (!this.session.configuration.isAttach) {
-				return this.session.attach({ port });
-			}
-
-			this.session.disconnect().done(null, errors.onUnexpectedError);
+			return this.session.attach({ port });
 		}
 
 		this.setStateAndEmit(debug.State.Initializing);
@@ -820,7 +816,7 @@ export class DebugService implements debug.IDebugService {
 	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		const visibleEditors = this.editorService.getVisibleEditors();
 		for (let i = 0; i < visibleEditors.length; i++) {
-			const fileInput = wbeditorcommon.asFileEditorInput(visibleEditors[i].input);
+			const fileInput = asFileEditorInput(visibleEditors[i].input);
 			if ((fileInput && fileInput.getResource().toString() === source.uri.toString()) ||
 				(visibleEditors[i].input instanceof DebugStringEditorInput && (<DebugStringEditorInput>visibleEditors[i].input).getResource().toString() === source.uri.toString())) {
 
@@ -846,7 +842,7 @@ export class DebugService implements debug.IDebugService {
 					return this.getDebugStringEditorInput(source, response.body.content, mime);
 				}, (err: DebugProtocol.ErrorResponse) => {
 					// Display the error from debug adapter using a temporary editor #8836
-					return this.getDebugStringEditorInput(source, err.message, MIME_TEXT);
+					return this.getDebugErrorEditorInput(source, err.message);
 				}).then(editorInput => {
 					return this.editorService.openEditor(editorInput, { preserveFocus, selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 } }, sideBySide);
 				});
@@ -873,7 +869,7 @@ export class DebugService implements debug.IDebugService {
 
 	private sourceIsUnavailable(source: Source, sideBySide: boolean): TPromise<any> {
 		this.model.sourceIsUnavailable(source);
-		const editorInput = this.getDebugStringEditorInput(source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.uri.fsPath), 'text/plain');
+		const editorInput = this.getDebugErrorEditorInput(source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.name));
 
 		return this.editorService.openEditor(editorInput, { preserveFocus: true }, sideBySide);
 	}
@@ -950,7 +946,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
-		if (!this.session) {
+		if (!this.session || !this.session.configuration.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
 		}
 		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
@@ -1005,6 +1001,14 @@ export class DebugService implements debug.IDebugService {
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {
 		const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
 		this.toDisposeOnSessionEnd.push(result);
+
+		return result;
+	}
+
+	private getDebugErrorEditorInput(source: Source, value: string): DebugErrorEditorInput {
+		const result = this.instantiationService.createInstance(DebugErrorEditorInput, source.name, value);
+		this.toDisposeOnSessionEnd.push(result);
+
 		return result;
 	}
 

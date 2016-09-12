@@ -5,6 +5,7 @@
 
 'use strict';
 
+import {localize} from 'vs/nls';
 import workbenchExt = require('vs/workbench/common/contributions');
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
@@ -72,7 +73,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 			return winjs.TPromise.join(snippetFiles.map(snippetFile => {
 				var modeId = snippetFile.replace(/\.json$/, '').toLowerCase();
 				var snippetPath = paths.join(this.snippetFolder, snippetFile);
-				return readAndRegisterSnippets(modeId, snippetPath);
+				return readAndRegisterSnippets(modeId, snippetPath, localize('userSnippet', "User Snippet"));
 			}));
 		});
 	}

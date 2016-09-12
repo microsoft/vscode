@@ -12,9 +12,8 @@ import fs = require('fs');
 
 import {Registry} from 'vs/platform/platform';
 import {ConfigurationService} from 'vs/platform/configuration/node/configurationService';
-import {ParsedArgs} from 'vs/code/node/argv';
+import {ParsedArgs, parseArgs} from 'vs/platform/environment/node/argv';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
-import {parseArgs} from 'vs/code/node/argv';
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
@@ -129,30 +128,6 @@ suite('ConfigurationService - Node', () => {
 				service.dispose();
 
 				cleanUp(done);
-			});
-		});
-	});
-
-	test('configuration change event', (done: () => void) => {
-		testFile((testFile, cleanUp) => {
-			fs.writeFileSync(testFile, '{ "testworkbench.editor.tabs": true }');
-
-			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
-			service.reloadConfiguration().then(() => { // ensure loaded
-				service.onDidUpdateConfiguration(event => {
-					const config = <{ testworkbench: { editor: { tabs: boolean } } }>event.config;
-
-					assert.ok(config);
-					assert.ok(config.testworkbench);
-					assert.ok(config.testworkbench.editor);
-					assert.equal(config.testworkbench.editor.tabs, false);
-
-					service.dispose();
-
-					cleanUp(done);
-				});
-
-				fs.writeFileSync(testFile, '{ "testworkbench.editor.tabs": false }');
 			});
 		});
 	});

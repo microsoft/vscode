@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
@@ -15,7 +16,6 @@ import {Action} from 'vs/base/common/actions';
 import {Scope} from 'vs/workbench/common/memento';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {VIEWLET_ID, TEXT_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
-import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, EditorModel} from 'vs/workbench/common/editor';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
@@ -29,6 +29,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -56,6 +57,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
+		@IHistoryService private historyService: IHistoryService,
 		@IMessageService messageService: IMessageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
@@ -63,9 +65,6 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, contextService, storageService, messageService, configurationService, eventService, editorService, themeService);
-
-		// Since we are the one providing save-support for models, we hook up the error handler for saving
-		TextFileEditorModel.setSaveErrorHandler(instantiationService.createInstance(SaveErrorHandler));
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFilesChanged(e)));
@@ -88,6 +87,14 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Detect options
 		const forceOpen = options && options.forceOpen;
+
+		// We have a current input in this editor and are about to either open a new editor or jump to a different
+		// selection inside the editor. Thus we store the current selection into the navigation history so that
+		// a user can navigate back to the exact position he left off.
+		if (oldInput) {
+			const selection = this.getControl().getSelection();
+			this.historyService.add(oldInput, { selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn } });
+		}
 
 		// Same Input
 		if (!forceOpen && input.matches(oldInput)) {
@@ -122,27 +129,21 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Check Model state
 			const textFileModel = <TextFileEditorModel>resolvedModel;
+
+			const hasInput = !!this.getInput();
+			const modelDisposed = textFileModel.isDisposed();
+			const inputChanged = (<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString();
 			if (
-				!this.getInput() ||	// editor got hidden meanwhile
-				textFileModel.isDisposed() || // input got disposed meanwhile
-				(<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString() // a different input was set meanwhile
+				!hasInput ||		// editor got hidden meanwhile
+				modelDisposed || 	// input got disposed meanwhile
+				inputChanged 		// a different input was set meanwhile
 			) {
 				return null;
 			}
 
-			// log the time it takes the editor to render the resource
-			const mode = textFileModel.textEditorModel.getMode();
-			const setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
-				mode: mode && mode.getId(),
-				resource: textFileModel.textEditorModel.uri.toString(),
-			});
-
 			// Editor
 			const textEditor = this.getControl();
 			textEditor.setModel(textFileModel.textEditorModel);
-
-			// stop the event
-			setModelEvent.stop();
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
 			let optionsGotApplied = false;
@@ -173,9 +174,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Offer to create a file from the error if we have a file not found and the name is valid
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
-				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), {
+				return TPromise.wrapError(errors.create(toErrorMessage(error), {
 					actions: [
-						CancelAction,
 						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 							return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
 
@@ -188,7 +188,8 @@ export class TextFileEditor extends BaseTextEditor {
 									}
 								});
 							});
-						})
+						}),
+						CancelAction
 					]
 				}));
 			}

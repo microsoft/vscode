@@ -27,7 +27,7 @@ import {Registry} from 'vs/platform/platform';
 import {EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
 import Event, {Emitter} from 'vs/base/common/event';
-import {Identifiers} from 'vs/workbench/common/constants';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
@@ -104,7 +104,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryService private historyService: IHistoryService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private partService: IPartService
 	) {
 		super(QuickOpenController.ID);
 
@@ -146,6 +147,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
+
+		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
+			this.pickOpenWidget.hide(HideReason.CANCELED);
+		}
+
 		const defaultMessage = options.prompt
 			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
@@ -232,6 +238,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			});
 		});
 
+		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
+			this.pickOpenWidget.hide(HideReason.CANCELED);
+		}
+
 		return new TPromise<string | IPickOpenEntry>((resolve, reject, progress) => {
 
 			function onItem(item: IPickOpenEntry): string | IPickOpenEntry {
@@ -252,7 +262,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Create upon first open
 		if (!this.pickOpenWidget) {
 			this.pickOpenWidget = new QuickOpenWidget(
-				withElementById(Identifiers.WORKBENCH_CONTAINER).getHTMLElement(),
+				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
 				{
 					onOk: () => { /* ignore, handle later */ },
 					onCancel: () => { /* ignore, handle later */ },
@@ -296,7 +306,11 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
 
 			// hide widget when being cancelled
-			token.onCancellationRequested(e => this.pickOpenWidget.hide(HideReason.CANCELED));
+			token.onCancellationRequested(e => {
+				if (this.currentPickerToken === currentPickerToken) {
+					this.pickOpenWidget.hide(HideReason.CANCELED);
+				}
+			});
 
 			let picksPromiseDone = false;
 
@@ -486,7 +500,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Create upon first open
 		if (!this.quickOpenWidget) {
 			this.quickOpenWidget = new QuickOpenWidget(
-				withElementById(Identifiers.WORKBENCH_CONTAINER).getHTMLElement(),
+				withElementById(this.partService.getWorkbenchElementId()).getHTMLElement(),
 				{
 					onOk: () => { /* ignore */ },
 					onCancel: () => { /* ignore */ },

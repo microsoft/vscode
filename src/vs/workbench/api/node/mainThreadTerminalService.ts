@@ -19,13 +19,17 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		this._terminalService = terminalService;
 	}
 
-	public $createTerminal(name?: string): TPromise<number> {
-		return this._terminalService.createNew(name);
+	public $createTerminal(name?: string, shellPath?: string): TPromise<number> {
+		return this._terminalService.createNew(name, shellPath);
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
 		this._terminalService.show(!preserveFocus).then((terminalPanel) => {
 			this._terminalService.setActiveTerminalById(terminalId);
+			if (!preserveFocus) {
+				// If the panel was already showing an explicit focus call is necessary here.
+				terminalPanel.focus();
+			}
 		});
 	}
 

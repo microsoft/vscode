@@ -173,6 +173,9 @@ class ExtHostApiCommands {
 					let href = encodeURI('command:vscode.previewHtml?' + JSON.stringify(someUri));
 					let html = '<a href="' + href + '">Show Resource...</a>.';
 					\`\`\`
+
+					The body element of the displayed html is dynamically annotated with one of the following css classes in order to
+					communicate the kind of color theme vscode is currently using: \`vscode-light\`, \`vscode-dark\`, or \`vscode-high-contrast\'.
 				`,
 			args: [
 				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },

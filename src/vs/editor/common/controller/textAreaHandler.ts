@@ -117,11 +117,8 @@ export class TextAreaHandler extends Disposable {
 			this.textareaIsShownAtCursor = true;
 
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			let shouldEmptyTextArea = true;
-			if (shouldEmptyTextArea) {
-				if (!this.Browser.isEdgeOrIE) {
-					this.setTextAreaState('compositionstart', this.textAreaState.toEmpty());
-				}
+			if (!this.Browser.isEdgeOrIE) {
+				this.setTextAreaState('compositionstart', this.textAreaState.toEmpty());
 			}
 
 			this._onCompositionStart.fire({

@@ -8,7 +8,7 @@ import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IDebugService} from 'vs/workbench/parts/debug/common/debug';
+import {IDebugService, State} from 'vs/workbench/parts/debug/common/debug';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export class DebugSelectActionItem extends SelectActionItem {
@@ -20,15 +20,14 @@ export class DebugSelectActionItem extends SelectActionItem {
 	) {
 		super(null, action, [], -1);
 
-		this.registerConfigurationListeners(configurationService);
-	}
-
-	private registerConfigurationListeners(configurationService: IConfigurationService): void {
 		this.toDispose.push(configurationService.onDidUpdateConfiguration(e => {
 			this.updateOptions(true).done(null, errors.onUnexpectedError);
 		}));
 		this.toDispose.push(this.debugService.getConfigurationManager().onDidConfigurationChange(name => {
 			this.updateOptions(false).done(null, errors.onUnexpectedError);
+		}));
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			this.enabled = state === State.Inactive;
 		}));
 	}
 
@@ -38,14 +37,15 @@ export class DebugSelectActionItem extends SelectActionItem {
 	}
 
 	private updateOptions(changeDebugConfiguration: boolean): TPromise<any> {
-		return this.debugService.getConfigurationManager().loadLaunchConfig().then(config => {
+		const configurationManager = this.debugService.getConfigurationManager();
+		return configurationManager.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations || config.configurations.length === 0) {
 				this.setOptions([nls.localize('noConfigurations', "No Configurations")], 0);
 				return changeDebugConfiguration ? this.actionRunner.run(this._action, null) : null;
 			}
 
 			const configurationNames = config.configurations.filter(cfg => !!cfg.name).map(cfg => cfg.name);
-			const configurationName = this.debugService.getConfigurationManager().configurationName;
+			const configurationName = configurationManager.configuration ? configurationManager.configuration.name : null;
 			let selected = configurationNames.indexOf(configurationName);
 
 			this.setOptions(configurationNames, selected);

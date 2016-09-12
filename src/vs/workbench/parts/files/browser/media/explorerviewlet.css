@@ -11,6 +11,7 @@
 .explorer-viewlet .explorer-item,
 .explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
+	height: 22px;
 	line-height: 22px;
 }
 
@@ -32,6 +33,7 @@
 
 .explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon::before,
 .explorer-viewlet .explorer-folders-view.show-file-icons .file-icon::before {
+
 	/* svg icons rendered as background image */
 	background-size: 16px;
 	background-position: left center;
@@ -42,9 +44,8 @@
 	display: inline-block;
 
 	/* fonts icons */
-	vertical-align: top;
 	-webkit-font-smoothing: antialiased;
-
+	vertical-align: top;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
@@ -94,10 +95,6 @@
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
-}
-
-.explorer-viewlet .explorer-folders-view.show-file-icons .explorer-item .monaco-inputbox {
-	width: calc(100% - 20px); /* accomodate for icons pushing (16px width + 4px padding) */
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
@@ -157,4 +154,15 @@
 .hc-black .monaco-workbench .explorer-viewlet .open-editor,
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
+}
+
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input:focus {
+	outline-offset: -2px !important;
+	outline: 1px solid #f38518 !important;
+	padding-left: 2px; /* push text by the width of the outline offset to prevent overlaying */
+}
+
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox.synthetic-focus {
+	outline: none !important;
+	border: none;
 }

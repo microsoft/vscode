@@ -21,7 +21,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/co
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from './extensions';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
-import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction } from './extensionsActions';
+import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, UpdateAllAction, OpenExtensionsFolderAction } from './extensionsActions';
 import { ExtensionsInput } from './extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
@@ -101,13 +101,19 @@ const listOutdatedActionDescriptor = new SyncActionDescriptor(ShowOutdatedExtens
 actionRegistry.registerWorkbenchAction(listOutdatedActionDescriptor, 'Extensions: Show Outdated Extensions', ExtensionsLabel);
 
 const recommendationsActionDescriptor = new SyncActionDescriptor(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL);
-actionRegistry.registerWorkbenchAction(recommendationsActionDescriptor, `Extensions: ${ ShowRecommendedExtensionsAction.LABEL }`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(recommendationsActionDescriptor, 'Extensions: Show Recommended Extensions', ExtensionsLabel);
 
 const popularActionDescriptor = new SyncActionDescriptor(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL);
-actionRegistry.registerWorkbenchAction(popularActionDescriptor, `Extensions: ${ ShowPopularExtensionsAction.LABEL }`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(popularActionDescriptor, 'Extensions: Show Popular Extensions', ExtensionsLabel);
 
 const installedActionDescriptor = new SyncActionDescriptor(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL);
-actionRegistry.registerWorkbenchAction(installedActionDescriptor, `Extensions: ${ ShowInstalledExtensionsAction.LABEL }`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(installedActionDescriptor, 'Extensions: Show Installed Extensions', ExtensionsLabel);
+
+const updateAllActionDescriptor = new SyncActionDescriptor(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
+actionRegistry.registerWorkbenchAction(updateAllActionDescriptor, 'Extensions: Update All Extensions', ExtensionsLabel);
+
+const openExtensionsFolderActionDescriptor = new SyncActionDescriptor(OpenExtensionsFolderAction, OpenExtensionsFolderAction.ID, OpenExtensionsFolderAction.LABEL);
+actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

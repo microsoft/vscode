@@ -294,6 +294,11 @@ export class MouseTargetFactory {
 				if (lineNumberAttribute && columnAttribute) {
 					return this.createMouseTargetFromViewCursor(t, parseInt(lineNumberAttribute, 10), parseInt(columnAttribute, 10), mouseColumn);
 				}
+			} else {
+				// Hit testing completely failed...
+				let possibleLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(mouseVerticalOffset);
+				let maxColumn = this._context.model.getLineMaxColumn(possibleLineNumber);
+				return new MouseTarget(t, MouseTargetType.CONTENT_EMPTY, mouseColumn, new Position(possibleLineNumber, maxColumn));
 			}
 		}
 
