@@ -111,6 +111,10 @@ class TestEditorInput extends EditorInput {
 	public setDirty(): void {
 		this._onDidChangeDirty.fire();
 	}
+
+	public setLabel(): void {
+		this._onDidChangeLabel.fire();
+	}
 }
 
 class NonSerializableTestEditorInput extends EditorInput {
@@ -1641,7 +1645,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(input1.isDisposed(), false);
 	});
 
-	test('Stack - Multiple Editors - Editor Emits Dirty', function () {
+	test('Stack - Multiple Editors - Editor Emits Dirty and Label Changed', function () {
 		const model = create();
 
 		const group1 = model.openGroup('group1');
@@ -1658,25 +1662,38 @@ suite('Editor Stacks Model', () => {
 			dirtyCounter++;
 		});
 
+		let labelChangeCounter = 0;
+		model.onEditorLabelChange(() => {
+			labelChangeCounter++;
+		});
+
 		(<TestEditorInput>input1).setDirty();
+		(<TestEditorInput>input1).setLabel();
 
 		assert.equal(dirtyCounter, 1);
+		assert.equal(labelChangeCounter, 1);
 
 		(<TestEditorInput>input2).setDirty();
+		(<TestEditorInput>input2).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 
 		group2.closeAllEditors();
 
 		(<TestEditorInput>input2).setDirty();
+		(<TestEditorInput>input2).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 
 		model.closeGroups();
 
 		(<TestEditorInput>input1).setDirty();
+		(<TestEditorInput>input1).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 	});
 
 	test('Groups - Model change events (structural vs state)', function () {
