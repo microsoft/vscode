@@ -419,12 +419,13 @@ export namespace KeyCodeUtils {
 // 13:  1 bit for alt
 // 12:  1 bit for winCtrl
 //  0: 12 bits for keyCode (up to a maximum keyCode of 4096. Given we have 83 at this point thats good enough)
-
-const BIN_CTRLCMD_MASK = 1 << 15;
-const BIN_SHIFT_MASK = 1 << 14;
-const BIN_ALT_MASK = 1 << 13;
-const BIN_WINCTRL_MASK = 1 << 12;
-const BIN_KEYCODE_MASK = 0x00000fff;
+const enum BinaryKeybindingsMask {
+	CtrlCmd = 1 << 15,
+	Shift = 1 << 14,
+	Alt = 1 << 13,
+	WinCtrl = 1 << 12,
+	KeyCode = 0x00000fff
+}
 
 export class BinaryKeybindings {
 
@@ -441,37 +442,33 @@ export class BinaryKeybindings {
 	}
 
 	public static hasCtrlCmd(keybinding:number): boolean {
-		return (keybinding & BIN_CTRLCMD_MASK ? true : false);
+		return (keybinding & BinaryKeybindingsMask.CtrlCmd ? true : false);
 	}
 
 	public static hasShift(keybinding:number): boolean {
-		return (keybinding & BIN_SHIFT_MASK ? true : false);
+		return (keybinding & BinaryKeybindingsMask.Shift ? true : false);
 	}
 
 	public static hasAlt(keybinding:number): boolean {
-		return (keybinding & BIN_ALT_MASK ? true : false);
+		return (keybinding & BinaryKeybindingsMask.Alt ? true : false);
 	}
 
 	public static hasWinCtrl(keybinding:number): boolean {
-		return (keybinding & BIN_WINCTRL_MASK ? true : false);
+		return (keybinding & BinaryKeybindingsMask.WinCtrl ? true : false);
 	}
 
 	public static extractKeyCode(keybinding:number): KeyCode {
-		return (keybinding & BIN_KEYCODE_MASK);
+		return (keybinding & BinaryKeybindingsMask.KeyCode);
 	}
 }
 
 
 
 export class KeyMod {
-	public static CtrlCmd = BIN_CTRLCMD_MASK;
-	public static Shift = BIN_SHIFT_MASK;
-	public static Alt = BIN_ALT_MASK;
-	public static WinCtrl = BIN_WINCTRL_MASK;
-
-	public static chord(firstPart:number, secondPart:number): number {
-		return KeyChord(firstPart, secondPart);
-	}
+	public static CtrlCmd:number = BinaryKeybindingsMask.CtrlCmd;
+	public static Shift:number = BinaryKeybindingsMask.Shift;
+	public static Alt:number = BinaryKeybindingsMask.Alt;
+	public static WinCtrl:number = BinaryKeybindingsMask.WinCtrl;
 }
 
 export function KeyChord(firstPart:number, secondPart:number): number {
