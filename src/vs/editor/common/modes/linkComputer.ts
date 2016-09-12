@@ -6,6 +6,7 @@
 
 import {ILink} from 'vs/editor/common/modes';
 import {CharCode} from 'vs/base/common/charCode';
+import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
@@ -36,61 +37,21 @@ enum CharacterClass {
 	CannotEndIn = 2
 }
 
+const classifier = (function() {
+	let result = new CharacterClassifier(CharacterClass.None);
 
-class CharacterClassifier {
-
-	/**
-	 * Maintain a compact (fully initialized ASCII map for quickly classifying ASCII characters - used more often in code).
-	 */
-	private _asciiMap: CharacterClass[];
-
-	/**
-	 * The entire map (sparse array).
-	 */
-	private _map: CharacterClass[];
-
-	constructor() {
-		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
-		const CANNOT_END_WITH_CHARACTERS = '.,;';
-
-		this._asciiMap = [];
-		for (let i = 0; i < 256; i++) {
-			this._asciiMap[i] = CharacterClass.None;
-		}
-
-		this._map = [];
-
-		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
-			this._set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
-		}
-
-		for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
-			this._set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
-		}
+	const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
+	for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
+		result.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
 	}
 
-	private _set(charCode:number, charClass:CharacterClass): void {
-		if (charCode < 256) {
-			this._asciiMap[charCode] = charClass;
-		}
-		this._map[charCode] = charClass;
+	const CANNOT_END_WITH_CHARACTERS = '.,;';
+	for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
+		result.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
 	}
 
-	public classify(charCode:number): CharacterClass {
-		if (charCode < 256) {
-			return this._asciiMap[charCode];
-		}
-
-		let charClass = this._map[charCode];
-		if (charClass) {
-			return charClass;
-		}
-
-		return CharacterClass.None;
-	}
-}
-
-const characterClassifier = new CharacterClassifier();
+	return result;
+})();
 
 class LinkComputer {
 
@@ -99,7 +60,7 @@ class LinkComputer {
 		let lastIncludedCharIndex = linkEndIndex - 1;
 		do {
 			const chCode = line.charCodeAt(lastIncludedCharIndex);
-			const chClass = characterClassifier.classify(chCode);
+			const chClass = classifier.get(chCode);
 			if (chClass !== CharacterClass.CannotEndIn) {
 				break;
 			}
@@ -160,7 +121,7 @@ class LinkComputer {
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
 						default:
-							chClass = characterClassifier.classify(chCode);
+							chClass = classifier.get(chCode);
 					}
 
 					// Check if character terminates link
@@ -170,7 +131,7 @@ class LinkComputer {
 					}
 				} else if (state === END_STATE) {
 					const chCode = line.charCodeAt(j);
-					const chClass = characterClassifier.classify(chCode);
+					const chClass = classifier.get(chCode);
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
