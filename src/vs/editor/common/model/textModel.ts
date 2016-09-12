@@ -14,6 +14,7 @@ import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
 import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {IndentRange, computeRanges} from 'vs/editor/common/model/indentRanges';
+import {CharCode} from 'vs/base/common/charCode';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
@@ -728,10 +729,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	private static _isMultiline(searchString:string): boolean {
-		const BACKSLASH_CHAR_CODE = '\\'.charCodeAt(0);
-		const n_CHAR_CODE = 'n'.charCodeAt(0);
-		const r_CHAR_CODE = 'r'.charCodeAt(0);
-
 		if (!searchString || searchString.length === 0) {
 			return false;
 		}
@@ -739,7 +736,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		for (let i = 0, len = searchString.length; i < len; i++) {
 			let chCode = searchString.charCodeAt(i);
 
-			if (chCode === BACKSLASH_CHAR_CODE) {
+			if (chCode === CharCode.Backslash) {
 
 				// move to next char
 				i++;
@@ -750,7 +747,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 				}
 
 				let nextChCode = searchString.charCodeAt(i);
-				if (nextChCode === n_CHAR_CODE || nextChCode === r_CHAR_CODE) {
+				if (nextChCode === CharCode.n || nextChCode === CharCode.r) {
 					return true;
 				}
 			}

@@ -16,6 +16,7 @@ import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IElectricAction, IndentAction} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {CharCode} from 'vs/base/common/charCode';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -1528,8 +1529,6 @@ export class OneCursorOp {
 		}
 
 		let selectionContainsOnlyWhitespace = true;
-		let _tab = '\t'.charCodeAt(0);
-		let _space = ' '.charCodeAt(0);
 
 		for (let lineNumber = selection.startLineNumber; lineNumber <= selection.endLineNumber; lineNumber++) {
 			let lineText = cursor.model.getLineContent(lineNumber);
@@ -1537,7 +1536,7 @@ export class OneCursorOp {
 			let endIndex = (lineNumber === selection.endLineNumber ? selection.endColumn - 1 : lineText.length);
 			for (let charIndex = startIndex; charIndex < endIndex; charIndex++) {
 				let charCode = lineText.charCodeAt(charIndex);
-				if (charCode !== _tab && charCode !== _space) {
+				if (charCode !== CharCode.Tab && charCode !== CharCode.Space) {
 					selectionContainsOnlyWhitespace = false;
 
 					// Break outer loop
@@ -2383,6 +2382,7 @@ function once<T, R>(keyFn:(input:T)=>string, computeFn:(input:T)=>R):(input:T)=>
 	};
 }
 
+// TODO@Alex : Extract a fast Character Classifier
 let getMapForWordSeparators = once<string,CharacterClass[]>(
 	(input) => input,
 	(input) => {
@@ -2398,8 +2398,8 @@ let getMapForWordSeparators = once<string,CharacterClass[]>(
 			r[input.charCodeAt(i)] = CharacterClass.WordSeparator;
 		}
 
-		r[' '.charCodeAt(0)] = CharacterClass.Whitespace;
-		r['\t'.charCodeAt(0)] = CharacterClass.Whitespace;
+		r[CharCode.Space] = CharacterClass.Whitespace;
+		r[CharCode.Tab] = CharacterClass.Whitespace;
 
 		return r;
 	}

@@ -11,6 +11,7 @@ import {TokensBinaryEncoding, TokensInflatorMap} from 'vs/editor/common/model/to
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {Token} from 'vs/editor/common/core/token';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
+import {CharCode} from 'vs/base/common/charCode';
 
 const START_INDEX_MASK = TokensBinaryEncoding.START_INDEX_MASK;
 const TYPE_MASK = TokensBinaryEncoding.TYPE_MASK;
@@ -83,9 +84,9 @@ function computePlusOneIndentLevel(line: string, tabSize: number): number {
 
 	while (i < len) {
 		let chCode = line.charCodeAt(i);
-		if (chCode === 32 /*space*/) {
+		if (chCode === CharCode.Space) {
 			indent++;
-		} else if (chCode === 9 /*\t*/) {
+		} else if (chCode === CharCode.Tab) {
 			indent = indent - indent % tabSize + tabSize;
 		} else {
 			break;

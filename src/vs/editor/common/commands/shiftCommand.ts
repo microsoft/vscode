@@ -10,6 +10,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {CharCode} from 'vs/base/common/charCode';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -53,7 +54,6 @@ export class ShiftCommand implements ICommand {
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		let startLine = this._selection.startLineNumber;
 		let endLine = this._selection.endLineNumber;
-		let _SPACE = ' '.charCodeAt(0);
 
 		if (this._selection.endColumn === 1 && startLine !== endLine) {
 			endLine = endLine - 1;
@@ -106,7 +106,7 @@ export class ShiftCommand implements ICommand {
 						extraSpaces = previousLineExtraSpaces;
 						if (enterAction.appendText) {
 							for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
-								if (enterAction.appendText.charCodeAt(j) === _SPACE) {
+								if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
 									extraSpaces++;
 								} else {
 									break;
@@ -119,7 +119,7 @@ export class ShiftCommand implements ICommand {
 
 						// Act as if `prefixSpaces` is not part of the indentation
 						for (let j = 0; j < extraSpaces; j++) {
-							if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== _SPACE) {
+							if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
 								break;
 							}
 							indentationEndIndex--;
