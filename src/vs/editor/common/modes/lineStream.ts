@@ -350,7 +350,7 @@ export class LineStream implements IStream {
 			tokenStart++;
 		}
 
-		var tokenEnd = tokenStart;
+		let tokenEnd = tokenStart;
 		// If a separator is hit, it is a token
 		if (separatorsArr.contains(source.charCodeAt(tokenEnd)) && tokenEnd < sourceLength) {
 			tokenEnd++;

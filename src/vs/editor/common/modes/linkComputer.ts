@@ -5,6 +5,7 @@
 'use strict';
 
 import {ILink} from 'vs/editor/common/modes';
+import {CharCode} from 'vs/base/common/charCode';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
@@ -35,12 +36,6 @@ enum CharacterClass {
 	CannotEndIn = 2
 }
 
-const _openParens = '('.charCodeAt(0);
-const _closeParens = ')'.charCodeAt(0);
-const _openSquareBracket = '['.charCodeAt(0);
-const _closeSquareBracket = ']'.charCodeAt(0);
-const _openCurlyBracket = '{'.charCodeAt(0);
-const _closeCurlyBracket = '}'.charCodeAt(0);
 
 class CharacterClassifier {
 
@@ -143,25 +138,25 @@ class LinkComputer {
 					const chCode = line.charCodeAt(j);
 					let chClass:CharacterClass;
 					switch (chCode) {
-						case _openParens:
+						case CharCode.OpenParen:
 							hasOpenParens = true;
 							chClass = CharacterClass.None;
 							break;
-						case _closeParens:
+						case CharCode.CloseParen:
 							chClass = (hasOpenParens ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
-						case _openSquareBracket:
+						case CharCode.OpenSquareBracket:
 							hasOpenSquareBracket = true;
 							chClass = CharacterClass.None;
 							break;
-						case _closeSquareBracket:
+						case CharCode.CloseSquareBracket:
 							chClass = (hasOpenSquareBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
-						case _openCurlyBracket:
+						case CharCode.OpenCurlyBrace:
 							hasOpenCurlyBracket = true;
 							chClass = CharacterClass.None;
 							break;
-						case _closeCurlyBracket:
+						case CharCode.CloseCurlyBrace:
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
 						default:

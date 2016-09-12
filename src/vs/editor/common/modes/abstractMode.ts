@@ -106,7 +106,7 @@ export abstract class AbstractMode implements modes.IMode {
 	}
 
 	public setTokenizationSupport<T>(callback:(mode:modes.IMode) => T) : IDisposable {
-		var supportImpl = callback(this);
+		let supportImpl = callback(this);
 		this['tokenizationSupport'] = supportImpl;
 		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
 
@@ -172,7 +172,7 @@ class SimplifiedMode implements modes.IMode {
 }
 
 export function isDigit(character:string, base:number): boolean {
-	var c = character.charCodeAt(0);
+	let c = character.charCodeAt(0);
 	switch (base) {
 		case 1:
 			return c === CharCode.Digit0;
