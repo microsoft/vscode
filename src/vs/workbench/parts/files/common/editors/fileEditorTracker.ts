@@ -135,8 +135,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 			// File Editor Input
 			if (input instanceof FileEditorInput) {
-				const fileInput = <FileEditorInput>input;
-				const fileInputResource = fileInput.getResource();
+				const fileInputResource = input.getResource();
 
 				// Input got added or updated, so check for model and update
 				// Note: we also consider the added event because it could be that a file was added
@@ -192,7 +191,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			input = (<DiffEditorInput>input).modifiedInput;
 		}
 
-		return input instanceof FileEditorInput && (<FileEditorInput>input).getResource().toString() === resource.toString();
+		return input instanceof FileEditorInput && input.getResource().toString() === resource.toString();
 	}
 
 	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, deletedResource: URI): FileEditorInput;
@@ -245,13 +244,13 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			if (input instanceof DiffEditorInput) {
 				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, resource);
 				if (input instanceof FileEditorInput) {
-					inputsContainingPath.push(<FileEditorInput>input);
+					inputsContainingPath.push(input);
 				}
 			}
 
 			// File Editor Input
 			else if (input instanceof FileEditorInput && this.containsResource(<FileEditorInput>input, resource)) {
-				inputsContainingPath.push(<FileEditorInput>input);
+				inputsContainingPath.push(input);
 			}
 		});
 
@@ -281,7 +280,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private containsResource(input: EditorInput, resource: URI): boolean {
 		let fileResource: URI;
 		if (input instanceof FileEditorInput) {
-			fileResource = (<FileEditorInput>input).getResource();
+			fileResource = input.getResource();
 		}
 
 		if (paths.isEqualOrParent(fileResource.fsPath, resource.fsPath)) {
