@@ -216,9 +216,9 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private createProcess(workspace: IWorkspace, name?: string, shell?: IShell) {
+	private createProcess(workspace: IWorkspace, name: string, shell: IShell) {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
-		if (!shell) {
+		if (!shell.executable) {
 			shell = this.configHelper.getShell();
 		}
 		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
@@ -252,9 +252,11 @@ export class TerminalInstance implements ITerminalInstance {
 		let env = TerminalInstance.cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
-		shell.args.forEach((arg, i) => {
-			env[`PTYSHELLARG${i}`] = arg;
-		});
+		if (shell.args) {
+			shell.args.forEach((arg, i) => {
+				env[`PTYSHELLARG${i}`] = arg;
+			});
+		}
 		env['PTYCWD'] = TerminalInstance.sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
 		if (locale) {
 			env['LANG'] = TerminalInstance.getLangEnvVariable(locale);
