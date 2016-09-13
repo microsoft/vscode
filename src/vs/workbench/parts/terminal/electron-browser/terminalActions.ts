@@ -47,6 +47,9 @@ export class KillTerminalAction extends Action {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			this.terminalService.getActiveInstance().dispose();
+			if (this.terminalService.terminalInstances.length > 0) {
+				this.terminalService.showPanel(true);
+			}
 		}
 		return TPromise.as(void 0);
 	}
