@@ -155,7 +155,12 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$registerNavigateTypeSupport(handle: number): TPromise<any> {
 		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
 			provideWorkspaceSymbols: (search: string): TPromise<IWorkspaceSymbol[]> => {
-				return this._proxy.$provideWorkspaceSymbols(handle, search);
+				return this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
+					for (const item of result) {
+						trackGarbageCollection(item, ObjectIdentifier.get(item));
+					}
+					return result;
+				});
 			},
 			resolveWorkspaceSymbol: (item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> => {
 				return this._proxy.$resolveWorkspaceSymbol(handle, item);
