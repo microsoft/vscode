@@ -17,7 +17,7 @@ import {Scope} from 'vs/workbench/common/memento';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
 import {VIEWLET_ID, TEXT_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {EditorInput, EditorOptions, TextEditorOptions, EditorModel} from 'vs/workbench/common/editor';
+import {EditorOptions, TextEditorOptions, EditorModel} from 'vs/workbench/common/editor';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -81,7 +81,11 @@ export class TextFileEditor extends BaseTextEditor {
 		return this.getInput() ? this.getInput().getName() : nls.localize('textFileEditor', "Text File Editor");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	public getInput(): FileEditorInput {
+		return <FileEditorInput>super.getInput();
+	}
+
+	public setInput(input: FileEditorInput, options: EditorOptions): TPromise<void> {
 		const oldInput = this.getInput();
 		super.setInput(input, options);
 
@@ -109,7 +113,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Remember view settings if input changes
 		if (oldInput) {
-			this.saveTextEditorViewState(this.storageService, (<FileEditorInput>oldInput).getResource().toString());
+			this.saveTextEditorViewState(this.storageService, oldInput.getResource().toString());
 		}
 
 		// Different Input (Reload)
@@ -118,8 +122,8 @@ export class TextFileEditor extends BaseTextEditor {
 			// There is a special case where the text editor has to handle binary file editor input: if a file with application/unknown
 			// mime has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
 			// editor has to open this model using the binary editor. We return early in this case.
-			if (resolvedModel instanceof BinaryEditorModel && this.openAsBinary(input, options)) {
-				return null;
+			if (resolvedModel instanceof BinaryEditorModel) {
+				return this.openAsBinary(input, options);
 			}
 
 			// Assert Model interface
@@ -132,7 +136,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			const hasInput = !!this.getInput();
 			const modelDisposed = textFileModel.isDisposed();
-			const inputChanged = (<FileEditorInput>this.getInput()).getResource().toString() !== textFileModel.getResource().toString();
+			const inputChanged = hasInput && this.getInput().getResource().toString() !== textFileModel.getResource().toString();
 			if (
 				!hasInput ||		// editor got hidden meanwhile
 				modelDisposed || 	// input got disposed meanwhile
@@ -153,7 +157,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Otherwise restore View State
 			if (!optionsGotApplied) {
-				const editorViewState = this.loadTextEditorViewState(this.storageService, (<FileEditorInput>this.getInput()).getResource().toString());
+				const editorViewState = this.loadTextEditorViewState(this.storageService, this.getInput().getResource().toString());
 				if (editorViewState) {
 					textEditor.restoreViewState(editorViewState);
 				}
@@ -163,8 +167,8 @@ export class TextFileEditor extends BaseTextEditor {
 			// In case we tried to open a file inside the text editor and the response
 			// indicates that this is not a text file, reopen the file through the binary
 			// editor by using application/octet-stream as mime.
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY && this.openAsBinary(input, options)) {
-				return;
+			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY) {
+				return this.openAsBinary(input, options);
 			}
 
 			// Similar, handle case where we were asked to open a folder in the text editor.
@@ -173,15 +177,15 @@ export class TextFileEditor extends BaseTextEditor {
 			}
 
 			// Offer to create a file from the error if we have a file not found and the name is valid
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
+			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename(input.getResource().fsPath))) {
 				return TPromise.wrapError(errors.create(toErrorMessage(error), {
 					actions: [
 						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
-							return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
+							return this.fileService.updateContent(input.getResource(), '').then(() => {
 
 								// Open
 								return this.editorService.openEditor({
-									resource: (<FileEditorInput>input).getResource(),
+									resource: input.getResource(),
 									mime: MIME_TEXT,
 									options: {
 										pinned: true // new file gets pinned by default
@@ -199,34 +203,21 @@ export class TextFileEditor extends BaseTextEditor {
 		});
 	}
 
-	private openAsBinary(input: EditorInput, options: EditorOptions): boolean {
-		if (input instanceof FileEditorInput) {
-			const fileEditorInput = <FileEditorInput>input;
-
-			const fileInputBinary = this.instantiationService.createInstance(FileEditorInput, fileEditorInput.getResource(), MIME_BINARY, void 0);
-			this.editorService.openEditor(fileInputBinary, options, this.position).done(null, errors.onUnexpectedError);
-
-			return true;
-		}
-
-		return false;
+	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
+		const fileInputBinary = this.instantiationService.createInstance(FileEditorInput, input.getResource(), MIME_BINARY, void 0);
+		this.editorService.openEditor(fileInputBinary, options, this.position).done(null, errors.onUnexpectedError);
 	}
 
-	private openAsFolder(input: EditorInput): boolean {
+	private openAsFolder(input: FileEditorInput): boolean {
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
 		this.editorService.closeEditor(this.position, this.input).done(() => {
 
 			// Best we can do is to reveal the folder in the explorer
-			if (input instanceof FileEditorInput) {
-				const fileEditorInput = <FileEditorInput>input;
-
-				// Reveal if we have a workspace path
-				if (this.contextService.isInsideWorkspace(fileEditorInput.getResource())) {
-					this.viewletService.openViewlet(VIEWLET_ID, true).done((viewlet: ExplorerViewlet) => {
-						return viewlet.getExplorerView().select(fileEditorInput.getResource(), true);
-					}, errors.onUnexpectedError);
-				}
+			if (this.contextService.isInsideWorkspace(input.getResource())) {
+				this.viewletService.openViewlet(VIEWLET_ID, true).done((viewlet: ExplorerViewlet) => {
+					return viewlet.getExplorerView().select(input.getResource(), true);
+				}, errors.onUnexpectedError);
 			}
 		}, errors.onUnexpectedError);
 
@@ -298,7 +289,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Keep editor view state in settings to restore when coming back
 		if (this.input) {
-			this.saveTextEditorViewState(this.storageService, (<FileEditorInput>this.input).getResource().toString());
+			this.saveTextEditorViewState(this.storageService, this.getInput().getResource().toString());
 		}
 
 		// Clear Model
@@ -312,7 +303,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Save View State
 		if (this.input) {
-			this.saveTextEditorViewState(this.storageService, (<FileEditorInput>this.input).getResource().toString());
+			this.saveTextEditorViewState(this.storageService, this.getInput().getResource().toString());
 		}
 
 		// Call Super
