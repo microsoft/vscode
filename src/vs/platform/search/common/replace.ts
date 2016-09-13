@@ -7,9 +7,6 @@ import * as strings from 'vs/base/common/strings';
 import {IPatternInfo} from 'vs/platform/search/common/search';
 import {CharCode} from 'vs/base/common/charCode';
 
-const BACK_TICK_CHAR_CODE = '`'.charCodeAt(0);
-const SINGLE_QUOTE_CHAR_CODE = '`'.charCodeAt(0);
-
 export class ReplacePattern {
 
 	private _replacePattern: string;
@@ -138,8 +135,8 @@ export class ReplacePattern {
 						replaceWithCharacter = '$&';
 						this._hasParameters = true;
 						break;
-					case BACK_TICK_CHAR_CODE:
-					case SINGLE_QUOTE_CHAR_CODE:
+					case CharCode.BackTick:
+					case CharCode.SingleQuote:
 						this._hasParameters = true;
 						break;
 					default:

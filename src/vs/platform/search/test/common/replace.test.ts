@@ -73,6 +73,9 @@ suite('Replace Pattern test', () => {
 		// $0 => $&
 		testParse('hello$0', 'hello$&', true);
 		testParse('hello$02', 'hello$&2', true);
+
+		testParse('hello$`', 'hello$`', true);
+		testParse('hello$\'', 'hello$\'', true);
 	});
 
 	test('create pattern by passing regExp', () => {
