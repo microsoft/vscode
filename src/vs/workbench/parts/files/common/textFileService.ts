@@ -9,7 +9,6 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import Event, {Emitter} from 'vs/base/common/event';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, ITextFileEditorModelManager} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
@@ -475,14 +474,8 @@ export abstract class TextFileService implements ITextFileService {
 				}
 			}, error => {
 
-				// FileNotFound means the file got deleted meanwhile, so dispose
+				// FileNotFound means the file got deleted meanwhile, so still record as successful revert
 				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-
-					// Inputs
-					const clients = FileEditorInput.getAll(model.getResource());
-					clients.forEach(input => input.dispose());
-
-					// store as successful revert
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}
 
