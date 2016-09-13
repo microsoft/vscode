@@ -14,7 +14,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalInstance, ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 
 export class TerminalService implements ITerminalService {
@@ -51,7 +51,11 @@ export class TerminalService implements ITerminalService {
 		this._configHelper = <TerminalConfigHelper>this.instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 	}
 
-	public createInstance(name?: string, shellPath?: string): ITerminalInstance {
+	public createInstance(name?: string, shellPath?: string, shellArgs?: string[]): ITerminalInstance {
+		let shell: IShell = {
+			executable: shellPath,
+			args: shellArgs
+		};
 		let terminalInstance = <TerminalInstance>this.instantiationService.createInstance(TerminalInstance,
 			this.terminalFocusContextKey,
 			this.onTerminalInstanceDispose.bind(this),
@@ -59,7 +63,7 @@ export class TerminalService implements ITerminalService {
 			this.terminalContainer,
 			this.workspaceContextService.getWorkspace(),
 			name,
-			shellPath);
+			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
