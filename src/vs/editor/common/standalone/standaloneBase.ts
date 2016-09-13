@@ -11,8 +11,17 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
+
+// --------------------------------------------
+// This is repeated here so it can be exported
+// --------------------------------------------
+export enum Severity {
+	Ignore = 0,
+	Info = 1,
+	Warning = 2,
+	Error = 3,
+}
 
 // --------------------------------------------
 // This is repeated here so it can be exported
