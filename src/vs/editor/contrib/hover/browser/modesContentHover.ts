@@ -7,6 +7,7 @@
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {$} from 'vs/base/browser/dom';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
@@ -244,7 +245,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				.forEach(contents => {
 					const renderedContents = renderMarkedString(contents, {
 						actionCallback: (content) => {
-							this._openerService.open(URI.parse(content));
+							this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 						},
 						codeBlockRenderer: (modeId, value): string | TPromise<string> => {
 							const mode = this._modeService.getMode(modeId || this._editor.getModel().getModeId());
