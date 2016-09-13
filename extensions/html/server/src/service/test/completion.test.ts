@@ -60,8 +60,8 @@ let testCompletionFor = function (value: string, expected: { count?: number, ite
 
 	let document = TextDocument.create('test://test/test.html', 'html', 0, value);
 	let position = document.positionAt(offset);
-	let jsonDoc = ls.parseHTMLDocument(document);
-	return asPromise(ls.doComplete(document, position, jsonDoc)).then(list => {
+	let htmlDoc = ls.parseHTMLDocument(document);
+	return asPromise(ls.doComplete(document, position, htmlDoc)).then(list => {
 		try {
 			if (expected.count) {
 				assert.equal(list.items, expected.count);

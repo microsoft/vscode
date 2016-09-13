@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import { parse} from './parser/htmlParser';
-import { doComplete } from './services/htmlCompletion';
-import { format } from './services/htmlFormatter';
-import { TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, FormattingOptions, MarkedString } from 'vscode-languageserver-types';
+import {parse} from './parser/htmlParser';
+import {doComplete} from './services/htmlCompletion';
+import {format} from './services/htmlFormatter';
+import {findDocumentHighlights} from './services/htmlHighlighting';
+import {TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, DocumentHighlight, FormattingOptions, MarkedString } from 'vscode-languageserver-types';
 
-export { TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, FormattingOptions, MarkedString };
+export {TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, DocumentHighlight, FormattingOptions, MarkedString };
 
 
 export interface HTMLFormatConfiguration {
@@ -35,10 +36,8 @@ export interface LanguageService {
 	configure(settings: LanguageSettings): void;
 	parseHTMLDocument(document: TextDocument): HTMLDocument;
 	doValidation(document: TextDocument, htmlDocument: HTMLDocument): Diagnostic[];
-
-//	doResolve(item: CompletionItem): CompletionItem;
-	doComplete(document: TextDocument, position: Position, doc: HTMLDocument): CompletionList;
-//	findDocumentSymbols(document: TextDocument, doc: HTMLDocument): SymbolInformation[];
+	findDocumentHighlights(document: TextDocument, position: Position, htmlDocument: HTMLDocument): DocumentHighlight[];
+	doComplete(document: TextDocument, position: Position, htmlDocument: HTMLDocument): CompletionList;
 //	doHover(document: TextDocument, position: Position, doc: HTMLDocument): Hover;
 	format(document: TextDocument, range: Range, options: HTMLFormatConfiguration): TextEdit[];
 }
@@ -46,10 +45,10 @@ export interface LanguageService {
 export function getLanguageService() : LanguageService {
 	return {
 		doValidation: (document, htmlDocument) => { return []; },
-
 		configure: (settings) => {},
 		parseHTMLDocument: (document) => parse(document.getText()),
 		doComplete,
-		format
+		format,
+		findDocumentHighlights
 	};
 }
