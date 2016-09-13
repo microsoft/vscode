@@ -6,10 +6,26 @@
 import {parse} from './parser/htmlParser';
 import {doComplete} from './services/htmlCompletion';
 import {format} from './services/htmlFormatter';
+import {provideLinks} from './services/htmlLinks';
 import {findDocumentHighlights} from './services/htmlHighlighting';
 import {TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, DocumentHighlight, FormattingOptions, MarkedString } from 'vscode-languageserver-types';
 
 export {TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, DocumentHighlight, FormattingOptions, MarkedString };
+
+
+export class DocumentLink {
+
+	/**
+	 * The range this link applies to.
+	 */
+	range: Range;
+
+	/**
+	 * The uri this link points to.
+	 */
+	target: string;
+
+}
 
 
 export interface HTMLFormatConfiguration {
@@ -38,8 +54,8 @@ export interface LanguageService {
 	doValidation(document: TextDocument, htmlDocument: HTMLDocument): Diagnostic[];
 	findDocumentHighlights(document: TextDocument, position: Position, htmlDocument: HTMLDocument): DocumentHighlight[];
 	doComplete(document: TextDocument, position: Position, htmlDocument: HTMLDocument): CompletionList;
-//	doHover(document: TextDocument, position: Position, doc: HTMLDocument): Hover;
 	format(document: TextDocument, range: Range, options: HTMLFormatConfiguration): TextEdit[];
+	provideLinks(document: TextDocument, workspacePath:string): DocumentLink[];
 }
 
 export function getLanguageService() : LanguageService {
@@ -49,6 +65,7 @@ export function getLanguageService() : LanguageService {
 		parseHTMLDocument: (document) => parse(document.getText()),
 		doComplete,
 		format,
-		findDocumentHighlights
+		findDocumentHighlights,
+		provideLinks
 	};
 }
