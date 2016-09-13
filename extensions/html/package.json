@@ -11,7 +11,6 @@
 			"mimetypes": ["text/html", "text/x-jshtm", "text/template", "text/ng-template", "application/xhtml+xml"]
 		}],
 		"grammars": [{
-			/* "language": "html", not yet enabled*/
 			"scopeName": "text.html.basic",
 			"path": "./syntaxes/HTML.plist"
 		}]
