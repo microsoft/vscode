@@ -243,7 +243,7 @@ export function colorizeModelLine(model:IModel, lineNumber:number, tabSize:numbe
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
 		// methods
-		create: create,
+		create: <any>create,
 		createDiffEditor: createDiffEditor,
 		createDiffNavigator: createDiffNavigator,
 

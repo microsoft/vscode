@@ -74,7 +74,7 @@ const options: minimist.Opts = {
 
 function validate(args: ParsedArgs): ParsedArgs {
 	if (args.goto) {
-		args._.forEach(arg => assert(/^[^:]+(:\d+){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:COLUMN))`.")));
+		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:COLUMN))`.")));
 	}
 
 	return args;

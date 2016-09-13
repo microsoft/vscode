@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { CommonKeybindings, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -140,10 +140,10 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 	// Action toolbar is swallowing some keys for action items which should not be for an input box
 	private handleKeyboardEvent(e: IKeyboardEvent) {
 		switch (e.keyCode) {
-			case CommonKeybindings.SPACE:
-			case CommonKeybindings.LEFT_ARROW:
-			case CommonKeybindings.RIGHT_ARROW:
-			case CommonKeybindings.ESCAPE:
+			case KeyCode.Space:
+			case KeyCode.LeftArrow:
+			case KeyCode.RightArrow:
+			case KeyCode.Escape:
 				e.stopPropagation();
 				break;
 		}

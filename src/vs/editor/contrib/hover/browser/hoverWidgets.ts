@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {toggleClass} from 'vs/base/browser/dom';
 import {Position} from 'vs/editor/common/core/position';
@@ -56,7 +56,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._containerDomNode.appendChild(this.scrollbar.getDomNode());
 
 		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
-			if (e.equals(CommonKeybindings.ESCAPE)) {
+			if (e.equals(KeyCode.Escape)) {
 				this.hide();
 			}
 		});

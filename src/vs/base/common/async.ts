@@ -27,7 +27,7 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	let source = new CancellationTokenSource();
 	return new TPromise<T>((resolve, reject, progress) => {
 		let item = callback(source.token);
-		if (TPromise.is(item)) {
+		if (item instanceof TPromise) {
 			item.then(resolve, reject, progress);
 		} else if (isThenable<T>(item)) {
 			item.then(resolve, reject);

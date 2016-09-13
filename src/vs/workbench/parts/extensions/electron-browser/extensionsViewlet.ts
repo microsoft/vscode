@@ -10,10 +10,11 @@ import { localize } from 'vs/nls';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError, create as createError } from 'vs/base/common/errors';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { assign } from 'vs/base/common/objects';
-import EventOf, { mapEvent, filterEvent } from 'vs/base/common/event';
+import EventOf, { mapEvent, chain } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -28,7 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
+import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from './extensions';
 import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
@@ -41,6 +42,7 @@ import { IMessageService, CloseAction } from 'vs/platform/message/common/message
 import Severity from 'vs/base/common/severity';
 import { IURLService } from 'vs/platform/url/common/url';
 import URI from 'vs/base/common/uri';
+import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -76,8 +78,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
-		const onOpenExtensionUrl = filterEvent(urlService.onOpenURL, uri => /^extension/.test(uri.path));
-		onOpenExtensionUrl(this.onOpenExtensionUrl, this, this.disposables);
+		chain(urlService.onOpenURL)
+			.filter(uri => /^extension/.test(uri.path))
+			.on(this.onOpenExtensionUrl, this, this.disposables);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
@@ -99,29 +102,25 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
 
-		const onRawKeyDown = domEvent(this.searchBox, 'keydown');
-		const onKeyDown = mapEvent(onRawKeyDown, e => new StandardKeyboardEvent(e));
-		const onEnter = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Enter);
-		const onEscape = filterEvent(onKeyDown, e => e.keyCode === KeyCode.Escape);
-		const onUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow);
-		const onDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow);
-		const onPageUpArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageUp);
-		const onPageDownArrow = filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageDown);
+		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e));
 
-		onEnter(this.onEnter, this, this.disposables);
-		onEscape(this.onEscape, this, this.disposables);
-		onUpArrow(this.onUpArrow, this, this.disposables);
-		onDownArrow(this.onDownArrow, this, this.disposables);
-		onPageUpArrow(this.onPageUpArrow, this, this.disposables);
-		onPageDownArrow(this.onPageDownArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
 
 		const onSearchInput = domEvent(this.searchBox, 'input') as EventOf<SearchInputEvent>;
 		onSearchInput(e => this.triggerSearch(e.target.value, e.immediate), null, this.disposables);
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		const onSelectedExtension = filterEvent(mapEvent(this.list.onSelectionChange, e => e.elements[0]), e => !!e);
-		onSelectedExtension(this.openExtension, this, this.disposables);
+		chain(this.list.onSelectionChange)
+			.map(e => e.elements[0])
+			.filter(e => !!e)
+			.on(this.openExtension, this, this.disposables);
 
 		return TPromise.as(null);
 	}
@@ -359,5 +358,41 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
+	}
+}
+
+export class StatusUpdater implements IWorkbenchContribution {
+
+	private disposables: IDisposable[];
+
+	constructor(
+		@IActivityService private activityService: IActivityService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
+	}
+
+	getId(): string {
+		return 'vs.extensions.statusupdater';
+	}
+
+	private onServiceChange(): void {
+		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
+			this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
+			return;
+		}
+
+		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
+
+		if (outdated > 0) {
+			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+		} else {
+			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+		}
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

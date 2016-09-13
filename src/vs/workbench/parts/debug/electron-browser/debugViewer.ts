@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
@@ -137,8 +137,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	});
 
 	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
-		const isEscape = e.equals(CommonKeybindings.ESCAPE);
-		const isEnter = e.equals(CommonKeybindings.ENTER);
+		const isEscape = e.equals(KeyCode.Escape);
+		const isEnter = e.equals(KeyCode.Enter);
 		if (isEscape || isEnter) {
 			wrapUp(isEnter);
 		}
@@ -167,10 +167,10 @@ export class BaseDebugController extends treedefaults.DefaultController {
 		super();
 
 		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DELETE, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
 		}
 	}
 
@@ -699,7 +699,7 @@ export class VariablesController extends BaseDebugController {
 
 	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: renderer.IActionProvider) {
 		super(debugService, contextMenuService, actionProvider);
-		this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.setSelectedExpression.bind(this));
+		this.downKeyBindingDispatcher.set(KeyCode.Enter, this.setSelectedExpression.bind(this));
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
@@ -924,9 +924,9 @@ export class WatchExpressionsController extends BaseDebugController {
 		super(debugService, contextMenuService, actionProvider);
 
 		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onRename.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.F2, this.onRename.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
 		}
 	}
 
@@ -1230,9 +1230,9 @@ export class BreakpointsController extends BaseDebugController {
 	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: renderer.IActionProvider) {
 		super(debugService, contextMenuService, actionProvider);
 		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onRename.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.F2, this.onRename.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
 		}
 	}
 

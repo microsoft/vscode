@@ -632,7 +632,6 @@ export interface ITreeOptions {
 	verticalScrollMode?: ScrollbarVisibility;
 	alwaysFocused?: boolean;
 	autoExpandSingleChildren?: boolean;
-	bare?:boolean;
 	useShadows?:boolean;
 	paddingOnRow?:boolean;
 	ariaLabel?:string;

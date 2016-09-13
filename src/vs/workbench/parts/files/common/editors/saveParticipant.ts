@@ -6,24 +6,23 @@
 'use strict';
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {TextFileChangeEvent, EventType} from 'vs/workbench/parts/files/common/files';
+import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
+import {ISaveParticipant, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IPosition, IModel} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
+import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 
 // The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
-export class SaveParticipant implements IWorkbenchContribution {
+export class SaveParticipant implements ISaveParticipant, IWorkbenchContribution {
 	private trimTrailingWhitespace: boolean;
 	private toUnbind: IDisposable[];
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEventService private eventService: IEventService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService
 	) {
 		this.toUnbind = [];
@@ -31,10 +30,16 @@ export class SaveParticipant implements IWorkbenchContribution {
 
 		this.registerListeners();
 		this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>());
+
+		// Hook into model
+		TextFileEditorModel.setSaveParticipant(this);
+	}
+
+	public getId(): string {
+		return 'vs.files.saveparticipant';
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_SAVING, (e: TextFileChangeEvent) => this.onTextFileSaving(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 	}
 
@@ -42,21 +47,12 @@ export class SaveParticipant implements IWorkbenchContribution {
 		this.trimTrailingWhitespace = configuration && configuration.files && configuration.files.trimTrailingWhitespace;
 	}
 
-	public getId(): string {
-		return 'vs.files.saveparticipant';
-	}
-
-	private onTextFileSaving(e: TextFileChangeEvent): void {
-
-		// Trim Trailing Whitespace if enabled
+	public participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): void {
 		if (this.trimTrailingWhitespace) {
-			this.doTrimTrailingWhitespace(e.model, e.isAutoSaved);
+			this.doTrimTrailingWhitespace(model.textEditorModel, env.isAutoSaved);
 		}
 	}
 
-	/**
-	 * Trim trailing whitespace on a model and ignore lines on which cursors are sitting if triggered via auto save.
-	 */
 	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
 		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
 		const cursors: IPosition[] = [];

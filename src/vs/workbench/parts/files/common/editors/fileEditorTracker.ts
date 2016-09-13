@@ -57,10 +57,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 
-		// Update editors and inputs from local changes and saves
+		// Update editors from local changes and saves
 		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
 
-		// Update editors and inputs from disk changes
+		// Update editors from disk changes
 		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
 
 		// Lifecycle
@@ -79,13 +79,6 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			const after = e.getAfter();
 
 			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
-		}
-
-		// Dispose all known inputs passed on resource if deleted or moved
-		const oldFile = e.getBefore();
-		const movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
-		if (e.gotMoved() || e.gotDeleted()) {
-			this.handleDeleteOrMove(oldFile.resource, movedTo);
 		}
 	}
 
@@ -107,8 +100,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						}
 
 						// Reopen
-						const editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
-						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor({ resource: reopenFileResource, mime: mimeHint || MIME_UNKNOWN, options: { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) } }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
 				}
 			});
@@ -116,11 +108,6 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
-
-		// Dispose inputs that got deleted
-		e.getDeleted().forEach(deleted => {
-			this.handleDeleteOrMove(deleted.resource);
-		});
 
 		// Handle updates to visible editors
 		this.handleUpdatesToVisibleEditors(e);
@@ -136,8 +123,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 			// File Editor Input
 			if (input instanceof FileEditorInput) {
-				const fileInput = <FileEditorInput>input;
-				const fileInputResource = fileInput.getResource();
+				const fileInputResource = input.getResource();
 
 				// Input got added or updated, so check for model and update
 				// Note: we also consider the added event because it could be that a file was added
@@ -193,7 +179,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			input = (<DiffEditorInput>input).modifiedInput;
 		}
 
-		return input instanceof FileEditorInput && (<FileEditorInput>input).getResource().toString() === resource.toString();
+		return input instanceof FileEditorInput && input.getResource().toString() === resource.toString();
 	}
 
 	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, deletedResource: URI): FileEditorInput;
@@ -231,58 +217,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return null;
 	}
 
-	private handleDeleteOrMove(resource: URI, movedTo?: URI): void {
-		if (this.textFileService.isDirty(resource)) {
-			return; // never dispose dirty resources from a delete
-		}
-
-		// Add existing clients matching resource
-		const inputsContainingPath: EditorInput[] = FileEditorInput.getAll(resource);
-
-		// Collect from history and opened editors and see which ones to pick
-		const candidates = this.historyService.getHistory();
-		this.stacks.groups.forEach(group => candidates.push(...group.getEditors()));
-		candidates.forEach(input => {
-			if (input instanceof DiffEditorInput) {
-				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, resource);
-				if (input instanceof FileEditorInput) {
-					inputsContainingPath.push(<FileEditorInput>input);
-				}
-			}
-
-			// File Editor Input
-			else if (input instanceof FileEditorInput && this.containsResource(<FileEditorInput>input, resource)) {
-				inputsContainingPath.push(<FileEditorInput>input);
-			}
-		});
-
-		inputsContainingPath.forEach(input => {
-			if (input.isDirty()) {
-				return; // never dispose dirty resources from a delete
-			}
-
-			// Special case: a resource was renamed to the same path with different casing. Since our paths
-			// API is treating the paths as equal (they are on disk), we end up disposing the input we just
-			// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
-			if (input instanceof FileEditorInput && movedTo && movedTo.fsPath === input.getResource().fsPath) {
-				return;
-			}
-
-			// Editor History
-			this.historyService.remove(input);
-
-			// Dispose Input
-			if (!input.isDisposed()) {
-				input.dispose();
-			}
-		});
-	}
-
 	private containsResource(input: FileEditorInput, resource: URI): boolean;
 	private containsResource(input: EditorInput, resource: URI): boolean {
 		let fileResource: URI;
 		if (input instanceof FileEditorInput) {
-			fileResource = (<FileEditorInput>input).getResource();
+			fileResource = input.getResource();
 		}
 
 		if (paths.isEqualOrParent(fileResource.fsPath, resource.fsPath)) {

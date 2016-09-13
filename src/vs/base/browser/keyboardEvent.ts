@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyCodeUtils, KeyMod} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
@@ -161,7 +161,7 @@ let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
-		return KeyCode.fromString(char);
+		return KeyCodeUtils.fromString(char);
 	}
 	return lookupKeyCode(e);
 };

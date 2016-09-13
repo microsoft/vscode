@@ -51,22 +51,22 @@ suite('Workbench - StringEditorInput', () => {
 		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 
 		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
-		editorService.resolveEditorModel(input, true).then(function (resolved) {
+		editorService.resolveEditorModel(input, true).then(resolved => {
 			let resolvedModelA = resolved;
-			return editorService.resolveEditorModel(input, true).then(function (resolved) {
+			return editorService.resolveEditorModel(input, true).then(resolved => {
 				assert(resolvedModelA === resolved); // assert: Resolved Model cached per instance
 
 				let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
-				return editorService.resolveEditorModel(otherInput, true).then(function (resolved) {
+				return editorService.resolveEditorModel(otherInput, true).then(resolved => {
 					assert(resolvedModelA !== resolved); // NOT assert: Different instance, different model
 
 					input.dispose();
 
-					return editorService.resolveEditorModel(input, true).then(function (resolved) {
+					return editorService.resolveEditorModel(input, true).then(resolved => {
 						assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
 						let model = (<any>resolved).textEditorModel;
-						return editorService.resolveEditorModel(input, true).then(function (againResolved) {
+						return editorService.resolveEditorModel(input, true).then(againResolved => {
 							assert(model === (<any>againResolved).textEditorModel); // Models should not differ because string input is constant
 
 							input.dispose();

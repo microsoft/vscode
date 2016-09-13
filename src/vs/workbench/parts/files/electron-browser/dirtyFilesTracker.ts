@@ -8,10 +8,9 @@
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {VIEWLET_ID, TextFileChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {VIEWLET_ID, TextFileModelChangeEvent, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {platform, Platform} from 'vs/base/common/platform';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IEventService} from 'vs/platform/event/common/event';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorStacksModel} from 'vs/workbench/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -36,7 +35,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	private stacks: IEditorStacksModel;
 
 	constructor(
-		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
@@ -57,10 +55,10 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 		// Local text file changes
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
+		this.toUnbind.push(this.textFileService.models.onModelDirty(e => this.onTextFileDirty(e)));
+		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onTextFileSaved(e)));
+		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onTextFileSaveError(e)));
+		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onTextFileReverted(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -78,7 +76,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onTextFileDirty(e: TextFileChangeEvent): void {
+	private onTextFileDirty(e: TextFileModelChangeEvent): void {
 		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
@@ -119,7 +117,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		})).done(null, errors.onUnexpectedError);
 	}
 
-	private onTextFileSaved(e: TextFileChangeEvent): void {
+	private onTextFileSaved(e: TextFileModelChangeEvent): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
@@ -129,7 +127,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onTextFileSaveError(e: TextFileChangeEvent): void {
+	private onTextFileSaveError(e: TextFileModelChangeEvent): void {
 		if (!this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
@@ -137,7 +135,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		this.updateActivityBadge();
 	}
 
-	private onTextFileReverted(e: TextFileChangeEvent): void {
+	private onTextFileReverted(e: TextFileModelChangeEvent): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}

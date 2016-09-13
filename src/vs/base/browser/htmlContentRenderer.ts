@@ -214,7 +214,7 @@ class StringStream {
 	}
 }
 
-enum FormatType {
+const enum FormatType {
 	Invalid,
 	Root,
 	Text,

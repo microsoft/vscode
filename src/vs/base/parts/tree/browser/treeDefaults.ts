@@ -14,7 +14,7 @@ import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import _ = require('vs/base/parts/tree/browser/tree');
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
@@ -138,18 +138,18 @@ export class DefaultController implements _.IController {
 		this.options = options;
 
 		this.downKeyBindingDispatcher = new KeybindingDispatcher();
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SPACE, (t, e) => this.onSpace(t, e));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.UP_ARROW, (t, e) => this.onUp(t, e));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.PAGE_UP, (t, e) => this.onPageUp(t, e));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.DOWN_ARROW, (t, e) => this.onDown(t, e));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.PAGE_DOWN, (t, e) => this.onPageDown(t, e));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.LEFT_ARROW, (t, e) => this.onLeft(t, e));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.RIGHT_ARROW, (t, e) => this.onRight(t, e));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (t, e) => this.onEscape(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, (t, e) => this.onUp(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.PageUp, (t, e) => this.onPageUp(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.DownArrow, (t, e) => this.onDown(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.PageDown, (t, e) => this.onPageDown(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.LeftArrow, (t, e) => this.onLeft(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.RightArrow, (t, e) => this.onRight(t, e));
+		this.downKeyBindingDispatcher.set(KeyCode.Escape, (t, e) => this.onEscape(t, e));
 
 		this.upKeyBindingDispatcher = new KeybindingDispatcher();
-		this.upKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnter.bind(this));
-		this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
+		this.upKeyBindingDispatcher.set(KeyCode.Enter, this.onEnter.bind(this));
+		this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 	}
 
 	public onMouseDown(tree:_.ITree, element: any, event:mouse.IMouseEvent, origin: string = 'mouse'):boolean {

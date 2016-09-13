@@ -467,7 +467,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		const message = err && err.message || '';
 
-		if (/getaddrinfo ENOTFOUND/.test(message)) {
+		if (/getaddrinfo ENOTFOUND|getaddrinfo ENOENT|connect EACCES|connect ECONNREFUSED/.test(message)) {
 			return;
 		}
 

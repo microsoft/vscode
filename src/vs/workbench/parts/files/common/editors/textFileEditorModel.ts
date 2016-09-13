@@ -5,6 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
+import Event, {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {toErrorMessage} from 'vs/base/common/errorMessage';
@@ -15,12 +16,10 @@ import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
 import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
-import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -35,6 +34,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	public static ID = 'workbench.editors.files.textFileEditorModel';
 
 	private static saveErrorHandler: ISaveErrorHandler;
+	private static saveParticipant: ISaveParticipant;
 
 	private resource: URI;
 	private contentEncoding: string; 			// encoding as reported from disk
@@ -55,6 +55,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
+	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
 		resource: URI,
@@ -62,7 +63,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IMessageService private messageService: IMessageService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IEventService private eventService: IEventService,
 		@IFileService private fileService: IFileService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -75,6 +75,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			throw new Error('TextFileEditorModel can only handle file:// resources.');
 		}
 
+		this._onDidStateChange = new Emitter<StateChange>();
 		this.preferredEncoding = preferredEncoding;
 		this.textModelChangeListener = null;
 		this.dirty = false;
@@ -101,11 +102,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
+	public get onDidStateChange(): Event<StateChange> {
+		return this._onDidStateChange.event;
+	}
+
 	/**
 	 * Set a save error handler to install code that executes when save errors occur.
 	 */
 	public static setSaveErrorHandler(handler: ISaveErrorHandler): void {
 		TextFileEditorModel.saveErrorHandler = handler;
+	}
+
+	/**
+	 * Set a save participant handler to react on models getting saved.
+	 */
+	public static setSaveParticipant(handler: ISaveParticipant): void {
+		TextFileEditorModel.saveParticipant = handler;
 	}
 
 	/**
@@ -143,12 +155,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.load(true /* force */).then(() => {
 
 			// Emit file change event
-			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			this._onDidStateChange.fire(StateChange.REVERTED);
 		}, (error) => {
 
 			// FileNotFound means the file got deleted meanwhile, so emit revert event because thats ok
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
 			// Set flags back to previous values, we are still dirty if revert failed and we where
@@ -208,7 +220,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (this.preferredEncoding) {
 				this.updatePreferredEncoding(this.contentEncoding); // make sure to reflect the real encoding of the file (never out of sync)
 			} else if (oldEncoding !== this.contentEncoding) {
-				this.eventService.emit(WorkbenchEventType.RESOURCE_ENCODING_CHANGED, new ResourceEvent(this.resource));
+				this._onDidStateChange.fire(StateChange.ENCODING);
 			}
 
 			// Update Existing Model
@@ -296,7 +308,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Emit event
 			if (wasDirty) {
-				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
 			return;
@@ -325,7 +337,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
-			this.emitEvent(FileEventType.FILE_DIRTY, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			this._onDidStateChange.fire(StateChange.DIRTY);
 		}
 	}
 
@@ -371,7 +383,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doSave(this.versionId, false, overwriteReadonly, overwriteEncoding);
 	}
 
-	private doSave(versionId: number, isAutoSave: boolean, overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
+	private doSave(versionId: number, isAutoSaved: boolean, overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
 		diag('doSave(' + versionId + ') - enter with versionId ' + versionId, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
@@ -406,18 +418,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.textEditorModel.pushStackElement();
 		}
 
-		// Emit file saving event: Listeners can still change the model now and since we are so close to saving
+		// A save participant can still change the model now and since we are so close to saving
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
-		this.blockModelContentChange = true;
-		try {
-			const saveEvent = new TextFileChangeEvent(this.resource, this.textEditorModel);
-			saveEvent.setAutoSaved(isAutoSave);
-			this.emitEvent(FileEventType.FILE_SAVING, saveEvent);
-		} finally {
-			this.blockModelContentChange = false;
+		if (TextFileEditorModel.saveParticipant) {
+			this.blockModelContentChange = true;
+			try {
+				TextFileEditorModel.saveParticipant.participate(this, { isAutoSaved });
+			} finally {
+				this.blockModelContentChange = false;
+			}
+			versionId = this.versionId;
 		}
-		versionId = this.versionId;
 
 		// Clear error flag since we are trying to save again
 		this.inErrorMode = false;
@@ -454,7 +466,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.updateVersionOnDiskStat(stat);
 
 			// Emit File Saved Event
-			this.emitEvent(FileEventType.FILE_SAVED, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			this._onDidStateChange.fire(StateChange.SAVED);
 		}, (error) => {
 			diag('doSave(' + versionId + ') - exit - resulted in a save error: ' + error.toString(), this.resource, new Date());
 
@@ -468,7 +480,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.onSaveError(error);
 
 			// Emit as event
-			this.emitEvent(FileEventType.FILE_SAVE_ERROR, new TextFileChangeEvent(this.resource, this.textEditorModel));
+			this._onDidStateChange.fire(StateChange.SAVE_ERROR);
 		});
 
 		return this.mapPendingSaveToVersionId[versionId];
@@ -530,15 +542,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Handle
 		TextFileEditorModel.saveErrorHandler.onSaveError(error, this);
-	}
-
-	private emitEvent(type: string, event: TextFileChangeEvent): void {
-		try {
-			this.eventService.emit(type, event);
-		} catch (e) {
-			e.friendlyMessage = nls.localize('unexpectedEventError', "An unexpected error was thrown from a file change listener of type: {0}", type);
-			onUnexpectedError(e);
-		}
 	}
 
 	private isBusySaving(): boolean {
@@ -638,7 +641,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredEncoding = encoding;
 
 		// Emit
-		this.eventService.emit(WorkbenchEventType.RESOURCE_ENCODING_CHANGED, new ResourceEvent(this.resource));
+		this._onDidStateChange.fire(StateChange.ENCODING);
 	}
 
 	private isNewEncoding(encoding: string): boolean {
@@ -675,6 +678,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.disposed = true;
 		this.inConflictResolutionMode = false;
 		this.inErrorMode = false;
+
+		this._onDidStateChange.dispose();
 
 		this.createTextEditorModelPromise = null;
 

@@ -335,59 +335,55 @@ export class QuickOpenWidget implements IModelProvider {
 	private navigateInTree(keyCode: KeyCode, isShift?: boolean): void {
 		const model: IModel<any> = this.tree.getInput();
 		const entries = model ? model.entries : [];
-		let focus = this.tree.getFocus();
-		let cycled = false;
-		let revealToTop = false;
+		const oldFocus = this.tree.getFocus();
 
-		// Support cycle-through navigation
-		if (entries.length > 1) {
+		// Normal Navigation
+		switch (keyCode) {
+			case KeyCode.DownArrow:
+				this.tree.focusNext();
+				break;
+
+			case KeyCode.UpArrow:
+				this.tree.focusPrevious();
+				break;
+
+			case KeyCode.PageDown:
+				this.tree.focusNextPage();
+				break;
+
+			case KeyCode.PageUp:
+				this.tree.focusPreviousPage();
+				break;
+
+			case KeyCode.Tab:
+				if (isShift) {
+					this.tree.focusPrevious();
+				} else {
+					this.tree.focusNext();
+				}
+				break;
+		}
+
+		let newFocus = this.tree.getFocus();
+
+		// Support cycle-through navigation if focus did not change
+		if (entries.length > 1 && oldFocus === newFocus) {
 
 			// Up from no entry or first entry goes down to last
-			if ((keyCode === KeyCode.UpArrow || (keyCode === KeyCode.Tab && isShift)) && (focus === entries[0] || !focus)) { // TODO@Ben should not make ordering assumptions
+			if (keyCode === KeyCode.UpArrow || (keyCode === KeyCode.Tab && isShift)) {
 				this.tree.focusLast();
-				cycled = true;
 			}
 
 			// Down from last entry goes to up to first
-			else if ((keyCode === KeyCode.DownArrow || keyCode === KeyCode.Tab && !isShift) && focus === entries[entries.length - 1]) { // TODO@Ben should not make ordering assumptions
+			else if (keyCode === KeyCode.DownArrow || keyCode === KeyCode.Tab && !isShift) {
 				this.tree.focusFirst();
-				cycled = true;
-			}
-		}
-
-		// Normal Navigation
-		if (!cycled) {
-			switch (keyCode) {
-				case KeyCode.DownArrow:
-					this.tree.focusNext();
-					break;
-
-				case KeyCode.UpArrow:
-					this.tree.focusPrevious();
-					break;
-
-				case KeyCode.PageDown:
-					this.tree.focusNextPage();
-					break;
-
-				case KeyCode.PageUp:
-					this.tree.focusPreviousPage();
-					break;
-
-				case KeyCode.Tab:
-					if (isShift) {
-						this.tree.focusPrevious();
-					} else {
-						this.tree.focusNext();
-					}
-					break;
 			}
 		}
 
 		// Reveal
-		focus = this.tree.getFocus();
-		if (focus) {
-			revealToTop ? this.tree.reveal(focus, 0).done(null, errors.onUnexpectedError) : this.tree.reveal(focus).done(null, errors.onUnexpectedError);
+		newFocus = this.tree.getFocus();
+		if (newFocus) {
+			this.tree.reveal(newFocus).done(null, errors.onUnexpectedError);
 		}
 	}
 

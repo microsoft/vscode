@@ -100,9 +100,11 @@ class Main {
 									const response = JSON.parse(err.responseText);
 									return TPromise.wrapError(response.message);
 								} catch (e) {
-									return TPromise.wrapError(err);
+									// noop
 								}
 							}
+
+							return TPromise.wrapError(err);
 						})
 						.then(result => {
 							const [extension] = result.firstPage;

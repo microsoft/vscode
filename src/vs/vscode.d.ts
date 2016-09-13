@@ -3003,7 +3003,9 @@ declare namespace vscode {
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
-		 * (shell) of the terminal.
+		 * (shell) of the terminal. Note that this will currently force the terminal panel to the
+		 * foreground, this is changing in v1.6 such that it will require an explicit call to
+		 * [Terminal.show](#Terminal.show) in order to show the terminal panel.
 		 *
 		 * @param text The text to send.
 		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
@@ -3490,12 +3492,15 @@ declare namespace vscode {
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
-		 * Creates a [Terminal](#Terminal).
+		 * Creates a [Terminal](#Terminal). Note that this will currently force the terminal panel
+		 * to the foreground, this is changing in v1.6 such that it will require an explicit call to
+		 * [Terminal.show](#Terminal.show) in order to show the terminal panel.
 		 *
 		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
+		 * @param shellPath Optional path to a custom shell executable to be used in the terminal.
 		 * @return A new Terminal.
 		 */
-		export function createTerminal(name?: string): Terminal;
+		export function createTerminal(name?: string, shellPath?: string): Terminal;
 	}
 
 	/**

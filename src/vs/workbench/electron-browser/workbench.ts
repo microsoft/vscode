@@ -23,7 +23,6 @@ import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IEditorRegistry, Extensions as EditorExtensions, TextEditorOptions, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {Part} from 'vs/workbench/browser/part';
 import {HistoryService} from 'vs/workbench/services/history/browser/history';
 import {ActivitybarPart} from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import {EditorPart} from 'vs/workbench/browser/parts/editor/editorPart';
@@ -210,9 +209,6 @@ export class Workbench implements IPartService {
 
 			// Workbench Layout
 			this.createWorkbenchLayout();
-
-			// Register Emitters
-			this.registerEmitters();
 
 			// Load composits and editors in parallel
 			const compositeAndEditorPromises: TPromise<any>[] = [];
@@ -647,19 +643,6 @@ export class Workbench implements IPartService {
 
 		// Pass shutdown on to each participant
 		this.toShutdown.forEach(s => s.shutdown());
-	}
-
-	private registerEmitters(): void {
-
-		// Part Emitters
-		this.hookPartListeners(this.activitybarPart);
-		this.hookPartListeners(this.editorPart);
-		this.hookPartListeners(this.sidebarPart);
-		this.hookPartListeners(this.panelPart);
-	}
-
-	private hookPartListeners(part: Part): void {
-		this.toDispose.push(this.eventService.addEmitter2(part, part.getId()));
 	}
 
 	private registerListeners(): void {

@@ -6,10 +6,9 @@
 
 import URI from 'vs/base/common/uri';
 import {createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {EventType} from 'vs/base/common/events';
 import arrays = require('vs/base/common/arrays');
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, {Emitter, once} from 'vs/base/common/event';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -21,6 +20,11 @@ export interface IUntitledEditorService {
 	 * Events for when untitled editors change (e.g. getting dirty, saved or reverted).
 	 */
 	onDidChangeDirty: Event<URI>;
+
+	/**
+	 * Events for when untitled editor encodings change.
+	 */
+	onDidChangeEncoding: Event<URI>;
 
 	/**
 	 * Returns the untitled editor input matching the provided resource.
@@ -70,13 +74,19 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
 
 	private _onDidChangeDirty: Emitter<URI>;
+	private _onDidChangeEncoding: Emitter<URI>;
 
 	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		this._onDidChangeDirty = new Emitter<URI>();
+		this._onDidChangeEncoding = new Emitter<URI>();
 	}
 
 	public get onDidChangeDirty(): Event<URI> {
 		return this._onDidChangeDirty.event;
+	}
+
+	public get onDidChangeEncoding(): Event<URI> {
+		return this._onDidChangeEncoding.event;
 	}
 
 	public get(resource: URI): UntitledEditorInput {
@@ -153,15 +163,21 @@ export class UntitledEditorService implements IUntitledEditorService {
 
 		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
 
-		const listener = input.onDidChangeDirty(() => {
+		const dirtyListener = input.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire(resource);
 		});
 
+		const encodingListener = input.onDidModelChangeEncoding(() => {
+			this._onDidChangeEncoding.fire(resource);
+		});
+
 		// Remove from cache on dispose
-		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+		const onceDispose = once(input.onDispose);
+		onceDispose(() => {
 			delete UntitledEditorService.CACHE[input.getResource().toString()];
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
-			listener.dispose();
+			dirtyListener.dispose();
+			encodingListener.dispose();
 		});
 
 		// Add to cache
@@ -180,5 +196,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 
 	public hasAssociatedFilePath(resource: URI): boolean {
 		return !!UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[resource.toString()];
+	}
+
+	public dispose(): void {
+		this._onDidChangeDirty.dispose();
+		this._onDidChangeEncoding.dispose();
 	}
 }

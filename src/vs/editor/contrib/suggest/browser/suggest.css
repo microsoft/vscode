@@ -6,7 +6,8 @@
 /* Suggest */
 .monaco-editor .suggest-widget {
 	background-color: #F3F3F3;
-	font-size: 12px;
+	background-position: center center;
+	background-repeat: no-repeat;
 	border: 1px solid rgb(200, 200, 200);
 	z-index: 40;
 	width: 438px;
@@ -19,12 +20,8 @@
 	transition: left .05s ease-in-out;
 }
 
-.monaco-editor.mac .suggest-widget {
-	font-size: 11px;
-}
-
-.monaco-editor.mac .suggest-widget .text {
-	line-height: 1.3em;
+.monaco-editor .suggest-widget.loading {
+	background-image: url('data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSIgd2lkdGg9IjU3NSIgaGVpZ2h0PSI2cHgiPg0KICA8c3R5bGU+DQogICAgY2lyY2xlIHsNCiAgICAgIGFuaW1hdGlvbjogYmFsbCAyLjVzIGN1YmljLWJlemllcigwLjAwMCwgMS4wMDAsIDEuMDAwLCAwLjAwMCkgaW5maW5pdGU7DQogICAgICBmaWxsOiAjYmJiOw0KICAgIH0NCg0KICAgICNiYWxscyB7DQogICAgICBhbmltYXRpb246IGJhbGxzIDIuNXMgbGluZWFyIGluZmluaXRlOw0KICAgIH0NCg0KICAgICNjaXJjbGUyIHsgYW5pbWF0aW9uLWRlbGF5OiAwLjFzOyB9DQogICAgI2NpcmNsZTMgeyBhbmltYXRpb24tZGVsYXk6IDAuMnM7IH0NCiAgICAjY2lyY2xlNCB7IGFuaW1hdGlvbi1kZWxheTogMC4zczsgfQ0KICAgICNjaXJjbGU1IHsgYW5pbWF0aW9uLWRlbGF5OiAwLjRzOyB9DQoNCiAgICBAa2V5ZnJhbWVzIGJhbGwgew0KICAgICAgZnJvbSB7IHRyYW5zZm9ybTogbm9uZTsgfQ0KICAgICAgMjAlIHsgdHJhbnNmb3JtOiBub25lOyB9DQogICAgICA4MCUgeyB0cmFuc2Zvcm06IHRyYW5zbGF0ZVgoODY0cHgpOyB9DQogICAgICB0byB7IHRyYW5zZm9ybTogdHJhbnNsYXRlWCg4NjRweCk7IH0NCiAgICB9DQoNCiAgICBAa2V5ZnJhbWVzIGJhbGxzIHsNCiAgICAgIGZyb20geyB0cmFuc2Zvcm06IHRyYW5zbGF0ZVgoLTQwcHgpOyB9DQogICAgICB0byB7IHRyYW5zZm9ybTogdHJhbnNsYXRlWCgzMHB4KTsgfQ0KICAgIH0NCiAgPC9zdHlsZT4NCiAgPGcgaWQ9ImJhbGxzIj4NCiAgICA8Y2lyY2xlIGNsYXNzPSJjaXJjbGUiIGlkPSJjaXJjbGUxIiBjeD0iLTExNSIgY3k9IjMiIHI9IjMiLz4NCiAgICA8Y2lyY2xlIGNsYXNzPSJjaXJjbGUiIGlkPSJjaXJjbGUyIiBjeD0iLTEzMCIgY3k9IjMiIHI9IjMiIC8+DQogICAgPGNpcmNsZSBjbGFzcz0iY2lyY2xlIiBpZD0iY2lyY2xlMyIgY3g9Ii0xNDUiIGN5PSIzIiByPSIzIiAvPg0KICAgIDxjaXJjbGUgY2xhc3M9ImNpcmNsZSIgaWQ9ImNpcmNsZTQiIGN4PSItMTYwIiBjeT0iMyIgcj0iMyIgLz4NCiAgICA8Y2lyY2xlIGNsYXNzPSJjaXJjbGUiIGlkPSJjaXJjbGU1IiBjeD0iLTE3NSIgY3k9IjMiIHI9IjMiIC8+DQogIDwvZz4NCjwvc3ZnPg==');
 }
 
 .monaco-editor .suggest-widget > .message {
@@ -40,24 +37,25 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
 	-mox-box-sizing: border-box;
 	box-sizing: border-box;
-	line-height: 1.2em;
-	padding: 2px 10px 2px 22px;
+	padding: 0 10px 0 22px;
 	background-repeat: no-repeat;
 	background-position: 2px 2px;
 	white-space: nowrap;
 }
 
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text {
+	height: 100%;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main {
+	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
 	display: none;
-	max-height: 3.4em;
 	overflow: hidden;
-	margin-top: 0.1em;
-	padding-bottom: 0.1em;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text {
@@ -65,15 +63,17 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
+	opacity: 0.85;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details {
-	font-size: 1.4em;
 	opacity: 0.6;
 	width: 14px;
 	height: 14px;
 	background-image: url('./info.svg');
 	background-size: 14px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }
 
 .monaco-editor .suggest-widget .details > .header > .go-back,
@@ -85,29 +85,27 @@
 	opacity: 1;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
-	color: #A21B1B;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label > span {
-	opacity: 1;
-}
-
-.monaco-editor .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
+.monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {
 	font-weight: bold;
 	color: #186B9E;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .type-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main > .type-label {
 	display: none;
 	margin-left: 0.8em;
+	flex: 1;
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0.7;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .type-label {
-	font-size: 0.9em;
-	color: #0035DD;
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main > .type-label > .monaco-tokenized-source {
+	display: inline;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .text > .main > .type-label {
+	display: inline;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .type-label {
@@ -132,17 +130,17 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon					{ background-position: -361px -3px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.method,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.function,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.constructor			{ background-position: 2px -3px; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.constructor			{ background-position: 1px -3px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.field,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.variable 			{ background-position: -18px -3px; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.variable 			{ background-position: -19px -2px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.class 				{ background-position: -41px -3px; }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.interface 			{ background-position: -61px -4px; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.interface 			{ background-position: -62px -2px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.module 				{ background-position: -79px -4px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.property 			{ background-position: -100px -3px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.unit		 			{ background-position: -120px -4px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.value,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.enum		 			{ background-position: -140px -3px; }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.keyword	 			{ background-position: -161px -2px; }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.keyword	 			{ background-position: -162px -2px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.snippet		 		{ background-position: -181px -4px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.text		 			{ background-position: -201px -2px; }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.color		 		{ background-position: -221px -4px; }
@@ -164,14 +162,15 @@
 .monaco-editor .suggest-widget .details {
 	height: 100%;
 	box-sizing: border-box;
-	padding: 0 10px;
+	display: flex;
+	flex-direction: column;
 }
 
 .monaco-editor .suggest-widget .details > .header {
-	padding-top: 2px;
+	padding: 4px 5px;
 	display: flex;
-	height: 20px;
 	box-sizing: border-box;
+	border-bottom: 1px solid rgba(204, 204, 204, 0.5);
 }
 
 .monaco-editor .suggest-widget .details > .header > .title {
@@ -185,6 +184,8 @@
 	height: 14px;
 	background-image: url('./back.svg');
 	background-size: 14px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }
 
 .monaco-editor .suggest-widget .details > .header > .go-back:hover {
@@ -192,15 +193,27 @@
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element {
-	height: calc(100% - 20px);
+	flex: 1;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body {
+	position: absolute;
+	box-sizing: border-box;
 	height: 100%;
+	width: 100%;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
+	opacity: 0.7;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p {
 	margin: 0;
+	padding: 4px 5px;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {
+	display: none;
 }
 
 /* Dark theme */
@@ -209,20 +222,18 @@
 	border: 1px solid rgb(69, 69, 69);
 }
 
-.monaco-editor.vs-dark .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
-	color: #219AE4;
+
+.monaco-editor.vs-dark .suggest-widget .details > .header {
+	border-color: rgba(85,85,85,0.5);
 }
 
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .docs {
-	color: #C07A7A;
+.monaco-editor.vs-dark .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {
+	color: #219AE4;
 }
 
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details,
-.monaco-editor.vs-dark .suggest-widget .details > .header > .go-back,
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .type,
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .type-label {
+.monaco-editor.vs-dark .suggest-widget .details > .header > .go-back {
 	color: #4E94CE;
 }
 
@@ -255,7 +266,7 @@
 	border: 2px solid #6FC3DF;
 }
 
-.monaco-editor.hc-black .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
+.monaco-editor.hc-black .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {
 	color: #219AE4;
 }
 
@@ -265,9 +276,7 @@
 }
 
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details,
-.monaco-editor.hc-black .suggest-widget .details > .header > .go-back,
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .type,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .type-label {
+.monaco-editor.hc-black .suggest-widget .details > .header > .go-back {
 	color: #4E94CE;
 }
 

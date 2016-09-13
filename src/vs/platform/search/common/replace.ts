@@ -5,16 +5,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import {IPatternInfo} from 'vs/platform/search/common/search';
-
-const BACKSLASH_CHAR_CODE = '\\'.charCodeAt(0);
-const DOLLAR_CHAR_CODE = '$'.charCodeAt(0);
-const ZERO_CHAR_CODE = '0'.charCodeAt(0);
-const ONE_CHAR_CODE = '1'.charCodeAt(0);
-const NINE_CHAR_CODE = '9'.charCodeAt(0);
-const BACK_TICK_CHAR_CODE = '`'.charCodeAt(0);
-const SINGLE_QUOTE_CHAR_CODE = '`'.charCodeAt(0);
-const n_CHAR_CODE = 'n'.charCodeAt(0);
-const t_CHAR_CODE = 't'.charCodeAt(0);
+import {CharCode} from 'vs/base/common/charCode';
 
 export class ReplacePattern {
 
@@ -91,7 +82,7 @@ export class ReplacePattern {
 		for (let i = 0, len = replaceString.length; i < len; i++) {
 			let chCode = replaceString.charCodeAt(i);
 
-			if (chCode === BACKSLASH_CHAR_CODE) {
+			if (chCode === CharCode.Backslash) {
 
 				// move to next char
 				i++;
@@ -105,15 +96,15 @@ export class ReplacePattern {
 				let replaceWithCharacter: string = null;
 
 				switch (nextChCode) {
-					case BACKSLASH_CHAR_CODE:
+					case CharCode.Backslash:
 						// \\ => \
 						replaceWithCharacter = '\\';
 						break;
-					case n_CHAR_CODE:
+					case CharCode.n:
 						// \n => LF
 						replaceWithCharacter = '\n';
 						break;
-					case t_CHAR_CODE:
+					case CharCode.t:
 						// \t => TAB
 						replaceWithCharacter = '\t';
 						break;
@@ -125,7 +116,7 @@ export class ReplacePattern {
 				}
 			}
 
-			if (chCode === DOLLAR_CHAR_CODE) {
+			if (chCode === CharCode.DollarSign) {
 
 				// move to next char
 				i++;
@@ -139,18 +130,18 @@ export class ReplacePattern {
 				let replaceWithCharacter: string = null;
 
 				switch (nextChCode) {
-					case ZERO_CHAR_CODE:
+					case CharCode.Digit0:
 						// $0 => $&
 						replaceWithCharacter = '$&';
 						this._hasParameters = true;
 						break;
-					case BACK_TICK_CHAR_CODE:
-					case SINGLE_QUOTE_CHAR_CODE:
+					case CharCode.BackTick:
+					case CharCode.SingleQuote:
 						this._hasParameters = true;
 						break;
 					default:
 						// check if it is a valid string parameter $n (0 <= n <= 99). $0 is already handled by now.
-						if (!this.between(nextChCode, ONE_CHAR_CODE, NINE_CHAR_CODE)) {
+						if (!this.between(nextChCode, CharCode.Digit1, CharCode.Digit9)) {
 							break;
 						}
 						if (i === replaceString.length - 1) {
@@ -158,7 +149,7 @@ export class ReplacePattern {
 							break;
 						}
 						let charCode= replaceString.charCodeAt(++i);
-						if (!this.between(charCode, ZERO_CHAR_CODE, NINE_CHAR_CODE)) {
+						if (!this.between(charCode, CharCode.Digit0, CharCode.Digit9)) {
 							this._hasParameters = true;
 							--i;
 							break;
@@ -168,7 +159,7 @@ export class ReplacePattern {
 							break;
 						}
 						charCode= replaceString.charCodeAt(++i);
-						if (!this.between(charCode, ZERO_CHAR_CODE, NINE_CHAR_CODE)) {
+						if (!this.between(charCode, CharCode.Digit0, CharCode.Digit9)) {
 							this._hasParameters = true;
 							--i;
 							break;
@@ -195,4 +186,3 @@ export class ReplacePattern {
 		return from <= value && value <= to;
 	}
 }
-

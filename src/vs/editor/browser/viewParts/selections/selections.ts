@@ -13,7 +13,7 @@ import {HorizontalRange, LineVisibleRanges} from 'vs/editor/common/view/renderin
 import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {Range} from 'vs/editor/common/core/range';
 
-enum CornerStyle {
+const enum CornerStyle {
 	EXTERN,
 	INTERN,
 	FLAT

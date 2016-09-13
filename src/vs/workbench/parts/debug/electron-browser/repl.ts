@@ -356,7 +356,7 @@ class AcceptReplInputAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.acceptInput',
-			label: nls.localize('actions.repl.acceptInput', "REPL Accept Input"),
+			label: nls.localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
 			alias: 'REPL Accept Input',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {

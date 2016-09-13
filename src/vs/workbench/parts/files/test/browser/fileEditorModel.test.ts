@@ -7,29 +7,30 @@
 
 import * as assert from 'assert';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import paths = require('vs/base/common/paths');
+import {EncodingMode} from 'vs/workbench/common/editor';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType, ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
+import {ITextFileService, ModelState, StateChange} from 'vs/workbench/parts/files/common/files';
+import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
+import {FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
 
 function toResource(path) {
 	return URI.file(paths.join('C:\\', path));
 }
 
 class ServiceAccessor {
-	constructor(@IEventService public eventService: IEventService, @ITextFileService public textFileService: ITextFileService) {
+	constructor( @IEventService public eventService: IEventService, @ITextFileService public textFileService: TestTextFileService) {
 	}
 }
 
-
 suite('Files - TextFileEditorModel', () => {
 
-	let instantiationService: TestInstantiationService;
+	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
 	setup(() => {
@@ -39,21 +40,72 @@ suite('Files - TextFileEditorModel', () => {
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
+		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
+	});
+
+	test('Save', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.load().then(() => {
+			model.textEditorModel.setValue('bar');
+			assert.ok(model.getLastModifiedTime() <= Date.now());
+
+			return model.save().then(() => {
+				assert.ok(model.getLastSaveAttemptTime() <= Date.now());
+				assert.ok(!model.isDirty());
+
+				model.dispose();
+
+				done();
+			});
+		});
+	});
+
+	test('setEncoding - encode', function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.setEncoding('utf8', EncodingMode.Encode); // no-op
+		assert.equal(model.getLastModifiedTime(), -1);
+
+		model.setEncoding('utf16', EncodingMode.Encode);
+
+		assert.ok(model.getLastModifiedTime() <= Date.now()); // indicates model was saved due to encoding change
+
+		model.dispose();
+	});
+
+	test('setEncoding - decode', function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.setEncoding('utf16', EncodingMode.Decode);
+
+		assert.ok(model.isResolved()); // model got loaded due to decoding
+
+		model.dispose();
+	});
+
+	test('disposes when underlying model is destroyed', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.load().then(() => {
+			model.textEditorModel.destroy();
+
+			assert.ok(model.isDisposed());
+
+			done();
+		});
 	});
 
 	test('Load does not trigger save', function (done) {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
+		assert.equal(model.getState(), ModelState.SAVED);
 
 		accessor.eventService.addListener2('files:internalFileChanged', () => {
 			assert.ok(false);
 		});
 
-		accessor.eventService.addListener2(EventType.FILE_DIRTY, () => {
-			assert.ok(false);
-		});
-
-		accessor.eventService.addListener2(EventType.FILE_SAVED, () => {
-			assert.ok(false);
+		model.onDidStateChange(e => {
+			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
 		});
 
 		model.load().then(() => {
@@ -72,6 +124,7 @@ suite('Files - TextFileEditorModel', () => {
 			model.textEditorModel.setValue('foo');
 
 			assert.ok(model.isDirty());
+			assert.equal(model.getState(), ModelState.DIRTY);
 			model.load().then(() => {
 				assert.ok(model.isDirty());
 
@@ -85,11 +138,14 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', function (done) {
 		let eventCounter = 0;
 
-		accessor.eventService.addListener2(EventType.FILE_REVERTED, () => {
-			eventCounter++;
-		});
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.onDidStateChange(e => {
+			if (e === StateChange.REVERTED) {
+				eventCounter++;
+			}
+		});
 
 		model.load().then(() => {
 			model.textEditorModel.setValue('foo');
@@ -108,14 +164,35 @@ suite('Files - TextFileEditorModel', () => {
 		});
 	});
 
+	test('File not modified error is handled gracefully', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.load().then(() => {
+			const mtime = model.getLastModifiedTime();
+			accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
+				message: 'error',
+				fileOperationResult: FileOperationResult.FILE_NOT_MODIFIED_SINCE
+			});
+
+			model.load().then((model: TextFileEditorModel) => {
+				assert.ok(model);
+				assert.equal(model.getLastModifiedTime(), mtime);
+				model.dispose();
+
+				done();
+			});
+		});
+	});
+
 	test('Conflict Resolution Mode', function (done) {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
 
 		model.load().then(() => {
 			model.setConflictResolutionMode();
 			model.textEditorModel.setValue('foo');
 
 			assert.ok(model.isDirty());
+			assert.equal(model.getState(), ModelState.CONFLICT);
 			assert.ok(model.isInConflictResolutionMode());
 
 			model.revert().then(() => {
@@ -135,17 +212,15 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('Auto Save triggered when model changes', function (done) {
 		let eventCounter = 0;
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
 
 		(<any>model).autoSaveAfterMillies = 10;
 		(<any>model).autoSaveAfterMilliesEnabled = true;
 
-		accessor.eventService.addListener2(EventType.FILE_DIRTY, () => {
-			eventCounter++;
-		});
-
-		accessor.eventService.addListener2(EventType.FILE_SAVED, () => {
-			eventCounter++;
+		model.onDidStateChange(e => {
+			if (e === StateChange.DIRTY || e === StateChange.SAVED) {
+				eventCounter++;
+			}
 		});
 
 		model.load().then(() => {
@@ -203,19 +278,23 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('Save Participant', function (done) {
 		let eventCounter = 0;
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
 
-		accessor.eventService.addListener2(EventType.FILE_SAVED, (e) => {
-			assert.equal(model.getValue(), 'bar');
-			assert.ok(!model.isDirty());
-			eventCounter++;
+		model.onDidStateChange(e => {
+			if (e === StateChange.SAVED) {
+				assert.equal(model.getValue(), 'bar');
+				assert.ok(!model.isDirty());
+				eventCounter++;
+			}
 		});
 
-		accessor.eventService.addListener2(EventType.FILE_SAVING, (e) => {
-			assert.ok(model.isDirty());
-			model.textEditorModel.setValue('bar');
-			assert.ok(model.isDirty());
-			eventCounter++;
+		TextFileEditorModel.setSaveParticipant({
+			participate: (model) => {
+				assert.ok(model.isDirty());
+				model.textEditorModel.setValue('bar');
+				assert.ok(model.isDirty());
+				eventCounter++;
+			}
 		});
 
 		model.load().then(() => {

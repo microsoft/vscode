@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import {Action, IAction} from 'vs/base/common/actions';
-import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {TPromise} from 'vs/base/common/winjs.base';
+import os = require('os');
+import { Action, IAction } from 'vs/base/common/actions';
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ITerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export class ToggleTerminalAction extends Action {
 
@@ -22,7 +25,7 @@ export class ToggleTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.toggle();
+		return this.terminalService.togglePanel();
 	}
 }
 
@@ -41,7 +44,11 @@ export class KillTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.close();
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			this.terminalService.getActiveInstance().dispose();
+		}
+		return TPromise.as(void 0);
 	}
 }
 
@@ -62,7 +69,11 @@ export class CopyTerminalSelectionAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.copySelection();
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.copySelection();
+		}
+		return TPromise.as(void 0);
 	}
 }
 
@@ -81,7 +92,8 @@ export class CreateNewTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.createNew();
+		this.terminalService.setActiveInstance(this.terminalService.createInstance());
+		return this.terminalService.showPanel(true);
 	}
 }
 
@@ -98,7 +110,12 @@ export class FocusTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.show(true);
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (!terminalInstance) {
+			terminalInstance = this.terminalService.createInstance();
+		}
+		this.terminalService.setActiveInstance(terminalInstance);
+		return this.terminalService.showPanel(true);
 	}
 }
 
@@ -115,7 +132,8 @@ export class FocusNextTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.focusNext();
+		this.terminalService.setActiveInstanceToNext();
+		return this.terminalService.showPanel(true);
 	}
 }
 
@@ -132,7 +150,8 @@ export class FocusPreviousTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.focusPrevious();
+		this.terminalService.setActiveInstanceToPrevious();
+		return this.terminalService.showPanel(true);
 	}
 }
 export class TerminalPasteAction extends Action {
@@ -148,7 +167,12 @@ export class TerminalPasteAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.paste();
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (!terminalInstance) {
+			terminalInstance = this.terminalService.createInstance();
+		}
+		terminalInstance.paste();
+		return TPromise.as(void 0);
 	}
 }
 
@@ -159,13 +183,28 @@ export class RunSelectedTextInTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
+		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.runSelectedText();
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (!terminalInstance) {
+			terminalInstance = this.terminalService.createInstance();
+		}
+		let editor = this.codeEditorService.getFocusedCodeEditor();
+		let selection = editor.getSelection();
+		let text: string;
+		if (selection.isEmpty()) {
+			text = editor.getValue();
+		} else {
+			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+		}
+		terminalInstance.sendText(text, true);
+		return TPromise.as(void 0);
 	}
 }
 
@@ -184,9 +223,8 @@ export class SwitchTerminalInstanceAction extends Action {
 
 	public run(item?: string): TPromise<any> {
 		let selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
-		return this.terminalService.show(true).then(() => {
-			this.terminalService.setActiveTerminal(selectedTerminalIndex);
-		});
+		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
+		return this.terminalService.showPanel(true);
 	}
 }
 
@@ -196,14 +234,14 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		action: IAction,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(null, action, terminalService.getTerminalInstanceTitles(), terminalService.getActiveTerminalIndex());
-		this.toDispose.push(this.terminalService.onInstancesChanged(this.updateItems, this));
-		this.toDispose.push(this.terminalService.onActiveInstanceChanged(this.updateItems, this));
-		this.toDispose.push(this.terminalService.onInstanceTitleChanged(this.updateItems, this));
+		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex);
+		this.toDispose.push(terminalService.onInstancesChanged(this.updateItems, this));
+		this.toDispose.push(terminalService.onActiveInstanceChanged(this.updateItems, this));
+		this.toDispose.push(terminalService.onInstanceTitleChanged(this.updateItems, this));
 	}
 
 	private updateItems(): void {
-		this.setOptions(this.terminalService.getTerminalInstanceTitles(), this.terminalService.getActiveTerminalIndex());
+		this.setOptions(this.terminalService.getInstanceLabels(), this.terminalService.activeTerminalInstanceIndex);
 	}
 }
 
@@ -220,7 +258,11 @@ export class ScrollDownTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.scrollDown();
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollDown();
+		}
+		return TPromise.as(void 0);
 	}
 }
 
@@ -237,6 +279,10 @@ export class ScrollUpTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.terminalService.scrollUp();
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollUp();
+		}
+		return TPromise.as(void 0);
 	}
 }

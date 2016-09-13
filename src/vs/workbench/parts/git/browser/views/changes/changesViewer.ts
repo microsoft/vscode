@@ -27,7 +27,7 @@ import gitactions = require('vs/workbench/parts/git/browser/gitActions');
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 
@@ -680,10 +680,10 @@ export class Controller extends treedefaults.DefaultController {
 		this.actionProvider = actionProvider;
 		this.contextMenuService = contextMenuService;
 
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_UP_ARROW, this.onUp.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DOWN_ARROW, this.onDown.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_UP, this.onPageUp.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_DOWN, this.onPageDown.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.UpArrow, this.onUp.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.DownArrow, this.onDown.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.PageUp, this.onPageUp.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.PageDown, this.onPageDown.bind(this));
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {

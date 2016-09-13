@@ -43,12 +43,6 @@
 	height: 16px;
 }
 
-/* Bare Style */
-.monaco-tree.bare .monaco-tree-row > .content.actions > .primary-action-bar {
-	color: inherit !important;
-	background-color: inherit !important;
-}
-
 /* Default theme */
 .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #DCEBFC; }
 .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #4FA7FF; color: white; }
