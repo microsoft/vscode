@@ -52,13 +52,13 @@ export class TerminalInstance implements ITerminalInstance {
 		private container: HTMLElement,
 		private workspace: IWorkspace,
 		name: string,
-		shellPath: string,
+		shell: IShell,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
 		this._onTitleChanged = new Emitter<string>();
-		this.createProcess(workspace, name, shellPath);
+		this.createProcess(workspace, name, shell);
 
 		if (container) {
 			this.attachToElement(container);
@@ -210,9 +210,11 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private createProcess(workspace: IWorkspace, name?: string, shellPath?: string) {
+	private createProcess(workspace: IWorkspace, name?: string, shell?: IShell) {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
-		let shell = shellPath ? { executable: shellPath, args: [] } : this.configHelper.getShell();
+		if (!shell) {
+			shell = this.configHelper.getShell();
+		}
 		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
 		this._title = name ? name : '';
 		this.process = cp.fork('./terminalProcess', [], {
