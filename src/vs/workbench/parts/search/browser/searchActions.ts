@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 
@@ -263,7 +263,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	public static get KEY_BINDING(): number {
-		return KeyMod.Shift | CommonKeybindings.CTRLCMD_ENTER;
+		return KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter;
 	}
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,

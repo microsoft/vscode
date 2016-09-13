@@ -9,7 +9,7 @@ import 'vs/css!./defineKeybinding';
 import * as nls from 'vs/nls';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {MarkedString} from 'vs/base/common/htmlContent';
-import {CommonKeybindings, KeyCode, KeyMod, KeyChord, Keybinding} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, KeyChord, Keybinding} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
@@ -353,14 +353,14 @@ class DefineKeybindingWidget implements IOverlayWidget {
 
 			let kb = new Keybinding(keyEvent.asKeybinding());
 			switch (kb.value) {
-				case CommonKeybindings.ENTER:
+				case KeyCode.Enter:
 					if (this._lastKeybinding) {
 						this._onAccepted(this._lastKeybinding.toUserSettingsLabel());
 					}
 					this._stop();
 					return;
 
-				case CommonKeybindings.ESCAPE:
+				case KeyCode.Escape:
 					this._stop();
 					return;
 			}

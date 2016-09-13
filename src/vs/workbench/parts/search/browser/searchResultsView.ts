@@ -23,7 +23,7 @@ import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel } from 'v
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CommonKeybindings }  from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod }  from 'vs/base/common/keyCodes';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -220,16 +220,16 @@ export class SearchController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
 		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onEnter.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onEnter.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 		}
 
 		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
 		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
-		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
+		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
 	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {

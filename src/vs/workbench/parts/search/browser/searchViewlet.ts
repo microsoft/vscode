@@ -46,7 +46,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
 import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
@@ -156,7 +156,7 @@ export class SearchViewlet extends Viewlet {
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
-					if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e);
 						this.toggleFileTypes();
 					}

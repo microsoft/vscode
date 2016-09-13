@@ -10,7 +10,7 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import DOM = require('vs/base/browser/dom');
 import {Builder, $} from 'vs/base/browser/builder';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
 
 export class Button extends EventEmitter {
 
@@ -38,10 +38,10 @@ export class Button extends EventEmitter {
 		this.$el.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
-			if (this.enabled && event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this.emit(DOM.EventType.CLICK, e);
 				eventHandled = true;
-			} else if (event.equals(CommonKeybindings.ESCAPE)) {
+			} else if (event.equals(KeyCode.Escape)) {
 				this.$el.domBlur();
 				eventHandled = true;
 			}

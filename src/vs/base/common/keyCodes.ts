@@ -473,52 +473,6 @@ export class BinaryKeybindings {
 	}
 }
 
-/**
- * A set of usual keybindings that can be reused in code
- */
-export class CommonKeybindings {
-
-	public static ENTER: number = KeyCode.Enter;
-	public static SHIFT_ENTER: number = KeyMod.Shift | KeyCode.Enter;
-	public static CTRLCMD_ENTER: number = KeyMod.CtrlCmd | KeyCode.Enter;
-	public static WINCTRL_ENTER: number = KeyMod.WinCtrl | KeyCode.Enter;
-
-	public static TAB: number = KeyCode.Tab;
-	public static SHIFT_TAB: number = KeyMod.Shift | KeyCode.Tab;
-	public static ESCAPE: number = KeyCode.Escape;
-	public static SPACE: number = KeyCode.Space;
-	public static DELETE: number = KeyCode.Delete;
-	public static SHIFT_DELETE: number = KeyMod.Shift | KeyCode.Delete;
-	public static CTRLCMD_BACKSPACE: number = KeyMod.CtrlCmd | KeyCode.Backspace;
-
-	public static UP_ARROW: number = KeyCode.UpArrow;
-	public static SHIFT_UP_ARROW: number = KeyMod.Shift | KeyCode.UpArrow;
-	public static CTRLCMD_UP_ARROW: number = KeyMod.CtrlCmd | KeyCode.UpArrow;
-
-	public static DOWN_ARROW: number = KeyCode.DownArrow;
-	public static SHIFT_DOWN_ARROW: number = KeyMod.Shift | KeyCode.DownArrow;
-	public static CTRLCMD_DOWN_ARROW: number = KeyMod.CtrlCmd | KeyCode.DownArrow;
-
-	public static LEFT_ARROW: number = KeyCode.LeftArrow;
-
-	public static RIGHT_ARROW: number = KeyCode.RightArrow;
-
-	public static HOME: number = KeyCode.Home;
-	public static END: number = KeyCode.End;
-
-	public static PAGE_UP: number = KeyCode.PageUp;
-	public static SHIFT_PAGE_UP: number = KeyMod.Shift | KeyCode.PageUp;
-
-	public static PAGE_DOWN: number = KeyCode.PageDown;
-	public static SHIFT_PAGE_DOWN: number = KeyMod.Shift | KeyCode.PageDown;
-
-	public static F2: number = KeyCode.F2;
-
-	public static CTRLCMD_S: number = KeyMod.CtrlCmd | KeyCode.KEY_S;
-	public static CTRLCMD_C: number = KeyMod.CtrlCmd | KeyCode.KEY_C;
-	public static CTRLCMD_V: number = KeyMod.CtrlCmd | KeyCode.KEY_V;
-}
-
 export class Keybinding {
 
 	/**

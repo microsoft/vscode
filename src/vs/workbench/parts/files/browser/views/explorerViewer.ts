@@ -46,7 +46,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
@@ -374,11 +374,11 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(CommonKeybindings.ENTER)) {
+				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
 						done(true);
 					}
-				} else if (e.equals(CommonKeybindings.ESCAPE)) {
+				} else if (e.equals(KeyCode.Escape)) {
 					done(false);
 				}
 			}),
@@ -465,23 +465,23 @@ export class FileController extends DefaultController {
 
 		this.didCatchEnterDown = false;
 
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? CommonKeybindings.CTRLCMD_DOWN_ARROW : CommonKeybindings.ENTER, this.onEnterDown.bind(this));
-		this.upKeyBindingDispatcher.set(platform.isMacintosh ? CommonKeybindings.CTRLCMD_DOWN_ARROW : CommonKeybindings.ENTER, this.onEnterUp.bind(this));
+		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, this.onEnterDown.bind(this));
+		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, this.onEnterUp.bind(this));
 		if (platform.isMacintosh) {
-			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
+			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		} else {
-			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
+			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		}
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? CommonKeybindings.ENTER : CommonKeybindings.F2, this.onF2.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_C, this.onCopy.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_V, this.onPaste.bind(this));
+		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyCode.Enter : KeyCode.F2, this.onF2.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_C, this.onCopy.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_V, this.onPaste.bind(this));
 
 		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_UP_ARROW, this.onLeft.bind(this));
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, this.onLeft.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DELETE, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
 		}
 
 		this.state = state;
