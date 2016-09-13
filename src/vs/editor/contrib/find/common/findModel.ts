@@ -16,6 +16,21 @@ import {FindDecorations} from './findDecorations';
 import {FindReplaceState, FindReplaceStateChangedEvent} from './findState';
 import {ReplaceAllCommand} from './replaceAllCommand';
 import {Selection} from 'vs/editor/common/core/selection';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+
+export const ToggleCaseSensitiveKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_C,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+};
+export const ToggleWholeWordKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_W,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+};
+export const ToggleRegexKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_R,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+};
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',

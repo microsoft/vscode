@@ -14,7 +14,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
+import {FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {RunOnceScheduler, Delayer} from 'vs/base/common/async';
@@ -920,8 +920,10 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
 		kbExpr: EditorContextKeys.Focus,
-		primary: KeyMod.Alt | KeyCode.KEY_C,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+		primary: ToggleCaseSensitiveKeybinding.primary,
+		mac: ToggleCaseSensitiveKeybinding.mac,
+		win: ToggleCaseSensitiveKeybinding.win,
+		linux: ToggleCaseSensitiveKeybinding.linux
 	}
 }));
 
@@ -932,8 +934,10 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
 		kbExpr: EditorContextKeys.Focus,
-		primary: KeyMod.Alt | KeyCode.KEY_W,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+		primary: ToggleWholeWordKeybinding.primary,
+		mac: ToggleWholeWordKeybinding.mac,
+		win: ToggleWholeWordKeybinding.win,
+		linux: ToggleWholeWordKeybinding.linux
 	}
 }));
 
@@ -944,8 +948,10 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
 		kbExpr: EditorContextKeys.Focus,
-		primary: KeyMod.Alt | KeyCode.KEY_R,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+		primary: ToggleRegexKeybinding.primary,
+		mac: ToggleRegexKeybinding.mac,
+		win: ToggleRegexKeybinding.win,
+		linux: ToggleRegexKeybinding.linux
 	}
 }));
 
