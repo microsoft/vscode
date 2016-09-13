@@ -19,8 +19,8 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		super();
 	}
 
-	public $createTerminal(name?: string, shellPath?: string): number {
-		return this.terminalService.createInstance(name, shellPath).id;
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): number {
+		return this.terminalService.createInstance(name, shellPath, shellArgs).id;
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {

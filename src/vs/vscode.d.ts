@@ -3500,7 +3500,7 @@ declare namespace vscode {
 		 * @param shellPath Optional path to a custom shell executable to be used in the terminal.
 		 * @return A new Terminal.
 		 */
-		export function createTerminal(name?: string, shellPath?: string): Terminal;
+		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): Terminal;
 	}
 
 	/**
