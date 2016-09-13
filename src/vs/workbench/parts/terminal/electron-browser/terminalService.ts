@@ -143,11 +143,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void {
+		this._configHelper.panelContainer = panelContainer;
 		this.terminalContainer = terminalContainer;
 		this._terminalInstances.forEach(terminalInstance => {
 			terminalInstance.attachToElement(this.terminalContainer);
 		});
-		this._configHelper.panelContainer = panelContainer;
 	}
 
 	public showPanel(focus?: boolean): TPromise<void> {
@@ -155,7 +155,6 @@ export class TerminalService implements ITerminalService {
 			let panel = this.panelService.getActivePanel();
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
 				return this.panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
-					panel = this.panelService.getActivePanel();
 					if (focus) {
 						this.getActiveInstance().focus(true);
 					}
