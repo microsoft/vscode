@@ -9,7 +9,7 @@ import 'vs/css!./gotoError';
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {Emitter} from 'vs/base/common/event';
-import {CommonKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -207,13 +207,13 @@ class FixesWidget {
 
 		this._listener = dom.addStandardDisposableListener(container, 'keydown', (e) => {
 			switch (e.asKeybinding()) {
-				case CommonKeybindings.LEFT_ARROW:
+				case KeyCode.LeftArrow:
 					this._move(true);
 					// this._goLeft();
 					e.preventDefault();
 					e.stopPropagation();
 					break;
-				case CommonKeybindings.RIGHT_ARROW:
+				case KeyCode.RightArrow:
 					this._move(false);
 					// this._goRight();
 					e.preventDefault();
@@ -275,8 +275,8 @@ class FixesWidget {
 			}));
 			this._disposeOnUpdate.push(dom.addStandardDisposableListener(entry, 'keydown', (e) => {
 				switch (e.asKeybinding()) {
-					case CommonKeybindings.ENTER:
-					case CommonKeybindings.SPACE:
+					case KeyCode.Enter:
+					case KeyCode.Space:
 						this._commandService.executeCommand(fix.command.id, ...fix.command.arguments);
 						e.preventDefault();
 						e.stopPropagation();

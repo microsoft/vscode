@@ -6,7 +6,7 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import Event, {Emitter} from 'vs/base/common/event';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {Range} from 'vs/editor/common/core/range';
@@ -252,7 +252,7 @@ export class TextAreaHandler extends Disposable {
 	}
 
 	private _onKeyDownHandler(e:IKeyboardEventWrapper): void {
-		if (e.equals(CommonKeybindings.ESCAPE)) {
+		if (e.equals(KeyCode.Escape)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
 			// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 			e.preventDefault();

@@ -18,7 +18,7 @@ import types = require('vs/base/common/types');
 import {IEventEmitter, EventEmitter} from 'vs/base/common/eventEmitter';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 export interface IActionItem extends IEventEmitter {
 	actionRunner: IActionRunner;
@@ -388,13 +388,13 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(isVertical ? CommonKeybindings.UP_ARROW : CommonKeybindings.LEFT_ARROW)) {
+			if (event.equals(isVertical ? KeyCode.UpArrow : KeyCode.LeftArrow)) {
 				this.focusPrevious();
-			} else if (event.equals(isVertical ? CommonKeybindings.DOWN_ARROW : CommonKeybindings.RIGHT_ARROW)) {
+			} else if (event.equals(isVertical ? KeyCode.DownArrow : KeyCode.RightArrow)) {
 				this.focusNext();
-			} else if (event.equals(CommonKeybindings.ESCAPE)) {
+			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
-			} else if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+			} else if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				// Nothing, just staying out of the else branch
 			} else {
 				eventHandled = false;
@@ -416,14 +416,14 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			let event = new StandardKeyboardEvent(e);
 
 			// Run action on Enter/Space
-			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this.doTrigger(event);
 				event.preventDefault();
 				event.stopPropagation();
 			}
 
 			// Recompute focused item
-			else if (event.equals(CommonKeybindings.TAB) || event.equals(CommonKeybindings.SHIFT_TAB)) {
+			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
 				this.updateFocusedItem();
 			}
 		});
