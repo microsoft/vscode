@@ -41,7 +41,7 @@ export class Node {
 		if (idx >= 0) {
 			let child = this.children[idx];
 			if (offset > child.start && offset <= child.end) {
-				return child.findNodeBefore(offset);
+				return child.findNodeAt(offset);
 			}
 		}
 		return this;

@@ -35,9 +35,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: false, triggerCharacters: ['"', ':'] },
-		//	hoverProvider: true,
-		//	documentSymbolProvider: true,
+			completionProvider: { resolveProvider: false, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
+			documentHighlightProvider: true,
 			documentRangeFormattingProvider: true,
 			documentFormattingProvider: true
 		}
@@ -122,21 +121,11 @@ connection.onCompletion(textDocumentPosition => {
 	return languageService.doComplete(document, textDocumentPosition.position, htmlDocument);
 });
 
-// connection.onCompletionResolve(completionItem => {
-// 	return languageService.doResolve(completionItem);
-// });
-
-// connection.onHover(textDocumentPositionParams => {
-// 	let document = documents.get(textDocumentPositionParams.textDocument.uri);
-// 	let htmlDocument = getHTMLDocument(document);
-// 	return languageService.doHover(document, textDocumentPositionParams.position, htmlDocument);
-// });
-
-// connection.onDocumentSymbol(documentSymbolParams => {
-// 	let document = documents.get(documentSymbolParams.textDocument.uri);
-// 	let htmlDocument = getHTMLDocument(document);
-// 	return languageService.findDocumentSymbols(document, htmlDocument);
-// });
+connection.onDocumentHighlight(documentHighlightParams => {
+	let document = documents.get(documentHighlightParams.textDocument.uri);
+	let htmlDocument = getHTMLDocument(document);
+	return languageService.findDocumentHighlights(document, documentHighlightParams.position, htmlDocument);
+});
 
 function merge(src: any, dst: any) : any {
 	for (var key in src) {

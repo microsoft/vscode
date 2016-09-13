@@ -24,6 +24,7 @@
 			"mimetypes": ["text/html", "text/x-jshtm", "text/template", "text/ng-template", "application/xhtml+xml"]
 		}],
 		"grammars": [{
+      "language": "html",
 			"scopeName": "text.html.basic",
 			"path": "./syntaxes/html.json"
 		}],
