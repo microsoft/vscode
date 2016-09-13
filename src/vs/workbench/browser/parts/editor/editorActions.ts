@@ -64,8 +64,8 @@ export class SplitEditorAction extends Action {
 		options.pinned = true;
 
 		// Count editors
-		let visibleEditors = this.editorService.getVisibleEditors();
-		let editorCount = visibleEditors.length;
+		const visibleEditors = this.editorService.getVisibleEditors();
+		const editorCount = visibleEditors.length;
 		let targetPosition: Position;
 
 		switch (editorCount) {
@@ -120,15 +120,15 @@ export class NavigateBetweenGroupsAction extends Action {
 	public run(): TPromise<any> {
 
 		// Can cycle split with active editor
-		let activeEditor = this.editorService.getActiveEditor();
+		const activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
 			return TPromise.as(false);
 		}
 
 		// Cycle to the left and use module to start at 0 again
-		let visibleEditors = this.editorService.getVisibleEditors();
-		let editorCount = visibleEditors.length;
-		let newIndex = (activeEditor.position + 1) % editorCount;
+		const visibleEditors = this.editorService.getVisibleEditors();
+		const editorCount = visibleEditors.length;
+		const newIndex = (activeEditor.position + 1) % editorCount;
 
 		this.editorGroupService.focusGroup(<Position>newIndex);
 
@@ -154,7 +154,7 @@ export class FocusFirstGroupAction extends Action {
 	public run(): TPromise<any> {
 
 		// Find left editor and focus it
-		let editors = this.editorService.getVisibleEditors();
+		const editors = this.editorService.getVisibleEditors();
 		for (let editor of editors) {
 			if (editor.position === Position.LEFT) {
 				this.editorGroupService.focusGroup(Position.LEFT);
@@ -164,7 +164,7 @@ export class FocusFirstGroupAction extends Action {
 		}
 
 		// Since no editor is currently opened, try to open last history entry to the target side
-		let history = this.historyService.getHistory();
+		const history = this.historyService.getHistory();
 		for (let input of history) {
 
 			// For now only support to open resources from history to the side
@@ -196,10 +196,10 @@ export abstract class BaseFocusSideGroupAction extends Action {
 	public run(): TPromise<any> {
 
 		// Require at least the reference editor to be visible
-		let editors = this.editorService.getVisibleEditors();
+		const editors = this.editorService.getVisibleEditors();
 		let referenceEditor: IEditor;
 		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
+			const editor = editors[i];
 
 			// Target editor exists so focus it
 			if (editor.position === this.getTargetEditorSide()) {
@@ -232,7 +232,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 		// Otherwise try to find a history entry to open to the target editor side
 		else if (referenceEditor) {
-			let history = this.historyService.getHistory();
+			const history = this.historyService.getHistory();
 			for (let input of history) {
 
 				// For now only support to open files from history to the side
@@ -311,7 +311,7 @@ export class FocusPreviousGroup extends Action {
 	public run(): TPromise<any> {
 
 		// Require an active editor
-		let activeEditor = this.editorService.getActiveEditor();
+		const activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
 			return TPromise.as(true);
 		}
@@ -355,7 +355,7 @@ export class FocusNextGroup extends Action {
 
 		// Find the next position to the right to use
 		let nextPosition: Position;
-		let activeEditor = this.editorService.getActiveEditor();
+		const activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
 			nextPosition = Position.LEFT;
 		} else if (activeEditor.position === Position.LEFT) {
@@ -387,7 +387,7 @@ export class OpenToSideAction extends Action {
 	}
 
 	private updateEnablement(): void {
-		let activeEditor = this.editorService.getActiveEditor();
+		const activeEditor = this.editorService.getActiveEditor();
 		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
 	}
 
@@ -395,7 +395,7 @@ export class OpenToSideAction extends Action {
 		let entry = toEditorQuickOpenEntry(context);
 		if (entry) {
 			let typedInputPromise: TPromise<EditorInput>;
-			let input = entry.getInput();
+			const input = entry.getInput();
 			if (input instanceof EditorInput) {
 				typedInputPromise = TPromise.as(input);
 			} else {
@@ -413,7 +413,7 @@ export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 
 	// QuickOpenEntryGroup
 	if (element instanceof QuickOpenEntryGroup) {
-		let group = <QuickOpenEntryGroup>element;
+		const group = <QuickOpenEntryGroup>element;
 		if (group.getEntry()) {
 			element = group.getEntry();
 		}
@@ -442,11 +442,11 @@ export class CloseEditorAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+		const position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 
 		// Close Active Editor
 		if (typeof position !== 'number') {
-			let activeEditor = this.editorService.getActiveEditor();
+			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
 				return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
 			}
@@ -456,7 +456,7 @@ export class CloseEditorAction extends Action {
 		if (!input) {
 
 			// Get Top Editor at Position
-			let visibleEditors = this.editorService.getVisibleEditors();
+			const visibleEditors = this.editorService.getVisibleEditors();
 			if (visibleEditors[position]) {
 				input = visibleEditors[position].input;
 			}
@@ -485,7 +485,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		let editor = getTarget(this.editorService, this.groupService, context);
+		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
 			return this.editorService.closeEditors(editor.position, editor.input, Direction.LEFT);
 		}
@@ -509,7 +509,7 @@ export class CloseRightEditorsInGroupAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		let editor = getTarget(this.editorService, this.groupService, context);
+		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
 			return this.editorService.closeEditors(editor.position, editor.input, Direction.RIGHT);
 		}
@@ -549,7 +549,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
-			let activeEditor = this.editorService.getActiveEditor();
+			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
 				position = activeEditor.position;
 			}
@@ -613,7 +613,7 @@ export class CloseEditorsInGroupAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
-			let activeEditor = this.editorService.getActiveEditor();
+			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
 				position = activeEditor.position;
 			}
@@ -644,14 +644,14 @@ export class MoveGroupLeftAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
-			let activeEditor = this.editorService.getActiveEditor();
+			const activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
 				position = activeEditor.position;
 			}
 		}
 
 		if (typeof position === 'number') {
-			let newPosition = (position === Position.CENTER) ? Position.LEFT : Position.CENTER;
+			const newPosition = (position === Position.CENTER) ? Position.LEFT : Position.CENTER;
 
 			// Move group
 			this.editorGroupService.moveGroup(position, newPosition);
@@ -678,8 +678,8 @@ export class MoveGroupRightAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
-			let activeEditor = this.editorService.getActiveEditor();
-			let editors = this.editorService.getVisibleEditors();
+			const activeEditor = this.editorService.getActiveEditor();
+			const editors = this.editorService.getVisibleEditors();
 
 			if ((editors.length === 2 && activeEditor.position === Position.LEFT) || (editors.length === 3 && activeEditor.position !== Position.RIGHT)) {
 				position = activeEditor.position;
@@ -687,7 +687,7 @@ export class MoveGroupRightAction extends Action {
 		}
 
 		if (typeof position === 'number') {
-			let newPosition = (position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
+			const newPosition = (position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
 
 			// Move group
 			this.editorGroupService.moveGroup(position, newPosition);
@@ -769,7 +769,7 @@ export class KeepEditorAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		let target = getTarget(this.editorService, this.editorGroupService, context);
+		const target = getTarget(this.editorService, this.editorGroupService, context);
 		if (target) {
 			this.editorGroupService.pinEditor(target.position, target.input);
 		}
@@ -1032,7 +1032,7 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let keys = this.keybindingService.lookupKeybindings(this.id);
+		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		const stacks = this.editorGroupService.getStacksModel();
 		if (stacks.activeGroup) {
@@ -1102,7 +1102,7 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let keys = this.keybindingService.lookupKeybindings(this.id);
+		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(null, { quickNavigateConfiguration: { keybindings: keys } });
 
@@ -1152,7 +1152,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 	public run(): TPromise<any> {
 
 		// Listen for next editor to open
-		let unbind = this.editorGroupService.onEditorOpening(e => {
+		const unbind = this.editorGroupService.onEditorOpening(e => {
 			unbind.dispose(); // listen once
 
 			e.prevent();

@@ -22,6 +22,7 @@ import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IHTMLConfiguration} from 'vs/languages/html/common/html.contribution';
+import {CharCode} from 'vs/base/common/charCode';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get it from us.
@@ -115,7 +116,7 @@ export class State extends AbstractState {
 			break;
 
 			case States.Content:
-				if (stream.advanceIfCharCode2('<'.charCodeAt(0))) {
+				if (stream.advanceIfCharCode2(CharCode.LessThan)) {
 					if (!stream.eos() && stream.peek() === '!') {
 						if (stream.advanceIfString2('!--')) {
 							this.kind = States.WithinComment;
@@ -126,7 +127,7 @@ export class State extends AbstractState {
 							return { type: htmlTokenTypes.DELIM_DOCTYPE, dontMergeWithPrev: true };
 						}
 					}
-					if (stream.advanceIfCharCode2('/'.charCodeAt(0))) {
+					if (stream.advanceIfCharCode2(CharCode.Slash)) {
 						this.kind = States.OpeningEndTag;
 						return { type: htmlTokenTypes.DELIM_END, dontMergeWithPrev: true };
 					}
@@ -183,7 +184,7 @@ export class State extends AbstractState {
 						this.kind = States.Content;
 						return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
 					}
-					if (stream.advanceIfCharCode2('>'.charCodeAt(0))) {
+					if (stream.advanceIfCharCode2(CharCode.GreaterThan)) {
 						if (tagsEmbeddingContent.indexOf(this.lastTagName) !== -1) {
 							this.kind = States.WithinEmbeddedContent;
 							return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
@@ -202,7 +203,7 @@ export class State extends AbstractState {
 					return { type: '' };
 				}
 
-				if (stream.advanceIfCharCode2('='.charCodeAt(0))) {
+				if (stream.advanceIfCharCode2(CharCode.Equals)) {
 					this.kind = States.AttributeValue;
 					return { type: htmlTokenTypes.DELIM_ASSIGN };
 				} else {

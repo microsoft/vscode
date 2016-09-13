@@ -9,10 +9,12 @@ import * as strings from 'vs/base/common/strings';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {Token} from 'vs/editor/common/core/token';
 
-const START_INDEX_MASK = 0xffffffff;
-const TYPE_MASK = 0xffff;
-const START_INDEX_OFFSET = 1;
-const TYPE_OFFSET = Math.pow(2, 32);
+export const enum TokensBinaryEncodingValues {
+	START_INDEX_MASK = 0xffffffff,
+	TYPE_MASK = 0xffff,
+	START_INDEX_OFFSET = 1,
+	TYPE_OFFSET = 4294967296 // Math.pow(2, 32)
+}
 
 const DEFAULT_VIEW_TOKEN = new ViewLineToken(0, '');
 const INFLATED_TOKENS_EMPTY_TEXT:ViewLineToken[] = [];
@@ -35,10 +37,6 @@ export class TokensInflatorMap {
 }
 
 export class TokensBinaryEncoding {
-	public static START_INDEX_MASK = START_INDEX_MASK;
-	public static TYPE_MASK = TYPE_MASK;
-	public static START_INDEX_OFFSET = START_INDEX_OFFSET;
-	public static TYPE_OFFSET = TYPE_OFFSET;
 
 	public static deflateArr(map:TokensInflatorMap, tokens:Token[]): number[] {
 		if (tokens.length === 0) {
@@ -90,7 +88,7 @@ export class TokensBinaryEncoding {
 			// 16 bits for token => up to 2^16 = 65,536
 
 			// [token][startIndex]
-			deflated = deflatedToken * TYPE_OFFSET + token.startIndex * START_INDEX_OFFSET;
+			deflated = deflatedToken * TokensBinaryEncodingValues.TYPE_OFFSET + token.startIndex * TokensBinaryEncodingValues.START_INDEX_OFFSET;
 
 			result[i] = deflated;
 
@@ -101,11 +99,11 @@ export class TokensBinaryEncoding {
 	}
 
 	public static getStartIndex(binaryEncodedToken:number): number {
-		return (binaryEncodedToken / START_INDEX_OFFSET) & START_INDEX_MASK;
+		return (binaryEncodedToken / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 	}
 
 	public static getType(map:TokensInflatorMap, binaryEncodedToken:number): string {
-		var deflatedType = (binaryEncodedToken / TYPE_OFFSET) & TYPE_MASK;
+		var deflatedType = (binaryEncodedToken / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 		if (deflatedType === 0) {
 			return strings.empty;
 		}
@@ -126,8 +124,8 @@ export class TokensBinaryEncoding {
 		for (let i = 0, len = binaryEncodedTokens.length; i < len; i++) {
 			let deflated = binaryEncodedTokens[i];
 
-			let startIndex = (deflated / START_INDEX_OFFSET) & START_INDEX_MASK;
-			let deflatedType = (deflated / TYPE_OFFSET) & TYPE_MASK;
+			let startIndex = (deflated / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
+			let deflatedType = (deflated / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 
 			result.push(new ViewLineToken(startIndex, inflateMap[deflatedType]));
 		}
@@ -152,19 +150,19 @@ export class TokensBinaryEncoding {
 		const inflateMap = map._inflate;
 
 		let originalToken = binaryEncodedTokens[startIndex];
-		let deflatedType = (originalToken / TYPE_OFFSET) & TYPE_MASK;
+		let deflatedType = (originalToken / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 		let newStartIndex = 0;
 		result.push(new ViewLineToken(newStartIndex, inflateMap[deflatedType]));
 
 		for (let i = startIndex + 1, len = binaryEncodedTokens.length; i < len; i++) {
 			originalToken = binaryEncodedTokens[i];
-			let originalStartIndex = (originalToken / START_INDEX_OFFSET) & START_INDEX_MASK;
+			let originalStartIndex = (originalToken / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 
 			if (originalStartIndex >= endOffset) {
 				break;
 			}
 
-			deflatedType = (originalToken / TYPE_OFFSET) & TYPE_MASK;
+			deflatedType = (originalToken / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 			newStartIndex = originalStartIndex - startOffset + deltaStartIndex;
 			result.push(new ViewLineToken(newStartIndex, inflateMap[deflatedType]));
 		}

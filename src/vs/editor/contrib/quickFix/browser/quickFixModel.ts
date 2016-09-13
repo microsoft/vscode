@@ -20,7 +20,7 @@ import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
 import {IQuickFix2, getCodeActions} from '../common/quickFix';
 import {LightBulbWidget} from './lightBulbWidget';
 
-enum QuickFixSuggestState {
+const enum QuickFixSuggestState {
 	NOT_ACTIVE = 0,
 	MANUAL_TRIGGER = 1,
 	AUTO_TRIGGER = 2

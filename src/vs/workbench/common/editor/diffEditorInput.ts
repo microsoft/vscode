@@ -81,14 +81,6 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 		return this.description;
 	}
 
-	public setOriginalInput(input: EditorInput): void {
-		this.originalInput = input;
-	}
-
-	public setModifiedInput(input: EditorInput): void {
-		this.modifiedInput = input;
-	}
-
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 		let modelPromise: TPromise<EditorModel>;
 
@@ -119,7 +111,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	public getPreferredEditorId(candidates: string[]): string {
 
 		// Find the right diff editor for the given isBinary/isText state
-		let useBinaryEditor = this.forceOpenAsBinary || this.isBinary(this.originalInput) || this.isBinary(this.modifiedInput);
+		const useBinaryEditor = this.forceOpenAsBinary || this.isBinary(this.originalInput) || this.isBinary(this.modifiedInput);
 
 		return !useBinaryEditor ? 'workbench.editors.textDiffEditor' : 'workbench.editors.binaryResourceDiffEditor';
 	}
@@ -128,7 +120,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 		let mime: string;
 
 		// Find mime by checking for IFileEditorInput implementors
-		let fileInput = <IFileEditorInput>(<any>input);
+		const fileInput = <IFileEditorInput>(<any>input);
 		if (types.isFunction(fileInput.getMime)) {
 			mime = fileInput.getMime();
 		}
@@ -143,8 +135,8 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 			this.originalInput.resolve(refresh),
 			this.modifiedInput.resolve(refresh)
 		]).then((models) => {
-			let originalEditorModel = models[0];
-			let modifiedEditorModel = models[1];
+			const originalEditorModel = models[0];
+			const modifiedEditorModel = models[1];
 
 			// If both are text models, return textdiffeditor model
 			if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
@@ -170,7 +162,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 				return false;
 			}
 
-			let otherDiffInput = <DiffEditorInput>otherInput;
+			const otherDiffInput = <DiffEditorInput>otherInput;
 			return this.originalInput.matches(otherDiffInput.originalInput) && this.modifiedInput.matches(otherDiffInput.modifiedInput);
 		}
 
@@ -180,19 +172,22 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	public dispose(): void {
 		this._toUnbind = dispose(this._toUnbind);
 
-		// Dispose Model
+		// Free the diff editor model but do not propagate the dispose() call to the two inputs
+		// We never created the two inputs (original and modified) so we can not dispose
+		// them without sideeffects.
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
 
 		super.dispose();
 	}
 }
 
 export function toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider): string {
-	let leftName = getPathLabel(res1.fsPath, context);
-	let rightName = getPathLabel(res2.fsPath, context);
+	const leftName = getPathLabel(res1.fsPath, context);
+	const rightName = getPathLabel(res2.fsPath, context);
 
 	return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
 }

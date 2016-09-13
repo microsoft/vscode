@@ -7,6 +7,7 @@
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import {BoundedLinkedMap} from 'vs/base/common/map';
+import {CharCode} from 'vs/base/common/charCode';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
@@ -467,9 +468,6 @@ function parseExpressionPattern(pattern: string, value: any): (ParsedStringPatte
 	return parsedPattern;
 }
 
-const SLASH = '/'.charCodeAt(0);
-const BACKSLASH = '\\'.charCodeAt(0);
-
 function aggregateBasenameMatches(parsedPatterns: (ParsedStringPattern | ParsedExpressionPattern)[], result?: string): (ParsedStringPattern | ParsedExpressionPattern)[] {
 	const basenamePatterns = parsedPatterns.filter(parsedPattern => !!(<ParsedStringPattern>parsedPattern).basenames);
 	if (basenamePatterns.length < 2) {
@@ -494,7 +492,7 @@ function aggregateBasenameMatches(parsedPatterns: (ParsedStringPattern | ParsedE
 			let i: number;
 			for (i = path.length; i > 0; i--) {
 				const ch = path.charCodeAt(i - 1);
-				if (ch === SLASH || ch === BACKSLASH) {
+				if (ch === CharCode.Slash || ch === CharCode.Backslash) {
 					break;
 				}
 			}

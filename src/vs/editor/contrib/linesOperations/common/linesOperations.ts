@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
 import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {EditorContextKeys, Handler, ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
@@ -187,7 +187,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			precondition: EditorContextKeys.Writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
 			}
 		});
 	}

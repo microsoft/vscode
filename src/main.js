@@ -122,7 +122,7 @@ try {
 }
 
 // Set userData path before app 'ready' event
-var userData = args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform);
+var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
 app.setPath('userData', userData);
 
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before

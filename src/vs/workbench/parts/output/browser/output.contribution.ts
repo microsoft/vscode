@@ -5,7 +5,7 @@
 
 import 'vs/css!../browser/media/output.contribution';
 import nls = require('vs/nls');
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import platform = require('vs/platform/platform');
 import {MenuId, MenuRegistry, SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -46,7 +46,7 @@ let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtens
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputAction, ToggleOutputAction.ID, ToggleOutputAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
 	linux: {
-		primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
 	}
 }), 'View: Toggle Output', nls.localize('viewCategory', "View"));
 

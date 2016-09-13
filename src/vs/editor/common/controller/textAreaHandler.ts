@@ -12,7 +12,7 @@ import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel,
 import {Range} from 'vs/editor/common/core/range';
 import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 
-enum ReadFromTextArea {
+const enum ReadFromTextArea {
 	Type,
 	Paste
 }

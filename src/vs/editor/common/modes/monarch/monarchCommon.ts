@@ -15,7 +15,7 @@
  * Inside monarch we use fully typed definitions and compiled versions of the more abstract JSON descriptions.
  */
 
-export enum MonarchBracket {
+export const enum MonarchBracket {
 	None = 0,
 	Open = 1,
 	Close = -1

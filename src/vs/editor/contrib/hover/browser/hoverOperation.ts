@@ -39,7 +39,7 @@ export interface IHoverComputer<Result> {
 
 }
 
-enum ComputeHoverOperationState {
+const enum ComputeHoverOperationState {
 	IDLE = 0,
 	FIRST_WAIT = 1,
 	SECOND_WAIT = 2,
