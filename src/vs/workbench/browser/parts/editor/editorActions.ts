@@ -150,7 +150,11 @@ export class FocusActiveGroupAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.editorService.getActiveEditor().focus();
+ 		const activeEditor = this.editorService.getActiveEditor();
+ 		if (activeEditor) {
+			activeEditor.focus();
+ 		}
+
 		return TPromise.as(true);
 	}
 }
