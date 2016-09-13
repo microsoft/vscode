@@ -22,7 +22,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 

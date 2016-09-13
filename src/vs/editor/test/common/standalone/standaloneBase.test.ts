@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {KeyCode as StandaloneKeyCode} from 'vs/editor/common/standalone/standaloneBase';
 import {KeyCode as RuntimeKeyCode} from 'vs/base/common/keyCodes';
-import {/*KeyCode, KeyMod, BinaryKeybindings,*/ Keybinding} from 'vs/base/common/keyCodes';
+import {Keybinding} from 'vs/base/common/keybinding';
 
 suite('KeyCode', () => {
 	test('is exported correctly in standalone editor', () => {

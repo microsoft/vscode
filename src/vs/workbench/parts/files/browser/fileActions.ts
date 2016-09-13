@@ -45,7 +45,8 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {Keybinding} from 'vs/base/common/keybinding';
 import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IEditableData {

@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {Keybinding} from 'vs/base/common/keyCodes';
+import {Keybinding} from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import {toDisposable} from 'vs/base/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';

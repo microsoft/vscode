@@ -7,7 +7,8 @@
 import 'vs/css!./keybindings';
 import * as nls from 'vs/nls';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {KeyCode, Keybinding} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
+import {Keybinding} from 'vs/base/common/keybinding';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';

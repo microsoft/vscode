@@ -38,7 +38,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
