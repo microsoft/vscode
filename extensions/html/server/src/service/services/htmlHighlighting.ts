@@ -11,15 +11,22 @@ import {TextDocument, Range, Position, DocumentHighlightKind, DocumentHighlight}
 export function findDocumentHighlights(document: TextDocument, position: Position, htmlDocument: HTMLDocument): DocumentHighlight[] {
 	let offset = document.offsetAt(position);
 	let node = htmlDocument.findNodeAt(offset);
-	if (!node.tag || typeof node.endTagStart !== 'number') {
+	if (!node.tag) {
 		return [];
 	}
+	let result = [];
 	let startTagRange = getTagNameRange(TokenType.StartTag, document, node.start);
-	let endTagRange = getTagNameRange(TokenType.EndTag, document, node.endTagStart);
-	if (startTagRange && endTagRange && (covers(startTagRange, position) || covers(endTagRange, position))) {
-		return [ { kind: DocumentHighlightKind.Read, range: startTagRange }, { kind: DocumentHighlightKind.Read, range: endTagRange }];
+	let endTagRange = typeof node.endTagStart === 'number' && getTagNameRange(TokenType.EndTag, document, node.endTagStart);
+	if (startTagRange && covers(startTagRange, position) || endTagRange && covers(endTagRange, position)) {
+		if (startTagRange) {
+			result.push({ kind: DocumentHighlightKind.Read, range: startTagRange });
+		}
+		if (endTagRange) {
+			result.push({ kind: DocumentHighlightKind.Read, range: endTagRange });
+		}
 	}
-	return [];
+	console.log('foo' + result.length);
+	return result;
 }
 
 function isBeforeOrEqual(pos1: Position, pos2: Position) {
@@ -30,10 +37,10 @@ function covers(range: Range, position: Position) {
 	return isBeforeOrEqual(range.start, position) && isBeforeOrEqual(position, range.end);
 }
 
-function getTagNameRange(tokenType: TokenType, document: TextDocument, startOffset: number ) : Range {
+function getTagNameRange(tokenType: TokenType, document: TextDocument, startOffset: number) : Range {
 	let scanner = createScanner(document.getText(), startOffset);
 	let token = scanner.scan();
-	while (token !== TokenType.EOS && token !== TokenType.StartTag) {
+	while (token !== TokenType.EOS && token !== tokenType) {
 		token = scanner.scan();
 	}
 	if (token !== TokenType.EOS) {
