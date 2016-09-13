@@ -11,8 +11,6 @@ import {MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
 export class ExtHostTerminal implements vscode.Terminal {
 
 	public _name: string;
-	public _shellPath: string;
-	public _shellArgs: string[];
 
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
@@ -20,7 +18,6 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string, shellPath?: string, shellArgs?: string[]) {
 		this._name = name;
-		this._shellPath = shellPath;
 		this._proxy = proxy;
 		this._id = this._proxy.$createTerminal(name, shellPath, shellArgs);
 	}
