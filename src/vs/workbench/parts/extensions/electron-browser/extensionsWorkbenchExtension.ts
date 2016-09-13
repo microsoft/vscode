@@ -6,16 +6,13 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IExtensionsWorkbenchService, ExtensionState, VIEWLET_ID } from './extensions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { LegacyWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { ipcRenderer as ipc } from 'electron';
 
@@ -69,41 +66,5 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 	public getId(): string {
 		return 'vs.extensions.workbenchextension';
-	}
-}
-
-export class StatusUpdater implements IWorkbenchContribution {
-
-	private disposables: IDisposable[];
-
-	constructor(
-		@IActivityService private activityService: IActivityService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
-	) {
-		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
-	}
-
-	getId(): string {
-		return 'vs.extensions.statusupdater';
-	}
-
-	private onServiceChange(): void {
-		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
-			this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
-			return;
-		}
-
-		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
-
-		if (outdated > 0) {
-			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
-			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
-		} else {
-			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
-		}
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

@@ -284,6 +284,6 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: 'sourcemaps',
-			prefix: commit + '/core/'
+			prefix: commit + '/'
 		}));
 });

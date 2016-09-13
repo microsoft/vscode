@@ -10,6 +10,7 @@ import {Range} from 'vs/editor/common/core/range';
 
 export interface FindReplaceStateChangedEvent {
 	moveCursor: boolean;
+	updateHistory: boolean;
 
 	searchString: boolean;
 	replaceString: boolean;
@@ -90,6 +91,7 @@ export class FindReplaceState implements IDisposable {
 	public changeMatchInfo(matchesPosition:number, matchesCount:number, currentMatch:Range): void {
 		let changeEvent:FindReplaceStateChangedEvent = {
 			moveCursor: false,
+			updateHistory: false,
 			searchString: false,
 			replaceString: false,
 			isRevealed: false,
@@ -135,9 +137,10 @@ export class FindReplaceState implements IDisposable {
 		}
 	}
 
-	public change(newState:INewFindReplaceState, moveCursor:boolean): void {
+	public change(newState:INewFindReplaceState, moveCursor:boolean, updateHistory: boolean = true): void {
 		let changeEvent:FindReplaceStateChangedEvent = {
 			moveCursor: moveCursor,
+			updateHistory: updateHistory,
 			searchString: false,
 			replaceString: false,
 			isRevealed: false,
