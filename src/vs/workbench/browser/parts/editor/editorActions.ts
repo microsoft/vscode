@@ -136,6 +136,29 @@ export class NavigateBetweenGroupsAction extends Action {
 	}
 }
 
+export class FocusActiveGroupAction extends Action {
+
+	public static ID = 'workbench.action.focusActiveEditorGroup';
+	public static LABEL = nls.localize('focusActiveEditorGroup', "Focus Active Editor Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+ 		const activeEditor = this.editorService.getActiveEditor();
+ 		if (activeEditor) {
+			activeEditor.focus();
+ 		}
+
+		return TPromise.as(true);
+	}
+}
+
 export class FocusFirstGroupAction extends Action {
 
 	public static ID = 'workbench.action.focusFirstEditorGroup';
