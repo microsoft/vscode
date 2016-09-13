@@ -43,10 +43,10 @@ export class RequestService implements IRequestService {
 	}
 
 	request(options: IRequestOptions): TPromise<IRequestContext> {
-		if (!options.agent) {
-			const { proxyUrl, strictSSL } = this;
-			options.agent = getProxyAgent(options.url, { proxyUrl, strictSSL });
-		}
+		const { proxyUrl, strictSSL } = this;
+
+		options.agent = options.agent || getProxyAgent(options.url, { proxyUrl, strictSSL });
+		options.strictSSL = strictSSL;
 
 		if (this.authorization) {
 			options.headers = assign(options.headers || {}, { 'Proxy-Authorization': this.authorization });

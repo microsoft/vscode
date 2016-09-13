@@ -24,7 +24,6 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {Part} from 'vs/workbench/browser/part';
 import {Composite, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IComposite} from 'vs/workbench/common/composite';
-import {EventType as CompositeEventType} from 'vs/workbench/browser/composite';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -182,7 +181,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					this.instantiatedComposits.push(composite);
 
 					// Register to title area update events from the composite
-					this.instantiatedCompositeListeners.push(composite.addListener2(CompositeEventType.INTERNAL_COMPOSITE_TITLE_AREA_UPDATE, compositeId => this.onTitleAreaUpdate(compositeId)));
+					this.instantiatedCompositeListeners.push(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId())));
 
 					// Remove from Promises Cache since Loaded
 					delete this.compositeLoaderPromises[id];

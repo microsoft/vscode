@@ -251,7 +251,7 @@ class InternalEditorOptionsHelper {
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			editorClassName: editorClassName,
 			stopRenderingLineAfter: stopRenderingLineAfter,
-			renderWhitespace: toBoolean(opts.renderWhitespace),
+			renderWhitespace: opts.renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: toBoolean(opts.renderLineHighlight),
@@ -478,6 +478,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		let fontSize = toFloat(opts.fontSize, DefaultConfig.editor.fontSize);
 		fontSize = Math.max(0, fontSize);
 		fontSize = Math.min(100, fontSize);
+		if (fontSize === 0) {
+			fontSize = DefaultConfig.editor.fontSize;
+		}
 
 		let lineHeight = toInteger(opts.lineHeight, 0, 150);
 		if (lineHeight === 0) {
@@ -769,9 +772,10 @@ let editorConfiguration:IConfigurationNode = {
 			'description': nls.localize('hideCursorInOverviewRuler', "Controls if the cursor should be hidden in the overview ruler.")
 		},
 		'editor.renderWhitespace': {
-			'type': 'boolean',
+			'type': 'string',
+			'enum': ['none', 'boundary', 'all'],
 			default: DefaultConfig.editor.renderWhitespace,
-			description: nls.localize('renderWhitespace', "Controls whether the editor should render whitespace characters")
+			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters, posibilties are 'none', 'boundary', and 'all'. The 'boundary' option does not render single spaces between words.")
 		},
 		'editor.renderControlCharacters': {
 			'type': 'boolean',

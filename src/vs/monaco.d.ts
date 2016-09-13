@@ -75,12 +75,16 @@ declare module monaco {
         public cancel(): void;
 
         public static as<ValueType>(value: ValueType): Promise<ValueType>;
-        public static is(value: any): value is Promise<any>;
+        public static is(value: any): value is Thenable<any>;
         public static timeout(delay: number): Promise<void>;
         public static join<ValueType>(promises: Promise<ValueType>[]): Promise<ValueType[]>;
         public static join<ValueType>(promises: Thenable<ValueType>[]): Thenable<ValueType[]>;
         public static join<ValueType>(promises: { [n: string]: Promise<ValueType> }): Promise<{ [n: string]: ValueType }>;
         public static any<ValueType>(promises: Promise<ValueType>[]): Promise<{ key: string; value: Promise<ValueType>; }>;
+
+        public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
+        public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
+
         public static wrapError<ValueType>(error: any): Promise<ValueType>;
     }
 
@@ -337,10 +341,10 @@ declare module monaco {
         NUMPAD_DIVIDE = 108,
         /**
          * Placed last to cover the length of the enum.
+         * Please do not depend on this value!
          */
         MAX_VALUE = 109,
     }
-
     export class KeyMod {
         static CtrlCmd: number;
         static Shift: number;
@@ -1282,10 +1286,10 @@ declare module monaco.editor {
          */
         folding?: boolean;
         /**
-         * Enable rendering of leading whitespace.
-         * Defaults to false.
+         * Enable rendering of whitespace.
+         * Defaults to none.
          */
-        renderWhitespace?: boolean;
+        renderWhitespace?: 'none' | 'boundary' | 'all';
         /**
          * Enable rendering of control characters.
          * Defaults to false.
@@ -1395,7 +1399,7 @@ declare module monaco.editor {
         scrollBeyondLastLine: boolean;
         editorClassName: string;
         stopRenderingLineAfter: number;
-        renderWhitespace: boolean;
+        renderWhitespace: 'none' | 'boundary' | 'all';
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
         renderLineHighlight: boolean;

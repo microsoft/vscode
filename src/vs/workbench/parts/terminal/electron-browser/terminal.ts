@@ -5,13 +5,13 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
-import cp = require('child_process');
 import platform = require('vs/base/common/platform');
 import processes = require('vs/base/node/processes');
-import {Builder} from 'vs/base/browser/builder';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { Builder, Dimension } from 'vs/base/browser/builder';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -52,41 +52,126 @@ export interface ITerminalConfiguration {
 	};
 }
 
-export interface ITerminalProcess {
-	title: string;
-	process: cp.ChildProcess;
-}
-
 export interface ITerminalService {
 	_serviceBrand: any;
+
+	activeTerminalInstanceIndex: number;
+	configHelper: TerminalConfigHelper;
 	onActiveInstanceChanged: Event<string>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
+	terminalInstances: ITerminalInstance[];
 
-	close(): TPromise<any>;
-	copySelection(): TPromise<any>;
-	createNew(name?: string): TPromise<number>;
-	focusNext(): TPromise<any>;
-	focusPrevious(): TPromise<any>;
-	hide(): TPromise<any>;
-	hideTerminalInstance(terminalId: number): TPromise<any>;
-	paste(): TPromise<any>;
-	runSelectedText(): TPromise<any>;
-	scrollDown(): TPromise<any>;
-	scrollUp(): TPromise<any>;
-	show(focus: boolean): TPromise<ITerminalPanel>;
-	setActiveTerminal(index: number): TPromise<any>;
-	setActiveTerminalById(terminalId: number): void;
-	toggle(): TPromise<any>;
+	createInstance(name?: string, shellPath?: string): ITerminalInstance;
+	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getInstanceLabels(): string[];
+	getActiveInstance(): ITerminalInstance;
+	setActiveInstance(terminalInstance: ITerminalInstance): void;
+	setActiveInstanceByIndex(terminalIndex: number): void;
+	setActiveInstanceToNext(): void;
+	setActiveInstanceToPrevious(): void;
 
-	getActiveTerminalIndex(): number;
-	getTerminalInstanceTitles(): string[];
-	initConfigHelper(panelContainer: Builder): void;
-	killTerminalProcess(terminalProcess: ITerminalProcess): void;
+	showPanel(focus?: boolean): TPromise<void>;
+	hidePanel(): void;
+	togglePanel(): TPromise<void>;
+	setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void;
 }
 
-export interface ITerminalPanel {
-	closeTerminalById(terminalId: number): TPromise<void>;
-	focus(): void;
-	sendTextToActiveTerminal(text: string, addNewLine: boolean): void;
+export interface ITerminalInstance {
+	/**
+	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
+	 * terminal instance.
+	 */
+	id: number;
+
+	/**
+	 * An event that fires when the terminal instance's title changes.
+	 */
+	onTitleChanged: Event<string>;
+
+	/**
+	 * The title of the terminal. This is either title or the process currently running or an
+	 * explicit name given to the terminal instance through the extension API.
+	 *
+	 * @readonly
+	 */
+	title: string;
+
+	/**
+	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
+	 */
+	dispose(): void;
+
+	/**
+	 * Copies the terminal selection to the clipboard.
+	 */
+	copySelection(): void;
+
+	/**
+	 * Focuses the terminal instance.
+	 *
+	 * @param focus Force focus even if there is a selection.
+	 */
+	focus(force?: boolean): void;
+
+	/**
+	 * Focuses and pastes the contents of the clipboard into the terminal instance.
+	 */
+	paste(): void;
+
+	/**
+	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
+	 * process (shell) of the terminal instance.
+	 *
+	 * @param text The text to send.
+	 * @param addNewLine Whether to add a new line to the text being sent, this is normally
+	 * required to run a command in the terminal. The character(s) added are \n or \r\n
+	 * depending on the platform. This defaults to `true`.
+	 */
+	sendText(text: string, addNewLine: boolean): void;
+
+	/**
+	 * Scroll the terminal buffer down 1 line.
+	 */
+	scrollDown(): void;
+
+	/**
+	 * Scroll the terminal buffer up 1 line.
+	 */
+	scrollUp(): void;
+
+	/**
+	 * Attaches the terminal instance to an element on the DOM, before this is called the terminal
+	 * instance process may run in the background but cannot be displayed on the UI.
+	 *
+	 * @param container The element to attach the terminal instance to.
+	 */
+	attachToElement(container: HTMLElement): void;
+
+	/**
+	 * Sets whether the terminal instance's cursor will blink or be solid.
+	 *
+	 * @param blink Whether the cursor will blink.
+	 */
+	setCursorBlink(blink: boolean): void;
+
+	/**
+	 * Sets the array of commands that skip the shell process so they can be handled by VS Code's
+	 * keybinding system.
+	 */
+	setCommandsToSkipShell(commands: string[]): void;
+
+	/**
+	 * Configure the dimensions of the terminal instance.
+	 *
+	 * @param dimension The dimensions of the container.
+	 */
+	layout(dimension: Dimension): void;
+
+	/**
+	 * Sets whether the terminal instance's element is visible in the DOM.
+	 *
+	 * @param visible Whether the element is visible.
+	 */
+	setVisible(visible: boolean): void;
 }

@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {IModel, IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
+import {IEditorOptions, IRawText} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IEncodingSupport, EncodingMode, EditorInput, IFileEditorInput, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
@@ -107,37 +107,13 @@ export interface ISaveErrorHandler {
 	onSaveError(error: any, model: ITextFileEditorModel): void;
 }
 
-/**
- * List of event types from files.
- */
-export const EventType = {
+export interface ISaveParticipant {
 
 	/**
-	 * Indicates that a file content has changed but not yet saved.
+	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	FILE_DIRTY: 'files:fileDirty',
-
-	/**
-	 * Indicates that a file is being saved.
-	 */
-	FILE_SAVING: 'files:fileSaving',
-
-	/**
-	 * Indicates that a file save resulted in an error.
-	 */
-	FILE_SAVE_ERROR: 'files:fileSaveError',
-
-	/**
-	 * Indicates that a file content has been saved to the disk.
-	 */
-	FILE_SAVED: 'files:fileSaved',
-
-	/**
-	 * Indicates that a file content has been reverted to the state
-	 * on disk.
-	 */
-	FILE_REVERTED: 'files:fileReverted'
-};
+	participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): void;
+}
 
 /**
  * States the text text file editor model can be in.
@@ -204,35 +180,30 @@ export class LocalFileChangeEvent extends PropertyChangeEvent {
 	}
 }
 
-/**
- * Text file change events are emitted when files are saved or reverted.
- */
-export class TextFileChangeEvent extends BaseEvent {
+export enum StateChange {
+	DIRTY,
+	SAVING,
+	SAVE_ERROR,
+	SAVED,
+	REVERTED,
+	ENCODING
+}
+
+export class TextFileModelChangeEvent {
 	private _resource: URI;
-	private _model: IModel;
-	private _isAutoSaved: boolean;
+	private _kind: StateChange;
 
-	constructor(resource: URI, model: IModel) {
-		super();
-
-		this._resource = resource;
-		this._model = model;
+	constructor(model: ITextFileEditorModel, kind: StateChange) {
+		this._resource = model.getResource();
+		this._kind = kind;
 	}
 
 	public get resource(): URI {
 		return this._resource;
 	}
 
-	public get model(): IModel {
-		return this._model;
-	}
-
-	public setAutoSaved(autoSaved: boolean): void {
-		this._isAutoSaved = autoSaved;
-	}
-
-	public get isAutoSaved(): boolean {
-		return this._isAutoSaved;
+	public get kind(): StateChange {
+		return this._kind;
 	}
 }
 
@@ -288,6 +259,12 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface ITextFileEditorModelManager {
 
+	onModelDirty: Event<TextFileModelChangeEvent>;
+	onModelSaveError: Event<TextFileModelChangeEvent>;
+	onModelSaved: Event<TextFileModelChangeEvent>;
+	onModelReverted: Event<TextFileModelChangeEvent>;
+	onModelEncodingChanged: Event<TextFileModelChangeEvent>;
+
 	get(resource: URI): ITextFileEditorModel;
 
 	getAll(resource?: URI): ITextFileEditorModel[];
@@ -297,6 +274,8 @@ export interface ITextFileEditorModelManager {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
+	onDidStateChange: Event<StateChange>;
+
 	getResource(): URI;
 
 	getLastSaveAttemptTime(): number;
@@ -304,6 +283,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	getLastModifiedTime(): number;
 
 	getState(): ModelState;
+
+	updatePreferredEncoding(encoding: string): void;
 
 	save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void>;
 

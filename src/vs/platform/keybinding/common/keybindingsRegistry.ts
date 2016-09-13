@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BinaryKeybindings, KeyCode} from 'vs/base/common/keyCodes';
+import {BinaryKeybindings, KeyCodeUtils} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import {IKeybindingItem, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
@@ -105,7 +105,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
 		if (platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
-				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
+				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCodeUtils.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
 					console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
 				}
 			}

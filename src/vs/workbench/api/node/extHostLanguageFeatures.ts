@@ -403,30 +403,25 @@ class OnTypeFormattingAdapter {
 	}
 }
 
-interface MyWorkspaceSymbol extends IWorkspaceSymbol {
-	idx: number;
-}
 
 class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 
 	private _provider: vscode.WorkspaceSymbolProvider;
-	private _cache: vscode.SymbolInformation[];
+	private _heapService: ExtHostHeapService;
 
-	constructor(provider: vscode.WorkspaceSymbolProvider) {
+	constructor(provider: vscode.WorkspaceSymbolProvider, heapService: ExtHostHeapService) {
 		this._provider = provider;
+		this._heapService = heapService;
 	}
 
 	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbol[]> {
 
-		this._cache = [];
-
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (Array.isArray(value)) {
-				this._cache = value;
-				return value.map((item, idx) => {
-					const result = <MyWorkspaceSymbol>TypeConverters.fromSymbolInformation(item);
-					result.idx = idx;
-					return result;
+				return value.map(item => {
+					const id = this._heapService.keep(item);
+					const result = TypeConverters.fromSymbolInformation(item);
+					return ObjectIdentifier.mixin(result, id);
 				});
 			}
 		});
@@ -435,17 +430,15 @@ class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 	resolveWorkspaceSymbol(item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return;
+			return TPromise.as(item);
 		}
 
-		const idx = (<MyWorkspaceSymbol>item).idx;
-		if(typeof idx !== 'number') {
-			return;
+		const symbolInfo = this._heapService.get<vscode.SymbolInformation>(ObjectIdentifier.get(item));
+		if (symbolInfo) {
+			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(symbolInfo, token)).then(value => {
+				return value && TypeConverters.fromSymbolInformation(value);
+			});
 		}
-
-		return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(this._cache[idx], token)).then(value => {
-			return value && TypeConverters.fromSymbolInformation(value);
-		});
 	}
 }
 
@@ -505,9 +498,9 @@ class SuggestAdapter {
 	private _provider: vscode.CompletionItemProvider;
 	private _disposables: { [id: number]: IDisposable[] } = [];
 
-	constructor(documents: ExtHostDocuments, heapMonitor: ExtHostHeapService, provider: vscode.CompletionItemProvider) {
+	constructor(documents: ExtHostDocuments, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
-		this._heapService = heapMonitor;
+		this._heapService = heapService;
 		this._provider = provider;
 	}
 
@@ -662,7 +655,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
-	private _heapMonitor: ExtHostHeapService;
+	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter: { [handle: number]: Adapter } = Object.create(null);
 
@@ -677,7 +670,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		this._proxy = threadService.get(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
-		this._heapMonitor = heapMonitor;
+		this._heapService = heapMonitor;
 		this._diagnostics = diagnostics;
 	}
 
@@ -834,7 +827,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new NavigateTypeAdapter(provider);
+		this._adapter[handle] = new NavigateTypeAdapter(provider, this._heapService);
 		this._proxy.$registerNavigateTypeSupport(handle);
 		return this._createDisposable(handle);
 	}
@@ -864,7 +857,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SuggestAdapter(this._documents, this._heapMonitor, provider);
+		this._adapter[handle] = new SuggestAdapter(this._documents, this._heapService, provider);
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}

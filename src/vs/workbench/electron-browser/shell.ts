@@ -211,7 +211,7 @@ export class WorkbenchShell {
 	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
-		const sharedProcess = connectNet(process.env['VSCODE_SHARED_IPC_HOOK']);
+		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle);
 		sharedProcess.done(service => {
 			service.onClose(() => {
 				this.messageService.show(Severity.Error, {

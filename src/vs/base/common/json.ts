@@ -443,7 +443,7 @@ function isDigit(ch: number): boolean {
 	return ch >= CharacterCodes._0 && ch <= CharacterCodes._9;
 }
 
-enum CharacterCodes {
+const enum CharacterCodes {
 	nullCharacter = 0,
 	maxAsciiCharacter = 0x7F,
 

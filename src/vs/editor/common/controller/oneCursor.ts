@@ -16,6 +16,8 @@ import {Selection, SelectionDirection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IElectricAction, IndentAction} from 'vs/editor/common/modes';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {CharCode} from 'vs/base/common/charCode';
+import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -99,30 +101,22 @@ export interface IFindWordResult {
 	wordType: WordType;
 }
 
-export enum WordType {
+export const enum WordType {
 	None = 0,
 	Regular = 1,
 	Separator = 2
 };
 
-enum CharacterClass {
+const enum CharacterClass {
 	Regular = 0,
 	Whitespace = 1,
 	WordSeparator = 2
 };
 
-export enum WordNavigationType {
+export const enum WordNavigationType {
 	WordStart = 0,
 	WordEnd = 1
 }
-
-const CH_REGULAR = CharacterClass.Regular;
-const CH_WHITESPACE = CharacterClass.Whitespace;
-const CH_WORD_SEPARATOR = CharacterClass.WordSeparator;
-
-const W_NONE = WordType.None;
-const W_REGULAR = WordType.Regular;
-const W_SEPARATOR = WordType.Separator;
 
 export class OneCursor {
 
@@ -1528,8 +1522,6 @@ export class OneCursorOp {
 		}
 
 		let selectionContainsOnlyWhitespace = true;
-		let _tab = '\t'.charCodeAt(0);
-		let _space = ' '.charCodeAt(0);
 
 		for (let lineNumber = selection.startLineNumber; lineNumber <= selection.endLineNumber; lineNumber++) {
 			let lineText = cursor.model.getLineContent(lineNumber);
@@ -1537,7 +1529,7 @@ export class OneCursorOp {
 			let endIndex = (lineNumber === selection.endLineNumber ? selection.endColumn - 1 : lineText.length);
 			for (let charIndex = startIndex; charIndex < endIndex; charIndex++) {
 				let charCode = lineText.charCodeAt(charIndex);
-				if (charCode !== _tab && charCode !== _space) {
+				if (charCode !== CharCode.Tab && charCode !== CharCode.Space) {
 					selectionContainsOnlyWhitespace = false;
 
 					// Break outer loop
@@ -2261,7 +2253,7 @@ class CursorHelper {
 		return this.moveHelper.columnFromVisibleColumn(model, lineNumber, column);
 	}
 
-	private _createWord(lineContent: string, wordType:WordType, start: number, end: number): IFindWordResult {
+	private static _createWord(lineContent: string, wordType:WordType, start: number, end: number): IFindWordResult {
 		// console.log('WORD ==> ' + start + ' => ' + end + ':::: <<<' + lineContent.substring(start, end) + '>>>');
 		return { start: start, end: end, wordType: wordType };
 	}
@@ -2270,48 +2262,52 @@ class CursorHelper {
 		let position = this.model.validatePosition(_position);
 		let wordSeparators = getMapForWordSeparators(this.configuration.editor.wordSeparators);
 		let lineContent = this.model.getLineContent(position.lineNumber);
-		let wordType = W_NONE;
+		return CursorHelper._findPreviousWordOnLine(lineContent, wordSeparators, position);
+	}
+
+	private static _findPreviousWordOnLine(lineContent:string, wordSeparators:WordCharacterClassifier, position:Position): IFindWordResult {
+		let wordType = WordType.None;
 		for (let chIndex = position.column - 2; chIndex >= 0; chIndex--) {
 			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+			let chClass = wordSeparators.get(chCode);
 
-			if (chClass === CH_REGULAR) {
-				if (wordType === W_SEPARATOR) {
-					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
+			if (chClass === CharacterClass.Regular) {
+				if (wordType === WordType.Separator) {
+					return CursorHelper._createWord(lineContent, wordType, chIndex + 1, CursorHelper._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
-				wordType = W_REGULAR;
-			} else if (chClass === CH_WORD_SEPARATOR) {
-				if (wordType === W_REGULAR) {
-					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
+				wordType = WordType.Regular;
+			} else if (chClass === CharacterClass.WordSeparator) {
+				if (wordType === WordType.Regular) {
+					return CursorHelper._createWord(lineContent, wordType, chIndex + 1, CursorHelper._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
-				wordType = W_SEPARATOR;
-			} else if (chClass === CH_WHITESPACE) {
-				if (wordType !== W_NONE) {
-					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
+				wordType = WordType.Separator;
+			} else if (chClass === CharacterClass.Whitespace) {
+				if (wordType !== WordType.None) {
+					return CursorHelper._createWord(lineContent, wordType, chIndex + 1, CursorHelper._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 			}
 		}
 
-		if (wordType !== W_NONE) {
-			return this._createWord(lineContent, wordType, 0, this._findEndOfWord(lineContent, wordSeparators, wordType, 0));
+		if (wordType !== WordType.None) {
+			return CursorHelper._createWord(lineContent, wordType, 0, CursorHelper._findEndOfWord(lineContent, wordSeparators, wordType, 0));
 		}
 
 		return null;
 	}
 
-	private _findEndOfWord(lineContent:string, wordSeparators:CharacterClass[], wordType:WordType, startIndex:number): number {
+	private static _findEndOfWord(lineContent:string, wordSeparators:WordCharacterClassifier, wordType:WordType, startIndex:number): number {
 		let len = lineContent.length;
 		for (let chIndex = startIndex; chIndex < len; chIndex++) {
 			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+			let chClass = wordSeparators.get(chCode);
 
-			if (chClass === CH_WHITESPACE) {
+			if (chClass === CharacterClass.Whitespace) {
 				return chIndex;
 			}
-			if (wordType === W_REGULAR && chClass === CH_WORD_SEPARATOR) {
+			if (wordType === WordType.Regular && chClass === CharacterClass.WordSeparator) {
 				return chIndex;
 			}
-			if (wordType === W_SEPARATOR && chClass === CH_REGULAR) {
+			if (wordType === WordType.Separator && chClass === CharacterClass.Regular) {
 				return chIndex;
 			}
 		}
@@ -2322,49 +2318,53 @@ class CursorHelper {
 		let position = this.model.validatePosition(_position);
 		let wordSeparators = getMapForWordSeparators(this.configuration.editor.wordSeparators);
 		let lineContent = this.model.getLineContent(position.lineNumber);
-		let wordType = W_NONE;
+		return CursorHelper._findNextWordOnLine(lineContent, wordSeparators, position);
+	}
+
+	private static _findNextWordOnLine(lineContent:string, wordSeparators:WordCharacterClassifier, position:Position): IFindWordResult {
+		let wordType = WordType.None;
 		let len = lineContent.length;
 
 		for (let chIndex = position.column - 1; chIndex < len; chIndex++) {
 			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+			let chClass = wordSeparators.get(chCode);
 
-			if (chClass === CH_REGULAR) {
-				if (wordType === W_SEPARATOR) {
-					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
+			if (chClass === CharacterClass.Regular) {
+				if (wordType === WordType.Separator) {
+					return CursorHelper._createWord(lineContent, wordType, CursorHelper._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
-				wordType = W_REGULAR;
-			} else if (chClass === CH_WORD_SEPARATOR) {
-				if (wordType === W_REGULAR) {
-					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
+				wordType = WordType.Regular;
+			} else if (chClass === CharacterClass.WordSeparator) {
+				if (wordType === WordType.Regular) {
+					return CursorHelper._createWord(lineContent, wordType, CursorHelper._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
-				wordType = W_SEPARATOR;
-			} else if (chClass === CH_WHITESPACE) {
-				if (wordType !== W_NONE) {
-					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
+				wordType = WordType.Separator;
+			} else if (chClass === CharacterClass.Whitespace) {
+				if (wordType !== WordType.None) {
+					return CursorHelper._createWord(lineContent, wordType, CursorHelper._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 			}
 		}
 
-		if (wordType !== W_NONE) {
-			return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, len - 1), len);
+		if (wordType !== WordType.None) {
+			return CursorHelper._createWord(lineContent, wordType, CursorHelper._findStartOfWord(lineContent, wordSeparators, wordType, len - 1), len);
 		}
 
 		return null;
 	}
 
-	private _findStartOfWord(lineContent:string, wordSeparators:CharacterClass[], wordType:WordType, startIndex:number): number {
+	private static _findStartOfWord(lineContent:string, wordSeparators:WordCharacterClassifier, wordType:WordType, startIndex:number): number {
 		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
 			let chCode = lineContent.charCodeAt(chIndex);
-			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+			let chClass = wordSeparators.get(chCode);
 
-			if (chClass === CH_WHITESPACE) {
+			if (chClass === CharacterClass.Whitespace) {
 				return chIndex + 1;
 			}
-			if (wordType === W_REGULAR && chClass === CH_WORD_SEPARATOR) {
+			if (wordType === WordType.Regular && chClass === CharacterClass.WordSeparator) {
 				return chIndex + 1;
 			}
-			if (wordType === W_SEPARATOR && chClass === CH_REGULAR) {
+			if (wordType === WordType.Separator && chClass === CharacterClass.Regular) {
 				return chIndex + 1;
 			}
 		}
@@ -2372,37 +2372,33 @@ class CursorHelper {
 	}
 }
 
-function once<T, R>(keyFn:(input:T)=>string, computeFn:(input:T)=>R):(input:T)=>R {
-	let cache: {[key:string]:R;} = {};
-	return (input:T):R => {
-		let key = keyFn(input);
-		if (!cache.hasOwnProperty(key)) {
-			cache[key] = computeFn(input);
+class WordCharacterClassifier extends CharacterClassifier<CharacterClass> {
+
+	constructor(wordSeparators:string) {
+		super(CharacterClass.Regular);
+
+		for (let i = 0, len = wordSeparators.length; i < len; i++) {
+			this.set(wordSeparators.charCodeAt(i), CharacterClass.WordSeparator);
 		}
-		return cache[key];
+
+		this.set(CharCode.Space, CharacterClass.Whitespace);
+		this.set(CharCode.Tab, CharacterClass.Whitespace);
+	}
+
+}
+
+function once<R>(computeFn:(input:string)=>R):(input:string)=>R {
+	let cache: {[key:string]:R;} = {}; // TODO@Alex unbounded cache
+	return (input:string):R => {
+		if (!cache.hasOwnProperty(input)) {
+			cache[input] = computeFn(input);
+		}
+		return cache[input];
 	};
 }
 
-let getMapForWordSeparators = once<string,CharacterClass[]>(
-	(input) => input,
-	(input) => {
-
-		let r:CharacterClass[] = [];
-
-		// Make array fast for ASCII text
-		for (let chCode = 0; chCode < 256; chCode++) {
-			r[chCode] = CharacterClass.Regular;
-		}
-
-		for (let i = 0, len = input.length; i < len; i++) {
-			r[input.charCodeAt(i)] = CharacterClass.WordSeparator;
-		}
-
-		r[' '.charCodeAt(0)] = CharacterClass.Whitespace;
-		r['\t'.charCodeAt(0)] = CharacterClass.Whitespace;
-
-		return r;
-	}
+let getMapForWordSeparators = once<WordCharacterClassifier>(
+	(input) => new WordCharacterClassifier(input)
 );
 
 class Utils {

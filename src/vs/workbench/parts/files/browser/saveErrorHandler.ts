@@ -23,29 +23,42 @@ import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/p
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
+import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 
 // A handler for save error happening with conflict resolution actions
-export class SaveErrorHandler implements ISaveErrorHandler {
+export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
 	private messages: { [resource: string]: () => void };
+	private toUnbind: IDisposable[];
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@IEventService private eventService: IEventService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.messages = Object.create(null);
+		this.toUnbind = [];
 
 		this.registerListeners();
+
+		// Hook into model
+		TextFileEditorModel.setSaveErrorHandler(this);
+	}
+
+	public getId(): string {
+		return 'vs.files.saveerrorhandler';
 	}
 
 	private registerListeners(): void {
-		this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
-		this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
+		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
+		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
 	}
 
 	private onFileSavedOrReverted(resource: URI): void {
@@ -125,6 +138,10 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		this.messages[model.getResource().toString()] = this.messageService.show(Severity.Error, message);
+	}
+
+	public dispose(): void {
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }
 
@@ -312,8 +329,7 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 						}
 
 						// Reopen file input
-						const input = this.instantiationService.createInstance(FileEditorInput, model.getResource(), guessMimeTypes(model.getResource().fsPath).join(', '), void 0);
-						return this.editorService.openEditor(input, null, this.position).then(() => {
+						return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
 
 							// Dispose conflict input
 							conflictInput.dispose();
@@ -360,8 +376,7 @@ export class RevertLocalChangesAction extends EditorInputAction {
 		return model.revert().then(() => {
 
 			// Reopen file input
-			const input = this.instantiationService.createInstance(FileEditorInput, model.getResource(), guessMimeTypes(model.getResource().fsPath).join(', '), void 0);
-			return this.editorService.openEditor(input, null, this.position).then(() => {
+			return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
 
 				// Dispose conflict input
 				conflictInput.dispose();

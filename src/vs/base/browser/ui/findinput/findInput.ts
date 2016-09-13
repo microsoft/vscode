@@ -14,7 +14,7 @@ import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {Widget} from 'vs/base/browser/ui/widget';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
 
 export interface IFindInputOptions {
 	placeholder?:string;
@@ -239,13 +239,13 @@ export class FindInput extends Widget {
 		// Arrow-Key support to navigate between options
 		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-			if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW) || event.equals(CommonKeybindings.ESCAPE)) {
+			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
 				let index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
 					let newIndex: number;
-					if (event.equals(CommonKeybindings.RIGHT_ARROW)) {
+					if (event.equals(KeyCode.RightArrow)) {
 						newIndex = (index + 1) % indexes.length;
-					} else if (event.equals(CommonKeybindings.LEFT_ARROW)) {
+					} else if (event.equals(KeyCode.LeftArrow)) {
 						if (index === 0) {
 							newIndex = indexes.length - 1;
 						} else {
@@ -253,7 +253,7 @@ export class FindInput extends Widget {
 						}
 					}
 
-					if (event.equals(CommonKeybindings.ESCAPE)) {
+					if (event.equals(KeyCode.Escape)) {
 						indexes[index].blur();
 					} else if (newIndex >= 0) {
 						indexes[newIndex].focus();

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import network = require('vs/base/common/network');
 import Event, {Emitter} from 'vs/base/common/event';
 import {EmitterEvent} from 'vs/base/common/eventEmitter';
-import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
+import {MarkedString} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -145,9 +145,10 @@ class ModelMarkerHandler {
 
 		if (typeof message === 'string') {
 			if (source) {
-				message = nls.localize('sourceAndDiagMessage', "[{0}] {1}", source, message);
+				const indent = new Array(source.length + 1 + 3 /*'[] '.length*/).join(' ');
+				message = nls.localize('diagAndSource', "[{0}] {1}", source,  message.replace(/\n/g, '\n' + indent));
 			}
-			hoverMessage = [textToMarkedString(message)];
+			hoverMessage = [{ language: '_', value: message }];
 		}
 
 		return {

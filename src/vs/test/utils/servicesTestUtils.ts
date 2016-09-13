@@ -31,7 +31,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 import {TextFileService} from 'vs/workbench/parts/files/common/textFileService';
-import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
+import {IFileService, IResolveContentOptions, IFileOperationResult} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
@@ -47,7 +47,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
 	name: 'Test Workspace',
-	uid: new Date().getTime()
+	uid: Date.now()
 };
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
@@ -95,6 +95,7 @@ export class TestContextService implements IWorkspaceContextService {
 export class TestTextFileService extends TextFileService {
 	private promptPath: string;
 	private confirmResult: ConfirmResult;
+	private resolveTextContentError: IFileOperationResult;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -118,7 +119,18 @@ export class TestTextFileService extends TextFileService {
 		this.confirmResult = result;
 	}
 
+	public setResolveTextContentErrorOnce(error: IFileOperationResult): void {
+		this.resolveTextContentError = error;
+	}
+
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+		if (this.resolveTextContentError) {
+			const error = this.resolveTextContentError;
+			this.resolveTextContentError = null;
+
+			return TPromise.wrapError(error);
+		}
+
 		return this.fileService.resolveContent(resource, options).then((content) => {
 			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
 
@@ -144,7 +156,7 @@ export class TestTextFileService extends TextFileService {
 	}
 }
 
-export function workbenchInstantiationService(): TestInstantiationService {
+export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IEventService, new TestEventService());
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
@@ -281,44 +293,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 
 	getBoolean(key: string, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
 		return this.storage.getBoolean(key, scope, defaultValue);
-	}
-}
-
-export class TestUntitledEditorService implements IUntitledEditorService {
-	public _serviceBrand: any;
-
-	private _onDidChangeDirty = new Emitter<URI>();
-
-	public get onDidChangeDirty(): Event<URI> {
-		return this._onDidChangeDirty.event;
-	}
-
-	public get(resource: URI) {
-		return null;
-	}
-
-	public getAll() {
-		return [];
-	}
-
-	public getDirty() {
-		return [];
-	}
-
-	public revertAll(resources?: URI[]): URI[] {
-		return [];
-	}
-
-	public isDirty() {
-		return false;
-	}
-
-	public createOrGet(resource?: URI) {
-		return null;
-	}
-
-	public hasAssociatedFilePath(resource: URI) {
-		return false;
 	}
 }
 
@@ -547,7 +521,18 @@ export const TestFileService = {
 			etag: 'index.txt',
 			mime: 'text/plain',
 			encoding: 'utf8',
-			mtime: new Date().getTime(),
+			mtime: Date.now(),
+			name: paths.basename(resource.fsPath)
+		});
+	},
+
+	resolveFile: function (resource) {
+		return TPromise.as({
+			resource: resource,
+			etag: Date.now(),
+			mime: 'text/plain',
+			encoding: 'utf8',
+			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
 	},
@@ -568,7 +553,7 @@ export const TestFileService = {
 			etag: 'index.txt',
 			mime: 'text/plain',
 			encoding: 'utf8',
-			mtime: new Date().getTime(),
+			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
 	},
@@ -580,7 +565,7 @@ export const TestFileService = {
 				etag: 'index.txt',
 				mime: 'text/plain',
 				encoding: 'utf8',
-				mtime: new Date().getTime(),
+				mtime: Date.now(),
 				name: paths.basename(res.fsPath)
 			};
 		});

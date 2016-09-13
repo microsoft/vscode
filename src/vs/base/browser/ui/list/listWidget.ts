@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, mapEvent, EventBufferer, filterEvent } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -134,13 +134,14 @@ class Controller<T> implements IDisposable {
 		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 
-		const onRawKeyDown = domEvent(view.domNode, 'keydown');
-		const onKeyDown = mapEvent(onRawKeyDown, e => new StandardKeyboardEvent(e));
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.Enter)(this.onEnter, this, this.disposables);
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.UpArrow)(this.onUpArrow, this, this.disposables);
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.DownArrow)(this.onDownArrow, this, this.disposables);
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageUp)(this.onPageUpArrow, this, this.disposables);
-		filterEvent(onKeyDown, e => e.keyCode === KeyCode.PageDown)(this.onPageDownArrow, this, this.disposables);
+		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e));
+
+		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>) {

@@ -9,9 +9,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import Event, {Emitter} from 'vs/base/common/event';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, ITextFileEditorModelManager} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, ITextFileEditorModelManager, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -36,7 +34,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	public _serviceBrand: any;
 
-	private listenerToUnbind: IDisposable[];
+	private toUnbind: IDisposable[];
 	private _models: TextFileEditorModelManager;
 
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
@@ -55,7 +53,7 @@ export abstract class TextFileService implements ITextFileService {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.listenerToUnbind = [];
+		this.toUnbind = [];
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
 
@@ -88,12 +86,12 @@ export abstract class TextFileService implements ITextFileService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes
-		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Application & Editor focus change
 		window.addEventListener('blur', () => this.onWindowFocusLost());
 		window.addEventListener('blur', () => this.onEditorFocusChanged(), true);
-		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
 	private beforeShutdown(): boolean | TPromise<boolean> {
@@ -330,11 +328,11 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private getFileModels(resources?: URI[]): TextFileEditorModel[];
-	private getFileModels(resource?: URI): TextFileEditorModel[];
-	private getFileModels(arg1?: any): TextFileEditorModel[] {
+	private getFileModels(resources?: URI[]): ITextFileEditorModel[];
+	private getFileModels(resource?: URI): ITextFileEditorModel[];
+	private getFileModels(arg1?: any): ITextFileEditorModel[] {
 		if (Array.isArray(arg1)) {
-			const models: TextFileEditorModel[] = [];
+			const models: ITextFileEditorModel[] = [];
 			(<URI[]>arg1).forEach(resource => {
 				models.push(...this.getFileModels(resource));
 			});
@@ -345,9 +343,9 @@ export abstract class TextFileService implements ITextFileService {
 		return this._models.getAll(<URI>arg1);
 	}
 
-	private getDirtyFileModels(resources?: URI[]): TextFileEditorModel[];
-	private getDirtyFileModels(resource?: URI): TextFileEditorModel[];
-	private getDirtyFileModels(arg1?: any): TextFileEditorModel[] {
+	private getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[];
+	private getDirtyFileModels(resource?: URI): ITextFileEditorModel[];
+	private getDirtyFileModels(arg1?: any): ITextFileEditorModel[] {
 		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
@@ -382,7 +380,7 @@ export abstract class TextFileService implements ITextFileService {
 	private doSaveAs(resource: URI, target?: URI): TPromise<URI> {
 
 		// Retrieve text model from provided resource if any
-		let modelPromise: TPromise<TextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
+		let modelPromise: TPromise<ITextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
 		if (resource.scheme === 'file') {
 			modelPromise = TPromise.as(this._models.get(resource));
 		} else if (resource.scheme === 'untitled') {
@@ -412,11 +410,11 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doSaveTextFileAs(sourceModel: TextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
 		// create the target file empty if it does not exist already
 		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.createFile(target)).then(stat => {
 			// resolve a model for the file (which can be binary if the file is not a text file)
-			return this.editorService.resolveEditorModel({ resource: target }).then((targetModel: TextFileEditorModel) => {
+			return this.editorService.resolveEditorModel({ resource: target }).then((targetModel: ITextFileEditorModel) => {
 				// binary model: delete the file and run the operation again
 				if (targetModel instanceof BinaryEditorModel) {
 					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
@@ -475,14 +473,8 @@ export abstract class TextFileService implements ITextFileService {
 				}
 			}, error => {
 
-				// FileNotFound means the file got deleted meanwhile, so dispose
+				// FileNotFound means the file got deleted meanwhile, so still record as successful revert
 				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-
-					// Inputs
-					const clients = FileEditorInput.getAll(model.getResource());
-					clients.forEach(input => input.dispose());
-
-					// store as successful revert
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}
 
@@ -523,7 +515,7 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public dispose(): void {
-		this.listenerToUnbind = dispose(this.listenerToUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 
 		// Clear all caches
 		this._models.clear();

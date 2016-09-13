@@ -38,7 +38,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEventService} from 'vs/platform/event/common/event';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
@@ -162,7 +162,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		$(this.commitInputBox.inputElement).on('keydown', (e:KeyboardEvent) => {
 			var keyboardEvent = new StandardKeyboardEvent(e);
 
-			if (keyboardEvent.equals(CommonKeybindings.CTRLCMD_ENTER) || keyboardEvent.equals(CommonKeybindings.CTRLCMD_S)) {
+			if (keyboardEvent.equals(KeyMod.CtrlCmd | KeyCode.Enter) || keyboardEvent.equals(KeyMod.CtrlCmd | KeyCode.KEY_S)) {
 				if (this.smartCommitAction.enabled) {
 					this.actionRunner.run(this.smartCommitAction).done();
 				} else {
@@ -363,7 +363,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return;
 		}
 
-		if (e.payload && e.payload.origin === 'keyboard' && !(<IKeyboardEvent>e.payload.originalEvent).equals(CommonKeybindings.ENTER)) {
+		if (e.payload && e.payload.origin === 'keyboard' && !(<IKeyboardEvent>e.payload.originalEvent).equals(KeyCode.Enter)) {
 			return;
 		}
 

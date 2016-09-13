@@ -383,12 +383,12 @@ class DecorationRenderHelper {
 	}
 }
 
-enum ThemeType {
+const enum ThemeType {
 	Light = 0,
 	Dark = 1,
 	HighContrastBlack = 2
 }
-enum ModelDecorationCSSRuleType {
+const enum ModelDecorationCSSRuleType {
 	ClassName = 0,
 	InlineClassName = 1,
 	GlyphMarginClassName = 2,

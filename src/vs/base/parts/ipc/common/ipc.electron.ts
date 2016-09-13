@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import Event, { mapEvent, filterEvent } from 'vs/base/common/event';
+import Event, { chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { Server as IPCServer, Client as IPCClient, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
@@ -73,9 +73,10 @@ export class Server implements IServer, IDisposable {
 	}
 
 	private createScopedEvent(eventName: string, senderId: string) {
-		const onRawMessageEvent = fromEventEmitter<IIPCEvent>(this.ipc, eventName, (event, message) => ({ event, message }));
-		const onScopedRawMessageEvent = filterEvent<IIPCEvent>(onRawMessageEvent, ({ event }) => event.sender.getId() === senderId);
-		return mapEvent<IIPCEvent,string>(onScopedRawMessageEvent, ({ message }) => message);
+		return chain(fromEventEmitter<IIPCEvent>(this.ipc, eventName, (event, message) => ({ event, message })))
+			.filter(({ event }) => event.sender.getId() === senderId)
+			.map(({ message }) => message)
+			.event;
 	}
 
 	dispose(): void {

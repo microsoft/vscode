@@ -5,10 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, {Emitter, fromEventEmitter, debounceEvent, EventBufferer, once} from 'vs/base/common/event';
+import Event, {Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
+import {TPromise} from 'vs/base/common/winjs.base';
 
 namespace Samples {
 
@@ -281,5 +282,73 @@ suite('EventBufferer', () => {
 
 		listener1.dispose();
 		listener2.dispose();
+	});
+});
+
+suite('fromPromise', () => {
+
+	test('should emit when done', () => {
+		let count = 0;
+
+		const event = fromPromise(TPromise.as(null));
+		event(() => count++);
+
+		assert.equal(count, 0);
+
+		return TPromise.timeout(10).then(() => {
+			assert.equal(count, 1);
+		});
+	});
+
+	test('should emit when done - setTimeout', () => {
+		let count = 0;
+
+		const event = fromPromise(TPromise.timeout(5));
+		event(() => count++);
+
+		assert.equal(count, 0);
+
+		return TPromise.timeout(10).then(() => {
+			assert.equal(count, 1);
+		});
+	});
+
+	test('should emit when done - setTimeout', () => {
+		let count = 0;
+
+		const event = fromPromise(TPromise.timeout(10));
+		event(() => count++);
+
+		assert.equal(count, 0);
+
+		return TPromise.timeout(0).then(() => {
+			assert.equal(count, 0);
+
+			return TPromise.timeout(10).then(() => {
+				assert.equal(count, 1);
+			});
+		});
+	});
+});
+
+suite('stopwatch', () => {
+
+	test('should emit', () => {
+		const emitter = new Emitter<void>();
+		const event = stopwatch(emitter.event);
+
+		return new TPromise((c, e) => {
+			event(duration => {
+				try {
+					assert(duration > 0);
+				} catch (err) {
+					e(err);
+				}
+
+				c(null);
+			});
+
+			setTimeout(() => emitter.fire(), 10);
+		});
 	});
 });

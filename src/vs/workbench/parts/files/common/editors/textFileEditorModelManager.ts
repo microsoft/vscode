@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import Event, {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {ITextFileEditorModelManager} from 'vs/workbench/parts/files/common/files';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {ModelState, ITextFileEditorModel, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {ModelState, ITextFileEditorModel, LocalFileChangeEvent, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange} from 'vs/workbench/parts/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -24,9 +24,16 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	private toUnbind: IDisposable[];
 
+	private _onModelDirty: Emitter<TextFileModelChangeEvent>;
+	private _onModelSaveError: Emitter<TextFileModelChangeEvent>;
+	private _onModelSaved: Emitter<TextFileModelChangeEvent>;
+	private _onModelReverted: Emitter<TextFileModelChangeEvent>;
+	private _onModelEncodingChanged: Emitter<TextFileModelChangeEvent>;
+
 	private mapResourceToDisposeListener: { [resource: string]: IDisposable; };
-	private mapResourcePathToModel: { [resource: string]: TextFileEditorModel; };
-	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<TextFileEditorModel>};
+	private mapResourceToStateChangeListener: { [resource: string]: IDisposable; };
+	private mapResourceToModel: { [resource: string]: ITextFileEditorModel; };
+	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<ITextFileEditorModel> };
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -36,8 +43,21 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	) {
 		this.toUnbind = [];
 
-		this.mapResourcePathToModel = Object.create(null);
+		this._onModelDirty = new Emitter<TextFileModelChangeEvent>();
+		this._onModelSaveError = new Emitter<TextFileModelChangeEvent>();
+		this._onModelSaved = new Emitter<TextFileModelChangeEvent>();
+		this._onModelReverted = new Emitter<TextFileModelChangeEvent>();
+		this._onModelEncodingChanged = new Emitter<TextFileModelChangeEvent>();
+
+		this.toUnbind.push(this._onModelDirty);
+		this.toUnbind.push(this._onModelSaveError);
+		this.toUnbind.push(this._onModelSaved);
+		this.toUnbind.push(this._onModelReverted);
+		this.toUnbind.push(this._onModelEncodingChanged);
+
+		this.mapResourceToModel = Object.create(null);
 		this.mapResourceToDisposeListener = Object.create(null);
+		this.mapResourceToStateChangeListener = Object.create(null);
 		this.mapResourceToPendingModelLoaders = Object.create(null);
 
 		this.registerListeners();
@@ -115,14 +135,38 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			return false; // never dispose unsaved models
 		}
 
+		if (this.mapResourceToPendingModelLoaders[textModel.getResource().toString()]) {
+			return false; // never dispose models that we are about to load at the same time
+		}
+
 		return true;
 	}
 
-	public get(resource: URI): TextFileEditorModel {
-		return this.mapResourcePathToModel[resource.toString()];
+	public get onModelDirty(): Event<TextFileModelChangeEvent> {
+		return this._onModelDirty.event;
 	}
 
-	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean): TPromise<TextFileEditorModel> {
+	public get onModelSaveError(): Event<TextFileModelChangeEvent> {
+		return this._onModelSaveError.event;
+	}
+
+	public get onModelSaved(): Event<TextFileModelChangeEvent> {
+		return this._onModelSaved.event;
+	}
+
+	public get onModelReverted(): Event<TextFileModelChangeEvent> {
+		return this._onModelReverted.event;
+	}
+
+	public get onModelEncodingChanged(): Event<TextFileModelChangeEvent> {
+		return this._onModelEncodingChanged.event;
+	}
+
+	public get(resource: URI): ITextFileEditorModel {
+		return this.mapResourceToModel[resource.toString()];
+	}
+
+	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean): TPromise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders[resource.toString()];
@@ -130,7 +174,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			return pendingLoad;
 		}
 
-		let modelPromise: TPromise<TextFileEditorModel>;
+		let modelPromise: TPromise<ITextFileEditorModel>;
 
 		// Model exists
 		let model = this.get(resource);
@@ -146,6 +190,28 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		else {
 			model = this.instantiationService.createInstance(TextFileEditorModel, resource, encoding);
 			modelPromise = model.load();
+
+			// Install state change listener
+			this.mapResourceToStateChangeListener[resource.toString()] = model.onDidStateChange(state => {
+				const event = new TextFileModelChangeEvent(model, state);
+				switch (state) {
+					case StateChange.DIRTY:
+						this._onModelDirty.fire(event);
+						break;
+					case StateChange.SAVE_ERROR:
+						this._onModelSaveError.fire(event);
+						break;
+					case StateChange.SAVED:
+						this._onModelSaved.fire(event);
+						break;
+					case StateChange.REVERTED:
+						this._onModelReverted.fire(event);
+						break;
+					case StateChange.ENCODING:
+						this._onModelEncodingChanged.fire(event);
+						break;
+				}
+			});
 		}
 
 		// Store pending loads to avoid race conditions
@@ -172,14 +238,14 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		});
 	}
 
-	public getAll(resource?: URI): TextFileEditorModel[] {
-		return Object.keys(this.mapResourcePathToModel)
+	public getAll(resource?: URI): ITextFileEditorModel[] {
+		return Object.keys(this.mapResourceToModel)
 			.filter(r => !resource || resource.toString() === r)
-			.map(r => this.mapResourcePathToModel[r]);
+			.map(r => this.mapResourceToModel[r]);
 	}
 
-	public add(resource: URI, model: TextFileEditorModel): void {
-		const knownModel = this.mapResourcePathToModel[resource.toString()];
+	public add(resource: URI, model: ITextFileEditorModel): void {
+		const knownModel = this.mapResourceToModel[resource.toString()];
 		if (knownModel === model) {
 			return; // already cached
 		}
@@ -191,29 +257,40 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		}
 
 		// store in cache but remove when model gets disposed
-		this.mapResourcePathToModel[resource.toString()] = model;
-		this.mapResourceToDisposeListener[resource.toString()] = model.addListener2('dispose', () => this.remove(resource));
+		this.mapResourceToModel[resource.toString()] = model;
+		this.mapResourceToDisposeListener[resource.toString()] = model.onDispose(() => this.remove(resource));
 	}
 
 	public remove(resource: URI): void {
-		delete this.mapResourcePathToModel[resource.toString()];
+		delete this.mapResourceToModel[resource.toString()];
 
 		const disposeListener = this.mapResourceToDisposeListener[resource.toString()];
 		if (disposeListener) {
 			dispose(disposeListener);
 			delete this.mapResourceToDisposeListener[resource.toString()];
 		}
+
+		const stateChangeListener = this.mapResourceToStateChangeListener[resource.toString()];
+		if (stateChangeListener) {
+			dispose(stateChangeListener);
+			delete this.mapResourceToStateChangeListener[resource.toString()];
+		}
 	}
 
 	public clear(): void {
 
 		// model cache
-		this.mapResourcePathToModel = Object.create(null);
+		this.mapResourceToModel = Object.create(null);
 
-		// dispose listeners
-		const keys = Object.keys(this.mapResourceToDisposeListener);
+		// dispose dispose listeners
+		let keys = Object.keys(this.mapResourceToDisposeListener);
 		dispose(keys.map(k => this.mapResourceToDisposeListener[k]));
 		this.mapResourceToDisposeListener = Object.create(null);
+
+		// dispose state change listeners
+		keys = Object.keys(this.mapResourceToStateChangeListener);
+		dispose(keys.map(k => this.mapResourceToStateChangeListener[k]));
+		this.mapResourceToStateChangeListener = Object.create(null);
 	}
 
 	private disposeUnusedModels(): void {

@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import Event, { Emitter, once, fromEventEmitter, filterEvent, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter, once, fromEventEmitter, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -179,10 +179,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionActionBar = new ActionBar(extensionActions, { animated: false });
 		this.disposables.push(this.extensionActionBar);
 
-		let onActionError = fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run');
-		onActionError = mapEvent(onActionError, ({ error }) => error);
-		onActionError = filterEvent(onActionError, error => !!error);
-		onActionError(this.onError, this, this.disposables);
+		chain(fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run'))
+			.map(({ error }) => error)
+			.filter(error => !!error)
+			.on(this.onError, this, this.disposables);
 
 		const body = append(root, $('.body'));
 		this.navbar = new NavBar(body);

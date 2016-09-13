@@ -20,7 +20,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -133,7 +133,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 
 		// Also handle dirty count indicator #10556
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e) => this.updateDirtyIndicator()));
+		this.toDispose.push(this.textFileService.models.onModelDirty(e => this.updateDirtyIndicator()));
 
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
 		this.toDispose.push(this.viewletService.onDidViewletOpen(viewlet => {
