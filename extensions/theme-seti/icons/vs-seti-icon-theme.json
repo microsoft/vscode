@@ -702,6 +702,7 @@
 	"file": "_default",
 	"fileExtensions": {
 		"cpp": "_cpp",
+		"cxx": "_cpp",
 		"c": "_c",
 		"cs": "_c-sharp",
 		"cc": "_cpp",
@@ -759,6 +760,8 @@
 		"npm-debug.log": "_npm",
 		"npmignore": "_npm",
 		"h": "_c",
+		"hxx": "_c",
+		"hpp": "_c",
 		"m": "_c",
 		"ml": "_ocaml",
 		"mli": "_ocaml",
@@ -869,6 +872,7 @@
 		"file": "_default_light",
 		"fileExtensions": {
 			"cpp": "_cpp_light",
+			"cxx": "_cpp_light",
 			"c": "_c_light",
 			"cs": "_c-sharp_light",
 			"cc": "_cpp_light",
@@ -926,6 +930,8 @@
 			"npm-debug.log": "_npm_light",
 			"npmignore": "_npm_light",
 			"h": "_c_light",
+			"hpp": "_c_light",
+			"hxx": "_c_light",
 			"m": "_c_light",
 			"ml": "_ocaml_light",
 			"mli": "_ocaml_light",
