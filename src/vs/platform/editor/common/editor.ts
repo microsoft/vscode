@@ -28,6 +28,8 @@ export interface IEditorService {
 
 export interface IEditorModel {
 
+	onDispose: Event<void>;
+
 	/**
 	 * Loads the model.
 	 */

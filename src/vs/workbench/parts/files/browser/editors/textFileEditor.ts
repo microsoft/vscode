@@ -15,10 +15,9 @@ import {IEditorViewState} from 'vs/editor/common/editorCommon';
 import {Action} from 'vs/base/common/actions';
 import {Scope} from 'vs/workbench/common/memento';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {VIEWLET_ID, TEXT_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
+import {VIEWLET_ID, TEXT_FILE_EDITOR_ID, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {EditorOptions, TextEditorOptions, EditorModel} from 'vs/workbench/common/editor';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
@@ -117,7 +116,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Different Input (Reload)
-		return this.editorService.resolveEditorModel(input, true /* Reload */).then((resolvedModel: EditorModel) => {
+		return this.editorService.resolveEditorModel(input, true /* Reload */).then(resolvedModel => {
 
 			// There is a special case where the text editor has to handle binary file editor input: if a file with application/unknown
 			// mime has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
@@ -126,13 +125,8 @@ export class TextFileEditor extends BaseTextEditor {
 				return this.openAsBinary(input, options);
 			}
 
-			// Assert Model interface
-			if (!(resolvedModel instanceof TextFileEditorModel)) {
-				return TPromise.wrapError<void>('Invalid editor input. Text file editor requires a model instance of TextFileEditorModel.');
-			}
-
 			// Check Model state
-			const textFileModel = <TextFileEditorModel>resolvedModel;
+			const textFileModel = <ITextFileEditorModel>resolvedModel;
 
 			const hasInput = !!this.getInput();
 			const modelDisposed = textFileModel.isDisposed();
