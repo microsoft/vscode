@@ -54,6 +54,35 @@ function invertColor(color) {
 	return res;
 }
 
+function getLanguageMappings() {
+	var langToExt = {
+		'csharp': ['cs', 'csx']
+	};
+
+	var allExtensions = fs.readdirSync('..');
+	for (var i= 0; i < allExtensions.length; i++) {
+		let dirPath = path.join('..', allExtensions[i], 'package.json');
+		if (!fs.lstatSync(path.join('..', allExtensions[i])).isDirectory() ||  !fs.lstatSync(dirPath).isFile()) {
+			continue;
+		}
+
+		let content = fs.readFileSync(dirPath).toString();
+		let jsonContent = JSON.parse(content);
+		let languages = jsonContent.contributes && jsonContent.contributes.languages;
+		if (Array.isArray(languages)) {
+			for (var k = 0; k < languages.length; k++) {
+				var extensions = languages[k].extensions;
+				var languageId = languages[k].id;
+				if (Array.isArray(extensions) && languageId) {
+					langToExt[languageId] = extensions.map(function (e) { return e.substr(1); });
+				}
+			}
+		}
+	}
+
+	return langToExt;
+}
+
 
 exports.update = function () {
 	var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
@@ -63,6 +92,7 @@ exports.update = function () {
 	var fileName2Def = {};
 	var def2ColorId = {};
 	var colorId2Value = {};
+	var lang2Def = {};
 
 	function writeFileIconContent(info) {
 		var iconDefinitions = {};
@@ -106,14 +136,16 @@ exports.update = function () {
 			file: "_default",
 			fileExtensions: ext2Def,
 			fileNames: fileName2Def,
+			languageIds: lang2Def,
 			light: {
 				file: "_default_light",
 				fileExtensions: getInvertSet(ext2Def),
+				languageIds: getInvertSet(lang2Def),
 				fileNames: getInvertSet(fileName2Def)
 			},
 			version: 'https://github.com/jesseweed/seti-ui/commit/' + info.commitSha,
 		};
-		fs.writeFileSync('./icons/seti-icon-theme.json', JSON.stringify(res, null, '\t'));
+		fs.writeFileSync('./icons/vs-seti-icon-theme.json', JSON.stringify(res, null, '\t'));
 
 	}
 
@@ -140,6 +172,26 @@ exports.update = function () {
 				}
 				def2ColorId[def] = colorId;
 			}
+			// replace extensions for languageId
+			var langToExt = getLanguageMappings();
+			for (var lang in langToExt) {
+				var exts = langToExt[lang];
+				var preferredDef = null;
+				// use the first file association for the preferred definition
+				for (var i1 = 0; i1 < exts.length && !preferredDef; i1++) {
+					preferredDef = ext2Def[exts[i1]];
+				}
+				if (preferredDef) {
+					lang2Def[lang] = preferredDef;
+					for (var i1 = 0; i1 < exts.length; i1++) {
+						// remove the extention association, unless it is different from the preferred
+						if (ext2Def[exts[i1]] === preferredDef) {
+							delete ext2Def[exts[i1]];
+						}
+					}
+				}
+			}
+
 			var colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
 			return download(colors).then(function (content) {
 				var regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
@@ -156,7 +208,7 @@ exports.update = function () {
 						console.error(e);
 					}
 				});
-			});		
+			});
 		});
 	}, console.error);
 }
