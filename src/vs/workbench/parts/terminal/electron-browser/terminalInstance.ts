@@ -20,7 +20,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';

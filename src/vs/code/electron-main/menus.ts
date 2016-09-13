@@ -15,7 +15,7 @@ import { IWindowsService } from 'vs/code/electron-main/windows';
 import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 

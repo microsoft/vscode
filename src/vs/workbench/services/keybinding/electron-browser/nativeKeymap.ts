@@ -5,7 +5,8 @@
 'use strict';
 
 import * as nativeKeymap from 'native-keymap';
-import {KeyCode, KeyCodeUtils, IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyCodeUtils} from 'vs/base/common/keyCodes';
+import {IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider} from 'vs/base/common/keybinding';
 import {lookupKeyCode, setExtractKeyCode} from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
 
