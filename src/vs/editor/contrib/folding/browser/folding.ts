@@ -9,7 +9,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -585,7 +585,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET)
 			}
 		});
 	}
@@ -641,7 +641,7 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET)
 			}
 		});
 	}
@@ -662,7 +662,7 @@ class FoldAllAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0)
 			}
 		});
 	}
@@ -683,7 +683,7 @@ class UnfoldAllAction extends FoldingAction<void> {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J)
 			}
 		});
 	}
@@ -718,7 +718,7 @@ CommonEditorRegistry.registerEditorAction(
 		precondition: null,
 		kbOpts: {
 			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_1)
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_1)
 		}
 	})
 );
@@ -730,7 +730,7 @@ CommonEditorRegistry.registerEditorAction(
 		precondition: null,
 		kbOpts: {
 			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_2)
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_2)
 		}
 	})
 );
@@ -742,7 +742,7 @@ CommonEditorRegistry.registerEditorAction(
 		precondition: null,
 		kbOpts: {
 			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_3)
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_3)
 		}
 	})
 );
@@ -754,7 +754,7 @@ CommonEditorRegistry.registerEditorAction(
 		precondition: null,
 		kbOpts: {
 			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_4)
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_4)
 		}
 	})
 );
@@ -766,7 +766,7 @@ CommonEditorRegistry.registerEditorAction(
 		precondition: null,
 		kbOpts: {
 			kbExpr: EditorContextKeys.TextFocus,
-			primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_5)
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_5)
 		}
 	})
 );

@@ -66,7 +66,6 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.options.twistiePixels = typeof this.options.twistiePixels === 'number' ? this.options.twistiePixels : 32;
 		this.options.indentPixels = typeof this.options.indentPixels === 'number' ? this.options.indentPixels : 12;
 		this.options.alwaysFocused = this.options.alwaysFocused === true ? true : false;
-		this.options.bare = this.options.bare === true ? true : false;
 		this.options.useShadows = this.options.useShadows === false ? false : true;
 		this.options.paddingOnRow = this.options.paddingOnRow === false ? false : true;
 

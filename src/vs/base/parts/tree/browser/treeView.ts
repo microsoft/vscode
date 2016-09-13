@@ -477,10 +477,6 @@ export class TreeView extends HeightMap {
 			DOM.addClass(this.domNode, 'focused');
 		}
 
-		if (this.context.options.bare) {
-			DOM.addClass(this.domNode, 'bare');
-		}
-
 		if (!this.context.options.paddingOnRow) {
 			DOM.addClass(this.domNode, 'no-row-padding');
 		}

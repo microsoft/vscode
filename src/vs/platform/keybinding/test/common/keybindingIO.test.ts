@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ISimplifiedPlatform, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {ISimplifiedPlatform, KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
 import {NormalizedKeybindingItem, IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 
@@ -71,8 +71,8 @@ suite('Keybinding IO', () => {
 		testRoundtrip(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'ctrl+shift+alt+win+a', 'ctrl+shift+alt+cmd+a', 'ctrl+shift+alt+meta+a');
 
 		// chords
-		testRoundtrip(KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_A), 'ctrl+a ctrl+a', 'cmd+a cmd+a', 'ctrl+a ctrl+a');
-		testRoundtrip(KeyMod.chord(KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.CtrlCmd | KeyCode.UpArrow), 'ctrl+up ctrl+up', 'cmd+up cmd+up', 'ctrl+up ctrl+up');
+		testRoundtrip(KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_A), 'ctrl+a ctrl+a', 'cmd+a cmd+a', 'ctrl+a ctrl+a');
+		testRoundtrip(KeyChord(KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.CtrlCmd | KeyCode.UpArrow), 'ctrl+up ctrl+up', 'cmd+up cmd+up', 'ctrl+up ctrl+up');
 
 		// OEM keys
 		testRoundtrip(KeyCode.US_SEMICOLON, ';', ';', ';');

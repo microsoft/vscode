@@ -32,8 +32,8 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	private mapResourceToDisposeListener: { [resource: string]: IDisposable; };
 	private mapResourceToStateChangeListener: { [resource: string]: IDisposable; };
-	private mapResourceToModel: { [resource: string]: TextFileEditorModel; };
-	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<TextFileEditorModel> };
+	private mapResourceToModel: { [resource: string]: ITextFileEditorModel; };
+	private mapResourceToPendingModelLoaders: { [resource: string]: TPromise<ITextFileEditorModel> };
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -162,11 +162,11 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return this._onModelEncodingChanged.event;
 	}
 
-	public get(resource: URI): TextFileEditorModel {
+	public get(resource: URI): ITextFileEditorModel {
 		return this.mapResourceToModel[resource.toString()];
 	}
 
-	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean): TPromise<TextFileEditorModel> {
+	public loadOrCreate(resource: URI, encoding: string, refresh?: boolean): TPromise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders[resource.toString()];
@@ -174,7 +174,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			return pendingLoad;
 		}
 
-		let modelPromise: TPromise<TextFileEditorModel>;
+		let modelPromise: TPromise<ITextFileEditorModel>;
 
 		// Model exists
 		let model = this.get(resource);
@@ -238,13 +238,13 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		});
 	}
 
-	public getAll(resource?: URI): TextFileEditorModel[] {
+	public getAll(resource?: URI): ITextFileEditorModel[] {
 		return Object.keys(this.mapResourceToModel)
 			.filter(r => !resource || resource.toString() === r)
 			.map(r => this.mapResourceToModel[r]);
 	}
 
-	public add(resource: URI, model: TextFileEditorModel): void {
+	public add(resource: URI, model: ITextFileEditorModel): void {
 		const knownModel = this.mapResourceToModel[resource.toString()];
 		if (knownModel === model) {
 			return; // already cached

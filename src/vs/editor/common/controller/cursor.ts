@@ -22,7 +22,7 @@ export interface ITypingListener {
 	(): void;
 }
 
-enum RevealTarget {
+const enum RevealTarget {
 	Primary = 0,
 	TopMost = 1,
 	BottomMost = 2

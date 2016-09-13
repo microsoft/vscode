@@ -274,6 +274,8 @@ export interface ITextFileEditorModelManager {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
+	onDidStateChange: Event<StateChange>;
+
 	getResource(): URI;
 
 	getLastSaveAttemptTime(): number;
@@ -281,6 +283,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	getLastModifiedTime(): number;
 
 	getState(): ModelState;
+
+	updatePreferredEncoding(encoding: string): void;
 
 	save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void>;
 

@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 
@@ -37,6 +37,107 @@ export function appendKeyBindingLabel(label: string, keyBinding: number, keyBind
 export function appendKeyBindingLabel(label: string, keyBinding: any, keyBindingService2: IKeybindingService): string {
 	keyBinding = typeof keyBinding === 'number' ? new Keybinding(keyBinding) : keyBinding;
 	return label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')';
+}
+
+export class ToggleCaseSensitiveAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
+		searchViewlet.toggleCaseSensitive();
+		return TPromise.as(null);
+	}
+}
+
+export class ToggleWholeWordAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
+		searchViewlet.toggleWholeWords();
+		return TPromise.as(null);
+	}
+}
+
+export class ToggleRegexAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
+		searchViewlet.toggleRegex();
+		return TPromise.as(null);
+	}
+}
+
+export class ShowNextSearchTermAction extends Action {
+
+	public static ID = 'search.history.showNext';
+	public static LABEL = nls.localize('nextSearchTerm', "Show next search term");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchAndReplaceWidget;
+		searchAndReplaceWidget.showNextSearchTerm();
+		return TPromise.as(null);
+	}
+}
+
+export class ShowPreviousSearchTermAction extends Action {
+
+	public static ID = 'search.history.showPrevious';
+	public static LABEL = nls.localize('previousSearchTerm', "Show previous search term");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchAndReplaceWidget;
+		searchAndReplaceWidget.showPreviousSearchTerm();
+		return TPromise.as(null);
+	}
+}
+
+export class FocusNextInputAction extends Action {
+
+	public static ID = 'search.focus.nextInputBox';
+	public static LABEL = nls.localize('focusNextInputbox', "Focus next input box");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		(<SearchViewlet>this.viewletService.getActiveViewlet()).focusNextInputBox();
+		return TPromise.as(null);
+	}
+}
+
+export class FocusPreviousInputAction extends Action {
+
+	public static ID = 'search.focus.previousInputbox';
+	public static LABEL = nls.localize('focusPreviousInputbox', "Focus previous input box");
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		(<SearchViewlet>this.viewletService.getActiveViewlet()).focusPreviousInputBox();
+		return TPromise.as(null);
+	}
 }
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
@@ -201,7 +302,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	public static get KEY_BINDING(): number {
-		return KeyMod.Shift | CommonKeybindings.CTRLCMD_ENTER;
+		return KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter;
 	}
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -56,13 +55,18 @@ export class SimpleEditor implements IEditor {
 	}
 }
 
-export class SimpleModel extends EventEmitter implements ITextEditorModel  {
+export class SimpleModel implements ITextEditorModel  {
 
 	private model:editorCommon.IModel;
+	private _onDispose: Emitter<void>;
 
 	constructor(model:editorCommon.IModel) {
-		super();
 		this.model = model;
+		this._onDispose = new Emitter<void>();
+	}
+
+	public get onDispose(): Event<void> {
+		return this._onDispose.event;
 	}
 
 	public load(): TPromise<SimpleModel> {
@@ -71,6 +75,10 @@ export class SimpleModel extends EventEmitter implements ITextEditorModel  {
 
 	public get textEditorModel():editorCommon.IModel {
 		return this.model;
+	}
+
+	public dispose(): void {
+		this._onDispose.fire();
 	}
 }
 
