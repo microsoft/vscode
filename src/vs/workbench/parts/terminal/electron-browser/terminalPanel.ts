@@ -72,6 +72,8 @@ export class TerminalPanel extends Panel {
 		this.updateTheme();
 		this.updateConfig();
 
+		// Force another layout (first is setContainers) since config has changed
+		this.layout(new Dimension(this.terminalContainer.offsetWidth, this.terminalContainer.offsetHeight));
 		return TPromise.as(void 0);
 	}
 

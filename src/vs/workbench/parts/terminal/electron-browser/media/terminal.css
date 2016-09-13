@@ -22,6 +22,7 @@
 	display: flex;
 	padding: 0 20px;
 	flex-grow: 1;
+	width: 100%;
 }
 
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper {

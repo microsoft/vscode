@@ -38,6 +38,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 
 	private isExiting: boolean = false;
+	private isVisible: boolean = false;
 	private toDispose: lifecycle.IDisposable[] = [];
 	private skipTerminalKeybindings: Keybinding[] = [];
 	private process: cp.ChildProcess;
@@ -74,6 +75,7 @@ export class TerminalInstance implements ITerminalInstance {
 			throw new Error('The terminal instance has already been attached to a container');
 		}
 
+		this.container = container;
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.xtermElement = document.createElement('div');
@@ -139,6 +141,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this.container.appendChild(this.wrapperElement);
 
 		this.layout(new Dimension(this.container.offsetWidth, this.container.offsetHeight));
+		this.setVisible(this.isVisible);
 	}
 
 	public copySelection(): void {
@@ -195,7 +198,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setVisible(visible: boolean): void {
-		DOM.toggleClass(this.wrapperElement, 'active', visible);
+		this.isVisible = visible;
+		if (this.wrapperElement) {
+			DOM.toggleClass(this.wrapperElement, 'active', visible);
+		}
 	}
 
 	public scrollDown(): void {
