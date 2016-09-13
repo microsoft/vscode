@@ -35,8 +35,8 @@ export const FIND_IDS = {
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches',
-	ShowPreviousFindTermAction: 'editor.action.showPreviousFindTerm',
-	ShowNextFindTermAction: 'editor.action.showNextFindTerm'
+	ShowPreviousFindTermAction: 'find.history.showPrevious',
+	ShowNextFindTermAction: 'find.history.showNext'
 };
 
 export const MATCHES_LIMIT = 999;
