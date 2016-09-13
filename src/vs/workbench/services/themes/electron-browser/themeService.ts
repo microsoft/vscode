@@ -508,15 +508,19 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let fileExtensions = associations.fileExtensions;
 			if (fileExtensions) {
 				for (let fileExtension in fileExtensions) {
-					addSelector(`${qualifier} .${escapeCSS(fileExtension.toLowerCase())}-ext-file-icon.file-icon::before`, fileExtensions[fileExtension]);
+					let selectors = [];
+					let segments = fileExtension.toLowerCase().split('.');
+					for (let i = 0; i < segments.length; i++) {
+						selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+					}
+					addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[fileExtension]);
 				}
 			}
 			let fileNames = associations.fileNames;
 			if (fileNames) {
 				for (let fileName in fileNames) {
-					fileName = fileName.toLowerCase();
 					let selectors = [];
-					let segments = fileName.split('.');
+					let segments = fileName.toLowerCase().split('.');
 					if (segments[0]) {
 						selectors.push(`.${escapeCSS(segments[0])}-name-file-icon`);
 					}
