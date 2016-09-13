@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError, create as createError } from 'vs/base/common/errors';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { assign } from 'vs/base/common/objects';
@@ -28,7 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID } from './extensions';
+import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from './extensions';
 import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
@@ -41,6 +42,7 @@ import { IMessageService, CloseAction } from 'vs/platform/message/common/message
 import Severity from 'vs/base/common/severity';
 import { IURLService } from 'vs/platform/url/common/url';
 import URI from 'vs/base/common/uri';
+import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -356,5 +358,41 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
+	}
+}
+
+export class StatusUpdater implements IWorkbenchContribution {
+
+	private disposables: IDisposable[];
+
+	constructor(
+		@IActivityService private activityService: IActivityService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
+	}
+
+	getId(): string {
+		return 'vs.extensions.statusupdater';
+	}
+
+	private onServiceChange(): void {
+		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
+			this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', 'Extensions')), 'extensions-badge progress-badge');
+			return;
+		}
+
+		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
+
+		if (outdated > 0) {
+			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+		} else {
+			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+		}
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
