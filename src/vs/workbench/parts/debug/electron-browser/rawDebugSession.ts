@@ -25,6 +25,7 @@ import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
 import {IOutputService} from 'vs/workbench/parts/output/common/output';
 import {ExtensionsChannelId} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {TerminalSupport} from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 
 import {shell} from 'electron';
@@ -75,7 +76,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IExternalTerminalService private nativeTerminalService: IExternalTerminalService
+		@IExternalTerminalService private nativeTerminalService: IExternalTerminalService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.emittedStopped = false;
@@ -348,7 +350,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 		if (request.command === 'runInTerminal') {
 
-			TerminalSupport.runInTerminal(this.terminalService, this.nativeTerminalService, <DebugProtocol.RunInTerminalRequestArguments>request.arguments, <DebugProtocol.RunInTerminalResponse>response).then(() => {
+			TerminalSupport.runInTerminal(this.terminalService, this.nativeTerminalService, this.configurationService, <DebugProtocol.RunInTerminalRequestArguments>request.arguments, <DebugProtocol.RunInTerminalResponse>response).then(() => {
 				this.sendResponse(response);
 			}, e => {
 				response.success = false;
