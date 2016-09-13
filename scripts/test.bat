@@ -20,7 +20,7 @@ set NAMESHORT=%NAMESHORT: "=%
 set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
-%CODE% .\node_modules\mocha\bin\_mocha %*
+%CODE% .\node_modules\mocha\bin\_mocha %* | .\resources\win32\bin\cat
 popd
 
 endlocal
