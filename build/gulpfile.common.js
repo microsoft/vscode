@@ -23,9 +23,6 @@ function log(prefix, message) {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
 
-const root = path.dirname(__dirname);
-const commit = util.getVersion(root);
-
 exports.loaderConfig = function (emptyPaths) {
 	const result = {
 		paths: {
@@ -236,19 +233,16 @@ function uglifyWithCopyrights() {
 	const uglifyStream = uglify({ preserveComments });
 
 	return es.through(function (data) {
-		const _this = this;
-
 		onNewFile();
-
-		uglifyStream.once('data', function(data) {
-			_this.emit('data', data);
-		})
+		uglifyStream.once('data', data => this.emit('data', data));
 		uglifyStream.write(data);
 	},
 	function () { this.emit('end'); });
 }
 
-exports.minifyTask = function (src, addSourceMapsComment) {
+exports.minifyTask = function (src, sourceMapBaseUrl) {
+	const sourceMappingURL = sourceMapBaseUrl && (f => `${ sourceMapBaseUrl }/${ f.relative }.map`);
+
 	return function() {
 		const jsFilter = filter('**/*.js', { restore: true });
 		const cssFilter = filter('**/*.css', { restore: true });
@@ -262,12 +256,10 @@ exports.minifyTask = function (src, addSourceMapsComment) {
 			.pipe(minifyCSS({ reduceIdents: false }))
 			.pipe(cssFilter.restore)
 			.pipe(sourcemaps.write('./', {
-				sourceMappingURL: function (file) {
-					return 'https://ticino.blob.core.windows.net/sourcemaps/' + commit + '/' + file.relative + '.map';
-				},
+				sourceMappingURL,
 				sourceRoot: null,
 				includeContent: true,
-				addComment: addSourceMapsComment
+				addComment: true
 			}))
 			.pipe(gulp.dest(src + '-min'));
 	};

@@ -86,8 +86,9 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	out: 'out-vscode'
 }));
 
+const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${ commit }/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', true));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', baseUrl));
 
 // Package
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
@@ -269,12 +270,20 @@ gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], p
 
 // Sourcemaps
 
-gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], function () {
-	return gulp.src('out-vscode-min/**/*.map')
+gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
+	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
+		.pipe(es.mapSync(f => {
+			f.path = `${ f.base }/core/${ f.relative }`;
+			return f;
+		}));
+
+	const extensions = gulp.src('extensions/**/out/**/*.map', { base: '.' });
+
+	return es.merge(vs, extensions)
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: 'sourcemaps',
-			prefix: commit + '/'
+			prefix: commit + '/core/'
 		}));
 });
