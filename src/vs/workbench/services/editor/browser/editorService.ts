@@ -80,7 +80,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			}
 
 			if (includeDiff && editor.input instanceof DiffEditorInput) {
-				let diffInput = <DiffEditorInput>editor.input;
+				const diffInput = <DiffEditorInput>editor.input;
 				return input.matches(diffInput.modifiedInput) || input.matches(diffInput.originalInput);
 			}
 
@@ -103,9 +103,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Support opening foreign resources (such as a http link that points outside of the workbench)
-		let resourceInput = <IResourceInput>input;
+		const resourceInput = <IResourceInput>input;
 		if (resourceInput.resource instanceof URI) {
-			let schema = resourceInput.resource.scheme;
+			const schema = resourceInput.resource.scheme;
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
 				return TPromise.as<IEditor>(null);
@@ -113,10 +113,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Untyped Text Editor Support (required for code that uses this service below workbench level)
-		let textInput = <IResourceInput>input;
-		return this.createInput(textInput).then((typedFileInput: EditorInput) => {
-			if (typedFileInput) {
-				return this.doOpenEditor(typedFileInput, TextEditorOptions.from(textInput), arg2);
+		const textInput = <IResourceInput>input;
+		return this.createInput(textInput).then(typedInput => {
+			if (typedInput) {
+				return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), arg2);
 			}
 
 			return TPromise.as<IEditor>(null);
@@ -198,13 +198,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
-		return this.createInput(input).then((workbenchInput: IEditorInput) => {
-			if (workbenchInput) {
-
-				// Resolve if applicable
-				if (workbenchInput instanceof EditorInput) {
-					return workbenchInput.resolve(!!refresh);
-				}
+		return this.createInput(input).then(typedInput => {
+			if (typedInput instanceof EditorInput) {
+				return typedInput.resolve(!!refresh);
 			}
 
 			return TPromise.as<IEditorModel>(null);
@@ -221,21 +217,21 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Base Text Editor Support for inmemory resources
-		let resourceInput = <IResourceInput>input;
+		const resourceInput = <IResourceInput>input;
 		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.inMemory) {
 
 			// For in-memory resources we only support to resolve the input from the current active editor
 			// because the workbench does not track editor models by in memory URL. This concept is only
 			// being used in the code editor.
-			let activeEditor = this.getActiveEditor();
+			const activeEditor = this.getActiveEditor();
 			if (activeEditor) {
-				let control = <ICommonEditor>activeEditor.getControl();
+				const control = <ICommonEditor>activeEditor.getControl();
 				if (types.isFunction(control.getEditorType)) {
 
 					// Single Editor: If code editor model matches, return input from editor
 					if (control.getEditorType() === EditorType.ICodeEditor) {
-						let codeEditor = <ICodeEditor>control;
-						let model = this.findModel(codeEditor, input);
+						const codeEditor = <ICodeEditor>control;
+						const model = this.findModel(codeEditor, input);
 						if (model) {
 							return TPromise.as(activeEditor.input);
 						}
@@ -243,15 +239,15 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 					// Diff Editor: If left or right code editor model matches, return associated input
 					else if (control.getEditorType() === EditorType.IDiffEditor) {
-						let diffInput = <DiffEditorInput>activeEditor.input;
-						let diffCodeEditor = <IDiffEditor>control;
+						const diffInput = <DiffEditorInput>activeEditor.input;
+						const diffCodeEditor = <IDiffEditor>control;
 
-						let originalModel = this.findModel(diffCodeEditor.getOriginalEditor(), input);
+						const originalModel = this.findModel(diffCodeEditor.getOriginalEditor(), input);
 						if (originalModel) {
 							return TPromise.as(diffInput.originalInput);
 						}
 
-						let modifiedModel = this.findModel(diffCodeEditor.getModifiedEditor(), input);
+						const modifiedModel = this.findModel(diffCodeEditor.getModifiedEditor(), input);
 						if (modifiedModel) {
 							return TPromise.as(diffInput.modifiedInput);
 						}
@@ -292,7 +288,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	private findModel(editor: ICommonCodeEditor, input: IResourceInput): IModel {
-		let model = editor.getModel();
+		const model = editor.getModel();
 		if (!model) {
 			return null;
 		}
