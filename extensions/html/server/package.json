@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "vscode-languageserver": "^2.4.0-next.12",
-    "vscode-nls": "^1.0.4"
+    "vscode-nls": "^1.0.4",
+    "vscode-uri": "^0.0.7"
   },
   "scripts": {
     "compile": "gulp compile-extension:json-server",

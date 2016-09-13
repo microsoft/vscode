@@ -32,6 +32,19 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-export function convertSimple2RegExpPattern(pattern: string): string {
-	return pattern.replace(/[\-\\\{\}\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&').replace(/[\*]/g, '.*');
+/**
+ * @returns the length of the common prefix of the two strings.
+ */
+export function commonPrefixLength(a: string, b: string): number {
+
+	let i: number,
+		len = Math.min(a.length, b.length);
+
+	for (i = 0; i < len; i++) {
+		if (a.charCodeAt(i) !== b.charCodeAt(i)) {
+			return i;
+		}
+	}
+
+	return len;
 }
