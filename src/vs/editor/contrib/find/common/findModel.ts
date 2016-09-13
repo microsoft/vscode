@@ -34,7 +34,9 @@ export const FIND_IDS = {
 	ToggleRegexCommand: 'toggleFindRegex',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
-	SelectAllMatchesAction: 'editor.action.selectAllMatches'
+	SelectAllMatchesAction: 'editor.action.selectAllMatches',
+	ShowPreviousFindTermAction: 'editor.action.showPreviousFindTerm',
+	ShowNextFindTermAction: 'editor.action.showNextFindTerm'
 };
 
 export const MATCHES_LIMIT = 999;
