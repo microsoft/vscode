@@ -107,8 +107,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						}
 
 						// Reopen
-						const editorInput = this.instantiationService.createInstance(FileEditorInput, reopenFileResource, mimeHint || MIME_UNKNOWN, void 0);
-						this.editorService.openEditor(editorInput, { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor({ resource: reopenFileResource, mime: mimeHint || MIME_UNKNOWN, options: { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) } }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
 				}
 			});
