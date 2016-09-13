@@ -10,7 +10,6 @@ var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
 var common = require('./gulpfile.common');
 var es = require('event-stream');
-var fs = require('fs');
 var File = require('vinyl');
 
 var root = path.dirname(__dirname);
@@ -78,7 +77,7 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common
 }));
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
-gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor', true));
+gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
 gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-editor'], function() {
