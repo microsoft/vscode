@@ -41,7 +41,7 @@ export function appendKeyBindingLabel(label: string, keyBinding: any, keyBinding
 
 export class ShowNextSearchTermAction extends Action {
 
-	public static ID = 'search.history.nextSearchTerm';
+	public static ID = 'search.history.showNext';
 	public static LABEL = nls.localize('nextSearchTerm', "Show next search term");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
@@ -57,7 +57,7 @@ export class ShowNextSearchTermAction extends Action {
 
 export class ShowPreviousSearchTermAction extends Action {
 
-	public static ID = 'search.history.previousSearchTerm';
+	public static ID = 'search.history.showPrevious';
 	public static LABEL = nls.localize('previousSearchTerm', "Show previous search term");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
