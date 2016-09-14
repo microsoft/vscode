@@ -154,18 +154,6 @@ exports.toFileUri = filePath => {
 	return 'file://' + filePath.replace(/\\/g, '/');
 };
 
-exports.rebase = (base, append) => {
-	return es.mapSync(f => {
-		if (append) {
-			f.base = path.join(f.base, base);
-		} else {
-			f.base = base;
-		}
-
-		return f;
-	});
-};
-
 exports.skipDirectories = () => {
 	return es.mapSync(f => {
 		if (!f.isDirectory()) {
@@ -236,6 +224,19 @@ exports.loadSourcemaps = () => {
 				f.sourceMap = JSON.parse(contents);
 				cb(null, f);
 			});
+		}));
+
+	return es.duplex(input, output);
+};
+
+exports.stripSourceMappingURL = () => {
+	const input = es.through();
+
+	const output = input
+		.pipe(es.mapSync(f => {
+			const contents = f.contents.toString('utf8');
+			f.contents = new Buffer(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
+			return f;
 		}));
 
 	return es.duplex(input, output);

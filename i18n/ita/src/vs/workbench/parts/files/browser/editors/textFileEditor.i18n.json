@@ -7,7 +7,5 @@
 	"createFile": "Crea file",
 	"fileEditorAriaLabel": "Editor file di testo.",
 	"fileEditorWithInputAriaLabel": "{0}. Editor file di testo.",
-	"fileTooLarge": "Il file è troppo grande per aprirlo all'interno di un editor.",
-	"folderOutofWorkspace": "La cartella '{0}' è esterna alla cartella radice attualmente aperta e non può essere aperta in questa istanza.",
 	"textFileEditor": "Editor file di testo"
 }

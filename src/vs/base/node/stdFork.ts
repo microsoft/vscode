@@ -49,7 +49,7 @@ function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string
 	newEnv['STDIN_PIPE_NAME'] = stdInPipeName;
 	newEnv['STDOUT_PIPE_NAME'] = stdOutPipeName;
 	newEnv['STDERR_PIPE_NAME'] = stdErrPipeName;
-	newEnv['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = '1';
+	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
 
 	return newEnv;
 }
@@ -109,7 +109,9 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 		if (serverClosed) {
 			return;
 		}
+
 		serverClosed = true;
+		process.removeListener('exit', closeServer);
 		stdOutServer.close();
 		stdErrServer.close();
 	};
@@ -132,4 +134,7 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 		closeServer();
 		reject(err);
 	});
+
+	// On vscode exit still close server #7758
+	process.once('exit', closeServer);
 }

@@ -23,6 +23,7 @@ import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeat
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
 import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
 import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -108,7 +109,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics);
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, new ExtHostHeapService(), diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
@@ -398,6 +399,28 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				assert.equal(first.command.arguments[0], 1);
 				assert.equal(first.command.arguments[1], true);
 				assert.equal(first.command.arguments[2], complexArg);
+			});
+		});
+	});
+
+	test('Links, back and forth', function() {
+
+		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks(): any {
+				return [new types.DocumentLink(new types.Range(0, 0, 0, 20), URI.parse('foo:bar'))];
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.target.toString(), 'foo:bar');
+				assert.equal(first.range.start.line, 0);
+				assert.equal(first.range.start.character, 0);
+				assert.equal(first.range.end.line, 0);
+				assert.equal(first.range.end.character, 20);
 			});
 		});
 	});

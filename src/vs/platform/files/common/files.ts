@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
@@ -27,50 +27,50 @@ export interface IFileService {
 	 * the stat service is asked to automatically resolve child folders that only
 	 * contain a single element.
 	 */
-	resolveFile(resource: URI, options?: IResolveFileOptions): winjs.TPromise<IFileStat>;
+	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat>;
 
 	/**
 	 *Finds out if a file identified by the resource exists.
 	 */
-	existsFile(resource: URI): winjs.TPromise<boolean>;
+	existsFile(resource: URI): TPromise<boolean>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the full value as string.
 	 */
-	resolveContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IContent>;
+	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent>;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the value as a readable stream.
 	 */
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): winjs.TPromise<IStreamContent>;
+	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent>;
 
 	/**
 	 * Returns the contents of all files by the given array of file resources.
 	 */
-	resolveContents(resources: URI[]): winjs.TPromise<IContent[]>;
+	resolveContents(resources: URI[]): TPromise<IContent[]>;
 
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): winjs.TPromise<IFileStat>;
+	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	moveFile(source: URI, target: URI, overwrite?: boolean): winjs.TPromise<IFileStat>;
+	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
 
 	/**
 	 * Copies the file to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
-	copyFile(source: URI, target: URI, overwrite?: boolean): winjs.TPromise<IFileStat>;
+	copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new file with the given path. The returned promise
@@ -78,30 +78,30 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string): winjs.TPromise<IFileStat>;
+	createFile(resource: URI, content?: string): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	createFolder(resource: URI): winjs.TPromise<IFileStat>;
+	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
 	 * Renames the provided file to use the new name. The returned promise
 	 * will have the stat model object as a result.
 	 */
-	rename(resource: URI, newName: string): winjs.TPromise<IFileStat>;
+	rename(resource: URI, newName: string): TPromise<IFileStat>;
 
 	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
-	del(resource: URI, useTrash?: boolean): winjs.TPromise<void>;
+	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	/**
 	 * Imports the file to the parent identified by the resource.
 	 */
-	importFile(source: URI, targetFolder: URI): winjs.TPromise<IImportResult>;
+	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
@@ -452,7 +452,8 @@ export enum FileOperationResult {
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
 	FILE_READ_ONLY,
-	FILE_TOO_LARGE
+	FILE_TOO_LARGE,
+	FILE_INVALID_PATH
 }
 
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -460,7 +461,8 @@ export const MAX_FILE_SIZE = 50 * 1024 * 1024;
 export const AutoSaveConfiguration = {
 	OFF: 'off',
 	AFTER_DELAY: 'afterDelay',
-	ON_FOCUS_CHANGE: 'onFocusChange'
+	ON_FOCUS_CHANGE: 'onFocusChange',
+	ON_WINDOW_CHANGE: 'onWindowChange'
 };
 
 export interface IFilesConfiguration {
@@ -473,6 +475,7 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
+		iconTheme: string;
 	};
 }
 
@@ -565,139 +568,144 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'ISO 8859-2',
 		order: 17
 	},
+	cp852: {
+		labelLong: 'Central European (CP 852)',
+		labelShort: 'CP 852',
+		order: 18
+	},
 	windows1251: {
 		labelLong: 'Cyrillic (Windows 1251)',
 		labelShort: 'Windows 1251',
-		order: 18
+		order: 19
 	},
 	cp866: {
 		labelLong: 'Cyrillic (CP 866)',
 		labelShort: 'CP 866',
-		order: 19
+		order: 20
 	},
 	iso88595: {
 		labelLong: 'Cyrillic (ISO 8859-5)',
 		labelShort: 'ISO 8859-5',
-		order: 20
+		order: 21
 	},
 	koi8r: {
 		labelLong: 'Cyrillic (KOI8-R)',
 		labelShort: 'KOI8-R',
-		order: 21
+		order: 22
 	},
 	koi8u: {
 		labelLong: 'Cyrillic (KOI8-U)',
 		labelShort: 'KOI8-U',
-		order: 22
+		order: 23
 	},
 	iso885913: {
 		labelLong: 'Estonian (ISO 8859-13)',
 		labelShort: 'ISO 8859-13',
-		order: 23
+		order: 24
 	},
 	windows1253: {
 		labelLong: 'Greek (Windows 1253)',
 		labelShort: 'Windows 1253',
-		order: 24
+		order: 25
 	},
 	iso88597: {
 		labelLong: 'Greek (ISO 8859-7)',
 		labelShort: 'ISO 8859-7',
-		order: 25
+		order: 26
 	},
 	windows1255: {
 		labelLong: 'Hebrew (Windows 1255)',
 		labelShort: 'Windows 1255',
-		order: 26
+		order: 27
 	},
 	iso88598: {
 		labelLong: 'Hebrew (ISO 8859-8)',
 		labelShort: 'ISO 8859-8',
-		order: 27
+		order: 28
 	},
 	iso885910: {
 		labelLong: 'Nordic (ISO 8859-10)',
 		labelShort: 'ISO 8859-10',
-		order: 28
+		order: 29
 	},
 	iso885916: {
 		labelLong: 'Romanian (ISO 8859-16)',
 		labelShort: 'ISO 8859-16',
-		order: 29
+		order: 30
 	},
 	windows1254: {
 		labelLong: 'Turkish (Windows 1254)',
 		labelShort: 'Windows 1254',
-		order: 30
+		order: 31
 	},
 	iso88599: {
 		labelLong: 'Turkish (ISO 8859-9)',
 		labelShort: 'ISO 8859-9',
-		order: 31
+		order: 32
 	},
 	windows1258: {
 		labelLong: 'Vietnamese (Windows 1258)',
 		labelShort: 'Windows 1258',
-		order: 32
+		order: 33
 	},
 	gbk: {
 		labelLong: 'Chinese (GBK)',
 		labelShort: 'GBK',
-		order: 33
+		order: 34
 	},
 	gb18030: {
 		labelLong: 'Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 34
+		order: 35
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
-		order: 35
+		order: 36
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
 		labelShort: 'Big5-HKSCS',
-		order: 36
+		order: 37
 	},
 	shiftjis: {
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
-		order: 37
+		order: 38
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
-		order: 38
+		order: 39
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
-		order: 39
+		order: 40
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
 		labelShort: 'Windows 874',
-		order: 40
-	}
-	, iso885911: {
+		order: 41
+	},
+	iso885911: {
 		labelLong: 'Latin/Thai (ISO 8859-11)',
 		labelShort: 'ISO 8859-11',
-		order: 41
+		order: 42
 	},
 	'koi8-ru': {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
-		order: 42
+		order: 43
 	},
 	'koi8-t': {
 		labelLong: 'Tajik (KOI8-T)',
 		labelShort: 'KOI8-T',
-		order: 43
+		order: 44
 	},
 	GB2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
-		order: 44
+		order: 45
 	}
 };

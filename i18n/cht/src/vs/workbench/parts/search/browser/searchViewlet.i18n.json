@@ -16,6 +16,8 @@
 	"noResultsIncludes": "在 '{0}' 中找不到結果 - ",
 	"noResultsIncludesExcludes": "在 '{0}' 中找不到排除 '{1}' 的結果 - ",
 	"openSettings.message": "開啟設定",
+	"removeAll.confirmation.message": "要跨 {1} 個檔案移除 {0} 個發生次數嗎?",
+	"removeAll.message": "已跨 {1} 個檔案移除 {0} 個發生次數。",
 	"replaceAll.confirm.button": "取代",
 	"replaceAll.confirmation.message": "要將 {1} 個檔案中的 {0} 個相符項目取代為 '{2}' 嗎?",
 	"replaceAll.confirmation.title": "全部取代",

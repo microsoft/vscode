@@ -11,5 +11,6 @@
 	"indentationToSpaces": "Преобразовать отступ в пробелы",
 	"indentationToTabs": "Преобразовать отступ в шаги табуляции",
 	"selectTabWidth": "Выбрать размер шага табуляции для текущего файла",
+	"toggleRenderControlCharacters": "Переключить управляющие символы",
 	"toggleRenderWhitespace": "Переключение отображения пробелов"
 }

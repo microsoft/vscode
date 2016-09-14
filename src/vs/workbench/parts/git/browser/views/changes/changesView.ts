@@ -38,7 +38,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEventService} from 'vs/platform/event/common/event';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
@@ -162,7 +162,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		$(this.commitInputBox.inputElement).on('keydown', (e:KeyboardEvent) => {
 			var keyboardEvent = new StandardKeyboardEvent(e);
 
-			if (keyboardEvent.equals(CommonKeybindings.CTRLCMD_ENTER) || keyboardEvent.equals(CommonKeybindings.CTRLCMD_S)) {
+			if (keyboardEvent.equals(KeyMod.CtrlCmd | KeyCode.Enter) || keyboardEvent.equals(KeyMod.CtrlCmd | KeyCode.KEY_S)) {
 				if (this.smartCommitAction.enabled) {
 					this.actionRunner.run(this.smartCommitAction).done();
 				} else {
@@ -244,6 +244,14 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 	}
 
+	private onUndoLastCommit(commit: git.ICommit): void {
+		if (this.commitInputBox.value) {
+			return;
+		}
+
+		this.commitInputBox.value = commit.message;
+	}
+
 	private updateCommitInputTemplate(): void {
 		if (this.commitInputBox.value) {
 			return;
@@ -282,7 +290,9 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				this.instantiationService.createInstance(GitActions.PublishAction, GitActions.PublishAction.ID, GitActions.PublishAction.LABEL),
 				new ActionBar.Separator(),
 				this.instantiationService.createInstance(GitActions.CommitAction, this),
-				this.instantiationService.createInstance(GitActions.StageAndCommitAction, this),
+				this.instantiationService.createInstance(GitActions.CommitSignedOffAction, this),
+				this.instantiationService.createInstance(GitActions.StageAndCommitAction, this, GitActions.StageAndCommitAction.ID, GitActions.StageAndCommitAction.LABEL, GitActions.StageAndCommitAction.CSSCLASS),
+				this.instantiationService.createInstance(GitActions.StageAndCommitSignedOffAction, this),
 				this.instantiationService.createInstance(GitActions.UndoLastCommitAction, GitActions.UndoLastCommitAction.ID, GitActions.UndoLastCommitAction.LABEL),
 				new ActionBar.Separator(),
 				this.instantiationService.createInstance(GitActions.GlobalUnstageAction),
@@ -353,7 +363,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return;
 		}
 
-		if (e.payload && e.payload.origin === 'keyboard' && !(<IKeyboardEvent>e.payload.originalEvent).equals(CommonKeybindings.ENTER)) {
+		if (e.payload && e.payload.origin === 'keyboard' && !(<IKeyboardEvent>e.payload.originalEvent).equals(KeyCode.Enter)) {
 			return;
 		}
 
@@ -401,11 +411,19 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			if (this.commitInputBox) {
 				this.commitInputBox.disable();
 			}
+		} else if (operation.id === git.ServiceOperations.RESET) {
+			const promise = this.gitService.getCommit('HEAD');
+			const listener = this.gitService.addListener2(git.ServiceEvents.OPERATION_END, e => {
+				if (e.operation.id === git.ServiceOperations.RESET && !e.error) {
+					promise.done(c => this.onUndoLastCommit(c));
+					listener.dispose();
+				}
+			});
 		}
 	}
 
 	private onGitOperationEnd(e: { operation: git.IGitOperation; error: any; }): void {
-		if (e.operation.id === git.ServiceOperations.COMMIT || e.operation.id === git.ServiceOperations.RESET) {
+		if (e.operation.id === git.ServiceOperations.COMMIT) {
 			if (this.commitInputBox) {
 				this.commitInputBox.enable();
 

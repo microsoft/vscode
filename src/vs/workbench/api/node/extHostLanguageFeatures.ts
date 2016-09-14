@@ -10,15 +10,16 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {Range, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
+import {Range, Disposable, CompletionList, CompletionItem} from 'vs/workbench/api/node/extHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
+import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
-import {INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
+import {IWorkspaceSymbolProvider, IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
-import {MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape} from './extHost.protocol';
+import {MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier} from './extHost.protocol';
 import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
 
 // --- adapter
@@ -283,7 +284,7 @@ class QuickFixAdapter {
 	private _diagnostics: ExtHostDiagnostics;
 	private _provider: vscode.CodeActionProvider;
 
-	private _cachedCommands: IDisposable[] = [];
+	private _cachedCommands: IDisposable[][] = [];
 
 	constructor(documents: ExtHostDocuments, commands: ExtHostCommands, diagnostics: ExtHostDiagnostics, provider: vscode.CodeActionProvider) {
 		this._documents = documents;
@@ -308,7 +309,15 @@ class QuickFixAdapter {
 			}
 		});
 
-		this._cachedCommands = dispose(this._cachedCommands);
+		// we cache the last 10 commands that might have been
+		// created during type conversion. when as have more
+		// than 10 we drop the first three
+		const cachedCommands: IDisposable[] = [];
+		if (this._cachedCommands.push(cachedCommands) > 10) {
+			dispose(...this._cachedCommands.shift());
+			dispose(...this._cachedCommands.shift());
+			dispose(...this._cachedCommands.shift());
+		}
 
 		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)).then(commands => {
 			if (!Array.isArray(commands)) {
@@ -316,7 +325,7 @@ class QuickFixAdapter {
 			}
 			return commands.map((command, i) => {
 				return <modes.CodeAction> {
-					command: TypeConverters.Command.from(command, this._cachedCommands),
+					command: TypeConverters.Command.from(command, cachedCommands),
 					score: i
 				};
 			});
@@ -336,11 +345,11 @@ class DocumentFormattingAdapter {
 
 	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
+		const {document, version} = this._documents.getDocumentData(resource);
 
-		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(doc, <any>options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
 	}
@@ -358,12 +367,12 @@ class RangeFormattingAdapter {
 
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
-		let ran = TypeConverters.toRange(range);
+		const {document, version} = this._documents.getDocumentData(resource);
+		const ran = TypeConverters.toRange(range);
 
-		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(doc, ran, <any>options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
 	}
@@ -383,31 +392,53 @@ class OnTypeFormattingAdapter {
 
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		const {document, version} = this._documents.getDocumentData(resource);
+		const pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(doc, pos, ch, <any> options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any> options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
 		});
 	}
 }
 
-class NavigateTypeAdapter implements INavigateTypesSupport {
+
+class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 
 	private _provider: vscode.WorkspaceSymbolProvider;
+	private _heapService: ExtHostHeapService;
 
-	constructor(provider: vscode.WorkspaceSymbolProvider) {
+	constructor(provider: vscode.WorkspaceSymbolProvider, heapService: ExtHostHeapService) {
 		this._provider = provider;
+		this._heapService = heapService;
 	}
 
-	getNavigateToItems(search: string): TPromise<ITypeBearing[]> {
+	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbol[]> {
+
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.fromSymbolInformation);
+				return value.map(item => {
+					const id = this._heapService.keep(item);
+					const result = TypeConverters.fromSymbolInformation(item);
+					return ObjectIdentifier.mixin(result, id);
+				});
 			}
 		});
+	}
+
+	resolveWorkspaceSymbol(item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+
+		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
+			return TPromise.as(item);
+		}
+
+		const symbolInfo = this._heapService.get<vscode.SymbolInformation>(ObjectIdentifier.get(item));
+		if (symbolInfo) {
+			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(symbolInfo, token)).then(value => {
+				return value && TypeConverters.fromSymbolInformation(value);
+			});
+		}
 	}
 }
 
@@ -459,60 +490,61 @@ class RenameAdapter {
 	}
 }
 
-interface ISuggestion2 extends modes.ISuggestion {
-	id: string;
-}
 
 class SuggestAdapter {
 
 	private _documents: ExtHostDocuments;
+	private _heapService: ExtHostHeapService;
 	private _provider: vscode.CompletionItemProvider;
-	private _cache: { [key: string]: CompletionList } = Object.create(null);
+	private _disposables: { [id: number]: IDisposable[] } = [];
 
-	constructor(documents: ExtHostDocuments, provider: vscode.CompletionItemProvider) {
+	constructor(documents: ExtHostDocuments, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
+		this._heapService = heapService;
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
+	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
-		const ran = doc.getWordRangeAtPosition(pos);
-
-		const key = resource.toString();
-		delete this._cache[key];
 
 		return asWinJsPromise<vscode.CompletionItem[]|vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
 
-			let defaultSuggestions: modes.ISuggestResult = {
+			const result: modes.ISuggestResult = {
 				suggestions: [],
-				currentWord: ran ? doc.getText(new Range(ran.start.line, ran.start.character, pos.line, pos.character)) : '',
+				currentWord: ''
 			};
-			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
+
+			// the default text edit range
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
+				.with({ end: pos });
 
 			let list: CompletionList;
-			if (Array.isArray(value)) {
-				list = new CompletionList(value);
-			} else if (value instanceof CompletionList) {
-				list = value;
-				defaultSuggestions.incomplete = list.isIncomplete;
-			} else if (!value) {
+			if (!value) {
 				// undefined and null are valid results
 				return;
+
+			} else if (Array.isArray(value)) {
+				list = new CompletionList(value);
+
 			} else {
-				// warn about everything else
-				console.warn('INVALID result from completion provider. expected CompletionItem-array or CompletionList but got:', value);
-				return;
+				list = value;
+				result.incomplete = list.isIncomplete;
 			}
 
 			for (let i = 0; i < list.items.length; i++) {
+
 				const item = list.items[i];
-				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item);
+				const disposables: IDisposable[] = [];
+				const suggestion = TypeConverters.Suggest.from(item, disposables);
+				const id = this._heapService.keep(item, () => dispose(this._disposables[id]));
+				this._disposables[id] = disposables;
+				ObjectIdentifier.mixin(suggestion, id);
 
 				if (item.textEdit) {
 
-					let editRange = item.textEdit.range;
+					const editRange = item.textEdit.range;
 
 					// invalid text edit
 					if (!editRange.isSingleLine || editRange.start.line !== pos.line) {
@@ -522,45 +554,37 @@ class SuggestAdapter {
 
 					// insert the text of the edit and create a dedicated
 					// suggestion-container with overwrite[Before|After]
-					suggestion.codeSnippet = item.textEdit.newText;
+					suggestion.insertText = item.textEdit.newText;
 					suggestion.overwriteBefore = pos.character - editRange.start.character;
 					suggestion.overwriteAfter = editRange.end.character - pos.character;
 
-					allSuggestions.push({
-						currentWord: doc.getText(editRange),
-						suggestions: [suggestion],
-						incomplete: list.isIncomplete
-					});
-
 				} else {
-					defaultSuggestions.suggestions.push(suggestion);
+					// default text edit
+					suggestion.overwriteBefore = pos.character - wordRangeBeforePos.start.character;
+					suggestion.overwriteAfter = 0;
 				}
 
-				// assign identifier to suggestion
-				suggestion.id = String(i);
+				// store suggestion
+				result.suggestions.push(suggestion);
 			}
 
-			// cache for details call
-			this._cache[key] = list;
-
-			return allSuggestions;
+			return result;
 		});
 	}
 
 	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
+
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}
-		let list = this._cache[resource.toString()];
-		if (!list) {
-			return TPromise.as(suggestion);
-		}
-		let item = list.items[Number((<ISuggestion2> suggestion).id)];
+
+		const id = ObjectIdentifier.get(suggestion);
+		const item = this._heapService.get<CompletionItem>(id);
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
 		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			return TypeConverters.Suggest.from(resolvedItem || item);
+			return TypeConverters.Suggest.from(resolvedItem || item, this._disposables[id]);
 		});
 	}
 }
@@ -581,17 +605,48 @@ class SignatureHelpAdapter {
 		const pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
-			if (value instanceof SignatureHelp) {
+			if (value) {
 				return TypeConverters.SignatureHelp.from(value);
 			}
 		});
 	}
 }
 
+class LinkProviderAdapter {
+
+	private _documents: ExtHostDocuments;
+	private _provider: vscode.DocumentLinkProvider;
+
+	constructor(documents: ExtHostDocuments, provider: vscode.DocumentLinkProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	provideLinks(resource: URI): TPromise<modes.ILink[]> {
+		const doc = this._documents.getDocumentData(resource).document;
+
+		return asWinJsPromise(token => this._provider.provideDocumentLinks(doc, token)).then(links => {
+			if (Array.isArray(links)) {
+				return links.map(TypeConverters.DocumentLink.from);
+			}
+		});
+	}
+
+	resolveLink(link: modes.ILink): TPromise<modes.ILink> {
+		if (typeof this._provider.resolveDocumentLink === 'function') {
+			return asWinJsPromise(token => this._provider.resolveDocumentLink(TypeConverters.DocumentLink.to(link), token)).then(value => {
+				if (value) {
+					return TypeConverters.DocumentLink.from(value);
+				}
+			});
+		}
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter;
 
 export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
@@ -600,6 +655,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
+	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter: { [handle: number]: Adapter } = Object.create(null);
 
@@ -607,12 +663,14 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		threadService: IThreadService,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
+		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics
 	) {
 		super();
 		this._proxy = threadService.get(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
+		this._heapService = heapMonitor;
 		this._diagnostics = diagnostics;
 	}
 
@@ -769,13 +827,17 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new NavigateTypeAdapter(provider);
+		this._adapter[handle] = new NavigateTypeAdapter(provider, this._heapService);
 		this._proxy.$registerNavigateTypeSupport(handle);
 		return this._createDisposable(handle);
 	}
 
-	$getNavigateToItems(handle: number, search: string): TPromise<ITypeBearing[]> {
-		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.getNavigateToItems(search));
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbol[]> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
+	}
+
+	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
 	}
 
 	// --- rename
@@ -795,12 +857,12 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new SuggestAdapter(this._documents, provider);
+		this._adapter[handle] = new SuggestAdapter(this._documents, this._heapService, provider);
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(resource, position));
 	}
 
@@ -819,6 +881,23 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
 		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(resource, position));
+	}
+
+	// --- links
+
+	registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter[handle] = new LinkProviderAdapter(this._documents, provider);
+		this._proxy.$registerDocumentLinkProvider(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> {
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(resource));
+	}
+
+	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> {
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link));
 	}
 
 	// --- configuration

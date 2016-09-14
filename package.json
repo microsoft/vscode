@@ -1,7 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.4.0",
-  "electronVersion": "0.37.6",
+  "version": "1.6.0",
+  "electronVersion": "1.3.5",
+  "distro": "3d44b35db8d394d6d7b2bc224675735a0a8f2704",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -15,8 +16,9 @@
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
-    "chokidar": "1.0.5",
+    "chokidar": "bpasero/chokidar#vscode",
     "emmet": "1.3.1",
+    "gc-signals": "^0.0.1",
     "getmac": "1.0.7",
     "graceful-fs": "4.1.2",
     "http-proxy-agent": "0.2.7",
@@ -25,12 +27,12 @@
     "minimist": "1.2.0",
     "native-keymap": "0.1.2",
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
-    "sax": "1.1.2",
+    "fast-plist": "0.1.1",
     "semver": "4.3.6",
-    "vscode-debugprotocol": "1.10.0",
-    "vscode-textmate": "2.0.1",
+    "vscode-debugprotocol": "1.13.0-pre.3",
+    "vscode-textmate": "2.1.1",
     "winreg": "1.2.0",
-    "xterm": "git+https://github.com/sourcelair/xterm.js.git#8790a94",
+    "xterm": "git+https://github.com/sourcelair/xterm.js.git#220828f",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
@@ -38,14 +40,17 @@
     "azure-storage": "^0.3.1",
     "clean-css": "3.4.6",
     "clone": "^1.0.2",
+    "coveralls": "^2.11.11",
+    "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
+    "eslint": "^3.4.0",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
     "ghooks": "1.0.3",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "^1.7.1",
+    "gulp-atom-electron": "^1.9.0",
     "gulp-azure-storage": "^0.6.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",
@@ -59,7 +64,6 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.6.0",
-    "gulp-symdest": "^1.0.0",
     "gulp-tsb": "^1.10.1",
     "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^1.4.1",
@@ -78,6 +82,7 @@
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
     "queue": "3.0.6",
+    "remap-istanbul": "^0.6.4",
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
@@ -86,6 +91,7 @@
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
+    "vinyl-fs": "^2.4.3",
     "vscode-nls-dev": "^1.0.0"
   },
   "repository": {
@@ -101,6 +107,7 @@
     }
   },
   "optionalDependencies": {
-    "windows-mutex": "^0.2.0"
+    "windows-mutex": "^0.2.0",
+    "fsevents": "0.3.8"
   }
 }

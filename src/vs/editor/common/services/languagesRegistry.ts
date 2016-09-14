@@ -114,7 +114,7 @@ export class LanguagesRegistry {
 		}
 
 		if (!primaryMime) {
-			primaryMime = 'text/x-' + lang.id;
+			primaryMime = `text/x-${lang.id}`;
 			this.mime2LanguageId[primaryMime] = lang.id;
 		}
 

@@ -7,6 +7,9 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
+DEVELOPER=$(xcode-select -print-path)
+LIPO=$(xcrun -sdk iphoneos -find lipo)
+
 function code() {
 	cd $ROOT
 

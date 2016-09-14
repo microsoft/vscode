@@ -28,9 +28,11 @@ import {MainThreadQuickOpen} from './mainThreadQuickOpen';
 import {MainThreadStatusBar} from './mainThreadStatusBar';
 import {MainThreadStorage} from './mainThreadStorage';
 import {MainThreadTelemetry} from './mainThreadTelemetry';
+import {MainThreadTerminalService} from './mainThreadTerminalService';
 import {MainThreadWorkspace} from './mainThreadWorkspace';
 import {MainProcessExtensionService} from './mainThreadExtensionService';
 import {MainThreadFileSystemEventService} from './mainThreadFileSystemEventService';
+import {MainThreadHeapService} from './mainThreadHeapService';
 
 // --- other interested parties
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
@@ -60,6 +62,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		// Addressable instances
 		const col = new InstanceCollection();
 		col.define(MainContext.MainThreadCommands).set(create(MainThreadCommands));
+		col.define(MainContext.MainThreadConfiguration).set(create(MainThreadConfiguration));
 		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
 		col.define(MainContext.MainThreadDocuments).set(create(MainThreadDocuments));
 		col.define(MainContext.MainThreadEditors).set(create(MainThreadEditors));
@@ -72,6 +75,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadStatusBar).set(create(MainThreadStatusBar));
 		col.define(MainContext.MainThreadStorage).set(create(MainThreadStorage));
 		col.define(MainContext.MainThreadTelemetry).set(create(MainThreadTelemetry));
+		col.define(MainContext.MainThreadTerminalService).set(create(MainThreadTerminalService));
 		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
 		if (this.extensionService instanceof MainProcessExtensionService) {
 			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);
@@ -80,11 +84,11 @@ export class ExtHostContribution implements IWorkbenchContribution {
 
 		// Other interested parties
 		create(MainProcessTextMateSyntax);
-		create(MainThreadConfiguration);
 		create(MainProcessTextMateSnippet);
 		create(JSONValidationExtensionPoint);
 		create(LanguageConfigurationFileHandler);
 		create(MainThreadFileSystemEventService);
+		create(MainThreadHeapService);
 	}
 }
 

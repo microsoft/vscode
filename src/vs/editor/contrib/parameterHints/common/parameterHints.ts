@@ -11,10 +11,11 @@ import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { SignatureHelp, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const Context = {
-	Visible: 'parameterHintsVisible',
-	MultipleSignatures: 'parameterHintsMultipleSignatures',
+	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),
+	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
 export function provideSignatureHelp(model:IReadOnlyModel, position:Position): TPromise<SignatureHelp> {

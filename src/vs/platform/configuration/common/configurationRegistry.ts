@@ -6,12 +6,11 @@
 
 import nls = require('vs/nls');
 import Event, {Emitter} from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import platform = require('vs/platform/platform');
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {Registry} from 'vs/platform/platform';
 import objects = require('vs/base/common/objects');
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
-
+import {IJSONContributionRegistry, Extensions as JSONExtensions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -49,7 +48,7 @@ export interface IConfigurationNode {
 }
 
 const schemaId = 'vscode://schemas/settings';
-const contributionRegistry = <JSONContributionRegistry.IJSONContributionRegistry>platform.Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationContributors: IConfigurationNode[];
@@ -80,16 +79,16 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {
-		let schema = <IJSONSchema>objects.clone(configuration);
+		const schema = <IJSONSchema>objects.clone(configuration);
 		this.configurationSchema.allOf.push(schema);
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 	}
 }
 
 const configurationRegistry = new ConfigurationRegistry();
-platform.Registry.add(Extensions.Configuration, configurationRegistry);
+Registry.add(Extensions.Configuration, configurationRegistry);
 
-let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
 	defaultSnippets: [{ body: { title: '', properties: {} } }],
@@ -110,8 +109,8 @@ let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigura
 
 configurationExtPoint.setHandler((extensions) => {
 	for (let i = 0; i < extensions.length; i++) {
-		let configuration = <IConfigurationNode>extensions[i].value;
-		let collector = extensions[i].collector;
+		const configuration = <IConfigurationNode>extensions[i].value;
+		const collector = extensions[i].collector;
 
 		if (configuration.type && configuration.type !== 'object') {
 			collector.warn(nls.localize('invalid.type', "if set, 'configuration.type' must be set to 'object"));
@@ -127,7 +126,7 @@ configurationExtPoint.setHandler((extensions) => {
 			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
 			return;
 		}
-		let clonedConfiguration = objects.clone(configuration);
+		const clonedConfiguration = objects.clone(configuration);
 		clonedConfiguration.id = extensions[i].description.id;
 		configurationRegistry.registerConfiguration(clonedConfiguration);
 	}

@@ -28,6 +28,8 @@ const _ = require('underscore');
 const assign = require('object-assign');
 const monacodts = require('./build/monaco/api');
 const fs = require('fs');
+const glob = require('glob');
+const pkg = require('./package.json');
 
 const rootDir = path.join(__dirname, 'src');
 const options = require('./src/tsconfig.json').compilerOptions;
@@ -214,7 +216,7 @@ gulp.task('mixin', function () {
 		return;
 	}
 
-	const url = 'https://github.com/' + repo + '/archive/master.zip';
+	const url = `https://github.com/${ repo }/archive/${ pkg.distro }.zip`;
 	const opts = { base: '' };
 	const username = process.env['VSCODE_MIXIN_USERNAME'];
 	const password = process.env['VSCODE_MIXIN_PASSWORD'];
@@ -256,7 +258,6 @@ gulp.task('mixin', function () {
 		.pipe(gulp.dest('.'));
 });
 
-require('./build/gulpfile.hygiene');
-require('./build/gulpfile.vscode');
-require('./build/gulpfile.editor');
-require('./build/gulpfile.extensions');
+const build = path.join(__dirname, 'build');
+glob.sync('gulpfile.*.js', { cwd: build })
+	.forEach(f => require(`./build/${ f }`));

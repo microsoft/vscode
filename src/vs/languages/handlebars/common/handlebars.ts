@@ -16,6 +16,7 @@ import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizati
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export enum States {
 	HTML,
@@ -156,16 +157,16 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@ICompatWorkerService compatWorkerService: ICompatWorkerService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(descriptor, instantiationService, modeService, compatWorkerService, workspaceContextService);
+		super(descriptor, instantiationService, modeService, compatWorkerService, workspaceContextService, configurationService);
 	}
 
 	protected _registerSupports(): void {
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
-			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		}, true);

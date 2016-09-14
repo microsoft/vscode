@@ -9,7 +9,7 @@ import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
-import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { IEnvService } from 'vs/code/electron-main/env';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
@@ -50,7 +50,7 @@ export class LifecycleService implements ILifecycleService {
 	private _wasUpdated: boolean;
 
 	constructor(
-		@IEnvironmentService private envService: IEnvironmentService,
+		@IEnvService private envService: IEnvService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService
 	) {
@@ -109,7 +109,7 @@ export class LifecycleService implements ILifecycleService {
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
 			// --wait: we quit when all windows are closed
-			if (this.quitRequested || process.platform !== 'darwin' || this.envService.cliArgs.waitForWindowClose) {
+			if (this.quitRequested || process.platform !== 'darwin' || this.envService.cliArgs.wait) {
 				app.quit();
 			}
 		});
@@ -119,7 +119,7 @@ export class LifecycleService implements ILifecycleService {
 
 		// Window Before Closing: Main -> Renderer
 		vscodeWindow.win.on('close', (e) => {
-			let windowId = vscodeWindow.id;
+			const windowId = vscodeWindow.id;
 			this.logService.log('Lifecycle#window-before-close', windowId);
 
 			// The window already acknowledged to be closed
@@ -155,9 +155,9 @@ export class LifecycleService implements ILifecycleService {
 		this.logService.log('Lifecycle#unload()', vscodeWindow.id);
 
 		return new TPromise<boolean>((c) => {
-			let oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
-			let oneTimeOkEvent = 'vscode:ok' + oneTimeEventToken;
-			let oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
+			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
+			const oneTimeOkEvent = 'vscode:ok' + oneTimeEventToken;
+			const oneTimeCancelEvent = 'vscode:cancel' + oneTimeEventToken;
 
 			ipc.once(oneTimeOkEvent, () => {
 				c(false); // no veto

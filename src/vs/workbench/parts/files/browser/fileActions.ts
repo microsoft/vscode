@@ -14,9 +14,9 @@ import {MIME_TEXT, isUnspecific, isBinaryMime, guessMimeTypes} from 'vs/base/com
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
 import {Event, EventType as CommonEventType} from 'vs/base/common/events';
-import {getPathLabel} from 'vs/base/common/labels';
 import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -24,16 +24,14 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
-import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, UntitledEditorInput, ConfirmResult, IEditorIdentifier} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, UntitledEditorInput, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -129,38 +127,21 @@ export class BaseFileAction extends Action {
 	}
 
 	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
-		let actions = [
-			CancelAction,
-			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry())
+		const actions = [
+			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
+			CancelAction
 		];
 
 		if (extraAction) {
-			actions.push(extraAction);
+			actions.unshift(extraAction);
 		}
 
-		let errorWithRetry: IMessageWithAction = {
-			actions: actions,
-			message: errors.toErrorMessage(error, false)
+		const errorWithRetry: IMessageWithAction = {
+			actions,
+			message: toErrorMessage(error, false)
 		};
 
 		this._messageService.show(Severity.Error, errorWithRetry);
-	}
-
-	protected handleDirty(): TPromise<boolean /* cancel */> {
-		if (this.textFileService.isDirty(this._element.resource)) {
-			let res = this.textFileService.confirmSave([this._element.resource]);
-			if (res === ConfirmResult.SAVE) {
-				return this.textFileService.save(this._element.resource).then(() => false);
-			}
-
-			if (res === ConfirmResult.DONT_SAVE) {
-				return this.textFileService.revert(this._element.resource).then(() => false);
-			}
-
-			return TPromise.as(true);
-		}
-
-		return TPromise.as(false);
 	}
 }
 
@@ -199,12 +180,12 @@ export class TriggerRenameFileAction extends BaseFileAction {
 			return TPromise.wrapError('No context provided to BaseEnableFileRenameAction.');
 		}
 
-		let viewletState = <IFileViewletState>context.viewletState;
+		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('Invalid viewconst state provided to BaseEnableFileRenameAction.');
 		}
 
-		let stat = <IFileStat>context.stat;
+		const stat = <IFileStat>context.stat;
 		if (!stat) {
 			return TPromise.wrapError('Invalid stat provided to BaseEnableFileRenameAction.');
 		}
@@ -212,7 +193,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		viewletState.setEditable(stat, {
 			action: this.renameAction,
 			validator: (value) => {
-				let message = this.validateFileName(this.element.parent, value);
+				const message = this.validateFileName(this.element.parent, value);
 
 				if (!message) {
 					return null;
@@ -229,7 +210,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		this.tree.refresh(stat, false).then(() => {
 			this.tree.setHighlight(stat);
 
-			let unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+			const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 				if (!e.highlight) {
 					viewletState.clearEditable(stat);
 					this.tree.refresh(stat).done(null, errors.onUnexpectedError);
@@ -270,7 +251,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 
 		// Automatically trim whitespaces and trailing dots to produce nice file names
 		name = getWellFormedFileName(name);
-		let existingName = getWellFormedFileName(this.element.name);
+		const existingName = getWellFormedFileName(this.element.name);
 
 		// Return early if name is invalid or didn't change
 		if (name === existingName || this.validateFileName(this.element.parent, name)) {
@@ -278,7 +259,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		}
 
 		// Call function and Emit Event through viewer
-		let promise = this.runAction(name).then((stat: IFileStat) => {
+		const promise = this.runAction(name).then((stat: IFileStat) => {
 			if (stat) {
 				this.onSuccess(stat);
 			}
@@ -337,19 +318,36 @@ export class RenameFileAction extends BaseRenameAction {
 
 	public runAction(newName: string): TPromise<any> {
 
-		// Check if file is dirty in editor and save it to avoid data loss
-		return this.handleDirty().then((cancel: boolean) => {
-			if (cancel) {
+		// Handle dirty
+		let revertPromise: TPromise<any> = TPromise.as(null);
+		const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, this.element.resource.fsPath));
+		if (dirty.length) {
+			let message: string;
+			if (this.element.isDirectory) {
+				if (dirty.length === 1) {
+					message = nls.localize('dirtyMessageFolderOne', "You are renaming a folder with unsaved changes in 1 file. Do you want to continue?");
+				} else {
+					message = nls.localize('dirtyMessageFolder', "You are renaming a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
+				}
+			} else {
+				message = nls.localize('dirtyMessageFile', "You are renaming a file with unsaved changes. Do you want to continue?");
+			}
+
+			const res = this.messageService.confirm({
+				message,
+				type: 'warning',
+				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
+				primaryButton: nls.localize({ key: 'renameLabel', comment: ['&& denotes a mnemonic'] }, "&&Rename")
+			});
+
+			if (!res) {
 				return TPromise.as(null);
 			}
 
-			// If the file is still dirty, do not touch it because a save is pending to disk and we can not abort it
-			if (this.textFileService.isDirty(this.element.resource)) {
-				this.onWarning(nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", getPathLabel(this.element.resource)));
+			revertPromise = this.textFileService.revertAll(dirty);
+		}
 
-				return TPromise.as(null);
-			}
-
+		return revertPromise.then(() => {
 			return this.fileService.rename(this.element.resource, newName).then(null, (error: Error) => {
 				this.onErrorWithRetry(error, () => this.runAction(newName));
 			});
@@ -394,14 +392,14 @@ export class BaseNewAction extends BaseFileAction {
 			return TPromise.wrapError('No context provided to BaseNewAction.');
 		}
 
-		let viewletState = <IFileViewletState>context.viewletState;
+		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewlet state provided to BaseNewAction.');
+			return TPromise.wrapError('Invalid viewconst state provided to BaseNewAction.');
 		}
 
 		let folder: FileStat = this.presetFolder;
 		if (!folder) {
-			let focus = <FileStat>this.tree.getFocus();
+			const focus = <FileStat>this.tree.getFocus();
 			if (focus) {
 				folder = focus.isDirectory ? focus : focus.parent;
 			} else {
@@ -415,14 +413,14 @@ export class BaseNewAction extends BaseFileAction {
 
 		return this.tree.reveal(folder, 0.5).then(() => {
 			return this.tree.expand(folder).then(() => {
-				let stat = NewStatPlaceholder.addNewStatPlaceholder(folder, !this.isFile);
+				const stat = NewStatPlaceholder.addNewStatPlaceholder(folder, !this.isFile);
 
 				this.renameAction.element = stat;
 
 				viewletState.setEditable(stat, {
 					action: this.renameAction,
 					validator: (value) => {
-						let message = this.renameAction.validateFileName(folder, value);
+						const message = this.renameAction.validateFileName(folder, value);
 
 						if (!message) {
 							return null;
@@ -441,7 +439,7 @@ export class BaseNewAction extends BaseFileAction {
 						return this.tree.reveal(stat, 0.5).then(() => {
 							this.tree.setHighlight(stat);
 
-							let unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+							const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 								if (!e.highlight) {
 									stat.destroy();
 									this.tree.refresh(folder).done(null, errors.onUnexpectedError);
@@ -516,8 +514,8 @@ export abstract class BaseGlobalNewAction extends Action {
 			return TPromise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
 				viewlet.focus();
 
-				let explorer = <ExplorerViewlet>viewlet;
-				let explorerView = explorer.getExplorerView();
+				const explorer = <ExplorerViewlet>viewlet;
+				const explorerView = explorer.getExplorerView();
 
 				// Not having a folder opened
 				if (!explorerView) {
@@ -528,7 +526,7 @@ export abstract class BaseGlobalNewAction extends Action {
 					explorerView.expand();
 				}
 
-				let action = this.toDispose = this.instantiationService.createInstance(this.getAction(), explorerView.getViewer(), null);
+				const action = this.toDispose = this.instantiationService.createInstance(this.getAction(), explorerView.getViewer(), null);
 
 				return explorer.getActionRunner().run(action);
 			});
@@ -564,7 +562,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let input = this.untitledEditorService.createOrGet();
+		const input = this.untitledEditorService.createOrGet();
 
 		return this.editorService.openEditor(input, { pinned: true }); // untitled are always pinned
 	}
@@ -690,56 +688,97 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			this.tree.clearHighlight();
 		}
 
-		// Ask for Confirm
-		if (!this.skipConfirm) {
-			let confirm: IConfirmation;
-			if (this.useTrash) {
-				confirm = {
-					message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
-					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
-					primaryButton: isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash")
-				};
-			} else {
-				confirm = {
-					message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
-					detail: nls.localize('irreversible', "This action is irreversible!"),
-					primaryButton: nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete")
-				};
-			}
-
-			if (!this.messageService.confirm(confirm)) {
-				return TPromise.as(null);
-			}
+		let primaryButton: string;
+		if (this.useTrash) {
+			primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
+		} else {
+			primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
 		}
 
-		// Since a delete operation can take a while we want to emit the event proactively to avoid issues
-		// with stale entries in the explorer tree.
-		this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(this.element.clone(), null));
-
-		// Call function
-		let servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
-			if (this.element.parent) {
-				this.tree.setFocus(this.element.parent); // move focus to parent
-			}
-		}, (error: any) => {
-
-			// Allow to retry
-			let extraAction: Action;
-			if (this.useTrash) {
-				extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+		// Handle dirty
+		let revertPromise: TPromise<any> = TPromise.as(null);
+		const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, this.element.resource.fsPath));
+		if (dirty.length) {
+			let message: string;
+			if (this.element.isDirectory) {
+				if (dirty.length === 1) {
+					message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder with unsaved changes in 1 file. Do you want to continue?");
+				} else {
+					message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
+				}
+			} else {
+				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 			}
 
-			this.onErrorWithRetry(error, () => this.run(), extraAction);
+			const res = this.messageService.confirm({
+				message,
+				type: 'warning',
+				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
+				primaryButton
+			});
 
-			// Since the delete failed, best we can do is to refresh the explorer from the root to show the current state of files.
-			let event = new LocalFileChangeEvent(new FileStat(this.contextService.getWorkspace().resource, true, true), new FileStat(this.contextService.getWorkspace().resource, true, true));
-			this.eventService.emit('files.internal:fileChanged', event);
+			if (!res) {
+				return TPromise.as(null);
+			}
 
-			// Focus back to tree
-			this.tree.DOMFocus();
+			this.skipConfirm = true; // since we already asked for confirmation
+			revertPromise = this.textFileService.revertAll(dirty);
+		}
+
+		// Check if file is dirty in editor and save it to avoid data loss
+		return revertPromise.then(() => {
+
+			// Ask for Confirm
+			if (!this.skipConfirm) {
+				let confirm: IConfirmation;
+				if (this.useTrash) {
+					confirm = {
+						message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
+						detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
+						primaryButton
+					};
+				} else {
+					confirm = {
+						message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
+						detail: nls.localize('irreversible', "This action is irreversible!"),
+						primaryButton
+					};
+				}
+
+				if (!this.messageService.confirm(confirm)) {
+					return TPromise.as(null);
+				}
+			}
+
+			// Since a delete operation can take a while we want to emit the event proactively to avoid issues
+			// with stale entries in the explorer tree.
+			this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(this.element.clone(), null));
+
+			// Call function
+			const servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
+				if (this.element.parent) {
+					this.tree.setFocus(this.element.parent); // move focus to parent
+				}
+			}, (error: any) => {
+
+				// Allow to retry
+				let extraAction: Action;
+				if (this.useTrash) {
+					extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+				}
+
+				this.onErrorWithRetry(error, () => this.run(), extraAction);
+
+				// Since the delete failed, best we can do is to refresh the explorer from the root to show the current state of files.
+				const event = new LocalFileChangeEvent(new FileStat(this.contextService.getWorkspace().resource, true, true), new FileStat(this.contextService.getWorkspace().resource, true, true));
+				this.eventService.emit('files.internal:fileChanged', event);
+
+				// Focus back to tree
+				this.tree.DOMFocus();
+			});
+
+			return servicePromise;
 		});
-
-		return servicePromise;
 	}
 }
 
@@ -813,8 +852,8 @@ export class ImportFileAction extends BaseFileAction {
 	}
 
 	public run(context?: any): TPromise<any> {
-		let importPromise = TPromise.as(null).then(() => {
-			let input = context.input;
+		const importPromise = TPromise.as(null).then(() => {
+			const input = context.input;
 			if (input.files && input.files.length > 0) {
 
 				// Find parent for import
@@ -830,9 +869,9 @@ export class ImportFileAction extends BaseFileAction {
 				}
 
 				// Create real files array
-				let filesArray: File[] = [];
+				const filesArray: File[] = [];
 				for (let i = 0; i < input.files.length; i++) {
-					let file = input.files[i];
+					const file = input.files[i];
 					filesArray.push(file);
 				}
 
@@ -840,7 +879,7 @@ export class ImportFileAction extends BaseFileAction {
 				return this.fileService.resolveFile(targetElement.resource).then((targetStat: IFileStat) => {
 
 					// Check for name collisions
-					let targetNames: { [name: string]: IFileStat } = {};
+					const targetNames: { [name: string]: IFileStat } = {};
 					targetStat.children.forEach((child) => {
 						targetNames[isLinux ? child.name : child.name.toLowerCase()] = child;
 					});
@@ -849,7 +888,7 @@ export class ImportFileAction extends BaseFileAction {
 					if (filesArray.some((file) => {
 						return !!targetNames[isLinux ? file.name : file.name.toLowerCase()];
 					})) {
-						let confirm: IConfirmation = {
+						const confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
 							detail: nls.localize('irreversible', "This action is irreversible!"),
 							primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
@@ -863,16 +902,16 @@ export class ImportFileAction extends BaseFileAction {
 					}
 
 					// Run import in sequence
-					let importPromisesFactory: ITask<TPromise<void>>[] = [];
+					const importPromisesFactory: ITask<TPromise<void>>[] = [];
 					filesArray.forEach((file) => {
 						importPromisesFactory.push(() => {
-							let sourceFile = URI.file((<any>file).path);
+							const sourceFile = URI.file((<any>file).path);
 
 							return this.fileService.importFile(sourceFile, targetElement.resource).then((result: IImportResult) => {
 								if (result.stat) {
 
 									// Emit Deleted Event if file gets replaced unless it is the same file
-									let oldFile = targetNames[isLinux ? file.name : file.name.toLowerCase()];
+									const oldFile = targetNames[isLinux ? file.name : file.name.toLowerCase()];
 									if (oldFile && oldFile.resource.fsPath !== result.stat.resource.fsPath) {
 										this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(oldFile, null));
 									}
@@ -1000,8 +1039,8 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Check if file was deleted or moved meanwhile
-		let root: FileStat = this.tree.getInput();
-		let exists = root.find(fileToCopy.resource);
+		const root: FileStat = this.tree.getInput();
+		const exists = root.find(fileToCopy.resource);
 		if (!exists) {
 			fileToCopy = null;
 			return false;
@@ -1026,7 +1065,7 @@ export class PasteFileAction extends BaseFileAction {
 		}
 
 		// Reuse duplicate action
-		let pasteAction = this.instantiationService.createInstance(DuplicateFileAction, this.tree, fileToCopy, target);
+		const pasteAction = this.instantiationService.createInstance(DuplicateFileAction, this.tree, fileToCopy, target);
 
 		return pasteAction.run().then(() => {
 			this.tree.DOMFocus();
@@ -1066,7 +1105,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		}
 
 		// Copy File and emit event
-		let result = this.fileService.copyFile(this.element.resource, this.findTarget()).then((stat: IFileStat) => {
+		const result = this.fileService.copyFile(this.element.resource, this.findTarget()).then((stat: IFileStat) => {
 			this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(null, stat));
 		}, (error: any) => {
 			this.onError(error);
@@ -1080,7 +1119,7 @@ export class DuplicateFileAction extends BaseFileAction {
 	}
 
 	private findTarget(): URI {
-		let root: FileStat = this.tree.getInput();
+		const root: FileStat = this.tree.getInput();
 		let name = this.element.name;
 
 		let candidate = URI.file(paths.join(this.target.resource.fsPath, name));
@@ -1104,7 +1143,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		}
 
 		// file.txt=>file.1.txt
-		let lastIndexOfDot = name.lastIndexOf('.');
+		const lastIndexOfDot = name.lastIndexOf('.');
 		if (!isFolder && lastIndexOfDot >= 0) {
 			return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
 		}
@@ -1145,7 +1184,7 @@ export class OpenToSideAction extends Action {
 	}
 
 	private updateEnablement(): void {
-		let activeEditor = this.editorService.getActiveEditor();
+		const activeEditor = this.editorService.getActiveEditor();
 		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
 	}
 
@@ -1212,19 +1251,19 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput());
+		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput());
 		if (fileInput) {
 
 			// Keep as resource to compare
 			globalResourceToCompare = fileInput.getResource();
 
 			// Listen for next editor to open
-			let unbind = this.editorGroupService.onEditorOpening(e => {
+			const unbind = this.editorGroupService.onEditorOpening(e => {
 				unbind.dispose(); // listen once
 
-				let otherFileInput = asFileEditorInput(e.editorInput);
+				const otherFileInput = asFileEditorInput(e.editorInput);
 				if (otherFileInput) {
-					let compareAction = this.instantiationService.createInstance(CompareResourcesAction, otherFileInput.getResource(), null);
+					const compareAction = this.instantiationService.createInstance(CompareResourcesAction, otherFileInput.getResource(), null);
 					if (compareAction._isEnabled()) {
 						e.prevent();
 
@@ -1287,9 +1326,9 @@ export class CompareResourcesAction extends Action {
 
 		// Check if file was deleted or moved meanwhile (explorer only)
 		if (this.tree) {
-			let root: FileStat = this.tree.getInput();
+			const root: FileStat = this.tree.getInput();
 			if (root instanceof FileStat) {
-				let exists = root.find(globalResourceToCompare);
+				const exists = root.find(globalResourceToCompare);
 				if (!exists) {
 					globalResourceToCompare = null;
 					return false;
@@ -1302,8 +1341,8 @@ export class CompareResourcesAction extends Action {
 			return false;
 		}
 
-		let mimeA = guessMimeTypes(this.resource.fsPath).join(', ');
-		let mimeB = guessMimeTypes(globalResourceToCompare.fsPath).join(', ');
+		const mimeA = guessMimeTypes(this.resource.fsPath).join(', ');
+		const mimeB = guessMimeTypes(globalResourceToCompare.fsPath).join(', ');
 
 		// Check if target has same mime
 		if (mimeA === mimeB) {
@@ -1311,8 +1350,8 @@ export class CompareResourcesAction extends Action {
 		}
 
 		// Ensure the mode is equal if this is text (limitation of current diff infrastructure)
-		let isBinaryA = isBinaryMime(mimeA);
-		let isBinaryB = isBinaryMime(mimeB);
+		const isBinaryA = isBinaryMime(mimeA);
+		const isBinaryB = isBinaryMime(mimeB);
 
 		// Ensure we are not comparing binary with text
 		if (isBinaryA !== isBinaryB) {
@@ -1329,8 +1368,8 @@ export class CompareResourcesAction extends Action {
 			this.tree.clearHighlight();
 		}
 
-		let leftInput = this.instantiationService.createInstance(FileEditorInput, globalResourceToCompare, void 0, void 0);
-		let rightInput = this.instantiationService.createInstance(FileEditorInput, this.resource, void 0, void 0);
+		const leftInput = this.instantiationService.createInstance(FileEditorInput, globalResourceToCompare, void 0, void 0);
+		const rightInput = this.instantiationService.createInstance(FileEditorInput, this.resource, void 0, void 0);
 
 		return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(globalResourceToCompare, this.resource, this.contextService), null, leftInput, rightInput));
 	}
@@ -1355,7 +1394,7 @@ export abstract class BaseActionWithErrorReporting extends Action {
 
 	public run(context?: any): TPromise<boolean> {
 		return this.doRun(context).then(() => true, (error) => {
-			this.messageService.show(Severity.Error, errors.toErrorMessage(error, false));
+			this.messageService.show(Severity.Error, toErrorMessage(error, false));
 		});
 	}
 
@@ -1399,7 +1438,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			if (this.isSaveAs() || source.scheme === 'untitled') {
 				let mimeOfSource: string;
 				if (source.scheme === 'untitled') {
-					let selectedMime = this.untitledEditorService.get(source).getMime();
+					const selectedMime = this.untitledEditorService.get(source).getMime();
 					if (!isUnspecific(selectedMime)) {
 						mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
 					}
@@ -1409,7 +1448,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				if (source.scheme === 'untitled') {
 					encodingOfSource = this.untitledEditorService.get(source).getEncoding();
 				} else if (source.scheme === 'file') {
-					let textModel = CACHE.get(source);
+					const textModel = this.textFileService.models.get(source);
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
@@ -1519,14 +1558,13 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	private registerListeners(): void {
 
 		// listen to files being changed locally
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.updateEnablement(true)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.updateEnablement(false)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.updateEnablement(false)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.updateEnablement(true)));
+		this.toDispose.push(this.textFileService.models.onModelDirty(e => this.updateEnablement(true)));
+		this.toDispose.push(this.textFileService.models.onModelSaved(e => this.updateEnablement(false)));
+		this.toDispose.push(this.textFileService.models.onModelReverted(e => this.updateEnablement(false)));
+		this.toDispose.push(this.textFileService.models.onModelSaveError(e => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
-			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.updateEnablement(true)));
-			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, () => this.updateEnablement(false)));
+			this.toDispose.push(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
 		}
 	}
 
@@ -1699,7 +1737,7 @@ export class RevertFileAction extends Action {
 		if (this.resource) {
 			resource = this.resource;
 		} else {
-			let activeFileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+			const activeFileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 			if (activeFileInput) {
 				resource = activeFileInput.getResource();
 			}
@@ -1778,7 +1816,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			return this.viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
 				const isInsideWorkspace = this.contextService.isInsideWorkspace(fileInput.getResource());
@@ -1910,7 +1948,7 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 
 	// Max length restriction (on Windows)
 	if (isWindows) {
-		let fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
+		const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
 		if (fullPathLength > 255) {
 			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", name);
 		}

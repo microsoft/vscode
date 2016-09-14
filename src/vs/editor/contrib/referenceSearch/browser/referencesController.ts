@@ -10,31 +10,33 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
+import { fromPromise, stopwatch } from 'vs/base/common/event';
 import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey, IContextKeyService, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {ReferencesModel, OneReference} from './referencesModel';
 import {ReferenceWidget, LayoutData} from './referencesWidget';
 import {Range} from 'vs/editor/common/core/range';
 
-export const ctxReferenceSearchVisible = 'referenceSearchVisible';
+export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
 	onGoto?: (reference: OneReference) => TPromise<any>;
 }
 
+@editorContribution
 export class ReferencesController implements editorCommon.IEditorContribution {
 
-	public static ID = 'editor.contrib.referencesController';
+	private static ID = 'editor.contrib.referencesController';
 
 	private _editor: ICodeEditor;
 	private _widget: ReferenceWidget;
@@ -43,15 +45,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	private _disposables: IDisposable[] = [];
 	private _ignoreModelChangeEvent = false;
 
-	private _referenceSearchVisible: IKeybindingContextKey<boolean>;
+	private _referenceSearchVisible: IContextKey<boolean>;
 
-	static getController(editor:editorCommon.ICommonCodeEditor): ReferencesController {
-		return <ReferencesController> editor.getContribution(ReferencesController.ID);
+	public static get(editor:editorCommon.ICommonCodeEditor): ReferencesController {
+		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 
 	public constructor(
 		editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
@@ -62,7 +64,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
 		this._editor = editor;
-		this._referenceSearchVisible = keybindingService.createKey(ctxReferenceSearchVisible, false);
+		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
 	}
 
 	public getId(): string {
@@ -116,7 +118,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			switch (kind) {
 				case 'open':
 					if (event.source === 'editor'
-						&& getConfigurationValue(this._configurationService.getConfiguration(), 'editor.stablePeek', false)) {
+						&& this._configurationService.lookup('editor.stablePeek').value) {
 
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor
@@ -136,11 +138,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 
 		const requestId = ++this._requestIdPool;
-		const timer = this._telemetryService.timedPublicLog('findReferences', {
-			mode: this._editor.getModel().getMode().getId()
-		});
 
-		modelPromise.then(model => {
+		const promise = modelPromise.then(model => {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
@@ -176,10 +175,14 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		}, error => {
 			this._messageService.show(Severity.Error, error);
-
-		}).done(() => {
-			timer.stop();
 		});
+
+		const onDone = stopwatch(fromPromise(promise));
+
+		onDone(duration => this._telemetryService.publicLog('findReferences', {
+			duration,
+			mode: this._editor.getModel().getMode().getId()
+		}));
 	}
 
 	public closeWidget(): void {
@@ -238,6 +241,3 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}
 	}
 }
-
-
-EditorBrowserRegistry.registerEditorContribution(ReferencesController);

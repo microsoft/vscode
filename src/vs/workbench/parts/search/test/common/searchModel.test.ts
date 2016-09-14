@@ -14,7 +14,7 @@ import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
 import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISearchService, ISearchComplete, ISearchProgressItem } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchComplete, ISearchProgressItem, IUncachedSearchStats } from 'vs/platform/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,6 +23,17 @@ suite('SearchModel', () => {
 
 	let instantiationService: TestInstantiationService;
 	let restoreStubs;
+
+	const testSearchStats: IUncachedSearchStats = {
+		fromCache: false,
+		resultCount: 4,
+		traversal: 'node',
+		errors: [],
+		fileWalkStartTime: 0,
+		fileWalkResultTime: 1,
+		directoriesWalked: 2,
+		filesWalked: 3
+	};
 
 	setup(() => {
 		restoreStubs= [];
@@ -72,7 +83,7 @@ suite('SearchModel', () => {
 
 		promise.progress(results[0]);
 		promise.progress(results[1]);
-		promise.complete({results: []});
+		promise.complete({results: [], stats: testSearchStats});
 
 		result.done(() => {
 			let actual= testObject.searchResult.matches();
@@ -108,28 +119,32 @@ suite('SearchModel', () => {
 		assert.deepEqual(['searchResultsShown', {count: 3, fileCount: 2}], target.args[0]);
 	});
 
-	test('Search Model: Search reports timed telemetry on search when progress is not called', function () {
+	test('Search Model: Search reports timed telemetry on search when progress is not called', function (done) {
 		let target2= sinon.spy();
 		stub(nullEvent, 'stop', target2);
 		let target1= sinon.stub().returns(nullEvent);
-		instantiationService.stub(ITelemetryService, 'timedPublicLog', target1);
+		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		instantiationService.stub(ISearchService, 'search',  PPromise.as({results: []}));
 
 		let testObject= instantiationService.createInstance(SearchModel);
-		testObject.search({contentPattern: {pattern: 'somestring'}, type: 1});
+		const result = testObject.search({contentPattern: {pattern: 'somestring'}, type: 1});
 
-		assert.ok(target1.calledTwice);
-		assert.ok(target1.calledWith('searchResultsFirstRender'));
-		assert.ok(target1.calledWith('searchResultsFinished'));
-		assert.ok(target2.calledThrice);
+		setTimeout(() => {
+			result.done(() => {
+				assert.ok(target1.calledWith('searchResultsFirstRender'));
+				assert.ok(target1.calledWith('searchResultsFinished'));
+
+				done();
+			});
+		}, 0);
 	});
 
 	test('Search Model: Search reports timed telemetry on search when progress is called', function (done) {
 		let target2= sinon.spy();
 		stub(nullEvent, 'stop', target2);
 		let target1= sinon.stub().returns(nullEvent);
-		instantiationService.stub(ITelemetryService, 'timedPublicLog', target1);
+		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		let promise= new DeferredPPromise<ISearchComplete, ISearchProgressItem>();
 		instantiationService.stub(ISearchService, 'search',  promise);
@@ -138,23 +153,24 @@ suite('SearchModel', () => {
 		let result= testObject.search({contentPattern: {pattern: 'somestring'}, type: 1});
 
 		promise.progress(aRawMatch('file://c:/1', aLineMatch('some preview')));
-		promise.complete({results: []});
+		promise.complete({results: [], stats: testSearchStats});
 
-		result.done(() => {
-			assert.ok(target1.calledTwice);
-			assert.ok(target1.calledWith('searchResultsFirstRender'));
-			assert.ok(target1.calledWith('searchResultsFinished'));
-			assert.equal(4, target2.callCount);
+		setTimeout(() => {
+			result.done(() => {
+				assert.ok(target1.calledWith('searchResultsFirstRender'));
+				assert.ok(target1.calledWith('searchResultsFinished'));
+				// assert.equal(1, target2.callCount);
 
-			done();
-		});
+				done();
+			});
+		}, 0);
 	});
 
 	test('Search Model: Search reports timed telemetry on search when error is called', function (done) {
 		let target2= sinon.spy();
 		stub(nullEvent, 'stop', target2);
 		let target1= sinon.stub().returns(nullEvent);
-		instantiationService.stub(ITelemetryService, 'timedPublicLog', target1);
+		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		let promise= new DeferredPPromise<ISearchComplete, ISearchProgressItem>();
 		instantiationService.stub(ISearchService, 'search',  promise);
@@ -164,21 +180,22 @@ suite('SearchModel', () => {
 
 		promise.error('error');
 
-		result.done(() => {}, () => {
-			assert.ok(target1.calledTwice);
-			assert.ok(target1.calledWith('searchResultsFirstRender'));
-			assert.ok(target1.calledWith('searchResultsFinished'));
-			assert.ok(target2.calledThrice);
+		setTimeout(() => {
+			result.done(() => {}, () => {
+				assert.ok(target1.calledWith('searchResultsFirstRender'));
+				assert.ok(target1.calledWith('searchResultsFinished'));
+				// assert.ok(target2.calledOnce);
 
-			done();
-		});
+				done();
+			});
+		}, 0);
 	});
 
 	test('Search Model: Search reports timed telemetry on search when error is cancelled error', function (done) {
 		let target2= sinon.spy();
 		stub(nullEvent, 'stop', target2);
 		let target1= sinon.stub().returns(nullEvent);
-		instantiationService.stub(ITelemetryService, 'timedPublicLog', target1);
+		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
 		let promise= new DeferredPPromise<ISearchComplete, ISearchProgressItem>();
 		instantiationService.stub(ISearchService, 'search',  promise);
@@ -188,13 +205,14 @@ suite('SearchModel', () => {
 
 		promise.cancel();
 
-		result.done(() => {}, () => {
-			assert.ok(target1.calledTwice);
-			assert.ok(target1.calledWith('searchResultsFirstRender'));
-			assert.ok(target1.calledWith('searchResultsFinished'));
-			assert.ok(target2.calledThrice);
-			done();
-		});
+		setTimeout(() => {
+			result.done(() => {}, () => {
+				assert.ok(target1.calledWith('searchResultsFirstRender'));
+				assert.ok(target1.calledWith('searchResultsFinished'));
+				// assert.ok(target2.calledOnce);
+				done();
+			});
+		}, 0);
 	});
 
 	test('Search Model: Search results are cleared during search', function () {
@@ -220,6 +238,34 @@ suite('SearchModel', () => {
 		testObject.search({contentPattern: {pattern: 'somestring'}, type: 1});
 
 		assert.ok(target.calledOnce);
+	});
+
+	test('getReplaceString returns proper replace string for regExpressions', function () {
+		let results= [aRawMatch('file://c:/1', aLineMatch('preview 1', 1, [[1, 3], [4, 7]]))];
+		instantiationService.stub(ISearchService, 'search',  PPromise.as({results: results}));
+
+		let testObject: SearchModel= instantiationService.createInstance(SearchModel);
+		testObject.search({ contentPattern: { pattern: 're' }, type: 1 });
+		testObject.replaceString = 'hello';
+		let match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('hello', match.replaceString);
+
+		testObject.search({ contentPattern: { pattern: 're', isRegExp: true }, type: 1 });
+		match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('hello', match.replaceString);
+
+		testObject.search({ contentPattern: { pattern: 're(?:vi)', isRegExp: true }, type: 1 });
+		match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('hello', match.replaceString);
+
+		testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1 });
+		match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('hello', match.replaceString);
+
+		testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1 });
+		testObject.replaceString = 'hello$1';
+		match = testObject.searchResult.matches()[0].matches()[0];
+		assert.equal('helloe', match.replaceString);
 	});
 
 	function aRawMatch(resource: string, ...lineMatches: ILineMatch[]): IFileMatch {

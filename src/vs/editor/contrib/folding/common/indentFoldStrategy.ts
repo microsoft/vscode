@@ -6,7 +6,7 @@
 'use strict';
 
 import {IModel} from 'vs/editor/common/editorCommon';
-import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
+import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingModel';
 
 export function computeRanges(model: IModel): IFoldingRange[] {
 	// we get here a clone of the model's indent ranges

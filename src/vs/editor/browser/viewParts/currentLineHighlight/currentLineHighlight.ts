@@ -16,6 +16,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context:ViewContext;
 	private _lineHeight:number;
 	private _readOnly:boolean;
+	private _renderLineHighlight:boolean;
 	private _layoutProvider:ILayoutProvider;
 	private _selectionIsEmpty:boolean;
 	private _primaryCursorIsInEditableRange:boolean;
@@ -28,6 +29,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._readOnly = this._context.configuration.editor.readOnly;
+		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
 		this._layoutProvider = layoutProvider;
 
@@ -87,6 +89,9 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		if (e.readOnly) {
 			this._readOnly = this._context.configuration.editor.readOnly;
 		}
+		if (e.viewInfo.renderLineHighlight) {
+			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
+		}
 		if (e.layoutInfo) {
 			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		}
@@ -129,6 +134,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return this._selectionIsEmpty && this._primaryCursorIsInEditableRange && !this._readOnly;
+		return this._renderLineHighlight && this._selectionIsEmpty && this._primaryCursorIsInEditableRange && !this._readOnly;
 	}
 }

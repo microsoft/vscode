@@ -102,14 +102,16 @@ export class ViewModelCursors {
 		var newEvent:editorCommon.IViewRevealRangeEvent = {
 			range: viewRange,
 			verticalType: e.verticalType,
-			revealHorizontal: e.revealHorizontal
+			revealHorizontal: e.revealHorizontal,
+			revealCursor: e.revealCursor
 		};
 		emit(editorCommon.ViewEventNames.RevealRangeEvent, newEvent);
 	}
 
 	public onCursorScrollRequest(e:editorCommon.ICursorScrollRequestEvent, emit:(eventType:string, payload:any)=>void): void {
 		var newEvent:editorCommon.IViewScrollRequestEvent = {
-			deltaLines: e.deltaLines
+			deltaLines: e.deltaLines,
+			revealCursor: e.revealCursor
 		};
 		emit(editorCommon.ViewEventNames.ScrollRequestEvent, newEvent);
 	}

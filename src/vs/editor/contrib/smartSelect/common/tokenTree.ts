@@ -13,7 +13,7 @@ import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
-export enum TokenTreeBracket {
+export const enum TokenTreeBracket {
 	None = 0,
 	Open = 1,
 	Close = -1
@@ -55,6 +55,10 @@ export class NodeList extends Node {
 
 	get hasChildren() {
 		return this.children && this.children.length > 0;
+	}
+
+	get isEmpty() {
+		return !this.hasChildren && !this.parent;
 	}
 
 	public append(node: Node): boolean {
@@ -183,6 +187,8 @@ class TokenScanner {
 		let bracketIsOpen: boolean = false;
 		if (nextBracket) {
 			let bracketText = this._currentLineText.substring(nextBracket.startColumn - 1, nextBracket.endColumn - 1);
+			bracketText = bracketText.toLowerCase();
+
 			bracketData = this._currentModeBrackets.textIsBracket[bracketText];
 			bracketIsOpen = this._currentModeBrackets.textIsOpenBracket[bracketText];
 		}
@@ -360,6 +366,9 @@ export function build(model: IModel): Node {
 }
 
 export function find(node: Node, position: IPosition): Node {
+	if (node instanceof NodeList && node.isEmpty) {
+		return null;
+	}
 
 	if (!Range.containsPosition(node.range, position)) {
 		return null;

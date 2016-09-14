@@ -20,6 +20,13 @@
 	"deleteButtonLabel": "刪除(&&D)",
 	"deleteButtonLabelRecycleBin": "移至資源回收筒(&&M)",
 	"deleteButtonLabelTrash": "移至垃圾筒(&&M)",
+	"dirtyMessageFile": "您要重新命名的檔案有未儲存的變更。要繼續嗎?",
+	"dirtyMessageFileDelete": "您要刪除的檔案有未儲存的變更。要繼續嗎?",
+	"dirtyMessageFolder": "您要重新命名的資料夾中 {0} 個檔案有未儲存的變更。要繼續嗎?",
+	"dirtyMessageFolderDelete": "您要刪除的資料夾中 {0} 個檔案有未儲存的變更。要繼續嗎?",
+	"dirtyMessageFolderOne": "您要重新命名的資料夾中 1 個檔案有未儲存的變更。要繼續嗎?",
+	"dirtyMessageFolderOneDelete": "您要刪除的資料夾中 1 個檔案有未儲存的變更。要繼續嗎?",
+	"dirtyWarning": "如果您不儲存變更，這些變更將會遺失。",
 	"duplicateFile": "複製",
 	"emptyFileNameError": "必須提供檔案或資料夾名稱。",
 	"fileNameExistsError": "這個位置已存在檔案或資料夾 **{0}**。請選擇不同的名稱。",
@@ -42,6 +49,7 @@
 	"refresh": "重新整理",
 	"refreshExplorer": "重新整理 Explorer",
 	"rename": "重新命名",
+	"renameLabel": "重新命名(&&R)",
 	"replaceButtonLabel": "取代(&&R)",
 	"retry": "重試",
 	"revert": "還原檔案",
@@ -53,6 +61,5 @@
 	"showInExplorer": "在總管中顯示使用中的檔案",
 	"unableToFileToCompare": "選取的檔案無法與 '{0}' 進行比較。",
 	"undoBin": "您可以從資源回收筒還原。",
-	"undoTrash": "您可以從垃圾筒還原。",
-	"warningFileDirty": "正在儲存 '{0}' 檔案，請稍後再試一次。"
+	"undoTrash": "您可以從垃圾筒還原。"
 }

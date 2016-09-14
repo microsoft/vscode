@@ -12,6 +12,10 @@ import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
+import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
 interface ParseResult {
 	position: editorCommon.IPosition;
@@ -145,25 +149,34 @@ export class GotoLineEntry extends QuickOpenEntry {
 	}
 }
 
+@editorAction
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
-	public static ID = 'editor.action.gotoLine';
-
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor, nls.localize('GotoLineAction.label', "Go to Line..."));
+	constructor() {
+		super(nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a column number to navigate to"), {
+			id: 'editor.action.gotoLine',
+			label: nls.localize('GotoLineAction.label', "Go to Line..."),
+			alias: 'Go to Line...',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
+			}
+		});
 	}
 
-	_getModel(value: string): QuickOpenModel {
-		return new QuickOpenModel([new GotoLineEntry(value, this.editor, this)]);
-	}
+	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+		this._show(this.getController(editor), {
+			getModel: (value:string):QuickOpenModel => {
+				return new QuickOpenModel([new GotoLineEntry(value, editor, this.getController(editor))]);
+			},
 
-	_getAutoFocus(searchValue: string): IAutoFocus {
-		return {
-			autoFocusFirstEntry: searchValue.length > 0
-		};
-	}
-
-	_getInputAriaLabel(): string {
-		return nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a column number to navigate to");
+			getAutoFocus: (searchValue:string):IAutoFocus => {
+				return {
+					autoFocusFirstEntry: searchValue.length > 0
+				};
+			}
+		});
 	}
 }

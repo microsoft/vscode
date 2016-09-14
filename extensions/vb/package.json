@@ -8,7 +8,7 @@
 			"id": "vb",
 			"extensions": [ ".vb", ".brs", ".vbs", ".bas" ],
 			"aliases": [ "Visual Basic", "vb" ],
-			"configuration": "./vb.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "vb",

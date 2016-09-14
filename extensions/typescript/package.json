@@ -15,7 +15,8 @@
 		"vscode-nls": "^1.0.4"
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
+		"update-grammars": "node ./build/update-grammars.js"
 	},
 	"activationEvents": [
 		"onLanguage:javascript",
@@ -37,7 +38,8 @@
 				],
 				"extensions": [
 					".ts"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			},
 			{
 				"id": "typescriptreact",
@@ -47,19 +49,20 @@
 				],
 				"extensions": [
 					".tsx"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [
 			{
 				"language": "typescript",
 				"scopeName": "source.ts",
-				"path": "./syntaxes/TypeScript.tmLanguage"
+				"path": "./syntaxes/TypeScript.tmLanguage.json"
 			},
 			{
 				"language": "typescriptreact",
 				"scopeName": "source.tsx",
-				"path": "./syntaxes/TypeScriptReact.tmLanguage"
+				"path": "./syntaxes/TypeScriptReact.tmLanguage.json"
 			}
 		],
 		"configuration": {
@@ -205,22 +208,12 @@
 				"title": "%javascript.reloadProjects.title%"
 			}
 		],
-		"debuggers": [
+		"breakpoints": [
 			{
-				"type": "node",
-				"enableBreakpointsFor": {
-					"languageIds": [
-						"typescript", "typescriptreact"
-					]
-				}
+				"language": "typescript"
 			},
 			{
-				"type": "extensionHost",
-				"enableBreakpointsFor": {
-					"languageIds": [
-						"typescript"
-					]
-				}
+				"language": "typescriptreact"
 			}
 		],
 		"snippets": [

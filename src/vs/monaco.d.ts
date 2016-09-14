@@ -75,12 +75,16 @@ declare module monaco {
         public cancel(): void;
 
         public static as<ValueType>(value: ValueType): Promise<ValueType>;
-        public static is(value: any): value is Promise<any>;
+        public static is(value: any): value is Thenable<any>;
         public static timeout(delay: number): Promise<void>;
         public static join<ValueType>(promises: Promise<ValueType>[]): Promise<ValueType[]>;
         public static join<ValueType>(promises: Thenable<ValueType>[]): Thenable<ValueType[]>;
         public static join<ValueType>(promises: { [n: string]: Promise<ValueType> }): Promise<{ [n: string]: ValueType }>;
         public static any<ValueType>(promises: Promise<ValueType>[]): Promise<{ key: string; value: Promise<ValueType>; }>;
+
+        public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
+        public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
+
         public static wrapError<ValueType>(error: any): Promise<ValueType>;
     }
 
@@ -111,6 +115,7 @@ declare module monaco {
      *
      */
     export class Uri {
+        static isUri(thing: any): thing is Uri;
         constructor();
         /**
          * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
@@ -336,10 +341,10 @@ declare module monaco {
         NUMPAD_DIVIDE = 108,
         /**
          * Placed last to cover the length of the enum.
+         * Please do not depend on this value!
          */
         MAX_VALUE = 109,
     }
-
     export class KeyMod {
         static CtrlCmd: number;
         static Shift: number;
@@ -739,14 +744,14 @@ declare module monaco.editor {
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
      */
-    export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, services?: IEditorOverrideServices): IStandaloneCodeEditor;
+    export function create(domElement: HTMLElement, options?: IEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor;
 
     /**
      * Create a new diff editor under `domElement`.
      * `domElement` should be empty (not contain other dom nodes).
      * The editor will read the size of `domElement`.
      */
-    export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, services?: IEditorOverrideServices): IStandaloneDiffEditor;
+    export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
     export interface IDiffNavigator {
         canNavigate(): boolean;
@@ -808,6 +813,27 @@ declare module monaco.editor {
     }) => void): IDisposable;
 
     /**
+     * Create a new web worker that has model syncing capabilities built in.
+     * Specify an AMD module to load that will `create` an object that will be proxied.
+     */
+    export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
+
+    /**
+     * Colorize the contents of `domNode` using attribute `data-lang`.
+     */
+    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
+
+    /**
+     * Colorize `text` using language `languageId`.
+     */
+    export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string>;
+
+    /**
+     * Colorize a line in a model.
+     */
+    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
+
+    /**
      * A web worker that can provide a proxy to an arbitrary file.
      */
     export interface MonacoWebWorker<T> {
@@ -836,28 +862,11 @@ declare module monaco.editor {
          * The data to send over when calling create on the module.
          */
         createData?: any;
+        /**
+         * A label to be used to identify the web worker for debugging purposes.
+         */
+        label?: string;
     }
-
-    /**
-     * Create a new web worker that has model syncing capabilities built in.
-     * Specify an AMD module to load that will `create` an object that will be proxied.
-     */
-    export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
-
-    /**
-     * Colorize the contents of `domNode` using attribute `data-lang`.
-     */
-    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
-
-    /**
-     * Colorize `text` using language `languageId`.
-     */
-    export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string>;
-
-    /**
-     * Colorize a line in a model.
-     */
-    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
 
     /**
      * The options to create an editor.
@@ -883,22 +892,23 @@ declare module monaco.editor {
 
     export interface IStandaloneCodeEditor extends ICodeEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
-        createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+        createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
         addAction(descriptor: IActionDescriptor): void;
     }
 
     export interface IStandaloneDiffEditor extends IDiffEditor {
         addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
-        createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+        createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
         addAction(descriptor: IActionDescriptor): void;
     }
     export interface ICommandHandler {
         (...args: any[]): void;
     }
 
-    export interface IKeybindingContextKey<T> {
+    export interface IContextKey<T> {
         set(value: T): void;
         reset(): void;
+        get(): T;
     }
 
     export interface IEditorOverrideServices {
@@ -966,7 +976,7 @@ declare module monaco.editor {
         horizontal?: string;
         /**
          * Cast horizontal and vertical shadows when the content is scrolled.
-         * Defaults to false.
+         * Defaults to true.
          */
         useShadows?: boolean;
         /**
@@ -1163,6 +1173,12 @@ declare module monaco.editor {
          */
         wrappingColumn?: number;
         /**
+         * Control the alternate style of viewport wrapping.
+         * When set to true viewport wrapping is used only when the window width is less than the number of columns specified in the wrappingColumn property. Has no effect if wrappingColumn is not a positive number.
+         * Defaults to false.
+         */
+        wordWrap?: boolean;
+        /**
          * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
          * Defaults to 'none'.
          */
@@ -1247,25 +1263,33 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Enable tab completion. Defaults to 'false'
+         */
+        tabCompletion?: boolean;
+        /**
+         * Enable word based suggestions. Defaults to 'true'
+         */
+        wordBasedSuggestions?: boolean;
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
         selectionHighlight?: boolean;
         /**
-         * Show reference infos (a.k.a. code lenses) for modes that support it
+         * Show code lens
          * Defaults to true.
          */
-        referenceInfos?: boolean;
+        codeLens?: boolean;
         /**
          * Enable code folding
          * Defaults to true.
          */
         folding?: boolean;
         /**
-         * Enable rendering of leading whitespace.
-         * Defaults to false.
+         * Enable rendering of whitespace.
+         * Defaults to none.
          */
-        renderWhitespace?: boolean;
+        renderWhitespace?: 'none' | 'boundary' | 'all';
         /**
          * Enable rendering of control characters.
          * Defaults to false.
@@ -1273,9 +1297,14 @@ declare module monaco.editor {
         renderControlCharacters?: boolean;
         /**
          * Enable rendering of indent guides.
-         * Defaults to true.
+         * Defaults to false.
          */
         renderIndentGuides?: boolean;
+        /**
+         * Enable rendering of current line highlight.
+         * Defaults to true.
+         */
+        renderLineHighlight?: boolean;
         /**
          * Inserting and deleting whitespace follows tab stops.
          */
@@ -1284,6 +1313,10 @@ declare module monaco.editor {
          * The font family
          */
         fontFamily?: string;
+        /**
+         * The font weight
+         */
+        fontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
         /**
          * The font size
          */
@@ -1366,9 +1399,10 @@ declare module monaco.editor {
         scrollBeyondLastLine: boolean;
         editorClassName: string;
         stopRenderingLineAfter: number;
-        renderWhitespace: boolean;
+        renderWhitespace: 'none' | 'boundary' | 'all';
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
+        renderLineHighlight: boolean;
         scrollbar: InternalEditorScrollbarOptions;
     }
 
@@ -1394,6 +1428,7 @@ declare module monaco.editor {
         renderWhitespace: boolean;
         renderControlCharacters: boolean;
         renderIndentGuides: boolean;
+        renderLineHighlight: boolean;
         scrollbar: boolean;
     }
 
@@ -1409,8 +1444,10 @@ declare module monaco.editor {
         suggestOnTriggerCharacters: boolean;
         acceptSuggestionOnEnter: boolean;
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        tabCompletion: boolean;
+        wordBasedSuggestions: boolean;
         selectionHighlight: boolean;
-        referenceInfos: boolean;
+        codeLens: boolean;
         folding: boolean;
     }
 
@@ -1919,6 +1956,48 @@ declare module monaco.editor {
          * Returns iff the model was disposed or not.
          */
         isDisposed(): boolean;
+        /**
+         * Search the model.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @param limitResultCount Limit the number of results
+         * @return The ranges where the matches are. It is empty if not matches have been found.
+         */
+        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+        /**
+         * Search the model.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchScope Limit the searching to only search inside this range.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @param limitResultCount Limit the number of results
+         * @return The ranges where the matches are. It is empty if no matches have been found.
+         */
+        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
+        /**
+         * Search the model for the next match. Loops to the beginning of the model if needed.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchStart Start the searching at the specified position.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @return The range where the next match is. It is null if no next match has been found.
+         */
+        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
+        /**
+         * Search the model for the previous match. Loops to the end of the model if needed.
+         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
+         * @param searchStart Start the searching at the specified position.
+         * @param isRegex Used to indicate that `searchString` is a regular expression.
+         * @param matchCase Force the matching to match lower/upper case exactly.
+         * @param wholeWord Force the matching to match entire words only.
+         * @return The range where the previous match is. It is null if no previous match has been found.
+         */
+        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
     }
 
     export interface IReadOnlyModel extends ITextModel {
@@ -1954,6 +2033,10 @@ declare module monaco.editor {
          * Get the current language mode associated with the model.
          */
         getMode(): languages.IMode;
+        /**
+         * Get the language associated with this model.
+         */
+        getModeId(): string;
         /**
          * Set the current language mode associated with the model.
          */
@@ -2134,48 +2217,6 @@ declare module monaco.editor {
          * and make all necessary clean-up to release this object to the GC.
          */
         dispose(): void;
-        /**
-         * Search the model.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @param limitResultCount Limit the number of results
-         * @return The ranges where the matches are. It is empty if not matches have been found.
-         */
-        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
-        /**
-         * Search the model.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchScope Limit the searching to only search inside this range.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @param limitResultCount Limit the number of results
-         * @return The ranges where the matches are. It is empty if no matches have been found.
-         */
-        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
-        /**
-         * Search the model for the next match. Loops to the beginning of the model if needed.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchStart Start the searching at the specified position.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @return The range where the next match is. It is null if no next match has been found.
-         */
-        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
-        /**
-         * Search the model for the previous match. Loops to the end of the model if needed.
-         * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-         * @param searchStart Start the searching at the specified position.
-         * @param isRegex Used to indicate that `searchString` is a regular expression.
-         * @param matchCase Force the matching to match lower/upper case exactly.
-         * @param wholeWord Force the matching to match entire words only.
-         * @return The range where the previous match is. It is null if no previous match has been found.
-         */
-        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
     }
 
     /**
@@ -2560,38 +2601,6 @@ declare module monaco.editor {
     }
 
     /**
-     * Conditions describing action enablement
-     */
-    export interface IActionEnablement {
-        /**
-         * The action is enabled only if text in the editor is focused (e.g. blinking cursor).
-         * Warning: This condition will be disabled if the action is marked to be displayed in the context menu
-         * Defaults to false.
-         */
-        textFocus?: boolean;
-        /**
-         * The action is enabled only if the editor or its widgets have focus (e.g. focus is in find widget).
-         * Defaults to false.
-         */
-        widgetFocus?: boolean;
-        /**
-         * The action is enabled only if the editor is not in read only mode.
-         * Defaults to false.
-         */
-        writeableEditor?: boolean;
-        /**
-         * The action is enabled only if the cursor position is over tokens of a certain kind.
-         * Defaults to no tokens required.
-         */
-        tokensAtPosition?: string[];
-        /**
-         * The action is enabled only if the cursor position is over a word (i.e. not whitespace).
-         * Defaults to false.
-         */
-        wordAtPosition?: boolean;
-    }
-
-    /**
      * A (serializable) state of the cursors.
      */
     export interface ICursorState {
@@ -2727,39 +2736,10 @@ declare module monaco.editor {
         charChanges: ICharChange[];
     }
 
-    /**
-     * A context key that is set when the editor's text has focus (cursor is blinking).
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS: string;
-
-    /**
-     * A context key that is set when the editor's text or an editor's widget has focus.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_FOCUS: string;
-
-    /**
-     * A context key that is set when the editor's text is readonly.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_READONLY: string;
-
-    /**
-     * A context key that is set when the editor has multiple selections (multiple cursors).
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS: string;
-
-    /**
-     * A context key that is set when the editor has a non-collapsed selection.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION: string;
-
-    /**
-     * A context key that is set to the language associated with the model associated with the editor.
-     */
-    export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID: string;
-
     export class BareFontInfo {
         _bareFontInfoBrand: void;
         fontFamily: string;
+        fontWeight: string;
         fontSize: number;
         lineHeight: number;
     }
@@ -2798,14 +2778,18 @@ declare module monaco.editor {
          */
         keybindingContext?: string;
         /**
-         * A set of enablement conditions.
-         */
-        enablement?: IActionEnablement;
-        /**
          * Method that will be executed when the action is triggered.
          * @param editor The editor instance is passed in as a convinience
          */
         run: (editor: ICommonCodeEditor) => Promise<void>;
+    }
+
+    export interface IEditorAction {
+        id: string;
+        label: string;
+        alias: string;
+        isSupported(): boolean;
+        run(): Promise<void>;
     }
 
     /**
@@ -2877,7 +2861,11 @@ declare module monaco.editor {
         /**
          * Returns all actions associated with this editor.
          */
-        getActions(): IAction[];
+        getActions(): IEditorAction[];
+        /**
+         * Returns all actions associated with this editor.
+         */
+        getSupportedActions(): IEditorAction[];
         /**
          * Saves current view state of the editor in a serializable object.
          */
@@ -3058,7 +3046,7 @@ declare module monaco.editor {
          * @id Unique identifier of the contribution.
          * @return The contribution or null if contribution not found.
          */
-        getContribution(id: string): IEditorContribution;
+        getContribution<T extends IEditorContribution>(id: string): T;
         /**
          * Type the getModel() of IEditor.
          */
@@ -3113,7 +3101,7 @@ declare module monaco.editor {
          * @id Unique identifier of the contribution.
          * @return The action or null if action not found.
          */
-        getAction(id: string): IAction;
+        getAction(id: string): IEditorAction;
         /**
          * Execute a command on the editor.
          * @param source The source of the call.
@@ -3192,14 +3180,30 @@ declare module monaco.editor {
     /**
      * Positions in the view for cursor move command.
      */
-    export const CursorMoveViewPosition: {
-        LineStart: string;
-        LineFirstNonWhitespaceCharacter: string;
-        LineColumnCenter: string;
-        LineEnd: string;
-        LineLastNonWhitespaceCharacter: string;
-        LineUp: string;
-        LineDown: string;
+    export const CursorMovePosition: {
+        Left: string;
+        Right: string;
+        Up: string;
+        Down: string;
+        WrappedLineStart: string;
+        WrappedLineFirstNonWhitespaceCharacter: string;
+        WrappedLineColumnCenter: string;
+        WrappedLineEnd: string;
+        WrappedLineLastNonWhitespaceCharacter: string;
+        ViewPortTop: string;
+        ViewPortCenter: string;
+        ViewPortBottom: string;
+        ViewPortIfOutside: string;
+    };
+
+    /**
+     * Units for Cursor move 'by' argument
+     */
+    export const CursorMoveByUnit: {
+        Line: string;
+        WrappedLine: string;
+        Character: string;
+        HalfLine: string;
     };
 
     /**
@@ -3207,11 +3211,55 @@ declare module monaco.editor {
      */
     export interface CursorMoveArguments {
         to: string;
-        inSelectionMode?: boolean;
-        noOfLines?: number;
-        isPaged?: boolean;
-        pageSize?: number;
+        select?: boolean;
+        by?: string;
+        value?: number;
     }
+
+    /**
+     * Directions in the view for editor scroll command.
+     */
+    export const EditorScrollDirection: {
+        Up: string;
+        Down: string;
+    };
+
+    /**
+     * Units for editor scroll 'by' argument
+     */
+    export const EditorScrollByUnit: {
+        Line: string;
+        WrappedLine: string;
+        Page: string;
+        HalfPage: string;
+    };
+
+    /**
+     * Arguments for editor scroll command
+     */
+    export interface EditorScrollArguments {
+        to: string;
+        by?: string;
+        value?: number;
+        revealCursor?: boolean;
+    }
+
+    /**
+     * Arguments for reveal line command
+     */
+    export interface RevealLineArguments {
+        lineNumber?: number;
+        at?: string;
+    }
+
+    /**
+     * Values for reveal line 'at' argument
+     */
+    export const RevealLineAtArgument: {
+        Top: string;
+        Center: string;
+        Bottom: string;
+    };
 
     /**
      * Built-in commands.
@@ -3302,10 +3350,12 @@ declare module monaco.editor {
         LineInsertAfter: string;
         LineBreakInsert: string;
         SelectAll: string;
+        EditorScroll: string;
         ScrollLineUp: string;
         ScrollLineDown: string;
         ScrollPageUp: string;
         ScrollPageDown: string;
+        RevealLine: string;
     };
 
     /**
@@ -3466,6 +3516,7 @@ declare module monaco.editor {
          * Render this content widget in a location where it could overflow the editor's view dom node.
          */
         allowEditorOverflow?: boolean;
+        suppressMouseDown?: boolean;
         /**
          * Get a unique identifier of the content widget.
          */
@@ -4455,6 +4506,7 @@ declare module monaco.languages {
      */
     export interface LinkProvider {
         provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
+        resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
     }
 
     export interface IResourceEdit {

@@ -6,7 +6,8 @@
 import { localize } from 'vs/nls';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
-import { ParsedArgs } from 'vs/code/node/argv';
+import * as path from 'path';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { IPager } from 'vs/base/common/paging';
@@ -25,10 +26,11 @@ import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/pl
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { NodeRequestService } from 'vs/platform/request/node/nodeRequestService';
+import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import {mkdirp} from 'vs/base/node/pfs';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -37,6 +39,8 @@ const useId = localize('useId', "Make sure you use the full extension ID, includ
 function getId(manifest: IExtensionManifest): string {
 	return `${ manifest.publisher }.${ manifest.name }`;
 }
+
+type Task = { ():TPromise<void> };
 
 class Main {
 
@@ -67,43 +71,58 @@ class Main {
 		});
 	}
 
-	private installExtension(ids: string[]): TPromise<any> {
-		return sequence(ids.map(id => () => {
-			return this.extensionManagementService.getInstalled().then(installed => {
-				const isInstalled = installed.some(e => getId(e.manifest) === id);
+	private installExtension(extensions: string[]): TPromise<any> {
+		const vsixTasks: Task[] = extensions
+			.filter(e => /\.vsix$/i.test(e))
+			.map(id => () => {
+				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
 
-				if (isInstalled) {
-					console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
-					return TPromise.as(null);
-				}
-
-				return this.extensionGalleryService.query({ names: [id] })
-					.then<IPager<IGalleryExtension>>(null, err => {
-						if (err.responseText) {
-							try {
-								const response = JSON.parse(err.responseText);
-								return TPromise.wrapError(response.message);
-							} catch (e) {
-								return TPromise.wrapError(err);
-							}
-						}
-					})
-					.then(result => {
-						const [extension] = result.firstPage;
-
-						if (!extension) {
-							return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
-						}
-
-						console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
-						console.log(localize('installing', "Installing..."));
-
-						return this.extensionManagementService.install(extension).then(() => {
-							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.versions[0].version));
-						});
-					});
+				return this.extensionManagementService.install(extension).then(() => {
+					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", path.basename(extension)));
+				});
 			});
-		}));
+
+		const galleryTasks: Task[] = extensions
+			.filter(e => !/\.vsix$/i.test(e))
+			.map(id => () => {
+				return this.extensionManagementService.getInstalled().then(installed => {
+					const isInstalled = installed.some(e => getId(e.manifest) === id);
+
+					if (isInstalled) {
+						console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+						return TPromise.as(null);
+					}
+
+					return this.extensionGalleryService.query({ names: [id] })
+						.then<IPager<IGalleryExtension>>(null, err => {
+							if (err.responseText) {
+								try {
+									const response = JSON.parse(err.responseText);
+									return TPromise.wrapError(response.message);
+								} catch (e) {
+									// noop
+								}
+							}
+
+							return TPromise.wrapError(err);
+						})
+						.then(result => {
+							const [extension] = result.firstPage;
+
+							if (!extension) {
+								return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
+							}
+
+							console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
+							console.log(localize('installing', "Installing..."));
+
+							return this.extensionManagementService.installFromGallery(extension)
+								.then(() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)));
+						});
+				});
+			});
+
+		return sequence([...vsixTasks, ...galleryTasks]);
 	}
 
 	private uninstallExtension(ids: string[]): TPromise<any> {
@@ -117,9 +136,8 @@ class Main {
 
 				console.log(localize('uninstalling', "Uninstalling {0}...", id));
 
-				return this.extensionManagementService.uninstall(extension).then(() => {
-					console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
-				});
+				return this.extensionManagementService.uninstall(extension)
+					.then(() => console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id)));
 			});
 		}));
 	}
@@ -129,20 +147,20 @@ const eventPrefix = 'monacoworkbench';
 
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, argv, process.execPath));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	return instantiationService.invokeFunction(accessor => {
 		const envService = accessor.get(IEnvironmentService);
 
-		return envService.createPaths().then(() => {
+		return TPromise.join([envService.appSettingsHome, envService.userHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
 			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = envService;
 
 			const services = new ServiceCollection();
 			services.set(IEventService, new SyncDescriptor(EventService));
-			services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
-			services.set(IRequestService, new SyncDescriptor(NodeRequestService));
+			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 

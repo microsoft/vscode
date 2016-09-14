@@ -8,7 +8,7 @@
 			"id": "swift",
 			"aliases": ["Swift","swift"],
 			"extensions": [".swift"],
-			"configuration": "./swift.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "swift",

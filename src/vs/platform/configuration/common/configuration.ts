@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {JSONPath} from 'vs/base/common/json';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -20,32 +19,36 @@ export interface IConfigurationService {
 	getConfiguration<T>(section?: string): T;
 
 	/**
+	 * Resolves a configuration key to its values in the different scopes
+	 * the setting is defined.
+	 */
+	lookup<T>(key: string): IConfigurationValue<T>;
+
+	/**
 	 * Similar to #getConfiguration() but ensures that the latest configuration
 	 * from disk is fetched.
 	 */
-	loadConfiguration<T>(section?: string): TPromise<T>;
-
-	/**
-	 * Returns iff the workspace has configuration or not.
-	 */
-	hasWorkspaceConfiguration(): boolean;
+	reloadConfiguration<T>(section?: string): TPromise<T>;
 
 	/**
 	 * Event that fires when the configuration changes.
 	 */
 	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
-
-	/**
-	 * Sets a user configuration. An the setting does not yet exist in the settings, it will be
-	 * added.
-	 */
-	setUserConfiguration(key: string | JSONPath, value: any) : Thenable<void>;
 }
 
 export interface IConfigurationServiceEvent {
 	config: any;
 }
 
+export interface IConfigurationValue<T> {
+	value: T;
+	default: T;
+	user: T;
+}
+
+/**
+ * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
+ */
 export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T {
 	function accessSetting(config: any, path: string[]): any {
 		let current = config;
@@ -55,12 +58,11 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 				return undefined;
 			}
 		}
-		return <T> current;
+		return <T>current;
 	}
 
-	let path = settingPath.split('.');
-	let result = accessSetting(config, path);
-	return typeof result === 'undefined'
-		? defaultValue
-		: result;
+	const path = settingPath.split('.');
+	const result = accessSetting(config, path);
+
+	return typeof result === 'undefined' ? defaultValue : result;
 }

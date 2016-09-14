@@ -9,7 +9,7 @@
 			"extensions": [ ".ini", ".properties", ".gitconfig" ],
 			"filenames": ["config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig"],
 			"aliases": [ "Ini", "ini" ],
-			"configuration": "./ini.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "ini",

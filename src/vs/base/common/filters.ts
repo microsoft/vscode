@@ -5,7 +5,8 @@
 'use strict';
 
 import strings = require('vs/base/common/strings');
-import {LinkedMap} from 'vs/base/common/map';
+import {BoundedLinkedMap} from 'vs/base/common/map';
+import {CharCode} from 'vs/base/common/charCode';
 
 export interface IFilter {
 	// Returns null if word doesn't match.
@@ -114,19 +115,24 @@ function _matchesSubString(word: string, wordToMatchAgainst: string, i: number, 
 // CamelCase
 
 function isLower(code: number): boolean {
-	return 97 <= code && code <= 122;
+	return CharCode.a <= code && code <= CharCode.z;
 }
 
 function isUpper(code: number): boolean {
-	return 65 <= code && code <= 90;
+	return CharCode.A <= code && code <= CharCode.Z;
 }
 
 function isNumber(code: number): boolean {
-	return 48 <= code && code <= 57;
+	return CharCode.Digit0 <= code && code <= CharCode.Digit9;
 }
 
 function isWhitespace(code: number): boolean {
-	return [32, 9, 10, 13].indexOf(code) > -1;
+	return (
+		code === CharCode.Space
+		|| code === CharCode.Tab
+		|| code === CharCode.LineFeed
+		|| code === CharCode.CarriageReturn
+	);
 }
 
 function isAlphanumeric(code: number): boolean {
@@ -299,7 +305,7 @@ export enum SubstringMatching {
 
 export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
-const fuzzyRegExpCache = new LinkedMap<RegExp>(10000); // bounded to 10000 elements
+const fuzzyRegExpCache = new BoundedLinkedMap<RegExp>(10000); // bounded to 10000 elements
 
 export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
 	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {

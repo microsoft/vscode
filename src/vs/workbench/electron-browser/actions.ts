@@ -8,21 +8,23 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
-import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorInput} from 'vs/workbench/common/editor';
-import {isMacintosh} from 'vs/base/common/platform';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
+import errors = require('vs/base/common/errors');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
+import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {KeyMod} from 'vs/base/common/keyCodes';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import paths = require('vs/base/common/paths');
+import {isMacintosh} from 'vs/base/common/platform';
+import {IQuickOpenService, IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {KeyMod} from 'vs/base/common/keyCodes';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
 
@@ -44,7 +46,7 @@ export class CloseEditorAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let activeEditor = this.editorService.getActiveEditor();
+		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
 		}
@@ -64,6 +66,38 @@ export class CloseWindowAction extends Action {
 
 	public run(): TPromise<boolean> {
 		this.windowService.getWindow().close();
+
+		return TPromise.as(true);
+	}
+}
+
+export class SwitchWindow extends Action {
+
+	public static ID = 'workbench.action.switchWindow';
+	public static LABEL = nls.localize('switchWindow', "Switch Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		ipc.send('vscode:switchWindow', this.windowService.getWindowId());
+		ipc.once('vscode:switchWindow', (event, workspaces) => {
+			const picks: IPickOpenEntry[] = workspaces.map(w => {
+				return {
+					label: w.title,
+					run: () => {
+						ipc.send('vscode:showWindow', w.id);
+					}
+				};
+			});
+			this.quickOpenService.pick(picks, {placeHolder: nls.localize('switchWindowPlaceHolder', "Select a window")});
+		});
 
 		return TPromise.as(true);
 	}
@@ -262,23 +296,23 @@ export class ShowStartupPerformance extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 
-		this.enabled = contextService.getConfiguration().env.enablePerformance;
+		this.enabled = environmentService.performance;
 	}
 
 	private _analyzeLoaderTimes(): any[] {
-		let stats = <ILoaderEvent[]>(<any>require).getStats();
-		let result = [];
+		const stats = <ILoaderEvent[]>(<any>require).getStats();
+		const result = [];
 
 		let total = 0;
 
 		for (let i = 0, len = stats.length; i < len; i++) {
 			if (stats[i].type === LoaderEventType.NodeEndNativeRequire) {
 				if (stats[i - 1].type === LoaderEventType.NodeBeginNativeRequire && stats[i - 1].detail === stats[i].detail) {
-					let entry: any = {};
+					const entry: any = {};
 					entry['Event'] = 'nodeRequire ' + stats[i].detail;
 					entry['Took (ms)'] = (stats[i].timestamp - stats[i - 1].timestamp);
 					total += (stats[i].timestamp - stats[i - 1].timestamp);
@@ -290,7 +324,7 @@ export class ShowStartupPerformance extends Action {
 		}
 
 		if (total > 0) {
-			let entry: any = {};
+			const entry: any = {};
 			entry['Event'] = '===nodeRequire TOTAL';
 			entry['Took (ms)'] = total;
 			entry['Start (ms)'] = '**';
@@ -302,18 +336,18 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		let table: any[] = [];
+		const table: any[] = [];
 		table.push(...this._analyzeLoaderTimes());
 
-		let start = Math.round(remote.getGlobal('programStart') || remote.getGlobal('vscodeStart'));
-		let windowShowTime = Math.round(remote.getGlobal('windowShow'));
+		const start = Math.round(remote.getGlobal('vscodeStart'));
+		const windowShowTime = Math.round(remote.getGlobal('windowShow'));
 
 		let lastEvent: timer.ITimerEvent;
-		let events = timer.getTimeKeeper().getCollectedEvents();
+		const events = timer.getTimeKeeper().getCollectedEvents();
 		events.forEach((e) => {
 			if (e.topic === 'Startup') {
 				lastEvent = e;
-				let entry: any = {};
+				const entry: any = {};
 
 				entry['Event'] = e.name;
 				entry['Took (ms)'] = e.stopTime.getTime() - e.startTime.getTime();
@@ -326,12 +360,12 @@ export class ShowStartupPerformance extends Action {
 
 		table.push({ Event: '---------------------------' });
 
-		let windowShowEvent: any = {};
+		const windowShowEvent: any = {};
 		windowShowEvent['Event'] = 'Show Window at';
 		windowShowEvent['Start (ms)'] = windowShowTime - start;
 		table.push(windowShowEvent);
 
-		let sum: any = {};
+		const sum: any = {};
 		sum['Event'] = 'Total';
 		sum['Took (ms)'] = lastEvent.stopTime.getTime() - start;
 		table.push(sum);
@@ -374,49 +408,51 @@ export class OpenRecentAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IWindowService private windowService: IWindowService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		const recentFolders = this.contextService.getConfiguration().env.recentFolders;
-		const recentFiles = this.contextService.getConfiguration().env.recentFiles;
+		ipc.send('vscode:openRecent', this.windowService.getWindowId());
 
-		let folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => {
-			return {
-				label: paths.basename(p),
-				description: paths.dirname(p),
-				path: p,
-				separator: index === 0 ? { label: nls.localize('folders', "folders") } : void 0,
-				run: (context) => this.runPick(p, context)
-			};
-		});
+		return new TPromise<boolean>((c, e, p) => {
+			ipc.once('vscode:openRecent', (event, files: string[], folders: string[]) => {
+				this.openRecent(files, folders);
 
-		let filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => {
-			return {
-				label: paths.basename(p),
-				description: paths.dirname(p),
-				path: p,
-				separator: index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0,
-				run: (context) => this.runPick(p, context)
-			};
+				c(true);
+			});
 		});
+	}
+
+	private openRecent(recentFiles: string[], recentFolders: string[]): void {
+		function toPick(path: string, separator: ISeparator): IPickOpenEntry {
+			return {
+				label: paths.basename(path),
+				description: paths.dirname(path),
+				separator,
+				run: (context) => runPick(path, context)
+			};
+		}
+
+		function runPick(path: string, context): void {
+			const newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+
+			ipc.send('vscode:windowOpen', [path], newWindow);
+		}
+
+		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0));
+		const filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0));
 
 		const hasWorkspace = !!this.contextService.getWorkspace();
 
-		return this.quickOpenService.pick(folderPicks.concat(...filePicks), {
+		this.quickOpenService.pick(folderPicks.concat(...filePicks), {
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true
-		}).then(p => true);
-	}
-
-	private runPick(path, context): void {
-		let newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-
-		ipc.send('vscode:windowOpen', [path], newWindow);
+		}).done(null, errors.onUnexpectedError);
 	}
 }
 
@@ -460,7 +496,6 @@ CommandsRegistry.registerCommand('_workbench.ipc', function (accessor: ServicesA
 });
 
 CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string]) {
-
 	const editorService = accessor.get(IWorkbenchEditorService);
 	let [left, right, label] = args;
 
@@ -479,9 +514,8 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 });
 
 CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
-
 	const editorService = accessor.get(IWorkbenchEditorService);
-	let [resource, column] = args;
+	const [resource, column] = args;
 
 	return editorService.openEditor({ resource }, column).then(() => {
 		return void 0;

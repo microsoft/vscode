@@ -31,7 +31,7 @@
 					".markdown",
 					".markdn"
 				],
-				"configuration": "./markdown.configuration.json"
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [

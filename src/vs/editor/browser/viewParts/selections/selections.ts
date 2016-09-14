@@ -13,7 +13,7 @@ import {HorizontalRange, LineVisibleRanges} from 'vs/editor/common/view/renderin
 import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 import {Range} from 'vs/editor/common/core/range';
 
-enum CornerStyle {
+const enum CornerStyle {
 	EXTERN,
 	INTERN,
 	FLAT
@@ -61,7 +61,7 @@ function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
 // Unfortunately, this auto-zooming is buggy around dealing with rounded borders
 const isIEWithZoomingIssuesNearRoundedBorders = (
 	(navigator.userAgent.indexOf('Trident/7.0') >= 0)
-	|| (navigator.userAgent.indexOf('Edge/12') >= 0)
+	|| (navigator.userAgent.indexOf('Edge/') >= 0)
 );
 
 

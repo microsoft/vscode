@@ -7,6 +7,7 @@
 
 import { Url, parse as parseUrl } from 'url';
 import { isBoolean } from 'vs/base/common/types';
+import { Agent } from './request';
 import HttpProxyAgent = require('http-proxy-agent');
 import HttpsProxyAgent = require('https-proxy-agent');
 
@@ -25,7 +26,7 @@ export interface IOptions {
 	strictSSL?: boolean;
 }
 
-export function getProxyAgent(rawRequestURL: string, options: IOptions = {}): any {
+export function getProxyAgent(rawRequestURL: string, options: IOptions = {}): Agent {
 	const requestURL = parseUrl(rawRequestURL);
 	const proxyURL = options.proxyUrl || getSystemProxyURI(requestURL);
 

@@ -4,26 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BinaryKeybindings, KeyCode} from 'vs/base/common/keyCodes';
+import {BinaryKeybindings, KeyCodeUtils} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingItem, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {Registry} from 'vs/platform/platform';
 
-export interface ICommandRule extends IKeybindings {
+export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
-	when: KbExpr;
+	when: ContextKeyExpr;
 }
 
-export interface ICommandDescriptor extends ICommandRule {
+export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
 	description?: ICommandHandlerDescription;
 }
 
 export interface IKeybindingsRegistry {
-	registerCommandRule(rule: ICommandRule);
-	registerCommandDesc(desc: ICommandDescriptor): void;
+	registerKeybindingRule(rule: IKeybindingRule);
+	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
 	getDefaultKeybindings(): IKeybindingItem[];
 
 	WEIGHT: {
@@ -82,7 +83,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
-	public registerCommandRule(rule: ICommandRule): void {
+	public registerKeybindingRule(rule: IKeybindingRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		// here
@@ -96,15 +97,15 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	public registerCommandDesc(desc: ICommandDescriptor): void {
-		this.registerCommandRule(desc);
+	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
+		this.registerKeybindingRule(desc);
 		CommandsRegistry.registerCommand(desc.id, desc);
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: KbExpr): void {
+	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
 		if (platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
-				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
+				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCodeUtils.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
 					console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
 				}
 			}

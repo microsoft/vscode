@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {toErrorMessage} from 'vs/base/common/errors';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
+import {IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ICommandService, ICommandHandler} from 'vs/platform/commands/common/commands';
+import {IExtensionDescription, IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {ICommandService, ICommand, ICommandHandler} from 'vs/platform/commands/common/commands';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IEventService} from 'vs/platform/event/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
+import {getDefaultValues as getDefaultConfiguration} from 'vs/platform/configuration/common/model';
+import {CommandService} from 'vs/platform/commands/common/commandService';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 
 export class SimpleEditor implements IEditor {
 
@@ -42,6 +42,7 @@ export class SimpleEditor implements IEditor {
 	public getControl():editorCommon.IEditor { return this._widget; }
 	public getSelection():Selection { return this._widget.getSelection(); }
 	public focus():void { this._widget.focus(); }
+	public isVisible():boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback:(editor:ICodeEditor)=>T, diffEditorCallback:(editor:IDiffEditor)=>T): T {
 		if (this._widget.getEditorType() === editorCommon.EditorType.ICodeEditor) {
@@ -54,17 +55,30 @@ export class SimpleEditor implements IEditor {
 	}
 }
 
-export class SimpleModel extends EventEmitter implements ITextEditorModel  {
+export class SimpleModel implements ITextEditorModel  {
 
 	private model:editorCommon.IModel;
+	private _onDispose: Emitter<void>;
 
 	constructor(model:editorCommon.IModel) {
-		super();
 		this.model = model;
+		this._onDispose = new Emitter<void>();
+	}
+
+	public get onDispose(): Event<void> {
+		return this._onDispose.event;
+	}
+
+	public load(): TPromise<SimpleModel> {
+		return TPromise.as(this);
 	}
 
 	public get textEditorModel():editorCommon.IModel {
 		return this.model;
+	}
+
+	public dispose(): void {
+		this._onDispose.fire();
 	}
 }
 
@@ -163,6 +177,26 @@ export class SimpleEditorService implements IEditorService {
 	}
 }
 
+export class SimpleProgressService implements IProgressService {
+	_serviceBrand: any;
+
+	private static NULL_PROGRESS_RUNNER:IProgressRunner = {
+		done: () => {},
+		total: () => {},
+		worked: () => {}
+	};
+
+	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(total: number, delay?: number): IProgressRunner;
+	show(): IProgressRunner {
+		return SimpleProgressService.NULL_PROGRESS_RUNNER;
+	}
+
+	showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
+		return null;
+	}
+}
+
 export class SimpleMessageService implements IMessageService {
 	public _serviceBrand: any;
 
@@ -172,7 +206,7 @@ export class SimpleMessageService implements IMessageService {
 
 		switch(sev) {
 			case Severity.Error:
-				console.error(toErrorMessage(message, true));
+				console.error(message);
 				break;
 			case Severity.Warning:
 				console.warn(message);
@@ -199,17 +233,42 @@ export class SimpleMessageService implements IMessageService {
 	}
 }
 
+export class StandaloneCommandService extends CommandService {
+
+	private _dynamicCommands: { [id: string]: ICommand; };
+
+	constructor(
+		instantiationService: IInstantiationService,
+		extensionService: IExtensionService
+	) {
+		super(instantiationService, extensionService);
+
+		this._dynamicCommands = Object.create(null);
+	}
+
+	public addCommand(id:string, command:ICommand): void {
+		this._dynamicCommands[id] = command;
+	}
+
+	protected _getCommand(id:string): ICommand {
+		return super._getCommand(id) || this._dynamicCommands[id];
+	}
+}
+
 export class StandaloneKeybindingService extends KeybindingService {
 	private static LAST_GENERATED_ID = 0;
 
 	private _dynamicKeybindings: IKeybindingItem[];
-	private _dynamicCommands: { [id: string]: ICommandHandler };
 
-	constructor(commandService: ICommandService, configurationService: IConfigurationService, messageService: IMessageService, domNode: HTMLElement) {
-		super(commandService, configurationService, messageService);
+	constructor(
+		contextKeyService: IContextKeyService,
+		commandService: ICommandService,
+		messageService: IMessageService,
+		domNode: HTMLElement
+	) {
+		super(contextKeyService, commandService, messageService);
 
 		this._dynamicKeybindings = [];
-		this._dynamicCommands = Object.create(null);
 
 		this._beginListening(domNode);
 	}
@@ -226,17 +285,21 @@ export class StandaloneKeybindingService extends KeybindingService {
 			weight1: 1000,
 			weight2: 0
 		});
-		this._dynamicCommands[commandId] = handler;
+
+		let commandService = this._commandService;
+		if (commandService instanceof StandaloneCommandService) {
+			commandService.addCommand(commandId, {
+				handler: handler
+			});
+		} else {
+			throw new Error('Unknown command service!');
+		}
 		this.updateResolver();
 		return commandId;
 	}
 
 	protected _getExtraKeybindings(isFirstTime:boolean): IKeybindingItem[] {
 		return this._dynamicKeybindings;
-	}
-
-	protected _getCommandHandler(commandId:string): ICommandHandler {
-		return super._getCommandHandler(commandId) || this._dynamicCommands[commandId];
 	}
 }
 
@@ -272,38 +335,32 @@ export class SimpleExtensionService extends AbstractExtensionService<ActivatedEx
 
 }
 
-export class SimpleConfigurationService extends ConfigurationService {
+export class SimpleConfigurationService implements IConfigurationService {
 
-	constructor(contextService: IWorkspaceContextService, eventService: IEventService) {
-		super(contextService, eventService);
-		this.initialize();
+	_serviceBrand: any;
+
+	private _onDidUpdateConfiguration = new Emitter<IConfigurationServiceEvent>();
+	public onDidUpdateConfiguration: Event<IConfigurationServiceEvent> = this._onDidUpdateConfiguration.event;
+
+	private _config: any;
+
+	constructor() {
+		this._config = getDefaultConfiguration();
 	}
 
-	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(resources.map((resource) => {
-			return {
-				resource: resource,
-				value: ''
-			};
-		}));
+	public getConfiguration<T>(section?: string): T {
+		return this._config;
 	}
 
-	protected resolveContent(resource: URI): TPromise<IContent> {
-		return TPromise.as({
-			resource: resource,
-			value: ''
-		});
+	public reloadConfiguration<T>(section?: string): TPromise<T> {
+		return TPromise.as(this.getConfiguration(section));
 	}
 
-	protected resolveStat(resource: URI): TPromise<IStat> {
-		return TPromise.as({
-			resource: resource,
-			isDirectory: false
-		});
+	public lookup<C>(key: string): IConfigurationValue<C> {
+		return {
+			value: getConfigurationValue<C>(this.getConfiguration(), key),
+			default: getConfigurationValue<C>(this.getConfiguration(), key),
+			user: getConfigurationValue<C>(this.getConfiguration(), key)
+		};
 	}
-
-	setUserConfiguration(key: any, value: any) : Thenable<void> {
-		return TPromise.as(null);
-	}
-
 }

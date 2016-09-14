@@ -10,6 +10,79 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IRequestContext } from 'vs/base/node/request';
+
+export interface ICommand {
+	command: string;
+	title: string;
+	category?: string;
+}
+
+export interface IConfigurationProperty {
+	description: string;
+	type: string | string[];
+}
+
+export interface IConfiguration {
+	properties: { [key: string]: IConfigurationProperty; };
+}
+
+export interface IDebugger {
+	label?: string;
+	type: string;
+	runtime: string;
+}
+
+export interface IGrammar {
+	language: string;
+}
+
+export interface IJSONValidation {
+	fileMatch: string;
+}
+
+export interface IKeyBinding {
+	command: string;
+	key: string;
+	when?: string;
+	mac?: string;
+	linux?: string;
+	win?: string;
+}
+
+export interface ILanguage {
+	id: string;
+	extensions: string[];
+	aliases: string[];
+}
+
+export interface IMenu {
+	command: string;
+	alt?: string;
+	when?: string;
+	group?: string;
+}
+
+export interface ISnippet {
+	language: string;
+}
+
+export interface ITheme {
+	label: string;
+}
+
+export interface IExtensionContributions {
+	commands?: ICommand[];
+	configuration?: IConfiguration;
+	debuggers?: IDebugger[];
+	grammars?: IGrammar[];
+	jsonValidation?: IJSONValidation[];
+	keybindings?: IKeyBinding[];
+	languages?: ILanguage[];
+	menus?: { [context: string]: IMenu[] };
+	snippets?: ISnippet[];
+	themes?: ITheme[];
+}
 
 export interface IExtensionManifest {
 	name: string;
@@ -20,16 +93,9 @@ export interface IExtensionManifest {
 	description?: string;
 	main?: string;
 	icon?: string;
-}
-
-export interface IGalleryVersion {
-	version: string;
-	date: string;
-	manifestUrl: string;
-	readmeUrl: string;
-	downloadUrl: string;
-	iconUrl: string;
-	downloadHeaders: { [key: string]: string; };
+	categories?: string[];
+	activationEvents?: string[];
+	contributes?: IExtensionContributions;
 }
 
 export interface IExtensionIdentity {
@@ -37,9 +103,20 @@ export interface IExtensionIdentity {
 	publisher: string;
 }
 
+export interface IGalleryExtensionAssets {
+	manifest: string;
+	readme: string;
+	download: string;
+	icon: string;
+	iconFallback: string;
+	license: string;
+}
+
 export interface IGalleryExtension {
 	id: string;
 	name: string;
+	version: string;
+	date: string;
 	displayName: string;
 	publisherId: string;
 	publisher: string;
@@ -48,7 +125,8 @@ export interface IGalleryExtension {
 	installCount: number;
 	rating: number;
 	ratingCount: number;
-	versions: IGalleryVersion[];
+	assets: IGalleryExtensionAssets;
+	downloadHeaders: { [key: string]: string; };
 }
 
 export interface IGalleryMetadata {
@@ -97,6 +175,8 @@ export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
+	download(extension: IGalleryExtension): TPromise<string>;
+	getAsset(url: string): TPromise<IRequestContext>;
 }
 
 export type InstallExtensionEvent = { id: string; gallery?: IGalleryExtension; };
@@ -110,17 +190,17 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<string>;
 	onDidUninstallExtension: Event<string>;
 
-	install(extension: IGalleryExtension): TPromise<void>;
 	install(zipPath: string): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension): TPromise<void>;
-	getInstalled(includeDuplicateVersions?: boolean): TPromise<ILocalExtension[]>;
+	getInstalled(): TPromise<ILocalExtension[]>;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getRecommendations(): TPromise<IGalleryExtension[]>;
+	getRecommendations(): string[];
 }
 
 export const ExtensionsLabel = nls.localize('extensions', "Extensions");

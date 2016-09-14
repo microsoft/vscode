@@ -18,7 +18,7 @@ import types = require('vs/base/common/types');
 import {IEventEmitter, EventEmitter} from 'vs/base/common/eventEmitter';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 export interface IActionItem extends IEventEmitter {
 	actionRunner: IActionRunner;
@@ -106,7 +106,6 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this.builder = $(container);
 		this.gesture = new Gesture(container);
 
-		this.builder.on(DOM.EventType.CLICK, (event: Event) => this.onClick(event));
 		this.builder.on(EventType.Tap, e => this.onClick(e));
 
 		if (platform.isMacintosh) {
@@ -115,18 +114,18 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
-
-			if (e.button === 0 && this._action.enabled) {
+			if (this._action.enabled) {
 				this.builder.addClass('active');
 			}
+		});
+		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, true);
+			setTimeout(() => this.onClick(e), 50);
 		});
 
 		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
-
-			if (e.button === 0 && this._action.enabled) {
-				this.builder.removeClass('active');
-			}
+			this.builder.removeClass('active');
 		});
 	}
 
@@ -356,9 +355,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(container: HTMLElement, options?: IActionBarOptions);
-	constructor(container: Builder, options?: IActionBarOptions);
-	constructor(container: any, options: IActionBarOptions = defaultOptions) {
+	constructor(container: HTMLElement | Builder, options: IActionBarOptions = defaultOptions) {
 		super();
 		this.options = options;
 		this._context = options.context;
@@ -391,13 +388,13 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			let event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(isVertical ? CommonKeybindings.UP_ARROW : CommonKeybindings.LEFT_ARROW)) {
+			if (event.equals(isVertical ? KeyCode.UpArrow : KeyCode.LeftArrow)) {
 				this.focusPrevious();
-			} else if (event.equals(isVertical ? CommonKeybindings.DOWN_ARROW : CommonKeybindings.RIGHT_ARROW)) {
+			} else if (event.equals(isVertical ? KeyCode.DownArrow : KeyCode.RightArrow)) {
 				this.focusNext();
-			} else if (event.equals(CommonKeybindings.ESCAPE)) {
+			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
-			} else if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+			} else if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				// Nothing, just staying out of the else branch
 			} else {
 				eventHandled = false;
@@ -419,14 +416,14 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			let event = new StandardKeyboardEvent(e);
 
 			// Run action on Enter/Space
-			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this.doTrigger(event);
 				event.preventDefault();
 				event.stopPropagation();
 			}
 
 			// Recompute focused item
-			else if (event.equals(CommonKeybindings.TAB) || event.equals(CommonKeybindings.SHIFT_TAB)) {
+			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
 				this.updateFocusedItem();
 			}
 		});
@@ -450,8 +447,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		this.domNode.appendChild(this.actionsList);
 
-		container = (container instanceof Builder) ? container.getHTMLElement() : container;
-		container.appendChild(this.domNode);
+		((container instanceof Builder) ? container.getHTMLElement() : container).appendChild(this.domNode);
 	}
 
 	public setAriaLabel(label: string): void {
@@ -496,17 +492,14 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		return $(this.domNode);
 	}
 
-	public push(actions: IAction, options?: IActionOptions): void;
-	public push(actions: IAction[], options?: IActionOptions): void;
-	public push(actions: any, options: IActionOptions = {}): void {
-		if (!Array.isArray(actions)) {
-			actions = [actions];
-		}
+	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
+
+		const actions: IAction[] = !Array.isArray(arg) ? [arg] : arg;
 
 		let index = types.isNumber(options.index) ? options.index : null;
 
 		actions.forEach((action: IAction) => {
-			let actionItemElement = document.createElement('li');
+			const actionItemElement = document.createElement('li');
 			actionItemElement.className = 'action-item';
 			actionItemElement.setAttribute('role', 'presentation');
 
@@ -536,10 +529,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	}
 
 	public clear(): void {
-		let item: IActionItem;
-		while (item = this.items.pop()) {
-			item.dispose();
-		}
+		this.items = lifecycle.dispose(this.items);
 		$(this.actionsList).empty();
 	}
 
@@ -549,10 +539,6 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	public isEmpty(): boolean {
 		return this.items.length === 0;
-	}
-
-	public onContentsChange(): void {
-		this.emit(CommonEventType.CONTENTS_CHANGED);
 	}
 
 	public focus(selectFirst?: boolean): void {
@@ -695,7 +681,11 @@ export class SelectActionItem extends BaseActionItem {
 
 	public setOptions(options: string[], selected: number): void {
 		this.options = options;
-		this.selected = selected;
+		if (selected >= 0) {
+			this.selected = selected;
+		} else if (this.selected < 0 || this.selected > this.options.length) {
+			this.selected = 0;
+		}
 
 		this.doSetOptions();
 	}
@@ -716,6 +706,10 @@ export class SelectActionItem extends BaseActionItem {
 		}
 	}
 
+	public set enabled(value: boolean) {
+		this.select.disabled = !value;
+	}
+
 	public blur(): void {
 		if (this.select) {
 			this.select.blur();
@@ -728,6 +722,10 @@ export class SelectActionItem extends BaseActionItem {
 		this.doSetOptions();
 	}
 
+	protected getSelected(): string {
+		return this.options && this.selected >= 0 && this.selected < this.options.length ? this.options[this.selected] : null;
+	}
+
 	private doSetOptions(): void {
 		this.select.options.length = 0;
 
@@ -737,6 +735,7 @@ export class SelectActionItem extends BaseActionItem {
 
 		if (this.selected >= 0) {
 			this.select.selectedIndex = this.selected;
+			this.select.title = this.options[this.selected];
 		}
 	}
 

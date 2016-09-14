@@ -68,7 +68,7 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 		result += '<br/>';
 	};
 
-	result = '<div style="white-space: pre-wrap;">';
+	result = `<div class="monaco-tokenized-source">`;
 	_tokenizeLines(text, tokenizationSupport, emitToken, emitNewLine);
 	result += '</div>';
 

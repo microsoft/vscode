@@ -32,6 +32,7 @@ export class MockConfiguration extends CommonEditorConfiguration {
 	protected readConfiguration(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
 			fontFamily: 'mockFont',
+			fontWeight: 'normal',
 			fontSize: 14,
 			lineHeight: 19,
 			typicalHalfwidthCharacterWidth:10,

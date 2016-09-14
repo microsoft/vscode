@@ -39,6 +39,20 @@ function encodeNoop(str: string): string {
  */
 export default class URI {
 
+	static isUri(thing: any): thing is URI {
+		if (thing instanceof URI) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<URI>thing).authority === 'string'
+			&& typeof (<URI>thing).fragment === 'string'
+			&& typeof (<URI>thing).path === 'string'
+			&& typeof (<URI>thing).query === 'string'
+			&& typeof (<URI>thing).scheme === 'string';
+	}
+
 	private static _empty = '';
 	private static _slash = '/';
 	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
@@ -112,7 +126,7 @@ export default class URI {
 	get fsPath() {
 		if (!this._fsPath) {
 			var value: string;
-			if (this._authority && this.scheme === 'file') {
+			if (this._authority && this._path && this.scheme === 'file') {
 				// unc path: file://shares/c$/far/boo
 				value = `//${this._authority}${this._path}`;
 			} else if (URI._driveLetterPath.test(this._path)) {
@@ -328,10 +342,14 @@ export default class URI {
 			}
 		}
 		if (path) {
-			// lower-case windown drive letters in /C:/fff
+			// lower-case windows drive letters in /C:/fff or C:/fff
 			const m = URI._upperCaseDrive.exec(path);
 			if (m) {
-				path = m[1] + m[2].toLowerCase() + path.substr(m[1].length + m[2].length);
+				if (m[1]) {
+					path = '/' + m[2].toLowerCase() + path.substr(3); // "/c:".length === 3
+				} else {
+					path = m[2].toLowerCase() + path.substr(2); // // "c:".length === 2
+				}
 			}
 
 			// encode every segement but not slashes

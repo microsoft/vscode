@@ -8,10 +8,12 @@ import { IRawGitService, RawServiceState, IGitConfiguration } from 'vs/workbench
 import { NoOpGitService } from 'vs/workbench/parts/git/common/noopGitService';
 import { GitService } from 'vs/workbench/parts/git/browser/gitServices';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEventService } from 'vs/platform/event/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -22,7 +24,6 @@ import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node
 import URI from 'vs/base/common/uri';
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
-import { remote } from 'electron';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { readdir } from 'vs/base/node/pfs';
 
@@ -146,7 +147,7 @@ class DisabledRawGitService extends RawGitService {
 	}
 }
 
-function createRemoteRawGitService(gitPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
+function createRemoteRawGitService(gitPath: string, execPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
 	const promise = TPromise.timeout(0) // free event loop cos finding git costs
 		.then(() => findGit(gitPath))
 		.then(({ path, version }) => {
@@ -155,9 +156,9 @@ function createRemoteRawGitService(gitPath: string, workspaceRoot: string, encod
 				{
 					serverName: 'Git',
 					timeout: 1000 * 60,
-					args: [path, workspaceRoot, encoding, remote.process.execPath, version],
+					args: [path, workspaceRoot, encoding, execPath, version],
 					env: {
-						ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+						ELECTRON_RUN_AS_NODE: 1,
 						PIPE_LOGGING: 'true',
 						AMD_ENTRYPOINT: 'vs/workbench/parts/git/node/gitApp',
 						VERBOSE_LOGGING: String(verbose)
@@ -177,11 +178,11 @@ interface IRawGitServiceBootstrap {
 	createRawGitService(gitPath: string, workspaceRoot: string, defaultEncoding: string, exePath: string, version: string): TPromise<IRawGitService>;
 }
 
-function createRawGitService(gitPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
+function createRawGitService(gitPath: string, execPath: string, workspaceRoot: string, encoding: string, verbose: boolean): IRawGitService {
 	const promise = new TPromise<IRawGitService>((c, e) => {
 		require(['vs/workbench/parts/git/node/rawGitServiceBootstrap'], ({ createRawGitService }: IRawGitServiceBootstrap) => {
 			findGit(gitPath)
-				.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, remote.process.execPath, version))
+				.then(({ path, version }) => createRawGitService(path, workspaceRoot, encoding, execPath, version))
 				.done(c, e);
 		}, e);
 	});
@@ -199,9 +200,11 @@ export class ElectronGitService extends GitService {
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
+		@ITextFileService textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const conf = configurationService.getConfiguration<IGitConfiguration>('git');
@@ -216,17 +219,17 @@ export class ElectronGitService extends GitService {
 			raw = new NoOpGitService();
 		} else {
 			const gitPath = conf.path || null;
-			const encoding = filesConf.encoding || 'utf8';
+			const encoding = (filesConf && filesConf.encoding) || 'utf8';
 			const workspaceRoot = workspace.resource.fsPath;
-			const verbose = !contextService.getConfiguration().env.isBuilt || contextService.getConfiguration().env.verboseLogging;
+			const verbose = !environmentService.isBuilt || environmentService.verbose;
 
 			if (ElectronGitService.USE_REMOTE_PROCESS_SERVICE) {
-				raw = createRemoteRawGitService(gitPath, workspaceRoot, encoding, verbose);
+				raw = createRemoteRawGitService(gitPath, environmentService.execPath, workspaceRoot, encoding, verbose);
 			} else {
-				raw = createRawGitService(gitPath, workspaceRoot, encoding, verbose);
+				raw = createRawGitService(gitPath, environmentService.execPath, workspaceRoot, encoding, verbose);
 			}
 		}
 
-		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService, storageService, configurationService);
+		super(raw, instantiationService, eventService, messageService, editorService, outputService, textFileService, contextService, lifecycleService, storageService, configurationService);
 	}
 }

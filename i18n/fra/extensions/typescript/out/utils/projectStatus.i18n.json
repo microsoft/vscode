@@ -11,6 +11,7 @@
 	"hintExclude.generic": "Pour accroître les performances, excluez les dossiers contenant de nombreux fichiers.",
 	"hintExclude.tooltip": "Pour améliorer les performances, excluez les dossiers contenant de nombreux fichiers.",
 	"ignore.cmdCreate": "Ignorer",
+	"jsconfig.heading": "// Consultez https://go.microsoft.com/fwlink/?LinkId=759670\n\t// pour accéder à la documentation relative au format jsconfig.json",
 	"large.label": "Configurer les exclusions",
 	"open": "Configurer les exclusions"
 }

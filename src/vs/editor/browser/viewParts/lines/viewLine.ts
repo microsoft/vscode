@@ -19,7 +19,7 @@ import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
 export class ViewLine implements IVisibleLineData {
 
 	protected _context:ViewContext;
-	private _renderWhitespace: boolean;
+	private _renderWhitespace: 'none' | 'boundary' | 'all';
 	private _renderControlCharacters: boolean;
 	private _spaceWidth: number;
 	private _lineHeight: number;

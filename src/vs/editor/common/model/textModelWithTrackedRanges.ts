@@ -85,7 +85,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		this._multiLineTrackedRanges = {};
 	}
 
-	_createRetokenizer(retokenizePromise:TPromise<void>, lineNumber:number): IRetokenizeRequest {
+	protected _createRetokenizer(retokenizePromise:TPromise<void>, lineNumber:number): IRetokenizeRequest {
 		return new TrackedRangeModelRetokenizer(retokenizePromise, lineNumber, this);
 	}
 
@@ -96,7 +96,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		super.dispose();
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
+	protected _resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my tracked ranges
@@ -346,7 +346,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		return result;
 	}
 
-	_onChangedMarkers(changedMarkers:ILineMarker[]): editorCommon.IChangedTrackedRanges {
+	protected _onChangedMarkers(changedMarkers:ILineMarker[]): editorCommon.IChangedTrackedRanges {
 		var changedRanges:editorCommon.IChangedTrackedRanges = {},
 			changedRange:editorCommon.IRange,
 			range:ITrackedRange,

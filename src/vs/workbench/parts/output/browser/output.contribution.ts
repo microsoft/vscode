@@ -5,7 +5,7 @@
 
 import 'vs/css!../browser/media/output.contribution';
 import nls = require('vs/nls');
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import platform = require('vs/platform/platform');
 import {MenuId, MenuRegistry, SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -14,24 +14,22 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {OutputService} from 'vs/workbench/parts/output/browser/outputServices';
-import {ToggleOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
+import {ToggleOutputAction, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {OUTPUT_MIME, OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
 import panel = require('vs/workbench/browser/panel');
-import {KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID} from 'vs/editor/common/editorCommon';
+import {EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {KbExpr} from 'vs/platform/keybinding/common/keybinding';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
 
 // Register Output Mode
-ModesRegistry.registerCompatMode({
+ModesRegistry.registerLanguage({
 	id: OUTPUT_MODE_ID,
 	extensions: [],
 	aliases: [null],
-	mimetypes: [OUTPUT_MIME],
-	moduleId: 'vs/workbench/parts/output/common/outputMode',
-	ctorName: 'OutputMode'
+	mimetypes: [OUTPUT_MIME]
 });
 
 // Register Output Panel
@@ -48,10 +46,12 @@ let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtens
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputAction, ToggleOutputAction.ID, ToggleOutputAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
 	linux: {
-		primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
 	}
 }), 'View: Toggle Output', nls.localize('viewCategory', "View"));
 
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
+	'View: Clear Output', nls.localize('viewCategory', "View"));
 
 interface IActionDescriptor {
 	id: string;
@@ -66,13 +66,13 @@ interface IActionDescriptor {
 	//
 	menu?: {
 		menuId: MenuId,
-		when?: KbExpr;
+		when?: ContextKeyExpr;
 		group?: string;
 	};
 
 	//
 	keybinding?: {
-		when?: KbExpr;
+		when?: ContextKeyExpr;
 		weight: number;
 		keys: IKeybindings;
 	};
@@ -104,7 +104,7 @@ function registerAction(desc: IActionDescriptor) {
 	// 4) keybindings
 	if (keybinding) {
 		let {when, weight, keys} = keybinding;
-		KeybindingsRegistry.registerCommandRule({
+		KeybindingsRegistry.registerKeybindingRule({
 			id,
 			when,
 			weight,
@@ -123,7 +123,7 @@ registerAction({
 	title: nls.localize('clearOutput.label', "Clear Output"),
 	menu: {
 		menuId: MenuId.EditorContext,
-		when: KbExpr.equals(KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, OUTPUT_MODE_ID)
+		when: EditorContextKeys.LanguageId.isEqualTo(OUTPUT_MODE_ID)
 	},
 	handler(accessor) {
 		accessor.get(IOutputService).getActiveChannel().clear();

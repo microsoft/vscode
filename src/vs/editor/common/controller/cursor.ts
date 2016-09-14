@@ -22,7 +22,7 @@ export interface ITypingListener {
 	(): void;
 }
 
-enum RevealTarget {
+const enum RevealTarget {
 	Primary = 0,
 	TopMost = 1,
 	BottomMost = 2
@@ -43,7 +43,6 @@ interface IMultipleCursorOperationContext {
 	executeCommands: editorCommon.ICommand[];
 	isAutoWhitespaceCommand: boolean[];
 	postOperationRunnables: IPostOperationRunnable[];
-	requestScrollDeltaLines: number;
 	setColumnSelectToLineNumber: number;
 	setColumnSelectToVisualColumn: number;
 }
@@ -102,31 +101,6 @@ export class Cursor extends EventEmitter {
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
 		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
-		if (!this.viewModelHelper) {
-			this.viewModelHelper = {
-				viewModel: this.model,
-				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
-					return new Position(lineNumber, column);
-				},
-				convertModelRangeToViewRange: (modelRange: Range) => {
-					return modelRange;
-				},
-				convertViewToModelPosition: (lineNumber:number, column:number) => {
-					return new Position(lineNumber, column);
-				},
-				convertViewSelectionToModelSelection: (viewSelection:Selection) => {
-					return viewSelection;
-				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:Position) => {
-					return modelPosition;
-				},
-				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:Range) => {
-					return modelRange;
-				}
-
-			};
-		}
-
 		this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
 		this.cursorUndoStack = [];
 
@@ -321,7 +295,6 @@ export class Cursor extends EventEmitter {
 			postOperationRunnables: [],
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false,
-			requestScrollDeltaLines: 0,
 			setColumnSelectToLineNumber: 0,
 			setColumnSelectToVisualColumn: 0
 		};
@@ -353,7 +326,6 @@ export class Cursor extends EventEmitter {
 			var shouldRevealHorizontal: boolean;
 			var shouldRevealTarget: RevealTarget;
 			var isCursorUndo: boolean;
-			var requestScrollDeltaLines: number;
 
 			var hasExecutedCommands = this._createAndInterpretHandlerCtx(eventSource, data, (currentHandlerCtx:IMultipleCursorOperationContext) => {
 				handled = handler(currentHandlerCtx);
@@ -364,7 +336,6 @@ export class Cursor extends EventEmitter {
 				shouldRevealVerticalInCenter = currentHandlerCtx.shouldRevealVerticalInCenter;
 				shouldRevealHorizontal = currentHandlerCtx.shouldRevealHorizontal;
 				isCursorUndo = currentHandlerCtx.isCursorUndo;
-				requestScrollDeltaLines = currentHandlerCtx.requestScrollDeltaLines;
 			});
 
 			if (hasExecutedCommands) {
@@ -417,14 +388,11 @@ export class Cursor extends EventEmitter {
 				this.emitCursorPositionChanged(eventSource, cursorPositionChangeReason);
 
 				if (shouldReveal) {
-					this.emitCursorRevealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
+					this.revealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
 				}
 				this.emitCursorSelectionChanged(eventSource, cursorPositionChangeReason);
 			}
 
-			if (requestScrollDeltaLines) {
-				this.emitCursorScrollRequest(requestScrollDeltaLines);
-			}
 		} catch (err) {
 			onUnexpectedError(err);
 		}
@@ -882,14 +850,15 @@ export class Cursor extends EventEmitter {
 		this.emit(editorCommon.EventType.CursorSelectionChanged, e);
 	}
 
-	private emitCursorScrollRequest(lineScrollOffset: number): void {
+	private emitCursorScrollRequest(deltaLines: number, revealCursor: boolean): void {
 		var e:editorCommon.ICursorScrollRequestEvent = {
-			deltaLines: lineScrollOffset
+			deltaLines,
+			revealCursor
 		};
 		this.emit(editorCommon.EventType.CursorScrollRequest, e);
 	}
 
-	private emitCursorRevealRange(revealTarget: RevealTarget, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private revealRange(revealTarget: RevealTarget, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		var positions = this.cursors.getPositions();
 		var viewPositions = this.cursors.getViewPositions();
 
@@ -919,11 +888,16 @@ export class Cursor extends EventEmitter {
 
 		var range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		var viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
+		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal, false);
+	}
+
+	private emitCursorRevealRange(range: Range, viewRange: Range, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean, revealCursor: boolean) {
 		var e:editorCommon.ICursorRevealRangeEvent = {
 			range: range,
 			viewRange: viewRange,
 			verticalType: verticalType,
-			revealHorizontal: revealHorizontal
+			revealHorizontal: revealHorizontal,
+			revealCursor: revealCursor
 		};
 		this.emit(editorCommon.EventType.CursorRevealRange, e);
 	}
@@ -1028,6 +1002,8 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.Outdent] =						(ctx) => this._outdent(ctx);
 		this._handlers[H.Paste] =						(ctx) => this._paste(ctx);
 
+		this._handlers[H.EditorScroll] = 				(ctx) => this._editorScroll(ctx);
+
 		this._handlers[H.ScrollLineUp] =				(ctx) => this._scrollUp(false, ctx);
 		this._handlers[H.ScrollLineDown] =				(ctx) => this._scrollDown(false, ctx);
 		this._handlers[H.ScrollPageUp] =				(ctx) => this._scrollUp(true, ctx);
@@ -1056,7 +1032,9 @@ export class Cursor extends EventEmitter {
 		this._handlers[H.Redo] =						(ctx) => this._redo(ctx);
 
 		this._handlers[H.ExecuteCommand] =				(ctx) => this._externalExecuteCommand(ctx);
-		this._handlers[H.ExecuteCommands] =				(ctx) => this._externalExecuteCommands(ctx);
+		this._handlers[H.ExecuteCommands] = 			(ctx) => this._externalExecuteCommands(ctx);
+
+		this._handlers[H.RevealLine] = 					(ctx) => this._revealLine(ctx);
 	}
 
 	private _invokeForAllSorted(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
@@ -1092,8 +1070,7 @@ export class Cursor extends EventEmitter {
 				isAutoWhitespaceCommand: false,
 				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: false,
-				requestScrollDeltaLines: 0
+				shouldPushStackElementAfter: false
 			};
 
 			result = callable(i, cursors[i], context) || result;
@@ -1103,7 +1080,6 @@ export class Cursor extends EventEmitter {
 				ctx.shouldRevealHorizontal = context.shouldRevealHorizontal;
 				ctx.shouldReveal = context.shouldReveal;
 				ctx.shouldRevealVerticalInCenter = context.shouldRevealVerticalInCenter;
-				ctx.requestScrollDeltaLines = context.requestScrollDeltaLines;
 			}
 
 			ctx.shouldPushStackElementBefore = ctx.shouldPushStackElementBefore || context.shouldPushStackElementBefore;
@@ -1278,15 +1254,23 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveLeft(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveLeft(oneCursor, inSelectionMode, oneCtx));
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Left;
+		ctx.eventData.select = inSelectionMode;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveWordLeft(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordLeft(oneCursor, inSelectionMode, wordNavigationType, oneCtx));
 	}
 
-	private _moveRight(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveRight(oneCursor, inSelectionMode, oneCtx));
+	private _moveRight(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData= ctx.eventData || {};
+		ctx.eventData.to= editorCommon.CursorMovePosition.Right;
+		ctx.eventData.select = inSelectionMode;
+
+		return this._cursorMove(ctx);
 	}
 
 	private _moveWordRight(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
@@ -1295,8 +1279,9 @@ export class Cursor extends EventEmitter {
 
 	private _moveDown(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData= ctx.eventData || {};
-		ctx.eventData.to= editorCommon.CursorMoveViewPosition.LineDown;
-		ctx.eventData.inSelectionMode= inSelectionMode;
+		ctx.eventData.to= editorCommon.CursorMovePosition.Down;
+		ctx.eventData.select = inSelectionMode;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLine;
 		ctx.eventData.isPaged= isPaged;
 
 		return this._cursorMove(ctx);
@@ -1304,8 +1289,9 @@ export class Cursor extends EventEmitter {
 
 	private _moveUp(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData= ctx.eventData || {};
-		ctx.eventData.to= editorCommon.CursorMoveViewPosition.LineUp;
-		ctx.eventData.inSelectionMode= inSelectionMode;
+		ctx.eventData.to= editorCommon.CursorMovePosition.Up;
+		ctx.eventData.select= inSelectionMode;
+		ctx.eventData.by= editorCommon.CursorMoveByUnit.WrappedLine;
 		ctx.eventData.isPaged= isPaged;
 
 		return this._cursorMove(ctx);
@@ -1440,8 +1426,7 @@ export class Cursor extends EventEmitter {
 	private _replacePreviousChar(ctx: IMultipleCursorOperationContext): boolean {
 		let text = ctx.eventData.text;
 		let replaceCharCnt = ctx.eventData.replaceCharCnt;
-		return this._invokeForAll(ctx,(cursorIndex, oneCursor, oneCtx) => OneCursorOp.replacePreviousChar(oneCursor, text, replaceCharCnt, oneCtx));
-
+		return this._invokeForAll(ctx,(cursorIndex, oneCursor, oneCtx) => OneCursorOp.replacePreviousChar(oneCursor, text, replaceCharCnt, oneCtx), false, false);
 	}
 
 	private _tab(ctx: IMultipleCursorOperationContext): boolean {
@@ -1466,14 +1451,94 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.requestScrollDeltaLines = isPaged ? -this.cursors.getAll()[0].getPageSize() : -1;
+	private _revealLine(ctx: IMultipleCursorOperationContext): boolean {
+		const revealLineArg: editorCommon.RevealLineArguments = ctx.eventData;
+		const lineNumber = revealLineArg.lineNumber + 1;
+		const range = this.model.validateRange({
+			startLineNumber: lineNumber,
+			startColumn: 1,
+			endLineNumber: lineNumber,
+			endColumn: 1
+		});
+		range.endColumn = this.model.getLineMaxColumn(range.endLineNumber);
+
+		let revealAt = editorCommon.VerticalRevealType.Simple;
+		if (revealLineArg.at) {
+			switch (revealLineArg.at) {
+				case editorCommon.RevealLineAtArgument.Top:
+					revealAt = editorCommon.VerticalRevealType.Top;
+					break;
+				case editorCommon.RevealLineAtArgument.Center:
+					revealAt = editorCommon.VerticalRevealType.Center;
+					break;
+				case editorCommon.RevealLineAtArgument.Bottom:
+					revealAt = editorCommon.VerticalRevealType.Bottom;
+					break;
+				default:
+					break;
+			}
+		}
+
+		this.emitCursorRevealRange(range, null, revealAt, false, false);
 		return true;
 	}
 
-	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.requestScrollDeltaLines = isPaged ? this.cursors.getAll()[0].getPageSize() : 1;
+	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {
+		let editorScrollArg: editorCommon.EditorScrollArguments = ctx.eventData;
+		editorScrollArg.value = editorScrollArg.value || 1;
+		switch (editorScrollArg.to) {
+			case editorCommon.EditorScrollDirection.Up:
+			case editorCommon.EditorScrollDirection.Down:
+				return this._scrollUpOrDown(editorScrollArg, ctx);
+		}
 		return true;
+	}
+
+	private _scrollUpOrDown(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
+		if (this._scrollByReveal(editorScrollArg, ctx)) {
+			return true;
+		}
+		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
+		let cursor: OneCursor = this.cursors.getAll()[0];
+		let noOfLines = editorScrollArg.value || 1;
+		switch (editorScrollArg.by) {
+			case editorCommon.EditorScrollByUnit.Page:
+				noOfLines = cursor.getPageSize() * noOfLines;
+				break;
+			case editorCommon.EditorScrollByUnit.HalfPage:
+				noOfLines = Math.round(cursor.getPageSize() / 2) * noOfLines;
+				break;
+		}
+		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, !!editorScrollArg.revealCursor);
+		return true;
+	}
+
+	private _scrollByReveal(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
+		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
+		let cursor: OneCursor = this.cursors.getAll()[0];
+		if (editorCommon.EditorScrollByUnit.Line !== editorScrollArg.by) {
+			// Scroll by reveal is done only when unit is line.
+			return false;
+		}
+		if (!up && cursor.isLastLineVisibleInViewPort()) {
+			// Scroll by reveal is not done if last line is visible and scrolling down.
+			return false;
+		}
+		let range = up ? cursor.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : cursor.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
+		this.emitCursorRevealRange(range, null, up ? editorCommon.VerticalRevealType.Top : editorCommon.VerticalRevealType.Bottom, false, true);
+		return true;
+	}
+
+	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Up, value: 1 };
+		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
+		return this._editorScroll(ctx);
+	}
+
+	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Down, value: 1 };
+		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
+		return this._editorScroll(ctx);
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {

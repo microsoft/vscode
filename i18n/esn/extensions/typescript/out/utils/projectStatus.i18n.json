@@ -11,6 +11,7 @@
 	"hintExclude.generic": "Para mejorar el rendimiento, excluya las carpetas con muchos archivos.",
 	"hintExclude.tooltip": "Para obtener un mejor rendimiento, no incluya las carpetas que contengan muchos archivos.",
 	"ignore.cmdCreate": "Ignorar",
+	"jsconfig.heading": "// Consulte https://go.microsoft.com/fwlink/?LinkId=759670\n\t// para encontrar documentación sobre el formato jsconfig.json.",
 	"large.label": "Configurar exclusiones",
 	"open": "Configurar exclusiones"
 }

@@ -4,19 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { Range } from 'vs/editor/common/core/range';
+import {Position} from 'vs/editor/common/core/position';
+import {ISuggestion} from 'vs/editor/common/modes';
+import {Source} from 'vs/workbench/parts/debug/common/debugSource';
+import {Range} from 'vs/editor/common/core/range';
+import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
-export const CONTEXT_IN_DEBUG_MODE = 'inDebugMode';
+export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
+export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
+export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
+export const CONTEXT_NOT_IN_DEBUG_REPL: ContextKeyExpr = CONTEXT_IN_DEBUG_REPL.toNegated();
+export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFirsteDebugReplLine', false);
+export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLastDebugReplLine', false);
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
+export const DEBUG_SCHEME = 'debug';
 
 // raw
 
@@ -51,6 +60,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 	name: string;
 	value: string;
 	valueChanged: boolean;
+	type?: string;
 }
 
 export interface IThread extends ITreeElement {
@@ -237,8 +247,12 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	linux?: IRawEnvAdapter;
 }
 
+export interface IRawBreakpointContribution {
+	language: string;
+}
+
 export interface IRawDebugSession {
-	configuration: { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites };
+	configuration: { type: string, capabilities: DebugProtocol.Capabilities };
 
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 
@@ -253,7 +267,7 @@ export interface IRawDebugSession {
 }
 
 export interface IConfigurationManager {
-	configurationName: string;
+	configuration: IConfig;
 	setConfiguration(name: string): TPromise<void>;
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 	loadLaunchConfig(): TPromise<IGlobalConfig>;
@@ -262,7 +276,7 @@ export interface IConfigurationManager {
 	/**
 	 * Allows to register on change of debug configuration.
 	 */
-	onDidConfigurationChange: Event<string>;
+	onDidConfigurationChange: Event<IConfig>;
 }
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
@@ -407,6 +421,7 @@ export interface IDebugService {
 	continue(threadId: number): TPromise<void>;
 	pause(threadId: number): TPromise<any>;
 	restartFrame(frameId: number): TPromise<any>;
+	completions(text: string, position: Position): TPromise<ISuggestion[]>;
 }
 
 // Editor interfaces

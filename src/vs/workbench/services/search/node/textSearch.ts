@@ -5,23 +5,24 @@
 
 'use strict';
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 
-import fs = require('fs');
+import * as fs from 'fs';
+import * as path from 'path';
 
-import baseMime = require('vs/base/common/mime');
+import * as baseMime from 'vs/base/common/mime';
 import {ILineMatch, IProgress} from 'vs/platform/search/common/search';
 import {detectMimeAndEncodingFromBuffer} from 'vs/base/node/mime';
 import {FileWalker} from 'vs/workbench/services/search/node/fileSearch';
 import {UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode} from 'vs/base/node/encoding';
-import {ISerializedFileMatch, IRawSearch, ISearchEngine} from './search';
+import {ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} from './search';
 
 interface ReadLinesOptions {
 	bufferLength: number;
 	encoding: string;
 }
 
-export class Engine implements ISearchEngine {
+export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
@@ -44,7 +45,7 @@ export class Engine implements ISearchEngine {
 		this.rootFolders = config.rootFolders;
 		this.extraFiles = config.extraFiles;
 		this.walker = walker;
-		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, config.contentPattern.isCaseSensitive, config.contentPattern.isWordMatch, true);
+		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, {matchCase: config.contentPattern.isCaseSensitive, wholeWord: config.contentPattern.isWordMatch, multiline: false, global: true});
 		this.isCanceled = false;
 		this.limitReached = false;
 		this.maxResults = config.maxResults;
@@ -59,7 +60,7 @@ export class Engine implements ISearchEngine {
 		this.walker.cancel();
 	}
 
-	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		let resultCounter = 0;
 
 		let progress = () => {
@@ -80,13 +81,16 @@ export class Engine implements ISearchEngine {
 			// Emit done()
 			if (this.worked === this.total && this.walkerIsDone && !this.isDone) {
 				this.isDone = true;
-				done(this.walkerError, this.limitReached);
+				done(this.walkerError, {
+					limitHit: this.limitReached,
+					stats: this.walker.getStats()
+				});
 			}
 		};
 
 		// Walk over the file system
-		this.walker.walk(this.rootFolders, this.extraFiles, (result, size) => {
-			size = size ||  1;
+		this.walker.walk(this.rootFolders, this.extraFiles, result => {
+			const size = result.size ||  1;
 			this.total += size;
 
 			// If the result is empty or we have reached the limit or we are canceled, ignore it
@@ -107,6 +111,7 @@ export class Engine implements ISearchEngine {
 				return unwind(size);
 			};
 
+			const absolutePath = result.base ? [result.base, result.relativePath].join(path.sep) : result.relativePath;
 			let perLineCallback = (line: string, lineNumber: number) => {
 				if (this.limitReached || this.isCanceled) {
 					return; // return early if canceled or limit reached
@@ -123,7 +128,7 @@ export class Engine implements ISearchEngine {
 					}
 
 					if (fileMatch === null) {
-						fileMatch = new FileMatch(result.path);
+						fileMatch = new FileMatch(absolutePath);
 					}
 
 					if (lineMatch === null) {
@@ -138,7 +143,7 @@ export class Engine implements ISearchEngine {
 			};
 
 			// Read lines buffered to support large files
-			this.readlinesAsync(result.path, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
+			this.readlinesAsync(absolutePath, perLineCallback, { bufferLength: 8096, encoding: this.fileEncoding }, doneCallback);
 		}, (error, isLimitHit) => {
 			this.walkerIsDone = true;
 			this.walkerError = error;

@@ -12,9 +12,9 @@ export interface IIterator<T> {
 export class ArrayIterator<T> implements IIterator<T> {
 
 	private items: T[];
-	private start: number;
-	private end: number;
-	private index: number;
+	protected start: number;
+	protected end: number;
+	protected index: number;
 
 	constructor(items: T[], start: number = 0, end: number = items.length) {
 		this.items = items;
@@ -25,13 +25,47 @@ export class ArrayIterator<T> implements IIterator<T> {
 
 	public next(): T {
 		this.index = Math.min(this.index + 1, this.end);
+		return this.current();
+	}
 
-		if (this.index === this.end) {
+	protected current(): T {
+		if (this.index === this.start - 1 || this.index === this.end) {
 			return null;
 		}
 
 		return this.items[this.index];
 	}
+}
+
+export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T> {
+
+	constructor(items: T[], start: number = 0, end: number = items.length) {
+		super(items, start, end);
+	}
+
+	public current(): T {
+		return super.current();
+	}
+
+	public previous(): T {
+		this.index = Math.max(this.index - 1, this.start - 1);
+		return this.current();
+	}
+
+	public first(): T {
+		this.index = this.start;
+		return this.current();
+	}
+
+	public last(): T {
+		this.index = this.end - 1;
+		return this.current();
+	}
+
+	public parent(): T {
+		return null;
+	}
+
 }
 
 export class MappedIterator<T, R> implements IIterator<R> {

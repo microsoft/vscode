@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {localize} from 'vs/nls';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
+import {compare} from 'vs/base/common/strings';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import {MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape} from './extHost.protocol';
+import {DiagnosticSeverity} from './extHostTypes';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -70,20 +73,23 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		} else if (Array.isArray(first)) {
 			// update many rows
 			toSync = [];
-			for (let entry of first) {
-				let [uri, diagnostics] = entry;
-				toSync.push(uri);
+			let lastUri: vscode.Uri;
+			for (const entry of first.slice(0).sort(DiagnosticCollection._compareTuplesByUri)) {
+				const [uri, diagnostics] = entry;
+				if (!lastUri || uri.toString() !== lastUri.toString()) {
+					if (lastUri && this._data[lastUri.toString()].length === 0) {
+						delete this._data[lastUri.toString()];
+					}
+					lastUri = uri;
+					toSync.push(uri);
+					this._data[uri.toString()] = [];
+				}
+
 				if (!diagnostics) {
 					// [Uri, undefined] means clear this
-					delete this._data[uri.toString()];
+					this._data[uri.toString()].length = 0;
 				} else {
-					// set or merge diagnostics
-					let existing = this._data[uri.toString()];
-					if (existing) {
-						existing.push(...diagnostics);
-					} else {
-						this._data[uri.toString()] = diagnostics;
-					}
+					this._data[uri.toString()].push(...diagnostics);
 				}
 			}
 		}
@@ -97,10 +103,31 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 				// no more than 250 diagnostics per file
 				if (diagnostics.length > DiagnosticCollection._maxDiagnosticsPerFile) {
-					console.warn('diagnostics for %s will be capped to %d (actually is %d)', uri.toString(), DiagnosticCollection._maxDiagnosticsPerFile, diagnostics.length);
-					diagnostics = diagnostics.slice(0, DiagnosticCollection._maxDiagnosticsPerFile);
+					marker = [];
+					const order = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning, DiagnosticSeverity.Information, DiagnosticSeverity.Hint];
+					orderLoop: for (let i = 0; i < 4; i++) {
+						for (let diagnostic of diagnostics) {
+							if (diagnostic.severity === order[i]) {
+								const len = marker.push(DiagnosticCollection._toMarkerData(diagnostic));
+								if (len === DiagnosticCollection._maxDiagnosticsPerFile) {
+									break orderLoop;
+								}
+							}
+						}
+					}
+
+					// add 'signal' marker for showing omitted errors/warnings
+					marker.push({
+						severity: Severity.Error,
+						message: localize({ key: 'limitHit', comment: ['amount of errors/warning skipped due to limits'] }, "Not showing {0} further errors and warnings.", diagnostics.length - DiagnosticCollection._maxDiagnosticsPerFile),
+						startLineNumber: marker[marker.length - 1].startLineNumber,
+						startColumn: marker[marker.length - 1].startColumn,
+						endLineNumber: marker[marker.length - 1].endLineNumber,
+						endColumn: marker[marker.length - 1].endColumn
+					});
+				} else {
+					marker = diagnostics.map(DiagnosticCollection._toMarkerData);
 				}
-				marker = diagnostics.map(DiagnosticCollection._toMarkerData);
 			}
 
 			entries.push([<URI> uri, marker]);
@@ -172,6 +199,10 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			case 3: return Severity.Ignore;
 			default: return Severity.Error;
 		}
+	}
+
+	private static _compareTuplesByUri(a: [vscode.Uri, vscode.Diagnostic[]], b: [vscode.Uri, vscode.Diagnostic[]]): number {
+		return compare(a[0].toString(), b[0].toString());
 	}
 }
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import mm = require('vs/editor/common/model/mirrorModel');
+import mm = require('vs/editor/common/model/compatMirrorModel');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
@@ -13,6 +13,11 @@ import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import {HTMLMode} from 'vs/languages/html/common/html';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
+import {TextModel} from 'vs/editor/common/model/textModel';
+
+function createTestMirrorModelFromString(value:string, mode:Modes.IMode, associatedResource:URI): mm.CompatMirrorModel {
+	return new mm.CompatMirrorModel(0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
+}
 
 suite('HTML - worker', () => {
 
@@ -24,14 +29,15 @@ suite('HTML - worker', () => {
 			null,
 			new MockModeService(),
 			null,
+			null,
 			null
 		);
 	})();
 
-	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; } {
+	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.CompatMirrorModel; } {
 		var resourceService = new ResourceService.ResourceService();
 
-		var model = mm.createTestMirrorModelFromString(content, mode, url);
+		var model = createTestMirrorModelFromString(content, mode, url);
 		resourceService.insert(url, model);
 
 		var worker = new htmlWorker.HTMLWorker(mode.getId(), resourceService);
@@ -47,13 +53,13 @@ suite('HTML - worker', () => {
 		var url = URI.parse('test://1');
 		var env = mockHtmlWorkerEnv(url, content);
 
-		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
+		var position = env.model.getPositionAt(idx);
+		return env.worker.provideCompletionItems(url, position);
 	};
 
 	var assertSuggestion = function(completion: Modes.ISuggestResult, label: string, type?: string, codeSnippet?: string) {
 		var proposalsFound = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
-			return suggestion.label === label && (!type || suggestion.type === type) && (!codeSnippet || suggestion.codeSnippet === codeSnippet);
+			return suggestion.label === label && (!type || suggestion.type === type) && (!codeSnippet || suggestion.insertText === codeSnippet);
 		});
 		if (proposalsFound.length !== 1) {
 			assert.fail('Suggestion not found: ' + label + ', has ' + completion.suggestions.map(s => s.label).join(', '));

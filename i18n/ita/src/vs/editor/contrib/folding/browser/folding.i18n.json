@@ -11,6 +11,8 @@
 	"foldLevel3Action.label": "Livello riduzione 3",
 	"foldLevel4Action.label": "Livello riduzione 4",
 	"foldLevel5Action.label": "Livello riduzione 5",
+	"foldRecursivelyAction.label": "Riduci in modo ricorsivo",
+	"unFoldRecursivelyAction.label": "Espandi in modo ricorsivo",
 	"unfoldAction.label": "Espandi",
 	"unfoldAllAction.label": "Espandi tutto"
 }

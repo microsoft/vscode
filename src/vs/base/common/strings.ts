@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {LinkedMap} from 'vs/base/common/map';
+import {BoundedLinkedMap} from 'vs/base/common/map';
+import {CharCode} from 'vs/base/common/charCode';
 
 /**
  * The empty string.
@@ -166,7 +167,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 export function endsWith(haystack: string, needle: string): boolean {
 	let diff = haystack.length - needle.length;
 	if (diff > 0) {
-		return haystack.lastIndexOf(needle) === diff;
+		return haystack.indexOf(needle, diff) === diff;
 	} else if (diff === 0) {
 		return haystack === needle;
 	} else {
@@ -174,14 +175,21 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-export function createRegExp(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, global:boolean): RegExp {
+export interface RegExpOptions {
+	matchCase?: boolean;
+	wholeWord?: boolean;
+	multiline?: boolean;
+	global?: boolean;
+}
+
+export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
 	if (searchString === '') {
 		throw new Error('Cannot create regex from empty string');
 	}
 	if (!isRegex) {
 		searchString = searchString.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
 	}
-	if (wholeWord) {
+	if (options.wholeWord) {
 		if (!/\B/.test(searchString.charAt(0))) {
 			searchString = '\\b' + searchString;
 		}
@@ -190,11 +198,14 @@ export function createRegExp(searchString: string, isRegex: boolean, matchCase: 
 		}
 	}
 	let modifiers = '';
-	if (global) {
+	if (options.global) {
 		modifiers += 'g';
 	}
-	if (!matchCase) {
+	if (!options.matchCase) {
 		modifiers += 'i';
+	}
+	if (options.multiline) {
+		modifiers += 'm';
 	}
 
 	return new RegExp(searchString, modifiers);
@@ -221,7 +232,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = new LinkedMap<string>(10000); // bounded to 10000 elements
+const normalizedCache = new BoundedLinkedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {
 		return str;
@@ -251,7 +262,8 @@ export function normalizeNFC(str: string): string {
  */
 export function firstNonWhitespaceIndex(str: string): number {
 	for (let i = 0, len = str.length; i < len; i++) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
 	}
@@ -264,7 +276,8 @@ export function firstNonWhitespaceIndex(str: string): number {
  */
 export function getLeadingWhitespace(str: string): string {
 	for (let i = 0, len = str.length; i < len; i++) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return str.substring(0, i);
 		}
 	}
@@ -277,19 +290,26 @@ export function getLeadingWhitespace(str: string): string {
  */
 export function lastNonWhitespaceIndex(str: string, startIndex: number = str.length - 1): number {
 	for (let i = startIndex; i >= 0; i--) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+		let chCode = str.charCodeAt(i);
+		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
 	}
 	return -1;
 }
 
-export function localeCompare(strA: string, strB: string): number {
-	return strA.localeCompare(strB);
+export function compare(a: string, b: string): number {
+	if (a < b) {
+		return -1;
+	} else if(a > b) {
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 function isAsciiChar(code: number): boolean {
-	return (code >= 97 && code <= 122) || (code >= 65 && code <= 90);
+	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
@@ -530,12 +550,10 @@ export function removeAnsiEscapeCodes(str: string): string {
 
 // -- UTF-8 BOM
 
-const __utf8_bom = 65279;
-
-export const UTF8_BOM_CHARACTER = String.fromCharCode(__utf8_bom);
+export const UTF8_BOM_CHARACTER = String.fromCharCode(CharCode.UTF8_BOM);
 
 export function startsWithUTF8BOM(str: string): boolean {
-	return (str && str.length > 0 && str.charCodeAt(0) === __utf8_bom);
+	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
 /**

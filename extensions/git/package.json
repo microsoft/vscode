@@ -9,13 +9,13 @@
                 "id": "git-commit",
                 "aliases": ["Git Commit Message", "git-commit"],
                 "filenames": ["COMMIT_EDITMSG", "MERGE_MSG"],
-                "configuration": "./git-commit.configuration.json"
+                "configuration": "./git-commit.language-configuration.json"
             },
             {
                 "id": "git-rebase",
                 "aliases": ["Git Rebase Message", "git-rebase"],
                 "filenames": ["git-rebase-todo"],
-                "configuration": "./git-rebase.configuration.json"
+                "configuration": "./git-rebase.language-configuration.json"
             }
         ],
         "grammars": [

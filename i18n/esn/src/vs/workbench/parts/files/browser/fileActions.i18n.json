@@ -20,6 +20,13 @@
 	"deleteButtonLabel": "&&Eliminar",
 	"deleteButtonLabelRecycleBin": "&&Mover a la papelera de reciclaje",
 	"deleteButtonLabelTrash": "&&Mover a la papelera",
+	"dirtyMessageFile": "Va a cambiar el nombre de un archivo con cambios sin guardar. ¿Desea continuar?",
+	"dirtyMessageFileDelete": "Va a eliminar un archivo con cambios sin guardar. ¿Desea continuar?",
+	"dirtyMessageFolder": "Va a cambiar el nombre de una carpeta con cambios sin guardar en {0} archivos. ¿Desea continuar?",
+	"dirtyMessageFolderDelete": "Va a eliminar una carpeta con cambios sin guardar en {0} archivos. ¿Desea continuar?",
+	"dirtyMessageFolderOne": "Va a cambiar el nombre de una carpeta con cambios sin guardar en 1 archivo. ¿Desea continuar?",
+	"dirtyMessageFolderOneDelete": "Va a eliminar una carpeta con cambios sin guardar en 1 archivo. ¿Desea continuar?",
+	"dirtyWarning": "Los cambios se perderán si no se guardan.",
 	"duplicateFile": "Duplicado",
 	"emptyFileNameError": "Debe especificarse un nombre de archivo o carpeta.",
 	"fileNameExistsError": "Ya existe el archivo o carpeta **{0}** en esta ubicación. Elija un nombre diferente.",
@@ -42,6 +49,7 @@
 	"refresh": "Actualizar",
 	"refreshExplorer": "Actualizar Explorador",
 	"rename": "Cambiar nombre",
+	"renameLabel": "&&Cambiar nombre",
 	"replaceButtonLabel": "&&Reemplazar",
 	"retry": "Reintentar",
 	"revert": "Revertir archivo",
@@ -53,6 +61,5 @@
 	"showInExplorer": "Mostrar el archivo activo en el explorador",
 	"unableToFileToCompare": "El archivo seleccionado no se puede comparar con '{0}'.",
 	"undoBin": "Puede restaurar desde la papelera de reciclaje.",
-	"undoTrash": "Puede restaurar desde la papelera.",
-	"warningFileDirty": "El archivo '{0}' se está guardando. Vuelva a intentarlo más tarde."
+	"undoTrash": "Puede restaurar desde la papelera."
 }

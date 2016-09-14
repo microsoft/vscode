@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import uri from 'vs/base/common/uri';
+import URI from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
@@ -20,25 +20,29 @@ export interface ILabelProvider {
 
 export interface IWorkspaceProvider {
 	getWorkspace(): {
-		resource: uri;
+		resource: URI;
 	};
 }
 
 export class PathLabelProvider implements ILabelProvider {
 	private root: string;
 
-	constructor(arg1?: uri|string|IWorkspaceProvider) {
+	constructor(arg1?: URI | string | IWorkspaceProvider) {
 		this.root = arg1 && getPath(arg1);
 	}
 
-	public getLabel(arg1: uri|string|IWorkspaceProvider): string {
+	public getLabel(arg1: URI | string | IWorkspaceProvider): string {
 		return getPathLabel(getPath(arg1), this.root);
 	}
 }
 
-export function getPathLabel(arg1: uri|string, arg2?: uri|string|IWorkspaceProvider): string {
-	let basepath = arg2 && getPath(arg2);
-	let absolutePath = getPath(arg1);
+export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider): string {
+	const absolutePath = getPath(resource);
+	if (!absolutePath) {
+		return null;
+	}
+
+	const basepath = basePathProvider && getPath(basePathProvider);
 
 	if (basepath && paths.isEqualOrParent(absolutePath, basepath)) {
 		if (basepath === absolutePath) {
@@ -48,14 +52,14 @@ export function getPathLabel(arg1: uri|string, arg2?: uri|string|IWorkspaceProvi
 		return paths.normalize(strings.ltrim(absolutePath.substr(basepath.length), paths.nativeSep), true);
 	}
 
-	if (platform.isWindows && absolutePath[1] === ':') {
+	if (platform.isWindows && absolutePath && absolutePath[1] === ':') {
 		return paths.normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true);
 	}
 
 	return paths.normalize(absolutePath, true);
 }
 
-function getPath(arg1: uri|string|IWorkspaceProvider): string {
+function getPath(arg1: URI | string | IWorkspaceProvider): string {
 	if (!arg1) {
 		return null;
 	}
@@ -65,9 +69,9 @@ function getPath(arg1: uri|string|IWorkspaceProvider): string {
 	}
 
 	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
-		let ws = (<IWorkspaceProvider>arg1).getWorkspace();
+		const ws = (<IWorkspaceProvider>arg1).getWorkspace();
 		return ws ? ws.resource.fsPath : void 0;
 	}
 
-	return (<uri>arg1).fsPath;
+	return (<URI>arg1).fsPath;
 }

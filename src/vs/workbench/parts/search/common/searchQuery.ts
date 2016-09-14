@@ -59,6 +59,8 @@ export class QueryBuilder {
 			excludePattern: options.excludePattern,
 			includePattern: options.includePattern,
 			maxResults: options.maxResults,
+			sortByScore: options.sortByScore,
+			cacheKey: options.cacheKey,
 			fileEncoding: options.fileEncoding,
 			contentPattern: contentPattern
 		};

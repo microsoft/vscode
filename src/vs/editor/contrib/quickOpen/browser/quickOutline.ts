@@ -8,16 +8,17 @@
 
 import 'vs/css!./quickOutline';
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
 import {matchesFuzzy} from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {ICommonCodeEditor, IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IRange, ModeContextKeys, EditorContextKeys} from 'vs/editor/common/editorCommon';
 import {SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry} from 'vs/editor/common/modes';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
 import {getDocumentSymbols, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 let SCOPE_PREFIX = ':';
 
@@ -106,66 +107,67 @@ class SymbolEntry extends QuickOpenEntryGroup {
 	}
 }
 
+@editorAction
 export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
-	public static ID = 'editor.action.quickOutline';
-
-	private cachedResult: SymbolInformation[];
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor, nls.localize('QuickOutlineAction.label', "Go to Symbol..."));
+	constructor() {
+		super(nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to"), {
+			id: 'editor.action.quickOutline',
+			label: nls.localize('QuickOutlineAction.label', "Go to Symbol..."),
+			alias: 'Go to Symbol...',
+			precondition: ModeContextKeys.hasDocumentSymbolProvider,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 3
+			}
+		});
 	}
-	public isSupported(): boolean {
-		return DocumentSymbolProviderRegistry.has(this.editor.getModel()) && super.isSupported();
-	}
 
-	public run(): TPromise<boolean> {
-		let model = this.editor.getModel();
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
+
+		let model = editor.getModel();
 
 		if (!DocumentSymbolProviderRegistry.has(model)) {
 			return null;
 		}
 
 		// Resolve outline
-		let promise = getDocumentSymbols(model);
-		return promise.then((result: IOutline) => {
-			if (result.entries.length > 0) {
-
-				// Cache result
-				this.cachedResult = result.entries;
-
-				return super.run();
+		return getDocumentSymbols(model).then((result: IOutline) => {
+			if (result.entries.length === 0) {
+				return;
 			}
 
-			return TPromise.as(true);
-		}, (err) => {
-			onUnexpectedError(err);
-			return false;
+			this._run(editor, result.entries);
 		});
 	}
 
-	_getModel(value: string): QuickOpenModel {
-		return new QuickOpenModel(this.toQuickOpenEntries(this.cachedResult, value));
+	private _run(editor:ICommonCodeEditor, result:SymbolInformation[]): void {
+		this._show(this.getController(editor), {
+			getModel: (value:string):QuickOpenModel => {
+				return new QuickOpenModel(this.toQuickOpenEntries(editor, result, value));
+			},
+
+			getAutoFocus: (searchValue:string):IAutoFocus => {
+				// Remove any type pattern (:) from search value as needed
+				if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
+					searchValue = searchValue.substr(SCOPE_PREFIX.length);
+				}
+
+				return {
+					autoFocusPrefixMatch: searchValue,
+					autoFocusFirstEntry: !!searchValue
+				};
+			}
+		});
 	}
 
-	_getAutoFocus(searchValue: string): IAutoFocus {
+	private toQuickOpenEntries(editor:ICommonCodeEditor, flattened: SymbolInformation[], searchValue: string): SymbolEntry[] {
+		const controller = this.getController(editor);
 
-		// Remove any type pattern (:) from search value as needed
-		if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			searchValue = searchValue.substr(SCOPE_PREFIX.length);
-		}
-
-		return {
-			autoFocusPrefixMatch: searchValue,
-			autoFocusFirstEntry: !!searchValue
-		};
-	}
-
-	_getInputAriaLabel(): string {
-		return nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to");
-	}
-
-	private toQuickOpenEntries(flattened: SymbolInformation[], searchValue: string): SymbolEntry[] {
 		let results: SymbolEntry[] = [];
 
 		// Convert to Entries
@@ -189,7 +191,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, SymbolKind.from(element.kind), description, element.location.range, highlights, this.editor, this));
+				results.push(new SymbolEntry(label, SymbolKind.from(element.kind), description, element.location.range, highlights, editor, controller));
 			}
 		}
 
@@ -268,7 +270,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		let elementBName = elementB.getLabel().toLowerCase();
 
 		// Compare by name
-		let r = strings.localeCompare(elementAName, elementBName);
+		let r = elementAName.localeCompare(elementBName);
 		if (r !== 0) {
 			return r;
 		}
@@ -287,7 +289,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		// Sort by type first if scoped search
 		let elementAType = elementA.getType();
 		let elementBType = elementB.getType();
-		let r = strings.localeCompare(elementAType, elementBType);
+		let r = elementAType.localeCompare(elementBType);
 		if (r !== 0) {
 			return r;
 		}
@@ -298,7 +300,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			let elementBName = elementB.getLabel().toLowerCase();
 
 			// Compare by name
-			let r = strings.localeCompare(elementAName, elementBName);
+			let r = elementAName.localeCompare(elementBName);
 			if (r !== 0) {
 				return r;
 			}
@@ -308,19 +310,5 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		let elementARange = elementA.getRange();
 		let elementBRange = elementB.getRange();
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
-	}
-
-	_onClose(canceled: boolean): void {
-		super._onClose(canceled);
-
-		// Clear Cache
-		this.cachedResult = null;
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-		// Clear Cache
-		this.cachedResult = null;
 	}
 }

@@ -8,17 +8,16 @@
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandHandler} from 'vs/platform/commands/common/commands';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
-import {IEditorContextViewService, IEditorOverrideServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
-import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {IEditorContextViewService} from 'vs/editor/browser/standalone/standaloneServices';
+import {CodeEditor} from 'vs/editor/browser/codeEditor';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 
@@ -46,17 +45,17 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
 	addCommand(keybinding:number, handler:ICommandHandler, context:string): string;
-	createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor:IActionDescriptor): void;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding:number, handler:ICommandHandler, context:string): string;
-	createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
+	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor:IActionDescriptor): void;
 }
 
-export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
+export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _contextViewService:IEditorContextViewService;
@@ -66,27 +65,23 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 	constructor(
 		domElement:HTMLElement,
 		options:IEditorConstructionOptions,
-		toDispose: IDisposable[],
+		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		if (keybindingService instanceof AbstractKeybindingService) {
-			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
-		}
-
 		options = options || {};
-		super(domElement, options, instantiationService, codeEditorService, commandService, keybindingService.createScoped(domElement), telemetryService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
-			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
+			this._standaloneKeybindingService = keybindingService;
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._toDispose2 = toDispose;
+		this._toDispose2 = [toDispose];
 
 		let model: IModel = null;
 		if (typeof options.model === 'undefined') {
@@ -125,12 +120,12 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 		return this._standaloneKeybindingService.addDynamicKeybinding(keybinding, handler, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
+	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot create context key because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
-		return this._standaloneKeybindingService.createKey(key, defaultValue);
+		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
 	public addAction(descriptor:IActionDescriptor): void {
@@ -159,7 +154,7 @@ export class StandaloneEditor extends CodeEditorWidget implements IStandaloneCod
 	_postDetachModelCleanup(detachedModel:IModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
-			detachedModel.destroy();
+			detachedModel.dispose();
 			this._ownsModel = false;
 		}
 	}
@@ -174,25 +169,22 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	constructor(
 		domElement:HTMLElement,
 		options:IDiffEditorConstructionOptions,
-		toDispose: IDisposable[],
+		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		if (keybindingService instanceof AbstractKeybindingService) {
-			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
-		}
-
-		super(domElement, options, editorWorkerService, keybindingService, instantiationService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
-			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
+			this._standaloneKeybindingService = keybindingService;
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 
-		this._toDispose2 = toDispose;
+		this._toDispose2 = [toDispose];
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}
@@ -214,12 +206,12 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this._standaloneKeybindingService.addDynamicKeybinding(keybinding, handler, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
+	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot create context key because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
-		return this._standaloneKeybindingService.createKey(key, defaultValue);
+		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
 	public addAction(descriptor:IActionDescriptor): void {
@@ -238,34 +230,3 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		}
 	}
 }
-
-export var startup = (function() {
-
-	var modesRegistryInitialized = false;
-	var setupServicesCalled = false;
-
-	return {
-		initStaticServicesIfNecessary: function() {
-			if (modesRegistryInitialized) {
-				return;
-			}
-			modesRegistryInitialized = true;
-			getOrCreateStaticServices();
-		},
-
-		setupServices: function(services: IEditorOverrideServices): IEditorOverrideServices {
-			if (setupServicesCalled) {
-				console.error('Call to monaco.editor.setupServices is ignored because it was called before');
-				return;
-			}
-			setupServicesCalled = true;
-			if (modesRegistryInitialized) {
-				console.error('Call to monaco.editor.setupServices is ignored because other API was called before');
-				return;
-			}
-
-			return ensureStaticPlatformServices(services);
-		}
-	};
-
-})();

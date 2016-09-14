@@ -11,5 +11,6 @@
 	"indentationToSpaces": "將縮排轉換成空格",
 	"indentationToTabs": "將縮排轉換成定位點",
 	"selectTabWidth": "選取目前檔案的定位點大小",
+	"toggleRenderControlCharacters": "切換控制字元",
 	"toggleRenderWhitespace": "切換轉譯空白字元"
 }

@@ -9,7 +9,7 @@ import 'vs/css!./media/statusbarpart';
 import dom = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
 import nls = require('vs/nls');
-import {toErrorMessage} from 'vs/base/common/errors';
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';

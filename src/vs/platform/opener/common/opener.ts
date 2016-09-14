@@ -21,7 +21,7 @@ export interface IOpenerService {
 	 * @param resource A resource
 	 * @return A promise that resolves when the opening is done.
 	 */
-	open(resource: URI): TPromise<any>;
+	open(resource: URI, options?: { openToSide?: boolean }): TPromise<any>;
 }
 
 export const NullOpenerService: IOpenerService = Object.freeze({

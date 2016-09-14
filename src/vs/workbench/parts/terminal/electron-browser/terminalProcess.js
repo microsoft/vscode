@@ -15,7 +15,9 @@ var name;
 if (os.platform() === 'win32') {
 	name = path.basename(process.env.PTYSHELL);
 } else {
-	name = fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm';
+	// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
+	// color prompt as defined in the default ~/.bashrc file.
+	name = 'xterm-256color';
 }
 var shell = process.env.PTYSHELL;
 var args = getArgs();
@@ -63,7 +65,7 @@ function getArgs() {
 
 function cleanEnv() {
 	var keys = [
-		'ATOM_SHELL_INTERNAL_RUN_AS_NODE',
+		'ELECTRON_RUN_AS_NODE',
 		'PTYCWD',
 		'PTYPID',
 		'PTYSHELL'

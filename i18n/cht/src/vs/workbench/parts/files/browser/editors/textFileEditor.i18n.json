@@ -7,7 +7,5 @@
 	"createFile": "建立檔案",
 	"fileEditorAriaLabel": "文字檔編輯器。",
 	"fileEditorWithInputAriaLabel": "{0}。文字檔編輯器。",
-	"fileTooLarge": "很抱歉，但是檔案太大，無法在編輯器中開啟。",
-	"folderOutofWorkspace": "資料夾 '{0}' 在目前開啟的根資料夾外，而且無法在此執行個體中開啟。",
 	"textFileEditor": "文字檔編輯器"
 }

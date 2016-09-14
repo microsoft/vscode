@@ -12,22 +12,29 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/code/electron-main/log';
 
+export interface IStartArguments {
+	args: ICommandLineArguments;
+	userEnv: IProcessEnvironment;
+}
+
 export interface ILaunchService {
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void>;
 }
 
 export interface ILaunchChannel extends IChannel {
-	call(command: 'start', args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void>;
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: 'start', arg: IStartArguments): TPromise<void>;
+	call(command: string, arg: any): TPromise<any>;
 }
 
 export class LaunchChannel implements ILaunchChannel {
 
 	constructor(private service: ILaunchService) { }
 
-	call(command: string, ...args: any[]): TPromise<any> {
+	call(command: string, arg: any): TPromise<any> {
+		const { args, userEnv } = arg as IStartArguments;
+
 		switch (command) {
-			case 'start': return this.service.start(args[0], args[1]);
+			case 'start': return this.service.start(args, userEnv);
 		}
 	}
 }
@@ -37,7 +44,7 @@ export class LaunchChannelClient implements ILaunchService {
 	constructor(private channel: ILaunchChannel) { }
 
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
-		return this.channel.call('start', args, userEnv);
+		return this.channel.call('start', { args, userEnv });
 	}
 }
 
@@ -49,29 +56,29 @@ export class LaunchService implements ILaunchService {
 	) {}
 
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
-		this.logService.log('Received data from other instance', args);
+		this.logService.log('Received data from other instance', args, userEnv);
 
 		// Otherwise handle in windows service
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
-		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			usedWindows = this.windowsService.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
-		} else if (args.pathArguments.length === 0) {
+			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv });
+		} else if (args.paths.length === 0 && args['new-window']) {
+			usedWindows = this.windowsService.open({ cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
+		} else if (args.paths.length === 0) {
 			usedWindows = [this.windowsService.focusLastActive(args)];
 		} else {
 			usedWindows = this.windowsService.open({
 				cli: args,
-				userEnv: userEnv,
-				forceNewWindow: args.waitForWindowClose || args.openNewWindow,
-				preferNewWindow: !args.openInSameWindow,
-				diffMode: args.diffMode
+				userEnv,
+				forceNewWindow: args.wait || args['new-window'],
+				preferNewWindow: !args['reuse-window'],
+				diffMode: args.diff
 			});
 		}
 
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
 		// is being used and only then resolve the startup promise which will kill this second instance
-		if (args.waitForWindowClose && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
+		if (args.wait && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
 			const windowId = usedWindows[0].id;
 
 			return new TPromise<void>((c, e) => {

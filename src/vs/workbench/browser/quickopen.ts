@@ -60,11 +60,25 @@ export class QuickOpenHandler {
 	}
 
 	/**
+	 * Hints to the outside that this quick open handler typically returns results fast.
+	 */
+	public hasShortResponseTime(): boolean {
+		return false;
+	}
+
+	/**
 	 * Indicates if the handler wishes the quick open widget to automatically select the first result entry or an entry
 	 * based on a specific prefix match.
 	 */
 	public getAutoFocus(searchValue: string, quickNavigateConfiguration?: IQuickNavigateConfiguration): IAutoFocus {
 		return {};
+	}
+
+	/**
+	 * Indicates to the handler that the quick open widget has been opened.
+	 */
+	public onOpen(): void {
+		return;
 	}
 
 	/**
@@ -158,18 +172,17 @@ export interface IQuickOpenRegistry {
 	getQuickOpenHandler(prefix: string): QuickOpenHandlerDescriptor;
 
 	/**
-	 * Returns the default quick open handlers.
+	 * Returns the default quick open handler.
 	 */
-	getDefaultQuickOpenHandlers(): QuickOpenHandlerDescriptor[];
+	getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor;
 }
 
 class QuickOpenRegistry implements IQuickOpenRegistry {
 	private handlers: QuickOpenHandlerDescriptor[];
-	private defaultHandlers: QuickOpenHandlerDescriptor[];
+	private defaultHandler: QuickOpenHandlerDescriptor;
 
 	constructor() {
 		this.handlers = [];
-		this.defaultHandlers = [];
 	}
 
 	public registerQuickOpenHandler(descriptor: QuickOpenHandlerDescriptor): void {
@@ -181,7 +194,7 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 	}
 
 	public registerDefaultQuickOpenHandler(descriptor: QuickOpenHandlerDescriptor): void {
-		this.defaultHandlers.push(descriptor);
+		this.defaultHandler = descriptor;
 	}
 
 	public getQuickOpenHandlers(): QuickOpenHandlerDescriptor[] {
@@ -192,8 +205,8 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 		return text ? arrays.first(this.handlers, h => strings.startsWith(text, h.prefix), null) : null;
 	}
 
-	public getDefaultQuickOpenHandlers(): QuickOpenHandlerDescriptor[] {
-		return this.defaultHandlers;
+	public getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {
+		return this.defaultHandler;
 	}
 }
 

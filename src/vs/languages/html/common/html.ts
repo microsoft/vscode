@@ -20,6 +20,9 @@ import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, IT
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/compatWorkerService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IHTMLConfiguration} from 'vs/languages/html/common/html.contribution';
+import {CharCode} from 'vs/base/common/charCode';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get it from us.
@@ -113,7 +116,7 @@ export class State extends AbstractState {
 			break;
 
 			case States.Content:
-				if (stream.advanceIfCharCode2('<'.charCodeAt(0))) {
+				if (stream.advanceIfCharCode2(CharCode.LessThan)) {
 					if (!stream.eos() && stream.peek() === '!') {
 						if (stream.advanceIfString2('!--')) {
 							this.kind = States.WithinComment;
@@ -124,7 +127,7 @@ export class State extends AbstractState {
 							return { type: htmlTokenTypes.DELIM_DOCTYPE, dontMergeWithPrev: true };
 						}
 					}
-					if (stream.advanceIfCharCode2('/'.charCodeAt(0))) {
+					if (stream.advanceIfCharCode2(CharCode.Slash)) {
 						this.kind = States.OpeningEndTag;
 						return { type: htmlTokenTypes.DELIM_END, dontMergeWithPrev: true };
 					}
@@ -181,7 +184,7 @@ export class State extends AbstractState {
 						this.kind = States.Content;
 						return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
 					}
-					if (stream.advanceIfCharCode2('>'.charCodeAt(0))) {
+					if (stream.advanceIfCharCode2(CharCode.GreaterThan)) {
 						if (tagsEmbeddingContent.indexOf(this.lastTagName) !== -1) {
 							this.kind = States.WithinEmbeddedContent;
 							return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
@@ -200,7 +203,7 @@ export class State extends AbstractState {
 					return { type: '' };
 				}
 
-				if (stream.advanceIfCharCode2('='.charCodeAt(0))) {
+				if (stream.advanceIfCharCode2(CharCode.Equals)) {
 					this.kind = States.AttributeValue;
 					return { type: htmlTokenTypes.DELIM_ASSIGN };
 				} else {
@@ -328,7 +331,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 	};
 
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public configSupport: modes.IConfigurationSupport;
 
 	private modeService:IModeService;
 	private _modeWorkerManager: ModeWorkerManager<W>;
@@ -338,7 +340,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@ICompatWorkerService compatWorkerService: ICompatWorkerService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
@@ -346,7 +349,15 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		this.modeService = modeService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true);
-		this.configSupport = this;
+
+		if (this.compatWorkerService && this.compatWorkerService.isInMainThread) {
+			let updateConfiguration = () => {
+				let opts = configurationService.getConfiguration<IHTMLConfiguration>('html');
+				this._configureWorker(opts);
+			};
+			configurationService.onDidUpdateConfiguration((e) => updateConfiguration());
+			updateConfiguration();
+		}
 
 		this._registerSupports();
 	}
@@ -358,8 +369,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
-			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		}, true);
@@ -449,17 +459,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		return null;
 	}
 
-	public configure(options:any): winjs.TPromise<void> {
-		if (!this.compatWorkerService) {
-			return;
-		}
-		if (this.compatWorkerService.isInMainThread) {
-			return this._configureWorker(options);
-		} else {
-			return this._worker((w) => w._doConfigure(options));
-		}
-	}
-
 	static $_configureWorker = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._configureWorker);
 	private _configureWorker(options:any): winjs.TPromise<void> {
 		return this._worker((w) => w._doConfigure(options));
@@ -487,7 +486,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 	}
 
 	static $_provideCompletionItems = CompatWorkerAttr(HTMLMode, HTMLMode.prototype._provideCompletionItems);
-	protected _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
+	protected _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 

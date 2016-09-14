@@ -30,7 +30,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
@@ -68,6 +68,8 @@ export interface ISideBySideEditorControl {
 	move(from: Position, to: Position): void;
 
 	isDragging(): boolean;
+
+	updateTitle(identifier: IEditorIdentifier): void;
 
 	getInstantiationService(position: Position): IInstantiationService;
 	getProgressBar(position: Position): ProgressBar;
@@ -134,7 +136,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -218,8 +220,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const titleAreaControl = this.getTitleAreaControl(position);
 			const context = this.stacks.groupAt(position);
 			titleAreaControl.setContext(context);
-			if (!context) {
-				titleAreaControl.refresh(); // clear out the control if the context is no longer present
+			if (!context && titleAreaControl.hasContext()) {
+				titleAreaControl.refresh(); // clear out the control if the context is no longer present and there was a context
 			}
 		});
 
@@ -772,7 +774,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// InstantiationServices
 			const instantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IKeybindingService, this.keybindingService.createScoped(container.getHTMLElement())]
+				[IContextKeyService, this.contextKeyService.createScoped(container.getHTMLElement())]
 			));
 			container.setProperty(SideBySideEditorControl.INSTANTIATION_SERVICE_KEY, instantiationService); // associate with container
 
@@ -821,7 +823,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const activeEditor = $this.editorService.getActiveEditor();
 			if (activeEditor instanceof BaseTextEditor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.create({ pinned: true });
-				(<TextEditorOptions>options).viewState(activeEditor.getControl().saveViewState());
+				(<TextEditorOptions>options).fromEditor(activeEditor.getControl());
 			}
 
 			return options;
@@ -1012,7 +1014,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 						overlay.once(DOM.EventType.MOUSE_OVER, () => {
 							setTimeout(() => {
 								cleanUp();
-							}, 100);
+							}, 300);
 						});
 					}
 				});
@@ -1690,6 +1692,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private getFromContainer(position: Position, key: string): any {
 		return this.silos[position].child().getProperty(key);
+	}
+
+	public updateTitle(identifier: IEditorIdentifier): void {
+		this.onStacksChanged({ editor: identifier.editor, group: identifier.group });
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {

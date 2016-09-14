@@ -810,7 +810,7 @@ suite('Builder', () => {
 		b.showDelayed(20);
 		assert(b.hasClass('hidden'));
 
-		TPromise.timeout(30).then(function () {
+		TPromise.timeout(30).then(() => {
 			assert(!b.hasClass('hidden'));
 			done();
 		});
@@ -825,7 +825,7 @@ suite('Builder', () => {
 
 		b.hide(); // Should cancel the visibility promise
 
-		TPromise.timeout(30).then(function () {
+		TPromise.timeout(30).then(() => {
 			assert(b.hasClass('hidden'));
 			done();
 		});

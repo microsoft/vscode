@@ -8,6 +8,7 @@ import {MarkedString, CompletionItemKind, CompletionItem, DocumentSelector} from
 import {IJSONContribution, ISuggestionsCollector} from './jsonContributions';
 import {XHRRequest} from 'request-light';
 import {Location} from 'jsonc-parser';
+import {textToMarkedString} from './markedTextUtil';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -71,6 +72,7 @@ export class BowerJSONContribution implements IJSONContribution {
 									let proposal = new CompletionItem(name);
 									proposal.kind = CompletionItemKind.Property;
 									proposal.insertText = insertText;
+									proposal.filterText = JSON.stringify(name);
 									proposal.documentation = description;
 									collector.add(proposal);
 								}
@@ -100,6 +102,7 @@ export class BowerJSONContribution implements IJSONContribution {
 					let proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = insertText;
+					proposal.filterText = JSON.stringify(name);
 					proposal.documentation = '';
 					collector.add(proposal);
 				});
@@ -115,6 +118,7 @@ export class BowerJSONContribution implements IJSONContribution {
 			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
 			let proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
 			proposal.insertText = '"{{latest}}"';
+			proposal.filterText = '""';
 			proposal.kind = CompletionItemKind.Value;
 			proposal.documentation = 'The latest version of the package';
 			collector.add(proposal);
@@ -170,7 +174,7 @@ export class BowerJSONContribution implements IJSONContribution {
 				htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(documentation => {
 					if (documentation) {
-						htmlContent.push(documentation);
+						htmlContent.push(textToMarkedString(documentation));
 					}
 					return htmlContent;
 				});

@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
@@ -81,7 +81,7 @@ export class LifecycleService implements ILifecycleService {
 					}
 				}, err => {
 					// error, treated like a veto, done
-					this.messageService.show(Severity.Error, errors.toErrorMessage(err));
+					this.messageService.show(Severity.Error, toErrorMessage(err));
 					lazyValue = true;
 				}));
 			}

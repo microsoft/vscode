@@ -8,22 +8,36 @@ import * as Types from 'vs/base/common/types';
 import { SystemVariables } from './systemVariables';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ConfigVariables extends SystemVariables {
-	constructor(private configurationService: IConfigurationService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService, workspaceRoot: URI = null, envVariables: { [key: string]: string } = process.env) {
-		super(editorService, contextService, workspaceRoot, envVariables);
+	constructor(
+		private configurationService: IConfigurationService,
+		editorService: IWorkbenchEditorService,
+		contextService: IWorkspaceContextService,
+		environmentService: IEnvironmentService,
+		workspaceRoot: URI = null,
+		envVariables: { [key: string]: string } = process.env
+	) {
+		super(editorService, contextService, environmentService, workspaceRoot, envVariables);
 	}
 
 	protected resolveString(value: string): string {
+		const originalValue = value;
 		value = super.resolveString(value);
 
 		let regexp = /\$\{config\.(.*?)\}/g;
 		return value.replace(regexp, (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
 			let newValue = new Function('_', 'try {return _.' + name + ';} catch (ex) { return "";}')(config);
-			return Types.isString(newValue) ? newValue : '';
+			if (Types.isString(newValue)) {
+				// Prevent infinite recursion and also support nested references (or tokens)
+				return newValue === originalValue ? '' : this.resolveString(newValue);
+			} else {
+				return this.resolve(newValue) + '';
+			}
 		});
 	}
 }

@@ -6,15 +6,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup, GroupEvent} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/test/utils/servicesTestUtils';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService} from 'vs/test/utils/servicesTestUtils';
+import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -32,7 +32,7 @@ function create(): EditorStacksModel {
 	inst.stub(IConfigurationService, config);
 
 
-	return inst.createInstance(EditorStacksModel);
+	return inst.createInstance(EditorStacksModel, true);
 }
 
 interface ModelEvents {
@@ -48,7 +48,7 @@ interface ModelEvents {
 interface GroupEvents {
 	opened: EditorInput[];
 	activated: EditorInput[];
-	closed: EditorInput[];
+	closed: GroupEvent[];
 	pinned: EditorInput[];
 	unpinned: EditorInput[];
 	moved: EditorInput[];
@@ -87,7 +87,7 @@ function groupListener(group: EditorGroup): GroupEvents {
 	};
 
 	group.onEditorOpened(e => groupEvents.opened.push(e));
-	group.onEditorClosed(e => groupEvents.closed.push(e.editor));
+	group.onEditorClosed(e => groupEvents.closed.push(e));
 	group.onEditorActivated(e => groupEvents.activated.push(e));
 	group.onEditorPinned(e => groupEvents.pinned.push(e));
 	group.onEditorUnpinned(e => groupEvents.unpinned.push(e));
@@ -110,6 +110,10 @@ class TestEditorInput extends EditorInput {
 
 	public setDirty(): void {
 		this._onDidChangeDirty.fire();
+	}
+
+	public setLabel(): void {
+		this._onDidChangeLabel.fire();
 	}
 }
 
@@ -494,7 +498,9 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[0], input1);
+		assert.equal(events.closed[0].editor, input1);
+		assert.equal(events.closed[0].index, 0);
+		assert.equal(events.closed[0].pinned, true);
 
 		// Active && Preview
 		const input2 = input();
@@ -514,13 +520,15 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[1], input2);
+		assert.equal(events.closed[1].editor, input2);
+		assert.equal(events.closed[1].index, 0);
+		assert.equal(events.closed[1].pinned, false);
 
 		group.closeEditor(input2);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[1], input2);
+		assert.equal(events.closed[1].editor, input2);
 
 		// Nonactive && Pinned => gets active because its first editor
 		const input3 = input();
@@ -540,7 +548,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[2], input3);
+		assert.equal(events.closed[2].editor, input3);
 
 		assert.equal(events.opened[2], input3);
 		assert.equal(events.activated[2], input3);
@@ -549,7 +557,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[2], input3);
+		assert.equal(events.closed[2].editor, input3);
 
 		// Nonactive && Preview => gets active because its first editor
 		const input4 = input();
@@ -569,7 +577,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, void 0);
-		assert.equal(events.closed[3], input4);
+		assert.equal(events.closed[3].editor, input4);
 	});
 
 	test('Stack - Multiple Editors - Pinned and Active', function () {
@@ -645,7 +653,7 @@ suite('Editor Stacks Model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
 
 
-		const model = inst.createInstance(EditorStacksModel);
+		const model = inst.createInstance(EditorStacksModel, true);
 
 		const group = model.openGroup('group');
 		const events = groupListener(group);
@@ -725,8 +733,8 @@ suite('Editor Stacks Model', () => {
 		assert.equal(events.opened[0], input1);
 		assert.equal(events.opened[1], input2);
 		assert.equal(events.opened[2], input3);
-		assert.equal(events.closed[0], input1);
-		assert.equal(events.closed[1], input2);
+		assert.equal(events.closed[0].editor, input1);
+		assert.equal(events.closed[1].editor, input2);
 
 		const mru = group.getEditors(true);
 		assert.equal(mru[0], input3);
@@ -809,7 +817,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 2); // 2 previews got merged into one
 		assert.equal(group.getEditors()[0], input2);
 		assert.equal(group.getEditors()[1], input3);
-		assert.equal(events.closed[0], input1);
+		assert.equal(events.closed[0].editor, input1);
 		assert.equal(group.count, 2);
 
 		group.unpin(input3);
@@ -817,7 +825,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 1); // pinning replaced the preview
 		assert.equal(group.getEditors()[0], input3);
-		assert.equal(events.closed[1], input2);
+		assert.equal(events.closed[1].editor, input2);
 		assert.equal(group.count, 1);
 	});
 
@@ -1177,10 +1185,9 @@ suite('Editor Stacks Model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 		let group = model.openGroup('group');
 
 		const input1 = input();
@@ -1196,7 +1203,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, true);
 
 		assert.equal(model.groups.length, 1);
 
@@ -1223,7 +1230,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
 		let group1 = model.openGroup('group1');
 
@@ -1266,7 +1273,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, true);
 
 		group1 = model.groups[0];
 		group2 = model.groups[1];
@@ -1304,7 +1311,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
 		let group = model.openGroup('group1');
 
@@ -1327,7 +1334,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, true);
 
 		group = model.groups[0];
 
@@ -1353,7 +1360,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
 		let group1 = model.openGroup('group1');
 		let group2 = model.openGroup('group1');
@@ -1370,7 +1377,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, true);
 
 		group1 = model.groups[0];
 
@@ -1384,17 +1391,15 @@ suite('Editor Stacks Model', () => {
 		let inst = new TestInstantiationService();
 
 		inst.stub(IStorageService, new TestStorageService());
-		inst.stub(IWorkspaceContextService, new TestContextService(TestWorkspace, TestConfiguration, { filesToCreate: [true] }));
 		const lifecycle = new TestLifecycleService();
 		inst.stub(ILifecycleService, lifecycle);
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, false);
 
 		let group1 = model.openGroup('group1');
 		let group2 = model.openGroup('group1');
@@ -1411,7 +1416,7 @@ suite('Editor Stacks Model', () => {
 		lifecycle.fireShutdown();
 
 		// Create model again - should NOT load from storage
-		model = inst.createInstance(EditorStacksModel);
+		model = inst.createInstance(EditorStacksModel, false);
 
 		assert.equal(model.groups.length, 0);
 	});
@@ -1481,13 +1486,18 @@ suite('Editor Stacks Model', () => {
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(group1.contains(input1Resource));
+		assert.equal(model.count(input1Resource), 1);
+		assert.equal(group1.getEditor(input1Resource), input1);
 
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(!group1.contains(input1Resource));
+		assert.ok(!group1.getEditor(input1Resource));
 		assert.ok(group2.contains(input1Resource));
+		assert.equal(group2.getEditor(input1Resource), input1);
+		assert.equal(model.count(input1Resource), 1);
 
 		const input1ResourceClone = URI.file('/hello/world.txt');
 		const input1Clone = input(void 0, false, input1ResourceClone);
@@ -1499,6 +1509,7 @@ suite('Editor Stacks Model', () => {
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(group1.contains(input1Resource));
+		assert.equal(group1.getEditor(input1Resource), input1Clone);
 		assert.ok(!group2.contains(input1Resource));
 
 		group1.closeEditor(input1Clone);
@@ -1634,7 +1645,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(input1.isDisposed(), false);
 	});
 
-	test('Stack - Multiple Editors - Editor Emits Dirty', function () {
+	test('Stack - Multiple Editors - Editor Emits Dirty and Label Changed', function () {
 		const model = create();
 
 		const group1 = model.openGroup('group1');
@@ -1651,25 +1662,38 @@ suite('Editor Stacks Model', () => {
 			dirtyCounter++;
 		});
 
+		let labelChangeCounter = 0;
+		model.onEditorLabelChange(() => {
+			labelChangeCounter++;
+		});
+
 		(<TestEditorInput>input1).setDirty();
+		(<TestEditorInput>input1).setLabel();
 
 		assert.equal(dirtyCounter, 1);
+		assert.equal(labelChangeCounter, 1);
 
 		(<TestEditorInput>input2).setDirty();
+		(<TestEditorInput>input2).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 
 		group2.closeAllEditors();
 
 		(<TestEditorInput>input2).setDirty();
+		(<TestEditorInput>input2).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 
 		model.closeGroups();
 
 		(<TestEditorInput>input1).setDirty();
+		(<TestEditorInput>input1).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 	});
 
 	test('Groups - Model change events (structural vs state)', function () {

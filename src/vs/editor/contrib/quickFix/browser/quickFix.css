@@ -5,24 +5,24 @@
 
 /* light bulp */
 
-.monaco-editor .lightbulp-glyph {
+.monaco-editor .lightbulb-glyph {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.monaco-editor .lightbulp-glyph:hover {
+.monaco-editor .lightbulb-glyph:hover {
 	cursor: pointer;
 }
 
-.monaco-editor.vs .lightbulp-glyph {
-	background: url('lightbulp.svg') center center no-repeat;
+.monaco-editor.vs .lightbulb-glyph {
+	background: url('lightbulb.svg') center center no-repeat;
 	height: 16px;
 	width: 16px;
 }
 
-.monaco-editor.vs-dark .lightbulp-glyph, .monaco-editor.hc-black .lightbulp-glyph {
-	background: url('lightbulp-dark.svg') center center no-repeat;
+.monaco-editor.vs-dark .lightbulb-glyph, .monaco-editor.hc-black .lightbulb-glyph {
+	background: url('lightbulb-dark.svg') center center no-repeat;
 	height: 16px;
 	width: 16px;
 }
@@ -32,20 +32,11 @@
 
 .monaco-editor .quickfix-widget {
 	background-color: #F3F3F3;
-	font-size: 12px;
 	border: 1px solid rgb(200, 200, 200);
 	z-index: 40;
 }
-.monaco-editor.mac .quickfix-widget {
-	font-size: 11px;
-}
-
-.monaco-editor.mac .quickfix-widget .text {
-	line-height: 1.3em;
-}
 
 .monaco-editor .quickfix-widget .monaco-tree .monaco-tree-row > .content {
-	-mox-box-sizing: border-box;
 	box-sizing: border-box;
 	line-height: 1.2em;
 	padding: 2px 10px 2px 2px;

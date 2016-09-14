@@ -8,7 +8,6 @@
 	"invalidName": "Die Erweiterung ist ungültig: Manifestnamenkonflikt.",
 	"invalidPublisher": "Die Erweiterung ist ungültig: Manifestherausgeberkonflikt.",
 	"invalidVersion": "Die Erweiterung ist ungültig: Manifestversionskonflikt.",
-	"missingGalleryInformation": "Kataloginformationen fehlen.",
 	"noCompatible": "Eine kompatible Version von {0} mit dieser Version des Codes wurde nicht gefunden.",
 	"notExists": "Die Erweiterung wurde nicht gefunden.",
 	"restartCode": "Bitte starten Sie Code vor der Neuinstallation von {0} neu."

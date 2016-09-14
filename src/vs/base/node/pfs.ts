@@ -135,6 +135,12 @@ export function writeFile(path: string, data: any, encoding: string = 'utf8'): P
 	return nfcall(fs.writeFile, path, data, encoding);
 }
 
+export function writeFileAndFlush(path: string, data: string, encoding?: string): Promise;
+export function writeFileAndFlush(path: string, data: NodeBuffer, encoding?: string): Promise;
+export function writeFileAndFlush(path: string, data: any, encoding: string = 'utf8'): Promise {
+	return nfcall(extfs.writeFileAndFlush, path, data, encoding);
+}
+
 /**
 * Read a dir and return only subfolders
 */
@@ -193,6 +199,13 @@ export function fileExistsWithResult<T>(path: string, successResult: T): TPromis
 	});
 }
 
+export function existsWithResult<T>(path: string, successResult: T): TPromise<T> {
+	return exists(path).then((exists) => {
+		return exists ? successResult : null;
+	}, (err) => {
+		return TPromise.wrapError(err);
+	});
+}
 
 function removeNull<T>(arr: T[]): T[] {
 	return arr.filter(item => (item !== null));

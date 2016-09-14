@@ -5,6 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {asWinJsPromise} from 'vs/base/common/async';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IQuickOpenService, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {InputBoxOptions} from 'vscode';
@@ -46,7 +47,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 			};
 		});
 
-		return this._quickOpenService.pick(this._contents, options).then(item => {
+		return asWinJsPromise(token => this._quickOpenService.pick(this._contents, options, token)).then(item => {
 			if (item) {
 				return item.handle;
 			}
@@ -73,7 +74,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(options: InputBoxOptions, validateInput: boolean): Thenable<string> {
+	$input(options: InputBoxOptions, validateInput: boolean): TPromise<string> {
 
 		const inputOptions: IInputOptions = Object.create(null);
 
@@ -82,6 +83,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 			inputOptions.placeHolder = options.placeHolder;
 			inputOptions.prompt = options.prompt;
 			inputOptions.value = options.value;
+			inputOptions.ignoreFocusLost = options.ignoreFocusOut;
 		}
 
 		if (validateInput) {
@@ -90,6 +92,6 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 			};
 		}
 
-		return this._quickOpenService.input(inputOptions);
+		return asWinJsPromise(token => this._quickOpenService.input(inputOptions, token));
 	}
 }

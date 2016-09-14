@@ -11,7 +11,7 @@ import {IAction} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {Scope} from 'vs/workbench/common/memento';
-import {VIEWLET_ID, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
+import {VIEWLET_ID, ExplorerViewletVisible, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IViewletView, Viewlet} from 'vs/workbench/browser/viewlet';
 import {IActionRunner} from 'vs/base/common/actions';
 import {SplitView, Orientation} from 'vs/base/browser/ui/splitview/splitview';
@@ -30,7 +30,7 @@ import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybinding';
+import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;
@@ -48,7 +48,7 @@ export class ExplorerViewlet extends Viewlet {
 	private viewletState: FileViewletState;
 	private dimension: Dimension;
 
-	private viewletVisibleContextKey: IKeybindingContextKey<boolean>;
+	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -58,14 +58,14 @@ export class ExplorerViewlet extends Viewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(VIEWLET_ID, telemetryService);
 
 		this.views = [];
 
 		this.viewletState = new FileViewletState();
-		this.viewletVisibleContextKey = keybindingService.createKey<boolean>('explorerViewletVisible', true);
+		this.viewletVisibleContextKey = ExplorerViewletVisible.bindTo(contextKeyService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
@@ -75,7 +75,10 @@ export class ExplorerViewlet extends Viewlet {
 		super.create(parent);
 
 		this.viewletContainer = parent.div().addClass('explorer-viewlet');
-		return this.configurationService.loadConfiguration().then((config: IFilesConfiguration) => this.onConfigurationUpdated(config));
+
+		const settings = this.configurationService.getConfiguration<IFilesConfiguration>();
+
+		return this.onConfigurationUpdated(settings);
 	}
 
 	public getActions(): IAction[] {

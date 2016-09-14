@@ -14,14 +14,13 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {Registry} from 'vs/platform/platform';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {VIEWLET_ID, IExtensionsViewlet} from 'vs/workbench/parts/extensions/electron-browser/extensions';
 import {IExtensionGalleryService} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {Delayer} from 'vs/base/common/async';
 
-class SelectThemeAction extends Action {
+class SelectColorThemeAction extends Action {
 
 	static ID = 'workbench.action.selectTheme';
 	static LABEL = localize('selectTheme.label', "Color Theme");
@@ -29,7 +28,6 @@ class SelectThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IMessageService private messageService: IMessageService,
 		@IThemeService private themeService: IThemeService,
@@ -40,16 +38,21 @@ class SelectThemeAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		return this.themeService.getThemes().then(themes => {
-			const currentThemeId = this.themeService.getTheme();
+		return this.themeService.getColorThemes().then(themes => {
+			const currentThemeId = this.themeService.getColorTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
+
+const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
 
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
 			const selectTheme = (theme, broadcast) => {
-				this.themeService.setTheme(theme.id, broadcast)
+				if (theme === pickInMarketPlace) {
+					theme = currentTheme;
+				}
+				this.themeService.setColorTheme(theme.id, broadcast)
 					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem loading theme: {0}", err.message)));
 			};
 
@@ -58,22 +61,7 @@ class SelectThemeAction extends Action {
 			const delayer = new Delayer<void>(100);
 
 			if (this.extensionGalleryService.isEnabled()) {
-				const run = () => {
-					return this.viewletService.openViewlet(VIEWLET_ID, true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
-						.then(viewlet => {
-							viewlet.search('category:themes', true);
-							viewlet.focus();
-						});
-				};
-
-				picks.push({
-					id: 'themes.findmore',
-					label: localize('findMore', "Find more in the Marketplace..."),
-					separator: { border: true },
-					alwaysShow: true,
-					run
-				});
+				picks.push(pickInMarketPlace);
 			}
 
 			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }})
@@ -86,6 +74,80 @@ class SelectThemeAction extends Action {
 	}
 }
 
+class SelectIconThemeAction extends Action {
+
+	static ID = 'workbench.action.selectIconTheme';
+	static LABEL = localize('selectIconTheme.label', "File Icon Theme");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IMessageService private messageService: IMessageService,
+		@IThemeService private themeService: IThemeService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		return this.themeService.getFileIconThemes().then(themes => {
+			const currentThemeId = this.themeService.getFileIconTheme();
+			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
+
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme');
+
+			const picks: IPickOpenEntry[] = themes
+				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
+				.sort((t1, t2) => t1.label.localeCompare(t2.label));
+
+			picks.splice(0, 0, { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') });
+
+			const selectTheme = (theme, broadcast) => {
+				if (theme === pickInMarketPlace) {
+					theme = currentTheme;
+				}
+				this.themeService.setFileIconTheme(theme && theme.id, broadcast)
+					.done(null, err => this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem loading icon theme: {0}", err.message)));
+			};
+
+			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");
+			const autoFocusIndex = firstIndex(picks, p => p.id === currentThemeId);
+			const delayer = new Delayer<void>(100);
+
+
+			if (this.extensionGalleryService.isEnabled()) {
+				picks.push(pickInMarketPlace);
+			}
+
+			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }})
+				.then(
+					theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
+					null,
+					theme => delayer.trigger(() => selectTheme(theme, false))
+				);
+		});
+	}
+}
+
+function findInMarketplacePick(viewletService: IViewletService, query: string) {
+	return {
+		id: 'themes.findmore',
+		label: localize('findMore', "Find more in the Marketplace..."),
+		separator: { border: true },
+		alwaysShow: true,
+		run: () => viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+			(<IExtensionsViewlet>viewlet).search(query);
+			viewlet.focus();
+		})
+	};
+}
+
 const category = localize('preferences', "Preferences");
-const descriptor = new SyncActionDescriptor(SelectThemeAction, SelectThemeAction.ID, SelectThemeAction.LABEL);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(descriptor, 'Preferences: Color Theme', category);
+
+const colorThemeDescriptor = new SyncActionDescriptor(SelectColorThemeAction, SelectColorThemeAction.ID, SelectColorThemeAction.LABEL);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(colorThemeDescriptor, 'Preferences: Color Theme', category);
+
+const iconThemeDescriptor = new SyncActionDescriptor(SelectIconThemeAction, SelectIconThemeAction.ID, SelectIconThemeAction.LABEL);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(iconThemeDescriptor, 'Preferences: File Icon Theme', category);

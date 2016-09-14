@@ -6,38 +6,27 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import {IAction, IActionItem} from 'vs/base/common/actions';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
+import {IEditorControl} from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IFileService} from 'vs/platform/files/common/files';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import PartService = require('vs/workbench/services/part/common/partService');
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {createMockModelService, TestTextFileService, TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {EventType} from 'vs/workbench/common/events';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {IPanel} from 'vs/workbench/common/panel';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
 import {DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
+import {Emitter} from 'vs/base/common/event';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -110,6 +99,13 @@ class TestEditorPart implements IEditorPart {
 
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
+
+	onDidViewletOpenEmitter = new Emitter<IViewlet>();
+	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
+
+	onDidViewletCloseEmitter = new Emitter<IViewlet>();
+	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+
 	public openViewlet(id: string, focus?: boolean): Promise {
 		return TPromise.as(null);
 	}
@@ -120,15 +116,87 @@ class TestViewletService implements IViewletService {
 
 	public dispose() {
 	}
+
+}
+
+class TestPanelService implements IPanelService {
+	public _serviceBrand: any;
+
+	onDidPanelOpen = new Emitter<IPanel>().event;
+	onDidPanelClose = new Emitter<IPanel>().event;
+
+	public openPanel(id: string, focus?: boolean): Promise {
+		return TPromise.as(null);
+	}
+
+	public getActivePanel(): IViewlet {
+		return activeViewlet;
+	}
+
+	public dispose() {
+	}
+}
+
+class TestViewlet implements IViewlet {
+
+	constructor(private id: string) { }
+
+	getId(): string {
+		return this.id;
+	}
+
+	/**
+	 * Returns the name of this composite to show in the title area.
+	 */
+	getTitle(): string {
+		return this.id;
+	}
+
+	/**
+	 * Returns the primary actions of the composite.
+	 */
+	getActions(): IAction[] {
+		return [];
+	}
+
+	/**
+	 * Returns the secondary actions of the composite.
+	 */
+	getSecondaryActions(): IAction[] {
+		return [];
+	}
+
+	/**
+	 * Returns the action item for a specific action.
+	 */
+	getActionItem(action: IAction): IActionItem {
+		return null;
+	}
+
+	/**
+	 * Returns the underlying control of this composite.
+	 */
+	getControl(): IEditorControl {
+		return null;
+	}
+
+	/**
+	 * Asks the underlying control to focus.
+	 */
+	focus(): void {
+	}
+
+	getOptimalWidth(): number {
+		return 10;
+	}
 }
 
 class TestScopedService extends ScopedService {
 	public isActive: boolean;
 
-	constructor(eventService: IEventService) {
-		super(eventService, 'test.scopeId');
+	constructor(viewletService: IViewletService, panelService: IPanelService, scopeId: string) {
+		super(viewletService, panelService, scopeId);
 	}
-
 	public onScopeActivated() {
 		this.isActive = true;
 	}
@@ -202,88 +270,7 @@ class TestProgressBar {
 suite('Workbench UI Services', () => {
 
 	test('WorkbenchEditorService', function () {
-		const TestFileService = {
-			resolveContent: function (resource) {
-				return TPromise.as({
-					resource: resource,
-					value: 'Hello Html',
-					etag: 'index.txt',
-					mime: 'text/plain',
-					encoding: 'utf8',
-					mtime: new Date().getTime(),
-					name: paths.basename(resource.fsPath)
-				});
-			},
-
-			resolveStreamContent: function (resource) {
-				return TPromise.as({
-					resource: resource,
-					value: {
-						on: (event:string, callback:Function): void => {
-							if (event === 'data') {
-								callback('Hello Html');
-							}
-							if (event === 'end') {
-								callback();
-							}
-						}
-					},
-					etag: 'index.txt',
-					mime: 'text/plain',
-					encoding: 'utf8',
-					mtime: new Date().getTime(),
-					name: paths.basename(resource.fsPath)
-				});
-			},
-
-			updateContent: function (res) {
-				return TPromise.timeout(1).then(() => {
-					return {
-						resource: res,
-						etag: 'index.txt',
-						mime: 'text/plain',
-						encoding: 'utf8',
-						mtime: new Date().getTime(),
-						name: paths.basename(res.fsPath)
-					};
-				});
-			}
-		};
-
-		let editorService = new TestEditorService(function () { });
-		let eventService = new TestEventService();
-		let contextService = new TestContextService(TestWorkspace);
-		let requestService = new MockRequestService(TestWorkspace, (url) => {
-			if (/index\.html$/.test(url)) {
-				return {
-					responseText: 'Hello Html',
-					getResponseHeader: key => ({
-						'content-length': '1000',
-						'last-modified': new Date().toUTCString(),
-						'content-type': 'text/html'
-					})[key.toLowerCase()]
-				};
-			}
-
-			return null;
-		});
-
-		let instantiationService= new TestInstantiationService();
-		instantiationService.stub(IEventService, eventService);
-		instantiationService.stub(IWorkspaceContextService, contextService);
-		instantiationService.stub(IRequestService, requestService);
-		instantiationService.stub(ITelemetryService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(IWorkbenchEditorService, editorService);
-		instantiationService.stub(PartService.IPartService, new TestPartService());
-		instantiationService.stub(IModeService);
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		instantiationService.stub(ILifecycleService, NullLifecycleService);
-		instantiationService.stub(IFileService, <any> TestFileService);
-
-		instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(<any>TestTextFileService));
+		let instantiationService = workbenchInstantiationService();
 
 		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 
@@ -346,24 +333,7 @@ suite('Workbench UI Services', () => {
 	});
 
 	test('DelegatingWorkbenchEditorService', function () {
-		let editorService = new TestEditorService(function () { });
-		let contextService = new TestContextService(TestWorkspace);
-		let eventService = new TestEventService();
-		let requestService = new TestRequestService();
-		let telemetryService = NullTelemetryService;
-
-		let instantiationService = new TestInstantiationService();
-		instantiationService.stub(IEventService, eventService);
-		instantiationService.stub(IRequestService, requestService);
-		instantiationService.stub(ITelemetryService, telemetryService);
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
-		instantiationService.stub(IWorkbenchEditorService, editorService);
-		instantiationService.stub(PartService.IPartService, new TestPartService());
-		instantiationService.stub(ILifecycleService, NullLifecycleService);
-		instantiationService.stub(IWorkspaceContextService, contextService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any>TestTextFileService));
+		let instantiationService = workbenchInstantiationService();
 		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 
 		let testEditorPart = new TestEditorPart();
@@ -400,22 +370,26 @@ suite('Workbench UI Services', () => {
 		delegate.openEditor(inp);
 	});
 
-	test('ScopedService', function () {
-		let eventService = new TestEventService();
-		let service = new TestScopedService(eventService);
-		assert(!service.isActive);
+	test('ScopedService', () => {
+		let viewletService = new TestViewletService();
+		let panelService = new TestPanelService();
+		let service = new TestScopedService(viewletService, panelService, 'test.scopeId');
+		const testViewlet = new TestViewlet('test.scopeId');
 
-		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
+		assert(!service.isActive);
+		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 		assert(service.isActive);
 
-		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
+		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 		assert(!service.isActive);
+
 	});
 
 	test('WorkbenchProgressService', function () {
 		let testProgressBar = new TestProgressBar();
-		let eventService = new TestEventService();
-		let service = new WorkbenchProgressService(eventService, (<any>testProgressBar), 'test.scopeId', true);
+		let viewletService = new TestViewletService();
+		let panelService = new TestPanelService();
+		let service = new WorkbenchProgressService((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);
@@ -435,19 +409,20 @@ suite('Workbench UI Services', () => {
 		assert.strictEqual(true, testProgressBar.fDone);
 
 		// Inactive: Show (Infinite)
-		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
+		const testViewlet = new TestViewlet('test.scopeId');
+		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 		service.show(true);
 		assert.strictEqual(false, !!testProgressBar.fInfinite);
-		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
+		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 		assert.strictEqual(true, testProgressBar.fInfinite);
 
 		// Inactive: Show (Total / Worked)
-		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
+		viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 		fn = service.show(100);
 		fn.total(80);
 		fn.worked(20);
 		assert.strictEqual(false, !!testProgressBar.fTotal);
-		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
+		viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 		assert.strictEqual(20, testProgressBar.fWorked);
 		assert.strictEqual(80, testProgressBar.fTotal);
 
@@ -456,12 +431,12 @@ suite('Workbench UI Services', () => {
 		service.showWhile(p).then(() => {
 			assert.strictEqual(true, testProgressBar.fDone);
 
-			eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
+			viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 			p = TPromise.as(null);
 			service.showWhile(p).then(() => {
 				assert.strictEqual(true, testProgressBar.fDone);
 
-				eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
+				viewletService.onDidViewletOpenEmitter.fire(testViewlet);
 				assert.strictEqual(true, testProgressBar.fDone);
 			});
 		});

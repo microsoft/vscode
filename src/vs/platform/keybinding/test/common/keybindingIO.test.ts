@@ -5,8 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ISimplifiedPlatform, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {ISimplifiedPlatform, KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
+import {NormalizedKeybindingItem, IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 
 suite('Keybinding IO', () => {
 
@@ -70,8 +71,8 @@ suite('Keybinding IO', () => {
 		testRoundtrip(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'ctrl+shift+alt+win+a', 'ctrl+shift+alt+cmd+a', 'ctrl+shift+alt+meta+a');
 
 		// chords
-		testRoundtrip(KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_A), 'ctrl+a ctrl+a', 'cmd+a cmd+a', 'ctrl+a ctrl+a');
-		testRoundtrip(KeyMod.chord(KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.CtrlCmd | KeyCode.UpArrow), 'ctrl+up ctrl+up', 'cmd+up cmd+up', 'ctrl+up ctrl+up');
+		testRoundtrip(KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_A, KeyMod.CtrlCmd | KeyCode.KEY_A), 'ctrl+a ctrl+a', 'cmd+a cmd+a', 'ctrl+a ctrl+a');
+		testRoundtrip(KeyChord(KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.CtrlCmd | KeyCode.UpArrow), 'ctrl+up ctrl+up', 'cmd+up cmd+up', 'ctrl+up ctrl+up');
 
 		// OEM keys
 		testRoundtrip(KeyCode.US_SEMICOLON, ';', ';', ';');
@@ -110,4 +111,28 @@ suite('Keybinding IO', () => {
 		testDeserialization(' ctrl-shift-alt-win-A ', ' shift-alt-cmd-Ctrl-A ', ' ctrl-shift-alt-META-A ', KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A);
 	});
 
+
+	test('issue #10452 - invalid command', () => {
+		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": ["firstcommand", "seccondcommand"] }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
+		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
+		assert.equal(normalizedKeybindingItem.command, null);
+	});
+
+	test('issue #10452 - invalid when', () => {
+		let strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [] }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
+		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
+		assert.equal(normalizedKeybindingItem.when, null);
+	});
+
+	test('issue #10452 - invalid key', () => {
+		let strJSON = `[{ "key": [], "command": "firstcommand" }]`;
+		let userKeybinding = <IUserFriendlyKeybinding>JSON.parse(strJSON)[0];
+		let keybindingItem = IOSupport.readKeybindingItem(userKeybinding, 0);
+		let normalizedKeybindingItem = NormalizedKeybindingItem.fromKeybindingItem(keybindingItem, false);
+		assert.equal(normalizedKeybindingItem.keybinding, 0);
+	});
 });
