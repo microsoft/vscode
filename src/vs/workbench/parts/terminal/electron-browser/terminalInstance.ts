@@ -38,6 +38,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 
 	private isExiting: boolean = false;
+	private isVisible: boolean = false;
 	private toDispose: lifecycle.IDisposable[] = [];
 	private skipTerminalKeybindings: Keybinding[] = [];
 	private process: cp.ChildProcess;
@@ -52,13 +53,13 @@ export class TerminalInstance implements ITerminalInstance {
 		private container: HTMLElement,
 		private workspace: IWorkspace,
 		name: string,
-		shellPath: string,
+		shell: IShell,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
 		this._onTitleChanged = new Emitter<string>();
-		this.createProcess(workspace, name, shellPath);
+		this.createProcess(workspace, name, shell);
 
 		if (container) {
 			this.attachToElement(container);
@@ -74,6 +75,7 @@ export class TerminalInstance implements ITerminalInstance {
 			throw new Error('The terminal instance has already been attached to a container');
 		}
 
+		this.container = container;
 		this.wrapperElement = document.createElement('div');
 		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
 		this.xtermElement = document.createElement('div');
@@ -139,6 +141,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this.container.appendChild(this.wrapperElement);
 
 		this.layout(new Dimension(this.container.offsetWidth, this.container.offsetHeight));
+		this.setVisible(this.isVisible);
 	}
 
 	public copySelection(): void {
@@ -195,7 +198,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setVisible(visible: boolean): void {
-		DOM.toggleClass(this.wrapperElement, 'active', visible);
+		this.isVisible = visible;
+		if (this.wrapperElement) {
+			DOM.toggleClass(this.wrapperElement, 'active', visible);
+		}
 	}
 
 	public scrollDown(): void {
@@ -210,9 +216,11 @@ export class TerminalInstance implements ITerminalInstance {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private createProcess(workspace: IWorkspace, name?: string, shellPath?: string) {
+	private createProcess(workspace: IWorkspace, name: string, shell: IShell) {
 		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
-		let shell = shellPath ? { executable: shellPath, args: [] } : this.configHelper.getShell();
+		if (!shell.executable) {
+			shell = this.configHelper.getShell();
+		}
 		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
 		this._title = name ? name : '';
 		this.process = cp.fork('./terminalProcess', [], {
@@ -244,9 +252,11 @@ export class TerminalInstance implements ITerminalInstance {
 		let env = TerminalInstance.cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
-		shell.args.forEach((arg, i) => {
-			env[`PTYSHELLARG${i}`] = arg;
-		});
+		if (shell.args) {
+			shell.args.forEach((arg, i) => {
+				env[`PTYSHELLARG${i}`] = arg;
+			});
+		}
 		env['PTYCWD'] = TerminalInstance.sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
 		if (locale) {
 			env['LANG'] = TerminalInstance.getLangEnvVariable(locale);

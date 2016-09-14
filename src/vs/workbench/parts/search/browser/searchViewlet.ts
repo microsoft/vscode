@@ -617,6 +617,21 @@ export class SearchViewlet extends Viewlet {
 		return dom.hasClass(this.queryDetails, 'more');
 	}
 
+	public toggleCaseSensitive(): void {
+		this.searchWidget.searchInput.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
+		this.onQueryChanged(true, true);
+	}
+
+	public toggleWholeWords(): void {
+		this.searchWidget.searchInput.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
+		this.onQueryChanged(true, true);
+	}
+
+	public toggleRegex(): void {
+		this.searchWidget.searchInput.setRegex(!this.searchWidget.searchInput.getRegex());
+		this.onQueryChanged(true, true);
+	}
+
 	public toggleFileTypes(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);

@@ -662,9 +662,12 @@ export class ChangeModeAction extends Action {
 
 		// All languages are valid picks
 		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
-			return {
+			const languageModeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase());
+			const configureLabel = nls.localize('configuredLanguage', "Configured Language");
+
+			return <IPickOpenEntry>{
 				label: lang,
-				description: currentModeId === lang ? nls.localize('configuredLanguage', "Configured Language") : void 0
+				description: currentModeId === lang ? `${languageModeId} (${configureLabel})` : languageModeId
 			};
 		});
 		picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };

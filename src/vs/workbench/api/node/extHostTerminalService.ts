@@ -10,18 +10,21 @@ import {MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
-	public _name: string;
-	public _shellPath: string;
-
+	private _name: string;
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
+	private _queuedRequests: ApiRequest[] = [];
 
-	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string, shellPath?: string) {
+	constructor(proxy: MainThreadTerminalServiceShape, name?: string, shellPath?: string, shellArgs?: string[]) {
 		this._name = name;
-		this._shellPath = shellPath;
 		this._proxy = proxy;
-		this._id = this._proxy.$createTerminal(name, shellPath);
+		this._proxy.$createTerminal(name, shellPath, shellArgs).then((id) => {
+			this._id = id;
+			this._queuedRequests.forEach((r) => {
+				r.run(this._proxy, this._id);
+			});
+		});
 	}
 
 	public get name(): string {
@@ -31,24 +34,33 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	public sendText(text: string, addNewLine: boolean = true): void {
 		this._checkDisposed();
-		this._proxy.$sendText(this._id, text, addNewLine);
+		this._queueApiRequest(this._proxy.$sendText, [text, addNewLine]);
 	}
 
 	public show(preserveFocus: boolean): void {
 		this._checkDisposed();
-		this._proxy.$show(this._id, preserveFocus);
+		this._queueApiRequest(this._proxy.$show, [preserveFocus]);
 	}
 
 	public hide(): void {
 		this._checkDisposed();
-		this._proxy.$hide(this._id);
+		this._queueApiRequest(this._proxy.$hide, []);
 	}
 
 	public dispose(): void {
 		if (!this._disposed) {
 			this._disposed = true;
-			this._proxy.$dispose(this._id);
+			this._queueApiRequest(this._proxy.$dispose, []);
 		}
+	}
+
+	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
+		let request: ApiRequest = new ApiRequest(callback, args);
+		if (!this._id) {
+			this._queuedRequests.push(request);
+			return;
+		}
+		request.run(this._proxy, this._id);
 	}
 
 	private _checkDisposed() {
@@ -66,7 +78,21 @@ export class ExtHostTerminalService {
 		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
 	}
 
-	public createTerminal(name?: string, shellPath?: string): vscode.Terminal {
-		return new ExtHostTerminal(this._proxy, -1, name, shellPath);
+	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+		return new ExtHostTerminal(this._proxy, name, shellPath, shellArgs);
+	}
+}
+
+class ApiRequest {
+	private _callback: (...args: any[]) => void;
+	private _args: any[];
+
+	constructor(callback: (...args: any[]) => void, args: any[]) {
+		this._callback = callback;
+		this._args = args;
+	}
+
+	public run(proxy: MainThreadTerminalServiceShape, id: number) {
+		this._callback.apply(proxy, [id].concat(this._args));
 	}
 }
