@@ -158,7 +158,7 @@ function createRemoteRawGitService(gitPath: string, execPath: string, workspaceR
 					timeout: 1000 * 60,
 					args: [path, workspaceRoot, encoding, execPath, version],
 					env: {
-						ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+						ELECTRON_RUN_AS_NODE: 1,
 						PIPE_LOGGING: 'true',
 						AMD_ENTRYPOINT: 'vs/workbench/parts/git/node/gitApp',
 						VERBOSE_LOGGING: String(verbose)
