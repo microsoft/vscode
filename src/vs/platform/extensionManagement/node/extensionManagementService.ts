@@ -148,7 +148,10 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
 					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
 
-					const local: ILocalExtension = { id, manifest, metadata, path: extensionPath, readmeUrl };
+					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
+
+					const local: ILocalExtension = { id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
 					const rawManifest = assign(manifest, { __metadata: metadata });
 
 					return pfs.writeFile(manifestPath, JSON.stringify(rawManifest, null, '\t'))
