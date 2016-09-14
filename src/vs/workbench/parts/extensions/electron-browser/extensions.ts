@@ -42,6 +42,7 @@ export interface IExtension {
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
+	getChangelog() : TPromise<string>;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
