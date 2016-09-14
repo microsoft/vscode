@@ -56,7 +56,7 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 
 	function collectCloseTagSuggestions(afterOpenBracket: number, matchingOnly: boolean) : CompletionList {
 		let range = getReplaceRange(afterOpenBracket);
-		let contentAfter = document.getText().substr(offset);
+		let contentAfter = document.getText().substr(offset, 1);
 		let closeTag = isWhiteSpace(contentAfter) || startsWith(contentAfter, '<') ? '>' : '';
 		let curr = node;
 		while (curr) {
