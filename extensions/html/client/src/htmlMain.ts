@@ -62,4 +62,19 @@ export function activate(context: ExtensionContext) {
 			}
 		],
 	});
+
+	languages.setLanguageConfiguration('handlebars', {
+		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|('(?:[^\\\']*(?:\\.)?)*'?)|[^\s<>={}\[\],]+/,
+		onEnterRules:[
+			{
+				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				action: { indentAction: IndentAction.IndentOutdent }
+			},
+			{
+				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				action: { indentAction: IndentAction.Indent }
+			}
+		],
+	});
 }

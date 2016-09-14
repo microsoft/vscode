@@ -269,6 +269,17 @@ suite('HTML Completion', () => {
 		], testDone);
 	});
 
+	suite('Handlevar Completion', (testDone) => {
+		run([
+		
+			testCompletionFor('<script id="entry-template" type="text/x-handlebars-template"> | </script>' , {
+				items: [
+					{ label: 'div', resultText: '<script id="entry-template" type="text/x-handlebars-template"> <div></div> </script>' },
+				]
+			})
+		], testDone);
+	});
+
 	test('Intellisense aria', function (testDone): any {
 		let expectedAriaAttributes = [
 			{ label: 'aria-activedescendant' },
