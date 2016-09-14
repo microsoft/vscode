@@ -9,13 +9,23 @@ import * as assert from 'assert';
 import * as htmlLinks from '../services/htmlLinks';
 import {CompletionList, TextDocument, TextEdit, Position, CompletionItemKind} from 'vscode-languageserver-types';
 import Uri from 'vscode-uri';
+import * as htmlLanguageService from '../htmlLanguageService';
 
 suite('HTML Link Detection', () => {
 
 	function testLinkCreation(modelUrl:string, rootUrl:string, tokenContent:string, expected:string): void {
-		var _modelUrl = Uri.parse(modelUrl);
-		var actual = htmlLinks._getWorkspaceUrl(_modelUrl, Uri.parse(rootUrl), tokenContent);
-		assert.equal(actual, expected);
+		let document = TextDocument.create(modelUrl, 'html', 0, `<a href="${tokenContent}">`);
+		let ls = htmlLanguageService.getLanguageService();
+		let links = ls.findDocumentLinks(document, rootUrl);
+		assert.equal(links[0] && links[0].target, expected);
+	}
+
+	function testLinkDetection(value:string, expectedLinkLocations:number[]): void {
+		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
+
+		let ls = htmlLanguageService.getLanguageService();
+		let links = ls.findDocumentLinks(document, 'test://test');
+		assert.deepEqual(links.map(l => l.range.start.character), expectedLinkLocations);
 	}
 
 	test('Link creation', () => {
@@ -68,4 +78,10 @@ suite('HTML Link Detection', () => {
 		// Bug #18314: Ctrl + Click does not open existing file if folder's name starts with 'c' character
 		testLinkCreation('file:///c:/Alex/working_dir/18314-link-detection/test.html', 'file:///c:/Alex/working_dir/18314-link-detection/', '/class/class.js', 'file:///c:/Alex/working_dir/18314-link-detection/class/class.js');
 	});
+
+	test('Link detection', () => {
+		testLinkDetection('<img src="foo.png">', [ 9 ]);
+		testLinkDetection('<a href="http://server/foo.html">', [ 8 ]);
+	});
+
 });

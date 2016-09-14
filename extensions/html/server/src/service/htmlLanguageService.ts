@@ -6,27 +6,11 @@
 import {parse} from './parser/htmlParser';
 import {doComplete} from './services/htmlCompletion';
 import {format} from './services/htmlFormatter';
-import {provideLinks} from './services/htmlLinks';
+import {findDocumentLinks} from './services/htmlLinks';
 import {findDocumentHighlights} from './services/htmlHighlighting';
-import {TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, DocumentHighlight, FormattingOptions, MarkedString } from 'vscode-languageserver-types';
+import {TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, DocumentHighlight, FormattingOptions, MarkedString, DocumentLink } from 'vscode-languageserver-types';
 
-export {TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, DocumentHighlight, FormattingOptions, MarkedString };
-
-
-export class DocumentLink {
-
-	/**
-	 * The range this link applies to.
-	 */
-	range: Range;
-
-	/**
-	 * The uri this link points to.
-	 */
-	target: string;
-
-}
-
+export {TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, DocumentHighlight, FormattingOptions, MarkedString, DocumentLink };
 
 export interface HTMLFormatConfiguration {
 	tabSize: number;
@@ -52,7 +36,7 @@ export interface LanguageService {
 	findDocumentHighlights(document: TextDocument, position: Position, htmlDocument: HTMLDocument): DocumentHighlight[];
 	doComplete(document: TextDocument, position: Position, htmlDocument: HTMLDocument, options?: CompletionConfiguration): CompletionList;
 	format(document: TextDocument, range: Range, options: HTMLFormatConfiguration): TextEdit[];
-	provideLinks(document: TextDocument, workspacePath:string): DocumentLink[];
+	findDocumentLinks(document: TextDocument, workspacePath:string): DocumentLink[];
 }
 
 export function getLanguageService() : LanguageService {
@@ -61,6 +45,6 @@ export function getLanguageService() : LanguageService {
 		doComplete,
 		format,
 		findDocumentHighlights,
-		provideLinks
+		findDocumentLinks
 	};
 }

@@ -27,10 +27,12 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
+let workspacePath: string;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+	workspacePath = params.rootPath;
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -38,7 +40,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			completionProvider: { resolveProvider: false, triggerCharacters: ['.', ':', '<', '"', '=', '/'] },
 			documentHighlightProvider: true,
 			documentRangeFormattingProvider: true,
-			documentFormattingProvider: true
+			documentFormattingProvider: true,
+			documentLinkProvider: true
 		}
 	};
 });
@@ -107,6 +110,12 @@ connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
 	return languageService.format(document, formatParams.range, getFormattingOptions(formatParams));
 });
+
+connection.onDocumentLinks(documentLinkParam => {
+	let document = documents.get(documentLinkParam.textDocument.uri);
+	return languageService.findDocumentLinks(document, workspacePath);
+});
+
 
 // Listen on the connection
 connection.listen();

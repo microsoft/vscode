@@ -12,15 +12,13 @@ import Uri from 'vscode-uri';
 
 import {DocumentLink} from '../htmlLanguageService';
 
-function _stripQuotes(url: string): string {
+function stripQuotes(url: string): string {
 	return url
 		.replace(/^'([^']+)'$/,(substr, match1) => match1)
 		.replace(/^"([^"]+)"$/,(substr, match1) => match1);
 }
 
-export function _getWorkspaceUrl(modelAbsoluteUri: Uri, rootAbsoluteUrl: Uri, tokenContent: string): string {
-	tokenContent = _stripQuotes(tokenContent);
-
+function getWorkspaceUrl(modelAbsoluteUri: Uri, rootAbsoluteUrl: Uri, tokenContent: string): string {
 	if (/^\s*javascript\:/i.test(tokenContent) || /^\s*\#/i.test(tokenContent)) {
 		return null;
 	}
@@ -64,9 +62,14 @@ export function _getWorkspaceUrl(modelAbsoluteUri: Uri, rootAbsoluteUrl: Uri, to
 	return potentialResult;
 }
 
-function createLink(document: TextDocument, rootAbsoluteUrl: Uri, tokenContent: string, startOffset: number, endOffset: number): DocumentLink {
+function createLink(document: TextDocument, rootAbsoluteUrl: Uri, attributeValue: string, startOffset: number, endOffset: number): DocumentLink {
 	let documentUri = Uri.parse(document.uri);
-	let workspaceUrl = _getWorkspaceUrl(documentUri, rootAbsoluteUrl, tokenContent);
+	let tokenContent = stripQuotes(attributeValue);
+	if (tokenContent.length < attributeValue.length) {
+		startOffset++;
+		endOffset--;
+	}
+	let workspaceUrl = getWorkspaceUrl(documentUri, rootAbsoluteUrl, tokenContent);
 	if (!workspaceUrl) {
 		return null;
 	}
@@ -76,7 +79,7 @@ function createLink(document: TextDocument, rootAbsoluteUrl: Uri, tokenContent: 
 	};
 }
 
-export function provideLinks(document: TextDocument, workspacePath:string): DocumentLink[] {
+export function findDocumentLinks(document: TextDocument, workspacePath:string): DocumentLink[] {
 	let newLinks: DocumentLink[] = [];
 
 	let rootAbsoluteUrl: Uri = null;
@@ -94,13 +97,13 @@ export function provideLinks(document: TextDocument, workspacePath:string): Docu
 	while (token !== TokenType.EOS) {
 		switch (token) {
 			case TokenType.AttributeName:
-				let tokenContent = scanner.getTokenText();
-				afterHrefOrSrc = tokenContent === 'src' || tokenContent === 'href';
+				let attributeName = scanner.getTokenText();
+				afterHrefOrSrc = attributeName === 'src' || attributeName === 'href';
 				break;
 			case TokenType.AttributeValue:
 				if (afterHrefOrSrc) {
-					let tokenContent = scanner.getTokenText();
-					let link = createLink(document, rootAbsoluteUrl, tokenContent, scanner.getTokenOffset(), scanner.getTokenEnd());
+					let attributeValue = scanner.getTokenText();
+					let link = createLink(document, rootAbsoluteUrl, attributeValue, scanner.getTokenOffset(), scanner.getTokenEnd());
 					if (link) {
 						newLinks.push(link);
 					}
@@ -108,6 +111,7 @@ export function provideLinks(document: TextDocument, workspacePath:string): Docu
 				}
 				break;
 		}
+		token =  scanner.scan();
 	}
 	return newLinks;
 }
