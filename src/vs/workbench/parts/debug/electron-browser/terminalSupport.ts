@@ -15,7 +15,9 @@ export interface IIntegratedTerminalConfiguration {
 	terminal: {
 		integrated: {
 			shell: {
-				windows: string
+				windows: string,
+				linux: string,
+				osx: string
 			}
 		}
 	};
@@ -42,51 +44,61 @@ export class TerminalSupport {
 	}
 
 	private static prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, configurationService: IConfigurationService): string {
-		let command = '';
 
+		const quote1 = (s: string) => {
+			s = s.replace(/\"/g, '""');
+			return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
+		};
+
+		// get the shell configuration for the current platform
+		let shell: string;
+		const shell_config = configurationService.getConfiguration<IIntegratedTerminalConfiguration>().terminal.integrated.shell;
 		if (platform.isWindows) {
+			shell = shell_config.windows;
+		} else if (platform.isLinux) {
+			shell = shell_config.linux;
+		} else if (platform.isMacintosh) {
+			shell = shell_config.osx;
+		}
 
-			const quote = (s: string) => {
-				s = s.replace(/\"/g, '""');
-				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
-			};
+		shell = shell.toLowerCase();
 
-			const windows_shell = configurationService.getConfiguration<IIntegratedTerminalConfiguration>().terminal.integrated.shell.windows;
-			const isPowerShell = windows_shell ? windows_shell.toLowerCase().indexOf('powershell') >= 0 : false;
-			if (isPowerShell) {
+		let command = '';
+		if (shell.indexOf('powershell') >= 0) {
 
-				if (args.cwd) {
-					command += `cd ${quote(args.cwd)}; `;
+			if (args.cwd) {
+				command += `cd ${quote1(args.cwd)}; `;
+			}
+			if (args.env) {
+				for (let key in args.env) {
+					command += `$env:${key}='${args.env[key]}'; `;
 				}
-				if (args.env) {
-					for (let key in args.env) {
-						command += `$env:${key}='${args.env[key]}'; `;
-					}
-				}
-				for (let a of args.args) {
-					command += `${quote(a)} `;
-				}
+			}
+			for (let a of args.args) {
+				command += `${quote1(a)} `;
+			}
 
-			} else {
+		} else if (shell.indexOf('cmd.exe') >= 0) {
 
-				if (args.cwd) {
-					command += `cd ${quote(args.cwd)} && `;
+			if (args.cwd) {
+				command += `cd ${quote1(args.cwd)} && `;
+			}
+			if (args.env) {
+				command += 'cmd /C "';
+				for (let key in args.env) {
+					command += `set "${key}=${args.env[key]}" && `;
 				}
-				if (args.env) {
-					command += 'cmd /C "';
-					for (let key in args.env) {
-						command += `set "${key}=${args.env[key]}" && `;
-					}
-				}
-				for (let a of args.args) {
-					command += `${quote(a)} `;
-				}
-				if (args.env) {
-					command += '"';
-				}
+			}
+			for (let a of args.args) {
+				command += `${quote1(a)} `;
+			}
+			if (args.env) {
+				command += '"';
 			}
 
 		} else {
+
+			// fallback: unix shell
 			const quote = (s: string) => {
 				s = s.replace(/\"/g, '\\"');
 				return s.indexOf(' ') >= 0 ? `"${s}"` : s;
@@ -105,6 +117,7 @@ export class TerminalSupport {
 			for (let a of args.args) {
 				command += `${quote(a)} `;
 			}
+
 		}
 
 		return command;
