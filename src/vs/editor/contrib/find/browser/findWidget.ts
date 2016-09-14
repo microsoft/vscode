@@ -22,6 +22,8 @@ import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositi
 import {FIND_IDS, MATCHES_LIMIT} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent} from 'vs/editor/contrib/find/common/findState';
 import {Range} from 'vs/editor/common/core/range';
+import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {CONTEXT_FIND_INPUT_FOCUSSED} from 'vs/editor/contrib/find/common/findController';
 
 export interface IFindController {
 	replace(): void;
@@ -75,13 +77,15 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	private _isReplaceVisible: boolean;
 
 	private _focusTracker: dom.IFocusTracker;
+	private _findInputFocussed: IContextKey<boolean>;
 
 	constructor(
 		codeEditor: ICodeEditor,
 		controller: IFindController,
 		state: FindReplaceState,
 		contextViewProvider: IContextViewProvider,
-		keybindingService: IKeybindingService
+		keybindingService: IKeybindingService,
+		contextKeyService: IContextKeyService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -112,8 +116,10 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				this._updateToggleSelectionFindButton();
 			}
 		}));
+		this._findInputFocussed = CONTEXT_FIND_INPUT_FOCUSSED.bindTo(contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._focusTracker.addFocusListener(() => {
+			this._findInputFocussed.set(true);
 			let selection = this._codeEditor.getSelection();
 			let currentMatch = this._state.currentMatch;
 			if (selection.startLineNumber !== selection.endLineNumber) {
@@ -122,6 +128,9 @@ export class FindWidget extends Widget implements IOverlayWidget {
 					this._state.change({ searchScope: selection }, true);
 				}
 			}
+		});
+		this._focusTracker.addBlurListener(() => {
+			this._findInputFocussed.set(false);
 		});
 
 		this._codeEditor.addOverlayWidget(this);

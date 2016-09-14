@@ -31,6 +31,12 @@ export const ToggleRegexKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 };
+export const ShowPreviousFindTermKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.UpArrow
+};
+export const ShowNextFindTermKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.DownArrow
+};
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
@@ -58,16 +64,16 @@ export const MATCHES_LIMIT = 999;
 
 export class FindModelBoundToEditorModel {
 
-	private _editor:editorCommon.ICommonCodeEditor;
-	private _state:FindReplaceState;
-	private _toDispose:IDisposable[];
+	private _editor: editorCommon.ICommonCodeEditor;
+	private _state: FindReplaceState;
+	private _toDispose: IDisposable[];
 	private _decorations: FindDecorations;
-	private _ignoreModelContentChanged:boolean;
+	private _ignoreModelContentChanged: boolean;
 
-	private _updateDecorationsScheduler:RunOnceScheduler;
+	private _updateDecorationsScheduler: RunOnceScheduler;
 	private _isDisposed: boolean;
 
-	constructor(editor:editorCommon.ICommonCodeEditor, state:FindReplaceState) {
+	constructor(editor: editorCommon.ICommonCodeEditor, state: FindReplaceState) {
 		this._editor = editor;
 		this._state = state;
 		this._toDispose = [];
@@ -79,7 +85,7 @@ export class FindModelBoundToEditorModel {
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.push(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
 			if (
 				e.reason === editorCommon.CursorChangeReason.Explicit
 				|| e.reason === editorCommon.CursorChangeReason.Undo
@@ -90,7 +96,7 @@ export class FindModelBoundToEditorModel {
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.onDidChangeModelRawContent((e:editorCommon.IModelContentChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}
@@ -112,7 +118,7 @@ export class FindModelBoundToEditorModel {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	private _onStateChanged(e:FindReplaceStateChangedEvent): void {
+	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		if (this._isDisposed) {
 			// The find model is disposed during a find state changed event
 			return;
@@ -126,8 +132,8 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private static _getSearchRange(model:editorCommon.IModel, searchOnlyEditableRange:boolean, findScope:Range): Range {
-		let searchRange:Range;
+	private static _getSearchRange(model: editorCommon.IModel, searchOnlyEditableRange: boolean, findScope: Range): Range {
+		let searchRange: Range;
 
 		if (searchOnlyEditableRange) {
 			searchRange = model.getEditableRange();
@@ -143,7 +149,7 @@ export class FindModelBoundToEditorModel {
 		return searchRange;
 	}
 
-	private research(moveCursor:boolean, newFindScope?:Range): void {
+	private research(moveCursor: boolean, newFindScope?: Range): void {
 		let findScope: Range = null;
 		if (typeof newFindScope !== 'undefined') {
 			findScope = newFindScope;
@@ -184,7 +190,7 @@ export class FindModelBoundToEditorModel {
 		return false;
 	}
 
-	private _setCurrentFindMatch(match:Range): void {
+	private _setCurrentFindMatch(match: Range): void {
 		let matchesPosition = this._decorations.setCurrentFindMatch(match);
 		this._state.changeMatchInfo(
 			matchesPosition,
@@ -196,7 +202,7 @@ export class FindModelBoundToEditorModel {
 		this._editor.revealRangeInCenterIfOutsideViewport(match);
 	}
 
-	private _moveToPrevMatch(before:Position, isRecursed:boolean = false): void {
+	private _moveToPrevMatch(before: Position, isRecursed: boolean = false): void {
 		if (this._cannotFind()) {
 			return;
 		}
@@ -214,7 +220,7 @@ export class FindModelBoundToEditorModel {
 			before = searchRange.getEndPosition();
 		}
 
-		let {lineNumber,column} = before;
+		let {lineNumber, column} = before;
 		let model = this._editor.getModel();
 
 		let position = new Position(lineNumber, column);
@@ -260,8 +266,8 @@ export class FindModelBoundToEditorModel {
 		this._moveToPrevMatch(this._editor.getSelection().getStartPosition());
 	}
 
-	private _moveToNextMatch(nextMatch:Range): void
-	private _moveToNextMatch(after:Position): void
+	private _moveToNextMatch(nextMatch: Range): void
+	private _moveToNextMatch(after: Position): void
 	private _moveToNextMatch(arg: any): void {
 		let nextMatch = Range.isIRange(arg) ? arg : Position.isIPosition(arg) ? this._getNextMatch(arg) : null;
 		if (nextMatch) {
@@ -269,7 +275,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _getNextMatch(after:Position, isRecursed:boolean = false): Range {
+	private _getNextMatch(after: Position, isRecursed: boolean = false): Range {
 		if (this._cannotFind()) {
 			return null;
 		}
@@ -287,7 +293,7 @@ export class FindModelBoundToEditorModel {
 			after = searchRange.getStartPosition();
 		}
 
-		let {lineNumber,column} = after;
+		let {lineNumber, column} = after;
 		let model = this._editor.getModel();
 
 		let position = new Position(lineNumber, column);
@@ -385,7 +391,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _findMatches(findScope: Range, limitResultCount:number): Range[] {
+	private _findMatches(findScope: Range, limitResultCount: number): Range[] {
 		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
 		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord, limitResultCount);
 	}
@@ -400,7 +406,7 @@ export class FindModelBoundToEditorModel {
 		// Get all the ranges (even more than the highlighted ones)
 		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
 
-		let replaceStrings:string[] = [];
+		let replaceStrings: string[] = [];
 		for (let i = 0, len = ranges.length; i < len; i++) {
 			replaceStrings.push(this.getReplaceString(ranges[i]));
 		}
@@ -424,7 +430,7 @@ export class FindModelBoundToEditorModel {
 		this._editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
 	}
 
-	private _executeEditorCommand(source:string, command:editorCommon.ICommand): void {
+	private _executeEditorCommand(source: string, command: editorCommon.ICommand): void {
 		try {
 			this._ignoreModelContentChanged = true;
 			this._editor.executeCommand(source, command);
