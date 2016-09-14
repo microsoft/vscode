@@ -21,7 +21,7 @@ const watch = process.platform === 'win32'
 	? require('./watch-win32')
 	: require('gulp-watch');
 
-module.exports = () => {
+module.exports = function () {
 	return watch.apply(null, arguments)
 		.pipe(handleDeletions());
 };
