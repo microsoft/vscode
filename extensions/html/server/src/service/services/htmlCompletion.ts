@@ -7,21 +7,22 @@
 import { TextDocument, Position, CompletionList, CompletionItemKind, Range } from 'vscode-languageserver-types';
 import { HTMLDocument } from '../parser/htmlParser';
 import { TokenType, createScanner, ScannerState } from '../parser/htmlScanner';
-import { IHTMLTagProvider, getHTML5TagProvider, getAngularTagProvider, getIonicTagProvider } from '../parser/htmlTags';
-import { startsWith } from '../utils/strings';
+import { getHTML5TagProvider, getAngularTagProvider, getIonicTagProvider } from '../parser/htmlTags';
+import { CompletionConfiguration } from '../htmlLanguageService';
 
-let tagProviders: IHTMLTagProvider[] = [];
-tagProviders.push(getHTML5TagProvider());
-tagProviders.push(getAngularTagProvider());
-tagProviders.push(getIonicTagProvider());
+let allTagProviders = [
+	getHTML5TagProvider(),
+	getAngularTagProvider(),
+	getIonicTagProvider()
+];
 
-
-export function doComplete(document: TextDocument, position: Position, doc: HTMLDocument): CompletionList {
+export function doComplete(document: TextDocument, position: Position, doc: HTMLDocument, settings?: CompletionConfiguration): CompletionList {
 
 	let result: CompletionList = {
 		isIncomplete: false,
 		items: []
 	};
+	let tagProviders = allTagProviders.filter(p => p.isApplicable(document.languageId) && (!settings || !!settings[p.getId()]));
 
 	let offset = document.offsetAt(position);
 	let node = doc.findNodeBefore(offset);
@@ -56,8 +57,8 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 
 	function collectCloseTagSuggestions(afterOpenBracket: number, matchingOnly: boolean) : CompletionList {
 		let range = getReplaceRange(afterOpenBracket);
-		let contentAfter = document.getText().substr(offset, 1);
-		let closeTag = isWhiteSpace(contentAfter) || startsWith(contentAfter, '<') ? '>' : '';
+		let contentAfter = document.getText().substr(offset);
+		let closeTag = contentAfter.match(/^\s*>/) ? '' : '>';
 		let curr = node;
 		while (curr) {
 			let tag = curr.tag;

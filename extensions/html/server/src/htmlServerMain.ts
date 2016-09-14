@@ -9,7 +9,7 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult
 } from 'vscode-languageserver';
 
-import {HTMLDocument, LanguageSettings, getLanguageService} from './service/htmlLanguageService';
+import {HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration} from './service/htmlLanguageService';
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
@@ -51,65 +51,18 @@ interface Settings {
 	html: LanguageSettings;
 }
 
+interface LanguageSettings {
+	suggest: CompletionConfiguration;
+	format: HTMLFormatConfiguration;
+}
+
 let languageSettings: LanguageSettings;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
 	var settings = <Settings>change.settings;
 	languageSettings = settings.html;
-	updateConfiguration();
 });
-
-function updateConfiguration() {
-	languageService.configure(languageSettings);
-
-	// Revalidate any open text documents
-	documents.all().forEach(triggerValidation);
-}
-
-// The content of a text document has changed. This event is emitted
-// when the text document first opened or when its content has changed.
-documents.onDidChangeContent((change) => {
-	triggerValidation(change.document);
-});
-
-// a document has closed: clear all diagnostics
-documents.onDidClose(event => {
-	cleanPendingValidation(event.document);
-	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
-});
-
-let pendingValidationRequests : {[uri:string]:NodeJS.Timer} = {};
-const validationDelayMs = 200;
-
-function cleanPendingValidation(textDocument: TextDocument): void {
-	let request = pendingValidationRequests[textDocument.uri];
-	if (request) {
-		clearTimeout(request);
-		delete pendingValidationRequests[textDocument.uri];
-	}
-}
-
-function triggerValidation(textDocument: TextDocument): void {
-	cleanPendingValidation(textDocument);
-	pendingValidationRequests[textDocument.uri] = setTimeout(() => {
-		delete pendingValidationRequests[textDocument.uri];
-		validateTextDocument(textDocument);
-	}, validationDelayMs);
-}
-
-function validateTextDocument(textDocument: TextDocument): void {
-	if (textDocument.getText().length === 0) {
-		// ignore empty documents
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
-		return;
-	}
-
-	let htmlDocument = getHTMLDocument(textDocument);
-	let diagnostics = languageService.doValidation(textDocument, htmlDocument);
-	// Send the computed diagnostics to VSCode.
-	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-}
 
 function getHTMLDocument(document: TextDocument): HTMLDocument {
 	return languageService.parseHTMLDocument(document);
@@ -118,7 +71,8 @@ function getHTMLDocument(document: TextDocument): HTMLDocument {
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let htmlDocument = getHTMLDocument(document);
-	return languageService.doComplete(document, textDocumentPosition.position, htmlDocument);
+	let options = languageSettings && languageSettings.suggest;
+	return languageService.doComplete(document, textDocumentPosition.position, htmlDocument, options);
 });
 
 connection.onDocumentHighlight(documentHighlightParams => {

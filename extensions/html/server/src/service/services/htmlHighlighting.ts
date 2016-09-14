@@ -25,7 +25,6 @@ export function findDocumentHighlights(document: TextDocument, position: Positio
 			result.push({ kind: DocumentHighlightKind.Read, range: endTagRange });
 		}
 	}
-	console.log('foo' + result.length);
 	return result;
 }
 

@@ -41,27 +41,22 @@ export interface HTMLFormatConfiguration {
 	extraLiners: string;
 }
 
-export interface LanguageSettings {
-	validate: boolean;
-	format: HTMLFormatConfiguration;
+export interface CompletionConfiguration {
+	[provider:string]:boolean;
 }
 
 export declare type HTMLDocument = {};
 
 export interface LanguageService {
-	configure(settings: LanguageSettings): void;
 	parseHTMLDocument(document: TextDocument): HTMLDocument;
-	doValidation(document: TextDocument, htmlDocument: HTMLDocument): Diagnostic[];
 	findDocumentHighlights(document: TextDocument, position: Position, htmlDocument: HTMLDocument): DocumentHighlight[];
-	doComplete(document: TextDocument, position: Position, htmlDocument: HTMLDocument): CompletionList;
+	doComplete(document: TextDocument, position: Position, htmlDocument: HTMLDocument, options?: CompletionConfiguration): CompletionList;
 	format(document: TextDocument, range: Range, options: HTMLFormatConfiguration): TextEdit[];
 	provideLinks(document: TextDocument, workspacePath:string): DocumentLink[];
 }
 
 export function getLanguageService() : LanguageService {
 	return {
-		doValidation: (document, htmlDocument) => { return []; },
-		configure: (settings) => {},
 		parseHTMLDocument: (document) => parse(document.getText()),
 		doComplete,
 		format,
