@@ -8,12 +8,14 @@ import { TextDocument, Position, CompletionList, CompletionItemKind, Range } fro
 import { HTMLDocument } from '../parser/htmlParser';
 import { TokenType, createScanner, ScannerState } from '../parser/htmlScanner';
 import { getHTML5TagProvider, getAngularTagProvider, getIonicTagProvider } from '../parser/htmlTags';
+import { getRazorTagProvider } from '../parser/razorTags';
 import { CompletionConfiguration } from '../htmlLanguageService';
 
 let allTagProviders = [
 	getHTML5TagProvider(),
 	getAngularTagProvider(),
-	getIonicTagProvider()
+	getIonicTagProvider(),
+	getRazorTagProvider()
 ];
 
 export function doComplete(document: TextDocument, position: Position, doc: HTMLDocument, settings?: CompletionConfiguration): CompletionList {

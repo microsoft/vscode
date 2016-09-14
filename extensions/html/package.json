@@ -7,7 +7,8 @@
   },
   "activationEvents": [
     "onLanguage:html",
-    "onLanguage:handlebars"
+    "onLanguage:handlebars",
+    "onLanguage:razor"
   ],
   "main": "./client/out/htmlMain",
   "scripts": {
@@ -83,6 +84,21 @@
           ],
           "default": "head, body, /html",
           "description": "List of tags, comma separated, that should have an extra newline before them. 'null' defaults to \"head, body, /html\"."
+        },
+        "html.suggest.angular1": {
+          "type": "boolean",
+          "default": true,
+          "description": "Configures if the built-in HTML language support suggests Angular V1 tags and properties."
+        },
+        "html.suggest.ionic": {
+          "type": "boolean",
+          "default": true,
+          "description": "Configures if the built-in HTML language support suggests Ionic tags, properties and values."
+        },
+        "html.suggest.html5": {
+          "type": "boolean",
+          "default": true,
+          "description": "Configures if the built-in HTML language support suggests HTML5 tags, properties and values."
         }
       }
     }
