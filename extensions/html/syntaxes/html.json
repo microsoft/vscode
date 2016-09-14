@@ -352,7 +352,7 @@
 							"name": "punctuation.definition.entity.html"
 						}
 					},
-					"match": "(&)([a-zA-Z0-9]+|#[0-9]+|#x[0-9a-fA-F]+)(;)",
+					"match": "(&)([a-zA-Z0-9]+|#[0-9]+|#[xX][0-9a-fA-F]+)(;)",
 					"name": "constant.character.entity.html"
 				},
 				{
@@ -549,5 +549,5 @@
 	},
 	"scopeName": "text.html.basic",
 	"uuid": "17994EC8-6B1D-11D9-AC3A-000D93589AF6",
-	"version": "https://github.com/textmate/html.tmbundle/commit/d1231e3da1c22d3a5310223881b89c311aec9f04"
+	"version": "https://github.com/textmate/html.tmbundle/commit/9f812c89f4990a98391701caa77824c94860538f"
 }
