@@ -51,17 +51,17 @@ export class TerminalSupport {
 				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
 			};
 
-			const conf = configurationService.getConfiguration<IIntegratedTerminalConfiguration>();
-
-			let isPowerShell = false;
-			if (conf.terminal && conf.terminal.integrated && conf.terminal.integrated.shell && conf.terminal.integrated.shell.windows) {
-				isPowerShell = conf.terminal.integrated.shell.windows.indexOf('PowerShell') >= 0;
-			}
-
+			const windows_shell = configurationService.getConfiguration<IIntegratedTerminalConfiguration>().terminal.integrated.shell.windows;
+			const isPowerShell = windows_shell ? windows_shell.toLowerCase().indexOf('powershell') >= 0 : false;
 			if (isPowerShell) {
 
 				if (args.cwd) {
 					command += `cd ${quote(args.cwd)}; `;
+				}
+				if (args.env) {
+					for (let key in args.env) {
+						command += `$env:${key}='${args.env[key]}'; `;
+					}
 				}
 				for (let a of args.args) {
 					command += `${quote(a)} `;
