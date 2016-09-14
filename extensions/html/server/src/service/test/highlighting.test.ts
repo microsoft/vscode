@@ -13,7 +13,6 @@ export function assertHighlights(value: string, expectedMatches: number[], eleme
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
 	let document = TextDocument.create('test://test/test.html', 'html', 0, value);
-	let htmlDocument = htmlLanguageService.getLanguageService().parseHTMLDocument(document);
 
 	let position = document.positionAt(offset);
 	let ls = htmlLanguageService.getLanguageService();

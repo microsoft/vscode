@@ -67,21 +67,16 @@ let testCompletionFor = function (value: string, expected: { count?: number, ite
 	let document = TextDocument.create('test://test/test.html', 'html', 0, value);
 	let position = document.positionAt(offset);
 	let htmlDoc = ls.parseHTMLDocument(document);
-	return asPromise(ls.doComplete(document, position, htmlDoc, settings)).then(list => {
-		try {
-			if (expected.count) {
-				assert.equal(list.items, expected.count);
-			}
-			if (expected.items) {
-				for (let item of expected.items) {
-					assertCompletion(list, item, document, offset);
-				}
-			}
-		} catch (e) {
-			return Promise.reject(e);
+	let list = ls.doComplete(document, position, htmlDoc, settings);
+	if (expected.count) {
+		assert.equal(list.items, expected.count);
+	}
+	if (expected.items) {
+		for (let item of expected.items) {
+			assertCompletion(list, item, document, offset);
 		}
-
-	});
+	}
+	return Promise.resolve();
 };
 function run(tests: Thenable<void>[], testDone) {
 	Promise.all(tests).then(() => {
@@ -275,12 +270,11 @@ suite('HTML Completion', () => {
 		], testDone);
 	});
 
-	suite('Handlevar Completion', (testDone) => {
+	test('Handlebar Completion', function (testDone) {
 		run([
-
-			testCompletionFor('<script id="entry-template" type="text/x-handlebars-template"> | </script>' , {
+			testCompletionFor('<script id="entry-template" type="text/x-handlebars-template"> <| </script>' , {
 				items: [
-					{ label: 'div', resultText: '<script id="entry-template" type="text/x-handlebars-template"> <div></div> </script>' },
+					{ label: 'div', resultText: '<script id="entry-template" type="text/x-handlebars-template"> <div </script>' },
 				]
 			})
 		], testDone);
