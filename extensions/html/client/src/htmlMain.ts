@@ -30,7 +30,7 @@ export function activate(context: ExtensionContext) {
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
-		documentSelector: ['html'],
+		documentSelector: ['html', 'handlebars'],
 		synchronize: {
 			// Synchronize the setting section 'html' to the server
 			configurationSection: ['html'],

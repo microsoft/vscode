@@ -6,7 +6,8 @@
     "vscode": "0.10.x"
   },
   "activationEvents": [
-    "onLanguage:html"
+    "onLanguage:html",
+    "onLanguage:handlebars"
   ],
   "main": "./client/out/htmlMain",
   "scripts": {
