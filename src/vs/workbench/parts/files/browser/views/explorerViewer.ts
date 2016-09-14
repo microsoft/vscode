@@ -398,19 +398,19 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 		const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
 		if (name) {
-			classes.push(`${name.toLowerCase()}-name-file-icon`);
+			classes.push(`${this.cssEscape(name.toLowerCase())}-name-file-icon`);
 		}
 
 		const extensions = dotSegments.splice(1);
 		if (extensions.length > 0) {
 			for (let i = 0; i < extensions.length; i++) {
-				classes.push(`${extensions.slice(i).join('.').toLowerCase()}-ext-file-icon`); // add each combination of all found extensions if more than one
+				classes.push(`${this.cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
 			}
 		}
 
 		const langId = this.modeService.getModeIdByFilenameOrFirstLine(fsPath);
 		if (langId) {
-			classes.push(`${langId}-lang-file-icon`);
+			classes.push(`${this.cssEscape(langId)}-lang-file-icon`);
 		}
 
 		return classes;
@@ -422,10 +422,14 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		const classes = ['folder-icon'];
 
 		if (basename) {
-			classes.push(`${basename.toLowerCase()}-name-folder-icon`);
+			classes.push(`${this.cssEscape(basename.toLowerCase())}-name-folder-icon`);
 		}
 
 		return classes;
+	}
+
+	private cssEscape(val: string): string {
+		return val.replace(/ /g, '\\ '); // make sure to not introduce CSS classes from files that contain whitespace
 	}
 }
 
