@@ -14,7 +14,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
+import {FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {RunOnceScheduler, Delayer} from 'vs/base/common/async';
@@ -36,6 +36,7 @@ export interface IFindStartOptions {
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
+export const CONTEXT_FIND_INPUT_FOCUSSED = new RawContextKey<boolean>('findInputFocussed', false);
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -920,8 +921,10 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
 		kbExpr: EditorContextKeys.Focus,
-		primary: KeyMod.Alt | KeyCode.KEY_C,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+		primary: ToggleCaseSensitiveKeybinding.primary,
+		mac: ToggleCaseSensitiveKeybinding.mac,
+		win: ToggleCaseSensitiveKeybinding.win,
+		linux: ToggleCaseSensitiveKeybinding.linux
 	}
 }));
 
@@ -932,8 +935,10 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
 		kbExpr: EditorContextKeys.Focus,
-		primary: KeyMod.Alt | KeyCode.KEY_W,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+		primary: ToggleWholeWordKeybinding.primary,
+		mac: ToggleWholeWordKeybinding.mac,
+		win: ToggleWholeWordKeybinding.win,
+		linux: ToggleWholeWordKeybinding.linux
 	}
 }));
 
@@ -944,8 +949,10 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
 		kbExpr: EditorContextKeys.Focus,
-		primary: KeyMod.Alt | KeyCode.KEY_R,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+		primary: ToggleRegexKeybinding.primary,
+		mac: ToggleRegexKeybinding.mac,
+		win: ToggleRegexKeybinding.win,
+		linux: ToggleRegexKeybinding.linux
 	}
 }));
 
@@ -988,8 +995,11 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.showPreviousFindTerm(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
-		primary: KeyMod.Alt | KeyCode.UpArrow
+		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.Focus),
+		primary: ShowPreviousFindTermKeybinding.primary,
+		mac: ShowPreviousFindTermKeybinding.mac,
+		win: ShowPreviousFindTermKeybinding.win,
+		linux: ShowPreviousFindTermKeybinding.linux
 	}
 }));
 
@@ -999,7 +1009,10 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.showNextFindTerm(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
-		primary: KeyMod.Alt | KeyCode.DownArrow
+		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.Focus),
+		primary: ShowNextFindTermKeybinding.primary,
+		mac: ShowNextFindTermKeybinding.mac,
+		win: ShowNextFindTermKeybinding.win,
+		linux: ShowNextFindTermKeybinding.linux
 	}
 }));
