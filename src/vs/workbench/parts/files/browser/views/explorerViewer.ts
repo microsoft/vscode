@@ -429,7 +429,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	}
 
 	private cssEscape(val: string): string {
-		return val.replace(/ /g, '\\ '); // make sure to not introduce CSS classes from files that contain whitespace
+		return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
 	}
 }
 
