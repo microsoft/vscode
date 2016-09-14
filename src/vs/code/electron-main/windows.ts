@@ -99,6 +99,7 @@ export interface IWindowsService {
 	openFileFolderPicker(forceNewWindow?: boolean): void;
 	openFilePicker(forceNewWindow?: boolean): void;
 	openFolderPicker(forceNewWindow?: boolean): void;
+	openAccessibilityOptions(): void;
 	focusLastActive(cli: ICommandLineArguments): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow;
@@ -1066,6 +1067,22 @@ export class WindowsManager implements IWindowsService {
 
 	public openFolderPicker(forceNewWindow?: boolean): void {
 		this.doPickAndOpen({ pickFolders: true, forceNewWindow });
+	}
+
+	public openAccessibilityOptions(): void {
+		let win = new BrowserWindow({
+			alwaysOnTop: true,
+			skipTaskbar: true,
+			resizable: false,
+			width: 450,
+			height: 300,
+			show: true,
+			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
+		});
+
+		win.setMenuBarVisibility(false);
+
+		win.loadURL('chrome://accessibility');
 	}
 
 	private doPickAndOpen(options: INativeOpenDialogOptions): void {
