@@ -1,5 +1,10 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 [{
+	"name": "js-beautify",
+	"version": "1.6.2",
+	"license": "MIT",
+	"repositoryURL": "https://github.com/beautify-web/js-beautify"
+},{
 	"name": "textmate/html.tmbundle",
 	"version": "0.0.0",
 	"license": "TextMate Bundle License",
