@@ -97,7 +97,8 @@ class NavBar {
 
 const NavbarSection = {
 	Readme: 'readme',
-	Contributions: 'contributions'
+	Contributions: 'contributions',
+	Changelog: 'changelog'
 };
 
 interface ILayoutParticipant {
@@ -123,6 +124,7 @@ export class ExtensionEditor extends BaseEditor {
 	private highlightDisposable: IDisposable;
 
 	private extensionReadme: Cache<string>;
+	private extensionChangelog: Cache<string>;
 	private extensionManifest: Cache<IExtensionManifest>;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
@@ -147,6 +149,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.highlightDisposable = empty;
 		this.disposables = [];
 		this.extensionReadme = null;
+		this.extensionChangelog = null;
 		this.extensionManifest = null;
 	}
 
@@ -198,6 +201,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
 		this.extensionReadme = new Cache(() => extension.getReadme());
+		this.extensionChangelog = new Cache(() => extension.getChangelog());
 		this.extensionManifest = new Cache(() => extension.getManifest());
 
 		const onError = once(domEvent(this.icon, 'error'));
@@ -250,6 +254,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
 		this.navbar.push(NavbarSection.Readme, localize('details', "Details"));
 		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
+		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
 
 		this.content.innerHTML = '';
 
@@ -260,6 +265,7 @@ export class ExtensionEditor extends BaseEditor {
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme(extension);
 			case NavbarSection.Contributions: return this.openContributions(extension);
+			case NavbarSection.Changelog: return this.openChangelog(extension);
 		}
 	}
 
@@ -309,6 +315,30 @@ export class ExtensionEditor extends BaseEditor {
 
 				scrollableContent.scanDomNode();
 			}));
+	}
+
+	private openChangelog(extension : IExtension) {
+		return this.loadContents(() => this.extensionChangelog.get()
+			.then(marked.parse)
+			.then(renderBody)
+			.then<void>(body => {
+				const webview = new WebView(
+					this.content,
+					document.querySelector('.monaco-editor-background')
+				);
+
+				webview.style(this.themeService.getColorTheme());
+				webview.contents = [body];
+
+				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString(true)));
+				const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
+				this.contentDisposables.push(webview, linkListener, themeListener);
+			})
+			.then(null, () => {
+				const p = append(this.content, $('p'));
+				p.textContent = localize('noChangelog', "No CHANGELOG available.");
+			}));
+
 	}
 
 	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
