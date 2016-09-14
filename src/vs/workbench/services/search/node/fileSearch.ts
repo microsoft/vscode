@@ -262,9 +262,7 @@ export class FileWalker {
 				if (i) {
 					args.push('-o');
 				}
-				// const basename: string = (<any>basenames[i]).normalize('NFD'); // XXX
-				const basename = basenames[i];
-				args.push('-name', FileWalker.escapeGlobSpecials(basename));
+				args.push('-name', FileWalker.escapeGlobSpecials(basenames[i]));
 			}
 			args.push(')', '-prune', ')');
 		}
