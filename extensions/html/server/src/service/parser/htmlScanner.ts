@@ -206,6 +206,10 @@ export interface Scanner {
 	getScannerState(): ScannerState;
 }
 
+const htmlScriptContents = {
+	'text/x-handlebars-template': true
+};
+
 export function createScanner(input: string, initialOffset = 0, initialState: ScannerState = ScannerState.WithinContent) : Scanner {
 
 	let stream = new MultiLineStream(input, initialOffset);
@@ -216,6 +220,8 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 
 	let hasSpaceAfterTag: boolean;
 	let lastTag: string;
+	let lastAttributeName: string;
+	let lastTypeValue: string;
 
 	function nextElementName(): string {
 		return stream.advanceIfRegExp(/^[_:\w][_:\w-.\d]*/).toLowerCase();
@@ -299,6 +305,8 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 				break;
 			case ScannerState.AfterOpeningStartTag:
 				lastTag = nextElementName();
+				lastTypeValue = null;
+				lastAttributeName = null;
 				if (lastTag.length > 0) {
 					hasSpaceAfterTag = false;
 					state = ScannerState.WithinTag;
@@ -316,8 +324,8 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 					return finishToken(offset, TokenType.Whitespace);
 				}
 				if (hasSpaceAfterTag) {
-					let name = nextAttributeName();
-					if (name.length > 0) {
+					lastAttributeName = nextAttributeName();
+					if (lastAttributeName.length > 0) {
 						state = ScannerState.AfterAttributeName;
 						hasSpaceAfterTag = false;
 						return finishToken(offset, TokenType.AttributeName);
@@ -329,7 +337,12 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 				}
 				if (stream.advanceIfChar(_RAN)) { // >
 					if (lastTag === 'script') {
-						state = ScannerState.WithinScriptContent;
+						if (lastTypeValue && htmlScriptContents[lastTypeValue]) {
+							// stay in html
+							state = ScannerState.WithinContent;
+						} else {
+							state = ScannerState.WithinScriptContent;
+						}	
 					} else if (lastTag === 'style') {
 						state = ScannerState.WithinStyleContent;
 					} else {
@@ -357,6 +370,9 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 				}
 				let attributeValue = stream.advanceIfRegExp(/^[^\s"'`=<>]+/);
 				if (attributeValue.length > 0) {
+					if (lastAttributeName === 'type') {
+						lastTypeValue = attributeValue;
+					}
 					state = ScannerState.WithinTag;
 					hasSpaceAfterTag = false;
 					return finishToken(offset, TokenType.AttributeValue);
@@ -366,6 +382,9 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 					stream.advance(1); // consume quote
 					if (stream.advanceUntilChar(ch)) {
 						stream.advance(1); // consume quote
+					}
+					if (lastAttributeName === 'type') {
+						lastTypeValue = stream.getSource().substring(offset + 1, stream.pos() - 1);
 					}
 					state = ScannerState.WithinTag;
 					hasSpaceAfterTag = false;
