@@ -250,7 +250,10 @@ export class FileWalker {
 		});
 	}
 
-	private spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
+	/**
+	 * Public for testing.
+	 */
+	public spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
 		const basenames = glob.getBasenameTerms(excludePattern);
 		let args = ['-L', '.'];
 		if (basenames.length) {
@@ -259,7 +262,9 @@ export class FileWalker {
 				if (i) {
 					args.push('-o');
 				}
-				args.push('-name', basenames[i]);
+				// const basename: string = (<any>basenames[i]).normalize('NFD'); // XXX
+				const basename = basenames[i];
+				args.push('-name', FileWalker.escapeGlobSpecials(basename));
 			}
 			args.push(')', '-prune', ')');
 		}
@@ -267,7 +272,16 @@ export class FileWalker {
 		return childProcess.spawn('find', args, { cwd: rootFolder });
 	}
 
-	private readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
+	private static GLOB_SPECIALS = /[*?\[\]\\]/g;
+	private static ESCAPE_CHAR = '\\$&';
+	private static escapeGlobSpecials(string) {
+		return string.replace(this.GLOB_SPECIALS, this.ESCAPE_CHAR);
+	}
+
+	/**
+	 * Public for testing.
+	 */
+	public readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
 		let done = (err: Error, stdout?: string) => {
 			done = () => {};
 			this.cmdForkResultTime = Date.now();

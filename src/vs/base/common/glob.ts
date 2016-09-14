@@ -363,9 +363,13 @@ export function parse(arg1: string | IExpression): any {
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
-		return function (path: string, basename: string) {
+		const resultPattern = function (path: string, basename: string) {
 			return !!parsedPattern(path, basename);
 		};
+		if (parsedPattern.allBasenames) {
+			(<ParsedStringPattern><any>resultPattern).allBasenames = parsedPattern.allBasenames;
+		}
+		return resultPattern;
 	}
 
 	// Glob with Expression
