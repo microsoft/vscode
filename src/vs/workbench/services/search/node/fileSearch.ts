@@ -169,7 +169,7 @@ export class FileWalker {
 	}
 
 	private macFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
+		const cmd = this.spawnFindCmd(rootFolder, this.excludePattern);
 		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
@@ -224,7 +224,7 @@ export class FileWalker {
 	}
 
 	private linuxFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
+		const cmd = this.spawnFindCmd(rootFolder, this.excludePattern);
 		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
@@ -248,6 +248,23 @@ export class FileWalker {
 
 			done();
 		});
+	}
+
+	private spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
+		const basenames = glob.getBasenameTerms(excludePattern);
+		let args = ['-L', '.'];
+		if (basenames.length) {
+			args.push('-not', '(', '(');
+			for (let i = 0, n = basenames.length; i < n; i++) {
+				if (i) {
+					args.push('-o');
+				}
+				args.push('-name', basenames[i]);
+			}
+			args.push(')', '-prune', ')');
+		}
+		args.push('-type', 'f');
+		return childProcess.spawn('find', args, { cwd: rootFolder });
 	}
 
 	private readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
