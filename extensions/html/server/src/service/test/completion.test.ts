@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as htmlLanguageService from '../htmlLanguageService';
 
-import {CompletionList, TextDocument, TextEdit, Position, CompletionItemKind} from 'vscode-languageserver-types';
+import {CompletionList, TextDocument, CompletionItemKind} from 'vscode-languageserver-types';
 import {applyEdits} from './textEditSupport';
 
 export interface ItemDescription {
@@ -53,12 +53,10 @@ export let assertCompletion = function (completions: CompletionList, expected: I
 		if (actualText !== expectedText) {
 			assert.equal(actualText, expectedText);
 		}
-
-
 	}
 };
 
-let testCompletionFor = function (value: string, expected: { count?: number, items?: ItemDescription[] }, settings? : htmlLanguageService.CompletionConfiguration): Thenable<void> {
+let testCompletionFor = function (value: string, expected: { count?: number, items?: ItemDescription[] }, settings?: htmlLanguageService.CompletionConfiguration): Thenable<void> {
 	let offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
@@ -78,6 +76,7 @@ let testCompletionFor = function (value: string, expected: { count?: number, ite
 	}
 	return Promise.resolve();
 };
+
 function run(tests: Thenable<void>[], testDone) {
 	Promise.all(tests).then(() => {
 		testDone();
@@ -272,7 +271,7 @@ suite('HTML Completion', () => {
 
 	test('Handlebar Completion', function (testDone) {
 		run([
-			testCompletionFor('<script id="entry-template" type="text/x-handlebars-template"> <| </script>' , {
+			testCompletionFor('<script id="entry-template" type="text/x-handlebars-template"> <| </script>', {
 				items: [
 					{ label: 'div', resultText: '<script id="entry-template" type="text/x-handlebars-template"> <div </script>' },
 				]
@@ -377,7 +376,7 @@ suite('HTML Completion', () => {
 		run([
 			testCompletionFor('<|', {
 				items: [
-					{ label: 'ion-checkbox'},
+					{ label: 'ion-checkbox' },
 					{ label: 'div', notAvailable: true },
 				]
 			}, { html5: false, ionic: true, angular1: false }),

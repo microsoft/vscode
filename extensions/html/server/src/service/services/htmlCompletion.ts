@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextDocument, Position, CompletionList, CompletionItemKind, Range } from 'vscode-languageserver-types';
-import { HTMLDocument } from '../parser/htmlParser';
-import { TokenType, createScanner, ScannerState } from '../parser/htmlScanner';
-import { getHTML5TagProvider, getAngularTagProvider, getIonicTagProvider } from '../parser/htmlTags';
-import { getRazorTagProvider } from '../parser/razorTags';
-import { CompletionConfiguration } from '../htmlLanguageService';
+import {TextDocument, Position, CompletionList, CompletionItemKind, Range} from 'vscode-languageserver-types';
+import {HTMLDocument} from '../parser/htmlParser';
+import {TokenType, createScanner, ScannerState} from '../parser/htmlScanner';
+import {getHTML5TagProvider, getAngularTagProvider, getIonicTagProvider} from '../parser/htmlTags';
+import {getRazorTagProvider} from '../parser/razorTags';
+import {CompletionConfiguration} from '../htmlLanguageService';
 
 let allTagProviders = [
 	getHTML5TagProvider(),
@@ -35,14 +35,14 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 	let currentTag: string;
 	let currentAttributeName: string;
 
-	function getReplaceRange(replaceStart: number) : Range {
+	function getReplaceRange(replaceStart: number): Range {
 		if (replaceStart > offset) {
 			replaceStart = offset;
 		}
-		return { start: document.positionAt(replaceStart), end: document.positionAt(offset)};
+		return { start: document.positionAt(replaceStart), end: document.positionAt(offset) };
 	}
 
-	function collectOpenTagSuggestions(afterOpenBracket: number) : CompletionList {
+	function collectOpenTagSuggestions(afterOpenBracket: number): CompletionList {
 		let range = getReplaceRange(afterOpenBracket);
 		tagProviders.forEach((provider) => {
 			provider.collectTags((tag, label) => {
@@ -57,7 +57,7 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 		return result;
 	}
 
-	function collectCloseTagSuggestions(afterOpenBracket: number, matchingOnly: boolean) : CompletionList {
+	function collectCloseTagSuggestions(afterOpenBracket: number, matchingOnly: boolean): CompletionList {
 		let range = getReplaceRange(afterOpenBracket);
 		let contentAfter = document.getText().substr(offset);
 		let closeTag = contentAfter.match(/^\s*>/) ? '' : '>';
@@ -93,13 +93,13 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 		return result;
 	}
 
-	function collectTagSuggestions(tagStart: number) : CompletionList {
+	function collectTagSuggestions(tagStart: number): CompletionList {
 		collectOpenTagSuggestions(tagStart);
 		collectCloseTagSuggestions(tagStart, true);
 		return result;
 	}
 
-	function collectAttributeNameSuggestions(nameStart: number) : CompletionList {
+	function collectAttributeNameSuggestions(nameStart: number): CompletionList {
 		let range = getReplaceRange(nameStart);
 		tagProviders.forEach((provider) => {
 			provider.collectAttributes(currentTag, (attribute, type) => {
@@ -117,7 +117,7 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 		return result;
 	}
 
-	function collectAttributeValueSuggestions(valueStart: number) : CompletionList {
+	function collectAttributeValueSuggestions(valueStart: number): CompletionList {
 		let range = getReplaceRange(valueStart);
 		tagProviders.forEach((provider) => {
 			provider.collectValues(currentTag, currentAttributeName, (value) => {
@@ -206,6 +206,6 @@ export function doComplete(document: TextDocument, position: Position, doc: HTML
 	return result;
 }
 
-function isWhiteSpace(s:string) : boolean {
+function isWhiteSpace(s: string): boolean {
 	return /^\s*$/.test(s);
 }

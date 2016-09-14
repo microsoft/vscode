@@ -84,7 +84,7 @@ connection.onDocumentHighlight(documentHighlightParams => {
 	return languageService.findDocumentHighlights(document, documentHighlightParams.position, htmlDocument);
 });
 
-function merge(src: any, dst: any) : any {
+function merge(src: any, dst: any): any {
 	for (var key in src) {
 		if (src.hasOwnProperty(key)) {
 			dst[key] = src[key];
@@ -93,7 +93,7 @@ function merge(src: any, dst: any) : any {
 	return dst;
 }
 
-function getFormattingOptions(formatParams : any) {
+function getFormattingOptions(formatParams: any) {
 	let formatSettings = languageSettings && languageSettings.format;
 	if (!formatSettings) {
 		return formatParams;

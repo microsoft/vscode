@@ -196,7 +196,7 @@ export enum ScannerState {
 }
 
 export interface Scanner {
-	scan() : TokenType;
+	scan(): TokenType;
 	getTokenType(): TokenType;
 	getTokenOffset(): number;
 	getTokenLength(): number;
@@ -210,7 +210,7 @@ const htmlScriptContents = {
 	'text/x-handlebars-template': true
 };
 
-export function createScanner(input: string, initialOffset = 0, initialState: ScannerState = ScannerState.WithinContent) : Scanner {
+export function createScanner(input: string, initialOffset = 0, initialState: ScannerState = ScannerState.WithinContent): Scanner {
 
 	let stream = new MultiLineStream(input, initialOffset);
 	let state = initialState;
@@ -342,7 +342,7 @@ export function createScanner(input: string, initialOffset = 0, initialState: Sc
 							state = ScannerState.WithinContent;
 						} else {
 							state = ScannerState.WithinScriptContent;
-						}	
+						}
 					} else if (lastTag === 'style') {
 						state = ScannerState.WithinStyleContent;
 					} else {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
+
 import {parse} from './parser/htmlParser';
 import {doComplete} from './services/htmlCompletion';
 import {format} from './services/htmlFormatter';
@@ -26,7 +27,7 @@ export interface HTMLFormatConfiguration {
 }
 
 export interface CompletionConfiguration {
-	[provider:string]:boolean;
+	[provider: string]: boolean;
 }
 
 export declare type HTMLDocument = {};
@@ -36,12 +37,12 @@ export interface LanguageService {
 	findDocumentHighlights(document: TextDocument, position: Position, htmlDocument: HTMLDocument): DocumentHighlight[];
 	doComplete(document: TextDocument, position: Position, htmlDocument: HTMLDocument, options?: CompletionConfiguration): CompletionList;
 	format(document: TextDocument, range: Range, options: HTMLFormatConfiguration): TextEdit[];
-	findDocumentLinks(document: TextDocument, workspacePath:string): DocumentLink[];
+	findDocumentLinks(document: TextDocument, workspacePath: string): DocumentLink[];
 }
 
-export function getLanguageService() : LanguageService {
+export function getLanguageService(): LanguageService {
 	return {
-		parseHTMLDocument: (document) => parse(document.getText()),
+		parseHTMLDocument: document => parse(document.getText()),
 		doComplete,
 		format,
 		findDocumentHighlights,

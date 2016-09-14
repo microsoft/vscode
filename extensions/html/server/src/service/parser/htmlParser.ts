@@ -18,7 +18,7 @@ export class Node {
 	public get firstChild(): Node { return this.children[0]; }
 	public get lastChild(): Node { return this.children.length ? this.children[this.children.length - 1] : void 0; }
 
-	public findNodeBefore(offset:number) : Node {
+	public findNodeBefore(offset: number): Node {
 		let idx = findFirst(this.children, c => offset <= c.start) - 1;
 		if (idx >= 0) {
 			let child = this.children[idx];
@@ -36,7 +36,7 @@ export class Node {
 		return this;
 	}
 
-	public findNodeAt(offset:number) : Node {
+	public findNodeAt(offset: number): Node {
 		let idx = findFirst(this.children, c => offset <= c.start) - 1;
 		if (idx >= 0) {
 			let child = this.children[idx];
@@ -50,16 +50,16 @@ export class Node {
 
 export interface HTMLDocument {
 	roots: Node[];
-	findNodeBefore(offset:number) : Node;
-	findNodeAt(offset:number) : Node;
+	findNodeBefore(offset: number): Node;
+	findNodeAt(offset: number): Node;
 }
 
-export function parse(text: string) : HTMLDocument {
+export function parse(text: string): HTMLDocument {
 	let scanner = createScanner(text);
 
 	let htmlDocument = new Node(0, text.length, [], null);
 	let curr = htmlDocument;
-	let endTagStart : number = -1;
+	let endTagStart: number = -1;
 	let token = scanner.scan();
 	while (token !== TokenType.EOS) {
 		switch (token) {
