@@ -42,6 +42,7 @@ import { Keybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -140,7 +141,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IThemeService private themeService: IThemeService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IOpenerService private openerService: IOpenerService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
@@ -276,9 +278,9 @@ export class ExtensionEditor extends BaseEditor {
 				webview.style(this.themeService.getColorTheme());
 				webview.contents = [body];
 
-				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString(true)));
-				const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
-				this.contentDisposables.push(webview, linkListener, themeListener);
+				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+				this.themeService.onDidColorThemeChange(themeId => webview.style(themeId), null, this.contentDisposables);
+				this.contentDisposables.push(webview);
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p'));
