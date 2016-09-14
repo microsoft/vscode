@@ -269,8 +269,8 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
-	private openReadme(extension: IExtension) {
-		return this.loadContents(() => this.extensionReadme.get()
+	private openMarkdown(extension: IExtension, content: TPromise<string>) {
+		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
 			.then<void>(body => {
@@ -290,6 +290,14 @@ export class ExtensionEditor extends BaseEditor {
 				const p = append(this.content, $('p'));
 				p.textContent = localize('noReadme', "No README available.");
 			}));
+	}
+
+	private openReadme(extension: IExtension) {
+		return this.openMarkdown(extension, this.extensionReadme.get());
+	}
+
+	private openChangelog(extension : IExtension) {
+		return this.openMarkdown(extension, this.extensionChangelog.get());
 	}
 
 	private openContributions(extension: IExtension) {
@@ -315,30 +323,6 @@ export class ExtensionEditor extends BaseEditor {
 
 				scrollableContent.scanDomNode();
 			}));
-	}
-
-	private openChangelog(extension : IExtension) {
-		return this.loadContents(() => this.extensionChangelog.get()
-			.then(marked.parse)
-			.then(renderBody)
-			.then<void>(body => {
-				const webview = new WebView(
-					this.content,
-					document.querySelector('.monaco-editor-background')
-				);
-
-				webview.style(this.themeService.getColorTheme());
-				webview.contents = [body];
-
-				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString(true)));
-				const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
-				this.contentDisposables.push(webview, linkListener, themeListener);
-			})
-			.then(null, () => {
-				const p = append(this.content, $('p'));
-				p.textContent = localize('noChangelog', "No CHANGELOG available.");
-			}));
-
 	}
 
 	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
