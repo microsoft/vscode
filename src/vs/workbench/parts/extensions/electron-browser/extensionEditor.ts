@@ -269,7 +269,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
-	private openMarkdown(extension: IExtension, content: TPromise<string>) {
+	private openMarkdown(extension: IExtension, content: TPromise<string>, noContentCopy: string) {
 		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
@@ -288,16 +288,16 @@ export class ExtensionEditor extends BaseEditor {
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p'));
-				p.textContent = localize('noReadme', "No README available.");
+				p.textContent = noContentCopy;
 			}));
 	}
 
 	private openReadme(extension: IExtension) {
-		return this.openMarkdown(extension, this.extensionReadme.get());
+		return this.openMarkdown(extension, this.extensionReadme.get(), localize('noReadme', "No README available."));
 	}
 
 	private openChangelog(extension : IExtension) {
-		return this.openMarkdown(extension, this.extensionChangelog.get());
+		return this.openMarkdown(extension, this.extensionChangelog.get(), localize('noChangelog', "No CHANGELOG available."));
 	}
 
 	private openContributions(extension: IExtension) {
