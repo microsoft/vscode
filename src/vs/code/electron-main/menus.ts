@@ -614,6 +614,14 @@ export class VSCodeMenu {
 			enabled: (this.windowsService.getWindowCount() > 0)
 		});
 
+		const showAccessibilityOptions = new MenuItem({
+			label: mnemonicLabel(nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")),
+			accelerator: null,
+			click: () => {
+				this.windowsService.openAccessibilityOptions();
+			}
+		});
+
 		const issueUrl = generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date);
 
 		arrays.coalesce([
@@ -646,6 +654,7 @@ export class VSCodeMenu {
 			}) : null,
 			(this.envService.product.licenseUrl || this.envService.product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
+			platform.isWindows ? showAccessibilityOptions : null
 		]).forEach((item) => helpMenu.append(item));
 
 		if (!platform.isMacintosh) {
