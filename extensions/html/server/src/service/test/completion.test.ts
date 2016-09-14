@@ -17,6 +17,7 @@ export interface ItemDescription {
 	insertText?: string;
 	overwriteBefore?: number;
 	resultText?: string;
+	notAvailable?: boolean;
 }
 
 function asPromise<T>(result: T): Promise<T> {
@@ -27,6 +28,11 @@ export let assertCompletion = function (completions: CompletionList, expected: I
 	let matches = completions.items.filter(completion => {
 		return completion.label === expected.label;
 	});
+	if (expected.notAvailable) {
+		assert.equal(matches.length, 0, expected.label + " should not existing is results");
+		return;
+	}
+
 	assert.equal(matches.length, 1, expected.label + " should only existing once: Actual: " + completions.items.map(c => c.label).join(', '));
 	if (expected.documentation) {
 		assert.equal(matches[0].documentation, expected.documentation);
@@ -52,7 +58,7 @@ export let assertCompletion = function (completions: CompletionList, expected: I
 	}
 };
 
-let testCompletionFor = function (value: string, expected: { count?: number, items?: ItemDescription[] }): Thenable<void> {
+let testCompletionFor = function (value: string, expected: { count?: number, items?: ItemDescription[] }, settings? : htmlLanguageService.CompletionConfiguration): Thenable<void> {
 	let offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
@@ -61,7 +67,7 @@ let testCompletionFor = function (value: string, expected: { count?: number, ite
 	let document = TextDocument.create('test://test/test.html', 'html', 0, value);
 	let position = document.positionAt(offset);
 	let htmlDoc = ls.parseHTMLDocument(document);
-	return asPromise(ls.doComplete(document, position, htmlDoc)).then(list => {
+	return asPromise(ls.doComplete(document, position, htmlDoc, settings)).then(list => {
 		try {
 			if (expected.count) {
 				assert.equal(list.items, expected.count);
@@ -87,7 +93,7 @@ function run(tests: Thenable<void>[], testDone) {
 
 suite('HTML Completion', () => {
 
-	test('Intellisense', function (testDone): any {
+	test('Complete', function (testDone): any {
 		run([
 			testCompletionFor('<|', {
 				items: [
@@ -271,7 +277,7 @@ suite('HTML Completion', () => {
 
 	suite('Handlevar Completion', (testDone) => {
 		run([
-		
+
 			testCompletionFor('<script id="entry-template" type="text/x-handlebars-template"> | </script>' , {
 				items: [
 					{ label: 'div', resultText: '<script id="entry-template" type="text/x-handlebars-template"> <div></div> </script>' },
@@ -280,7 +286,7 @@ suite('HTML Completion', () => {
 		], testDone);
 	});
 
-	test('Intellisense aria', function (testDone): any {
+	test('Complete aria', function (testDone): any {
 		let expectedAriaAttributes = [
 			{ label: 'aria-activedescendant' },
 			{ label: 'aria-atomic' },
@@ -338,7 +344,7 @@ suite('HTML Completion', () => {
 		], testDone);
 	});
 
-	test('Intellisense Angular', function (testDone): any {
+	test('Complete Angular', function (testDone): any {
 		run([
 			testCompletionFor('<body  |> </body >', {
 				items: [
@@ -361,70 +367,38 @@ suite('HTML Completion', () => {
 		], testDone);
 	});
 
-	test('Intellisense Ionic', function (testDone): any {
+	test('Complete Ionic', function (testDone): any {
 		run([
 			// Try some Ionic tags
 			testCompletionFor('<|', {
 				items: [
 					{ label: 'ion-checkbox', resultText: '<ion-checkbox' },
 					{ label: 'ion-content', resultText: '<ion-content' },
-					{ label: 'ion-nav-title', resultText: '<ion-nav-title' },
-				]
-			}),
-			testCompletionFor('<ion-re|', {
-				items: [
-					{ label: 'ion-refresher', resultText: '<ion-refresher' },
-					{ label: 'ion-reorder-button', resultText: '<ion-reorder-button' },
-				]
-			}),
-			// Try some global attributes (1 with value suggestions, 1 without value suggestions, 1 void)
-			testCompletionFor('<ion-checkbox |', {
-				items: [
-					{ label: 'force-refresh-images', resultText: '<ion-checkbox force-refresh-images="{{}}"' },
-					{ label: 'collection-repeat', resultText: '<ion-checkbox collection-repeat="{{}}"' },
-					{ label: 'menu-close', resultText: '<ion-checkbox menu-close' },
-				]
-			}),
-			// Try some tag-specific attributes (1 with value suggestions, 1 void)
-			testCompletionFor('<ion-footer-bar |', {
-				items: [
-					{ label: 'align-title', resultText: '<ion-footer-bar align-title="{{}}"' },
-					{ label: 'keyboard-attach', resultText: '<ion-footer-bar keyboard-attach' },
-				]
-			}),
-			// Try the extended attributes of an existing HTML 5 tag
-			testCompletionFor('<a |', {
-				items: [
-					{ label: 'nav-direction', resultText: '<a nav-direction="{{}}"' },
-					{ label: 'nav-transition', resultText: '<a nav-transition="{{}}"' },
-					{ label: 'href', resultText: '<a href="{{}}"' },
-					{ label: 'hreflang', resultText: '<a hreflang="{{}}"' },
-				]
-			}),
-			// Try value suggestion for a tag-specific attribute
-			testCompletionFor('<ion-side-menu side="|', {
-				items: [
-					{ label: 'left', resultText: '<ion-side-menu side="left"' },
-					{ label: 'primary', resultText: '<ion-side-menu side="primary"' },
-					{ label: 'right', resultText: '<ion-side-menu side="right"' },
-					{ label: 'secondary', resultText: '<ion-side-menu side="secondary"' },
-				]
-			}),
-			// Try a value suggestion for a global attribute
-			testCompletionFor('<img force-refresh-images="|', {
-				items: [
-					{ label: 'false', resultText: '<img force-refresh-images="false"' },
-					{ label: 'true', resultText: '<img force-refresh-images="true"' },
-				]
-			}),
-			// Try a value suggestion for an extended attribute of an existing HTML 5 tag
-			testCompletionFor('<a nav-transition="|', {
-				items: [
-					{ label: 'android', resultText: '<a nav-transition="android"' },
-					{ label: 'ios', resultText: '<a nav-transition="ios"' },
-					{ label: 'none', resultText: '<a nav-transition="none"' },
 				]
 			})
+		], testDone);
+	});
+
+	test('Settings', function (testDone): any {
+		run([
+			testCompletionFor('<|', {
+				items: [
+					{ label: 'ion-checkbox'},
+					{ label: 'div', notAvailable: true },
+				]
+			}, { html5: false, ionic: true, angular1: false }),
+			testCompletionFor('<|', {
+				items: [
+					{ label: 'ion-checkbox', notAvailable: true },
+					{ label: 'div' },
+				]
+			}, { html5: true, ionic: false, angular1: false }),
+			testCompletionFor('<input  |> </input >', {
+				items: [
+					{ label: 'ng-model', notAvailable: true },
+					{ label: 'type' },
+				]
+			}, { html5: true, ionic: false, angular1: false }),
 		], testDone);
 	});
 })
