@@ -78,8 +78,8 @@ suite('HTML Link Detection', () => {
 	});
 
 	test('Link detection', () => {
-		testLinkDetection('<img src="foo.png">', [9]);
-		testLinkDetection('<a href="http://server/foo.html">', [8]);
+		testLinkDetection('<img src="foo.png">', [10]);
+		testLinkDetection('<a href="http://server/foo.html">', [9]);
 	});
 
 });
