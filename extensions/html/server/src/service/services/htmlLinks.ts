@@ -18,7 +18,7 @@ function _stripQuotes(url: string): string {
 		.replace(/^"([^"]+)"$/,(substr, match1) => match1);
 }
 
-export function _getWorkspaceUrl(modelAbsoluteUri: Uri, rootAbsoluteUrlStr: string, tokenContent: string): string {
+export function _getWorkspaceUrl(modelAbsoluteUri: Uri, rootAbsoluteUrl: Uri, tokenContent: string): string {
 	tokenContent = _stripQuotes(tokenContent);
 
 	if (/^\s*javascript\:/i.test(tokenContent) || /^\s*\#/i.test(tokenContent)) {
@@ -47,9 +47,10 @@ export function _getWorkspaceUrl(modelAbsoluteUri: Uri, rootAbsoluteUrlStr: stri
 		alternativeResultPath = paths.join(modelPath, tokenContent);
 		alternativeResultPath = alternativeResultPath.replace(/^(\/\.\.)+/, '');
 	}
-	let potentialResult = modelAbsoluteUri.with({ path: alternativeResultPath }).toString();
+	let potentialResult = modelAbsoluteUri.with({ path: alternativeResultPath }).toString(true);
 
-	if (rootAbsoluteUrlStr && strings.startsWith(modelAbsoluteUri.toString(), rootAbsoluteUrlStr)) {
+	let rootAbsoluteUrlStr = rootAbsoluteUrl && rootAbsoluteUrl.toString(true);
+	if (rootAbsoluteUrlStr && strings.startsWith(modelAbsoluteUri.toString(true), rootAbsoluteUrlStr)) {
 		// The `rootAbsoluteUrl` is set and matches our current model
 		// We need to ensure that this `potentialResult` does not escape `rootAbsoluteUrl`
 
@@ -63,7 +64,7 @@ export function _getWorkspaceUrl(modelAbsoluteUri: Uri, rootAbsoluteUrlStr: stri
 	return potentialResult;
 }
 
-function createLink(document: TextDocument, rootAbsoluteUrl: string, tokenContent: string, startOffset: number, endOffset: number): DocumentLink {
+function createLink(document: TextDocument, rootAbsoluteUrl: Uri, tokenContent: string, startOffset: number, endOffset: number): DocumentLink {
 	let documentUri = Uri.parse(document.uri);
 	let workspaceUrl = _getWorkspaceUrl(documentUri, rootAbsoluteUrl, tokenContent);
 	if (!workspaceUrl) {
@@ -78,15 +79,13 @@ function createLink(document: TextDocument, rootAbsoluteUrl: string, tokenConten
 export function provideLinks(document: TextDocument, workspacePath:string): DocumentLink[] {
 	let newLinks: DocumentLink[] = [];
 
-	let rootAbsoluteUrl: string = null;
+	let rootAbsoluteUrl: Uri = null;
 	if (workspacePath) {
 		// The workspace can be null in the no folder opened case
-		let strRootAbsoluteUrl = workspacePath;
-		if (strRootAbsoluteUrl.charAt(strRootAbsoluteUrl.length - 1) === '/') {
-			rootAbsoluteUrl = strRootAbsoluteUrl;
-		} else {
-			rootAbsoluteUrl = strRootAbsoluteUrl + '/';
+		if (workspacePath.charAt(workspacePath.length - 1) !== '/') {
+			workspacePath = workspacePath + '/';
 		}
+		rootAbsoluteUrl = Uri.parse(workspacePath);
 	}
 
 	let scanner = createScanner(document.getText(), 0);

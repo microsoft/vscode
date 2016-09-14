@@ -14,7 +14,7 @@ suite('HTML Link Detection', () => {
 
 	function testLinkCreation(modelUrl:string, rootUrl:string, tokenContent:string, expected:string): void {
 		var _modelUrl = Uri.parse(modelUrl);
-		var actual = htmlLinks._getWorkspaceUrl(_modelUrl, rootUrl, tokenContent);
+		var actual = htmlLinks._getWorkspaceUrl(_modelUrl, Uri.parse(rootUrl), tokenContent);
 		assert.equal(actual, expected);
 	}
 
@@ -44,7 +44,7 @@ suite('HTML Link Detection', () => {
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', null, 'http://www.microsoft.com/', 'http://www.microsoft.com/');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', null, 'https://www.microsoft.com/', 'https://www.microsoft.com/');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', null, '  //www.microsoft.com/', 'http://www.microsoft.com/');
-		//testLinkCreation('file:///C:/Alex/src/path/to/file.txt', null, 'a.js', 'file:///C:/Alex/src/path/to/a.js');
+		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', null, 'a.js', 'file:///c:/Alex/src/path/to/a.js');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', null, '/a.js', 'file:///a.js');
 
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'javascript:void;', null);
@@ -55,17 +55,17 @@ suite('HTML Link Detection', () => {
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'https://www.microsoft.com/', 'https://www.microsoft.com/');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'https://www.microsoft.com/?q=1#h', 'https://www.microsoft.com/?q=1#h');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', '  //www.microsoft.com/', 'http://www.microsoft.com/');
-		//testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'a.js', 'file:///C:/Alex/src/path/to/a.js');
-		//testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', '/a.js', 'file:///C:/Alex/src/a.js');
+		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'a.js', 'file:///c:/Alex/src/path/to/a.js');
+		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', '/a.js', 'file:///c:/Alex/src/a.js');
 
 		testLinkCreation('https://www.test.com/path/to/file.txt', null, 'file:///C:\\Alex\\src\\path\\to\\file.txt', 'file:///C:\\Alex\\src\\path\\to\\file.txt');
 		testLinkCreation('https://www.test.com/path/to/file.txt', null, '//www.microsoft.com/', 'https://www.microsoft.com/');
 		testLinkCreation('https://www.test.com/path/to/file.txt', 'https://www.test.com', '//www.microsoft.com/', 'https://www.microsoft.com/');
 
 		// invalid uris don't throw
-		testLinkCreation('https://www.test.com/path/to/file.txt', 'https://www.test.com', '%', 'https://www.test.com/path/to/%25');
+		testLinkCreation('https://www.test.com/path/to/file.txt', 'https://www.test.com', '%', 'https://www.test.com/path/to/%');
 
 		// Bug #18314: Ctrl + Click does not open existing file if folder's name starts with 'c' character
-	//	testLinkCreation('file:///c:/Alex/working_dir/18314-link-detection/test.html', 'file:///c:/Alex/working_dir/18314-link-detection/', '/class/class.js', 'file:///c:/Alex/working_dir/18314-link-detection/class/class.js');
+		testLinkCreation('file:///c:/Alex/working_dir/18314-link-detection/test.html', 'file:///c:/Alex/working_dir/18314-link-detection/', '/class/class.js', 'file:///c:/Alex/working_dir/18314-link-detection/class/class.js');
 	});
 });
