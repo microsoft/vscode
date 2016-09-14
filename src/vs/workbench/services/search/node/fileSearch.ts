@@ -169,7 +169,7 @@ export class FileWalker {
 	}
 
 	private macFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
+		const cmd = this.spawnFindCmd(rootFolder, this.excludePattern);
 		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
@@ -224,7 +224,7 @@ export class FileWalker {
 	}
 
 	private linuxFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
+		const cmd = this.spawnFindCmd(rootFolder, this.excludePattern);
 		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
@@ -250,7 +250,36 @@ export class FileWalker {
 		});
 	}
 
-	private readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
+	/**
+	 * Public for testing.
+	 */
+	public spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
+		const basenames = glob.getBasenameTerms(excludePattern);
+		let args = ['-L', '.'];
+		if (basenames.length) {
+			args.push('-not', '(', '(');
+			for (let i = 0, n = basenames.length; i < n; i++) {
+				if (i) {
+					args.push('-o');
+				}
+				args.push('-name', FileWalker.escapeGlobSpecials(basenames[i]));
+			}
+			args.push(')', '-prune', ')');
+		}
+		args.push('-type', 'f');
+		return childProcess.spawn('find', args, { cwd: rootFolder });
+	}
+
+	private static GLOB_SPECIALS = /[*?\[\]\\]/g;
+	private static ESCAPE_CHAR = '\\$&';
+	private static escapeGlobSpecials(string) {
+		return string.replace(this.GLOB_SPECIALS, this.ESCAPE_CHAR);
+	}
+
+	/**
+	 * Public for testing.
+	 */
+	public readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
 		let done = (err: Error, stdout?: string) => {
 			done = () => {};
 			this.cmdForkResultTime = Date.now();

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import {BoundedLinkedMap} from 'vs/base/common/map';
@@ -219,11 +220,13 @@ interface ParsedStringPattern {
 	(path: string, basename: string): string /* the matching pattern */;
 	basenames?: string[];
 	patterns?: string[];
+	allBasenames?: string[];
 }
 type SiblingsPattern = { siblings: string[], name: string };
 interface ParsedExpressionPattern {
 	(path: string, basename: string, siblingsPatternFn: () => SiblingsPattern): string /* the matching pattern */;
 	requiresSiblings?: boolean;
+	allBasenames?: string[];
 }
 
 const CACHE = new BoundedLinkedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
@@ -269,8 +272,10 @@ function parsePattern(pattern: string): ParsedStringPattern {
 			}
 			return path === base || strings.endsWith(path, slashBase) || strings.endsWith(path, backslashBase) ? pattern : null;
 		};
-		parsedPattern.basenames = [base];
+		const basenames = [base];
+		parsedPattern.basenames = basenames;
 		parsedPattern.patterns = [pattern];
+		parsedPattern.allBasenames = basenames;
 	} else if (T3.test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
 		const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1).split(',')
 			.map(pattern => parsePattern(pattern))
@@ -290,6 +295,10 @@ function parsePattern(pattern: string): ParsedStringPattern {
 			}
 			return null;
 		};
+		const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+		if (withBasenames) {
+			parsedPattern.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+		}
 	}
 
 	// Otherwise convert to pattern
@@ -354,13 +363,21 @@ export function parse(arg1: string | IExpression): any {
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
-		return function (path: string, basename: string) {
+		const resultPattern = function (path: string, basename: string) {
 			return !!parsedPattern(path, basename);
 		};
+		if (parsedPattern.allBasenames) {
+			(<ParsedStringPattern><any>resultPattern).allBasenames = parsedPattern.allBasenames;
+		}
+		return resultPattern;
 	}
 
 	// Glob with Expression
 	return parsedExpression(<IExpression>arg1);
+}
+
+export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
+	return (<ParsedStringPattern>patternOrExpression).allBasenames || [];
 }
 
 function parsedExpression(expression: IExpression): ParsedExpression {
@@ -378,7 +395,7 @@ function parsedExpression(expression: IExpression): ParsedExpression {
 			return <ParsedStringPattern>parsedPatterns[0];
 		}
 
-		return function (path: string, basename: string, siblingsFn?: () => string[]) {
+		const resultExpression: ParsedStringPattern = function (path: string, basename: string, siblingsFn?: () => string[]) {
 			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 				// Pattern matches path
 				const result = (<ParsedStringPattern>parsedPatterns[i])(path, basename);
@@ -389,9 +406,16 @@ function parsedExpression(expression: IExpression): ParsedExpression {
 
 			return null;
 		};
+
+		const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+		if (withBasenames) {
+			resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+		}
+
+		return resultExpression;
 	}
 
-	return function (path: string, basename: string, siblingsFn?: () => string[]) {
+	const resultExpression: ParsedStringPattern = function (path: string, basename: string, siblingsFn?: () => string[]) {
 		let siblingsPattern: SiblingsPattern;
 		let siblingsResolved = !siblingsFn;
 
@@ -421,6 +445,13 @@ function parsedExpression(expression: IExpression): ParsedExpression {
 
 		return null;
 	};
+
+	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	if (withBasenames) {
+		resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+	}
+
+	return resultExpression;
 }
 
 function parseExpressionPattern(pattern: string, value: any): (ParsedStringPattern | ParsedExpressionPattern) {
@@ -503,6 +534,7 @@ function aggregateBasenameMatches(parsedPatterns: (ParsedStringPattern | ParsedE
 	};
 	aggregate.basenames = basenames;
 	aggregate.patterns = patterns;
+	aggregate.allBasenames = basenames;
 
 	const aggregatedPatterns = parsedPatterns.filter(parsedPattern => !(<ParsedStringPattern>parsedPattern).basenames);
 	aggregatedPatterns.push(aggregate);
