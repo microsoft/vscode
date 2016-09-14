@@ -39,13 +39,13 @@ import arrays = require('../utils/arrays');
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
-export const EMPTY_ELEMENTS:string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
+export const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
 
-export function isEmptyElement(e: string) : boolean {
+export function isEmptyElement(e: string): boolean {
 	return e && arrays.binarySearch(EMPTY_ELEMENTS, e.toLowerCase(), (s1: string, s2: string) => s1.localeCompare(s2)) >= 0;
 }
 
-export function isSameTag(t1: string, t2: string) : boolean {
+export function isSameTag(t1: string, t2: string): boolean {
 	return t1 && t2 && t1.toLowerCase() === t2.toLowerCase();
 }
 

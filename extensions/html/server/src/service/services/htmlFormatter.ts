@@ -15,7 +15,7 @@ export function format(document: TextDocument, range: Range, options: HTMLFormat
 		let endOffset = document.offsetAt(range.end);
 		value = value.substring(startOffset, endOffset);
 	}
-	let htmlOptions : IBeautifyHTMLOptions = {
+	let htmlOptions: IBeautifyHTMLOptions = {
 		indent_size: options.insertSpaces ? options.tabSize : 1,
 		indent_char: options.insertSpaces ? ' ' : '\t',
 		wrap_line_length: getFormatOption(options, 'wrapLineLength', 120),
@@ -46,7 +46,7 @@ function getFormatOption(options: HTMLFormatConfiguration, key: string, dflt: an
 }
 
 function getTagsFormatOption(options: HTMLFormatConfiguration, key: string, dflt: string[]): string[] {
-	let list = <string> getFormatOption(options, key, null);
+	let list = <string>getFormatOption(options, key, null);
 	if (typeof list === 'string') {
 		if (list.length > 0) {
 			return list.split(',').map(t => t.trim().toLowerCase());

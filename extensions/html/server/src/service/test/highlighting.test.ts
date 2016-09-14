@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as htmlLanguageService from '../htmlLanguageService';
-import {CompletionList, TextDocument, TextEdit, Position, CompletionItemKind} from 'vscode-languageserver-types';
+import {TextDocument} from 'vscode-languageserver-types';
 
 export function assertHighlights(value: string, expectedMatches: number[], elementName: string): void {
 	let offset = value.indexOf('|');
@@ -46,7 +46,6 @@ suite('HTML Highlighting', () => {
 		assertHighlights('<html></htm|l>', [1, 8], 'html');
 		assertHighlights('<html></html|>', [1, 8], 'html');
 		assertHighlights('<html></html>|', [], null);
-
 	});
 
 	test('Nested', function (): any {
@@ -63,10 +62,8 @@ suite('HTML Highlighting', () => {
 	});
 
 	test('Selfclosed', function (): any {
-		assertHighlights('<html><|div/></html>', [ 7 ], 'div');
-		assertHighlights('<html><|br></html>', [ 7 ], 'br');
-		assertHighlights('<html><div><d|iv/></div></html>', [ 12 ], 'div');
+		assertHighlights('<html><|div/></html>', [7], 'div');
+		assertHighlights('<html><|br></html>', [7], 'br');
+		assertHighlights('<html><div><d|iv/></div></html>', [12], 'div');
 	});
-
-
 });

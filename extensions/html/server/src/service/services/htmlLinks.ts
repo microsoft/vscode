@@ -14,8 +14,8 @@ import {DocumentLink} from '../htmlLanguageService';
 
 function stripQuotes(url: string): string {
 	return url
-		.replace(/^'([^']+)'$/,(substr, match1) => match1)
-		.replace(/^"([^"]+)"$/,(substr, match1) => match1);
+		.replace(/^'([^']+)'$/, (substr, match1) => match1)
+		.replace(/^"([^"]+)"$/, (substr, match1) => match1);
 }
 
 function getWorkspaceUrl(modelAbsoluteUri: Uri, rootAbsoluteUrl: Uri, tokenContent: string): string {
@@ -79,7 +79,7 @@ function createLink(document: TextDocument, rootAbsoluteUrl: Uri, attributeValue
 	};
 }
 
-export function findDocumentLinks(document: TextDocument, workspacePath:string): DocumentLink[] {
+export function findDocumentLinks(document: TextDocument, workspacePath: string): DocumentLink[] {
 	let newLinks: DocumentLink[] = [];
 
 	let rootAbsoluteUrl: Uri = null;
@@ -111,7 +111,7 @@ export function findDocumentLinks(document: TextDocument, workspacePath:string):
 				}
 				break;
 		}
-		token =  scanner.scan();
+		token = scanner.scan();
 	}
 	return newLinks;
 }

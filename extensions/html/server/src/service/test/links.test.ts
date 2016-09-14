@@ -6,21 +6,19 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as htmlLinks from '../services/htmlLinks';
-import {CompletionList, TextDocument, TextEdit, Position, CompletionItemKind} from 'vscode-languageserver-types';
-import Uri from 'vscode-uri';
+import {TextDocument} from 'vscode-languageserver-types';
 import * as htmlLanguageService from '../htmlLanguageService';
 
 suite('HTML Link Detection', () => {
 
-	function testLinkCreation(modelUrl:string, rootUrl:string, tokenContent:string, expected:string): void {
+	function testLinkCreation(modelUrl: string, rootUrl: string, tokenContent: string, expected: string): void {
 		let document = TextDocument.create(modelUrl, 'html', 0, `<a href="${tokenContent}">`);
 		let ls = htmlLanguageService.getLanguageService();
 		let links = ls.findDocumentLinks(document, rootUrl);
 		assert.equal(links[0] && links[0].target, expected);
 	}
 
-	function testLinkDetection(value:string, expectedLinkLocations:number[]): void {
+	function testLinkDetection(value: string, expectedLinkLocations: number[]): void {
 		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
 
 		let ls = htmlLanguageService.getLanguageService();
@@ -80,8 +78,8 @@ suite('HTML Link Detection', () => {
 	});
 
 	test('Link detection', () => {
-		testLinkDetection('<img src="foo.png">', [ 9 ]);
-		testLinkDetection('<a href="http://server/foo.html">', [ 8 ]);
+		testLinkDetection('<img src="foo.png">', [9]);
+		testLinkDetection('<a href="http://server/foo.html">', [8]);
 	});
 
 });
