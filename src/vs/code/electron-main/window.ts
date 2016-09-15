@@ -84,9 +84,6 @@ export interface IPath {
 
 	// indicator to create the file path in the VSCode instance
 	createFilePath?: boolean;
-
-	// indicator to install the extension (path to .vsix) in the VSCode instance
-	installExtensionPath?: boolean;
 }
 
 export interface IWindowConfiguration extends ICommandLineArguments {
@@ -102,8 +99,6 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
-
-	extensionsToInstall: string[];
 }
 
 export interface IWindowSettings {
@@ -388,7 +383,6 @@ export class VSCodeWindow {
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
-		delete configuration.extensionsToInstall;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
