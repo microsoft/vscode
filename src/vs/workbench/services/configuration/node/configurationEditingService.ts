@@ -21,6 +21,16 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
 import {IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue} from 'vs/workbench/services/configuration/common/configurationEditing';
 
+export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
+	'tasks': '.vscode/tasks.json',
+	'launch': '.vscode/launch.json'
+};
+
+interface IConfigurationEditOperation extends IConfigurationValue {
+	target: URI;
+	isWorkspaceStandalone?: boolean;
+}
+
 interface IValidationResult {
 	error?: ConfigurationEditingErrorCode;
 	exists?: boolean;
@@ -39,16 +49,17 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	) {
 	}
 
-	public writeConfiguration(target: ConfigurationTarget, values: IConfigurationValue[]): TPromise<void> {
+	public writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue): TPromise<void> {
+		const operation = this.getConfigurationEditOperation(target, value);
 
 		// First validate before making any edits
-		return this.validate(target, values).then(validation => {
+		return this.validate(target, operation).then(validation => {
 			if (typeof validation.error === 'number') {
 				return this.wrapError(validation.error);
 			}
 
 			// Create configuration file if missing
-			const resource = this.getConfigurationResource(target);
+			const resource = operation.target;
 			let ensureConfigurationFile = TPromise.as(null);
 			let contents: string;
 			if (!validation.exists) {
@@ -61,7 +72,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return ensureConfigurationFile.then(() => {
 
 				// Apply all edits to the configuration file
-				const result = this.applyEdits(contents, values);
+				const result = this.applyEdits(contents, [operation]);
 
 				return pfs.writeFile(resource.fsPath, result, encoding.UTF8).then(() => {
 
@@ -85,6 +96,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private toErrorMessage(error: ConfigurationEditingErrorCode): string {
 		switch (error) {
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to the configuration file (Unknown Key)");
+			case ConfigurationEditingErrorCode.ERROR_INVALID_TARGET: return nls.localize('errorInvalidTarget', "Unable to write to the configuration file (Invalid Target)");
 			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorWorkspaceOpened', "Unable to write to the configuration file (No Workspace Opened)");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: return nls.localize('errorInvalidConfiguration', "Unable to write to the configuration file (Invalid Configuration Found)");
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: return nls.localize('errorConfigurationFileDirty', "Unable to write to the configuration file (Configuration File Dirty)");
@@ -105,27 +117,34 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return content;
 	}
 
-	private validate(target: ConfigurationTarget, values: IConfigurationValue[]): TPromise<IValidationResult> {
+	private validate(target: ConfigurationTarget, operation: IConfigurationEditOperation): TPromise<IValidationResult> {
 
-		// 1.) Any key must be a known setting from the registry
-		const validKeys = getConfigurationKeys();
-		if (values.some(v => validKeys.indexOf(v.key) < 0)) {
-			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY });
+		// Any key must be a known setting from the registry (unless this is a standalone config)
+		if (!operation.isWorkspaceStandalone) {
+			const validKeys = getConfigurationKeys();
+			if (validKeys.indexOf(operation.key) < 0) {
+				return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY });
+			}
 		}
 
-		// 2.) Target cannot be workspace if no workspace opened
+		// Target cannot be user if is standalone
+		if (operation.isWorkspaceStandalone && target === ConfigurationTarget.USER) {
+			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_INVALID_TARGET });
+		}
+
+		// Target cannot be workspace if no workspace opened
 		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.getWorkspace()) {
 			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED });
 		}
 
-		// 3.) Target cannot be dirty
-		const resource = this.getConfigurationResource(target);
+		// Target cannot be dirty
+		const resource = operation.target;
 		return this.editorService.createInput({ resource }).then(typedInput => {
 			if (typedInput.isDirty()) {
 				return { error: ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY };
 			}
 
-			// 4.) Target cannot contain JSON errors
+			// Target cannot contain JSON errors
 			return pfs.exists(resource.fsPath).then(exists => {
 				if (!exists) {
 					return { exists };
@@ -146,11 +165,26 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		});
 	}
 
-	private getConfigurationResource(target: ConfigurationTarget): URI {
-		if (target === ConfigurationTarget.USER) {
-			return URI.file(this.environmentService.appSettingsPath);
+	private getConfigurationEditOperation(target: ConfigurationTarget, config: IConfigurationValue): IConfigurationEditOperation {
+
+		// Check for standalone workspace configurations
+		if (config.key) {
+			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
+			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
+				const key = standaloneConfigurationKeys[i];
+				const keyPrefix = `${key}.`;
+				const target = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]);
+
+				if (config.key.indexOf(keyPrefix) === 0) {
+					return { key: config.key.substr(keyPrefix.length), value: config.value, target, isWorkspaceStandalone: true };
+				}
+			}
 		}
 
-		return this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH);
+		if (target === ConfigurationTarget.USER) {
+			return { key: config.key, value: config.value, target: URI.file(this.environmentService.appSettingsPath) };
+		}
+
+		return { key: config.key, value: config.value, target: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) };
 	}
 }
