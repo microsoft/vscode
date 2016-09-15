@@ -56,8 +56,8 @@ class Main {
 			return this.listExtensions();
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
-			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			return this.installExtension(ids);
+			const args: string[] = typeof arg === 'string' ? [arg] : arg;
+			return this.installExtension(args);
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
