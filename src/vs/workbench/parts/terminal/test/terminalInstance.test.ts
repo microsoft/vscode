@@ -9,15 +9,13 @@ import * as assert from 'assert';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-// import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMessageService, /* Severity */ } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-// import { ITerminalInstance, ITerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { /* IWorkspaceContextService, */ IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import { TestInstantiationService, /* stubFunction */ } from 'vs/test/utils/instantiationTestUtils';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import { TestConfigurationService, TestMessageService } from 'vs/test/utils/servicesTestUtils';
 
 
@@ -31,47 +29,7 @@ suite('Workbench - TerminalInstance', () => {
 		instantiationService.stub(IMessageService, new TestMessageService());
 	});
 
-	// test('TerminalInstance - onTitleChanged event is fired by the process on creation (Linux & OSX)', function (done) {
-	// 	if (platform.platform !== platform.Platform.Linux && platform.platform !== platform.Platform.Mac) {
-	// 		done();
-	// 		return;
-	// 	}
-
-	// 	let terminalInstance = createTerminalInstance(instantiationService, {
-	// 		shell: { linux: '/bin/bash', osx: '/bin/bash' },
-	// 		shellArgs: { linux: [], osx: [] }
-	// 	})
-
-	// 	terminalInstance.onTitleChanged((title) => {
-	// 		if (title === '/bin/bash') {
-	// 			terminalInstance.dispose();
-	// 			done();
-	// 		}
-	// 	});
-	// });
-
-	test('TerminalInstance - onTitleChanged event is fired by the process on creation (Windows)', function (done) {
-		if (platform.platform !== platform.Platform.Windows) {
-			done();
-			return;
-		}
-
-		let terminalInstance = createTerminalInstance(instantiationService, {
-			shell: { windows: 'cmd.exe' },
-			shellArgs: { windows: [] }
-		});
-
-		terminalInstance.onTitleChanged((title) => {
-			if (title === 'cmd.exe') {
-				terminalInstance.dispose();
-				done();
-			}
-		});
-	});
-
 	test('TerminalInstance - createTerminalEnv', function () {
-		/* let terminalConfigHelper = */instantiationService.createInstance(TerminalConfigHelper, platform.Platform.Linux);
-
 		const shell1 = {
 			executable: '/bin/foosh',
 			args: ['-bar', 'baz']
