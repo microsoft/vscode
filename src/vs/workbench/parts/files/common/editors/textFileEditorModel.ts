@@ -10,7 +10,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {toErrorMessage} from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
@@ -39,12 +39,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private resource: URI;
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
-	private textModelChangeListener: IDisposable;
-	private textFileServiceListener: IDisposable;
 	private dirty: boolean;
 	private versionId: number;
 	private bufferSavedVersionId: number;
 	private versionOnDiskStat: IFileStat;
+	private toDispose: IDisposable[];
 	private blockModelContentChange: boolean;
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
@@ -70,14 +69,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	) {
 		super(modelService, modeService);
 
+		this.toDispose = [];
+
 		this.resource = resource;
 		if (this.resource.scheme !== 'file') {
 			throw new Error('TextFileEditorModel can only handle file:// resources.');
 		}
 
 		this._onDidStateChange = new Emitter<StateChange>();
+		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
-		this.textModelChangeListener = null;
 		this.dirty = false;
 		this.autoSavePromises = [];
 		this.versionId = 0;
@@ -89,7 +90,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private registerListeners(): void {
-		this.textFileServiceListener = this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config));
+		this.toDispose.push(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
@@ -254,7 +255,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.createTextEditorModelPromise = null;
 
 					this.setDirty(false); // Ensure we are not tracking a stale state
-					this.textModelChangeListener = this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e));
+					this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
 					return this;
 				}, (error) => {
@@ -679,19 +680,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.inConflictResolutionMode = false;
 		this.inErrorMode = false;
 
-		this._onDidStateChange.dispose();
-
+		this.toDispose = dispose(this.toDispose);
 		this.createTextEditorModelPromise = null;
-
-		if (this.textModelChangeListener) {
-			this.textModelChangeListener.dispose();
-			this.textModelChangeListener = null;
-		}
-
-		if (this.textFileServiceListener) {
-			this.textFileServiceListener.dispose();
-			this.textFileServiceListener = null;
-		}
 
 		this.cancelAutoSavePromises();
 
