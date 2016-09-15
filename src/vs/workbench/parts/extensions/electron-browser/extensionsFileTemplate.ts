@@ -14,7 +14,7 @@ export const Schema: IJSONSchema = {
 	properties: {
 		recommendations: {
 			type: 'array',
-			description: localize('app.extensions.json.recommendations', "List of extension recommendations."),
+			description: localize('app.extensions.json.recommendations', "List of extensions recommendations. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
 			items: {
 				'type': 'string',
 			}
