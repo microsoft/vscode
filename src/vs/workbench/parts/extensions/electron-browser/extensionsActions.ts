@@ -458,6 +458,33 @@ export class ShowRecommendedExtensionsAction extends Action {
 	}
 }
 
+export class ShowWorkspaceRecommendedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showWorkspaceRecommendedExtensions';
+	static LABEL = localize('showWorkspaceRecommendedExtensions', "Show Workspace Recommended Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended:workspace');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ChangeSortAction extends Action {
 
 	private query: Query;
@@ -524,5 +551,18 @@ export class OpenExtensionsFolderAction extends Action {
 
 	protected isEnabled(): boolean {
 		return true;
+	}
+}
+
+export class ConfigureWorkspaceRecommendationsAction extends Action {
+	static ID = 'workbench.extensions.action.configureWorkspaceRecommendations';
+	static LABEL = localize('configureWorkspaceRecommendations', "Configure Worksapce Recommendations");
+
+	constructor(id: string, label: string, @IExtensionsWorkbenchService private extensionsService: IExtensionsWorkbenchService) {
+		super(id, label, null, true);
+	}
+
+	public run(event: any): TPromise<any> {
+		return this.extensionsService.openExtensionsFile();
 	}
 }

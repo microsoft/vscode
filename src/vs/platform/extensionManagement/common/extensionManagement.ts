@@ -202,6 +202,7 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 export interface IExtensionTipsService {
 	_serviceBrand: any;
 	getRecommendations(): string[];
+	getWorkspaceRecommendations(): string[];
 }
 
 export const ExtensionsLabel = nls.localize('extensions', "Extensions");
