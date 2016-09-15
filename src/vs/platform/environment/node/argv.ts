@@ -31,7 +31,6 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	'list-extensions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
-	'install-vsix'?: string | string[];
 }
 
 const options: minimist.Opts = {
@@ -43,7 +42,6 @@ const options: minimist.Opts = {
 		'extensionTestsPath',
 		'install-extension',
 		'uninstall-extension',
-		'install-vsix',
 		'debugBrkPluginHost',
 		'debugPluginHost'
 	],

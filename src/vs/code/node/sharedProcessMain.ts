@@ -8,7 +8,6 @@ import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { coalesce } from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -104,18 +103,12 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 		const instantiationService2 = instantiationService.createChild(services);
 
 		instantiationService2.invokeFunction(accessor => {
-			const environmentService = accessor.get(IEnvironmentService);
 			const extensionManagementService = accessor.get(IExtensionManagementService);
 			const channel = new ExtensionManagementChannel(extensionManagementService);
 			server.registerChannel('extensions', channel);
 
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
-
-			// install vsix
-			const vsixArg = environmentService.args['install-vsix'];
-			const vsix = typeof vsixArg === 'string' ? [vsixArg] : vsixArg;
-			coalesce(vsix || []).forEach(vsix => extensionManagementService.install(vsix));
 		});
 	});
 }
