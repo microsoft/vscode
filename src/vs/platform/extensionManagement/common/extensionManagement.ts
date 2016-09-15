@@ -180,8 +180,19 @@ export interface IExtensionGalleryService {
 	getAsset(url: string): TPromise<IRequestContext>;
 }
 
-export type InstallExtensionEvent = { id: string; gallery?: IGalleryExtension; };
-export type DidInstallExtensionEvent = { id: string; local?: ILocalExtension; error?: Error; };
+export interface InstallExtensionEvent {
+	id: string;
+	zipPath?: string;
+	gallery?: IGalleryExtension;
+}
+
+export interface DidInstallExtensionEvent {
+	id: string;
+	zipPath?: string;
+	gallery?: IGalleryExtension;
+	local?: ILocalExtension;
+	error?: Error;
+}
 
 export interface IExtensionManagementService {
 	_serviceBrand: any;

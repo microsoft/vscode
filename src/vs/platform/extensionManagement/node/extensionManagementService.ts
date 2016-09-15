@@ -91,6 +91,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	install(zipPath: string): TPromise<void> {
+		zipPath = path.resolve(zipPath);
+
 		return validate(zipPath).then<void>(manifest => {
 			const id = getExtensionId(manifest, manifest.version);
 
@@ -99,12 +101,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					return TPromise.wrapError(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name)));
 				}
 
-				this._onInstallExtension.fire({ id });
+				this._onInstallExtension.fire({ id, zipPath });
 
 				return this.installExtension(zipPath, id)
 					.then(
-						local => this._onDidInstallExtension.fire({ id, local }),
-						error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); }
+						local => this._onDidInstallExtension.fire({ id, zipPath, local }),
+						error => { this._onDidInstallExtension.fire({ id, zipPath, error }); return TPromise.wrapError(error); }
 					);
 			});
 		});
@@ -130,8 +132,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				.then(zipPath => validate(zipPath).then(() => zipPath))
 				.then(zipPath => this.installExtension(zipPath, id, metadata))
 				.then(
-					local => this._onDidInstallExtension.fire({ id, local }),
-					error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); }
+					local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
+					error => { this._onDidInstallExtension.fire({ id, gallery: extension, error }); return TPromise.wrapError(error); }
 				);
 		});
 	}

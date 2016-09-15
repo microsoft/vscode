@@ -103,12 +103,17 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 		const instantiationService2 = instantiationService.createChild(services);
 
 		instantiationService2.invokeFunction(accessor => {
+			const environmentService = accessor.get(IEnvironmentService);
 			const extensionManagementService = accessor.get(IExtensionManagementService);
 			const channel = new ExtensionManagementChannel(extensionManagementService);
 			server.registerChannel('extensions', channel);
 
-			// eventually clean up old extensions
-			setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 100);
+			// clean up deprecated extensions
+			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+			// install vsix
+			environmentService.args['install-vsix']
+				.forEach(vsix => extensionManagementService.install(vsix));
 		});
 	});
 }
