@@ -740,17 +740,23 @@ export class ChangeModeAction extends Action {
 	}
 
 	private configureFileAssociation(resource: uri): void {
+		const extension = paths.extname(resource.fsPath);
+		const basename = paths.basename(resource.fsPath);
+		const currentAssociation = this.modeService.getModeIdByFilenameOrFirstLine(basename);
+
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
+			const id = this.modeService.getModeIdForLanguageName(lang.toLowerCase());
+
 			return <IPickOpenEntry>{
-				id: this.modeService.getModeIdForLanguageName(lang.toLowerCase()),
-				label: lang
+				id,
+				label: lang,
+				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : void 0
 			};
 		});
 
 		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
-			const extension = paths.extname(resource.fsPath);
-			const basename = paths.basename(resource.fsPath);
+
 
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
@@ -774,6 +780,7 @@ export class ChangeModeAction extends Action {
 					if (!currentAssociations) {
 						currentAssociations = Object.create(null);
 					}
+
 					currentAssociations[associationKey] = language.id;
 
 					// Write config
