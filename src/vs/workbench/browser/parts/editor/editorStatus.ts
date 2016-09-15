@@ -33,7 +33,7 @@ import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -243,7 +243,7 @@ export class EditorStatus implements IStatusbarItem {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
@@ -628,6 +628,8 @@ export class ChangeModeAction extends Action {
 	public static ID = 'workbench.action.editor.changeLanguageMode';
 	public static LABEL = nls.localize('changeMode', "Change Language Mode");
 
+	private static FILE_ASSOCIATION_KEY = 'files.associations';
+
 	constructor(
 		actionId: string,
 		actionLabel: string,
@@ -635,7 +637,7 @@ export class ChangeModeAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
@@ -676,7 +678,10 @@ export class ChangeModeAction extends Action {
 				description
 			};
 		});
-		picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
+
+		if (fileinput) {
+			picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
+		}
 
 		// Offer action to configure via settings
 		let configureModeAssociations: IPickOpenEntry;
@@ -749,8 +754,7 @@ export class ChangeModeAction extends Action {
 
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
-					const config = this.configurationService.getConfiguration<IFilesConfiguration>();
-					const currentAssociations = (config && config.files && config.files.associations) || Object.create(null);
+					const fileAssociationsConfig = this.configurationService.lookup(ChangeModeAction.FILE_ASSOCIATION_KEY);
 
 					let associationKey: string;
 					if (extension && basename[0] !== '.') {
@@ -759,9 +763,21 @@ export class ChangeModeAction extends Action {
 						associationKey = basename; // otherwise use the basename (e.g. .gitignore, Dockerfile)
 					}
 
+					// If the association is already being made in the workspace, make sure to target workspace settings
+					let target = ConfigurationTarget.USER;
+					if (fileAssociationsConfig.workspace && !!fileAssociationsConfig.workspace[associationKey]) {
+						target = ConfigurationTarget.WORKSPACE;
+					}
+
+					// Make sure to write into the value of the target and not the merged value from USER and WORKSPACE config
+					let currentAssociations = (target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user;
+					if (!currentAssociations) {
+						currentAssociations = Object.create(null);
+					}
 					currentAssociations[associationKey] = language.id;
 
-					this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'files.associations', value: currentAssociations }).done(null, (error) => this.messageService.show(Severity.Error, error.toString()));
+					// Write config
+					this.configurationEditingService.writeConfiguration(target, { key: ChangeModeAction.FILE_ASSOCIATION_KEY, value: currentAssociations }).done(null, (error) => this.messageService.show(Severity.Error, error.toString()));
 				}
 			});
 		});
@@ -879,7 +895,7 @@ export class ChangeEncodingAction extends Action {
 		actionLabel: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		super(actionId, actionLabel);
 	}
