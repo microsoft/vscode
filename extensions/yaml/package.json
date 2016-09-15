@@ -17,7 +17,7 @@
 		"grammars": [{
 			"language": "yaml",
 			"scopeName": "source.yaml",
-			"path": "./syntaxes/YAML.plist"
+			"path": "./syntaxes/yaml.json"
 		}]
 	}
 }
