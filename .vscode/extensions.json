@@ -1,0 +1,8 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the extensions.json format
+	"recommendations": [
+		"eg2.tslint",
+		"mattlott.copy-github-url"
+	]
+}
