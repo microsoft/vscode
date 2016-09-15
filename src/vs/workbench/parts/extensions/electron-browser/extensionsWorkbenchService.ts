@@ -94,6 +94,14 @@ class Extension implements IExtension {
 		return this.gallery && this.gallery.assets.readme;
 	}
 
+	get changelogUrl(): string {
+		if (this.local && this.local.changelogUrl) {
+			return this.local.changelogUrl;
+		}
+
+		return ''; // Hopefully we will change this once the gallery will support that.
+	}
+
 	get iconUrl(): string {
 		return this.localIconUrl || this.galleryIconUrl || this.defaultIconUrl;
 	}
@@ -177,6 +185,26 @@ class Extension implements IExtension {
 		}
 
 		return this.galleryService.getAsset(readmeUrl).then(asText);
+	}
+
+	get hasChangelog() : boolean {
+		return !!(this.local && this.local.changelogUrl ? this.local.changelogUrl : '');
+	}
+
+	getChangelog() : TPromise<string> {
+		const changelogUrl = this.local && this.local.changelogUrl ? this.local.changelogUrl : '';
+
+		if (!changelogUrl) {
+			return TPromise.wrapError('not available');
+		}
+
+		const uri = URI.parse(changelogUrl);
+
+		if (uri.scheme === 'file') {
+			return readFile(uri.fsPath, 'utf8');
+		}
+
+		return TPromise.wrapError('not available');
 	}
 }
 
