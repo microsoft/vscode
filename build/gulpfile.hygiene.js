@@ -87,6 +87,8 @@ const tslintFilter = [
 	'!**/*.d.ts',
 	'!**/typings/**',
 	'!src/vs/base/**/*.test.ts',
+	'!extensions/typescript/test/colorize-fixtures/**',
+	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!src/vs/languages/**/*.test.ts',
 	'!src/vs/workbench/**/*.test.ts',
 	'!extensions/**/*.test.ts'
