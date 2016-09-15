@@ -23,14 +23,16 @@ export class TerminalService implements ITerminalService {
 	private _activeTerminalInstanceIndex: number = 0;
 	private _configHelper: TerminalConfigHelper;
 	private _onActiveInstanceChanged: Emitter<string>;
-	private _onInstancesChanged: Emitter<string>;
+	private _onInstanceClosed: Emitter<ITerminalInstance>;
 	private _onInstanceTitleChanged: Emitter<string>;
+	private _onInstancesChanged: Emitter<string>;
 	private _terminalInstances: ITerminalInstance[] = [];
 	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
 	public get configHelper(): TerminalConfigHelper { return this._configHelper; }
 	public get onActiveInstanceChanged(): Event<string> { return this._onActiveInstanceChanged.event; }
-	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
+	public get onInstanceClosed(): Event<ITerminalInstance> { return this._onInstanceClosed.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
+	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
 	private terminalContainer: HTMLElement;
@@ -45,6 +47,7 @@ export class TerminalService implements ITerminalService {
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		this._onActiveInstanceChanged = new Emitter<string>();
+		this._onInstanceClosed = new Emitter<ITerminalInstance>();
 		this._onInstancesChanged = new Emitter<string>();
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this.terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this.contextKeyService);
@@ -65,6 +68,7 @@ export class TerminalService implements ITerminalService {
 			name,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
+		terminalInstance.addDisposable(terminalInstance.onClosed(this._onInstanceClosed.fire, this._onInstanceClosed));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically
