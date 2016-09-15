@@ -554,9 +554,9 @@ export class OpenExtensionsFolderAction extends Action {
 	}
 }
 
-export class ConfigureWorkspaceRecommendationsAction extends Action {
-	static ID = 'workbench.extensions.action.configureWorkspaceRecommendations';
-	static LABEL = localize('configureWorkspaceRecommendations', "Configure Worksapce Recommendations");
+export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
+	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
+	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Workspace Recommended Extensions");
 
 	constructor(id: string, label: string, @IExtensionsWorkbenchService private extensionsService: IExtensionsWorkbenchService) {
 		super(id, label, null, true);
