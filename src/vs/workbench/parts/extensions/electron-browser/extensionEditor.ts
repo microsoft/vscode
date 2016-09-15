@@ -263,13 +263,13 @@ export class ExtensionEditor extends BaseEditor {
 
 	private onNavbarChange(extension: IExtension, id: string): void {
 		switch (id) {
-			case NavbarSection.Readme: return this.openReadme(extension);
-			case NavbarSection.Contributions: return this.openContributions(extension);
-			case NavbarSection.Changelog: return this.openChangelog(extension);
+			case NavbarSection.Readme: return this.openReadme();
+			case NavbarSection.Contributions: return this.openContributions();
+			case NavbarSection.Changelog: return this.openChangelog();
 		}
 	}
 
-	private openMarkdown(extension: IExtension, content: TPromise<string>, noContentCopy: string) {
+	private openMarkdown(content: TPromise<string>, noContentCopy: string) {
 		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
@@ -292,15 +292,15 @@ export class ExtensionEditor extends BaseEditor {
 			}));
 	}
 
-	private openReadme(extension: IExtension) {
-		return this.openMarkdown(extension, this.extensionReadme.get(), localize('noReadme', "No README available."));
+	private openReadme() {
+		return this.openMarkdown(this.extensionReadme.get(), localize('noReadme', "No README available."));
 	}
 
-	private openChangelog(extension : IExtension) {
-		return this.openMarkdown(extension, this.extensionChangelog.get(), localize('noChangelog', "No CHANGELOG available."));
+	private openChangelog() {
+		return this.openMarkdown(this.extensionChangelog.get(), localize('noChangelog', "No CHANGELOG available."));
 	}
 
-	private openContributions(extension: IExtension) {
+	private openContributions() {
 		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
 				this.content.innerHTML = '';
