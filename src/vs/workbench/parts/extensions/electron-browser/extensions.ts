@@ -59,8 +59,12 @@ export interface IExtensionsWorkbenchService {
 	canInstall(extension: IExtension): boolean;
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+	openExtensionsFile(sideBySide?: boolean): TPromise<void>;
 }
+
+export const EXTENSIONS_CONFIGURAION_NAME = 'extensions';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
+	recommendations: string[];
 }

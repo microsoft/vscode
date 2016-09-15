@@ -30,7 +30,7 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from './extensions';
-import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { Query } from '../common/extensionQuery';
@@ -168,6 +168,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
@@ -230,6 +231,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
 		}
 
+		if (/@recommended:workspace/i.test(query.value)) {
+			return this.queryWorkspaceRecommendations();
+		}
+
 		if (/@recommended/i.test(query.value)) {
 			const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
@@ -255,6 +260,15 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		return this.extensionsWorkbenchService.queryGallery(options)
 			.then(result => new PagedModel(result));
+	}
+
+	private queryWorkspaceRecommendations(): TPromise<PagedModel<IExtension>> {
+		let names = this.tipsService.getWorkspaceRecommendations();
+		if (!names.length) {
+			return TPromise.as(new PagedModel([]));
+		}
+		return this.extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
+				.then(result => new PagedModel(result));
 	}
 
 	private openExtension(extension: IExtension): void {

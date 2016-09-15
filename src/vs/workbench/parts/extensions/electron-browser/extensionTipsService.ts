@@ -11,6 +11,7 @@ import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {match} from 'vs/base/common/glob';
 import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService} from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionsConfiguration, EXTENSIONS_CONFIGURAION_NAME } from './extensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product';
@@ -18,6 +19,7 @@ import { IMessageService, CloseAction } from 'vs/platform/message/common/messag
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction } from './extensionsActions';
 import Severity from 'vs/base/common/severity';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ExtensionTipsService implements IExtensionTipsService {
 
@@ -35,7 +37,8 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IStorageService private storageService: IStorageService,
 		@IMessageService private messageService: IMessageService,
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		if (!this._galleryService.isEnabled()) {
 			return;
@@ -70,6 +73,11 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		this._disposables.push(this._modelService.onModelAdded(model => this._suggest(model.uri)));
 		this._modelService.getModels().forEach(model => this._suggest(model.uri));
+	}
+
+	getWorkspaceRecommendations(): string[] {
+		let configuration = this.configurationService.getConfiguration<IExtensionsConfiguration>(EXTENSIONS_CONFIGURAION_NAME);
+		return configuration.recommendations ? configuration.recommendations : [];
 	}
 
 	getRecommendations(): string[] {
