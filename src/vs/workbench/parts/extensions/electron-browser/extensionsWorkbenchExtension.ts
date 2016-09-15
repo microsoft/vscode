@@ -51,7 +51,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 	}
 
 	private install(extensions: string[]): TPromise<void> {
-		return TPromise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
+		return TPromise.join(extensions.map(extPath => this.extensionManagementService.install(extPath)))
 			.then(() => {
 				this.messageService.show(
 					Severity.Info,

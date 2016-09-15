@@ -54,6 +54,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	_serviceBrand: any;
 
+	get args(): ParsedArgs { return this._args; }
+
 	@memoize
 	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
 
@@ -63,7 +65,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
 
 	@memoize
-	get userDataPath(): string { return this.args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform); }
+	get userDataPath(): string { return this._args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform); }
 
 	@memoize
 	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }
@@ -75,20 +77,20 @@ export class EnvironmentService implements IEnvironmentService {
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
-	get extensionsPath(): string { return path.normalize(this.args.extensionHomePath || path.join(this.userHome, 'extensions')); }
+	get extensionsPath(): string { return path.normalize(this._args.extensionHomePath || path.join(this.userHome, 'extensions')); }
 
-	get extensionDevelopmentPath(): string { return this.args.extensionDevelopmentPath; }
+	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath; }
 
-	get extensionTestsPath(): string { return this.args.extensionTestsPath; }
-	get disableExtensions(): boolean { return this.args['disable-extensions'];  }
+	get extensionTestsPath(): string { return this._args.extensionTestsPath; }
+	get disableExtensions(): boolean { return this._args['disable-extensions'];  }
 
 	@memoize
-	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this.args, this.isBuilt); }
+	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
-	get verbose(): boolean { return this.args.verbose; }
-	get performance(): boolean { return this.args.performance; }
-	get logExtensionHostCommunication(): boolean { return this.args.logExtensionHostCommunication; }
+	get verbose(): boolean { return this._args.verbose; }
+	get performance(): boolean { return this._args.performance; }
+	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	@memoize
 	get mainIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }${ IPCHandleSuffix }`; }
@@ -96,7 +98,7 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get sharedIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }-shared${ IPCHandleSuffix }`; }
 
-	constructor(private args: ParsedArgs, private _execPath: string) {}
+	constructor(private _args: ParsedArgs, private _execPath: string) {}
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {

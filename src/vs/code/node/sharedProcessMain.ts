@@ -14,7 +14,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
@@ -30,6 +29,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { ISharedProcessInitData } from './sharedProcess';
 
 function quit(err?: Error) {
 	if (err) {
@@ -54,11 +54,11 @@ function setupPlanB(parentPid: number): void {
 
 const eventPrefix = 'monacoworkbench';
 
-function main(server: Server): void {
+function main(server: Server, initData: ISharedProcessInitData): void {
 	const services = new ServiceCollection();
 
 	services.set(IEventService, new SyncDescriptor(EventService));
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv), process.execPath));
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, initData.args, process.execPath));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
@@ -147,8 +147,8 @@ function setupIPC(hook: string): TPromise<Server> {
 	return setup(true);
 }
 
-function handshake(): TPromise<void> {
-	return new TPromise<void>((c, e) => {
+function handshake(): TPromise<ISharedProcessInitData> {
+	return new TPromise<ISharedProcessInitData>((c, e) => {
 		process.once('message', c);
 		process.once('error', e);
 		process.send('hello');
@@ -156,6 +156,6 @@ function handshake(): TPromise<void> {
 }
 
 TPromise.join<any>([setupIPC(process.env['VSCODE_SHARED_IPC_HOOK']), handshake()])
-	.then(r => main(r[0]))
+	.then(r => main(r[0], r[1]))
 	.then(() => setupPlanB(process.env['VSCODE_PID']))
 	.done(null, quit);
