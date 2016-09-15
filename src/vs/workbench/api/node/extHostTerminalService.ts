@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import Event, {Emitter} from 'vs/base/common/event';
 import vscode = require('vscode');
-import {MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
+import {ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
@@ -14,10 +15,11 @@ export class ExtHostTerminal implements vscode.Terminal {
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
-	private _queuedRequests: ApiRequest[] = [];
+	private _queuedRequests: ApiRequest[];
 
 	constructor(proxy: MainThreadTerminalServiceShape, name?: string, shellPath?: string, shellArgs?: string[]) {
 		this._name = name;
+		this._queuedRequests = [];
 		this._proxy = proxy;
 		this._proxy.$createTerminal(name, shellPath, shellArgs).then((id) => {
 			this._id = id;
@@ -70,16 +72,48 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 }
 
-export class ExtHostTerminalService {
+export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
+	private _onDidCloseTerminal: Emitter<vscode.Terminal>;
 	private _proxy: MainThreadTerminalServiceShape;
+	private _terminals: ExtHostTerminal[];
 
 	constructor(threadService: IThreadService) {
+		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
 		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
+		this._terminals = [];
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
-		return new ExtHostTerminal(this._proxy, name, shellPath, shellArgs);
+		let terminal = new ExtHostTerminal(this._proxy, name, shellPath, shellArgs);
+		this._terminals.push(terminal);
+		return terminal;
+	}
+
+	public get onDidCloseTerminal(): Event<vscode.Terminal> {
+		return this._onDidCloseTerminal && this._onDidCloseTerminal.event;
+	}
+
+	public $acceptTerminalClosed(id: number): void {
+		let index = this._getTerminalIndexById(id);
+		if (index === null) {
+			// The terminal was not created by the terminal API, ignore it
+			return;
+		}
+		let terminal = this._terminals.splice(index, 1)[0];
+		this._onDidCloseTerminal.fire(terminal);
+	}
+
+	private _getTerminalIndexById(id: number): number {
+		let index: number = null;
+		this._terminals.some((terminal, i) => {
+			let thisId = (<any>terminal)._id;
+			if (thisId === id) {
+				index = i;
+				return true;
+			}
+		});
+		return index;
 	}
 }
 

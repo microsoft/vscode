@@ -4,20 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {MainThreadTerminalServiceShape} from './extHost.protocol';
+import {ITerminalService, ITerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape} from './extHost.protocol';
 
 export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
+
+	private _proxy: ExtHostTerminalServiceShape;
+	private _toDispose: IDisposable[];
 
 	constructor(
 		@IPanelService private panelService: IPanelService,
 		@IPartService private partService: IPartService,
+		@IThreadService private threadService: IThreadService,
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super();
+		this._proxy = threadService.get(ExtHostContext.ExtHostTerminalService);
+		this._toDispose = [];
+		this._toDispose.push(terminalService.onInstanceClosed((terminalInstance) => this._onTerminalClosed(terminalInstance)));
+	}
+
+	public dispose(): void {
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): TPromise<number> {
@@ -50,5 +63,9 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		if (terminalInstance) {
 			terminalInstance.sendText(text, addNewLine);
 		}
+	}
+
+	private _onTerminalClosed(terminalInstance: ITerminalInstance): void {
+		this._proxy.$acceptTerminalClosed(terminalInstance.id);
 	}
 }

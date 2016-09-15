@@ -58,6 +58,7 @@ export interface ITerminalService {
 	activeTerminalInstanceIndex: number;
 	configHelper: TerminalConfigHelper;
 	onActiveInstanceChanged: Event<string>;
+	onInstanceClosed: Event<ITerminalInstance>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];

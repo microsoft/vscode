@@ -29,12 +29,13 @@ export class TerminalInstance implements ITerminalInstance {
 	private static ID_COUNTER = 1;
 	private static EOL_REGEX = /\r?\n/g;
 
-
 	private _id: number;
 	private _title: string;
+	private _onClosed: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	public get id(): number { return this._id; }
 	public get title(): string { return this._title; }
+	public get onClosed(): Event<TerminalInstance> { return this._onClosed.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 
 	private isExiting: boolean = false;
@@ -59,6 +60,7 @@ export class TerminalInstance implements ITerminalInstance {
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
 		this._onTitleChanged = new Emitter<string>();
+		this._onClosed = new Emitter<TerminalInstance>();
 		this.createProcess(workspace, name, shell);
 
 		if (container) {
@@ -168,7 +170,9 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			this.process = null;
 		}
+		this._onClosed.fire(this);
 		this.toDispose = lifecycle.dispose(this.toDispose);
+		// TODO: Move exit callback to listen onClose event
 		this.onExitCallback(this);
 	}
 
