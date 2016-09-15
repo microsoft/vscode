@@ -91,6 +91,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private registerListeners(): void {
 		this.toDispose.push(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
+		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
@@ -101,6 +102,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.autoSaveAfterMillies = void 0;
 			this.autoSaveAfterMilliesEnabled = false;
 		}
+	}
+
+	private onFilesAssociationChange(): void {
+		this.updateTextEditorModelMode();
 	}
 
 	public get onDidStateChange(): Event<StateChange> {

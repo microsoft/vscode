@@ -154,6 +154,20 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	/**
+	 * Updates the text editor model mode based on the settings and configuration.
+	 */
+	protected updateTextEditorModelMode(mime?: string): void {
+		if (!this.textEditorModel) {
+			return;
+		}
+
+		const firstLineText = this.getFirstLineText(this.textEditorModel.getValue());
+		const mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
+
+		this.textEditorModel.setMode(mode);
+	}
+
+	/**
 	 * Returns the textual value of this editor model or null if it has not yet been created.
 	 */
 	public getValue(): string {
