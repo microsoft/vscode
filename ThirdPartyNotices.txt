@@ -1,8 +1,3 @@
-===================BEGIN GENERATOR LOG
-ERROR: daaain/Handlebars@0.0.0: Missing Copyright statement in license text!
-INFO: ionide/ionide-fsharp@0.0.0: 301 redirect for repositoryURL: https://github.com/ionide/ionide-fsharp => https://github.com/ionide/ionide-atom-fsharp
-INFO: typescript@1.5: Overwriting license data with data from OSSREADME.json
-===================END GENERATOR LOG
 microsoft-vscode
 
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
