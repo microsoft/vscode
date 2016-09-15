@@ -26,81 +26,88 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalInstance implements ITerminalInstance {
-	private static ID_COUNTER = 1;
 	private static EOL_REGEX = /\r?\n/g;
 
+	private static _idCounter = 1;
+
 	private _id: number;
-	private _title: string;
+	private _isExiting: boolean;
+	private _isVisible: boolean;
 	private _onDisposed: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
+	private _process: cp.ChildProcess;
+	private _skipTerminalKeybindings: Keybinding[];
+	private _title: string;
+	private _toDispose: lifecycle.IDisposable[];
+	private _wrapperElement: HTMLDivElement;
+	private _xterm: any;
+	private _xtermElement: HTMLDivElement;
+
 	public get id(): number { return this._id; }
-	public get title(): string { return this._title; }
 	public get onClosed(): Event<TerminalInstance> { return this._onDisposed.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
-
-	private isExiting: boolean = false;
-	private isVisible: boolean = false;
-	private toDispose: lifecycle.IDisposable[] = [];
-	private skipTerminalKeybindings: Keybinding[] = [];
-	private process: cp.ChildProcess;
-	private xterm: any;
-	private wrapperElement: HTMLDivElement;
-	private xtermElement: HTMLDivElement;
+	public get title(): string { return this._title; }
 
 	public constructor(
-		private terminalFocusContextKey: IContextKey<boolean>,
-		private configHelper: TerminalConfigHelper,
-		private container: HTMLElement,
-		private workspace: IWorkspace,
+		private _terminalFocusContextKey: IContextKey<boolean>,
+		private _configHelper: TerminalConfigHelper,
+		private _container: HTMLElement,
+		private _workspace: IWorkspace,
 		name: string,
 		shell: IShell,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IMessageService private _messageService: IMessageService
 	) {
-		this._id = TerminalInstance.ID_COUNTER++;
+		this._toDispose = [];
+		this._skipTerminalKeybindings = [];
+		this._isExiting = false;
+		this._isVisible = false;
+		this._id = TerminalInstance._idCounter++;
+
 		this._onTitleChanged = new Emitter<string>();
 		this._onDisposed = new Emitter<TerminalInstance>();
-		this.createProcess(workspace, name, shell);
 
-		if (container) {
-			this.attachToElement(container);
+		this._createProcess(_workspace, name, shell);
+
+		if (_container) {
+			this.attachToElement(_container);
 		}
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
-		this.toDispose.push(disposable);
+		this._toDispose.push(disposable);
 	}
 
 	public attachToElement(container: HTMLElement): void {
-		if (this.wrapperElement) {
+		if (this._wrapperElement) {
 			throw new Error('The terminal instance has already been attached to a container');
 		}
 
-		this.container = container;
-		this.wrapperElement = document.createElement('div');
-		DOM.addClass(this.wrapperElement, 'terminal-wrapper');
-		this.xtermElement = document.createElement('div');
+		this._container = container;
+		this._wrapperElement = document.createElement('div');
+		DOM.addClass(this._wrapperElement, 'terminal-wrapper');
+		this._xtermElement = document.createElement('div');
 
-		this.xterm = xterm();
-		this.xterm.open(this.xtermElement);
+		this._xterm = xterm();
+		this._xterm.open(this._xtermElement);
 
-		this.process.on('message', (message) => {
+		this._process.on('message', (message) => {
 			if (message.type === 'data') {
-				this.xterm.write(message.content);
+				this._xterm.write(message.content);
 			}
 		});
-		this.xterm.on('data', (data) => {
-			this.process.send({
+		this._xterm.on('data', (data) => {
+			this._process.send({
 				event: 'input',
 				data: this.sanitizeInput(data)
 			});
 			return false;
 		});
-		this.xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
+		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Allow the toggle tab mode keybinding to pass through the terminal so that focus can
 			// be escaped
 			let standardKeyboardEvent = new StandardKeyboardEvent(event);
-			if (this.skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
+			if (this._skipTerminalKeybindings.some((k) => standardKeyboardEvent.equals(k.value))) {
 				event.preventDefault();
 				return false;
 			}
@@ -111,7 +118,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		});
 
-		let xtermHelper: HTMLElement = this.xterm.element.querySelector('.xterm-helpers');
+		let xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
 		let focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		DOM.addClass(focusTrap, 'focus-trap');
@@ -123,63 +130,63 @@ export class TerminalInstance implements ITerminalInstance {
 			let hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
 			hidePanelElement.focus();
 		});
-		xtermHelper.insertBefore(focusTrap, this.xterm.textarea);
+		xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
 
-		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'focus', (event: KeyboardEvent) => {
-			this.terminalFocusContextKey.set(true);
+		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+			this._terminalFocusContextKey.set(true);
 		}));
-		this.toDispose.push(DOM.addDisposableListener(this.xterm.textarea, 'blur', (event: KeyboardEvent) => {
-			this.terminalFocusContextKey.reset();
+		this._toDispose.push(DOM.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+			this._terminalFocusContextKey.reset();
 		}));
-		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'focus', (event: KeyboardEvent) => {
-			this.terminalFocusContextKey.set(true);
+		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+			this._terminalFocusContextKey.set(true);
 		}));
-		this.toDispose.push(DOM.addDisposableListener(this.xterm.element, 'blur', (event: KeyboardEvent) => {
-			this.terminalFocusContextKey.reset();
+		this._toDispose.push(DOM.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+			this._terminalFocusContextKey.reset();
 		}));
 
-		this.wrapperElement.appendChild(this.xtermElement);
-		this.container.appendChild(this.wrapperElement);
+		this._wrapperElement.appendChild(this._xtermElement);
+		this._container.appendChild(this._wrapperElement);
 
-		this.layout(new Dimension(this.container.offsetWidth, this.container.offsetHeight));
-		this.setVisible(this.isVisible);
+		this.layout(new Dimension(this._container.offsetWidth, this._container.offsetHeight));
+		this.setVisible(this._isVisible);
 	}
 
 	public copySelection(): void {
 		if (document.activeElement.classList.contains('xterm')) {
 			document.execCommand('copy');
 		} else {
-			this.messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
+			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'Cannot copy terminal selection when terminal does not have focus'));
 		}
 	}
 
 	public dispose(): void {
-		if (this.wrapperElement) {
-			this.container.removeChild(this.wrapperElement);
-			this.wrapperElement = null;
+		if (this._wrapperElement) {
+			this._container.removeChild(this._wrapperElement);
+			this._wrapperElement = null;
 		}
-		if (this.xterm) {
-			this.xterm.destroy();
-			this.xterm = null;
+		if (this._xterm) {
+			this._xterm.destroy();
+			this._xterm = null;
 		}
-		if (this.process) {
-			if (this.process.connected) {
-				this.process.disconnect();
-				this.process.kill();
+		if (this._process) {
+			if (this._process.connected) {
+				this._process.disconnect();
+				this._process.kill();
 			}
-			this.process = null;
+			this._process = null;
 		}
 		this._onDisposed.fire(this);
-		this.toDispose = lifecycle.dispose(this.toDispose);
+		this._toDispose = lifecycle.dispose(this._toDispose);
 	}
 
 	public focus(force?: boolean): void {
-		if (!this.xterm) {
+		if (!this._xterm) {
 			return;
 		}
 		let text = window.getSelection().toString();
 		if (!text || force) {
-			this.xterm.focus();
+			this._xterm.focus();
 		}
 	}
 
@@ -192,65 +199,65 @@ export class TerminalInstance implements ITerminalInstance {
 		if (addNewLine && text.substr(text.length - os.EOL.length) !== os.EOL) {
 			text += os.EOL;
 		}
-		this.process.send({
+		this._process.send({
 			event: 'input',
 			data: text
 		});
 	}
 
 	public setVisible(visible: boolean): void {
-		this.isVisible = visible;
-		if (this.wrapperElement) {
-			DOM.toggleClass(this.wrapperElement, 'active', visible);
+		this._isVisible = visible;
+		if (this._wrapperElement) {
+			DOM.toggleClass(this._wrapperElement, 'active', visible);
 		}
 	}
 
 	public scrollDown(): void {
-		this.xterm.scrollDisp(1);
+		this._xterm.scrollDisp(1);
 	}
 
 	public scrollUp(): void {
-		this.xterm.scrollDisp(-1);
+		this._xterm.scrollDisp(-1);
 	}
 
 	private sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
 
-	private createProcess(workspace: IWorkspace, name: string, shell: IShell) {
-		let locale = this.configHelper.isSetLocaleVariables() ? platform.locale : undefined;
+	private _createProcess(workspace: IWorkspace, name: string, shell: IShell) {
+		let locale = this._configHelper.isSetLocaleVariables() ? platform.locale : undefined;
 		if (!shell.executable) {
-			shell = this.configHelper.getShell();
+			shell = this._configHelper.getShell();
 		}
 		let env = TerminalInstance.createTerminalEnv(process.env, shell, workspace, locale);
 		this._title = name ? name : '';
-		this.process = cp.fork('./terminalProcess', [], {
+		this._process = cp.fork('./terminalProcess', [], {
 			env: env,
 			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
 		});
 		if (!name) {
 			// Only listen for process title changes when a name is not provided
-			this.process.on('message', (message) => {
+			this._process.on('message', (message) => {
 				if (message.type === 'title') {
 					this._title = message.content ? message.content : '';
 					this._onTitleChanged.fire(this._title);
 				}
 			});
 		}
-		this.process.on('exit', (exitCode) => {
+		this._process.on('exit', (exitCode) => {
 			// Prevent dispose functions being triggered multiple times
-			if (!this.isExiting) {
-				this.isExiting = true;
+			if (!this._isExiting) {
+				this._isExiting = true;
 				this.dispose();
 				if (exitCode) {
-					this.messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
+					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
 				}
 			}
 		});
 	}
 
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShell, workspace: IWorkspace, locale?: string): IStringDictionary<string> {
-		let env = TerminalInstance.cloneEnv(parentEnv);
+		let env = TerminalInstance._cloneEnv(parentEnv);
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		if (shell.args) {
@@ -258,14 +265,14 @@ export class TerminalInstance implements ITerminalInstance {
 				env[`PTYSHELLARG${i}`] = arg;
 			});
 		}
-		env['PTYCWD'] = TerminalInstance.sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
+		env['PTYCWD'] = TerminalInstance._sanitizeCwd(workspace ? workspace.resource.fsPath : os.homedir());
 		if (locale) {
-			env['LANG'] = TerminalInstance.getLangEnvVariable(locale);
+			env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
 		}
 		return env;
 	}
 
-	private static sanitizeCwd(cwd: string) {
+	private static _sanitizeCwd(cwd: string) {
 		// Make the drive letter uppercase on Windows (see #9448)
 		if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
 			return cwd[0].toUpperCase() + cwd.substr(1);
@@ -273,7 +280,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return cwd;
 	}
 
-	private static cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
+	private static _cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
 		let newEnv: IStringDictionary<string> = Object.create(null);
 		Object.keys(env).forEach((key) => {
 			newEnv[key] = env[key];
@@ -281,7 +288,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return newEnv;
 	}
 
-	private static getLangEnvVariable(locale: string) {
+	private static _getLangEnvVariable(locale: string) {
 		const parts = locale.split('-');
 		const n = parts.length;
 		if (n > 1) {
@@ -291,22 +298,22 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setCursorBlink(blink: boolean): void {
-		if (this.xterm && this.xterm.cursorBlink !== blink) {
-			this.xterm.cursorBlink = blink;
-			this.xterm.refresh(0, this.xterm.rows - 1);
+		if (this._xterm && this._xterm.cursorBlink !== blink) {
+			this._xterm.cursorBlink = blink;
+			this._xterm.refresh(0, this._xterm.rows - 1);
 		}
 	}
 
 	public setCommandsToSkipShell(commands: string[]): void {
-		this.skipTerminalKeybindings = commands.map((c) => {
-			return this.keybindingService.lookupKeybindings(c);
+		this._skipTerminalKeybindings = commands.map((c) => {
+			return this._keybindingService.lookupKeybindings(c);
 		}).reduce((prev, curr) => {
 			return prev.concat(curr);
 		});
 	}
 
 	public layout(dimension: Dimension): void {
-		let font = this.configHelper.getFont();
+		let font = this._configHelper.getFont();
 		if (!font || !font.charWidth || !font.charHeight) {
 			return;
 		}
@@ -317,12 +324,12 @@ export class TerminalInstance implements ITerminalInstance {
 		let innerWidth = dimension.width - leftPadding;
 		let cols = Math.floor(innerWidth / font.charWidth);
 		let rows = Math.floor(dimension.height / font.charHeight);
-		if (this.xterm) {
-			this.xterm.resize(cols, rows);
-			this.xterm.element.style.width = innerWidth + 'px';
+		if (this._xterm) {
+			this._xterm.resize(cols, rows);
+			this._xterm.element.style.width = innerWidth + 'px';
 		}
-		if (this.process.connected) {
-			this.process.send({
+		if (this._process.connected) {
+			this._process.send({
 				event: 'resize',
 				cols: cols,
 				rows: rows
