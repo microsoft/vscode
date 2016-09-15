@@ -13,7 +13,8 @@
 			"id": "razor",
 			"extensions": [ ".cshtml"],
 			"aliases": [ "Razor", "razor" ],
-			"mimetypes": ["text/x-cshtml"]
+			"mimetypes": ["text/x-cshtml"],
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
       "language": "razor",
