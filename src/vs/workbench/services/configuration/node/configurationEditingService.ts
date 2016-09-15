@@ -55,7 +55,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		// First validate before making any edits
 		return this.validate(target, operation).then(validation => {
 			if (typeof validation.error === 'number') {
-				return this.wrapError(validation.error);
+				return this.wrapError(validation.error, target);
 			}
 
 			// Create configuration file if missing
@@ -83,8 +83,8 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		});
 	}
 
-	private wrapError(code: ConfigurationEditingErrorCode): TPromise<any> {
-		const message = this.toErrorMessage(code);
+	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<any> {
+		const message = this.toErrorMessage(code, target);
 
 		return TPromise.wrapError<IConfigurationEditingError>({
 			code,
@@ -93,13 +93,29 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		});
 	}
 
-	private toErrorMessage(error: ConfigurationEditingErrorCode): string {
+	private toErrorMessage(error: ConfigurationEditingErrorCode, target: ConfigurationTarget): string {
 		switch (error) {
+
+			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to the configuration file (Unknown Key)");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_TARGET: return nls.localize('errorInvalidTarget', "Unable to write to the configuration file (Invalid Target)");
-			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorWorkspaceOpened', "Unable to write to the configuration file (No Workspace Opened)");
-			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: return nls.localize('errorInvalidConfiguration', "Unable to write to the configuration file (Invalid Configuration Found)");
-			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: return nls.localize('errorConfigurationFileDirty', "Unable to write to the configuration file (Configuration File Dirty)");
+			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorWorkspaceOpened', "Unable to write to the workspace configuration file (No Workspace Opened)");
+
+			// User issues
+			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
+				if (target === ConfigurationTarget.USER) {
+					return nls.localize('errorInvalidConfiguration', "Unable to write settings. Please open **User Settings** to correct errors/warnings in the file and try again.");
+				}
+
+				return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write settings. Please open **Workspace Settings** to correct errors/warnings in the file and try again.");
+			};
+			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: {
+				if (target === ConfigurationTarget.USER) {
+					return nls.localize('errorConfigurationFileDirty', "Unable to write settings because the file is dirty. Please save the **User Settings** file and try again.");
+				}
+
+				return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write settings because the file is dirty. Please save the **Workspace Settings** file and try again.");
+			};
 		}
 	}
 
