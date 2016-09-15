@@ -232,7 +232,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		}
 
 		if (/@recommended:workspace/i.test(query.value)) {
-			return this.queryWorkspaceRecommendations();
+			return this.queryWorkspaceRecommendedExtensions();
 		}
 
 		if (/@recommended/i.test(query.value)) {
@@ -262,7 +262,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.then(result => new PagedModel(result));
 	}
 
-	private queryWorkspaceRecommendations(): TPromise<PagedModel<IExtension>> {
+	private queryWorkspaceRecommendedExtensions(): TPromise<PagedModel<IExtension>> {
 		let names = this.tipsService.getWorkspaceRecommendations();
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
