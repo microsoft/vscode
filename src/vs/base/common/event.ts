@@ -375,7 +375,7 @@ export function stopwatch<T>(event: Event<T>): Event<number> {
  * // 4
  * ```
  */
-export function buffer<T>(event: Event<T>): Event<T> {
+export function buffer<T>(event: Event<T>, nextTick = false): Event<T> {
 	let buffer: T[] = [];
 	let listener = event(e => {
 		if (buffer) {
@@ -384,6 +384,11 @@ export function buffer<T>(event: Event<T>): Event<T> {
 			emitter.fire(e);
 		}
 	});
+
+	const flush = () => {
+		buffer.forEach(e => emitter.fire(e));
+		buffer = null;
+	};
 
 	const emitter = new Emitter<T>({
 		onFirstListenerAdd() {
@@ -394,8 +399,11 @@ export function buffer<T>(event: Event<T>): Event<T> {
 
 		onFirstListenerDidAdd() {
 			if (buffer) {
-				buffer.forEach(e => emitter.fire(e));
-				buffer = null;
+				if (nextTick) {
+					setTimeout(flush);
+				} else {
+					flush();
+				}
 			}
 		},
 
