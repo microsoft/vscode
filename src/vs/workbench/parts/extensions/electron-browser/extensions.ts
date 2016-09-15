@@ -57,6 +57,7 @@ export interface IExtensionsWorkbenchService {
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
+	install(vsix: string): TPromise<void>;
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
 	openExtensionsFile(sideBySide?: boolean): TPromise<void>;

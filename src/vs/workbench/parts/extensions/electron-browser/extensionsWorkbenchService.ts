@@ -367,7 +367,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return !!(extension as Extension).gallery;
 	}
 
-	install(extension: IExtension): TPromise<void> {
+	install(extension: string | IExtension): TPromise<void> {
+		if (typeof extension === 'string') {
+			return this.extensionService.install(extension);
+		}
+
 		if (!(extension instanceof Extension)) {
 			return;
 		}
