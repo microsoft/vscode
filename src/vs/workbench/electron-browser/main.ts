@@ -40,8 +40,6 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	userEnv: any; /* vs/code/electron-main/env/IProcessEnvironment*/
 
 	workspacePath?: string;
-
-	extensionsToInstall?: string[];
 }
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
@@ -53,8 +51,7 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	const shellOptions: IOptions = {
 		filesToOpen,
 		filesToCreate,
-		filesToDiff,
-		extensionsToInstall: configuration.extensionsToInstall
+		filesToDiff
 	};
 
 	if (configuration.performance) {
