@@ -172,7 +172,7 @@ export class TerminalPanel extends Panel {
 				});
 			}
 		}));
-		this._toDispose.push(DOM.addDisposableListener(this._parentDomElement, 'mouseup', (event) => {
+		this._toDispose.push(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
 			}
