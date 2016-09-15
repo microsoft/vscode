@@ -141,6 +141,7 @@ export interface ILocalExtension {
 	metadata: IGalleryMetadata;
 	path: string;
 	readmeUrl: string;
+	changelogUrl: string;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');

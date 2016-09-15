@@ -98,7 +98,8 @@ class NavBar {
 
 const NavbarSection = {
 	Readme: 'readme',
-	Contributions: 'contributions'
+	Contributions: 'contributions',
+	Changelog: 'changelog'
 };
 
 interface ILayoutParticipant {
@@ -124,6 +125,7 @@ export class ExtensionEditor extends BaseEditor {
 	private highlightDisposable: IDisposable;
 
 	private extensionReadme: Cache<string>;
+	private extensionChangelog: Cache<string>;
 	private extensionManifest: Cache<IExtensionManifest>;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
@@ -149,6 +151,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.highlightDisposable = empty;
 		this.disposables = [];
 		this.extensionReadme = null;
+		this.extensionChangelog = null;
 		this.extensionManifest = null;
 	}
 
@@ -200,6 +203,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
 		this.extensionReadme = new Cache(() => extension.getReadme());
+		this.extensionChangelog = new Cache(() => extension.getChangelog());
 		this.extensionManifest = new Cache(() => extension.getManifest());
 
 		const onError = once(domEvent(this.icon, 'error'));
@@ -253,6 +257,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.push(NavbarSection.Readme, localize('details', "Details"));
 		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
 
+		if (extension.hasChangelog) {
+			this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
+		}
+
 		this.content.innerHTML = '';
 
 		return super.setInput(input, options);
@@ -260,13 +268,14 @@ export class ExtensionEditor extends BaseEditor {
 
 	private onNavbarChange(extension: IExtension, id: string): void {
 		switch (id) {
-			case NavbarSection.Readme: return this.openReadme(extension);
-			case NavbarSection.Contributions: return this.openContributions(extension);
+			case NavbarSection.Readme: return this.openReadme();
+			case NavbarSection.Contributions: return this.openContributions();
+			case NavbarSection.Changelog: return this.openChangelog();
 		}
 	}
 
-	private openReadme(extension: IExtension) {
-		return this.loadContents(() => this.extensionReadme.get()
+	private openMarkdown(content: TPromise<string>, noContentCopy: string) {
+		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
 			.then<void>(body => {
@@ -284,11 +293,19 @@ export class ExtensionEditor extends BaseEditor {
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p'));
-				p.textContent = localize('noReadme', "No README available.");
+				p.textContent = noContentCopy;
 			}));
 	}
 
-	private openContributions(extension: IExtension) {
+	private openReadme() {
+		return this.openMarkdown(this.extensionReadme.get(), localize('noReadme', "No README available."));
+	}
+
+	private openChangelog() {
+		return this.openMarkdown(this.extensionChangelog.get(), localize('noChangelog', "No CHANGELOG available."));
+	}
+
+	private openContributions() {
 		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
 				this.content.innerHTML = '';
