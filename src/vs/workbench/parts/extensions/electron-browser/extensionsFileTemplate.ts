@@ -24,7 +24,7 @@ export const Schema: IJSONSchema = {
 
 export const Content: string = [
 	'{',
-	'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
+	'\t// See http://go.microsoft.com/fwlink/?LinkId=827846',
 	'\t// for the documentation about the extensions.json format',
 	'\t"recommendations": [',
 	'\t\t',
