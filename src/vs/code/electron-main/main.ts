@@ -22,7 +22,7 @@ import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/code/electron-main/sharedProcess';
+import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -66,6 +66,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const envService = accessor.get(IEnvService);
+	const environmentService = accessor.get(IEnvironmentService);
 	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
@@ -121,10 +122,13 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	electronIpcServer.registerChannel('url', urlChannel);
 
 	// Spawn shared process
-	const sharedProcess = spawnSharedProcess({
+	const initData = { args: environmentService.args };
+	const options = {
 		allowOutput: !envService.isBuilt || envService.cliArgs.verbose,
 		debugPort: envService.isBuilt ? null : 5871
-	});
+	};
+
+	const sharedProcess = spawnSharedProcess(initData, options);
 
 	// Make sure we associate the program with the app user model id
 	// This will help Windows to associate the running program with
