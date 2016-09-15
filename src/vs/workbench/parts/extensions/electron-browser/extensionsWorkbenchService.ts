@@ -18,7 +18,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
+	InstallExtensionEvent, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,6 +36,7 @@ import { UpdateAllAction } from './extensionsActions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Content } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -268,10 +270,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
-		this.disposables.push(extensionService.onInstallExtension(({ id, gallery }) => this.onInstallExtension(id, gallery)));
-		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
-		this.disposables.push(extensionService.onUninstallExtension(id => this.onUninstallExtension(id)));
-		this.disposables.push(extensionService.onDidUninstallExtension(id => this.onDidUninstallExtension(id)));
+		extensionService.onInstallExtension(this.onInstallExtension, this, this.disposables);
+		extensionService.onDidInstallExtension(this.onDidInstallExtension, this, this.disposables);
+		extensionService.onUninstallExtension(this.onUninstallExtension, this, this.disposables);
+		extensionService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
 
@@ -395,7 +397,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.extensionService.uninstall(local);
 	}
 
-	private onInstallExtension(id: string, gallery: IGalleryExtension): void {
+	private onInstallExtension(event: InstallExtensionEvent): void {
+		const { id, gallery } = event;
+
 		if (!gallery) {
 			return;
 		}
@@ -415,12 +419,22 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this._onChange.fire();
 	}
 
-	private onDidInstallExtension(id: string, local: ILocalExtension, error: Error): void {
-		id = stripVersion(id);
-
+	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
+		const { local, zipPath, error } = event;
+		const id = stripVersion(event.id);
 		const installing = this.installing.filter(e => e.id === id)[0];
 
 		if (!installing) {
+			if (zipPath) {
+				this.messageService.show(
+					Severity.Info,
+					{
+						message: localize('successSingle', "'{0}' was successfully installed. Restart to enable it.", id),
+						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Restart Now"))]
+					}
+				);
+			}
+
 			return;
 		}
 

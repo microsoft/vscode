@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as minimist from 'minimist';
 import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
+import { not } from 'vs/base/common/functional';
 import { localize } from 'vs/nls';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
@@ -31,6 +32,7 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	'list-extensions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'install-vsix'?: string[];
 }
 
 const options: minimist.Opts = {
@@ -119,7 +121,13 @@ export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
  * Use this to parse code arguments such as `--verbose --wait`
  */
 export function parseArgs(args: string[]): ParsedArgs {
-	return minimist(args, options) as ParsedArgs;
+	const result = minimist(args, options) as ParsedArgs;
+
+	const isVSIX = a => /\.vsix$/i.test(a);
+	result['install-vsix'] = result._.filter(isVSIX);
+	result._ = result._.filter(not(isVSIX));
+
+	return result;
 }
 
 export const optionsHelp: { [name: string]: string; } = {
