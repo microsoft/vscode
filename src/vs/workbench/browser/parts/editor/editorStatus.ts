@@ -21,10 +21,10 @@ import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
 import {IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
-import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import {EndOfLineSequence, ITokenizedModel, EditorType, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
@@ -299,7 +299,7 @@ export class EditorStatus implements IStatusbarItem {
 			this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()),
 			this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)),
 			this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange(e.resource)),
-			TabFocus.onDidChangeTabFocus((e) => this.onTabFocusModeChange())
+			TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange())
 		);
 
 		return combinedDisposable(this.toDispose);
@@ -533,7 +533,7 @@ export class EditorStatus implements IStatusbarItem {
 			info.charactersSelected = 0;
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
-				info.selections.forEach((selection) => {
+				info.selections.forEach(selection => {
 					info.charactersSelected += textModel.getValueLengthInRange(selection);
 				});
 			}
@@ -633,7 +633,9 @@ export class ChangeModeAction extends Action {
 		actionLabel: string,
 		@IModeService private modeService: IModeService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
@@ -641,7 +643,6 @@ export class ChangeModeAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const languages = this.modeService.getRegisteredLanguageNames();
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!(activeEditor instanceof BaseTextEditor)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -661,6 +662,7 @@ export class ChangeModeAction extends Action {
 		}
 
 		// All languages are valid picks
+		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
 			let description: string;
 			if (currentModeId === lang) {
@@ -677,19 +679,15 @@ export class ChangeModeAction extends Action {
 		picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
 
 		// Offer action to configure via settings
-		let configureLabel = nls.localize('configureAssociations', "Configure File Associations...");
+		let configureModeAssociations: IPickOpenEntry;
 		if (fileinput) {
 			const resource = fileinput.getResource();
-			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
-			if (ext) {
-				configureLabel = nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext);
-			}
-		}
+			configureModeAssociations = {
+				label: nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", paths.extname(resource.fsPath) || paths.basename(resource.fsPath))
+			};
 
-		const configureModeAssociations: IPickOpenEntry = {
-			label: configureLabel
-		};
-		picks.unshift(configureModeAssociations);
+			picks.unshift(configureModeAssociations);
+		}
 
 		// Offer to "Auto Detect"
 		const autoDetectMode: IPickOpenEntry = {
@@ -699,7 +697,7 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then((language) => {
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(language => {
 			if (language) {
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
@@ -720,22 +718,52 @@ export class ChangeModeAction extends Action {
 					if (language === autoDetectMode) {
 						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
 					} else if (language === configureModeAssociations) {
-						const action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
-						action.run().done(() => action.dispose(), errors.onUnexpectedError);
-
-						this.messageService.show(Severity.Info, nls.localize('persistFileAssociations', "You can configure filename to language associations in the **files.associations** section. The changes may need a restart to take effect on already opened files."));
+						this.configureFileAssociation(fileinput.getResource());
 					} else {
 						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
 					}
 
 					// Change mode
-					models.forEach((textModel) => {
+					models.forEach(textModel => {
 						if (!!(<ITokenizedModel>textModel).getMode) {
 							(<ITokenizedModel>textModel).setMode(mode);
 						}
 					});
 				}
 			}
+		});
+	}
+
+	private configureFileAssociation(resource: uri): void {
+		const languages = this.modeService.getRegisteredLanguageNames();
+		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
+			return <IPickOpenEntry>{
+				id: this.modeService.getModeIdForLanguageName(lang.toLowerCase()),
+				label: lang
+			};
+		});
+
+		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
+			const extension = paths.extname(resource.fsPath);
+			const basename = paths.basename(resource.fsPath);
+
+			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
+				if (language) {
+					const config = this.configurationService.getConfiguration<IFilesConfiguration>();
+					const currentAssociations = (config && config.files && config.files.associations) || Object.create(null);
+
+					let associationKey: string;
+					if (extension && basename[0] !== '.') {
+						associationKey = `*${extension}`; // only use "*.ext" if the file path is in the form of <name>.<ext>
+					} else {
+						associationKey = basename; // otherwise use the basename (e.g. .gitignore, Dockerfile)
+					}
+
+					currentAssociations[associationKey] = language.id;
+
+					this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'files.associations', value: currentAssociations }).done(null, (error) => this.messageService.show(Severity.Error, error.toString()));
+				}
+			});
 		});
 	}
 }
@@ -828,7 +856,7 @@ export class ChangeEOLAction extends Action {
 
 		const selectedIndex = (textModel.getEOL() === '\n') ? 0 : 1;
 
-		return this.quickOpenService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), autoFocus: { autoFocusIndex: selectedIndex } }).then((eol) => {
+		return this.quickOpenService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), autoFocus: { autoFocusIndex: selectedIndex } }).then(eol => {
 			if (eol) {
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor && isWritableCodeEditor(activeEditor)) {
@@ -887,7 +915,7 @@ export class ChangeEncodingAction extends Action {
 			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
 		}
 
-		return pickActionPromise.then((action) => {
+		return pickActionPromise.then(action => {
 			if (!action) {
 				return;
 			}
@@ -927,7 +955,7 @@ export class ChangeEncodingAction extends Action {
 				return this.quickOpenService.pick(picks, {
 					placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
 					autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
-				}).then((encoding) => {
+				}).then(encoding => {
 					if (encoding) {
 						activeEditor = this.editorService.getActiveEditor();
 						encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
