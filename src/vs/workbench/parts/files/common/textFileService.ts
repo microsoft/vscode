@@ -7,7 +7,9 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
+import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
+import objects = require('vs/base/common/objects');
 import Event, {Emitter} from 'vs/base/common/event';
 import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, ITextFileEditorModelManager, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
@@ -37,6 +39,9 @@ export abstract class TextFileService implements ITextFileService {
 	private toUnbind: IDisposable[];
 	private _models: TextFileEditorModelManager;
 
+	private _onFilesAssociationChange: Emitter<void>;
+	private currentFilesAssociationConfig: { [key: string]: string; };
+
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 	private configuredAutoSaveDelay: number;
 	private configuredAutoSaveOnFocusChange: boolean;
@@ -54,10 +59,18 @@ export abstract class TextFileService implements ITextFileService {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.toUnbind = [];
+
 		this._onAutoSaveConfigurationChange = new Emitter<IAutoSaveConfiguration>();
+		this.toUnbind.push(this._onAutoSaveConfigurationChange);
+
+		this._onFilesAssociationChange = new Emitter<void>();
+		this.toUnbind.push(this._onFilesAssociationChange);
+
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
 
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
+
 		this.onConfigurationChange(configuration);
 
 		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
@@ -79,6 +92,10 @@ export abstract class TextFileService implements ITextFileService {
 		return this._onAutoSaveConfigurationChange.event;
 	}
 
+	public get onFilesAssociationChange(): Event<void> {
+		return this._onFilesAssociationChange.event;
+	}
+
 	private registerListeners(): void {
 
 		// Lifecycle
@@ -89,8 +106,8 @@ export abstract class TextFileService implements ITextFileService {
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Application & Editor focus change
-		window.addEventListener('blur', () => this.onWindowFocusLost());
-		window.addEventListener('blur', () => this.onEditorFocusChanged(), true);
+		this.toUnbind.push(DOM.addDisposableListener(window, 'blur', () => this.onWindowFocusLost()));
+		this.toUnbind.push(DOM.addDisposableListener(window, 'blur', () => this.onEditorFocusChanged(), true));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusChanged()));
 	}
 
@@ -190,6 +207,13 @@ export abstract class TextFileService implements ITextFileService {
 		// save all dirty when enabling auto save
 		if (!wasAutoSaveEnabled && this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 			this.saveAll().done(null, errors.onUnexpectedError);
+		}
+
+		// Check for change in files associations
+		const filesAssociation = configuration && configuration.files && configuration.files.associations;
+		if (!objects.equals(this.currentFilesAssociationConfig, filesAssociation)) {
+			this.currentFilesAssociationConfig = filesAssociation;
+			this._onFilesAssociationChange.fire();
 		}
 	}
 
