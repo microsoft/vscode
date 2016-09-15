@@ -33,22 +33,26 @@ export class TerminalSupport {
 			return nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env);
 		}
 
+		let delay = 0;
 		if (!TerminalSupport.integratedTerminalInstance) {
 			TerminalSupport.integratedTerminalInstance = terminalService.createInstance(args.title || nls.localize('debuggee', "debuggee"));
+			delay = 2000;	// delay sendText so that the newly created terminal is ready.
 		}
 		terminalService.setActiveInstance(TerminalSupport.integratedTerminalInstance);
 		terminalService.showPanel(true);
-		const command = this.prepareCommand(args, configurationService);
-		TerminalSupport.integratedTerminalInstance.sendText(command, true);
-		return TPromise.as(void 0);
+
+		return new TPromise<void>((c, e) => {
+
+			setTimeout(() => {
+				const command = this.prepareCommand(args, configurationService);
+				TerminalSupport.integratedTerminalInstance.sendText(command, true);
+				c(void 0);
+			}, delay);
+
+		});
 	}
 
 	private static prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, configurationService: IConfigurationService): string {
-
-		const quote1 = (s: string) => {
-			s = s.replace(/\"/g, '""');
-			return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
-		};
 
 		// get the shell configuration for the current platform
 		let shell: string;
@@ -66,8 +70,13 @@ export class TerminalSupport {
 		let command = '';
 		if (shell.indexOf('powershell') >= 0) {
 
+			const quote = (s: string) => {
+				s = s.replace(/\'/g, '\'\'');
+				return s.indexOf(' ') >= 0 || s.indexOf('\'') >= 0 || s.indexOf('"') >= 0 ? `'${s}'` : s;
+			};
+
 			if (args.cwd) {
-				command += `cd ${quote1(args.cwd)}; `;
+				command += `cd '${args.cwd}'; `;
 			}
 			if (args.env) {
 				for (let key in args.env) {
@@ -75,13 +84,18 @@ export class TerminalSupport {
 				}
 			}
 			for (let a of args.args) {
-				command += `${quote1(a)} `;
+				command += `${quote(a)} `;
 			}
 
 		} else if (shell.indexOf('cmd.exe') >= 0) {
 
+			const quote = (s: string) => {
+				s = s.replace(/\"/g, '""');
+				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
+			};
+
 			if (args.cwd) {
-				command += `cd ${quote1(args.cwd)} && `;
+				command += `cd ${quote(args.cwd)} && `;
 			}
 			if (args.env) {
 				command += 'cmd /C "';
@@ -90,15 +104,15 @@ export class TerminalSupport {
 				}
 			}
 			for (let a of args.args) {
-				command += `${quote1(a)} `;
+				command += `${quote(a)} `;
 			}
 			if (args.env) {
 				command += '"';
 			}
 
 		} else {
-
 			// fallback: unix shell
+
 			const quote = (s: string) => {
 				s = s.replace(/\"/g, '\\"');
 				return s.indexOf(' ') >= 0 ? `"${s}"` : s;
