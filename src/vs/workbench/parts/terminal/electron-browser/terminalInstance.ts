@@ -31,11 +31,11 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _id: number;
 	private _title: string;
-	private _onClosed: Emitter<TerminalInstance>;
+	private _onDisposed: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	public get id(): number { return this._id; }
 	public get title(): string { return this._title; }
-	public get onClosed(): Event<TerminalInstance> { return this._onClosed.event; }
+	public get onClosed(): Event<TerminalInstance> { return this._onDisposed.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 
 	private isExiting: boolean = false;
@@ -49,7 +49,6 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public constructor(
 		private terminalFocusContextKey: IContextKey<boolean>,
-		private onExitCallback: (TerminalInstance) => void,
 		private configHelper: TerminalConfigHelper,
 		private container: HTMLElement,
 		private workspace: IWorkspace,
@@ -60,7 +59,7 @@ export class TerminalInstance implements ITerminalInstance {
 	) {
 		this._id = TerminalInstance.ID_COUNTER++;
 		this._onTitleChanged = new Emitter<string>();
-		this._onClosed = new Emitter<TerminalInstance>();
+		this._onDisposed = new Emitter<TerminalInstance>();
 		this.createProcess(workspace, name, shell);
 
 		if (container) {
@@ -170,10 +169,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			this.process = null;
 		}
-		this._onClosed.fire(this);
+		this._onDisposed.fire(this);
 		this.toDispose = lifecycle.dispose(this.toDispose);
-		// TODO: Move exit callback to listen onClose event
-		this.onExitCallback(this);
 	}
 
 	public focus(force?: boolean): void {
