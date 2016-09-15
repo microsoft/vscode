@@ -254,7 +254,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
 		this.navbar.push(NavbarSection.Readme, localize('details', "Details"));
 		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
-		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
+
+		if (extension.hasChangelog) {
+			this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
+		}
 
 		this.content.innerHTML = '';
 

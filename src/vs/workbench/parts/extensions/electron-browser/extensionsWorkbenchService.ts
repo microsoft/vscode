@@ -187,6 +187,10 @@ class Extension implements IExtension {
 		return this.galleryService.getAsset(readmeUrl).then(asText);
 	}
 
+	get hasChangelog() : boolean {
+		return !!(this.local && this.local.changelogUrl ? this.local.changelogUrl : '');
+	}
+
 	getChangelog() : TPromise<string> {
 		const changelogUrl = this.local && this.local.changelogUrl ? this.local.changelogUrl : '';
 
