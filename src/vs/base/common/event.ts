@@ -26,6 +26,7 @@ export default Event;
 
 export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
+	onFirstListenerDidAdd?: Function;
 	onLastListenerRemove?: Function;
 }
 
@@ -72,10 +73,18 @@ export class Emitter<T> {
 				if (!this._callbacks) {
 					this._callbacks = new CallbackList();
 				}
-				if (this._options && this._options.onFirstListenerAdd && this._callbacks.isEmpty()) {
+
+				const firstListener = this._callbacks.isEmpty();
+
+				if (firstListener && this._options && this._options.onFirstListenerAdd) {
 					this._options.onFirstListenerAdd(this);
 				}
+
 				this._callbacks.add(listener, thisArgs);
+
+				if (firstListener && this._options && this._options.onFirstListenerDidAdd) {
+					this._options.onFirstListenerDidAdd(this);
+				}
 
 				let result: IDisposable;
 				result = {
@@ -263,11 +272,11 @@ enum EventDelayerState {
  * ```
  * const emitter: Emitter;
  * const delayer = new EventDelayer();
- * const delayedEvent = delayer.delay(emitter.event);
+ * const delayedEvent = delayer.wrapEvent(emitter.event);
  *
  * delayedEvent(console.log);
  *
- * delayer.wrap(() => {
+ * delayer.bufferEvents(() => {
  *   emitter.fire(); // event will not be fired yet
  * });
  *
@@ -342,4 +351,59 @@ export function chain<T>(event: Event<T>): IChainableEvent<T> {
 export function stopwatch<T>(event: Event<T>): Event<number> {
 	const start = new Date().getTime();
 	return mapEvent(once(event), _ => new Date().getTime() - start);
+}
+
+/**
+ * Buffers the provided event until a first listener comes
+ * along, at which point fire all the events at once and
+ * pipe the event from then on.
+ *
+ * ```typescript
+ * const emitter = new Emitter<number>();
+ * const event = emitter.event;
+ * const bufferedEvent = buffer(event);
+ *
+ * emitter.fire(1);
+ * emitter.fire(2);
+ * emitter.fire(3);
+ * // nothing...
+ *
+ * const listener = bufferedEvent(num => console.log(num));
+ * // 1, 2, 3
+ *
+ * emitter.fire(4);
+ * // 4
+ * ```
+ */
+export function buffer<T>(event: Event<T>): Event<T> {
+	let buffer: T[] = [];
+	let listener = event(e => {
+		if (buffer) {
+			buffer.push(e);
+		} else {
+			emitter.fire(e);
+		}
+	});
+
+	const emitter = new Emitter<T>({
+		onFirstListenerAdd() {
+			if (!listener) {
+				listener = event(e => emitter.fire(e));
+			}
+		},
+
+		onFirstListenerDidAdd() {
+			if (buffer) {
+				buffer.forEach(e => emitter.fire(e));
+				buffer = null;
+			}
+		},
+
+		onLastListenerRemove() {
+			listener.dispose();
+			listener = null;
+		}
+	});
+
+	return emitter.event;
 }
