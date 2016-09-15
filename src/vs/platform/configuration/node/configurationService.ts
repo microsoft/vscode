@@ -73,10 +73,11 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 	}
 
 	public lookup<C>(key: string): IConfigurationValue<C> {
+		// make sure to clone the configuration so that the receiver does not tamper with the values
 		return {
-			default: getConfigurationValue<C>(getDefaultValues(), key),
-			user: getConfigurationValue<C>(flatten(this.rawConfig.getConfig()), key),
-			value: getConfigurationValue<C>(this.getConfiguration(), key)
+			default: objects.clone(getConfigurationValue<C>(getDefaultValues(), key)),
+			user: objects.clone(getConfigurationValue<C>(flatten(this.rawConfig.getConfig()), key)),
+			value: objects.clone(getConfigurationValue<C>(this.getConfiguration(), key))
 		};
 	}
 

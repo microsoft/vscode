@@ -125,23 +125,13 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 	}
 
 	public reloadConfiguration(section?: string): TPromise<any> {
-		const previousConfig = this.getConfiguration();
 
 		// Reset caches to ensure we are hitting the disk
 		this.bulkFetchFromWorkspacePromise = null;
 		this.workspaceFilePathToConfiguration = Object.create(null);
 
 		// Load configuration
-		return this.baseConfigurationService.reloadConfiguration().then(() => this.doLoadConfiguration(section).then(res => {
-
-			// Since we reload the configuration, we also check for changes and emit an event in case the config changed
-			const currentConfig = this.getConfiguration();
-			if (!objects.equals(previousConfig, currentConfig)) {
-				this._onDidUpdateConfiguration.fire({ config: currentConfig });
-			}
-
-			return res;
-		}));
+		return this.baseConfigurationService.reloadConfiguration().then(() => this.doLoadConfiguration(section));
 	}
 
 	private doLoadConfiguration(section?: string): TPromise<any> {
