@@ -201,7 +201,10 @@ export class SearchWidget extends Widget {
 		let inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 			validation: (value: string) => this.validatSearchInput(value),
-			placeholder: nls.localize('search.placeHolder', "Search")
+			placeholder: nls.localize('search.placeHolder', "Search"),
+			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybindings(Constants.ToggleCaseSensitiveActionId)[0], this.keyBindingService2),
+			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybindings(Constants.ToggleWholeWordActionId)[0], this.keyBindingService2),
+			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybindings(Constants.ToggleRegexActionId)[0], this.keyBindingService2)
 		};
 
 		let searchInputContainer= dom.append(parent, dom.$('.search-container.input-box'));
@@ -350,7 +353,7 @@ export class SearchWidget extends Widget {
 export function registerContributions() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({id: ReplaceAllAction.ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: ContextKeyExpr.and(ContextKeyExpr.has('searchViewletVisible'), Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
+		when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
 			if (isSearchViewletFocussed(accessor.get(IViewletService))) {

@@ -8,7 +8,9 @@
 import path = require('path');
 import assert = require('assert');
 
+import * as glob from 'vs/base/common/glob';
 import {join, normalize} from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
 import {LineMatch} from 'vs/platform/search/common/search';
 
 import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/search/node/fileSearch';
@@ -119,7 +121,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 12);
+			assert.equal(count, 13);
 			done();
 		});
 	});
@@ -178,7 +180,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 7);
+			assert.equal(count, 8);
 			done();
 		});
 	});
@@ -197,7 +199,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 7);
+			assert.equal(count, 8);
 			done();
 		});
 	});
@@ -216,7 +218,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 7);
+			assert.equal(count, 8);
 			done();
 		});
 	});
@@ -235,7 +237,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 11);
+			assert.equal(count, 12);
 			done();
 		});
 	});
@@ -418,6 +420,59 @@ suite('Search', () => {
 			assert.ok(!error);
 			assert.equal(count, 2);
 			done();
+		});
+	});
+
+	test('Find: exclude subfolder', function (done: () => void) {
+		if (platform.isWindows) {
+			return;
+		}
+
+		const walker = new FileWalker({ rootFolders: rootfolders() });
+		const file0 = './more/file.txt';
+		const file1 = './examples/subfolder/subfile.txt';
+
+		const cmd1 = walker.spawnFindCmd(rootfolders()[0], glob.parse({ '**/something': true }));
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
+			assert.equal(err1, null);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+
+			const cmd2 = walker.spawnFindCmd(rootfolders()[0], glob.parse({ '**/subfolder': true }));
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
+				assert.equal(err2, null);
+				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				done();
+			});
+		});
+	});
+
+	test('Find: exclude multiple folders', function (done: () => void) {
+		if (platform.isWindows) {
+			return;
+		}
+
+		const walker = new FileWalker({ rootFolders: rootfolders() });
+		const file0 = './index.html';
+		const file1 = './examples/small.js';
+		const file2 = './more/file.txt';
+
+		const cmd1 = walker.spawnFindCmd(rootfolders()[0], glob.parse({ '**/something': true }));
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
+			assert.equal(err1, null);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file2), -1, stdout1);
+
+			const cmd2 = walker.spawnFindCmd(rootfolders()[0], glob.parse({ '{**/examples,**/more}': true }));
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
+				assert.equal(err2, null);
+				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				assert.strictEqual(stdout2.split('\n').indexOf(file2), -1, stdout2);
+				done();
+			});
 		});
 	});
 

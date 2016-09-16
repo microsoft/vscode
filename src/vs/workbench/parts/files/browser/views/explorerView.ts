@@ -292,9 +292,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	private openFocusedElement(preserveFocus?: boolean): void {
 		const stat: FileStat = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
-			const editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-
-			this.editorService.openEditor(editorInput, { preserveFocus, revealIfVisible: true }).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, mime: stat.mime, options: { preserveFocus, revealIfVisible: true } }).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -303,7 +301,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Try with Editor Input
 		const input = this.editorService.getActiveEditorInput();
 		if (input && input instanceof FileEditorInput) {
-			return (<FileEditorInput>input).getResource();
+			return input.getResource();
 		}
 
 		return null;

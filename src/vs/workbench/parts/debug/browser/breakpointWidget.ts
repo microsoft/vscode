@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import 'vs/css!../browser/media/breakpointWidget';
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
-import {CommonKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
 import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
@@ -102,8 +102,8 @@ export class BreakpointWidget extends ZoneWidget {
 		});
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
-			const isEscape = e.equals(CommonKeybindings.ESCAPE);
-			const isEnter = e.equals(CommonKeybindings.ENTER);
+			const isEscape = e.equals(KeyCode.Escape);
+			const isEnter = e.equals(KeyCode.Enter);
 			if (isEscape || isEnter) {
 				e.stopPropagation();
 				wrapUp(isEnter);

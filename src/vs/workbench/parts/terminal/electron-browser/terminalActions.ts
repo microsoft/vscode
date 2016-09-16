@@ -47,6 +47,9 @@ export class KillTerminalAction extends Action {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			this.terminalService.getActiveInstance().dispose();
+			if (this.terminalService.terminalInstances.length > 0) {
+				this.terminalService.showPanel(true);
+			}
 		}
 		return TPromise.as(void 0);
 	}
@@ -235,12 +238,12 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex);
-		this.toDispose.push(terminalService.onInstancesChanged(this.updateItems, this));
-		this.toDispose.push(terminalService.onActiveInstanceChanged(this.updateItems, this));
-		this.toDispose.push(terminalService.onInstanceTitleChanged(this.updateItems, this));
+		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
 	}
 
-	private updateItems(): void {
+	private _updateItems(): void {
 		this.setOptions(this.terminalService.getInstanceLabels(), this.terminalService.activeTerminalInstanceIndex);
 	}
 }

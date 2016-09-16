@@ -22,7 +22,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Keybinding, KeyCode, KeyMod, CommonKeybindings } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asFileEditorInput } from 'vs/workbench/common/editor';
 
@@ -39,9 +40,48 @@ export function appendKeyBindingLabel(label: string, keyBinding: any, keyBinding
 	return label + ' (' + keyBindingService2.getLabelFor(keyBinding) + ')';
 }
 
+export class ToggleCaseSensitiveAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
+		searchViewlet.toggleCaseSensitive();
+		return TPromise.as(null);
+	}
+}
+
+export class ToggleWholeWordAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
+		searchViewlet.toggleWholeWords();
+		return TPromise.as(null);
+	}
+}
+
+export class ToggleRegexAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
+		searchViewlet.toggleRegex();
+		return TPromise.as(null);
+	}
+}
+
 export class ShowNextSearchTermAction extends Action {
 
-	public static ID = 'search.history.nextSearchTerm';
+	public static ID = 'search.history.showNext';
 	public static LABEL = nls.localize('nextSearchTerm', "Show next search term");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
@@ -57,7 +97,7 @@ export class ShowNextSearchTermAction extends Action {
 
 export class ShowPreviousSearchTermAction extends Action {
 
-	public static ID = 'search.history.previousSearchTerm';
+	public static ID = 'search.history.showPrevious';
 	public static LABEL = nls.localize('previousSearchTerm', "Show previous search term");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
@@ -263,7 +303,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	public static get KEY_BINDING(): number {
-		return KeyMod.Shift | CommonKeybindings.CTRLCMD_ENTER;
+		return KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter;
 	}
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,

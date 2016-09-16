@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, {Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch} from 'vs/base/common/event';
+import Event, {Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
@@ -211,144 +211,197 @@ suite('Event',function(){
 	});
 });
 
-suite('EventBufferer', () => {
+suite('Event utils', () => {
 
-	test('should not buffer when not wrapped', () => {
-		const bufferer = new EventBufferer();
-		const counter = new Samples.EventCounter();
-		const emitter = new Emitter<void>();
-		const event = bufferer.wrapEvent(emitter.event);
-		const listener = event(counter.onEvent, counter);
+	suite('EventBufferer', () => {
 
-		assert.equal(counter.count, 0);
-		emitter.fire();
-		assert.equal(counter.count, 1);
-		emitter.fire();
-		assert.equal(counter.count, 2);
-		emitter.fire();
-		assert.equal(counter.count, 3);
+		test('should not buffer when not wrapped', () => {
+			const bufferer = new EventBufferer();
+			const counter = new Samples.EventCounter();
+			const emitter = new Emitter<void>();
+			const event = bufferer.wrapEvent(emitter.event);
+			const listener = event(counter.onEvent, counter);
 
-		listener.dispose();
-	});
-
-	test('should buffer when wrapped', () => {
-		const bufferer = new EventBufferer();
-		const counter = new Samples.EventCounter();
-		const emitter = new Emitter<void>();
-		const event = bufferer.wrapEvent(emitter.event);
-		const listener = event(counter.onEvent, counter);
-
-		assert.equal(counter.count, 0);
-		emitter.fire();
-		assert.equal(counter.count, 1);
-
-		bufferer.bufferEvents(() => {
+			assert.equal(counter.count, 0);
 			emitter.fire();
 			assert.equal(counter.count, 1);
 			emitter.fire();
+			assert.equal(counter.count, 2);
+			emitter.fire();
+			assert.equal(counter.count, 3);
+
+			listener.dispose();
+		});
+
+		test('should buffer when wrapped', () => {
+			const bufferer = new EventBufferer();
+			const counter = new Samples.EventCounter();
+			const emitter = new Emitter<void>();
+			const event = bufferer.wrapEvent(emitter.event);
+			const listener = event(counter.onEvent, counter);
+
+			assert.equal(counter.count, 0);
+			emitter.fire();
 			assert.equal(counter.count, 1);
+
+			bufferer.bufferEvents(() => {
+				emitter.fire();
+				assert.equal(counter.count, 1);
+				emitter.fire();
+				assert.equal(counter.count, 1);
+			});
+
+			assert.equal(counter.count, 3);
+			emitter.fire();
+			assert.equal(counter.count, 4);
+
+			listener.dispose();
 		});
 
-		assert.equal(counter.count, 3);
-		emitter.fire();
-		assert.equal(counter.count, 4);
+		test('once', () => {
+			const emitter = new Emitter<void>();
 
-		listener.dispose();
-	});
+			let counter1 = 0, counter2 = 0, counter3 = 0;
 
-	test('once', () => {
-		const emitter = new Emitter<void>();
+			const listener1 = emitter.event(() => counter1++);
+			const listener2 = once(emitter.event)(() => counter2++);
+			const listener3 = once(emitter.event)(() => counter3++);
 
-		let counter1 = 0, counter2 = 0, counter3 = 0;
+			assert.equal(counter1, 0);
+			assert.equal(counter2, 0);
+			assert.equal(counter3, 0);
 
-		const listener1 = emitter.event(() => counter1++);
-		const listener2 = once(emitter.event)(() => counter2++);
-		const listener3 = once(emitter.event)(() => counter3++);
+			listener3.dispose();
+			emitter.fire();
+			assert.equal(counter1, 1);
+			assert.equal(counter2, 1);
+			assert.equal(counter3, 0);
 
-		assert.equal(counter1, 0);
-		assert.equal(counter2, 0);
-		assert.equal(counter3, 0);
+			emitter.fire();
+			assert.equal(counter1, 2);
+			assert.equal(counter2, 1);
+			assert.equal(counter3, 0);
 
-		listener3.dispose();
-		emitter.fire();
-		assert.equal(counter1, 1);
-		assert.equal(counter2, 1);
-		assert.equal(counter3, 0);
-
-		emitter.fire();
-		assert.equal(counter1, 2);
-		assert.equal(counter2, 1);
-		assert.equal(counter3, 0);
-
-		listener1.dispose();
-		listener2.dispose();
-	});
-});
-
-suite('fromPromise', () => {
-
-	test('should emit when done', () => {
-		let count = 0;
-
-		const event = fromPromise(TPromise.as(null));
-		event(() => count++);
-
-		assert.equal(count, 0);
-
-		return TPromise.timeout(10).then(() => {
-			assert.equal(count, 1);
+			listener1.dispose();
+			listener2.dispose();
 		});
 	});
 
-	test('should emit when done - setTimeout', () => {
-		let count = 0;
+	suite('fromPromise', () => {
 
-		const event = fromPromise(TPromise.timeout(5));
-		event(() => count++);
+		test('should emit when done', () => {
+			let count = 0;
 
-		assert.equal(count, 0);
+			const event = fromPromise(TPromise.as(null));
+			event(() => count++);
 
-		return TPromise.timeout(10).then(() => {
-			assert.equal(count, 1);
-		});
-	});
-
-	test('should emit when done - setTimeout', () => {
-		let count = 0;
-
-		const event = fromPromise(TPromise.timeout(10));
-		event(() => count++);
-
-		assert.equal(count, 0);
-
-		return TPromise.timeout(0).then(() => {
 			assert.equal(count, 0);
 
 			return TPromise.timeout(10).then(() => {
 				assert.equal(count, 1);
 			});
 		});
-	});
-});
 
-suite('stopwatch', () => {
+		test('should emit when done - setTimeout', () => {
+			let count = 0;
 
-	test('should emit', () => {
-		const emitter = new Emitter<void>();
-		const event = stopwatch(emitter.event);
+			const event = fromPromise(TPromise.timeout(5));
+			event(() => count++);
 
-		return new TPromise((c, e) => {
-			event(duration => {
-				try {
-					assert(duration > 0);
-				} catch (err) {
-					e(err);
-				}
+			assert.equal(count, 0);
 
-				c(null);
+			return TPromise.timeout(10).then(() => {
+				assert.equal(count, 1);
 			});
+		});
 
-			setTimeout(() => emitter.fire(), 10);
+		test('should emit when done - setTimeout', () => {
+			let count = 0;
+
+			const event = fromPromise(TPromise.timeout(10));
+			event(() => count++);
+
+			assert.equal(count, 0);
+
+			return TPromise.timeout(0).then(() => {
+				assert.equal(count, 0);
+
+				return TPromise.timeout(10).then(() => {
+					assert.equal(count, 1);
+				});
+			});
 		});
 	});
+
+	suite('stopwatch', () => {
+
+		test('should emit', () => {
+			const emitter = new Emitter<void>();
+			const event = stopwatch(emitter.event);
+
+			return new TPromise((c, e) => {
+				event(duration => {
+					try {
+						assert(duration > 0);
+					} catch (err) {
+						e(err);
+					}
+
+					c(null);
+				});
+
+				setTimeout(() => emitter.fire(), 10);
+			});
+		});
+	});
+
+	suite('buffer', () => {
+
+		test('should buffer events', () => {
+			const result = [];
+			const emitter = new Emitter<number>();
+			const event = emitter.event;
+			const bufferedEvent = buffer(event);
+
+			emitter.fire(1);
+			emitter.fire(2);
+			emitter.fire(3);
+			assert.deepEqual(result, []);
+
+			const listener = bufferedEvent(num => result.push(num));
+			assert.deepEqual(result, [1,2,3]);
+
+			emitter.fire(4);
+			assert.deepEqual(result, [1,2,3,4]);
+
+			listener.dispose();
+			emitter.fire(5);
+			assert.deepEqual(result, [1,2,3,4]);
+		});
+
+		test('should buffer events on next tick', () => {
+			const result = [];
+			const emitter = new Emitter<number>();
+			const event = emitter.event;
+			const bufferedEvent = buffer(event, true);
+
+			emitter.fire(1);
+			emitter.fire(2);
+			emitter.fire(3);
+			assert.deepEqual(result, []);
+
+			const listener = bufferedEvent(num => result.push(num));
+			assert.deepEqual(result, []);
+
+			return TPromise.timeout(10).then(() => {
+				emitter.fire(4);
+				assert.deepEqual(result, [1,2,3,4]);
+
+				listener.dispose();
+				emitter.fire(5);
+				assert.deepEqual(result, [1,2,3,4]);
+			});
+		});
+	});
+
 });

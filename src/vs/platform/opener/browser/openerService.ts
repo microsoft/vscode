@@ -68,6 +68,6 @@ export class OpenerService implements IOpenerService {
 			});
 		}
 
-		return TPromise.as(promise).then(undefined, err => { }); // !ignores all errors
+		return TPromise.as(promise);
 	}
 }

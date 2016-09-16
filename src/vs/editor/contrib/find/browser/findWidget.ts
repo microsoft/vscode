@@ -8,7 +8,7 @@
 import 'vs/css!./findWidget';
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -22,6 +22,8 @@ import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositi
 import {FIND_IDS, MATCHES_LIMIT} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent} from 'vs/editor/contrib/find/common/findState';
 import {Range} from 'vs/editor/common/core/range';
+import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
+import {CONTEXT_FIND_INPUT_FOCUSSED} from 'vs/editor/contrib/find/common/findController';
 
 export interface IFindController {
 	replace(): void;
@@ -75,13 +77,15 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	private _isReplaceVisible: boolean;
 
 	private _focusTracker: dom.IFocusTracker;
+	private _findInputFocussed: IContextKey<boolean>;
 
 	constructor(
 		codeEditor: ICodeEditor,
 		controller: IFindController,
 		state: FindReplaceState,
 		contextViewProvider: IContextViewProvider,
-		keybindingService: IKeybindingService
+		keybindingService: IKeybindingService,
+		contextKeyService: IContextKeyService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -112,8 +116,10 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				this._updateToggleSelectionFindButton();
 			}
 		}));
+		this._findInputFocussed = CONTEXT_FIND_INPUT_FOCUSSED.bindTo(contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._focusTracker.addFocusListener(() => {
+			this._findInputFocussed.set(true);
 			let selection = this._codeEditor.getSelection();
 			let currentMatch = this._state.currentMatch;
 			if (selection.startLineNumber !== selection.endLineNumber) {
@@ -122,6 +128,9 @@ export class FindWidget extends Widget implements IOverlayWidget {
 					this._state.change({ searchScope: selection }, true);
 				}
 			}
+		});
+		this._focusTracker.addBlurListener(() => {
+			this._findInputFocussed.set(false);
 		});
 
 		this._codeEditor.addOverlayWidget(this);
@@ -318,17 +327,17 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	private _onFindInputKeyDown(e:IKeyboardEvent): void {
 
 		switch (e.asKeybinding()) {
-			case CommonKeybindings.ENTER:
+			case KeyCode.Enter:
 				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
 				e.preventDefault();
 				return;
 
-			case CommonKeybindings.SHIFT_ENTER:
+			case KeyMod.Shift | KeyCode.Enter:
 				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
 				e.preventDefault();
 				return;
 
-			case CommonKeybindings.TAB:
+			case KeyCode.Tab:
 				if (this._isReplaceVisible) {
 					this._replaceInputBox.focus();
 				} else {
@@ -337,7 +346,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				e.preventDefault();
 				return;
 
-			case CommonKeybindings.CTRLCMD_DOWN_ARROW:
+			case KeyMod.CtrlCmd | KeyCode.DownArrow:
 				this._codeEditor.focus();
 				e.preventDefault();
 				return;
@@ -347,27 +356,27 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	private _onReplaceInputKeyDown(e:IKeyboardEvent): void {
 
 		switch (e.asKeybinding()) {
-			case CommonKeybindings.ENTER:
+			case KeyCode.Enter:
 				this._controller.replace();
 				e.preventDefault();
 				return;
 
-			case CommonKeybindings.CTRLCMD_ENTER:
+			case KeyMod.CtrlCmd | KeyCode.Enter:
 				this._controller.replaceAll();
 				e.preventDefault();
 				return;
 
-			case CommonKeybindings.TAB:
+			case KeyCode.Tab:
 				this._findInput.focusOnCaseSensitive();
 				e.preventDefault();
 				return;
 
-			case CommonKeybindings.SHIFT_TAB:
+			case KeyMod.Shift | KeyCode.Tab:
 				this._findInput.focus();
 				e.preventDefault();
 				return;
 
-			case CommonKeybindings.CTRLCMD_DOWN_ARROW:
+			case KeyMod.CtrlCmd | KeyCode.DownArrow:
 				this._codeEditor.focus();
 				e.preventDefault();
 				return;
@@ -422,7 +431,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			}, true);
 		}));
 		this._register(this._findInput.onCaseSensitiveKeyDown((e) => {
-			if (e.equals(CommonKeybindings.SHIFT_TAB)) {
+			if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
 				if (this._isReplaceVisible) {
 					this._replaceInputBox.focus();
 					e.preventDefault();
@@ -485,7 +494,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				this._state.change({ isRevealed: false }, false);
 			},
 			onKeyDown: (e) => {
-				if (e.equals(CommonKeybindings.TAB)) {
+				if (e.equals(KeyCode.Tab)) {
 					if (this._isReplaceVisible) {
 						if (this._replaceBtn.isEnabled()) {
 							this._replaceBtn.focus();
@@ -526,7 +535,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				this._controller.replace();
 			},
 			onKeyDown: (e) => {
-				if (e.equals(CommonKeybindings.SHIFT_TAB)) {
+				if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
 					this._closeBtn.focus();
 					e.preventDefault();
 				}
@@ -687,7 +696,7 @@ class SimpleButton extends Widget {
 			e.preventDefault();
 		});
 		this.onkeydown(this._domNode, (e) => {
-			if (e.equals(CommonKeybindings.SPACE) || e.equals(CommonKeybindings.ENTER)) {
+			if (e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)) {
 				this._opts.onTrigger();
 				e.preventDefault();
 				return;

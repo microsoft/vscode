@@ -15,6 +15,11 @@
 	line-height: 22px;
 }
 
+.explorer-viewlet .explorer-item {
+	display: flex; /* this helps showing the overflow ellipsis (...) even though we use display:inline-block for the labels */
+	flex-wrap: nowrap;
+}
+
 .explorer-viewlet .explorer-item-label,
 .explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
@@ -25,6 +30,7 @@
 .explorer-viewlet .explorer-item-label,
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	display: inline-block; /* required for icons support :before rule */
+	flex: 1;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content {

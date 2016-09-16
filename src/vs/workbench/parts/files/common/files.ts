@@ -274,6 +274,8 @@ export interface ITextFileEditorModelManager {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
+	onDidStateChange: Event<StateChange>;
+
 	getResource(): URI;
 
 	getLastSaveAttemptTime(): number;
@@ -281,6 +283,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	getLastModifiedTime(): number;
 
 	getState(): ModelState;
+
+	updatePreferredEncoding(encoding: string): void;
 
 	save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void>;
 
@@ -299,6 +303,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 export interface ITextFileService extends IDisposable {
 	_serviceBrand: any;
+	onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
+	onFilesAssociationChange: Event<void>;
 
 	/**
 	 * Access to the manager of text file editor models providing further methods to work with them.
@@ -383,9 +389,4 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
-
-	/**
-	 * Event is fired with the auto save configuration whenever it changes.
-	 */
-	onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 }

@@ -4,24 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import Event, {Emitter} from 'vs/base/common/event';
 import vscode = require('vscode');
-import {MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
+import {ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
-	public _name: string;
-	public _shellPath: string;
-
+	private _name: string;
 	private _id: number;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
+	private _queuedRequests: ApiRequest[];
 
-	constructor(proxy: MainThreadTerminalServiceShape, id: number, name?: string, shellPath?: string) {
+	constructor(proxy: MainThreadTerminalServiceShape, name?: string, shellPath?: string, shellArgs?: string[]) {
 		this._name = name;
-		this._shellPath = shellPath;
+		this._queuedRequests = [];
 		this._proxy = proxy;
-		this._id = this._proxy.$createTerminal(name, shellPath);
+		this._proxy.$createTerminal(name, shellPath, shellArgs).then((id) => {
+			this._id = id;
+			this._queuedRequests.forEach((r) => {
+				r.run(this._proxy, this._id);
+			});
+		});
 	}
 
 	public get name(): string {
@@ -31,24 +36,33 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	public sendText(text: string, addNewLine: boolean = true): void {
 		this._checkDisposed();
-		this._proxy.$sendText(this._id, text, addNewLine);
+		this._queueApiRequest(this._proxy.$sendText, [text, addNewLine]);
 	}
 
 	public show(preserveFocus: boolean): void {
 		this._checkDisposed();
-		this._proxy.$show(this._id, preserveFocus);
+		this._queueApiRequest(this._proxy.$show, [preserveFocus]);
 	}
 
 	public hide(): void {
 		this._checkDisposed();
-		this._proxy.$hide(this._id);
+		this._queueApiRequest(this._proxy.$hide, []);
 	}
 
 	public dispose(): void {
 		if (!this._disposed) {
 			this._disposed = true;
-			this._proxy.$dispose(this._id);
+			this._queueApiRequest(this._proxy.$dispose, []);
 		}
+	}
+
+	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
+		let request: ApiRequest = new ApiRequest(callback, args);
+		if (!this._id) {
+			this._queuedRequests.push(request);
+			return;
+		}
+		request.run(this._proxy, this._id);
 	}
 
 	private _checkDisposed() {
@@ -58,15 +72,61 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 }
 
-export class ExtHostTerminalService {
+export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
+	private _onDidCloseTerminal: Emitter<vscode.Terminal>;
 	private _proxy: MainThreadTerminalServiceShape;
+	private _terminals: ExtHostTerminal[];
 
 	constructor(threadService: IThreadService) {
+		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
 		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
+		this._terminals = [];
 	}
 
-	public createTerminal(name?: string, shellPath?: string): vscode.Terminal {
-		return new ExtHostTerminal(this._proxy, -1, name, shellPath);
+	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+		let terminal = new ExtHostTerminal(this._proxy, name, shellPath, shellArgs);
+		this._terminals.push(terminal);
+		return terminal;
+	}
+
+	public get onDidCloseTerminal(): Event<vscode.Terminal> {
+		return this._onDidCloseTerminal && this._onDidCloseTerminal.event;
+	}
+
+	public $acceptTerminalClosed(id: number): void {
+		let index = this._getTerminalIndexById(id);
+		if (index === null) {
+			// The terminal was not created by the terminal API, ignore it
+			return;
+		}
+		let terminal = this._terminals.splice(index, 1)[0];
+		this._onDidCloseTerminal.fire(terminal);
+	}
+
+	private _getTerminalIndexById(id: number): number {
+		let index: number = null;
+		this._terminals.some((terminal, i) => {
+			let thisId = (<any>terminal)._id;
+			if (thisId === id) {
+				index = i;
+				return true;
+			}
+		});
+		return index;
+	}
+}
+
+class ApiRequest {
+	private _callback: (...args: any[]) => void;
+	private _args: any[];
+
+	constructor(callback: (...args: any[]) => void, args: any[]) {
+		this._callback = callback;
+		this._args = args;
+	}
+
+	public run(proxy: MainThreadTerminalServiceShape, id: number) {
+		this._callback.apply(proxy, [id].concat(this._args));
 	}
 }

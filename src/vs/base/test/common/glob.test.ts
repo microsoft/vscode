@@ -668,7 +668,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('')('foo'), false);
 	});
 
-	test('expression falsy path', function () {
+	test('falsy path', function () {
 		assert.strictEqual(glob.parse('foo')(null), false);
 		assert.strictEqual(glob.parse('foo')(''), false);
 		assert.strictEqual(glob.parse('**/*.j?')(null), false);
@@ -683,7 +683,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(''), false);
 	});
 
-	test('expression basename', function () {
+	test('expression/pattern basename', function () {
 		assert.strictEqual(glob.parse('**/foo')('bar/baz', 'baz'), false);
 		assert.strictEqual(glob.parse('**/foo')('bar/foo', 'foo'), true);
 
@@ -695,5 +695,21 @@ suite('Glob', () => {
 
 		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', sibilings), null);
 		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', sibilings), '**/*.js');
+	});
+
+	test('expression/pattern basename terms', function () {
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/*.foo')), []);
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo')), ['foo']);
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('{**/baz,**/foo}')), ['baz', 'foo']);
+
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse({
+			'**/foo': true,
+			'{**/bar,**/baz}': true,
+			'**/bulb': false
+		})), ['foo', 'bar', 'baz']);
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse({
+			'**/foo': { when: '$(basename).zip' },
+			'**/bar': true
+		})), ['bar']);
 	});
 });

@@ -99,6 +99,7 @@ export interface IWindowsService {
 	openFileFolderPicker(forceNewWindow?: boolean): void;
 	openFilePicker(forceNewWindow?: boolean): void;
 	openFolderPicker(forceNewWindow?: boolean): void;
+	openAccessibilityOptions(): void;
 	focusLastActive(cli: ICommandLineArguments): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow;
@@ -575,13 +576,12 @@ export class WindowsManager implements IWindowsService {
 
 		let filesToOpen: IPath[] = [];
 		let filesToDiff: IPath[] = [];
-		let foldersToOpen = iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
-		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
-		let extensionsToInstall = iPathsToOpen.filter(iPath => iPath.installExtensionPath).map(ipath => ipath.filePath);
-		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath && !iPath.installExtensionPath);
+		let foldersToOpen = iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath);
+		let emptyToOpen = iPathsToOpen.filter(iPath => !iPath.workspacePath && !iPath.filePath);
+		let filesToCreate = iPathsToOpen.filter(iPath => !!iPath.filePath && iPath.createFilePath);
 
 		// Diff mode needs special care
-		const candidates = iPathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
+		const candidates = iPathsToOpen.filter(iPath => !!iPath.filePath && !iPath.createFilePath);
 		if (openConfig.diffMode) {
 			if (candidates.length === 2) {
 				filesToDiff = candidates;
@@ -598,7 +598,7 @@ export class WindowsManager implements IWindowsService {
 		let configuration: IWindowConfiguration;
 
 		// Handle files to open/diff or to create when we dont open a folder
-		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0 || extensionsToInstall.length > 0)) {
+		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
 			// const the user settings override how files are open in a new window or same window unless we are forced
 			let openFilesInNewWindow: boolean;
@@ -620,10 +620,6 @@ export class WindowsManager implements IWindowsService {
 				lastActiveWindow.focus();
 				lastActiveWindow.ready().then(readyWindow => {
 					readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
-
-					if (extensionsToInstall.length) {
-						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
-					}
 				});
 
 				usedWindows.push(lastActiveWindow);
@@ -631,7 +627,7 @@ export class WindowsManager implements IWindowsService {
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
+				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, true /* new window */);
 				usedWindows.push(browserWindow);
 
@@ -650,10 +646,6 @@ export class WindowsManager implements IWindowsService {
 				browserWindow.focus(); // just focus one of them
 				browserWindow.ready().then(readyWindow => {
 					readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
-
-					if (extensionsToInstall.length) {
-						readyWindow.send('vscode:installExtensions', { extensionsToInstall });
-					}
 				});
 
 				usedWindows.push(browserWindow);
@@ -662,7 +654,6 @@ export class WindowsManager implements IWindowsService {
 				filesToOpen = [];
 				filesToCreate = [];
 				filesToDiff = [];
-				extensionsToInstall = [];
 
 				openInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -673,7 +664,7 @@ export class WindowsManager implements IWindowsService {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
+				configuration = this.toConfiguration(this.getWindowUserEnv(openConfig), openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff);
 				const browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
@@ -681,7 +672,6 @@ export class WindowsManager implements IWindowsService {
 				filesToOpen = [];
 				filesToCreate = [];
 				filesToDiff = [];
-				extensionsToInstall = [];
 
 				openInNewWindow = true; // any other folders to open must open in new window then
 			});
@@ -699,7 +689,8 @@ export class WindowsManager implements IWindowsService {
 		}
 
 		// Remember in recent document list (unless this opens for extension development)
-		if (!openConfig.cli.extensionDevelopmentPath) {
+		// Also do not add paths when files are opened for diffing, only if opened individually
+		if (!openConfig.cli.extensionDevelopmentPath && !openConfig.cli.diff) {
 			iPathsToOpen.forEach(iPath => {
 				if (iPath.filePath || iPath.workspacePath) {
 					app.addRecentDocument(iPath.filePath || iPath.workspacePath);
@@ -824,7 +815,7 @@ export class WindowsManager implements IWindowsService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.paths.length === 0 });
 	}
 
-	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
+	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
 		configuration.appRoot = this.envService.appRoot;
 		configuration.execPath = process.execPath;
@@ -833,7 +824,6 @@ export class WindowsManager implements IWindowsService {
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
-		configuration.extensionsToInstall = extensionsToInstall;
 
 		return configuration;
 	}
@@ -857,8 +847,7 @@ export class WindowsManager implements IWindowsService {
 					{
 						filePath: candidate,
 						lineNumber: gotoLineMode ? parsedPath.line : void 0,
-						columnNumber: gotoLineMode ? parsedPath.column : void 0,
-						installExtensionPath: /\.vsix$/i.test(candidate)
+						columnNumber: gotoLineMode ? parsedPath.column : void 0
 					} :
 					{ workspacePath: candidate };
 			}
@@ -1066,6 +1055,22 @@ export class WindowsManager implements IWindowsService {
 
 	public openFolderPicker(forceNewWindow?: boolean): void {
 		this.doPickAndOpen({ pickFolders: true, forceNewWindow });
+	}
+
+	public openAccessibilityOptions(): void {
+		let win = new BrowserWindow({
+			alwaysOnTop: true,
+			skipTaskbar: true,
+			resizable: false,
+			width: 450,
+			height: 300,
+			show: true,
+			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
+		});
+
+		win.setMenuBarVisibility(false);
+
+		win.loadURL('chrome://accessibility');
 	}
 
 	private doPickAndOpen(options: INativeOpenDialogOptions): void {

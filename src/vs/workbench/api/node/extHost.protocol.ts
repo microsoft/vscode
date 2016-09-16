@@ -153,7 +153,7 @@ export abstract class MainThreadOutputServiceShape {
 }
 
 export abstract class MainThreadTerminalServiceShape {
-	$createTerminal(name?: string, shellPath?: string): number { throw ni(); }
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): TPromise<number> { throw ni(); }
 	$dispose(terminalId: number): void { throw ni(); }
 	$hide(terminalId: number): void { throw ni(); }
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void { throw ni(); }
@@ -310,6 +310,10 @@ export abstract class ExtHostQuickOpenShape {
 	$validateInput(input: string): TPromise<string> { throw ni(); }
 }
 
+export abstract class ExtHostTerminalServiceShape {
+	$acceptTerminalClosed(id: number): void { throw ni(); }
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -343,4 +347,5 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen', ExtHostQuickOpenShape),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
+	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape)
 };

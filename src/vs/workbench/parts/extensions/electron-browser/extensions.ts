@@ -42,6 +42,8 @@ export interface IExtension {
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
+	hasChangelog : boolean;
+	getChangelog() : TPromise<string>;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -55,10 +57,15 @@ export interface IExtensionsWorkbenchService {
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
+	install(vsix: string): TPromise<void>;
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+	openExtensionsFile(sideBySide?: boolean): TPromise<void>;
 }
+
+export const EXTENSIONS_CONFIGURAION_NAME = 'extensions';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
+	recommendations: string[];
 }

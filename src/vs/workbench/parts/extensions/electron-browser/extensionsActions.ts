@@ -20,7 +20,9 @@ import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from '../common/extensionQuery';
-import { shell } from 'electron';
+import { shell, remote } from 'electron';
+
+const dialog = remote.dialog;
 
 export class InstallAction extends Action {
 
@@ -458,6 +460,33 @@ export class ShowRecommendedExtensionsAction extends Action {
 	}
 }
 
+export class ShowWorkspaceRecommendedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showWorkspaceRecommendedExtensions';
+	static LABEL = localize('showWorkspaceRecommendedExtensions', "Show Workspace Recommended Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended:workspace');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ChangeSortAction extends Action {
 
 	private query: Query;
@@ -524,5 +553,45 @@ export class OpenExtensionsFolderAction extends Action {
 
 	protected isEnabled(): boolean {
 		return true;
+	}
+}
+
+export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
+	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
+	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Workspace Recommended Extensions");
+
+	constructor(id: string, label: string, @IExtensionsWorkbenchService private extensionsService: IExtensionsWorkbenchService) {
+		super(id, label, null, true);
+	}
+
+	public run(event: any): TPromise<any> {
+		return this.extensionsService.openExtensionsFile();
+	}
+}
+
+export class InstallVSIXAction extends Action {
+
+	static ID = 'workbench.extensions.action.installVSIX';
+	static LABEL = localize('installVSIX', "Install from VSIX...");
+
+	constructor(
+		id = InstallVSIXAction.ID,
+		label = InstallVSIXAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, 'extension-action install-vsix', true);
+	}
+
+	run(): TPromise<any> {
+		const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
+			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
+			properties: ['openFile']
+		});
+
+		if (!result) {
+			return TPromise.as(null);
+		}
+
+		return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix)));
 	}
 }

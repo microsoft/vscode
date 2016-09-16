@@ -376,8 +376,7 @@ export class RevertLocalChangesAction extends EditorInputAction {
 		return model.revert().then(() => {
 
 			// Reopen file input
-			const input = this.instantiationService.createInstance(FileEditorInput, model.getResource(), guessMimeTypes(model.getResource().fsPath).join(', '), void 0);
-			return this.editorService.openEditor(input, null, this.position).then(() => {
+			return this.editorService.openEditor({ resource: model.getResource() }, this.position).then(() => {
 
 				// Dispose conflict input
 				conflictInput.dispose();

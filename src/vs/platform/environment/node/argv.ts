@@ -124,7 +124,6 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 export const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
-	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'-g, --goto': localize('goto', "Open the file at path at the line and column (add :line[:column] to path)."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
@@ -137,6 +136,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--install-extension <ext>': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension <ext>': localize('uninstallExtension', "Uninstalls an extension."),
+	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };

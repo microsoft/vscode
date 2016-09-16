@@ -16,9 +16,6 @@ import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard
 import 'vs/editor/contrib/suggest/electron-browser/snippetCompletion';
 import 'vs/editor/browser/editor.all';
 
-// Languages
-import 'vs/languages/languages.main';
-
 // Menus/Actions
 import 'vs/platform/actions/browser/menusExtensionPoint';
 

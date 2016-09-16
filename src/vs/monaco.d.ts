@@ -345,6 +345,7 @@ declare module monaco {
          */
         MAX_VALUE = 109,
     }
+
     export class KeyMod {
         static CtrlCmd: number;
         static Shift: number;
