@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
 import objects = require('vs/base/common/objects');
 import Modes = require('vs/editor/common/modes');
 import {CompatMode, isDigit, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
@@ -110,14 +109,14 @@ var isVariable = (character:string) => {
 	return (character[0] === '$');
 };
 
-export class PHPState extends AbstractState {
+export abstract class PHPState extends AbstractState {
 
 	private name:string;
 	private whitespaceTokenType:string;
 	public parent:Modes.IState;
 
-	constructor(mode:Modes.IMode, name:string, parent:Modes.IState, whitespaceTokenType:string='') {
-		super(mode);
+	constructor(modeId:string, name:string, parent:Modes.IState, whitespaceTokenType:string='') {
+		super(modeId);
 		this.name = name;
 		this.parent = parent;
 		this.whitespaceTokenType = whitespaceTokenType;
@@ -154,14 +153,14 @@ export class PHPString extends PHPState {
 	private delimiter:string;
 	private isAtBeginning:boolean;
 
-	constructor(mode:Modes.IMode, parent:Modes.IState, delimiter:string, isAtBeginning:boolean=true) {
-		super(mode, 'string', parent, 'string.php');
+	constructor(modeId:string, parent:Modes.IState, delimiter:string, isAtBeginning:boolean=true) {
+		super(modeId, 'string', parent, 'string.php');
 		this.delimiter = delimiter;
 		this.isAtBeginning = isAtBeginning;
 	}
 
 	public makeClone():AbstractState {
-		return new PHPString(this.getMode(), AbstractState.safeClone(this.parent), this.delimiter, this.isAtBeginning);
+		return new PHPString(this.getModeId(), AbstractState.safeClone(this.parent), this.delimiter, this.isAtBeginning);
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -205,13 +204,13 @@ export class PHPNumber extends PHPState {
 
 	private firstDigit:string;
 
-	constructor(mode:Modes.IMode, parent:Modes.IState, firstDigit:string) {
-		super(mode, 'number', parent);
+	constructor(modeId:string, parent:Modes.IState, firstDigit:string) {
+		super(modeId, 'number', parent);
 		this.firstDigit = firstDigit;
 	}
 
 	public makeClone():AbstractState {
-		return new PHPNumber(this.getMode(), AbstractState.safeClone(this.parent), this.firstDigit);
+		return new PHPNumber(this.getModeId(), AbstractState.safeClone(this.parent), this.firstDigit);
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -276,12 +275,12 @@ export class PHPNumber extends PHPState {
 
 export class PHPLineComment extends PHPState {
 
-	constructor(mode:Modes.IMode, parent:Modes.IState) {
-		super(mode, 'comment', parent, 'comment.php');
+	constructor(modeId:string, parent:Modes.IState) {
+		super(modeId, 'comment', parent, 'comment.php');
 	}
 
 	public makeClone():AbstractState {
-		return new PHPDocComment(this.getMode(), AbstractState.safeClone(this.parent));
+		return new PHPDocComment(this.getModeId(), AbstractState.safeClone(this.parent));
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -307,12 +306,12 @@ export class PHPLineComment extends PHPState {
 
 export class PHPDocComment extends PHPState {
 
-	constructor(mode:Modes.IMode, parent:Modes.IState) {
-		super(mode, 'comment', parent, 'comment.php');
+	constructor(modeId:string, parent:Modes.IState) {
+		super(modeId, 'comment', parent, 'comment.php');
 	}
 
 	public makeClone():AbstractState {
-		return new PHPDocComment(this.getMode(), AbstractState.safeClone(this.parent));
+		return new PHPDocComment(this.getModeId(), AbstractState.safeClone(this.parent));
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -338,12 +337,12 @@ export class PHPDocComment extends PHPState {
 
 export class PHPStatement extends PHPState {
 
-	constructor(mode:Modes.IMode, parent:Modes.IState) {
-		super(mode, 'expression', parent);
+	constructor(modeId:string, parent:Modes.IState) {
+		super(modeId, 'expression', parent);
 	}
 
 	public makeClone():AbstractState {
-		return new PHPStatement(this.getMode(), AbstractState.safeClone(this.parent));
+		return new PHPStatement(this.getModeId(), AbstractState.safeClone(this.parent));
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -357,7 +356,7 @@ export class PHPStatement extends PHPState {
 
 	public stateTokenize(stream:Modes.IStream):Modes.ITokenizationResult {
 		if (isDigit(stream.peek(), 10)) {
-			return { nextState: new PHPNumber(this.getMode(), this, stream.next()) };
+			return { nextState: new PHPNumber(this.getModeId(), this, stream.next()) };
 		}
 		if (stream.advanceIfString('?>').length) {
 			return { type: 'metatag.php', nextState: this.parent };
@@ -376,16 +375,16 @@ export class PHPStatement extends PHPState {
 			if (!stream.eos() && !stream.peekWhitespace()) {
 				switch(stream.peekToken()) {
 					case '/':
-						return { nextState: new PHPLineComment(this.getMode(), this) };
+						return { nextState: new PHPLineComment(this.getModeId(), this) };
 					case '*':
 						stream.nextToken();
-						return { nextState: new PHPDocComment(this.getMode(), this) };
+						return { nextState: new PHPDocComment(this.getModeId(), this) };
 				}
 			}
 		} else if (token === '#') {
-			return { nextState: new PHPLineComment(this.getMode(), this) };
+			return { nextState: new PHPLineComment(this.getModeId(), this) };
 		} else if (token === '"' || token === '\'') {
-			return { nextState: new PHPString(this.getMode(), this, token) };
+			return { nextState: new PHPString(this.getModeId(), this, token) };
 		} else if (brackets.stringIsBracket(token)) {
 			return {
 				type: brackets.tokenTypeFromString(token)
@@ -399,12 +398,12 @@ export class PHPStatement extends PHPState {
 
 export class PHPPlain extends PHPState {
 
-	constructor(mode:Modes.IMode, parent:Modes.IState) {
-		super(mode, 'plain', parent);
+	constructor(modeId:string, parent:Modes.IState) {
+		super(modeId, 'plain', parent);
 	}
 
 	public makeClone():AbstractState {
-		return new PHPPlain(this.getMode(), AbstractState.safeClone(this.parent));
+		return new PHPPlain(this.getModeId(), AbstractState.safeClone(this.parent));
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -422,7 +421,7 @@ export class PHPPlain extends PHPState {
 		stream.advanceIfString('<?').length || stream.advanceIfString('<%').length) {
 			return {
 				type: 'metatag.php',
-				nextState: new PHPStatement(this.getMode(), new PHPEnterHTMLState(this.getMode(), this.parent))
+				nextState: new PHPStatement(this.getModeId(), new PHPEnterHTMLState(this.getModeId(), this.parent))
 			};
 		}
 		stream.next();
@@ -432,12 +431,12 @@ export class PHPPlain extends PHPState {
 
 export class PHPEnterHTMLState extends PHPState {
 
-	constructor(mode:Modes.IMode, parent:Modes.IState) {
-		super(mode, 'enterHTML', parent);
+	constructor(modeId:string, parent:Modes.IState) {
+		super(modeId, 'enterHTML', parent);
 	}
 
 	public makeClone():AbstractState {
-		return new PHPEnterHTMLState(this.getMode(), AbstractState.safeClone(this.parent));
+		return new PHPEnterHTMLState(this.getModeId(), AbstractState.safeClone(this.parent));
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -476,9 +475,7 @@ export class PHPMode extends CompatMode implements ITokenizationCustomization {
 		]
 	};
 
-	public tokenizationSupport: Modes.ITokenizationSupport;
-
-	private modeService:IModeService;
+	private _modeService:IModeService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -488,11 +485,11 @@ export class PHPMode extends CompatMode implements ITokenizationCustomization {
 		@ICompatWorkerService compatWorkerService: ICompatWorkerService
 	) {
 		super(descriptor.id, compatWorkerService);
-		this.modeService = modeService;
-
-		this.tokenizationSupport = new TokenizationSupport(this, this, true);
+		this._modeService = modeService;
 
 		LanguageConfigurationRegistry.register(this.getId(), PHPMode.LANG_CONFIG);
+
+		Modes.TokenizationRegistry.register(this.getId(), new TokenizationSupport(this._modeService, this.getId(), this, true));
 
 		if (editorWorkerService) {
 			Modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(editorWorkerService, configurationService), true);
@@ -502,9 +499,9 @@ export class PHPMode extends CompatMode implements ITokenizationCustomization {
 	public getInitialState():Modes.IState {
 		// Because AbstractMode doesn't allow the initial state to immediately enter a nested
 		// mode, we will enter a nested mode ourselves
-		var htmlMode = this.modeService.getMode('text/html');
-		var htmlState:Modes.IState = htmlMode.tokenizationSupport.getInitialState();
-		htmlState.setStateData(new PHPEnterHTMLState(this, null));
+		var htmlMode = this._modeService.getMode('text/html');
+		var htmlState:Modes.IState = Modes.TokenizationRegistry.get(htmlMode.getId()).getInitialState();
+		htmlState.setStateData(new PHPEnterHTMLState(this.getId(), null));
 		return htmlState;
 	}
 
@@ -512,26 +509,23 @@ export class PHPMode extends CompatMode implements ITokenizationCustomization {
 		return state instanceof PHPEnterHTMLState;
 	}
 
-	public getNestedModeInitialState(myState:Modes.IState): { state:Modes.IState; missingModePromise:WinJS.Promise; } {
+	public getNestedModeInitialState(myState:Modes.IState): Modes.IState {
 		// Recall previous HTML state, that was saved in .parent, and carried over by the PHP states
 		// Also, prevent a .clone() endless loop by clearing the .parent pointer
 		// (the result will have its stateData point to myState)
 		var result = (<PHPState>myState).parent;
 		(<PHPState>myState).parent = null;
-		return {
-			state: result,
-			missingModePromise: null
-		};
+		return result;
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState):ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:Modes.IState): ILeavingNestedModeData {
 		// Leave HTML if <? is found on a line
 		var match:any = /<\?/i.exec(line);
 		if (match !== null) {
 			return {
 				nestedModeBuffer: line.substring(0, match.index),
 				bufferAfterNestedMode: line.substring(match.index),
-				stateAfterNestedMode: new PHPPlain(this, null)
+				stateAfterNestedMode: new PHPPlain(this.getId(), null)
 			};
 		}
 		return null;

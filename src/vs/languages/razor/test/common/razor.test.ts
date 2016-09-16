@@ -15,7 +15,7 @@ suite('Syntax Highlighting - Razor', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
 
-	(function() {
+	suiteSetup(function() {
 		let mode = new RAZORMode(
 			{ id: 'razor' },
 			null,
@@ -25,8 +25,8 @@ suite('Syntax Highlighting - Razor', () => {
 			null
 		);
 
-		tokenizationSupport = mode.tokenizationSupport;
-	})();
+		tokenizationSupport = Modes.TokenizationRegistry.get(mode.getId());
+	});
 
 	test('', () => {
 		modesUtil.executeTests(tokenizationSupport,[

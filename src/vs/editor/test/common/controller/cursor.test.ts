@@ -1145,7 +1145,7 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'var x = (3 + (5-7));'
 			],
-			mode: new BracketMode()
+			modeId: new BracketMode().getId()
 		}, (model, cursor) => {
 			// ensure is tokenized
 			model.getLineContext(1);
@@ -1180,7 +1180,7 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			mode: new OnEnterMode(IndentAction.Indent),
+			modeId: new OnEnterMode(IndentAction.Indent).getId(),
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 1, false);
 			assertCursor(cursor, new Selection(4, 1, 4, 1));
@@ -1207,7 +1207,7 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			mode: new OnEnterMode(IndentAction.Indent),
+			modeId: new OnEnterMode(IndentAction.Indent).getId(),
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 2, false);
 			assertCursor(cursor, new Selection(4, 2, 4, 2));
@@ -1235,7 +1235,7 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			mode: new OnEnterMode(IndentAction.Indent),
+			modeId: new OnEnterMode(IndentAction.Indent).getId(),
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 1, false);
 			assertCursor(cursor, new Selection(4, 1, 4, 1));
@@ -1262,7 +1262,7 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			mode: new OnEnterMode(IndentAction.Indent),
+			modeId: new OnEnterMode(IndentAction.Indent).getId(),
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 3, false);
 			assertCursor(cursor, new Selection(4, 3, 4, 3));
@@ -1289,7 +1289,7 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			mode: new OnEnterMode(IndentAction.Indent),
+			modeId: new OnEnterMode(IndentAction.Indent).getId(),
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 4, false);
 			assertCursor(cursor, new Selection(4, 4, 4, 4));
@@ -1329,7 +1329,7 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'     function baz() {'
 			],
-			mode: new OnEnterMode(IndentAction.IndentOutdent),
+			modeId: new OnEnterMode(IndentAction.IndentOutdent).getId(),
 			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 6, false);
@@ -1432,7 +1432,7 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'hello'
 			],
-			mode: new SurroundingMode(),
+			modeId: new SurroundingMode().getId(),
 			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 3, false);
@@ -1454,7 +1454,7 @@ suite('Editor Controller - Regression tests', () => {
 				'  return 1;',
 				'};'
 			],
-			mode: new SurroundingMode(),
+			modeId: new SurroundingMode().getId(),
 			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
@@ -1521,7 +1521,7 @@ suite('Editor Controller - Regression tests', () => {
 				'and more lines',
 				'just some text',
 			],
-			mode: null,
+			modeId: null,
 			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 1, false);
@@ -2034,7 +2034,7 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			mode: new OnEnterMode(IndentAction.None),
+			modeId: new OnEnterMode(IndentAction.None).getId(),
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 8, false);
 			moveTo(cursor, 2, 12, true);
@@ -2061,7 +2061,7 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			mode: new OnEnterMode(IndentAction.None),
+			modeId: new OnEnterMode(IndentAction.None).getId(),
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 12, false);
 			moveTo(cursor, 3, 8, true);
@@ -2195,7 +2195,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			text: [
 				'\thello'
 			],
-			mode: new OnEnterMode(IndentAction.Indent),
+			modeId: new OnEnterMode(IndentAction.Indent).getId(),
 			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
@@ -2211,7 +2211,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			text: [
 				'\thello'
 			],
-			mode: new OnEnterMode(IndentAction.None),
+			modeId: new OnEnterMode(IndentAction.None).getId(),
 			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
@@ -2227,7 +2227,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			text: [
 				'\thell()'
 			],
-			mode: new OnEnterMode(IndentAction.IndentOutdent),
+			modeId: new OnEnterMode(IndentAction.IndentOutdent).getId(),
 			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
@@ -2387,7 +2387,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				defaultEOL: DefaultEndOfLine.LF,
 				trimAutoWhitespace: true
 			},
-			mode: new OnEnterMode(IndentAction.IndentOutdent),
+			modeId: new OnEnterMode(IndentAction.IndentOutdent).getId(),
 		}, (model, cursor) => {
 
 			moveTo(cursor, 1, 32);
@@ -2688,13 +2688,13 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 interface ICursorOpts {
 	text: string[];
-	mode?: IMode;
+	modeId?: string;
 	modelOpts?: ITextModelCreationOptions;
 	editorOpts?: IEditorOptions;
 }
 
 function usingCursor(opts:ICursorOpts, callback:(model:Model, cursor:Cursor)=>void): void {
-	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.mode);
+	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.modeId);
 	let config = new MockConfiguration(opts.editorOpts);
 	let cursor = new Cursor(1, config, model, viewModelHelper(model), false);
 

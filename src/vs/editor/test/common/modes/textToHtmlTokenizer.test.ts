@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IMode, IStream, ITokenizationResult, ITokenizationSupport} from 'vs/editor/common/modes';
+import {IStream, ITokenizationResult, TokenizationRegistry} from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -14,7 +14,7 @@ import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	test('TextToHtmlTokenizer', () => {
 		var mode = new Mode();
-		var result = tokenizeToHtmlContent('.abc..def...gh', mode);
+		var result = tokenizeToHtmlContent('.abc..def...gh', mode.getId());
 
 		assert.ok(!!result);
 
@@ -45,7 +45,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		assert.equal(children[5].className, 'token text');
 		assert.equal(children[5].tagName, 'span');
 
-		result = tokenizeToHtmlContent('.abc..def...gh\n.abc..def...gh', mode);
+		result = tokenizeToHtmlContent('.abc..def...gh\n.abc..def...gh', mode.getId());
 
 		assert.ok(!!result);
 
@@ -59,12 +59,12 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 class State extends AbstractState {
 
-	constructor(mode:IMode) {
-		super(mode);
+	constructor(modeId:string) {
+		super(modeId);
 	}
 
 	public makeClone() : AbstractState {
-		return new State(this.getMode());
+		return new State(this.getModeId());
 	}
 
 	public tokenize(stream:IStream):ITokenizationResult {
@@ -73,13 +73,10 @@ class State extends AbstractState {
 }
 
 class Mode extends MockMode {
-
-	public tokenizationSupport: ITokenizationSupport;
-
 	constructor() {
 		super();
-		this.tokenizationSupport = new TokenizationSupport(this, {
-			getInitialState: () => new State(this)
-		}, false);
+		TokenizationRegistry.register(this.getId(), new TokenizationSupport(null, this.getId(), {
+			getInitialState: () => new State(this.getId())
+		}, false));
 	}
 }

@@ -75,8 +75,10 @@ export class EditorModesRegistry {
 export var ModesRegistry = new EditorModesRegistry();
 Registry.add(Extensions.ModesRegistry, ModesRegistry);
 
+export const PLAINTEXT_MODE_ID = 'plaintext';
+
 ModesRegistry.registerLanguage({
-	id: 'plaintext',
+	id: PLAINTEXT_MODE_ID,
 	extensions: ['.txt', '.gitignore'],
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
 	mimetypes: ['text/plain']

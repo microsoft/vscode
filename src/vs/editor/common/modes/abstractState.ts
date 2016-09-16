@@ -4,33 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMode, IState, IStream, ITokenizationResult} from 'vs/editor/common/modes';
+import {IState, IStream, ITokenizationResult} from 'vs/editor/common/modes';
 
-export class AbstractState implements IState {
+export abstract class AbstractState implements IState {
 
-	private mode:IMode;
+	private modeId:string;
 	private stateData:IState;
 
-	constructor(mode:IMode, stateData:IState = null) {
-		this.mode = mode;
+	constructor(modeId:string, stateData:IState = null) {
+		this.modeId = modeId;
 		this.stateData = stateData;
 	}
 
-	public getMode():IMode {
-		return this.mode;
+	public getModeId():string {
+		return this.modeId;
 	}
 
-	public clone():IState {
+	public clone():AbstractState {
 		var result:AbstractState = this.makeClone();
 		result.initializeFrom(this);
 		return result;
 	}
 
-	public makeClone():AbstractState {
-		throw new Error('Abstract Method');
-	}
+	protected abstract makeClone():AbstractState;
 
-	public initializeFrom(other:AbstractState): void {
+	protected initializeFrom(other:AbstractState): void {
 		this.stateData = other.stateData !== null ? other.stateData.clone() : null;
 	}
 
@@ -43,7 +41,7 @@ export class AbstractState implements IState {
 	}
 
 	public equals(other:IState):boolean {
-		if (other === null || this.mode !== other.getMode()) {
+		if (other === null || this.modeId !== other.getModeId()) {
 			return false;
 		}
 		if (other instanceof AbstractState) {
@@ -52,9 +50,7 @@ export class AbstractState implements IState {
 		return false;
 	}
 
-	public tokenize(stream:IStream):ITokenizationResult {
-		throw new Error('Abstract Method');
-	}
+	public abstract tokenize(stream:IStream):ITokenizationResult;
 
 	public static safeEquals(a: IState, b: IState): boolean {
 		if (a === null && b === null) {

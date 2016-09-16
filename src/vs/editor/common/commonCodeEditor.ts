@@ -46,9 +46,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public onDidChangeModelOptions(listener: (e:editorCommon.IModelOptionsChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
 	}
-	public onDidChangeModelModeSupport(listener: (e:editorCommon.IModeSupportChangedEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelModeSupportChanged, listener);
-	}
 	public onDidChangeModelDecorations(listener: (e:editorCommon.IModelDecorationsChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelDecorationsChanged, listener);
 	}
@@ -854,10 +851,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 						case editorCommon.EventType.ModelModeChanged:
 							this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
 							this.emit(editorCommon.EventType.ModelModeChanged, e);
-							break;
-
-						case editorCommon.EventType.ModelModeSupportChanged:
-							this.emit(editorCommon.EventType.ModelModeSupportChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelRawContentChanged:

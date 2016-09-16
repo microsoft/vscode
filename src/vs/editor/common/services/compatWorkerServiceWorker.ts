@@ -74,7 +74,7 @@ export class CompatWorkerServiceWorker implements ICompatWorkerService {
 			this.resourceService.remove(mirrorModel.uri);
 
 			// (2) Change mode
-			mirrorModel.setMode(mode);
+			mirrorModel.setMode(mode.getId());
 
 			// (3) Insert again to resource service (it will have the new mode)
 			this.resourceService.insert(mirrorModel.uri, mirrorModel);

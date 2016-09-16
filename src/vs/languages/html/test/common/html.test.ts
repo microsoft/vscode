@@ -21,7 +21,7 @@ import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConf
 class MockJSMode extends MockTokenizingMode {
 
 	constructor() {
-		super('html-js-mock', 'mock-js');
+		super('mock-js');
 
 		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [
@@ -63,6 +63,9 @@ class MockJSMode extends MockTokenizingMode {
 }
 
 class HTMLMockModeService extends MockModeService {
+
+	private _mockJSMode = new MockJSMode();
+
 	isRegisteredMode(mimetypeOrModeId: string): boolean {
 		if (mimetypeOrModeId === 'text/javascript') {
 			return true;
@@ -73,12 +76,16 @@ class HTMLMockModeService extends MockModeService {
 		throw new Error('Not implemented');
 	}
 
-	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
-		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/javascript') {
-			return new MockJSMode();
+	getModeId(mimetypeOrModeId: string): string {
+		if (mimetypeOrModeId === 'text/javascript') {
+			return 'js-mode-id';
 		}
-		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/plain') {
-			return null;
+		throw new Error('Not implemented');
+	}
+
+	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'js-mode-id') {
+			return this._mockJSMode;
 		}
 		throw new Error('Not implemented');
 	}
@@ -90,7 +97,8 @@ suite('Colorizing - HTML', () => {
 	let _mode: Modes.IMode;
 	let onEnterSupport: Modes.IRichEditOnEnter;
 
-	(function() {
+
+	suiteSetup(function() {
 		_mode = new HTMLMode<htmlWorker.HTMLWorker>(
 			{ id: 'html' },
 			null,
@@ -100,10 +108,10 @@ suite('Colorizing - HTML', () => {
 			null
 		);
 
-		tokenizationSupport = _mode.tokenizationSupport;
+		tokenizationSupport = Modes.TokenizationRegistry.get(_mode.getId());
 
 		onEnterSupport = LanguageConfigurationRegistry.getOnEnterSupport(_mode.getId());
-	})();
+	});
 
 	test('Open Start Tag #1', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
@@ -694,7 +702,7 @@ suite('Colorizing - HTML', () => {
 	});
 
 	test('onEnter 1', function() {
-		var model = Model.createFromString('<script type=\"text/javascript\">function f() { foo(); }', undefined, _mode);
+		var model = Model.createFromString('<script type=\"text/javascript\">function f() { foo(); }', undefined, _mode.getId());
 
 		var actual = onEnterSupport.onEnter(model, {
 			lineNumber: 1,
@@ -708,7 +716,7 @@ suite('Colorizing - HTML', () => {
 
 	test('onEnter 2', function() {
 		function onEnter(line:string, offset:number): Modes.EnterAction {
-			let model = new TextModelWithTokens([], TextModel.toRawText(line, TextModel.DEFAULT_CREATION_OPTIONS), _mode);
+			let model = new TextModelWithTokens([], TextModel.toRawText(line, TextModel.DEFAULT_CREATION_OPTIONS), _mode.getId());
 			let result = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, 1, offset + 1);
 			model.dispose();
 			return result;
@@ -751,7 +759,7 @@ suite('Colorizing - HTML', () => {
 		}
 
 		function assertBracket(lines:string[], lineNumber:number, column:number, expected:[Range, Range]): void {
-			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), _mode);
+			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), _mode.getId());
 			// force tokenization
 			model.getLineContext(model.getLineCount());
 			let actual = model.matchBracket({
