@@ -266,6 +266,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private queryWorkspaceRecommendedExtensions(): TPromise<PagedModel<IExtension>> {
 		let names = this.tipsService.getWorkspaceRecommendations();
+
+		this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
+
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
 		}
