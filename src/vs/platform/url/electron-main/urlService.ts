@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, {chain} from 'vs/base/common/event';
+import Event, {chain, mapEvent, buffer} from 'vs/base/common/event';
 import {fromEventEmitter} from 'vs/base/node/event';
 import {IURLService} from 'vs/platform/url/common/url';
 import product from 'vs/platform/product';
@@ -19,12 +19,21 @@ export class URLService implements IURLService {
 	onOpenURL: Event<URI>;
 
 	constructor() {
+		app.setAsDefaultProtocolClient(product.urlProtocol);
+
 		const rawOnOpenUrl = fromEventEmitter(app, 'open-url', (event: Electron.Event, url: string) => ({ event, url }));
 
-		this.onOpenURL = chain(rawOnOpenUrl)
-			.map(({ event, url }) => {
-				event.preventDefault();
+		// always prevent default and return the url as string
+		const onOpenUrl = mapEvent(rawOnOpenUrl, ({ event, url }) => {
+			event.preventDefault();
+			return url;
+		});
 
+		// buffer all `onOpenUrl` events until someone starts listening
+		const bufferedOnOpenUrl = buffer(onOpenUrl, true, global.getOpenUrls());
+
+		this.onOpenURL = chain(bufferedOnOpenUrl)
+			.map(url => {
 				try {
 					return URI.parse(url);
 				} catch(e) {
@@ -33,7 +42,5 @@ export class URLService implements IURLService {
 			})
 			.filter(uri => !!uri)
 			.event;
-
-		app.setAsDefaultProtocolClient(product.urlProtocol);
 	}
 }
