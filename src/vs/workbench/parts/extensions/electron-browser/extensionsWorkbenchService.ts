@@ -8,7 +8,7 @@
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import paths = require('vs/base/common/paths');
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { isUUID } from 'vs/base/common/uuid';
@@ -37,6 +37,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Content } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import { IURLService } from 'vs/platform/url/common/url';
+import { ExtensionsInput } from './extensionsInput';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -266,7 +268,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IURLService urlService: IURLService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -276,6 +279,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extensionService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
+
+		chain(urlService.onOpenURL)
+			.filter(uri => /^extension/.test(uri.path))
+			.on(this.onOpenExtensionUrl, this, this.disposables);
 
 		this.queryLocal().done(() => this.eventuallySyncWithGallery(true));
 	}
@@ -526,6 +533,31 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		this.messageService.show(Severity.Error, err);
+	}
+
+	private onOpenExtensionUrl(uri: URI): void {
+		const match = /^extension\/([^/]+)$/.exec(uri.path);
+
+		if (!match) {
+			return;
+		}
+
+		const extensionId = match[1];
+
+		this.queryGallery({ names: [extensionId] })
+			.done(result => {
+				if (result.total < 1) {
+					return;
+				}
+
+				const extension = result.firstPage[0];
+				this.openExtension(extension);
+			});
+	}
+
+	private openExtension(extension: IExtension): void {
+		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
+			.done(null, err => this.onError(err));
 	}
 
 	openExtensionsFile(sideBySide?: boolean): TPromise<any> {

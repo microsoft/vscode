@@ -40,8 +40,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { IURLService } from 'vs/platform/url/common/url';
-import URI from 'vs/base/common/uri';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 
 interface SearchInputEvent extends Event {
@@ -70,17 +68,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IURLService urlService: IURLService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
-
-		chain(urlService.onOpenURL)
-			.filter(uri => /^extension/.test(uri.path))
-			.on(this.onOpenExtensionUrl, this, this.disposables);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
@@ -307,26 +300,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private onPageDownArrow(): void {
 		this.list.focusNextPage();
 		this.list.reveal(this.list.getFocus()[0]);
-	}
-
-	private onOpenExtensionUrl(uri: URI): void {
-		const match = /^extension\/([^/]+)$/.exec(uri.path);
-
-		if (!match) {
-			return;
-		}
-
-		const extensionId = match[1];
-
-		this.extensionsWorkbenchService.queryGallery({ names: [extensionId] })
-			.done(result => {
-				if (result.total < 1) {
-					return;
-				}
-
-				const extension = result.firstPage[0];
-				this.openExtension(extension);
-			});
 	}
 
 	private progress<T>(promise: TPromise<T>): TPromise<T> {
