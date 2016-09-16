@@ -67,7 +67,7 @@ export class FileWalker {
 	constructor(config: IRawSearch) {
 		this.config = config;
 		this.filePattern = config.filePattern;
-		this.excludePattern = glob.parse(config.excludePattern);
+		this.excludePattern = glob.parse(config.excludePattern, { trimForExclusions: true });
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
 		this.maxFilesize = config.maxFilesize || null;
