@@ -145,26 +145,36 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _suggestWorkspaceRecommendations() {
 		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
+
 		if (this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
 			return;
 		}
-		let workspaceRecommendations = this.getWorkspaceRecommendations();
-		if (!workspaceRecommendations.length) {
+
+		const allRecommendations = this.getWorkspaceRecommendations();
+
+		if (!allRecommendations.length) {
 			return;
 		}
+
 		this.extensionsService.getInstalled().done(local => {
-			if (workspaceRecommendations.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id)).length) {
-				const message = localize('workspaceRecommended', "This workspace has some extensions recommended to install.");
-				const neverAgainAction = new Action('neverShowAgain', localize('neverShowAgain', "Don't show again"), null, true, () => {
-					this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
-					return Promise.as(true);
-				});
-				const recommendationsAction = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
-				this.messageService.show(Severity.Info, {
-					message,
-					actions: [recommendationsAction, neverAgainAction, CloseAction]
-				});
+			const recommendations = allRecommendations
+				.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
+
+			if (!recommendations.length) {
+				return;
 			}
+
+			const message = localize('workspaceRecommended', "This workspace has extension recommendations.");
+			const neverAgainAction = new Action('neverShowAgain', localize('neverShowAgain', "Don't show again"), null, true, () => {
+				this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
+				return Promise.as(true);
+			});
+			const recommendationsAction = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+
+			this.messageService.show(Severity.Info, {
+				message,
+				actions: [recommendationsAction, neverAgainAction, CloseAction]
+			});
 		});
 	}
 
