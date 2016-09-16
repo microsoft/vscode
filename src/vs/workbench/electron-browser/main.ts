@@ -18,7 +18,7 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {LegacyWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {ParsedArgs} from 'vs/platform/environment/node/argv';
@@ -119,7 +119,7 @@ function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
 function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): TPromise<void> {
 	const eventService = new EventService();
 	const environmentService = new EnvironmentService(environment, environment.execPath);
-	const contextService = new LegacyWorkspaceContextService(workspace, options);
+	const contextService = new WorkspaceContextService(workspace);
 	const configurationService = new WorkspaceConfigurationService(contextService, eventService, environmentService);
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
