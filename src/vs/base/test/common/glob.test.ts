@@ -712,4 +712,46 @@ suite('Glob', () => {
 			'**/bar': true
 		})), ['bar']);
 	});
+
+	test('expression/pattern optimization for basenames', function () {
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo/**')), []);
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo/**', { trimForExclusions: true })), ['foo']);
+
+		testOptimizationForBasenames('**/*.foo/**', [], [['baz/bar.foo/bar/baz', true]]);
+		testOptimizationForBasenames('**/foo/**', ['foo'], [['bar/foo', true], ['bar/foo/baz', false]]);
+		testOptimizationForBasenames('{**/baz/**,**/foo/**}', ['baz', 'foo'], [['bar/baz', true], ['bar/foo', true]]);
+
+		testOptimizationForBasenames({
+			'**/foo/**': true,
+			'{**/bar/**,**/baz/**}': true,
+			'**/bulb/**': false
+		}, ['foo', 'bar', 'baz'], [
+			['bar/foo', '**/foo/**'],
+			['foo/bar', '{**/bar/**,**/baz/**}'],
+			['bar/nope', null]
+		]);
+
+		const siblingsFn = () => ['baz', 'baz.zip', 'nope'];
+		testOptimizationForBasenames({
+			'**/foo/**': { when: '$(basename).zip' },
+			'**/bar/**': true
+		}, ['bar'], [
+			['bar/foo', null],
+			['bar/foo/baz', null],
+			['bar/foo/nope', null],
+			['foo/bar', '**/bar/**'],
+		], [
+			null,
+			siblingsFn,
+			siblingsFn
+		]);
+	});
+
+	function testOptimizationForBasenames(pattern: string|glob.IExpression, basenameTerms: string[], matches: [string, string|boolean][], siblingsFns: (() => string[])[] = []) {
+		const parsed = glob.parse(<glob.IExpression>pattern, { trimForExclusions: true });
+		assert.deepStrictEqual(glob.getBasenameTerms(parsed), basenameTerms);
+		matches.forEach(([text, result], i) => {
+			assert.strictEqual(parsed(text, null, siblingsFns[i]), result);
+		});
+	}
 });
