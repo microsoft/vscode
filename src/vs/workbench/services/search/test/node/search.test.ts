@@ -425,6 +425,7 @@ suite('Search', () => {
 
 	test('Find: exclude subfolder', function (done: () => void) {
 		if (platform.isWindows) {
+			done();
 			return;
 		}
 
@@ -450,6 +451,7 @@ suite('Search', () => {
 
 	test('Find: exclude multiple folders', function (done: () => void) {
 		if (platform.isWindows) {
+			done();
 			return;
 		}
 
