@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
-import * as env from 'vs/code/electron-main/env';
+import { IEnvService } from 'vs/code/electron-main/env';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
 import { IWindowsService } from 'vs/code/electron-main/windows';
 import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
@@ -58,7 +58,7 @@ export class VSCodeMenu {
 		@IStorageService private storageService: IStorageService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWindowsService private windowsService: IWindowsService,
-		@env.IEnvService private envService: env.IEnvService
+		@IEnvService private envService: IEnvService
 	) {
 		this.actionIdKeybindingRequests = [];
 
