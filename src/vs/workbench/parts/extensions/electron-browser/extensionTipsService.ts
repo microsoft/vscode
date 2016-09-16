@@ -11,7 +11,7 @@ import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {match} from 'vs/base/common/glob';
 import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionsConfiguration, EXTENSIONS_CONFIGURAION_NAME } from './extensions';
+import { IExtensionsConfiguration, ConfigurationKey } from './extensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product';
@@ -49,8 +49,8 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getWorkspaceRecommendations(): string[] {
-		let configuration = this.configurationService.getConfiguration<IExtensionsConfiguration>(EXTENSIONS_CONFIGURAION_NAME);
-		return configuration.recommendations ? configuration.recommendations : [];
+		const configuration = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+		return configuration.recommendations || [];
 	}
 
 	getRecommendations(): string[] {

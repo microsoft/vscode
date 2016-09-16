@@ -60,10 +60,9 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: string): TPromise<void>;
 	install(extension: IExtension): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
-	openExtensionsFile(sideBySide?: boolean): TPromise<void>;
 }
 
-export const EXTENSIONS_CONFIGURAION_NAME = 'extensions';
+export const ConfigurationKey = 'extensions';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
