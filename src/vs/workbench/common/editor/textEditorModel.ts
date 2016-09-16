@@ -92,7 +92,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 				model.setValueFromRawText(value);
 			}
 
-			model.setMode(mode);
+			this.modelService.setMode(model, mode);
 		}
 
 		this.textEditorModelHandle = model.uri;

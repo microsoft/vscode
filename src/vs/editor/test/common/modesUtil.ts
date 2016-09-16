@@ -7,9 +7,9 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
-import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {RichEditSupport, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {Token} from 'vs/editor/common/core/token';
+import {generateMockModeId} from 'vs/editor/test/common/mocks/mockMode';
 
 export interface ITestToken {
 	startIndex: number;
@@ -45,15 +45,17 @@ export interface IOnEnterAsserter {
 	indentsOutdents(oneLineAboveText:string, beforeText:string, afterText:string): void;
 }
 
-export function createOnEnterAsserter(modeId:string, conf: LanguageConfiguration): IOnEnterAsserter {
-	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
-		var model = Model.createFromString(
+export function createOnEnterAsserter(conf: LanguageConfiguration): IOnEnterAsserter {
+	const modeId = generateMockModeId();
+
+	const assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
+		let model = Model.createFromString(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
 			undefined,
-			new MockMode(modeId)
+			modeId
 		);
-		var richEditSupport = new RichEditSupport(modeId, null, conf);
-		var actual = richEditSupport.onEnter.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
+		let richEditSupport = new RichEditSupport(modeId, null, conf);
+		let actual = richEditSupport.onEnter.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
 		if (expected === modes.IndentAction.None) {
 			assert.equal(actual, null, oneLineAboveText + '\\n' + beforeText + '|' + afterText);
 		} else {
@@ -61,6 +63,7 @@ export function createOnEnterAsserter(modeId:string, conf: LanguageConfiguration
 		}
 		model.dispose();
 	};
+
 	return {
 		nothing: (oneLineAboveText:string, beforeText:string, afterText:string): void => {
 			assertOne(oneLineAboveText, beforeText, afterText, modes.IndentAction.None);

@@ -24,6 +24,7 @@ import * as platform from 'vs/base/common/platform';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 
 export interface IRawModelData {
 	url: URI;
@@ -352,13 +353,13 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | editorCommon.IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ModelData {
+	private _createModelData(value: string | editorCommon.IRawText, languageId:string, resource: URI): ModelData {
 		// create & save the model
 		let model:Model;
 		if (typeof value === 'string') {
-			model = Model.createFromString(value, this._modelCreationOptions, modeOrPromise, resource);
+			model = Model.createFromString(value, this._modelCreationOptions, languageId, resource);
 		} else {
-			model = new Model(value, modeOrPromise, resource);
+			model = new Model(value, languageId, resource);
 		}
 		let modelId = MODEL_ID(model.uri);
 
@@ -374,7 +375,14 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	public createModel(value: string | editorCommon.IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
-		let modelData = this._createModelData(value, modeOrPromise, resource);
+		let modelData: ModelData;
+
+		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
+			modelData = this._createModelData(value, PLAINTEXT_MODE_ID, resource);
+			this.setMode(modelData.model, modeOrPromise);
+		} else {
+			modelData = this._createModelData(value, modeOrPromise.getId(), resource);
+		}
 
 		// handle markers (marker service => model)
 		if (this._markerService) {
@@ -384,6 +392,21 @@ export class ModelServiceImpl implements IModelService {
 		this._onModelAdded.fire(modelData.model);
 
 		return modelData.model;
+	}
+
+	public setMode(model:editorCommon.IModel, modeOrPromise:TPromise<IMode>|IMode): void {
+		if (!modeOrPromise) {
+			return;
+		}
+		if (TPromise.is(modeOrPromise)) {
+			modeOrPromise.then((mode) => {
+				if (!model.isDisposed()) {
+					model.setMode(mode.getId());
+				}
+			});
+		} else {
+			model.setMode(modeOrPromise.getId());
+		}
 	}
 
 	public destroyModel(resource: URI): void {

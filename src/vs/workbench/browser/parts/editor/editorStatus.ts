@@ -27,7 +27,7 @@ import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/se
 import {IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import {EndOfLineSequence, ITokenizedModel, EditorType, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
+import {EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
@@ -37,6 +37,7 @@ import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuratio
 import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -56,8 +57,8 @@ function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	return null;
 }
 
-function getTextModel(editorWidget: IEditor): ITextModel {
-	let textModel: ITextModel;
+function getTextModel(editorWidget: IEditor): IModel {
+	let textModel: IModel;
 
 	// Support for diff
 	const model = editorWidget.getModel();
@@ -67,7 +68,7 @@ function getTextModel(editorWidget: IEditor): ITextModel {
 
 	// Normal editor
 	else {
-		textModel = <ITextModel>model;
+		textModel = <IModel>model;
 	}
 
 	return textModel;
@@ -486,11 +487,9 @@ export class EditorStatus implements IStatusbarItem {
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
 				// Compute mode
-				if (!!(<ITokenizedModel>textModel).getMode) {
-					const mode = (<ITokenizedModel>textModel).getMode();
-					if (mode) {
-						info = { mode: this.modeService.getLanguageName(mode.getId()) };
-					}
+				const mode = textModel.getMode();
+				if (mode) {
+					info = { mode: this.modeService.getLanguageName(mode.getId()) };
 				}
 			}
 		}
@@ -634,6 +633,7 @@ export class ChangeModeAction extends Action {
 		actionId: string,
 		actionLabel: string,
 		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
@@ -656,11 +656,9 @@ export class ChangeModeAction extends Action {
 
 		// Compute mode
 		let currentModeId: string;
-		if (!!(<ITokenizedModel>textModel).getMode) {
-			const mode = (<ITokenizedModel>textModel).getMode();
-			if (mode) {
-				currentModeId = this.modeService.getLanguageName(mode.getId());
-			}
+		const mode = textModel.getMode();
+		if (mode) {
+			currentModeId = this.modeService.getLanguageName(mode.getId());
 		}
 
 		// All languages are valid picks
@@ -707,7 +705,7 @@ export class ChangeModeAction extends Action {
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
 					const editorWidget = activeEditor.getControl();
-					const models: ITextModel[] = [];
+					const models: IModel[] = [];
 
 					const textModel = getTextModel(editorWidget);
 					models.push(textModel);
@@ -729,10 +727,8 @@ export class ChangeModeAction extends Action {
 					}
 
 					// Change mode
-					models.forEach(textModel => {
-						if (!!(<ITokenizedModel>textModel).getMode) {
-							(<ITokenizedModel>textModel).setMode(mode);
-						}
+					models.forEach((textModel) => {
+						this.modelService.setMode(textModel, mode);
 					});
 				}
 			}

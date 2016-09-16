@@ -1030,14 +1030,6 @@ export interface IConfigurationChangedEvent {
 }
 
 /**
- * An event describing that one or more supports of a mode have changed.
- * @internal
- */
-export interface IModeSupportChangedEvent {
-	tokenizationSupport:boolean;
-}
-
-/**
  * Vertical Lane in the overview ruler of the editor.
  */
 export enum OverviewRulerLane {
@@ -1857,17 +1849,9 @@ export interface ITokenizedModel extends ITextModel {
 
 	/**
 	 * Set the current language mode associated with the model.
-	 */
-	setMode(newMode:IMode|TPromise<IMode>): void;
-
-	/**
-	 * A mode can be currently pending loading if a promise is used when constructing a model or calling setMode().
-	 *
-	 * If there is no currently pending loading mode, then the result promise will complete immediately.
-	 * Otherwise, the result will complete once the currently pending loading mode is loaded.
 	 * @internal
 	 */
-	whenModeIsReady(): TPromise<IMode>;
+	setMode(languageId:string): void;
 
 	/**
 	 * Returns the true (inner-most) language mode at a given position.
@@ -2214,10 +2198,6 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * An event emitted when the contents of the model have changed.
 	 */
 	onDidChangeContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
-	/**
-	 * @internal
-	 */
-	onDidChangeModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
 	/**
 	 * An event emitted when decorations of the model have changed.
 	 */
@@ -3902,10 +3882,6 @@ export interface ICommonCodeEditor extends IEditor {
 	 */
 	onDidChangeModel(listener: (e:IModelChangedEvent)=>void): IDisposable;
 	/**
-	 * @internal
-	 */
-	onDidChangeModelModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
-	/**
 	 * An event emitted when the decorations of the current model have changed.
 	 */
 	onDidChangeModelDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
@@ -4188,7 +4164,6 @@ export var EventType = {
 
 	ModelTokensChanged: 'modelTokensChanged',
 	ModelModeChanged: 'modelsModeChanged',
-	ModelModeSupportChanged: 'modelsModeSupportChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
 	ModelRawContentChanged: 'contentChanged',
 	ModelContentChanged2: 'contentChanged2',

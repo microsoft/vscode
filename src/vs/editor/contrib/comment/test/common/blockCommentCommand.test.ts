@@ -11,7 +11,7 @@ import {CommentMode} from 'vs/editor/test/common/testModes';
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-	testCommand(lines, mode, selection, (sel) => new BlockCommentCommand(sel), expectedLines, expectedSelection);
+	testCommand(lines, mode.getId(), selection, (sel) => new BlockCommentCommand(sel), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Block Comment Command', () => {

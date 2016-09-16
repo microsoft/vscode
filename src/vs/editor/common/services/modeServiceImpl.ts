@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
@@ -149,7 +148,10 @@ export class ModeServiceImpl implements IModeService {
 	private _onDidCreateMode: Emitter<modes.IMode> = new Emitter<modes.IMode>();
 	public onDidCreateMode: Event<modes.IMode> = this._onDidCreateMode.event;
 
-	constructor(instantiationService:IInstantiationService, extensionService:IExtensionService) {
+	constructor(
+		instantiationService:IInstantiationService,
+		extensionService:IExtensionService
+	) {
 		this._instantiationService = instantiationService;
 		this._extensionService = extensionService;
 
@@ -349,58 +351,16 @@ export class ModeServiceImpl implements IModeService {
 		};
 	}
 
-	private _registerTokenizationSupport<T>(mode:modes.IMode, callback: (mode: modes.IMode) => T): IDisposable {
-		if (mode.setTokenizationSupport) {
-			return mode.setTokenizationSupport(callback);
-		} else {
-			console.warn('Cannot register tokenizationSupport on mode ' + mode.getId() + ' because it does not support it.');
-			return EmptyDisposable;
-		}
-	}
-
-	private registerModeSupport<T>(modeId: string, callback: (mode: modes.IMode) => T): IDisposable {
-		if (this._instantiatedModes.hasOwnProperty(modeId)) {
-			return this._registerTokenizationSupport(this._instantiatedModes[modeId], callback);
-		}
-
-		let cc: (disposable:IDisposable)=>void;
-		let promise = new TPromise<IDisposable>((c, e) => { cc = c; });
-
-		let disposable = this.onDidCreateMode((mode) => {
-			if (mode.getId() !== modeId) {
-				return;
-			}
-
-			cc(this._registerTokenizationSupport(mode, callback));
-			disposable.dispose();
-		});
-
-		return {
-			dispose: () => {
-				promise.done(disposable => disposable.dispose(), null);
-			}
-		};
-	}
-
-	public registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
-		return this.registerModeSupport(modeId, callback);
-	}
-
-	public registerTokenizationSupport2(modeId: string, support: modes.TokensProvider): IDisposable {
-		return this.registerModeSupport(modeId, (mode) => {
-			return new TokenizationSupport2Adapter(mode, support);
-		});
-	}
 }
 
 export class TokenizationState2Adapter implements modes.IState {
 
-	private _mode: modes.IMode;
+	private _modeId: string;
 	private _actual: modes.IState2;
 	private _stateData: modes.IState;
 
-	constructor(mode: modes.IMode, actual: modes.IState2, stateData: modes.IState) {
-		this._mode = mode;
+	constructor(modeId: string, actual: modes.IState2, stateData: modes.IState) {
+		this._modeId = modeId;
 		this._actual = actual;
 		this._stateData = stateData;
 	}
@@ -408,7 +368,7 @@ export class TokenizationState2Adapter implements modes.IState {
 	public get actual(): modes.IState2 { return this._actual; }
 
 	public clone(): TokenizationState2Adapter {
-		return new TokenizationState2Adapter(this._mode, this._actual.clone(), AbstractState.safeClone(this._stateData));
+		return new TokenizationState2Adapter(this._modeId, this._actual.clone(), AbstractState.safeClone(this._stateData));
 	}
 
 	public equals(other:modes.IState): boolean {
@@ -421,8 +381,8 @@ export class TokenizationState2Adapter implements modes.IState {
 		return false;
 	}
 
-	public getMode(): modes.IMode {
-		return this._mode;
+	public getModeId(): string {
+		return this._modeId;
 	}
 
 	public tokenize(stream:any): any {
@@ -440,16 +400,16 @@ export class TokenizationState2Adapter implements modes.IState {
 
 export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	private _mode: modes.IMode;
+	private _modeId: string;
 	private _actual: modes.TokensProvider;
 
-	constructor(mode: modes.IMode, actual: modes.TokensProvider) {
-		this._mode = mode;
+	constructor(modeId: string, actual: modes.TokensProvider) {
+		this._modeId = modeId;
 		this._actual = actual;
 	}
 
 	public getInitialState(): modes.IState {
-		return new TokenizationState2Adapter(this._mode, this._actual.getInitialState(), null);
+		return new TokenizationState2Adapter(this._modeId, this._actual.getInitialState(), null);
 	}
 
 	public tokenize(line:string, state:modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
@@ -468,8 +428,8 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 			return {
 				tokens: tokens,
 				actualStopOffset: offsetDelta + line.length,
-				endState: new TokenizationState2Adapter(state.getMode(), actualResult.endState, state.getStateData()),
-				modeTransitions: [new ModeTransition(offsetDelta, state.getMode().getId())],
+				endState: new TokenizationState2Adapter(state.getModeId(), actualResult.endState, state.getStateData()),
+				modeTransitions: [new ModeTransition(offsetDelta, state.getModeId())],
 			};
 		}
 		throw new Error('Unexpected state to tokenize with!');

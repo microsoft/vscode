@@ -10,13 +10,12 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import {IMode} from 'vs/editor/common/modes';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {viewModelHelper} from 'vs/editor/test/common/editorTestUtils';
 
 export function testCommand(
 	lines: string[],
-	mode: IMode,
+	mode: string,
 	selection: Selection,
 	commandFactory: (selection:Selection) => editorCommon.ICommand,
 	expectedLines: string[],

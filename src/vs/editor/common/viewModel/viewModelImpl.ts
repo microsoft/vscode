@@ -214,10 +214,6 @@ export class ViewModel extends EventEmitter implements IViewModel {
 						// That's ok, a model tokens changed event will follow shortly
 						break;
 
-					case editorCommon.EventType.ModelModeSupportChanged:
-						// That's ok, no work to do
-						break;
-
 					case editorCommon.EventType.ModelContentChanged2:
 						// Ignore
 						break;

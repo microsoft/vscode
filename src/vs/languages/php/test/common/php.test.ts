@@ -25,28 +25,54 @@ class PHPMockModeService extends MockModeService {
 		this._htmlMode = htmlMode;
 	}
 
-	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
-		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/html') {
-			return this._htmlMode;
+	isRegisteredMode(mimetypeOrModeId: string): boolean {
+		if (mimetypeOrModeId === 'text/html') {
+			return true;
 		}
-		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/javascript') {
-			return new MockTokenizingMode('js', 'mock-js');
+		if (mimetypeOrModeId === 'text/javascript') {
+			return true;
 		}
-		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/css') {
-			return new MockTokenizingMode('css', 'mock-css');
+		if (mimetypeOrModeId === 'text/css') {
+			return true;
 		}
 		throw new Error('Not implemented');
+	}
+
+	getModeId(mimetypeOrModeId: string): string {
+		if (mimetypeOrModeId === 'text/html') {
+			return 'html-mode-id';
+		}
+		if (mimetypeOrModeId === 'text/javascript') {
+			return 'js-mode-id';
+		}
+		if (mimetypeOrModeId === 'text/css') {
+			return 'css-mode-id';
+		}
+		throw new Error('Not implemented');
+	}
+
+	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'html-mode-id' || commaSeparatedMimetypesOrCommaSeparatedIds === 'text/html') {
+			return this._htmlMode;
+		}
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'js-mode-id') {
+			return new MockTokenizingMode('mock-js');
+		}
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'css-mode-id') {
+			return new MockTokenizingMode('mock-css');
+		}
+		throw new Error('Not implemented: ' + commaSeparatedMimetypesOrCommaSeparatedIds);
 	}
 }
 
 suite('Syntax Highlighting - PHP', () => {
 
-	var wordDefinition:RegExp;
-	var assertWords = modesUtil.assertWords;
-	var tokenizationSupport: Modes.ITokenizationSupport;
-	var assertOnEnter: modesUtil.IOnEnterAsserter;
+	let wordDefinition:RegExp;
+	let assertWords = modesUtil.assertWords;
+	let tokenizationSupport: Modes.ITokenizationSupport;
+	let assertOnEnter: modesUtil.IOnEnterAsserter;
 
-	(function() {
+	suiteSetup(function() {
 		let modeService = new PHPMockModeService();
 
 		modeService.setHTMLMode(new HTMLMode<any>(
@@ -66,10 +92,10 @@ suite('Syntax Highlighting - PHP', () => {
 			null
 		);
 
-		tokenizationSupport = mode.tokenizationSupport;
-		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), PHPMode.LANG_CONFIG);
+		tokenizationSupport = Modes.TokenizationRegistry.get(mode.getId());
+		assertOnEnter = modesUtil.createOnEnterAsserter(PHPMode.LANG_CONFIG);
 		wordDefinition = LanguageConfigurationRegistry.getWordDefinition(mode.getId());
-	})();
+	});
 
 	test('', () => {
 		modesUtil.executeTests(tokenizationSupport, [

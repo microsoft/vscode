@@ -6,20 +6,21 @@
 
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
-import {IMode, IState, ITokenizationSupport} from 'vs/editor/common/modes';
+import {IState, ITokenizationSupport, TokenizationRegistry} from 'vs/editor/common/modes';
 import {NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 
-export function tokenizeToHtmlContent(text: string, mode: IMode): IHTMLContentElement {
-	return _tokenizeToHtmlContent(text, _getSafeTokenizationSupport(mode));
+export function tokenizeToHtmlContent(text: string, languageId: string): IHTMLContentElement {
+	return _tokenizeToHtmlContent(text, _getSafeTokenizationSupport(languageId));
 }
 
-export function tokenizeToString(text: string, mode: IMode, extraTokenClass?: string): string {
-	return _tokenizeToString(text, _getSafeTokenizationSupport(mode), extraTokenClass);
+export function tokenizeToString(text: string, languageId: string, extraTokenClass?: string): string {
+	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId), extraTokenClass);
 }
 
-function _getSafeTokenizationSupport(mode: IMode): ITokenizationSupport {
-	if (mode && mode.tokenizationSupport) {
-		return mode.tokenizationSupport;
+function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
+	let tokenizationSupport = TokenizationRegistry.get(languageId);
+	if (tokenizationSupport) {
+		return tokenizationSupport;
 	}
 	return {
 		getInitialState: () => new NullState(null, null),

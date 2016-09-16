@@ -5,11 +5,9 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
-import {IMode} from 'vs/editor/common/modes';
 import {ICompatMirrorModel} from 'vs/editor/common/services/resourceService';
 
 export interface ICompatMirrorModelEvents {
@@ -22,8 +20,8 @@ export class CompatMirrorModel extends TextModelWithTokens implements ICompatMir
 
 	protected _associatedResource:URI;
 
-	constructor(versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
-		super(['changed', editorCommon.EventType.ModelDispose], value, mode);
+	constructor(versionId:number, value:editorCommon.IRawText, languageId:string, associatedResource?:URI) {
+		super(['changed', editorCommon.EventType.ModelDispose], value, languageId);
 
 		this._setVersionId(versionId);
 		this._associatedResource = associatedResource;

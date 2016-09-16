@@ -5,12 +5,12 @@
 'use strict';
 
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
-import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
+import {NullState, nullTokenize, NULL_MODE_ID} from 'vs/editor/common/modes/nullMode';
 import {Token} from 'vs/editor/common/core/token';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
 export interface ILeavingNestedModeData {
 	/**
@@ -29,9 +29,8 @@ export interface ILeavingNestedModeData {
 	stateAfterNestedMode: modes.IState;
 }
 
-export interface IEnteringNestedModeData {
-	mode:modes.IMode;
-	missingModePromise:TPromise<void>;
+export interface IModeLocator {
+	getMode(mimetypeOrModeId: string): modes.IMode;
 }
 
 export interface ITokenizationCustomization {
@@ -40,9 +39,9 @@ export interface ITokenizationCustomization {
 
 	enterNestedMode?: (state:modes.IState) => boolean;
 
-	getNestedMode?: (state:modes.IState) => IEnteringNestedModeData;
+	getNestedMode?: (state:modes.IState, locator:IModeLocator) => modes.IMode;
 
-	getNestedModeInitialState?: (myState:modes.IState) => { state:modes.IState; missingModePromise:TPromise<void>; };
+	getNestedModeInitialState?: (myState:modes.IState) => modes.IState;
 
 	/**
 	 * Return null if the line does not leave the nested mode
@@ -74,23 +73,18 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		onReturningFromNestedMode: boolean;
 	};
 
-	public supportsNestedModes:boolean;
+	private supportsNestedModes:boolean;
 
-	private _mode:modes.IMode;
+	private _modeService:IModeService;
 	private _modeId:string;
-	private _embeddedModesListeners: { [modeId:string]: IDisposable; };
+	private _embeddedModes: {[modeId:string]:boolean;};
+	private _tokenizationRegistryListener: IDisposable;
 
-	constructor(mode:modes.IMode, customization:ITokenizationCustomization, supportsNestedModes:boolean) {
-		this._mode = mode;
-		this._modeId = this._mode.getId();
+	constructor(modeService:IModeService, modeId:string, customization:ITokenizationCustomization, supportsNestedModes:boolean) {
+		this._modeService = modeService;
+		this._modeId = modeId;
 		this.customization = customization;
 		this.supportsNestedModes = supportsNestedModes;
-		this._embeddedModesListeners = {};
-		if (this.supportsNestedModes) {
-			if (!this._mode.setTokenizationSupport) {
-				throw new Error('Cannot be a mode with nested modes unless I can emit a tokenizationSupport changed event!');
-			}
-		}
 		this.defaults = {
 			enterNestedMode: !isFunction(customization.enterNestedMode),
 			getNestedMode: !isFunction(customization.getNestedMode),
@@ -98,13 +92,26 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 			getLeavingNestedModeData: !isFunction(customization.getLeavingNestedModeData),
 			onReturningFromNestedMode: !isFunction(customization.onReturningFromNestedMode)
 		};
+
+		this._embeddedModes = Object.create(null);
+
+		// Set up listening for embedded modes
+		let emitting = false;
+		this._tokenizationRegistryListener = modes.TokenizationRegistry.onDidChange((e) => {
+			if (emitting) {
+				return;
+			}
+			let isOneOfMyEmbeddedModes = this._embeddedModes[e.languageId];
+			if (isOneOfMyEmbeddedModes) {
+				emitting = true;
+				modes.TokenizationRegistry.fire(this._modeId);
+				emitting = false;
+			}
+		});
 	}
 
-	public dispose() : void {
-		for (let listener in this._embeddedModesListeners) {
-			this._embeddedModesListeners[listener].dispose();
-			delete this._embeddedModesListeners[listener];
-		}
+	public dispose(): void {
+		this._tokenizationRegistryListener.dispose();
 	}
 
 	public getInitialState(): modes.IState {
@@ -112,7 +119,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	}
 
 	public tokenize(line:string, state:modes.IState, deltaOffset:number = 0, stopAtOffset:number = deltaOffset + line.length):modes.ILineTokens {
-		if (state.getMode() !== this._mode) {
+		if (state.getModeId() !== this._modeId) {
 			return this._nestedTokenize(line, state, deltaOffset, stopAtOffset, [], []);
 		} else {
 			return this._myTokenize(line, state, deltaOffset, stopAtOffset, [], []);
@@ -120,31 +127,32 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	}
 
 	/**
-	 * Precondition is: nestedModeState.getMode() !== this
+	 * Precondition is: nestedModeState.getModeId() !== this._modeId
 	 * This means we are in a nested mode when parsing starts on this line.
 	 */
 	private _nestedTokenize(buffer:string, nestedModeState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:Token[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
 		let myStateBeforeNestedMode = nestedModeState.getStateData();
-		let leavingNestedModeData = this.getLeavingNestedModeData(buffer, myStateBeforeNestedMode);
+		let leavingNestedModeData = this._getLeavingNestedModeData(buffer, myStateBeforeNestedMode);
 
 		// Be sure to give every embedded mode the
 		// opportunity to leave nested mode.
 		// i.e. Don't go straight to the most nested mode
 		let stepOnceNestedState = nestedModeState;
-		while (stepOnceNestedState.getStateData() && stepOnceNestedState.getStateData().getMode() !== this._mode) {
+		while (stepOnceNestedState.getStateData() && stepOnceNestedState.getStateData().getModeId() !== this._modeId) {
 			stepOnceNestedState = stepOnceNestedState.getStateData();
 		}
-		let nestedMode = stepOnceNestedState.getMode();
+		let nestedModeId = stepOnceNestedState.getModeId();
 
 		if (!leavingNestedModeData) {
 			// tokenization will not leave nested mode
 			let result:modes.ILineTokens;
-			if (nestedMode.tokenizationSupport) {
-				result = nestedMode.tokenizationSupport.tokenize(buffer, nestedModeState, deltaOffset, stopAtOffset);
+			let tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
+			if (tokenizationSupport) {
+				result = tokenizationSupport.tokenize(buffer, nestedModeState, deltaOffset, stopAtOffset);
 			} else {
 				// The nested mode doesn't have tokenization support,
 				// unfortunatelly this means we have to fake it
-				result = nullTokenize(nestedMode.getId(), buffer, nestedModeState, deltaOffset);
+				result = nullTokenize(nestedModeId, buffer, nestedModeState, deltaOffset);
 			}
 			result.tokens = prependTokens.concat(result.tokens);
 			result.modeTransitions = prependModeTransitions.concat(result.modeTransitions);
@@ -155,12 +163,13 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		if (nestedModeBuffer.length > 0) {
 			// Tokenize with the nested mode
 			let nestedModeLineTokens:modes.ILineTokens;
-			if (nestedMode.tokenizationSupport) {
-				nestedModeLineTokens = nestedMode.tokenizationSupport.tokenize(nestedModeBuffer, nestedModeState, deltaOffset, stopAtOffset);
+			let tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
+			if (tokenizationSupport) {
+				nestedModeLineTokens = tokenizationSupport.tokenize(nestedModeBuffer, nestedModeState, deltaOffset, stopAtOffset);
 			} else {
 				// The nested mode doesn't have tokenization support,
 				// unfortunatelly this means we have to fake it
-				nestedModeLineTokens = nullTokenize(nestedMode.getId(), nestedModeBuffer, nestedModeState, deltaOffset);
+				nestedModeLineTokens = nullTokenize(nestedModeId, nestedModeBuffer, nestedModeState, deltaOffset);
 			}
 
 			// Save last state of nested mode
@@ -174,7 +183,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		let bufferAfterNestedMode = leavingNestedModeData.bufferAfterNestedMode;
 		let myStateAfterNestedMode = leavingNestedModeData.stateAfterNestedMode;
 		myStateAfterNestedMode.setStateData(myStateBeforeNestedMode.getStateData());
-		this.onReturningFromNestedMode(myStateAfterNestedMode, nestedModeState);
+		this._onReturningFromNestedMode(myStateAfterNestedMode, nestedModeState);
 
 		return this._myTokenize(bufferAfterNestedMode, myStateAfterNestedMode, deltaOffset + nestedModeBuffer.length, stopAtOffset, prependTokens, prependModeTransitions);
 	}
@@ -187,7 +196,6 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		let lineStream = new LineStream(buffer);
 		let tokenResult:modes.ITokenizationResult, beforeTokenizeStreamPos:number;
 		let previousType:string = null;
-		let retokenize:TPromise<void> = null;
 
 		myState = myState.clone();
 		if (prependModeTransitions.length <= 0 || prependModeTransitions[prependModeTransitions.length-1].modeId !== this._modeId) {
@@ -222,40 +230,19 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 
 			previousType = tokenResult.type;
 
-			if (this.supportsNestedModes && this.enterNestedMode(myState)) {
+			if (this.supportsNestedModes && this._enterNestedMode(myState)) {
 				let currentEmbeddedLevels = this._getEmbeddedLevel(myState);
 				if (currentEmbeddedLevels < TokenizationSupport.MAX_EMBEDDED_LEVELS) {
-					let nestedModeState = this.getNestedModeInitialState(myState);
-
-					// Re-emit tokenizationSupport change events from all modes that I ever embedded
-					let embeddedMode = nestedModeState.state.getMode();
-					if (typeof embeddedMode.addSupportChangedListener === 'function' && !this._embeddedModesListeners.hasOwnProperty(embeddedMode.getId())) {
-						let emitting = false;
-						this._embeddedModesListeners[embeddedMode.getId()] = embeddedMode.addSupportChangedListener((e) => {
-							if (emitting) {
-								return;
-							}
-							if (e.tokenizationSupport) {
-								emitting = true;
-								this._mode.setTokenizationSupport((mode) => {
-									return mode.tokenizationSupport;
-								});
-								emitting = false;
-							}
-						});
-					}
-
+					let nestedModeState = this._getNestedModeInitialState(myState);
 
 					if (!lineStream.eos()) {
 						// There is content from the embedded mode
 						let restOfBuffer = buffer.substr(lineStream.pos());
-						let result = this._nestedTokenize(restOfBuffer, nestedModeState.state, deltaOffset + lineStream.pos(), stopAtOffset, prependTokens, prependModeTransitions);
-						result.retokenize = result.retokenize || nestedModeState.missingModePromise;
+						let result = this._nestedTokenize(restOfBuffer, nestedModeState, deltaOffset + lineStream.pos(), stopAtOffset, prependTokens, prependModeTransitions);
 						return result;
 					} else {
 						// Transition to the nested mode state
-						myState = nestedModeState.state;
-						retokenize = nestedModeState.missingModePromise;
+						myState = nestedModeState;
 					}
 				}
 			}
@@ -265,8 +252,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 			tokens: prependTokens,
 			actualStopOffset: lineStream.pos() + deltaOffset,
 			modeTransitions: prependModeTransitions,
-			endState: myState,
-			retokenize: retokenize
+			endState: myState
 		};
 	}
 
@@ -279,7 +265,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		return result;
 	}
 
-	private enterNestedMode(state:modes.IState): boolean {
+	private _enterNestedMode(state:modes.IState): boolean {
 		if (this.defaults.enterNestedMode) {
 			return false;
 		}
@@ -287,60 +273,63 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 
 	}
 
-	private getNestedMode(state:modes.IState): IEnteringNestedModeData {
+	private _getNestedMode(state:modes.IState): modes.IMode {
 		if (this.defaults.getNestedMode) {
 			return null;
 		}
-		return this.customization.getNestedMode(state);
-	}
 
-	private static _validatedNestedMode(input:IEnteringNestedModeData): IEnteringNestedModeData {
-		let mode: modes.IMode = new NullMode(),
-			missingModePromise: TPromise<void> = null;
+		let locator:IModeLocator = {
+			getMode: (mimetypeOrModeId: string): modes.IMode => {
+				if (!mimetypeOrModeId || !this._modeService.isRegisteredMode(mimetypeOrModeId)) {
+					return null;
+				}
 
-		if (input && input.mode) {
-			mode = input.mode;
-		}
-		if (input && input.missingModePromise) {
-			missingModePromise = input.missingModePromise;
-		}
+				let modeId = this._modeService.getModeId(mimetypeOrModeId);
 
-		return {
-			mode: mode,
-			missingModePromise: missingModePromise
+				let mode = this._modeService.getMode(modeId);
+				if (mode) {
+					// Re-emit tokenizationSupport change events from all modes that I ever embedded
+					this._embeddedModes[modeId] = true;
+					return mode;
+				}
+
+				// Fire mode loading event
+				this._modeService.getOrCreateMode(modeId);
+
+				this._embeddedModes[modeId] = true;
+
+				return null;
+			}
 		};
+
+		return this.customization.getNestedMode(state, locator);
 	}
 
-	private getNestedModeInitialState(state:modes.IState): { state:modes.IState; missingModePromise:TPromise<void>; } {
+	private _getNestedModeInitialState(state:modes.IState): modes.IState {
 		if (this.defaults.getNestedModeInitialState) {
-			let nestedMode = TokenizationSupport._validatedNestedMode(this.getNestedMode(state));
-			let missingModePromise = nestedMode.missingModePromise;
-			let nestedModeState: modes.IState;
-
-			if (nestedMode.mode.tokenizationSupport) {
-				nestedModeState = nestedMode.mode.tokenizationSupport.getInitialState();
-			} else {
-				nestedModeState = new NullState(nestedMode.mode, null);
+			let nestedMode = this._getNestedMode(state);
+			if (nestedMode) {
+				let tokenizationSupport = modes.TokenizationRegistry.get(nestedMode.getId());
+				if (tokenizationSupport) {
+					let nestedModeState = tokenizationSupport.getInitialState();
+					nestedModeState.setStateData(state);
+					return nestedModeState;
+				}
 			}
 
-			nestedModeState.setStateData(state);
-
-			return {
-				state: nestedModeState,
-				missingModePromise: missingModePromise
-			};
+			return new NullState(nestedMode ? nestedMode.getId() : NULL_MODE_ID, state);
 		}
 		return this.customization.getNestedModeInitialState(state);
 	}
 
-	private getLeavingNestedModeData(line:string, state:modes.IState): ILeavingNestedModeData {
+	private _getLeavingNestedModeData(line:string, state:modes.IState): ILeavingNestedModeData {
 		if (this.defaults.getLeavingNestedModeData) {
 			return null;
 		}
 		return this.customization.getLeavingNestedModeData(line, state);
 	}
 
-	private onReturningFromNestedMode(myStateAfterNestedMode:modes.IState, lastNestedModeState:modes.IState): void {
+	private _onReturningFromNestedMode(myStateAfterNestedMode:modes.IState, lastNestedModeState:modes.IState): void {
 		if (this.defaults.onReturningFromNestedMode) {
 			return null;
 		}

@@ -2039,10 +2039,6 @@ declare module monaco.editor {
          */
         getModeId(): string;
         /**
-         * Set the current language mode associated with the model.
-         */
-        setMode(newMode: languages.IMode | Promise<languages.IMode>): void;
-        /**
          * Get the word under or besides `position`.
          * @param position The position to look for a word.
          * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
