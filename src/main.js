@@ -132,6 +132,19 @@ app.on('open-file', function (event, path) {
 	global.macOpenFiles.push(path);
 });
 
+const openUrls = [];
+const onOpenUrl = (event, url) => {
+	event.preventDefault();
+	openUrls.push(url);
+};
+
+app.on('will-finish-launching', () => app.on('open-url', onOpenUrl));
+
+global.getOpenUrls = () => {
+	app.removeListener('open-url', onOpenUrl);
+	return openUrls;
+};
+
 // Load our code once ready
 app.once('ready', function () {
 	var nlsConfig = getNLSConfiguration();
