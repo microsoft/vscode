@@ -3,15 +3,40 @@
 	*  Licensed under the MIT License. See License.txt in the project root for license information.
 *--------------------------------------------------------------------------------------------*/
 
-import { TPromise, PPromise, TValueCallback, TProgressCallback } from 'vs/base/common/winjs.base';
+import { TPromise, PPromise, TValueCallback, TProgressCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 
-export class DeferredTPromise<C> extends TPromise<C> {
+export class DeferredTPromise<T> extends TPromise<T> {
 
-	constructor(init:(complete: TValueCallback<C>, error:(err:any)=>void)=>void) {
-		super((c, e) => setTimeout(() => init(c, e)));
+	public canceled = false;
+
+	private completeCallback: TValueCallback<T>;
+	private errorCallback: (err:any)=>void;
+	private progressCallback: ProgressCallback;
+
+	constructor() {
+		super((c, e, p) => {
+			this.completeCallback= c;
+			this.errorCallback= e;
+			this.progressCallback= p;
+		}, () => this.oncancel());
 	}
 
+	public complete(value: T) {
+		this.completeCallback(value);
+	}
+
+	public error(err: any) {
+		this.errorCallback(err);
+	}
+
+	public progress(p: any) {
+		this.progressCallback(p);
+	}
+
+	private oncancel(): void {
+		this.canceled = true;
+	}
 }
 
 export class DeferredPPromise<C,P> extends PPromise<C, P> {
