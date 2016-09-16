@@ -5,6 +5,7 @@
 'use strict';
 
 import {isLinux, isWindows} from 'vs/base/common/platform';
+import {fill} from 'vs/base/common/arrays';
 import {CharCode} from 'vs/base/common/charCode';
 
 /**
@@ -18,27 +19,31 @@ export var sep = '/';
 export var nativeSep = isWindows ? '\\' : '/';
 
 export function relative(from: string, to: string): string {
+	const originalNormalizedFrom = normalize(from);
+	const originalNormalizedTo = normalize(to);
 
-	from = normalize(from);
-	to = normalize(to);
+	// we're assuming here that any non=linux OS is case insensitive
+	// so we must compare each part in its lowercase form
+	const normalizedFrom = isLinux ? originalNormalizedFrom : originalNormalizedFrom.toLowerCase();
+	const normalizedTo = isLinux ? originalNormalizedTo : originalNormalizedTo.toLowerCase();
 
-	var fromParts = from.split(sep),
-		toParts = to.split(sep);
+	const fromParts = normalizedFrom.split(sep);
+	const toParts = normalizedTo.split(sep);
 
-	while (fromParts.length > 0 && toParts.length > 0) {
-		if (fromParts[0] === toParts[0]) {
-			fromParts.shift();
-			toParts.shift();
-		} else {
+	let i = 0, max = Math.min(fromParts.length, toParts.length);
+
+	for (; i < max; i++) {
+		if (fromParts[i] !== toParts[i]) {
 			break;
 		}
 	}
 
-	for (var i = 0, len = fromParts.length; i < len; i++) {
-		toParts.unshift('..');
-	}
+	const result = [
+		...fill(fromParts.length - i, () => '..'),
+		...originalNormalizedTo.split(sep).slice(i)
+	];
 
-	return toParts.join(sep);
+	return result.join(sep);
 }
 
 /**
