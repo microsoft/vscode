@@ -752,8 +752,6 @@ export class ChangeModeAction extends Action {
 		});
 
 		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
-
-
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
 					const fileAssociationsConfig = this.configurationService.lookup(ChangeModeAction.FILE_ASSOCIATION_KEY);
