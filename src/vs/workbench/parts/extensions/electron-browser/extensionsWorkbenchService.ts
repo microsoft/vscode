@@ -7,7 +7,6 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
-import paths = require('vs/base/common/paths');
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
@@ -24,18 +23,15 @@ import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import Severity from 'vs/base/common/severity';
 import * as semver from 'semver';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { readFile } from 'vs/base/node/pfs';
 import { asText } from 'vs/base/node/request';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, EXTENSIONS_CONFIGURAION_NAME } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from './extensions';
 import { UpdateAllAction } from './extensionsActions';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Content } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from './extensionsInput';
@@ -261,8 +257,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
@@ -355,7 +349,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.queryGallery({ ids, pageSize: ids.length }).then(() => {
-			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(EXTENSIONS_CONFIGURAION_NAME);
+			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
 
 			if (!config.autoUpdate) {
 				return;
@@ -558,36 +552,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private openExtension(extension: IExtension): void {
 		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
 			.done(null, err => this.onError(err));
-	}
-
-	openExtensionsFile(sideBySide?: boolean): TPromise<any> {
-		if (!this.contextService.getWorkspace()) {
-			this.messageService.show(Severity.Info, localize('ConfigureWorkspaceRecommendations.noWorkspace', 'Recommendations are only available on a workspace folder.'));
-			return TPromise.as(undefined);
-		}
-
-		return this.getOrCreateExtensionsFile().then(value => {
-			return this.editorService.openEditor({
-				resource: value.extensionsFileResource,
-				options: {
-					forceOpen: true,
-					pinned: value.created
-				},
-			}, sideBySide);
-		}, (error) => {
-			throw new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error));
-		});
-	}
-
-	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		let extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/.vscode/' + EXTENSIONS_CONFIGURAION_NAME + '.json'));
-		return this.fileService.resolveContent(extensionsFileResource).then(content => {
-			return { created: false, extensionsFileResource };
-		}, err => {
-			return this.fileService.updateContent(extensionsFileResource, Content).then(() => {
-				return { created: true, extensionsFileResource };
-			});
-		});
 	}
 
 	dispose(): void {

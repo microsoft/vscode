@@ -22,7 +22,7 @@ export const Schema: IJSONSchema = {
 	}
 };
 
-export const Content: string = [
+export const InitialContent: string = [
 	'{',
 	'\t// See http://go.microsoft.com/fwlink/?LinkId=827846',
 	'\t// for the documentation about the extensions.json format',
