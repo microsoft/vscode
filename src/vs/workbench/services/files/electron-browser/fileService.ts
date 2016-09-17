@@ -228,6 +228,10 @@ export class FileService implements IFileService {
 		return this.raw.del(resource);
 	}
 
+	public backupFile(resource: uri): TPromise<IFileStat> {
+		return this.raw.backupFile(resource);
+	}
+
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
 		const workspace = this.contextService.getWorkspace();
 		if (!workspace) {
