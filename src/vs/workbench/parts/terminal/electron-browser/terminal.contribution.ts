@@ -14,7 +14,7 @@ import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quic
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ScrollDownTerminalAction, ScrollUpTerminalAction, TerminalPasteAction, ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ScrollDownTerminalAction, ScrollUpTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -109,7 +109,8 @@ configurationRegistry.registerConfiguration({
 				RunSelectedTextInTerminalAction.ID,
 				ToggleTerminalAction.ID,
 				ScrollDownTerminalAction.ID,
-				ScrollUpTerminalAction.ID
+				ScrollUpTerminalAction.ID,
+				ClearTerminalAction.ID
 			].sort()
 		}
 	}
@@ -159,3 +160,4 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpTerminal
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL), 'Terminal: Clear', category);
