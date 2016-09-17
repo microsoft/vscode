@@ -408,6 +408,11 @@ export class FileService implements IFileService {
 		return nfcall(extfs.del, absolutePath, this.tmpPath);
 	}
 
+	public backupFile(resource: uri): TPromise<IFileStat> {
+		// TODO: Implement
+		return null;
+	}
+
 	// Helpers
 
 	private toAbsolutePath(arg1: uri | IFileStat): string {
