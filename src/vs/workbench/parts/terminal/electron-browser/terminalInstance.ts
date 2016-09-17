@@ -220,6 +220,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.scrollDisp(-1);
 	}
 
+	public clear(): void {
+		this._xterm.clear();
+	}
+
 	private sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}

@@ -289,3 +289,24 @@ export class ScrollUpTerminalAction extends Action {
 		return TPromise.as(void 0);
 	}
 }
+
+export class ClearTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.clear';
+	public static LABEL = nls.localize('workbench.action.terminal.clear', "Clear");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.clear();
+		}
+		return TPromise.as(void 0);
+	}
+}
