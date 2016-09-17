@@ -1,6 +1,8 @@
 [CustomMessages]
-AddContextMenuFiles=½«¡°Í¨¹ı %1 ´ò¿ª¡±²Ù×÷Ìí¼Óµ½ Windows ×ÊÔ´¹ÜÀíÆ÷ÎÄ¼şÉÏÏÂÎÄ²Ëµ¥
-AddContextMenuFolders=½«¡°Í¨¹ı %1 ´ò¿ª¡±²Ù×÷Ìí¼Óµ½ Windows ×ÊÔ´¹ÜÀíÆ÷Ä¿Â¼ÉÏÏÂÎÄ²Ëµ¥
-AddToPath=Ìí¼Óµ½ PATH (ÖØÆôºó¿ÉÓÃ)
-RunAfter=°²×°ºóÔËĞĞ %1
-Other=ÆäËû:
+AddContextMenuFiles=å°†â€œé€šè¿‡ %1 æ‰“å¼€â€æ“ä½œæ·»åŠ åˆ° Windows èµ„æºç®¡ç†å™¨æ–‡ä»¶ä¸Šä¸‹æ–‡èœå•
+AddContextMenuFolders=å°†â€œé€šè¿‡ %1 æ‰“å¼€â€æ“ä½œæ·»åŠ åˆ° Windows èµ„æºç®¡ç†å™¨ç›®å½•ä¸Šä¸‹æ–‡èœå•
+AssociateWithFiles=å¯¹æ”¯æŒçš„æ–‡ä»¶æ ¼å¼æ³¨å†Œ %1 ä¸ºé»˜è®¤ç¼–è¾‘å™¨
+AddToPath=æ·»åŠ åˆ° PATH (é‡å¯åç”Ÿæ•ˆ)
+RunAfter=å®‰è£…åè¿è¡Œ %1
+Other=å…¶ä»–:
+SourceFile=%1 æºæ–‡ä»¶
