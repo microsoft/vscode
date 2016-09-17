@@ -339,7 +339,12 @@ export interface IAskpassService {
 }
 
 // Utils
+const invalidBranchPatternName = /(^\.)|(\/\.)|(\.\.)|(~)|(\^)|(:)|(\/$)|(\.lock$)|(\.lock\/)|(\\)|(\*)|(\s)|(^\s*$)|(\.$)/g;
 
 export function isValidBranchName(value: string): boolean {
 	return !/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$/.test(value);
+}
+
+export function correctBranchName(branchName: string): string{
+	return branchName.replace(invalidBranchPatternName, '-');
 }
