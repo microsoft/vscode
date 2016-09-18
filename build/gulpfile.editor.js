@@ -6,7 +6,6 @@
 var gulp = require('gulp');
 var path = require('path');
 var _ = require('underscore');
-var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
 var common = require('./gulpfile.common');
 var es = require('event-stream');
@@ -19,12 +18,18 @@ var headerVersion = semver + '(' + sha1 + ')';
 
 // Build
 
-var editorEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/editor/editor.main'),
-	buildfile.base,
-	buildfile.editor,
-	buildfile.languages
-]);
+var editorEntryPoints = [
+	{
+		name: 'vs/editor/editor.main',
+		include: [],
+		exclude: [ 'vs/css', 'vs/nls' ]
+	},
+	{
+		name: 'vs/base/common/worker/simpleWorker',
+		include: [ 'vs/editor/common/services/editorSimpleWorker' ],
+		exclude: [ 'vs/css', 'vs/nls' ]
+	},
+]
 
 var editorResources = [
 	'out-build/vs/{base,editor}/**/*.{svg,png}',
@@ -32,7 +37,6 @@ var editorResources = [
 	'!out-build/vs/base/browser/ui/toolbar/**/*',
 	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
 	'!out-build/vs/editor/contrib/defineKeybinding/**/*',
-	'out-build/vs/base/worker/workerMainCompatibility.html',
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'!out-build/vs/workbench/**',
 	'!**/test/**'
