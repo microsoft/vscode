@@ -11,7 +11,7 @@ import 'vs/editor/contrib/quickOpen/browser/gotoLine';
 import 'vs/editor/contrib/quickOpen/browser/quickCommand';
 // import 'vs/languages/html/common/html.contribution';
 // import 'vs/languages/handlebars/common/handlebars.contribution';
-import 'vs/languages/razor/common/razor.contribution';
+// import 'vs/languages/razor/common/razor.contribution';
 
 import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
 import {createMonacoEditorAPI} from 'vs/editor/browser/standalone/standaloneEditor';
