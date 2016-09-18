@@ -142,6 +142,11 @@ export interface ITerminalInstance {
 	scrollUp(): void;
 
 	/**
+	 * Clears the terminal buffer, leaving only the prompt line.
+	 */
+	clear(): void;
+
+	/**
 	 * Attaches the terminal instance to an element on the DOM, before this is called the terminal
 	 * instance process may run in the background but cannot be displayed on the UI.
 	 *

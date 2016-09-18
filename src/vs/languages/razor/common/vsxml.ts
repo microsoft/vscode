@@ -12,7 +12,6 @@
 'use strict';
 
 import objects = require('vs/base/common/objects');
-import errors = require('vs/base/common/errors');
 import Modes = require('vs/editor/common/modes');
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import vsxmlTokenTypes = require('vs/languages/razor/common/vsxmlTokenTypes');
@@ -32,8 +31,8 @@ export class EmbeddedState extends AbstractState {
 	private state:Modes.IState;
 	private parentState:Modes.IState;
 
-	constructor(mode:Modes.IMode, state:Modes.IState, parentState:Modes.IState) {
-		super(mode);
+	constructor(modeId:string, state:Modes.IState, parentState:Modes.IState) {
+		super(modeId);
 		this.state = state;
 		this.parentState = parentState;
 	}
@@ -43,7 +42,7 @@ export class EmbeddedState extends AbstractState {
 	}
 
 	public makeClone(): EmbeddedState {
-		return new EmbeddedState(this.getMode(), AbstractState.safeClone(this.state), AbstractState.safeClone(this.parentState));
+		return new EmbeddedState(this.getModeId(), AbstractState.safeClone(this.state), AbstractState.safeClone(this.parentState));
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -77,8 +76,8 @@ export class EmbeddedState extends AbstractState {
 
 export class VSXMLEmbeddedState extends EmbeddedState {
 
-	constructor(mode:Modes.IMode, state:Modes.IState, parentState:IVSXMLWrapperState) {
-		super(mode, state, parentState);
+	constructor(modeId:string, state:Modes.IState, parentState:IVSXMLWrapperState) {
+		super(modeId, state, parentState);
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -103,14 +102,14 @@ export class VSXMLEmbeddedState extends EmbeddedState {
 	}
 }
 
-export class VSXMLState extends AbstractState {
+export abstract class VSXMLState extends AbstractState {
 
 	public parent:Modes.IState;
 	public whitespaceTokenType:string;
 	private name:string;
 
-	constructor(mode:Modes.IMode, name:string, parent:Modes.IState, whitespaceTokenType:string='') {
-		super(mode);
+	constructor(modeId:string, name:string, parent:Modes.IState, whitespaceTokenType:string='') {
+		super(modeId);
 		this.name = name;
 		this.parent = parent;
 		this.whitespaceTokenType = whitespaceTokenType;
@@ -136,19 +135,17 @@ export class VSXMLState extends AbstractState {
 		return this.stateTokenize(stream);
 	}
 
-	public stateTokenize(stream:Modes.IStream):Modes.ITokenizationResult {
-		throw errors.notImplemented();
-	}
+	public abstract stateTokenize(stream:Modes.IStream):Modes.ITokenizationResult;
 }
 
 export class VSXMLString extends VSXMLState {
 
-	constructor(mode:Modes.IMode, parent:Modes.IState) {
-		super(mode, 'string', parent, vsxmlTokenTypes.TOKEN_VALUE);
+	constructor(modeId:string, parent:Modes.IState) {
+		super(modeId, 'string', parent, vsxmlTokenTypes.TOKEN_VALUE);
 	}
 
 	public makeClone():VSXMLString {
-		return new VSXMLString(this.getMode(), this.parent ? this.parent.clone() : null);
+		return new VSXMLString(this.getModeId(), this.parent ? this.parent.clone() : null);
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -173,12 +170,12 @@ export class VSXMLString extends VSXMLState {
 
 export class VSXMLTag extends VSXMLState {
 
-	constructor(mode:Modes.IMode, parent:Modes.IState) {
-		super(mode, 'expression', parent, 'vs');
+	constructor(modeId:string, parent:Modes.IState) {
+		super(modeId, 'expression', parent, 'vs');
 	}
 
 	public makeClone():VSXMLTag {
-		return new VSXMLTag(this.getMode(), this.parent ? this.parent.clone() : null);
+		return new VSXMLTag(this.getModeId(), this.parent ? this.parent.clone() : null);
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -196,7 +193,7 @@ export class VSXMLTag extends VSXMLState {
 		if (token === '>') {
 			return { type: 'punctuation.vs', nextState: this.parent };
 		} else if (token === '"') {
-			return { type: vsxmlTokenTypes.TOKEN_VALUE, nextState: new VSXMLString(this.getMode(), this) };
+			return { type: vsxmlTokenTypes.TOKEN_VALUE, nextState: new VSXMLString(this.getModeId(), this) };
 		} else if (isEntity(token)) {
 			tokenType = 'tag.vs';
 		} else if (isAttribute(token)) {
@@ -210,12 +207,12 @@ export class VSXMLTag extends VSXMLState {
 
 export class VSXMLExpression extends VSXMLState {
 
-	constructor(mode:Modes.IMode, parent:Modes.IState) {
-		super(mode, 'expression', parent, 'vs');
+	constructor(modeId:string, parent:Modes.IState) {
+		super(modeId, 'expression', parent, 'vs');
 	}
 
 	public makeClone():VSXMLExpression {
-		return new VSXMLExpression(this.getMode(), this.parent ? this.parent.clone() : null);
+		return new VSXMLExpression(this.getModeId(), this.parent ? this.parent.clone() : null);
 	}
 
 	public equals(other:Modes.IState):boolean {
@@ -230,7 +227,7 @@ export class VSXMLExpression extends VSXMLState {
 	public stateTokenize(stream:Modes.IStream):Modes.ITokenizationResult {
 		var token = stream.nextToken();
 		if (token === '<') {
-			return { type: 'punctuation.vs', nextState: new VSXMLTag(this.getMode(), this) };
+			return { type: 'punctuation.vs', nextState: new VSXMLTag(this.getModeId(), this) };
 		}
 		return { type: this.whitespaceTokenType, nextState: this};
 	}

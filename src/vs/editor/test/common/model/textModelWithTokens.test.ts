@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
-import {ITokenizationSupport} from 'vs/editor/common/modes';
+import {TokenizationRegistry} from 'vs/editor/common/modes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {Token} from 'vs/editor/common/core/token';
 import {Range} from 'vs/editor/common/core/range';
@@ -152,24 +152,21 @@ suite('TextModelWithTokens - bracket matching', () => {
 		], 'is matching brackets at ' + lineNumber1 + ', ' + column11);
 	}
 
-	class BracketMode extends MockMode {
-		constructor() {
-			super();
-			LanguageConfigurationRegistry.register(this.getId(), {
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')'],
-				]
-			});
-		}
-	}
+	const LANGUAGE_ID = 'bracketMode1';
+
+	LanguageConfigurationRegistry.register(LANGUAGE_ID, {
+		brackets: [
+			['{', '}'],
+			['[', ']'],
+			['(', ')'],
+		]
+	});
 
 	test('bracket matching 1', () => {
 		let text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		let model = Model.createFromString(text, undefined, new BracketMode());
+		let model = Model.createFromString(text, undefined, LANGUAGE_ID);
 
 		isNotABracket(model, 1, 1);
 		isNotABracket(model, 1, 2);
@@ -197,7 +194,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		let model = Model.createFromString(text, undefined, new BracketMode());
+		let model = Model.createFromString(text, undefined, LANGUAGE_ID);
 
 		let brackets = [
 			[1, 11, 12, 5, 4, 5],
@@ -258,11 +255,9 @@ suite('TextModelWithTokens regression tests', () => {
 
 		let _tokenId = 0;
 		class IndicisiveMode extends MockMode {
-			public tokenizationSupport:ITokenizationSupport;
-
 			constructor() {
 				super();
-				this.tokenizationSupport = {
+				TokenizationRegistry.register(this.getId(), {
 					getInitialState: () => {
 						return null;
 					},
@@ -276,7 +271,7 @@ suite('TextModelWithTokens regression tests', () => {
 							retokenize: null
 						};
 					}
-				};
+				});
 			}
 		}
 		let model = Model.createFromString('A model with\ntwo lines');
@@ -284,12 +279,12 @@ suite('TextModelWithTokens regression tests', () => {
 		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, '')]);
 		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, '')]);
 
-		model.setMode(new IndicisiveMode());
+		model.setMode(new IndicisiveMode().getId());
 
 		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, 'custom.1')]);
 		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, 'custom.2')]);
 
-		model.setMode(new IndicisiveMode());
+		model.setMode(new IndicisiveMode().getId());
 
 		assertViewLineTokens(model, 1, false, [new ViewLineToken(0, '')]);
 		assertViewLineTokens(model, 2, false, [new ViewLineToken(0, '')]);
@@ -298,17 +293,15 @@ suite('TextModelWithTokens regression tests', () => {
 	});
 
 	test('Microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
-		class BracketMode extends MockMode {
-			constructor() {
-				super();
-				LanguageConfigurationRegistry.register(this.getId(), {
-					brackets: [
-						['module','end module'],
-						['sub','end sub']
-					]
-				});
-			}
-		}
+
+		const LANGUAGE_ID = 'bracketMode2';
+
+		LanguageConfigurationRegistry.register(LANGUAGE_ID, {
+			brackets: [
+				['module','end module'],
+				['sub','end sub']
+			]
+		});
 
 		let model = Model.createFromString([
 			'Imports System',
@@ -320,7 +313,7 @@ suite('TextModelWithTokens regression tests', () => {
 			'\tEnd Sub',
 			'',
 			'End Module',
-		].join('\n'), undefined, new BracketMode());
+		].join('\n'), undefined, LANGUAGE_ID);
 
 		let actual = model.matchBracket(new Position(4,1));
 		assert.deepEqual(actual, [new Range(4,1,4,7), new Range(9,1,9,11)]);

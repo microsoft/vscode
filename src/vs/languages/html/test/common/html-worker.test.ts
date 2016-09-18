@@ -16,7 +16,7 @@ import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 import {TextModel} from 'vs/editor/common/model/textModel';
 
 function createTestMirrorModelFromString(value:string, mode:Modes.IMode, associatedResource:URI): mm.CompatMirrorModel {
-	return new mm.CompatMirrorModel(0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
+	return new mm.CompatMirrorModel(0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode.getId(), associatedResource);
 }
 
 suite('HTML - worker', () => {

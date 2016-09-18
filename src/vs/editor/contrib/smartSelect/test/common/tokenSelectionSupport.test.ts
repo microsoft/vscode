@@ -17,7 +17,7 @@ import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConf
 class MockJSMode extends MockTokenizingMode {
 
 	constructor() {
-		super('js-tokenSelectionSupport', 'mock-js');
+		super('mock-js');
 
 		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [

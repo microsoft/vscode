@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -81,43 +78,13 @@ export class ModeWorkerManager<W> {
 export abstract class AbstractMode implements modes.IMode {
 
 	private _modeId: string;
-	private _eventEmitter: EventEmitter;
-	private _simplifiedMode: modes.IMode;
 
 	constructor(modeId:string) {
 		this._modeId = modeId;
-		this._eventEmitter = new EventEmitter();
-		this._simplifiedMode = null;
 	}
 
 	public getId(): string {
 		return this._modeId;
-	}
-
-	public toSimplifiedMode(): modes.IMode {
-		if (!this._simplifiedMode) {
-			this._simplifiedMode = new SimplifiedMode(this);
-		}
-		return this._simplifiedMode;
-	}
-
-	public addSupportChangedListener(callback: (e: IModeSupportChangedEvent) => void) : IDisposable {
-		return this._eventEmitter.addListener2('modeSupportChanged', callback);
-	}
-
-	public setTokenizationSupport<T>(callback:(mode:modes.IMode) => T) : IDisposable {
-		let supportImpl = callback(this);
-		this['tokenizationSupport'] = supportImpl;
-		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
-
-		return {
-			dispose: () => {
-				if (this['tokenizationSupport'] === supportImpl) {
-					delete this['tokenizationSupport'];
-					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
-				}
-			}
-		};
 	}
 }
 
@@ -134,41 +101,6 @@ export abstract class CompatMode extends AbstractMode implements ICompatMode {
 		}
 	}
 
-}
-
-class SimplifiedMode implements modes.IMode {
-
-	tokenizationSupport: modes.ITokenizationSupport;
-
-	private _sourceMode: modes.IMode;
-	private _eventEmitter: EventEmitter;
-	private _id: string;
-
-	constructor(sourceMode: modes.IMode) {
-		this._sourceMode = sourceMode;
-		this._eventEmitter = new EventEmitter();
-		this._id = 'vs.editor.modes.simplifiedMode:' + sourceMode.getId();
-		this._assignSupports();
-
-		if (this._sourceMode.addSupportChangedListener) {
-			this._sourceMode.addSupportChangedListener((e) => {
-				this._assignSupports();
-				this._eventEmitter.emit('modeSupportChanged', e);
-			});
-		}
-	}
-
-	public getId(): string {
-		return this._id;
-	}
-
-	public toSimplifiedMode(): modes.IMode {
-		return this;
-	}
-
-	private _assignSupports(): void {
-		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
-	}
 }
 
 export function isDigit(character:string, base:number): boolean {
@@ -222,10 +154,4 @@ export class FrankensteinMode extends AbstractMode {
 			modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(editorWorkerService, configurationService), true);
 		}
 	}
-}
-
-function _createModeSupportChangedEvent(): IModeSupportChangedEvent {
-	return {
-		tokenizationSupport: true
-	};
 }

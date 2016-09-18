@@ -65,7 +65,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
 
 	@memoize
-	get userDataPath(): string { return this._args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform); }
+	get userDataPath(): string { return path.resolve(this._args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform)); }
 
 	@memoize
 	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }

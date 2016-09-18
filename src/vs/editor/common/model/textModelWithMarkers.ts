@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Position} from 'vs/editor/common/core/position';
 import {IModelContentChangedFlushEvent, IRawText, IReadOnlyLineMarker, ITextModelWithMarkers} from 'vs/editor/common/editorCommon';
 import {ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
-import {IMode} from 'vs/editor/common/modes';
 
 export interface IMarkerIdToMarkerMap {
 	[key:string]:ILineMarker;
@@ -51,8 +49,8 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 
 	private _markerIdGenerator: IdGenerator;
 	protected _markerIdToMarker: IMarkerIdToMarkerMap;
-	constructor(allowedEventTypes:string[], rawText:IRawText, modeOrPromise:IMode|TPromise<IMode>) {
-		super(allowedEventTypes, rawText, modeOrPromise);
+	constructor(allowedEventTypes:string[], rawText:IRawText, languageId:string) {
+		super(allowedEventTypes, rawText, languageId);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._markerIdToMarker = {};
 	}

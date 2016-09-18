@@ -12,7 +12,7 @@ import paths = require('vs/base/common/paths');
 import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -21,6 +21,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletSer
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from '../common/extensionQuery';
 import { shell, remote } from 'electron';
+import { InitialContent } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
 
 const dialog = remote.dialog;
 
@@ -557,15 +561,53 @@ export class OpenExtensionsFolderAction extends Action {
 }
 
 export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
+
 	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Workspace Recommended Extensions");
 
-	constructor(id: string, label: string, @IExtensionsWorkbenchService private extensionsService: IExtensionsWorkbenchService) {
+	constructor(
+		id: string,
+		label: string,
+		@IFileService private fileService: IFileService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private extensionsService: IExtensionsWorkbenchService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService
+	) {
 		super(id, label, null, true);
 	}
 
 	public run(event: any): TPromise<any> {
-		return this.extensionsService.openExtensionsFile();
+		return this.openExtensionsFile();
+	}
+
+	private openExtensionsFile(): TPromise<any> {
+		if (!this.contextService.getWorkspace()) {
+			this.messageService.show(severity.Info, localize('ConfigureWorkspaceRecommendations.noWorkspace', 'Recommendations are only available on a workspace folder.'));
+			return TPromise.as(undefined);
+		}
+
+		return this.getOrCreateExtensionsFile().then(value => {
+			return this.editorService.openEditor({
+				resource: value.extensionsFileResource,
+				options: {
+					forceOpen: true,
+					pinned: value.created
+				},
+			});
+		}, (error) => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+	}
+
+	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', `${ ConfigurationKey }.json`));
+
+		return this.fileService.resolveContent(extensionsFileResource).then(content => {
+			return { created: false, extensionsFileResource };
+		}, err => {
+			return this.fileService.updateContent(extensionsFileResource, InitialContent).then(() => {
+				return { created: true, extensionsFileResource };
+			});
+		});
 	}
 }
 

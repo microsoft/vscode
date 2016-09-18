@@ -23,7 +23,7 @@ import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {IMarkerData} from 'vs/platform/markers/common/markers';
-
+import {TokenizationSupport2Adapter} from 'vs/editor/common/services/modeServiceImpl';
 /**
  * Register information about a new language.
  */
@@ -67,7 +67,8 @@ export function setLanguageConfiguration(languageId:string, configuration:Langua
  * Set the tokens provider for a language (manual implementation).
  */
 export function setTokensProvider(languageId:string, provider:modes.TokensProvider): IDisposable {
-	return StaticServices.modeService.get().registerTokenizationSupport2(languageId, provider);
+	let adapter = new TokenizationSupport2Adapter(languageId, provider);
+	return modes.TokenizationRegistry.register(languageId, adapter);
 }
 
 /**
@@ -75,9 +76,8 @@ export function setTokensProvider(languageId:string, provider:modes.TokensProvid
  */
 export function setMonarchTokensProvider(languageId:string, languageDef:IMonarchLanguage): IDisposable {
 	let lexer = compile(languageId, languageDef);
-	return StaticServices.modeService.get().registerTokenizationSupport(languageId, (mode) => {
-		return createTokenizationSupport(StaticServices.modeService.get(), mode, lexer);
-	});
+	let adapter = createTokenizationSupport(StaticServices.modeService.get(), languageId, lexer);
+	return modes.TokenizationRegistry.register(languageId, adapter);
 }
 
 /**

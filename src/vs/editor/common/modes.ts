@@ -16,6 +16,7 @@ import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegis
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
+import Event, {Emitter} from 'vs/base/common/event';
 
 /**
  * @internal
@@ -32,7 +33,7 @@ export interface ITokenizationResult {
 export interface IState {
 	clone():IState;
 	equals(other:IState):boolean;
-	getMode():IMode;
+	getModeId():string;
 	tokenize(stream:IStream):ITokenizationResult;
 	getStateData(): IState;
 	setStateData(state:IState):void;
@@ -186,28 +187,6 @@ export interface IMode {
 
 	getId(): string;
 
-	/**
-	 * Return a mode "similar" to this one that strips any "smart" supports.
-	 * @internal
-	 */
-	toSimplifiedMode(): IMode;
-
-	/**
-	 * @internal
-	 */
-	addSupportChangedListener?(callback: (e: editorCommon.IModeSupportChangedEvent) => void): IDisposable;
-
-	/**
-	 * Register a support by name. Only optional.
-	 * @internal
-	 */
-	setTokenizationSupport?<T>(callback:(mode:IMode)=>T): IDisposable;
-
-	/**
-	 * Optional adapter to support tokenization.
-	 * @internal
-	 */
-	tokenizationSupport?: ITokenizationSupport;
 }
 
 /**
@@ -218,7 +197,6 @@ export interface ILineTokens {
 	actualStopOffset: number;
 	endState: IState;
 	modeTransitions: ModeTransition[];
-	retokenize?:TPromise<void>;
 }
 
 /**
@@ -1022,3 +1000,56 @@ export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<
  * @internal
  */
 export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
+
+/**
+ * @internal
+ */
+export interface ITokenizationSupportChangedEvent {
+	languageId: string;
+}
+
+/**
+ * @internal
+ */
+export class TokenizationRegistryImpl {
+
+	private _map: {[languageId:string]:ITokenizationSupport};
+
+	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
+	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
+
+	constructor() {
+		this._map = Object.create(null);
+	}
+
+	/**
+	 * Fire a change event for a language.
+	 * This is useful for languages that embed other languages.
+	 */
+	public fire(languageId:string): void {
+		this._onDidChange.fire({ languageId: languageId });
+	}
+
+	public register(languageId:string, support:ITokenizationSupport): IDisposable {
+		this._map[languageId] = support;
+		this.fire(languageId);
+		return {
+			dispose: () => {
+				if (this._map[languageId] !== support) {
+					return;
+				}
+				delete this._map[languageId];
+				this.fire(languageId);
+			}
+		};
+	}
+
+	public get(languageId:string): ITokenizationSupport {
+		return (this._map[languageId] || null);
+	}
+}
+
+/**
+ * @internal
+ */
+export const TokenizationRegistry = new TokenizationRegistryImpl();

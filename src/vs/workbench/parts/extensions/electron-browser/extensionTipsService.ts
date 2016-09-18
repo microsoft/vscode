@@ -11,7 +11,7 @@ import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {match} from 'vs/base/common/glob';
 import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionsConfiguration, EXTENSIONS_CONFIGURAION_NAME } from './extensions';
+import { IExtensionsConfiguration, ConfigurationKey } from './extensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product';
@@ -49,8 +49,8 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getWorkspaceRecommendations(): string[] {
-		let configuration = this.configurationService.getConfiguration<IExtensionsConfiguration>(EXTENSIONS_CONFIGURAION_NAME);
-		return configuration.recommendations ? configuration.recommendations : [];
+		const configuration = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+		return configuration.recommendations || [];
 	}
 
 	getRecommendations(): string[] {
@@ -145,26 +145,36 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _suggestWorkspaceRecommendations() {
 		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
+
 		if (this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
 			return;
 		}
-		let workspaceRecommendations = this.getWorkspaceRecommendations();
-		if (!workspaceRecommendations.length) {
+
+		const allRecommendations = this.getWorkspaceRecommendations();
+
+		if (!allRecommendations.length) {
 			return;
 		}
+
 		this.extensionsService.getInstalled().done(local => {
-			if (workspaceRecommendations.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id)).length) {
-				const message = localize('workspaceRecommended', "This workspace has some extensions recommended to install.");
-				const neverAgainAction = new Action('neverShowAgain', localize('neverShowAgain', "Don't show again"), null, true, () => {
-					this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
-					return Promise.as(true);
-				});
-				const recommendationsAction = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
-				this.messageService.show(Severity.Info, {
-					message,
-					actions: [recommendationsAction, neverAgainAction, CloseAction]
-				});
+			const recommendations = allRecommendations
+				.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
+
+			if (!recommendations.length) {
+				return;
 			}
+
+			const message = localize('workspaceRecommended', "This workspace has extension recommendations.");
+			const neverAgainAction = new Action('neverShowAgain', localize('neverShowAgain', "Don't show again"), null, true, () => {
+				this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
+				return Promise.as(true);
+			});
+			const recommendationsAction = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+
+			this.messageService.show(Severity.Info, {
+				message,
+				actions: [recommendationsAction, neverAgainAction, CloseAction]
+			});
 		});
 	}
 
