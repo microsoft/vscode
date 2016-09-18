@@ -39,13 +39,21 @@ exports.loaderConfig = function (emptyPaths) {
 
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 
-function loader(bundledFileHeader) {
+function loader(bundledFileHeader, bundleLoader) {
+	let sources = [
+		'out-build/vs/loader.js'
+	];
+	if (bundleLoader) {
+		sources = sources.concat([
+			'out-build/vs/css.js',
+			'out-build/vs/nls.js'
+		]);
+	}
+
 	let isFirst = true;
-	return gulp.src([
-		'out-build/vs/loader.js',
-		'out-build/vs/css.js',
-		'out-build/vs/nls.js'
-	], { base: 'out-build' })
+	return (
+		gulp
+		.src(sources, { base: 'out-build' })
 		.pipe(es.through(function(data) {
 			if (isFirst) {
 				isFirst = false;
@@ -64,7 +72,8 @@ function loader(bundledFileHeader) {
 		.pipe(es.mapSync(function (f) {
 			f.sourceMap.sourceRoot = util.toFileUri(path.join(path.dirname(__dirname), 'src'));
 			return f;
-		}));
+		}))
+	);
 }
 
 function toConcatStream(bundledFileHeader, sources, dest) {
@@ -116,6 +125,7 @@ function toBundleStream(bundledFileHeader, bundles) {
  * - otherSources (for non-AMD files that should get Copyright treatment)
  * - resources (svg, etc.)
  * - loaderConfig
+ * - bundleLoader (boolean - true by default - append css and nls to loader)
  * - header (basically the Copyright treatment)
  * - bundleInfo (boolean - emit bundleInfo.json file)
  * - out (out folder name)
@@ -126,6 +136,7 @@ exports.optimizeTask = function(opts) {
 	const resources = opts.resources;
 	const loaderConfig = opts.loaderConfig;
 	const bundledFileHeader = opts.header;
+	const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
 	const out = opts.out;
 
 	return function() {
@@ -174,7 +185,7 @@ exports.optimizeTask = function(opts) {
 			}));
 
 		const result = es.merge(
-			loader(bundledFileHeader),
+			loader(bundledFileHeader, bundleLoader),
 			bundlesStream,
 			otherSourcesStream,
 			resourcesStream,
