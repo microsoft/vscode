@@ -9,7 +9,7 @@ import network = require('vs/base/common/network');
 import strings = require('vs/base/common/strings');
 import collections = require('vs/base/common/collections');
 import URI from 'vs/base/common/uri';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import {IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics} from './markers';
 
@@ -49,15 +49,21 @@ export interface MarkerData {
 
 
 export class MarkerService implements IMarkerService {
+
 	public _serviceBrand: any;
+
 	private _data: { [k: string]: IMarkerData[] };
+
 	private _stats: MarkerStatistics;
-	private _onMarkerChanged: Emitter<URI[]>;
+
+	private _onMarkerChanged = new Emitter<URI[]>();
+
+	private _onMarkerChangedEvent: Event<URI[]> = debounceEvent(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+
 
 	constructor() {
 		this._data = Object.create(null);
 		this._stats = this._emptyStats();
-		this._onMarkerChanged = new Emitter<URI[]>();
 	}
 
 	public getStatistics(): MarkerStatistics {
@@ -67,7 +73,7 @@ export class MarkerService implements IMarkerService {
 	// ---- IMarkerService ------------------------------------------
 
 	public get onMarkerChanged(): Event<URI[]> {
-		return this._onMarkerChanged ? this._onMarkerChanged.event : null;
+		return this._onMarkerChangedEvent;
 	}
 
 	public changeOne(owner: string, resource: URI, markers: IMarkerData[]): void {
@@ -293,5 +299,23 @@ export class MarkerService implements IMarkerService {
 		data.endLineNumber = data.endLineNumber >= data.startLineNumber ? data.endLineNumber : data.startLineNumber;
 		data.endColumn = data.endColumn > 0 ? data.endColumn : data.startColumn;
 		return true;
+	}
+
+	// --- event debounce logic
+
+	private static _dedupeMap: { [uri: string]: boolean };
+
+	private static _debouncer(last: URI[], event: URI[]): URI[] {
+		if (!last) {
+			MarkerService._dedupeMap = Object.create(null);
+			last = [];
+		}
+		for (const uri of event) {
+			if (MarkerService._dedupeMap[uri.toString()] === void 0) {
+				MarkerService._dedupeMap[uri.toString()] = true;
+				last.push(uri);
+			}
+		}
+		return last;
 	}
 }
