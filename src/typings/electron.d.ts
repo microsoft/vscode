@@ -1,4 +1,4 @@
-// Type definitions for Electron v1.3.4
+// Type definitions for Electron v1.3.5
 // Project: http://electron.atom.io/
 // Definitions by: jedmao <https://github.com/jedmao/>, rhysd <https://rhysd.github.io>, Milan Burda <https://github.com/miniak/>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -199,7 +199,7 @@ declare namespace Electron {
 		 * All windows will be closed immediately without asking user
 		 * and the before-quit and will-quit events will not be emitted.
 		 */
-		exit(exitCode: number): void;
+		exit(exitCode?: number): void;
 		/**
 		 * Relaunches the app when current instance exits.
 		 *
@@ -333,6 +333,19 @@ declare namespace Electron {
 		 * Note: This API is only available on Windows.
 		 */
 		setUserTasks(tasks: Task[]): boolean;
+		/**
+		 * Note: This API is only available on Windows.
+		 */
+		getJumpListSettings(): JumpListSettings;
+		/**
+		 * Sets or removes a custom Jump List for the application.
+		 *
+		 * If categories is null the previously set custom Jump List (if any) will be replaced
+		 * by the standard Jump List for the app (managed by Windows).
+		 *
+		 * Note: This API is only available on Windows.
+		 */
+		setJumpList(categories: JumpListCategory[]): SetJumpListResult;
 		/**
 		 * This method makes your application a Single Instance Application instead of allowing
 		 * multiple instances of your app to run, this will ensure that only a single instance
@@ -556,6 +569,89 @@ declare namespace Electron {
 		 * The icon index in the icon file. If an icon file consists of two or more
 		 * icons, set this value to identify the icon. If an icon file consists of
 		 * one icon, this value is 0.
+		 */
+		iconIndex?: number;
+	}
+
+	/**
+	 * ok - Nothing went wrong.
+	 * error - One or more errors occured, enable runtime logging to figure out the likely cause.
+	 * invalidSeparatorError - An attempt was made to add a separator to a custom category in the Jump List.
+	 *                         Separators are only allowed in the standard Tasks category.
+	 * fileTypeRegistrationError - An attempt was made to add a file link to the Jump List
+	 *                             for a file type the app isn't registered to handle.
+	 * customCategoryAccessDeniedError - Custom categories can't be added to the Jump List
+	 *                                   due to user privacy or group policy settings.
+	 */
+	type SetJumpListResult = 'ok' | 'error' | 'invalidSeparatorError' | 'fileTypeRegistrationError' | 'customCategoryAccessDeniedError';
+
+	interface JumpListSettings {
+		/**
+		 * The minimum number of items that will be shown in the Jump List.
+		 */
+		minItems: number;
+		/**
+		 * Items that the user has explicitly removed from custom categories in the Jump List.
+		 */
+		removedItems: JumpListItem[];
+	}
+
+	interface JumpListCategory {
+		/**
+		 * tasks - Items in this category will be placed into the standard Tasks category.
+		 * frequent - Displays a list of files frequently opened by the app, the name of the category and its items are set by Windows.
+		 * recent - Displays a list of files recently opened by the app, the name of the category and its items are set by Windows.
+		 * custom - Displays tasks or file links, name must be set by the app.
+		 */
+		type?: 'tasks' | 'frequent' | 'recent' | 'custom';
+		/**
+		 * Must be set if type is custom, otherwise it should be omitted.
+		 */
+		name?: string;
+		/**
+		 * Array of JumpListItem objects if type is tasks or custom, otherwise it should be omitted.
+		 */
+		items?: JumpListItem[];
+	}
+
+	interface JumpListItem {
+		/**
+		 * task - A task will launch an app with specific arguments.
+		 * separator - Can be used to separate items in the standard Tasks category.
+		 * file - A file link will open a file using the app that created the Jump List.
+		 */
+		type: 'task' | 'separator' | 'file';
+		/**
+		 * Path of the file to open, should only be set if type is file.
+		 */
+		path?: string;
+		/**
+		 * Path of the program to execute, usually you should specify process.execPath which opens the current program.
+		 * Should only be set if type is task.
+		 */
+		program?: string;
+		/**
+		 * The command line arguments when program is executed. Should only be set if type is task.
+		 */
+		args?: string;
+		/**
+		 * The text to be displayed for the item in the Jump List. Should only be set if type is task.
+		 */
+		title?: string;
+		/**
+		 * Description of the task (displayed in a tooltip). Should only be set if type is task.
+		 */
+		description?: string;
+		/**
+		 * The absolute path to an icon to be displayed in a Jump List, which can be an arbitrary
+		 * resource file that contains an icon (e.g. .ico, .exe, .dll).
+		 * You can usually specify process.execPath to show the program icon.
+		 */
+		iconPath?: string;
+		/**
+		 * The index of the icon in the resource file. If a resource file contains multiple icons
+		 * this value can be used to specify the zero-based index of the icon that should be displayed
+		 * for this task. If a resource file contains only one icon, this property should be set to zero.
 		 */
 		iconIndex?: number;
 	}
@@ -2318,7 +2414,7 @@ declare namespace Electron {
 		/**
 		 * Callback when the menu item is clicked.
 		 */
-		click?: (menuItem: MenuItem, browserWindow: BrowserWindow) => void;
+		click?: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event) => void;
 		/**
 		 * Can be normal, separator, submenu, checkbox or radio.
 		 */
@@ -3595,7 +3691,7 @@ declare namespace Electron {
 
 	interface WebContentsStatic {
 		/**
-		 * @returns An array of all web contents. This will contain web contents for all windows,
+		 * @returns An array of all WebContents instances. This will contain web contents for all windows,
 		 * webviews, opened devtools, and devtools extension background pages.
 		 */
 		getAllWebContents(): WebContents[];
@@ -3603,6 +3699,10 @@ declare namespace Electron {
 		 * @returns The web contents that is focused in this application, otherwise returns null.
 		 */
 		getFocusedWebContents(): WebContents;
+		/**
+		 * Find a WebContents instance according to its ID.
+		 */
+		fromId(id: number): WebContents;
 	}
 
 	/**
@@ -4971,6 +5071,17 @@ declare namespace Electron {
 		 * See webContents.sendInputEvent for detailed description of event object.
 		 */
 		sendInputEvent(event: SendInputEvent): void
+		/**
+		 * Changes the zoom factor to the specified factor.
+		 * Zoom factor is zoom percent divided by 100, so 300% = 3.0.
+		 */
+		setZoomFactor(factor: number): void;
+		/**
+		 * Changes the zoom level to the specified level.
+		 * The original size is 0 and each increment above or below represents
+		 * zooming 20% larger or smaller to default limits of 300% and 50% of original size, respectively.
+		 */
+		setZoomLevel(level: number): void;
 		/**
 		 * Shows pop-up dictionary that searches the selected word on the page.
 		 * Note: This API is available only on macOS.
