@@ -3338,7 +3338,7 @@ declare namespace vscode {
 		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
 
 		/**
-		 * An [event](#Event) which fires when a terminal closes.
+		 * An [event](#Event) which fires when a terminal is disposed.
 		 */
 		export const onDidCloseTerminal: Event<Terminal>;
 
