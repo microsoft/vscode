@@ -83,6 +83,8 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 	return result;
 }
 
+// TODO@Isidor ugly references to debugService - consider cleaning that up
+
 export class Thread implements debug.IThread {
 	private promisedCallStack: TPromise<debug.IStackFrame[]>;
 	private cachedCallStack: debug.IStackFrame[];
@@ -330,8 +332,14 @@ export class Expression extends ExpressionContainer implements debug.IExpression
 	}
 
 	public toString(): string {
+		let result = this.name + '\n';
+		if (this.reference > 0) {
+			result += this.expanded ? '\u25bc ' : '\u25b6 ';
+		}
+		result += this.value;
+
 		// TODO@isidor take children into account
-		return this.value;
+		return result;
 	}
 
 	public toggleExpansion(debugService: debug.IDebugService): TPromise<void> {
