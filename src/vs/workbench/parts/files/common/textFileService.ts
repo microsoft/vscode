@@ -11,7 +11,7 @@ import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import Event, {Emitter} from 'vs/base/common/event';
-import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, ITextFileEditorModelManager, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -244,7 +244,13 @@ export abstract class TextFileService implements ITextFileService {
 		return this.untitledEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
 	}
 
-	public save(resource: URI): TPromise<boolean> {
+	public save(resource: URI, options?: ISaveOptions): TPromise<boolean> {
+
+		// touch resource if options tell so and file is not dirty
+		if (options && options.force && resource.scheme === 'file' && !this.isDirty(resource)) {
+			return this.fileService.touchFile(resource).then(() => true);
+		}
+
 		return this.saveAll([resource]).then(result => result.results.length === 1 && result.results[0].success);
 	}
 

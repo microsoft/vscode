@@ -301,6 +301,15 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	isDisposed(): boolean;
 }
 
+export interface ISaveOptions {
+
+	/**
+	 * Save the file on disk even if not dirty. If the file is not dirty, it will be touched
+	 * so that mtime and atime are updated. This helps to trigger external file watchers.
+	 */
+	force: boolean;
+}
+
 export interface ITextFileService extends IDisposable {
 	_serviceBrand: any;
 	onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
@@ -338,7 +347,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource to save
 	 * @return true iff the resource was saved.
 	 */
-	save(resource: URI): TPromise<boolean>;
+	save(resource: URI, options?: ISaveOptions): TPromise<boolean>;
 
 	/**
 	 * Saves the provided resource asking the user for a file name.

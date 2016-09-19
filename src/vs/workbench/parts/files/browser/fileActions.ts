@@ -1510,7 +1510,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			}
 
 			// Just save
-			return this.textFileService.save(source);
+			return this.textFileService.save(source, { force: true /* force a change to the file to trigger external watchers if any */});
 		}
 
 		return TPromise.as(false);
