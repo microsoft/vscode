@@ -51,6 +51,7 @@ process.on('message', function (message) {
 	}
 });
 
+sendProcessId();
 setupTitlePolling();
 
 function getArgs() {
@@ -89,6 +90,13 @@ function setupPlanB(parentPid) {
 			process.exit();
 		}
 	}, 5000);
+}
+
+function sendProcessId() {
+	process.send({
+		type: 'pid',
+		content: ptyProcess.pid
+	});
 }
 
 function setupTitlePolling() {

@@ -59,6 +59,7 @@ export interface ITerminalService {
 	configHelper: TerminalConfigHelper;
 	onActiveInstanceChanged: Event<string>;
 	onInstanceDisposed: Event<ITerminalInstance>;
+	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
@@ -84,6 +85,11 @@ export interface ITerminalInstance {
 	 * terminal instance.
 	 */
 	id: number;
+
+	/**
+	 * The process ID of the shell process.
+	 */
+	processId: number;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.

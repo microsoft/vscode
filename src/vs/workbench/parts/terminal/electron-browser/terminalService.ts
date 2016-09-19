@@ -24,6 +24,7 @@ export class TerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	private _onActiveInstanceChanged: Emitter<string>;
 	private _onInstanceDisposed: Emitter<ITerminalInstance>;
+	private _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
 	private _onInstanceTitleChanged: Emitter<string>;
 	private _onInstancesChanged: Emitter<string>;
 	private _terminalContainer: HTMLElement;
@@ -34,6 +35,7 @@ export class TerminalService implements ITerminalService {
 	public get configHelper(): TerminalConfigHelper { return this._configHelper; }
 	public get onActiveInstanceChanged(): Event<string> { return this._onActiveInstanceChanged.event; }
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
+	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
@@ -51,8 +53,9 @@ export class TerminalService implements ITerminalService {
 
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
-		this._onInstancesChanged = new Emitter<string>();
+		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 		this._onInstanceTitleChanged = new Emitter<string>();
+		this._onInstancesChanged = new Emitter<string>();
 
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._configHelper = <TerminalConfigHelper>this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
@@ -73,6 +76,7 @@ export class TerminalService implements ITerminalService {
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		terminalInstance.addDisposable(terminalInstance.onClosed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically
