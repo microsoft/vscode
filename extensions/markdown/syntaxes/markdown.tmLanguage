@@ -196,6 +196,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#fenced_code_block_csharp</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#link-def</string>
 				</dict>
 				<dict>
@@ -1107,6 +1111,22 @@
 						<dict>
 							<key>include</key>
 							<string>source.tsx</string>
+						</dict>
+					</array>
+				</dict>
+				<key>fenced_code_block_csharp</key>
+				<dict>
+					<key>begin</key>
+					<string>(^|\G)\s*([`~]{3,})\s*(cs|csharp|c#)\s*$</string>
+					<key>name</key>
+					<string>markup.fenced_code.block.markdown</string>
+					<key>end</key>
+					<string>(^|\G)(\2)\n</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>source.cs</string>
 						</dict>
 					</array>
 				</dict>
