@@ -86,7 +86,7 @@ export class OutputEditorInput extends StringEditorInput {
 				this.bufferedOutput = strings.appendWithLimit(this.bufferedOutput, e.output, MAX_OUTPUT_LENGTH);
 				this.scheduleOutputAppend();
 			} else if (e.output === null) {
-			    this.bufferedOutput = '';
+				this.bufferedOutput = '';
 				this.clearValue(); // special output indicates we should clear
 			}
 		}
