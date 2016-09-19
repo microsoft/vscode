@@ -312,6 +312,7 @@ export abstract class ExtHostQuickOpenShape {
 
 export abstract class ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void { throw ni(); }
+	$acceptTerminalProcessId(id: number, processId: number): void { throw ni(); }
 }
 
 // --- proxy identifiers

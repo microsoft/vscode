@@ -3013,6 +3013,13 @@ declare namespace vscode {
 		name: string;
 
 		/**
+		 * The process ID of the shell process.
+		 *
+		 * @readonly
+		 */
+		processId: Thenable<number>;
+
+		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
 		 * (shell) of the terminal.
 		 *
