@@ -525,6 +525,7 @@ export class EditorStatus implements IStatusbarItem {
 		if (editorWidget) {
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
+
 				// Compute mode
 				const mode = textModel.getMode();
 				if (mode) {
@@ -705,9 +706,11 @@ export class ChangeModeAction extends Action {
 
 		// Compute mode
 		let currentModeId: string;
-		const mode = textModel.getMode();
-		if (mode) {
-			currentModeId = this.modeService.getLanguageName(mode.getId());
+		if (textModel) {
+			const mode = textModel.getMode();
+			if (mode) {
+				currentModeId = this.modeService.getLanguageName(mode.getId());
+			}
 		}
 
 		// All languages are valid picks
@@ -757,7 +760,9 @@ export class ChangeModeAction extends Action {
 					const models: IModel[] = [];
 
 					const textModel = getTextModel(editorWidget);
-					models.push(textModel);
+					if (textModel) {
+						models.push(textModel);
+					}
 
 					// Support for original side of diff
 					const model = editorWidget.getModel();
@@ -920,7 +925,7 @@ export class ChangeEOLAction extends Action {
 			{ label: nlsEOLCRLF, eol: EndOfLineSequence.CRLF },
 		];
 
-		const selectedIndex = (textModel.getEOL() === '\n') ? 0 : 1;
+		const selectedIndex = (textModel && textModel.getEOL() === '\n') ? 0 : 1;
 
 		return this.quickOpenService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), autoFocus: { autoFocusIndex: selectedIndex } }).then(eol => {
 			if (eol) {
