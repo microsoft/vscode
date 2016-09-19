@@ -13,6 +13,7 @@ import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
+import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -32,6 +33,10 @@ export class InstallAction extends Action {
 
 	private static InstallLabel = localize('installAction', "Install");
 	private static InstallingLabel = localize('installing', "Installing");
+
+	private static Class = 'extension-action install';
+	private static InstallingClass = 'extension-action install installing';
+
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -40,21 +45,29 @@ export class InstallAction extends Action {
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.install', InstallAction.InstallLabel, 'extension-action install', false);
+		super('extensions.install', InstallAction.InstallLabel, InstallAction.Class, false);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
 	private update(): void {
-		if (!this.extension) {
+		if (!this.extension || this.extension.type === LocalExtensionType.System) {
 			this.enabled = false;
+			this.class = InstallAction.Class;
 			this.label = InstallAction.InstallLabel;
 			return;
 		}
 
 		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
-		this.label = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingLabel : InstallAction.InstallLabel;
+
+		if (this.extension.state === ExtensionState.Installing) {
+			this.label = InstallAction.InstallingLabel;
+			this.class = InstallAction.InstallingClass;
+		} else {
+			this.label = InstallAction.InstallLabel;
+			this.class = InstallAction.Class;
+		}
 	}
 
 	run(): TPromise<any> {
@@ -91,8 +104,12 @@ export class UninstallAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed
-			|| this.extension.state === ExtensionState.NeedsRestart;
+		if (this.extension.type !== LocalExtensionType.User) {
+			this.enabled = false;
+			return;
+		}
+
+		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.NeedsRestart;
 	}
 
 	run(): TPromise<any> {
@@ -143,7 +160,7 @@ export class CombinedInstallAction extends Action {
 	}
 
 	private update(): void {
-		if (!this.extension) {
+		if (!this.extension || this.extension.type === LocalExtensionType.System) {
 			this.enabled = false;
 			this.class = CombinedInstallAction.NoExtensionClass;
 		} else if (this.installAction.enabled) {
@@ -202,6 +219,12 @@ export class UpdateAction extends Action {
 
 	private update(): void {
 		if (!this.extension) {
+			this.enabled = false;
+			this.class = UpdateAction.DisabledClass;
+			return;
+		}
+
+		if (this.extension.type !== LocalExtensionType.User) {
 			this.enabled = false;
 			this.class = UpdateAction.DisabledClass;
 			return;
@@ -291,9 +314,12 @@ export class UpdateAllAction extends Action {
 
 	private get outdated(): IExtension[] {
 		return this.extensionsWorkbenchService.local
-			.filter(e => this.extensionsWorkbenchService.canInstall(e)
+			.filter(e =>
+					this.extensionsWorkbenchService.canInstall(e)
+				&& e.type === LocalExtensionType.User
 				&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
-				&& e.outdated);
+				&& e.outdated
+			);
 	}
 
 	private update(): void {
@@ -396,7 +422,6 @@ export class ShowOutdatedExtensionsAction extends Action {
 	}
 
 	run(): TPromise<void> {
-
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -635,5 +660,30 @@ export class InstallVSIXAction extends Action {
 		}
 
 		return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix)));
+	}
+}
+
+export class BuiltinStatusLabelAction extends Action {
+
+	private static Class = 'extension-action built-in-status';
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor() {
+		super('extensions.install', localize('builtin', "Built-in"), '', false);
+	}
+
+	private update(): void {
+		if (this.extension && this.extension.type === LocalExtensionType.System) {
+			this.class = `${ BuiltinStatusLabelAction.Class } system`;
+		} else {
+			this.class = `${ BuiltinStatusLabelAction.Class } user`;
+		}
+	}
+
+	run(): TPromise<any> {
+		return TPromise.as(null);
 	}
 }

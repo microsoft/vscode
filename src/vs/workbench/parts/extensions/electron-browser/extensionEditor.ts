@@ -35,7 +35,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, BuiltinStatusLabelAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Keybinding } from 'vs/base/common/keybinding';
@@ -240,17 +240,19 @@ export class ExtensionEditor extends BaseEditor {
 		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
 		this.transientDisposables.push(ratings);
 
+		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 
 		installAction.extension = extension;
+		builtinStatusAction.extension = extension;
 		updateAction.extension = extension;
 		enableAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([enableAction, updateAction, installAction], { icon: true, label: true });
-		this.transientDisposables.push(enableAction, updateAction, installAction);
+		this.extensionActionBar.push([enableAction, updateAction, installAction, builtinStatusAction], { icon: true, label: true });
+		this.transientDisposables.push(enableAction, updateAction, installAction, builtinStatusAction);
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
