@@ -1763,7 +1763,7 @@ export class RevertFileAction extends Action {
 export class FocusOpenEditorsView extends Action {
 
 	public static ID = 'workbench.files.action.focusOpenEditorsView';
-	public static LABEL = nls.localize('focusOpenEditors', "Focus on Open Editors View");
+	public static LABEL = nls.localize({ key: 'focusOpenEditors', comment: ['Open is an adjective'] }, "Focus on Open Editors View");
 
 	constructor(
 		id: string,
