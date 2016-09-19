@@ -180,6 +180,14 @@ suite('window namespace tests', () => {
 		]);
 	});
 
+	test('showInputBox - default value on Enter', function () {
+		const p = window.showInputBox({ value: 'farboo' });
+		return Promise.all<any>([
+			p.then(value => assert.equal(value, 'farboo')),
+			commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem'),
+		]);
+	});
+
 	test('showInputBox - `undefined` on Esc', function () {
 		const p = window.showInputBox();
 		return Promise.all<any>([
@@ -187,6 +195,15 @@ suite('window namespace tests', () => {
 			p.then(value => assert.equal(value, undefined))
 		]);
 	});
+
+	test('showInputBox - `undefined` on Esc (despite default)', function () {
+		const p = window.showInputBox({ value: 'farboo' });
+		return Promise.all<any>([
+			commands.executeCommand('workbench.action.closeQuickOpen'),
+			p.then(value => assert.equal(value, undefined))
+		]);
+	});
+
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
