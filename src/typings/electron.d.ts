@@ -23,6 +23,10 @@ declare namespace Electron {
 	interface Event {
 		preventDefault: Function;
 		sender: EventEmitter;
+		shiftKey?: boolean;
+		ctrlKey?: boolean;
+		altKey?: boolean;
+		metaKey?: boolean;
 	}
 
 	type Point = {
