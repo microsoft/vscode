@@ -682,11 +682,19 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): TPromise<any> {
+	public run(context?: any): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
 			this.tree.clearHighlight();
+		}
+
+		// Read context
+		if (context && context.event) {
+			const bypassTrash = (isMacintosh && context.event.altKey) || (!isMacintosh && context.event.shiftKey);
+			if (bypassTrash) {
+				this.useTrash = false;
+			}
 		}
 
 		let primaryButton: string;
