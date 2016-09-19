@@ -10,7 +10,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {match} from 'vs/base/common/glob';
-import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService} from 'vs/platform/extensionManagement/common/extensionManagement';
+import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType} from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionsConfiguration, ConfigurationKey } from './extensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -111,7 +111,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				StorageScope.GLOBAL
 			);
 
-			this.extensionsService.getInstalled().done(local => {
+			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
 				Object.keys(this.importantRecommendations)
 					.filter(id => this.importantRecommendationsIgnoreList.indexOf(id) === -1)
 					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id))
@@ -156,7 +156,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			return;
 		}
 
-		this.extensionsService.getInstalled().done(local => {
+		this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
 			const recommendations = allRecommendations
 				.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
 
