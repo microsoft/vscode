@@ -60,20 +60,11 @@ function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 }
 
 function getTextModel(editorWidget: IEditor): IModel {
-	let textModel: IModel;
 
-	// Support for diff
-	const model = editorWidget.getModel();
-	if (model && !!(<IDiffEditorModel>model).modified) {
-		textModel = (<IDiffEditorModel>model).modified;
-	}
+	// make sure to resolve any possible diff editors to their modified side
+	editorWidget = getCodeEditor(editorWidget);
 
-	// Normal editor
-	else {
-		textModel = <IModel>model;
-	}
-
-	return textModel;
+	return <IModel>editorWidget.getModel();
 }
 
 function asFileOrUntitledEditorInput(input: any): UntitledEditorInput | IFileEditorInput {
@@ -525,25 +516,6 @@ export class EditorStatus implements IStatusbarItem {
 		if (editorWidget) {
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
-				if (typeof textModel.getMode !== 'function') {
-					console.log(editorWidget.getId());
-
-					console.log(Object.getPrototypeOf(editorWidget).toString());
-					console.log(Object.getOwnPropertyNames(editorWidget));
-
-					console.log(Object.getPrototypeOf(textModel).toString());
-					console.log(Object.getOwnPropertyNames(textModel));
-					if ((<any>textModel).original) {
-						console.log(Object.getOwnPropertyNames((<any>textModel).original));
-					} else {
-						console.log('NO ORIGINAL');
-					}
-					if ((<any>textModel).modified) {
-						console.log(Object.getOwnPropertyNames((<any>textModel).modified));
-					} else {
-						console.log('NO MODIFIED');
-					}
-				}
 
 				// Compute mode
 				const mode = textModel.getMode();
