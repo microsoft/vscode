@@ -475,7 +475,6 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
-		iconTheme: string;
 	};
 }
 

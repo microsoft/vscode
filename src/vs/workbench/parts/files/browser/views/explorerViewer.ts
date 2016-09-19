@@ -581,10 +581,11 @@ export class FileController extends DefaultController {
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
 			getKeyBinding: (a): Keybinding => keybindingForAction(a.id),
-			getActionsContext: () => {
+			getActionsContext: (event) => {
 				return {
 					viewletState: this.state,
-					stat: stat
+					stat,
+					event
 				};
 			},
 			onHide: (wasCancelled?: boolean) => {
