@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension } from './extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType } from './extensionManagement';
 import Event, { buffer } from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
@@ -45,7 +45,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 			case 'install': return this.service.install(arg);
 			case 'installFromGallery': return this.service.installFromGallery(arg);
 			case 'uninstall': return this.service.uninstall(arg);
-			case 'getInstalled': return this.service.getInstalled();
+			case 'getInstalled': return this.service.getInstalled(arg);
 		}
 	}
 }
@@ -80,7 +80,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return this.channel.call('uninstall', extension);
 	}
 
-	getInstalled(): TPromise<ILocalExtension[]> {
-		return this.channel.call('getInstalled');
+	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {
+		return this.channel.call('getInstalled', type);
 	}
 }

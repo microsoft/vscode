@@ -525,6 +525,10 @@ export class EditorStatus implements IStatusbarItem {
 		if (editorWidget) {
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
+				if (typeof textModel.getMode !== 'function') {
+					console.log(Object.getPrototypeOf(textModel).toString());
+					console.log(Object.getOwnPropertyNames(textModel));
+				}
 
 				// Compute mode
 				const mode = textModel.getMode();

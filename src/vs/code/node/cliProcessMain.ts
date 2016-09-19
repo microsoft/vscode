@@ -19,7 +19,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ITelemetryService, combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -66,7 +66,7 @@ class Main {
 	}
 
 	private listExtensions(): TPromise<any> {
-		return this.extensionManagementService.getInstalled().then(extensions => {
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 			extensions.forEach(e => console.log(getId(e.manifest)));
 		});
 	}
@@ -85,7 +85,7 @@ class Main {
 		const galleryTasks: Task[] = extensions
 			.filter(e => !/\.vsix$/i.test(e))
 			.map(id => () => {
-				return this.extensionManagementService.getInstalled().then(installed => {
+				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
 					const isInstalled = installed.some(e => getId(e.manifest) === id);
 
 					if (isInstalled) {
@@ -127,7 +127,7 @@ class Main {
 
 	private uninstallExtension(ids: string[]): TPromise<any> {
 		return sequence(ids.map(id => () => {
-			return this.extensionManagementService.getInstalled().then(installed => {
+			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
 				const [extension] = installed.filter(e => getId(e.manifest) === id);
 
 				if (!extension) {
