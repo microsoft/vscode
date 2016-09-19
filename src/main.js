@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 // Perf measurements
 global.vscodeStart = Date.now();
 
@@ -69,7 +71,7 @@ function getNLSConfiguration() {
 	// the locale we receive from the user or OS.
 	locale = locale ? locale.toLowerCase() : locale;
 	if (locale === 'pseudo') {
-		return { locale: locale, availableLanguages: {}, pseudo: true }
+		return { locale: locale, availableLanguages: {}, pseudo: true };
 	}
 	var initialLocale = locale;
 	if (process.env['VSCODE_DEV']) {
@@ -132,15 +134,17 @@ app.on('open-file', function (event, path) {
 	global.macOpenFiles.push(path);
 });
 
-const openUrls = [];
-const onOpenUrl = (event, url) => {
+var openUrls = [];
+var onOpenUrl = function (event, url) {
 	event.preventDefault();
 	openUrls.push(url);
 };
 
-app.on('will-finish-launching', () => app.on('open-url', onOpenUrl));
+app.on('will-finish-launching', function () {
+	app.on('open-url', onOpenUrl);
+});
 
-global.getOpenUrls = () => {
+global.getOpenUrls = function () {
 	app.removeListener('open-url', onOpenUrl);
 	return openUrls;
 };

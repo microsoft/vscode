@@ -18,6 +18,8 @@ const bundle = require('./lib/bundle');
 const util = require('./lib/util');
 const i18n = require('./lib/i18n');
 const gulpUtil = require('gulp-util');
+const flatmap = require('gulp-flatmap');
+const pump = require('pump');
 
 function log(prefix, message) {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
@@ -210,11 +212,7 @@ exports.optimizeTask = function(opts) {
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights() {
-	let currentFileHasOurCopyright = false;
-
-	const onNewFile = () => currentFileHasOurCopyright = false;
-
-	const preserveComments = function(node, comment) {
+	const preserveComments = f => (node, comment) => {
 		const text = comment.value;
 		const type = comment.type;
 
@@ -225,10 +223,10 @@ function uglifyWithCopyrights() {
 		const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
 
 		if (isOurCopyright) {
-			if (currentFileHasOurCopyright) {
+			if (f.__hasOurCopyright) {
 				return false;
 			}
-			currentFileHasOurCopyright = true;
+			f.__hasOurCopyright = true;
 			return true;
 		}
 
@@ -241,37 +239,45 @@ function uglifyWithCopyrights() {
 		return false;
 	};
 
-	const uglifyStream = uglify({ preserveComments });
+	const input = es.through();
+	const output = input
+		.pipe(flatmap((stream, f) => {
+			return stream
+				.pipe(uglify({ preserveComments: preserveComments(f) }));
+		}));
 
-	return es.through(function (data) {
-		onNewFile();
-		uglifyStream.once('data', data => this.emit('data', data));
-		uglifyStream.write(data);
-	},
-	function () { this.emit('end'); });
+	return es.duplex(input, output);
 }
 
 exports.minifyTask = function (src, sourceMapBaseUrl) {
 	const sourceMappingURL = sourceMapBaseUrl && (f => `${ sourceMapBaseUrl }/${ f.relative }.map`);
 
-	return function() {
+	return cb => {
 		const jsFilter = filter('**/*.js', { restore: true });
 		const cssFilter = filter('**/*.css', { restore: true });
 
-		return gulp.src([src + '/**', '!' + src + '/**/*.map'])
-			.pipe(jsFilter)
-			.pipe(sourcemaps.init({ loadMaps: true }))
-			.pipe(uglifyWithCopyrights())
-			.pipe(jsFilter.restore)
-			.pipe(cssFilter)
-			.pipe(minifyCSS({ reduceIdents: false }))
-			.pipe(cssFilter.restore)
-			.pipe(sourcemaps.write('./', {
+		pump(
+			gulp.src([src + '/**', '!' + src + '/**/*.map']),
+			jsFilter,
+			sourcemaps.init({ loadMaps: true }),
+			uglifyWithCopyrights(),
+			jsFilter.restore,
+			cssFilter,
+			minifyCSS({ reduceIdents: false }),
+			cssFilter.restore,
+			sourcemaps.write('./', {
 				sourceMappingURL,
 				sourceRoot: null,
 				includeContent: true,
 				addComment: true
-			}))
-			.pipe(gulp.dest(src + '-min'));
+			}),
+			gulp.dest(src + '-min')
+		, err => {
+			if (err instanceof uglify.GulpUglifyError) {
+				console.error(`Uglify error in '${ err.cause && err.cause.filename }'`);
+			}
+
+			cb(err);
+		});
 	};
 };
