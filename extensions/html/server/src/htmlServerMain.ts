@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {
-	createConnection, IConnection,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult
-} from 'vscode-languageserver';
+import {createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult} from 'vscode-languageserver';
 
 import {HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration} from 'vscode-html-languageservice';
+import {getLanguageModelCache} from './languageModelCache';
+
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
@@ -26,6 +25,14 @@ let documents: TextDocuments = new TextDocuments();
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
+
+let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => getLanguageService().parseHTMLDocument(document));
+documents.onDidClose(e => {
+	htmlDocuments.onDocumentRemoved(e.document);
+});
+connection.onShutdown(() => {
+	htmlDocuments.dispose();
+});
 
 let workspacePath: string;
 
@@ -67,20 +74,16 @@ connection.onDidChangeConfiguration((change) => {
 	languageSettings = settings.html;
 });
 
-function getHTMLDocument(document: TextDocument): HTMLDocument {
-	return languageService.parseHTMLDocument(document);
-}
-
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let htmlDocument = getHTMLDocument(document);
+	let htmlDocument = htmlDocuments.get(document);
 	let options = languageSettings && languageSettings.suggest;
 	return languageService.doComplete(document, textDocumentPosition.position, htmlDocument, options);
 });
 
 connection.onDocumentHighlight(documentHighlightParams => {
 	let document = documents.get(documentHighlightParams.textDocument.uri);
-	let htmlDocument = getHTMLDocument(document);
+	let htmlDocument = htmlDocuments.get(document);
 	return languageService.findDocumentHighlights(document, documentHighlightParams.position, htmlDocument);
 });
 
