@@ -30,6 +30,8 @@ import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/co
 import {EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
+import {BaseBinaryResourceEditor} from 'vs/workbench/browser/parts/editor/binaryEditor';
+import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -96,6 +98,7 @@ class StateChange {
 	encoding: boolean;
 	EOL: boolean;
 	tabFocusMode: boolean;
+	metadata: boolean;
 
 	constructor() {
 		this.indentation = false;
@@ -104,6 +107,7 @@ class StateChange {
 		this.encoding = false;
 		this.EOL = false;
 		this.tabFocusMode = false;
+		this.metadata = false;
 	}
 
 	public combine(other: StateChange) {
@@ -113,6 +117,7 @@ class StateChange {
 		this.encoding = this.encoding || other.encoding;
 		this.EOL = this.EOL || other.EOL;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
+		this.metadata = this.metadata || other.metadata;
 	}
 }
 
@@ -123,6 +128,7 @@ interface StateDelta {
 	EOL?: string;
 	indentation?: string;
 	tabFocusMode?: boolean;
+	metadata?: string;
 }
 
 class State {
@@ -144,12 +150,16 @@ class State {
 	private _tabFocusMode: boolean;
 	public get tabFocusMode(): boolean { return this._tabFocusMode; }
 
+	private _metadata: string;
+	public get metadata(): string { return this._metadata; }
+
 	constructor() {
 		this._selectionStatus = null;
 		this._mode = null;
 		this._encoding = null;
 		this._EOL = null;
 		this._tabFocusMode = false;
+		this._metadata = null;
 	}
 
 	public update(update: StateDelta): StateChange {
@@ -198,6 +208,13 @@ class State {
 				e.tabFocusMode = true;
 			}
 		}
+		if (typeof update.metadata !== 'undefined') {
+			if (this._metadata !== update.metadata) {
+				this._metadata = update.metadata;
+				somethingChanged = true;
+				e.metadata = true;
+			}
+		}
 
 		if (somethingChanged) {
 			return e;
@@ -231,6 +248,7 @@ export class EditorStatus implements IStatusbarItem {
 	private encodingElement: HTMLElement;
 	private eolElement: HTMLElement;
 	private modeElement: HTMLElement;
+	private metadataElement: HTMLElement;
 	private toDispose: IDisposable[];
 	private activeEditorListeners: IDisposable[];
 	private delayedRender: IDisposable;
@@ -284,6 +302,10 @@ export class EditorStatus implements IStatusbarItem {
 		this.modeElement.title = nls.localize('selectLanguageMode', "Select Language Mode");
 		this.modeElement.onclick = () => this.onModeClick();
 		hide(this.modeElement);
+
+		this.metadataElement = append(this.element, $('span.editor-status-metadata'));
+		this.metadataElement.title = nls.localize('fileInfo', "File Information");
+		hide(this.metadataElement);
 
 		this.delayedRender = null;
 		this.toRender = null;
@@ -379,6 +401,15 @@ export class EditorStatus implements IStatusbarItem {
 				hide(this.modeElement);
 			}
 		}
+
+		if (changed.metadata) {
+			if (this.state.metadata) {
+				this.metadataElement.textContent = this.state.metadata;
+				show(this.metadataElement);
+			} else {
+				hide(this.metadataElement);
+			}
+		}
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string {
@@ -449,6 +480,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.onEOLChange(control);
 		this.onEncodingChange(activeEditor);
 		this.onIndentationChange(control);
+		this.onMetadataChange(activeEditor);
 
 		// Dispose old active editor listeners
 		dispose(this.activeEditorListeners);
@@ -475,6 +507,13 @@ export class EditorStatus implements IStatusbarItem {
 			// Hook Listener for content options changes
 			this.activeEditorListeners.push(control.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
 				this.onIndentationChange(control);
+			}));
+		}
+
+		// Handle binary editors
+		else if (activeEditor instanceof BaseBinaryResourceEditor || activeEditor instanceof BinaryResourceDiffEditor) {
+			this.activeEditorListeners.push(activeEditor.onMetadataChanged(metadata => {
+				this.onMetadataChange(activeEditor);
 			}));
 		}
 	}
@@ -514,6 +553,16 @@ export class EditorStatus implements IStatusbarItem {
 						: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
 				);
 			}
+		}
+
+		this.updateState(update);
+	}
+
+	private onMetadataChange(editor: IBaseEditor): void {
+		const update: StateDelta = { metadata: null };
+
+		if (editor instanceof BaseBinaryResourceEditor || editor instanceof BinaryResourceDiffEditor) {
+			update.metadata = editor.getMetadata();
 		}
 
 		this.updateState(update);

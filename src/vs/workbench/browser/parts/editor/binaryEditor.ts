@@ -6,6 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
+import Event, {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
@@ -21,11 +22,20 @@ import {ScrollbarVisibility} from 'vs/base/common/scrollable';
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
+	private _onMetadataChanged: Emitter<void>;
+	private metadata: string;
+
 	private binaryContainer: Builder;
 	private scrollbar: DomScrollableElement;
 
 	constructor(id: string, telemetryService: ITelemetryService, private _editorService: IWorkbenchEditorService) {
 		super(id, telemetryService);
+
+		this._onMetadataChanged = new Emitter<void>();
+	}
+
+	public get onMetadataChanged(): Event<void> {
+		return this._onMetadataChanged.event;
 	}
 
 	public getTitle(): string {
@@ -76,13 +86,25 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 			// Render Input
 			let model = <BinaryEditorModel>resolvedModel;
-			ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() }, this.binaryContainer, this.scrollbar);
+			ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() }, this.binaryContainer, this.scrollbar, (meta) => this.handleMetadataChanged(meta));
 
 			return TPromise.as<void>(null);
 		});
 	}
 
+	private handleMetadataChanged(meta: string): void {
+		this.metadata = meta;
+		this._onMetadataChanged.fire();
+	}
+
+	public getMetadata(): string {
+		return this.metadata;
+	}
+
 	public clearInput(): void {
+
+		// Clear Meta
+		this.handleMetadataChanged(null);
 
 		// Empty HTML Container
 		$(this.binaryContainer).empty();
