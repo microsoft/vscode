@@ -12,7 +12,7 @@ import paths = require('vs/base/common/paths');
 import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -20,7 +20,13 @@ import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from '../common/extensionQuery';
-import { shell } from 'electron';
+import { shell, remote } from 'electron';
+import { InitialContent } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
+
+const dialog = remote.dialog;
 
 export class InstallAction extends Action {
 
@@ -458,6 +464,33 @@ export class ShowRecommendedExtensionsAction extends Action {
 	}
 }
 
+export class ShowWorkspaceRecommendedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showWorkspaceRecommendedExtensions';
+	static LABEL = localize('showWorkspaceRecommendedExtensions', "Show Workspace Recommended Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended:workspace');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ChangeSortAction extends Action {
 
 	private query: Query;
@@ -524,5 +557,83 @@ export class OpenExtensionsFolderAction extends Action {
 
 	protected isEnabled(): boolean {
 		return true;
+	}
+}
+
+export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
+	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Workspace Recommended Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IFileService private fileService: IFileService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private extensionsService: IExtensionsWorkbenchService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label, null, true);
+	}
+
+	public run(event: any): TPromise<any> {
+		return this.openExtensionsFile();
+	}
+
+	private openExtensionsFile(): TPromise<any> {
+		if (!this.contextService.getWorkspace()) {
+			this.messageService.show(severity.Info, localize('ConfigureWorkspaceRecommendations.noWorkspace', 'Recommendations are only available on a workspace folder.'));
+			return TPromise.as(undefined);
+		}
+
+		return this.getOrCreateExtensionsFile().then(value => {
+			return this.editorService.openEditor({
+				resource: value.extensionsFileResource,
+				options: {
+					forceOpen: true,
+					pinned: value.created
+				},
+			});
+		}, (error) => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+	}
+
+	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', `${ ConfigurationKey }.json`));
+
+		return this.fileService.resolveContent(extensionsFileResource).then(content => {
+			return { created: false, extensionsFileResource };
+		}, err => {
+			return this.fileService.updateContent(extensionsFileResource, InitialContent).then(() => {
+				return { created: true, extensionsFileResource };
+			});
+		});
+	}
+}
+
+export class InstallVSIXAction extends Action {
+
+	static ID = 'workbench.extensions.action.installVSIX';
+	static LABEL = localize('installVSIX', "Install from VSIX...");
+
+	constructor(
+		id = InstallVSIXAction.ID,
+		label = InstallVSIXAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, 'extension-action install-vsix', true);
+	}
+
+	run(): TPromise<any> {
+		const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
+			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
+			properties: ['openFile']
+		});
+
+		if (!result) {
+			return TPromise.as(null);
+		}
+
+		return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix)));
 	}
 }

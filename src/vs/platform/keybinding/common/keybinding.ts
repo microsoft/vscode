@@ -5,7 +5,7 @@
 'use strict';
 
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {Keybinding} from 'vs/base/common/keyCodes';
+import {Keybinding} from 'vs/base/common/keybinding';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 

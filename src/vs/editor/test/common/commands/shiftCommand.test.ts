@@ -74,7 +74,7 @@ class DocBlockCommentMode extends MockMode {
 }
 
 function testShiftCommandInDocBlockCommentMode(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, new DocBlockCommentMode(), selection, (sel) => new ShiftCommand(sel, {
+	testCommand(lines, new DocBlockCommentMode().getId(), selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
 		oneIndent: '\t'
@@ -82,7 +82,7 @@ function testShiftCommandInDocBlockCommentMode(lines: string[], selection: Selec
 }
 
 function testUnshiftCommandInDocBlockCommentMode(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, new DocBlockCommentMode(), selection, (sel) => new ShiftCommand(sel, {
+	testCommand(lines, new DocBlockCommentMode().getId(), selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
 		oneIndent: '\t'

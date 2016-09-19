@@ -13,7 +13,8 @@
 			"id": "handlebars",
 			"extensions": [ ".handlebars", ".hbs"],
 			"aliases": [ "Handlebars", "handlebars" ],
-			"mimetypes": ["text/x-handlebars-template"]
+			"mimetypes": ["text/x-handlebars-template"],
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
       "language": "handlebars",

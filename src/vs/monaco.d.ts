@@ -345,6 +345,7 @@ declare module monaco {
          */
         MAX_VALUE = 109,
     }
+
     export class KeyMod {
         static CtrlCmd: number;
         static Shift: number;
@@ -2037,10 +2038,6 @@ declare module monaco.editor {
          * Get the language associated with this model.
          */
         getModeId(): string;
-        /**
-         * Set the current language mode associated with the model.
-         */
-        setMode(newMode: languages.IMode | Promise<languages.IMode>): void;
         /**
          * Get the word under or besides `position`.
          * @param position The position to look for a word.

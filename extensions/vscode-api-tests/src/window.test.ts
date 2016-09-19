@@ -280,4 +280,13 @@ suite('window namespace tests', () => {
 		// This should not throw an exception
 		terminal.sendText('echo "foo"');
 	});
+
+	test('onDidCloseTerminal, event fires when terminal is disposed', (done) => {
+		var terminal = window.createTerminal();
+		window.onDidCloseTerminal((eventTerminal) => {
+			assert.equal(terminal, eventTerminal);
+			done();
+		});
+		terminal.dispose();
+	});
 });

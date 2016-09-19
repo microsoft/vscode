@@ -238,12 +238,12 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex);
-		this.toDispose.push(terminalService.onInstancesChanged(this.updateItems, this));
-		this.toDispose.push(terminalService.onActiveInstanceChanged(this.updateItems, this));
-		this.toDispose.push(terminalService.onInstanceTitleChanged(this.updateItems, this));
+		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
 	}
 
-	private updateItems(): void {
+	private _updateItems(): void {
 		this.setOptions(this.terminalService.getInstanceLabels(), this.terminalService.activeTerminalInstanceIndex);
 	}
 }
@@ -285,6 +285,27 @@ export class ScrollUpTerminalAction extends Action {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollUp();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ClearTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.clear';
+	public static LABEL = nls.localize('workbench.action.terminal.clear', "Clear");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.clear();
 		}
 		return TPromise.as(void 0);
 	}

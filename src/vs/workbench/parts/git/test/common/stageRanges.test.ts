@@ -8,7 +8,6 @@
 import * as assert from 'assert';
 import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
 import { Model } from 'vs/editor/common/model/model';
-import { NullMode } from 'vs/editor/common/modes/nullMode';
 import { IChange } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 
@@ -34,7 +33,6 @@ function createChange(modifiedStart:number, modifiedEnd:number, originalStart:nu
 }
 
 suite('Git - Stage ranges', () => {
-	var mode = new NullMode();
 
 	test('Get selected changes test - no change selected (selection before changes)', () => {
 		var selections: Selection[] = [];
@@ -142,7 +140,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	function createModel(text:string): Model {
-		return Model.createFromString(text, undefined, mode);
+		return Model.createFromString(text);
 	}
 
 	test('Apply changes to model - no changes', () => {

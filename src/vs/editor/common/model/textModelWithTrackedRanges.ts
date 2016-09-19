@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
 import {INewMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';
-import {FullModelRetokenizer, IRetokenizeRequest} from 'vs/editor/common/model/textModelWithTokens';
-import {IMode} from 'vs/editor/common/modes';
 import {Position} from 'vs/editor/common/core/position';
 
 interface ITrackedRange {
@@ -26,34 +23,6 @@ interface ITrackedRangesMap {
 
 interface IMarkerIdToRangeIdMap {
 	[key:string]:string;
-}
-
-class TrackedRangeModelRetokenizer extends FullModelRetokenizer {
-
-	private trackedRangeId: string;
-
-	constructor(retokenizePromise:TPromise<void>, lineNumber:number, model:TextModelWithTrackedRanges) {
-		super(retokenizePromise, model);
-		this.trackedRangeId = model.addTrackedRange({
-			startLineNumber: lineNumber,
-			startColumn : 1,
-			endLineNumber: lineNumber,
-			endColumn: model.getLineMaxColumn(lineNumber)
-		}, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
-	}
-
-	public getRange(): editorCommon.IRange {
-		return (<TextModelWithTrackedRanges>this._model).getTrackedRange(this.trackedRangeId);
-	}
-
-	public dispose(): void {
-		var model = (<TextModelWithTrackedRanges>this._model);
-		// if this .dispose() is being called as part of the model.dispose(), then the tracked ranges might no longer be available (e.g. throw exceptions)
-		if (model.isValidTrackedRange(this.trackedRangeId)) {
-			model.removeTrackedRange(this.trackedRangeId);
-		}
-		super.dispose();
-	}
 }
 
 class TrackedRange implements ITrackedRange {
@@ -77,16 +46,12 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	private _markerIdToRangeId:IMarkerIdToRangeIdMap;
 	private _multiLineTrackedRanges: { [key:string]: boolean; };
 
-	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
-		super(allowedEventTypes, rawText, modeOrPromise);
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, languageId:string) {
+		super(allowedEventTypes, rawText, languageId);
 		this._rangeIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._ranges = {};
 		this._markerIdToRangeId = {};
 		this._multiLineTrackedRanges = {};
-	}
-
-	protected _createRetokenizer(retokenizePromise:TPromise<void>, lineNumber:number): IRetokenizeRequest {
-		return new TrackedRangeModelRetokenizer(retokenizePromise, lineNumber, this);
 	}
 
 	public dispose(): void {

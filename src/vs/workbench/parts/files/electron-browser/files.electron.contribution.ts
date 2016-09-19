@@ -75,12 +75,10 @@ if (env.isMacintosh) {
 const actionsRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContributor);
 
-// Register Mac Integration (if we are on Mac)
-if (env.isMacintosh) {
-	(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
-		DirtyFilesTracker
-	);
-}
+// Register Dirty Files Tracker
+(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
+	DirtyFilesTracker
+);
 
 // Register Service
 registerSingleton(ITextFileService, TextFileService);

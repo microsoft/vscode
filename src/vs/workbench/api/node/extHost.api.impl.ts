@@ -109,6 +109,7 @@ export class ExtHostAPIImplementation {
 		const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapMonitor, extHostDiagnostics));
 		const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
 		const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
+		const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
 		col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 
 		col.finish(false, threadService);
@@ -122,7 +123,6 @@ export class ExtHostAPIImplementation {
 		const extHostMessageService = new ExtHostMessageService(threadService);
 		const extHostStatusBar = new ExtHostStatusBar(threadService);
 		const extHostOutputService = new ExtHostOutputService(threadService);
-		const extHostTerminalService = new ExtHostTerminalService(threadService);
 		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 		const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
 		const languages = new ExtHostLanguages(threadService);
@@ -235,6 +235,7 @@ export class ExtHostAPIImplementation {
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return extHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
 			},
+			onDidCloseTerminal: extHostTerminalService.onDidCloseTerminal.bind(extHostTerminalService),
 			showInformationMessage: (message, ...items) => {
 				return extHostMessageService.showMessage(Severity.Info, message, items);
 			},

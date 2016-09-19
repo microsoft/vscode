@@ -91,6 +91,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	install(zipPath: string): TPromise<void> {
+		zipPath = path.resolve(zipPath);
+
 		return validate(zipPath).then<void>(manifest => {
 			const id = getExtensionId(manifest, manifest.version);
 
@@ -99,12 +101,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					return TPromise.wrapError(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name)));
 				}
 
-				this._onInstallExtension.fire({ id });
+				this._onInstallExtension.fire({ id, zipPath });
 
 				return this.installExtension(zipPath, id)
 					.then(
-						local => this._onDidInstallExtension.fire({ id, local }),
-						error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); }
+						local => this._onDidInstallExtension.fire({ id, zipPath, local }),
+						error => { this._onDidInstallExtension.fire({ id, zipPath, error }); return TPromise.wrapError(error); }
 					);
 			});
 		});
@@ -130,8 +132,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				.then(zipPath => validate(zipPath).then(() => zipPath))
 				.then(zipPath => this.installExtension(zipPath, id, metadata))
 				.then(
-					local => this._onDidInstallExtension.fire({ id, local }),
-					error => { this._onDidInstallExtension.fire({ id, error }); return TPromise.wrapError(error); }
+					local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
+					error => { this._onDidInstallExtension.fire({ id, gallery: extension, error }); return TPromise.wrapError(error); }
 				);
 		});
 	}
@@ -148,7 +150,10 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
 					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
 
-					const local: ILocalExtension = { id, manifest, metadata, path: extensionPath, readmeUrl };
+					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
+
+					const local: ILocalExtension = { id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
 					const rawManifest = assign(manifest, { __metadata: metadata });
 
 					return pfs.writeFile(manifestPath, JSON.stringify(rawManifest, null, '\t'))
@@ -200,9 +205,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
 							const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
 
+							const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+							const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
+
 							return pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 								.then(raw => parseManifest(raw))
-								.then<ILocalExtension>(({ manifest, metadata }) => ({ id, manifest, metadata, path: extensionPath, readmeUrl }));
+								.then<ILocalExtension>(({ manifest, metadata }) => ({ id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl }));
 						}).then(null, () => null);
 
 						return limiter.queue(each);

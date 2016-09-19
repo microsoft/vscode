@@ -92,7 +92,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 				model.setValueFromRawText(value);
 			}
 
-			model.setMode(mode);
+			this.modelService.setMode(model, mode);
 		}
 
 		this.textEditorModelHandle = model.uri;
@@ -151,6 +151,20 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		// Otherwise update model
 		this.textEditorModel.setValueFromRawText(rawText);
+	}
+
+	/**
+	 * Updates the text editor model mode based on the settings and configuration.
+	 */
+	protected updateTextEditorModelMode(mime?: string): void {
+		if (!this.textEditorModel) {
+			return;
+		}
+
+		const firstLineText = this.getFirstLineText(this.textEditorModel.getValue());
+		const mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
+
+		this.modelService.setMode(this.textEditorModel, mode);
 	}
 
 	/**

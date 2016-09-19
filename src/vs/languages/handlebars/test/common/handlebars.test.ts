@@ -35,11 +35,21 @@ class HandlebarsMockModeService extends MockModeService {
 		throw new Error('Not implemented');
 	}
 
-	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
-		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/javascript') {
-			return new MockTokenizingMode('js', 'mock-js');
+	getModeId(mimetypeOrModeId: string): string {
+		if (mimetypeOrModeId === 'text/javascript') {
+			return 'js-mode-id';
 		}
-		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/x-handlebars-template') {
+		if (mimetypeOrModeId === 'text/x-handlebars-template') {
+			return 'handlebars-mode-id';
+		}
+		throw new Error('Not implemented');
+	}
+
+	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'js-mode-id') {
+			return new MockTokenizingMode('mock-js');
+		}
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'handlebars-mode-id') {
 			return this._handlebarsMode;
 		}
 		throw new Error('Not implemented');
@@ -49,7 +59,7 @@ class HandlebarsMockModeService extends MockModeService {
 suite('Handlebars', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
-	(function() {
+	suiteSetup(function() {
 		let modeService = new HandlebarsMockModeService();
 
 		let mode = new HandlebarsMode(
@@ -63,8 +73,8 @@ suite('Handlebars', () => {
 
 		modeService.setHandlebarsMode(mode);
 
-		tokenizationSupport = mode.tokenizationSupport;
-	})();
+		tokenizationSupport = Modes.TokenizationRegistry.get(mode.getId());
+	});
 
 	test('Just HTML', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{

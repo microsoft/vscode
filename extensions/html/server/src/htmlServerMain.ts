@@ -9,7 +9,7 @@ import {
 	TextDocuments, TextDocument, InitializeParams, InitializeResult
 } from 'vscode-languageserver';
 
-import {HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration} from './service/htmlLanguageService';
+import {HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration} from 'vscode-html-languageservice';
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);

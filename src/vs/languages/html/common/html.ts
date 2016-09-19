@@ -16,7 +16,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {TokenizationSupport, IModeLocator, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService, CompatWorkerAttr} from 'vs/editor/common/services/compatWorkerService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -52,8 +52,8 @@ export class State extends AbstractState {
 	public attributeValueQuote:string;
 	public attributeValueLength:number;
 
-	constructor(mode:modes.IMode, kind:States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValueLength:number) {
-		super(mode);
+	constructor(modeId:string, kind:States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValueLength:number) {
+		super(modeId);
 		this.kind = kind;
 		this.lastTagName = lastTagName;
 		this.lastAttributeName = lastAttributeName;
@@ -67,7 +67,7 @@ export class State extends AbstractState {
 	}
 
 	public makeClone():State {
-		return new State(this.getMode(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
+		return new State(this.getModeId(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
 	}
 
 	public equals(other:modes.IState):boolean {
@@ -330,9 +330,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		],
 	};
 
-	public tokenizationSupport: modes.ITokenizationSupport;
-
-	private modeService:IModeService;
+	protected _modeService:IModeService;
 	private _modeWorkerManager: ModeWorkerManager<W>;
 
 	constructor(
@@ -346,9 +344,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		super(descriptor.id, compatWorkerService);
 		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
 
-		this.modeService = modeService;
-
-		this.tokenizationSupport = new TokenizationSupport(this, this, true);
+		this._modeService = modeService;
 
 		if (this.compatWorkerService && this.compatWorkerService.isInMainThread) {
 			let updateConfiguration = () => {
@@ -393,6 +389,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 		}, true);
 
 		LanguageConfigurationRegistry.register(this.getId(), HTMLMode.LANG_CONFIG);
+
+		modes.TokenizationRegistry.register(this.getId(), new TokenizationSupport(this._modeService, this.getId(), this, true));
 	}
 
 	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
@@ -406,43 +404,25 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 	// TokenizationSupport
 
 	public getInitialState():modes.IState {
-		return new State(this, States.Content, '', '', '', '', 0);
+		return new State(this.getId(), States.Content, '', '', '', '', 0);
 	}
 
 	public enterNestedMode(state:modes.IState):boolean {
 		return state instanceof State && (<State>state).kind === States.WithinEmbeddedContent;
 	}
 
-	public getNestedMode(state:modes.IState): IEnteringNestedModeData {
-		var result:modes.IMode = null;
-		var htmlState:State = <State>state;
-		var missingModePromise: winjs.Promise = null;
-
+	public getNestedMode(state:modes.IState, locator:IModeLocator): modes.IMode {
+		let htmlState:State = <State>state;
 		if (htmlState.embeddedContentType !== null) {
-			if (this.modeService.isRegisteredMode(htmlState.embeddedContentType)) {
-				result = this.modeService.getMode(htmlState.embeddedContentType);
-				if (!result) {
-					missingModePromise = this.modeService.getOrCreateMode(htmlState.embeddedContentType);
-				}
-			}
-		} else {
-			var mimeType:string = null;
-			if ('script' === htmlState.lastTagName) {
-				mimeType = 'text/javascript';
-			} else if ('style' === htmlState.lastTagName) {
-				mimeType = 'text/css';
-			} else {
-				mimeType = 'text/plain';
-			}
-			result = this.modeService.getMode(mimeType);
+			return locator.getMode(htmlState.embeddedContentType);
 		}
-		if (result === null) {
-			result = this.modeService.getMode('text/plain');
+		if ('script' === htmlState.lastTagName) {
+			return locator.getMode('text/javascript');
 		}
-		return {
-			mode: result,
-			missingModePromise: missingModePromise
-		};
+		if ('style' === htmlState.lastTagName) {
+			return locator.getMode('text/css');
+		}
+		return null;
 	}
 
 	public getLeavingNestedModeData(line:string, state:modes.IState):ILeavingNestedModeData {
@@ -453,7 +433,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends CompatMode implem
 			return {
 				nestedModeBuffer: line.substring(0, match.index),
 				bufferAfterNestedMode: line.substring(match.index),
-				stateAfterNestedMode: new State(this, States.Content, '', '', '', '', 0)
+				stateAfterNestedMode: new State(this.getId(), States.Content, '', '', '', '', 0)
 			};
 		}
 		return null;

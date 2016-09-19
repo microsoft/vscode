@@ -5,20 +5,18 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {StopWatch} from 'vs/base/common/stopwatch';
 import * as timer from 'vs/base/common/timer';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
-import {ILineContext, ILineTokens, IMode, IState} from 'vs/editor/common/modes';
-import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
+import {ITokenizationSupport, ILineContext, ILineTokens, IMode, IState, TokenizationRegistry} from 'vs/editor/common/modes';
+import {NULL_MODE_ID, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
@@ -27,101 +25,16 @@ import {Position} from 'vs/editor/common/core/position';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {Token} from 'vs/editor/common/core/token';
 
-class ModeToModelBinder implements IDisposable {
+class Mode implements IMode {
 
-	private _modePromise:TPromise<IMode>;
-	private _externalModePromise:TPromise<boolean>;
-	private _externalModePromise_c:(value:boolean)=>void;
-	private _externalModePromise_e:(err:any)=>void;
-	private _model:TextModelWithTokens;
-	private _isDisposed:boolean;
+	private _languageId:string;
 
-	constructor(modePromise:TPromise<IMode>, model:TextModelWithTokens) {
-		this._modePromise = modePromise;
-		// Create an external mode promise that fires after the mode is set to the model
-		this._externalModePromise = new TPromise<boolean>((c, e, p) => {
-			this._externalModePromise_c = c;
-			this._externalModePromise_e = e;
-		}, () => {
-			// this promise cannot be canceled
-		});
-		this._model = model;
-		this._isDisposed = false;
-
-		// Ensure asynchronicity
-		TPromise.timeout(0).then(() => {
-			return this._modePromise;
-		}).then((mode:IMode) => {
-			if (this._isDisposed) {
-				this._externalModePromise_c(false);
-				return;
-			}
-			var model = this._model;
-			this.dispose();
-			model.setMode(mode);
-			model._warmUpTokens();
-			this._externalModePromise_c(true);
-		}).done(null, (err) => {
-			this._externalModePromise_e(err);
-			onUnexpectedError(err);
-		});
+	constructor(languageId:string) {
+		this._languageId = languageId;
 	}
 
-	public getModePromise(): TPromise<boolean> {
-		return this._externalModePromise;
-	}
-
-	public dispose(): void {
-		this._modePromise = null;
-		this._model = null;
-		this._isDisposed = true;
-	}
-}
-
-export interface IRetokenizeRequest extends IDisposable {
-
-	isFulfilled: boolean;
-
-	/**
-	 * If null, the entire model will be retokenzied, use null with caution
-	 */
-	getRange(): editorCommon.IRange;
-}
-
-export class FullModelRetokenizer implements IRetokenizeRequest {
-
-	public isFulfilled: boolean;
-
-	protected _model:TextModelWithTokens;
-	private _retokenizePromise:TPromise<void>;
-	private _isDisposed: boolean;
-
-	constructor(retokenizePromise:TPromise<void>, model:TextModelWithTokens) {
-		this._retokenizePromise = retokenizePromise;
-		this._model = model;
-		this._isDisposed = false;
-		this.isFulfilled = false;
-
-		// Ensure asynchronicity
-		TPromise.timeout(0).then(() => {
-			return this._retokenizePromise;
-		}).then(() => {
-			if (this._isDisposed) {
-				return;
-			}
-			this.isFulfilled = true;
-			this._model.onRetokenizerFulfilled();
-		}).done(null, onUnexpectedError);
-	}
-
-	public getRange(): editorCommon.IRange {
-		return null;
-	}
-
-	public dispose(): void {
-		this._retokenizePromise = null;
-		this._model = null;
-		this._isDisposed = true;
+	getId(): string {
+		return this._languageId;
 	}
 }
 
@@ -162,75 +75,45 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private static MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
 
-	private _mode: IMode;
-	private _modeListener: IDisposable;
-	private _modeToModelBinder:ModeToModelBinder;
+	private _languageId: string;
+	private _tokenizationListener: IDisposable;
+	private _tokenizationSupport: ITokenizationSupport;
 	private _tokensInflatorMap:TokensInflatorMap;
 
 	private _invalidLineStartIndex:number;
 	private _lastState:IState;
 
 	private _revalidateTokensTimeout:number;
-	private _scheduleRetokenizeNow: RunOnceScheduler;
-	private _retokenizers:IRetokenizeRequest[];
 
-	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, languageId:string) {
 		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelModeChanged);
-		allowedEventTypes.push(editorCommon.EventType.ModelModeSupportChanged);
 		super(allowedEventTypes, rawText);
 
-		this._mode = null;
-		this._modeListener = null;
-		this._modeToModelBinder = null;
+		this._languageId = languageId || NULL_MODE_ID;
+		this._tokenizationListener = TokenizationRegistry.onDidChange((e) => {
+			if (e.languageId !== this._languageId) {
+				return;
+			}
+
+			this._resetTokenizationState();
+			this.emitModelTokensChangedEvent(1, this.getLineCount());
+		});
 		this._tokensInflatorMap = null;
 
 		this._invalidLineStartIndex = 0;
 		this._lastState = null;
 
 		this._revalidateTokensTimeout = -1;
-		this._scheduleRetokenizeNow = null;
-		this._retokenizers = null;
-
-		if (!modeOrPromise) {
-			this._mode = new NullMode();
-		} else if (TPromise.is(modeOrPromise)) {
-			// TODO@Alex: To avoid mode id changes, we check if this promise is resolved
-			let promiseValue = <IMode>(<any>modeOrPromise)._value;
-
-			if (promiseValue && typeof promiseValue.getId === 'function') {
-				// The promise is already resolved
-				this._mode = this._massageMode(promiseValue);
-				this._resetModeListener(this._mode);
-			} else {
-				var modePromise = <TPromise<IMode>>modeOrPromise;
-				this._modeToModelBinder = new ModeToModelBinder(modePromise, this);
-				this._mode = new NullMode();
-			}
-		} else {
-			this._mode = this._massageMode(<IMode>modeOrPromise);
-			this._resetModeListener(this._mode);
-		}
-
-		this._revalidateTokensTimeout = -1;
-		this._scheduleRetokenizeNow = new RunOnceScheduler(() => this._retokenizeNow(), 200);
-		this._retokenizers = [];
 
 		this._resetTokenizationState();
 	}
 
 	public dispose(): void {
-		if (this._modeToModelBinder) {
-			this._modeToModelBinder.dispose();
-			this._modeToModelBinder = null;
-		}
-		this._resetModeListener(null);
+		this._tokenizationListener.dispose();
 		this._clearTimers();
-		this._mode = null;
 		this._lastState = null;
 		this._tokensInflatorMap = null;
-		this._retokenizers = dispose(this._retokenizers);
-		this._scheduleRetokenizeNow.dispose();
 
 		super.dispose();
 	}
@@ -239,130 +122,38 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return false;
 	}
 
-	private _massageMode(mode: IMode): IMode {
-		if (this.isTooLargeForHavingAMode()) {
-			return new NullMode();
-		}
-		if (this.isTooLargeForHavingARichMode()) {
-			return mode.toSimplifiedMode();
-		}
-		return mode;
-	}
-
-	public whenModeIsReady(): TPromise<IMode> {
-		if (this._modeToModelBinder) {
-			// Still waiting for some mode to load
-			return this._modeToModelBinder.getModePromise().then(() => this._mode);
-		}
-		return TPromise.as(this._mode);
-	}
-
-	public onRetokenizerFulfilled(): void {
-		this._scheduleRetokenizeNow.schedule();
-	}
-
-	private _retokenizeNow(): void {
-		var fulfilled = this._retokenizers.filter(r => r.isFulfilled);
-		this._retokenizers = this._retokenizers.filter(r => !r.isFulfilled);
-
-		var hasFullModel = false;
-		for (var i = 0; i < fulfilled.length; i++) {
-			if (!fulfilled[i].getRange()) {
-				hasFullModel = true;
-			}
-		}
-
-		if (hasFullModel) {
-			// Just invalidate all the lines
-			for (var i = 0, len = this._lines.length; i < len; i++) {
-				this._lines[i].isInvalid = true;
-			}
-			this._invalidLineStartIndex = 0;
-		} else {
-			var minLineNumber = Number.MAX_VALUE;
-			for (var i = 0; i < fulfilled.length; i++) {
-				var range = fulfilled[i].getRange();
-				minLineNumber = Math.min(minLineNumber, range.startLineNumber);
-				for (var lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-					this._lines[lineNumber - 1].isInvalid = true;
-				}
-			}
-			if (minLineNumber - 1 < this._invalidLineStartIndex) {
-				if (this._invalidLineStartIndex < this._lines.length) {
-					this._lines[this._invalidLineStartIndex].isInvalid = true;
-				}
-				this._invalidLineStartIndex = minLineNumber - 1;
-			}
-		}
-
-		this._beginBackgroundTokenization();
-
-		for (var i = 0; i < fulfilled.length; i++) {
-			fulfilled[i].dispose();
-		}
-	}
-
-	protected _createRetokenizer(retokenizePromise:TPromise<void>, lineNumber:number): IRetokenizeRequest {
-		return new FullModelRetokenizer(retokenizePromise, this);
-	}
-
 	protected _resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		super._resetValue(e, newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
 	}
 
-	protected _resetMode(e:editorCommon.IModelModeChangedEvent, newMode:IMode): void {
-		// Cancel tokenization, clear all tokens and begin tokenizing
-		this._mode = newMode;
-		this._resetModeListener(newMode);
-		this._resetTokenizationState();
-
-		this.emitModelTokensChangedEvent(1, this.getLineCount());
-	}
-
-	private _resetModeListener(newMode: IMode): void {
-		if (this._modeListener) {
-			this._modeListener.dispose();
-			this._modeListener = null;
-		}
-		if (newMode && typeof newMode.addSupportChangedListener === 'function') {
-			this._modeListener = newMode.addSupportChangedListener( (e) => this._onModeSupportChanged(e) );
-		}
-	}
-
-	private _onModeSupportChanged(e: editorCommon.IModeSupportChangedEvent): void {
-		this._emitModelModeSupportChangedEvent(e);
-		if (e.tokenizationSupport) {
-			this._resetTokenizationState();
-			this.emitModelTokensChangedEvent(1, this.getLineCount());
-		}
-	}
-
 	protected _resetTokenizationState(): void {
-		this._retokenizers = dispose(this._retokenizers);
-		this._scheduleRetokenizeNow.cancel();
 		this._clearTimers();
-		for (var i = 0; i < this._lines.length; i++) {
+		for (let i = 0; i < this._lines.length; i++) {
 			this._lines[i].resetTokenizationState();
 		}
 
-		// Initialize tokenization states
-		var initialState:IState = null;
-		if (this._mode.tokenizationSupport) {
+		this._tokenizationSupport = null;
+		if (!this.isTooLargeForHavingAMode()) {
+			this._tokenizationSupport = TokenizationRegistry.get(this._languageId);
+		}
+
+		if (this._tokenizationSupport) {
+			let initialState:IState = null;
 			try {
-				initialState = this._mode.tokenizationSupport.getInitialState();
+				initialState = this._tokenizationSupport.getInitialState();
 			} catch (e) {
 				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
 				onUnexpectedError(e);
-				this._mode = new NullMode();
+				this._tokenizationSupport = null;
+			}
+
+			if (initialState) {
+				this._lines[0].setState(initialState);
 			}
 		}
-		if (!initialState) {
-			initialState = new NullState(this._mode, null);
-		}
 
-		this._lines[0].setState(initialState);
 		this._lastState = null;
 		this._tokensInflatorMap = new TokensInflatorMap();
 		this._invalidLineStartIndex = 0;
@@ -403,38 +194,37 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getMode(): IMode {
-		return this._mode;
+		return new Mode(this._languageId);
 	}
 
 	public getModeId(): string {
 		return this.getMode().getId();
 	}
 
-	public setMode(newModeOrPromise:IMode|TPromise<IMode>): void {
-		if (!newModeOrPromise) {
+	public setMode(languageId:string): void {
+		if (this._languageId === languageId) {
 			// There's nothing to do
 			return;
 		}
-		if (this._modeToModelBinder) {
-			this._modeToModelBinder.dispose();
-			this._modeToModelBinder = null;
-		}
-		if (TPromise.is(newModeOrPromise)) {
-			this._modeToModelBinder = new ModeToModelBinder(<TPromise<IMode>>newModeOrPromise, this);
-		} else {
-			var actualNewMode = this._massageMode(<IMode>newModeOrPromise);
-			if (this._mode !== actualNewMode) {
-				var e2:editorCommon.IModelModeChangedEvent = {
-					oldMode: this._mode,
-					newMode: actualNewMode
-				};
-				this._resetMode(e2, actualNewMode);
-				this._emitModelModeChangedEvent(e2);
-			}
-		}
+
+		let e:editorCommon.IModelModeChangedEvent = {
+			oldMode: new Mode(this._languageId),
+			newMode: new Mode(languageId)
+		};
+
+		this._languageId = languageId;
+
+		// Cancel tokenization, clear all tokens and begin tokenizing
+		this._resetTokenizationState();
+
+		this.emitModelTokensChangedEvent(1, this.getLineCount());
+		this._emitModelModeChangedEvent(e);
 	}
 
 	public getModeIdAtPosition(_lineNumber:number, _column:number): string {
+		if (!this._tokenizationSupport) {
+			return this.getModeId();
+		}
 		var validPosition = this.validatePosition({
 			lineNumber: _lineNumber,
 			column: _column
@@ -444,9 +234,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		var column = validPosition.column;
 
 		if (column === 1) {
-			return this.getStateBeforeLine(lineNumber).getMode().getId();
+			return this.getStateBeforeLine(lineNumber).getModeId();
 		} else if (column === this.getLineMaxColumn(lineNumber)) {
-			return this.getStateAfterLine(lineNumber).getMode().getId();
+			return this.getStateAfterLine(lineNumber).getModeId();
 		} else {
 			var modeTransitions = this._getLineModeTransitions(lineNumber);
 			var modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
@@ -567,6 +357,11 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _updateTokensUntilLine(lineNumber:number, emitEvents:boolean): void {
+		if (!this._tokenizationSupport) {
+			this._invalidLineStartIndex = this._lines.length;
+			return;
+		}
+
 		var linesLength = this._lines.length;
 		var endLineIndex = lineNumber - 1;
 		var stopLineTokenizationAfter = 1000000000; // 1 billion, if a line is so long, you have other trouble :).
@@ -578,32 +373,26 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			var endStateIndex = lineIndex + 1;
 			var r:ILineTokens = null;
 			var text = this._lines[lineIndex].text;
-			if (this._mode.tokenizationSupport) {
 
-				try {
-					// Tokenize only the first X characters
-					r = this._mode.tokenizationSupport.tokenize(this._lines[lineIndex].text, this._lines[lineIndex].getState(), 0, stopLineTokenizationAfter);
-				} catch (e) {
-					e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
-					onUnexpectedError(e);
-				}
+			try {
+				// Tokenize only the first X characters
+				r = this._tokenizationSupport.tokenize(this._lines[lineIndex].text, this._lines[lineIndex].getState(), 0, stopLineTokenizationAfter);
+			} catch (e) {
+				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
+				onUnexpectedError(e);
+			}
 
-				if (r && r.retokenize) {
-					this._retokenizers.push(this._createRetokenizer(r.retokenize, lineIndex + 1));
-				}
+			if (r && r.tokens && r.tokens.length > 0) {
+				// Cannot have a stop offset before the last token
+				r.actualStopOffset = Math.max(r.actualStopOffset, r.tokens[r.tokens.length - 1].startIndex + 1);
+			}
 
-				if (r && r.tokens && r.tokens.length > 0) {
-					// Cannot have a stop offset before the last token
-					r.actualStopOffset = Math.max(r.actualStopOffset, r.tokens[r.tokens.length - 1].startIndex + 1);
-				}
+			if (r && r.actualStopOffset < text.length) {
+				// Treat the rest of the line (if above limit) as one default token
+				r.tokens.push(new Token(r.actualStopOffset, ''));
 
-				if (r && r.actualStopOffset < text.length) {
-					// Treat the rest of the line (if above limit) as one default token
-					r.tokens.push(new Token(r.actualStopOffset, ''));
-
-					// Use as end state the starting state
-					r.endState = this._lines[lineIndex].getState();
-				}
+				// Use as end state the starting state
+				r.endState = this._lines[lineIndex].getState();
 			}
 
 			if (!r) {
@@ -617,10 +406,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				r.modeTransitions.push(new ModeTransition(0, this.getModeId()));
 			}
 			this._lines[lineIndex].setTokens(this._tokensInflatorMap, r.tokens, this.getModeId(), r.modeTransitions);
-
-			if (this._lines[lineIndex].isInvalid) {
-				this._lines[lineIndex].isInvalid = false;
-			}
+			this._lines[lineIndex].isInvalid = false;
 
 			if (endStateIndex < linesLength) {
 				if (this._lines[endStateIndex].getState() !== null && r.endState.equals(this._lines[endStateIndex].getState())) {
@@ -670,12 +456,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _emitModelModeChangedEvent(e:editorCommon.IModelModeChangedEvent): void {
 		if (!this._isDisposing) {
 			this.emit(editorCommon.EventType.ModelModeChanged, e);
-		}
-	}
-
-	private _emitModelModeSupportChangedEvent(e:editorCommon.IModeSupportChangedEvent): void {
-		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelModeSupportChanged, e);
 		}
 	}
 

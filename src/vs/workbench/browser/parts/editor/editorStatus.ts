@@ -21,22 +21,23 @@ import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
 import {IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent} from 'vs/editor/common/editorCommon';
-import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import {EndOfLineSequence, ITokenizedModel, EditorType, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
+import {EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -56,8 +57,8 @@ function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	return null;
 }
 
-function getTextModel(editorWidget: IEditor): ITextModel {
-	let textModel: ITextModel;
+function getTextModel(editorWidget: IEditor): IModel {
+	let textModel: IModel;
 
 	// Support for diff
 	const model = editorWidget.getModel();
@@ -67,7 +68,7 @@ function getTextModel(editorWidget: IEditor): ITextModel {
 
 	// Normal editor
 	else {
-		textModel = <ITextModel>model;
+		textModel = <IModel>model;
 	}
 
 	return textModel;
@@ -243,7 +244,7 @@ export class EditorStatus implements IStatusbarItem {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
@@ -299,7 +300,7 @@ export class EditorStatus implements IStatusbarItem {
 			this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()),
 			this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)),
 			this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange(e.resource)),
-			TabFocus.onDidChangeTabFocus((e) => this.onTabFocusModeChange())
+			TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange())
 		);
 
 		return combinedDisposable(this.toDispose);
@@ -486,11 +487,9 @@ export class EditorStatus implements IStatusbarItem {
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
 				// Compute mode
-				if (!!(<ITokenizedModel>textModel).getMode) {
-					const mode = (<ITokenizedModel>textModel).getMode();
-					if (mode) {
-						info = { mode: this.modeService.getLanguageName(mode.getId()) };
-					}
+				const mode = textModel.getMode();
+				if (mode) {
+					info = { mode: this.modeService.getLanguageName(mode.getId()) };
 				}
 			}
 		}
@@ -533,7 +532,7 @@ export class EditorStatus implements IStatusbarItem {
 			info.charactersSelected = 0;
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
-				info.selections.forEach((selection) => {
+				info.selections.forEach(selection => {
 					info.charactersSelected += textModel.getValueLengthInRange(selection);
 				});
 			}
@@ -628,12 +627,17 @@ export class ChangeModeAction extends Action {
 	public static ID = 'workbench.action.editor.changeLanguageMode';
 	public static LABEL = nls.localize('changeMode', "Change Language Mode");
 
+	private static FILE_ASSOCIATION_KEY = 'files.associations';
+
 	constructor(
 		actionId: string,
 		actionLabel: string,
 		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
@@ -641,7 +645,6 @@ export class ChangeModeAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const languages = this.modeService.getRegisteredLanguageNames();
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!(activeEditor instanceof BaseTextEditor)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -653,39 +656,41 @@ export class ChangeModeAction extends Action {
 
 		// Compute mode
 		let currentModeId: string;
-		if (!!(<ITokenizedModel>textModel).getMode) {
-			const mode = (<ITokenizedModel>textModel).getMode();
-			if (mode) {
-				currentModeId = this.modeService.getLanguageName(mode.getId());
-			}
+		const mode = textModel.getMode();
+		if (mode) {
+			currentModeId = this.modeService.getLanguageName(mode.getId());
 		}
 
 		// All languages are valid picks
+		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
-			const languageModeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase());
-			const configureLabel = nls.localize('configuredLanguage', "Configured Language");
+			let description: string;
+			if (currentModeId === lang) {
+				description = nls.localize('languageDescription', "({0}) - Configured Language", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
+			} else {
+				description = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
+			}
 
 			return <IPickOpenEntry>{
 				label: lang,
-				description: currentModeId === lang ? `${languageModeId} (${configureLabel})` : languageModeId
+				description
 			};
 		});
-		picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
 
-		// Offer action to configure via settings
-		let configureLabel = nls.localize('configureAssociations', "Configure File Associations...");
 		if (fileinput) {
-			const resource = fileinput.getResource();
-			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
-			if (ext) {
-				configureLabel = nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext);
-			}
+			picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
 		}
 
-		const configureModeAssociations: IPickOpenEntry = {
-			label: configureLabel
-		};
-		picks.unshift(configureModeAssociations);
+		// Offer action to configure via settings
+		let configureModeAssociations: IPickOpenEntry;
+		if (fileinput) {
+			const resource = fileinput.getResource();
+			configureModeAssociations = {
+				label: nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", paths.extname(resource.fsPath) || paths.basename(resource.fsPath))
+			};
+
+			picks.unshift(configureModeAssociations);
+		}
 
 		// Offer to "Auto Detect"
 		const autoDetectMode: IPickOpenEntry = {
@@ -695,12 +700,12 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then((language) => {
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(language => {
 			if (language) {
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
 					const editorWidget = activeEditor.getControl();
-					const models: ITextModel[] = [];
+					const models: IModel[] = [];
 
 					const textModel = getTextModel(editorWidget);
 					models.push(textModel);
@@ -716,22 +721,66 @@ export class ChangeModeAction extends Action {
 					if (language === autoDetectMode) {
 						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
 					} else if (language === configureModeAssociations) {
-						const action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
-						action.run().done(() => action.dispose(), errors.onUnexpectedError);
-
-						this.messageService.show(Severity.Info, nls.localize('persistFileAssociations', "You can configure filename to language associations in the **files.associations** section. The changes may need a restart to take effect on already opened files."));
+						this.configureFileAssociation(fileinput.getResource());
 					} else {
 						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
 					}
 
 					// Change mode
 					models.forEach((textModel) => {
-						if (!!(<ITokenizedModel>textModel).getMode) {
-							(<ITokenizedModel>textModel).setMode(mode);
-						}
+						this.modelService.setMode(textModel, mode);
 					});
 				}
 			}
+		});
+	}
+
+	private configureFileAssociation(resource: uri): void {
+		const extension = paths.extname(resource.fsPath);
+		const basename = paths.basename(resource.fsPath);
+		const currentAssociation = this.modeService.getModeIdByFilenameOrFirstLine(basename);
+
+		const languages = this.modeService.getRegisteredLanguageNames();
+		const picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
+			const id = this.modeService.getModeIdForLanguageName(lang.toLowerCase());
+
+			return <IPickOpenEntry>{
+				id,
+				label: lang,
+				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : void 0
+			};
+		});
+
+		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
+			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
+				if (language) {
+					const fileAssociationsConfig = this.configurationService.lookup(ChangeModeAction.FILE_ASSOCIATION_KEY);
+
+					let associationKey: string;
+					if (extension && basename[0] !== '.') {
+						associationKey = `*${extension}`; // only use "*.ext" if the file path is in the form of <name>.<ext>
+					} else {
+						associationKey = basename; // otherwise use the basename (e.g. .gitignore, Dockerfile)
+					}
+
+					// If the association is already being made in the workspace, make sure to target workspace settings
+					let target = ConfigurationTarget.USER;
+					if (fileAssociationsConfig.workspace && !!fileAssociationsConfig.workspace[associationKey]) {
+						target = ConfigurationTarget.WORKSPACE;
+					}
+
+					// Make sure to write into the value of the target and not the merged value from USER and WORKSPACE config
+					let currentAssociations = (target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user;
+					if (!currentAssociations) {
+						currentAssociations = Object.create(null);
+					}
+
+					currentAssociations[associationKey] = language.id;
+
+					// Write config
+					this.configurationEditingService.writeConfiguration(target, { key: ChangeModeAction.FILE_ASSOCIATION_KEY, value: currentAssociations }).done(null, (error) => this.messageService.show(Severity.Error, error.toString()));
+				}
+			});
 		});
 	}
 }
@@ -824,7 +873,7 @@ export class ChangeEOLAction extends Action {
 
 		const selectedIndex = (textModel.getEOL() === '\n') ? 0 : 1;
 
-		return this.quickOpenService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), autoFocus: { autoFocusIndex: selectedIndex } }).then((eol) => {
+		return this.quickOpenService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), autoFocus: { autoFocusIndex: selectedIndex } }).then(eol => {
 			if (eol) {
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor && isWritableCodeEditor(activeEditor)) {
@@ -847,7 +896,7 @@ export class ChangeEncodingAction extends Action {
 		actionLabel: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -883,7 +932,7 @@ export class ChangeEncodingAction extends Action {
 			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
 		}
 
-		return pickActionPromise.then((action) => {
+		return pickActionPromise.then(action => {
 			if (!action) {
 				return;
 			}
@@ -923,7 +972,7 @@ export class ChangeEncodingAction extends Action {
 				return this.quickOpenService.pick(picks, {
 					placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
 					autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
-				}).then((encoding) => {
+				}).then(encoding => {
 					if (encoding) {
 						activeEditor = this.editorService.getActiveEditor();
 						encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);

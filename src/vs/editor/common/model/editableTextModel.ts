@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditStack} from 'vs/editor/common/model/editStack';
 import {ILineEdit, ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
 import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/model/textModelWithDecorations';
-import {IMode} from 'vs/editor/common/modes';
 import * as strings from 'vs/base/common/strings';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -50,10 +48,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _trimAutoWhitespaceLines: number[];
 
-	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, languageId:string) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged2);
-		super(allowedEventTypes, rawText, modeOrPromise);
+		super(allowedEventTypes, rawText, languageId);
 
 		this._commandManager = new EditStack(this);
 

@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMode, IState, IStream, ITokenizationResult, ITokenizationSupport} from 'vs/editor/common/modes';
+import {IMode, IState, IStream, ITokenizationResult, ITokenizationSupport, TokenizationRegistry} from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
+let instanceCount = 0;
+export function generateMockModeId(): string {
+	return 'mockMode' + (++instanceCount);
+}
+
 export class MockMode implements IMode {
-	private static instanceCount = 0;
 	private _id:string;
 
 	constructor(id?:string) {
 		if (typeof id === 'undefined') {
-			id = 'mockMode' + (++MockMode.instanceCount);
+			id = generateMockModeId();
 		}
 		this._id = id;
 	}
@@ -22,18 +26,14 @@ export class MockMode implements IMode {
 	public getId():string {
 		return this._id;
 	}
-
-	public toSimplifiedMode(): IMode {
-		return this;
-	}
 }
 
 export class StateForMockTokenizingMode extends AbstractState {
 
 	private _tokenType: string;
 
-	constructor(mode:IMode, tokenType:string) {
-		super(mode);
+	constructor(modeId:string, tokenType:string) {
+		super(modeId);
 		this._tokenType = tokenType;
 	}
 
@@ -53,13 +53,11 @@ export class StateForMockTokenizingMode extends AbstractState {
 
 export class MockTokenizingMode extends MockMode {
 
-	public tokenizationSupport: ITokenizationSupport;
+	constructor(tokenType:string) {
+		super();
 
-	constructor(id:string, tokenType:string) {
-		super(id);
-
-		this.tokenizationSupport = new TokenizationSupport(this, {
-			getInitialState: () => new StateForMockTokenizingMode(this, tokenType)
-		}, false);
+		TokenizationRegistry.register(this.getId(), new TokenizationSupport(null, this.getId(), {
+			getInitialState: () => new StateForMockTokenizingMode(this.getId(), tokenType)
+		}, false));
 	}
 }

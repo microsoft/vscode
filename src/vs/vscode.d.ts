@@ -3329,6 +3329,11 @@ declare namespace vscode {
 		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
 
 		/**
+		 * An [event](#Event) which fires when a terminal closes.
+		 */
+		export const onDidCloseTerminal: Event<Terminal>;
+
+		/**
 		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
 		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *

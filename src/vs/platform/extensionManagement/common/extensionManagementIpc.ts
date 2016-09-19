@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension } from './extensionManagement';
-import Event from 'vs/base/common/event';
+import Event, { buffer } from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'event:onInstallExtension'): TPromise<void>;
@@ -24,14 +24,24 @@ export interface IExtensionManagementChannel extends IChannel {
 
 export class ExtensionManagementChannel implements IExtensionManagementChannel {
 
-	constructor(private service: IExtensionManagementService) { }
+	onInstallExtension: Event<InstallExtensionEvent>;
+	onDidInstallExtension: Event<DidInstallExtensionEvent>;
+	onUninstallExtension: Event<string>;
+	onDidUninstallExtension: Event<string>;
+
+	constructor(private service: IExtensionManagementService) {
+		this.onInstallExtension = buffer(service.onInstallExtension, true);
+		this.onDidInstallExtension = buffer(service.onDidInstallExtension, true);
+		this.onUninstallExtension = buffer(service.onUninstallExtension, true);
+		this.onDidUninstallExtension = buffer(service.onDidUninstallExtension, true);
+	}
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
-			case 'event:onInstallExtension': return eventToCall(this.service.onInstallExtension);
-			case 'event:onDidInstallExtension': return eventToCall(this.service.onDidInstallExtension);
-			case 'event:onUninstallExtension': return eventToCall(this.service.onUninstallExtension);
-			case 'event:onDidUninstallExtension': return eventToCall(this.service.onDidUninstallExtension);
+			case 'event:onInstallExtension': return eventToCall(this.onInstallExtension);
+			case 'event:onDidInstallExtension': return eventToCall(this.onDidInstallExtension);
+			case 'event:onUninstallExtension': return eventToCall(this.onUninstallExtension);
+			case 'event:onDidUninstallExtension': return eventToCall(this.onDidUninstallExtension);
 			case 'install': return this.service.install(arg);
 			case 'installFromGallery': return this.service.installFromGallery(arg);
 			case 'uninstall': return this.service.uninstall(arg);

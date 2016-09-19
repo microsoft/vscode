@@ -30,7 +30,7 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from './extensions';
-import { ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction } from './extensionsActions';
+import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, InstallVSIXAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { Query } from '../common/extensionQuery';
@@ -40,8 +40,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { IURLService } from 'vs/platform/url/common/url';
-import URI from 'vs/base/common/uri';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 
 interface SearchInputEvent extends Event {
@@ -70,17 +68,12 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IURLService urlService: IURLService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super(VIEWLET_ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
-
-		chain(urlService.onOpenURL)
-			.filter(uri => /^extension/.test(uri.path))
-			.on(this.onOpenExtensionUrl, this, this.disposables);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 	}
@@ -168,13 +161,16 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating', undefined),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc')
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
+				new Separator(),
+				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL)
 			];
 		}
 
@@ -230,6 +226,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
 		}
 
+		if (/@recommended:workspace/i.test(query.value)) {
+			return this.queryWorkspaceRecommendedExtensions();
+		}
+
 		if (/@recommended/i.test(query.value)) {
 			const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
@@ -255,6 +255,18 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		return this.extensionsWorkbenchService.queryGallery(options)
 			.then(result => new PagedModel(result));
+	}
+
+	private queryWorkspaceRecommendedExtensions(): TPromise<PagedModel<IExtension>> {
+		let names = this.tipsService.getWorkspaceRecommendations();
+
+		this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
+
+		if (!names.length) {
+			return TPromise.as(new PagedModel([]));
+		}
+		return this.extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
+				.then(result => new PagedModel(result));
 	}
 
 	private openExtension(extension: IExtension): void {
@@ -290,26 +302,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.list.reveal(this.list.getFocus()[0]);
 	}
 
-	private onOpenExtensionUrl(uri: URI): void {
-		const match = /^extension\/([^/]+)$/.exec(uri.path);
-
-		if (!match) {
-			return;
-		}
-
-		const extensionId = match[1];
-
-		this.extensionsWorkbenchService.queryGallery({ names: [extensionId] })
-			.done(result => {
-				if (result.total < 1) {
-					return;
-				}
-
-				const extension = result.firstPage[0];
-				this.openExtension(extension);
-			});
-	}
-
 	private progress<T>(promise: TPromise<T>): TPromise<T> {
 		const progressRunner = this.progressService.show(true);
 		return always(promise, () => progressRunner.done());
@@ -340,7 +332,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		const message = err && err.message || '';
 
-		if (!/ECONNREFUSED/.test(message)) {
+		if (/ECONNREFUSED/.test(message)) {
 			const error = createError(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
 				actions: [
 					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL),

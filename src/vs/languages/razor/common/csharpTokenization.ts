@@ -82,13 +82,13 @@ var ispunctuation = (character:string) => {
 	return punctuations.indexOf(character) > -1;
 };
 
-export class CSState extends AbstractState {
+export abstract class CSState extends AbstractState {
 
 	public name:string;
 	public parent:AbstractState;
 
-	constructor(mode:Modes.IMode, name:string, parent:AbstractState) {
-		super(mode);
+	constructor(modeId:string, name:string, parent:AbstractState) {
+		super(modeId);
 		this.name = name;
 		this.parent = parent;
 	}
@@ -98,19 +98,7 @@ export class CSState extends AbstractState {
 			return false;
 		}
 		var otherCSState:CSState = <CSState>other;
-		return (other instanceof CSState) && (this.getMode() === otherCSState.getMode()) && (this.name === otherCSState.name) && ((this.parent === null && otherCSState.parent === null) || (this.parent !== null && this.parent.equals(otherCSState.parent)));
-	}
-
-	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
-		stream.setTokenRules(separators, whitespace);
-		if (stream.skipWhitespace().length > 0) {
-			return { type: '' };
-		}
-		return this.stateTokenize(stream);
-	}
-
-	public stateTokenize(stream:Modes.IStream):Modes.ITokenizationResult {
-		throw new Error('To be implemented');
+		return (other instanceof CSState) && (this.getModeId() === otherCSState.getModeId()) && (this.name === otherCSState.name) && ((this.parent === null && otherCSState.parent === null) || (this.parent !== null && this.parent.equals(otherCSState.parent)));
 	}
 }
 
@@ -119,14 +107,14 @@ class CSString extends CSState {
 	private isAtBeginning:boolean;
 	private punctuation:string;
 
-	constructor(mode:Modes.IMode, parent:AbstractState, punctuation:string) {
-		super(mode, 'string', parent);
+	constructor(modeId:string, parent:AbstractState, punctuation:string) {
+		super(modeId, 'string', parent);
 		this.isAtBeginning = true;
 		this.punctuation = punctuation;
 	}
 
 	public makeClone():CSString {
-		return new CSString(this.getMode(), this.parent ? <AbstractState>this.parent.clone() : null, this.punctuation);
+		return new CSString(this.getModeId(), this.parent ? <AbstractState>this.parent.clone() : null, this.punctuation);
 	}
 
 	public equals(other:CSString):boolean {
@@ -165,12 +153,12 @@ class CSString extends CSState {
 
 class CSVerbatimString extends CSState {
 
-	constructor(mode:Modes.IMode, parent:AbstractState) {
-		super(mode, 'verbatimstring', parent);
+	constructor(modeId:string, parent:AbstractState) {
+		super(modeId, 'verbatimstring', parent);
 	}
 
 	public makeClone():CSVerbatimString {
-		return new CSVerbatimString(this.getMode(), this.parent ? <AbstractState>this.parent.clone() : null);
+		return new CSVerbatimString(this.getModeId(), this.parent ? <AbstractState>this.parent.clone() : null);
 	}
 
 	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
@@ -191,13 +179,13 @@ class CSVerbatimString extends CSState {
 class CSNumber extends CSState {
 	private firstDigit:string;
 
-	constructor(mode:Modes.IMode, parent:AbstractState, firstDigit:string) {
-		super(mode, 'number', parent);
+	constructor(modeId:string, parent:AbstractState, firstDigit:string) {
+		super(modeId, 'number', parent);
 		this.firstDigit = firstDigit;
 	}
 
 	public makeClone():CSNumber {
-		return new CSNumber(this.getMode(), this.parent ? <AbstractState>this.parent.clone() : null, this.firstDigit);
+		return new CSNumber(this.getModeId(), this.parent ? <AbstractState>this.parent.clone() : null, this.firstDigit);
 	}
 
 	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
@@ -250,13 +238,13 @@ class CSNumber extends CSState {
 export class CSComment extends CSState {
 	private commentChar:string;
 
-	constructor(mode:Modes.IMode, parent:AbstractState, commentChar:string) {
-		super(mode, 'comment', parent);
+	constructor(modeId:string, parent:AbstractState, commentChar:string) {
+		super(modeId, 'comment', parent);
 		this.commentChar = commentChar;
 	}
 
 	public makeClone():CSComment {
-		return new CSComment(this.getMode(), this.parent ? <AbstractState>this.parent.clone() : null, this.commentChar);
+		return new CSComment(this.getModeId(), this.parent ? <AbstractState>this.parent.clone() : null, this.commentChar);
 	}
 
 	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
@@ -280,14 +268,14 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 	private firstToken: boolean;
 	private firstTokenWasKeyword: boolean;
 
-	constructor(mode: Modes.IMode, parent: AbstractState, level: number, plevel: number, razorMode: boolean,
+	constructor(modeId:string, parent: AbstractState, level: number, plevel: number, razorMode: boolean,
 				expression: boolean, firstToken: boolean, firstTokenWasKeyword: boolean) {
-		super(mode, 'expression', parent);
+		super(modeId, 'expression', parent);
 		this.level = level;
 		this.plevel = plevel;
 		this.razorMode = razorMode;
 		this.expression = expression;
-		this.vsState = new VSXML.VSXMLExpression(mode, null);
+		this.vsState = new VSXML.VSXMLExpression(modeId, null);
 		this.firstToken = firstToken;
 		this.firstTokenWasKeyword = firstTokenWasKeyword;
 	}
@@ -297,7 +285,7 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 	}
 
 	public makeClone():CSStatement {
-		var st = new CSStatement(this.getMode(), this.parent ? <AbstractState>this.parent.clone() : null, this.level,
+		var st = new CSStatement(this.getModeId(), this.parent ? <AbstractState>this.parent.clone() : null, this.level,
 			this.plevel, this.razorMode, this.expression, this.firstToken, this.firstTokenWasKeyword);
 		if (this.vsState !== null) {
 			st.setVSXMLState(<VSXML.VSXMLState>this.vsState.clone());
@@ -312,11 +300,19 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 				(this.vsState !== null && this.vsState.equals((<CSStatement>other).vsState)));
 	}
 
+	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
+		stream.setTokenRules(separators, whitespace);
+		if (stream.skipWhitespace().length > 0) {
+			return { type: '' };
+		}
+		return this.stateTokenize(stream);
+	}
+
 	public stateTokenize(stream:Modes.IStream):Modes.ITokenizationResult {
 
 		if (isDigit(stream.peek(), 10)) {
 			this.firstToken = false;
-			return { nextState: new CSNumber(this.getMode(), this, stream.next()) };
+			return { nextState: new CSNumber(this.getModeId(), this, stream.next()) };
 		}
 
 		var token = stream.nextToken();
@@ -341,7 +337,7 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 
 		if (this.razorMode && token === '<' && acceptNestedModes) {
 			if (!stream.eos() && /[_:!\/\w]/.test(stream.peek())) {
-				return { nextState: new CSSimpleHTML(this.getMode(), this, htmlMode.States.Content) };
+				return { nextState: new CSSimpleHTML(this.getModeId(), this, htmlMode.States.Content) };
 			}
 		}
 
@@ -367,7 +363,7 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 							if (stream.peekToken() !== '/') {
 								return {
 									type: 'comment.vs',
-									nextState: new VSXML.VSXMLEmbeddedState(this.getMode(), this.vsState, this)
+									nextState: new VSXML.VSXMLEmbeddedState(this.getModeId(), this.vsState, this)
 								};
 							}
 						}
@@ -375,7 +371,7 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 						return { type: 'comment.cs' };
 					case '*':
 						stream.nextToken();
-						return { nextState: new CSComment(this.getMode(), this, '/') };
+						return { nextState: new CSComment(this.getModeId(), this, '/') };
 				}
 			}
 			return { type: 'punctuation.cs', nextState: nextStateAtEnd };
@@ -385,10 +381,10 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 				switch(stream.peekToken()) {
 				case '"':
 					stream.nextToken();
-					return { nextState: new CSVerbatimString(this.getMode(), this) };
+					return { nextState: new CSVerbatimString(this.getModeId(), this) };
 				case '*':
 					stream.nextToken();
-					return { nextState: new CSComment(this.getMode(), this, '@') };
+					return { nextState: new CSComment(this.getModeId(), this, '@') };
 				}
 			}
 		}
@@ -397,7 +393,7 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 		}
 
 		if (token === '"' || token === '\'') { // string or character
-			return { nextState: new CSString(this.getMode(), this, token) };
+			return { nextState: new CSString(this.getModeId(), this, token) };
 		}
 		if (brackets.stringIsBracket(token)) {
 
@@ -465,13 +461,13 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 class CSSimpleHTML extends CSState {
 	private state:htmlMode.States;
 
-	constructor(mode:Modes.IMode, parent:AbstractState, state:htmlMode.States) {
-		super(mode, 'number', parent);
+	constructor(modeId:string, parent:AbstractState, state:htmlMode.States) {
+		super(modeId, 'number', parent);
 		this.state = state;
 	}
 
 	public makeClone():CSSimpleHTML {
-		return new CSSimpleHTML(this.getMode(), this.parent ? <AbstractState>this.parent.clone() : null, this.state);
+		return new CSSimpleHTML(this.getModeId(), this.parent ? <AbstractState>this.parent.clone() : null, this.state);
 	}
 
 	private nextName(stream:Modes.IStream):string {
