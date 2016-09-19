@@ -287,7 +287,7 @@
 					<array>
 						<dict>
 							<key>begin</key>
-							<string>(?i)(^|\G)(?=&lt;(p|div|h[1-6]|blockquote|pre|table|dl|ol|ul|script|noscript|form|fieldset|iframe|math|ins|del).*&lt;/\2\s*&gt;\s*$)</string>
+							<string>(?i)(^|\G)\s*(?=&lt;(p|div|h[1-6]|blockquote|pre|table|dl|ol|ul|script|noscript|form|fieldset|iframe|math|ins|del).*&lt;/\2\s*&gt;\s*$)</string>
 							<key>end</key>
 							<string>$</string>
 							<key>patterns</key>
@@ -300,7 +300,7 @@
 						</dict>
 						<dict>
 							<key>begin</key>
-							<string>(?i)(^|\G)(?=&lt;(p|div|h[1-6]|blockquote|pre|table|dl|ol|ul|script|noscript|form|fieldset|iframe|math|ins|del))</string>
+							<string>(?i)(^|\G)\s*(?=&lt;(p|div|h[1-6]|blockquote|pre|table|dl|ol|ul|script|noscript|form|fieldset|iframe|math|ins|del))</string>
 							<key>patterns</key>
 							<array>
 								<dict>
