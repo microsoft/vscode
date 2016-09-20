@@ -73,34 +73,36 @@ function getPath(arg1: uri | string | IWorkspaceProvider): string {
 	return (<uri>arg1).fsPath;
 }
 
-export function getFileIconClasses(arg1: uri | string, getLanguageId: (path: string) => string, isFolder?: boolean): string[] {
+export function getFileIconClasses(arg1?: uri | string, getLanguageId?: (path: string) => string, isFolder?: boolean): string[] {
 	let path: string;
 	if (typeof arg1 === 'string') {
 		path = arg1;
-	} else {
+	} else if (arg1) {
 		path = arg1.fsPath;
 	}
 
 	const classes = isFolder ? ['folder-icon'] : ['file-icon'];
 
-	const basename = paths.basename(path);
-	const dotSegments = basename.split('.');
+	if (path) {
+		const basename = paths.basename(path);
+		const dotSegments = basename.split('.');
 
-	const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
-	if (name) {
-		classes.push(`${cssEscape(name.toLowerCase())}-name-file-icon`);
-	}
-
-	const extensions = dotSegments.splice(1);
-	if (extensions.length > 0) {
-		for (let i = 0; i < extensions.length; i++) {
-			classes.push(`${cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
+		const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
+		if (name) {
+			classes.push(`${cssEscape(name.toLowerCase())}-name-file-icon`);
 		}
-	}
 
-	const langId = getLanguageId(path);
-	if (langId) {
-		classes.push(`${cssEscape(langId)}-lang-file-icon`);
+		const extensions = dotSegments.splice(1);
+		if (extensions.length > 0) {
+			for (let i = 0; i < extensions.length; i++) {
+				classes.push(`${cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
+			}
+		}
+
+		const langId = getLanguageId(path);
+		if (langId) {
+			classes.push(`${cssEscape(langId)}-lang-file-icon`);
+		}
 	}
 
 	return classes;

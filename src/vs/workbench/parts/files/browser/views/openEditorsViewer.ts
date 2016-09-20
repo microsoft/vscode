@@ -8,6 +8,7 @@ import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
+import {EditorLabel} from 'vs/workbench/browser/parts/editor/editorLabel';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import {IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer} from 'vs/base/parts/tree/browser/tree';
 import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
@@ -106,9 +107,7 @@ export class DataSource implements IDataSource {
 
 interface IOpenEditorTemplateData {
 	container: HTMLElement;
-	root: HTMLElement;
-	name: HTMLSpanElement;
-	description: HTMLSpanElement;
+	root: EditorLabel;
 	actionBar: ActionBar;
 }
 
@@ -126,6 +125,7 @@ export class Renderer implements IRenderer {
 
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@ITextFileService private textFileService: ITextFileService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		// noop
@@ -149,7 +149,7 @@ export class Renderer implements IRenderer {
 			editorGroupTemplate.root = dom.append(container, $('.editor-group'));
 			editorGroupTemplate.name = dom.append(editorGroupTemplate.root, $('span.name'));
 			editorGroupTemplate.actionBar = new ActionBar(container);
-			editorGroupTemplate.actionBar.push(this.actionProvider.getEditorGroupActions(), { icon: true, label: false});
+			editorGroupTemplate.actionBar.push(this.actionProvider.getEditorGroupActions(), { icon: true, label: false });
 
 			return editorGroupTemplate;
 		}
@@ -157,12 +157,8 @@ export class Renderer implements IRenderer {
 		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
 		editorTemplate.container = container;
 		editorTemplate.actionBar = new ActionBar(container);
-		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false});
-
-		editorTemplate.root = dom.append(container, $('.open-editor'));
-		editorTemplate.name = dom.append(editorTemplate.root, $('span.name'));
-		editorTemplate.description = dom.append(editorTemplate.root, $('span.description'));
-
+		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false });
+		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container);
 
 		return editorTemplate;
 	}
@@ -175,18 +171,14 @@ export class Renderer implements IRenderer {
 		}
 	}
 
-	private renderEditorGroup(tree: ITree, editorGroup: IEditorGroup, templateData: IOpenEditorTemplateData): void {
+	private renderEditorGroup(tree: ITree, editorGroup: IEditorGroup, templateData: IEditorGroupTemplateData): void {
 		templateData.name.textContent = editorGroup.label;
 		templateData.actionBar.context = { group: editorGroup };
 	}
 
 	private renderOpenEditor(tree: ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
-		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
 		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
-		const resource = editor.getResource();
-		templateData.root.title = resource ? resource.fsPath : '';
-		templateData.name.textContent = editor.editorInput.getName();
-		templateData.description.textContent = editor.editorInput.getDescription();
+		templateData.root.setInput(editor.editorInput, { italic: editor.isPreview(), extraClasses: ['open-editor'] });
 		templateData.actionBar.context = { group: editor.editorGroup, editor: editor.editorInput };
 	}
 
@@ -494,7 +486,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		return resource ? resource.toString() : element.editorInput.getName();
 	}
 
-	public onDragOver(tree: ITree, data: IDragAndDropData, target: OpenEditor|EditorGroup, originalEvent: DragMouseEvent): IDragOverReaction {
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: OpenEditor | EditorGroup, originalEvent: DragMouseEvent): IDragOverReaction {
 		if (!(target instanceof OpenEditor) && !(target instanceof EditorGroup)) {
 			return DRAG_OVER_REJECT;
 		}
@@ -520,10 +512,10 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		return DRAG_OVER_ACCEPT;
 	}
 
-	public drop(tree: ITree, data: IDragAndDropData, target: OpenEditor|EditorGroup, originalEvent: DragMouseEvent): void {
-		let draggedElement: OpenEditor|EditorGroup;
+	public drop(tree: ITree, data: IDragAndDropData, target: OpenEditor | EditorGroup, originalEvent: DragMouseEvent): void {
+		let draggedElement: OpenEditor | EditorGroup;
 		const model = this.editorGroupService.getStacksModel();
-		const positionOfTargetGroup =  model.positionOfGroup(target instanceof EditorGroup ? target : target.editorGroup);
+		const positionOfTargetGroup = model.positionOfGroup(target instanceof EditorGroup ? target : target.editorGroup);
 		const index = target instanceof OpenEditor ? target.editorGroup.indexOf(target.editorInput) : undefined;
 		// Support drop from explorer viewer
 		if (data instanceof ExternalElementsDragAndDropData) {
@@ -534,7 +526,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 
 		// Drop within viewer
 		else {
-			let source: OpenEditor|EditorGroup[] = data.getData();
+			let source: OpenEditor | EditorGroup[] = data.getData();
 			if (Array.isArray(source)) {
 				draggedElement = source[0];
 			}
