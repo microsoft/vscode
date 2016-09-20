@@ -5,6 +5,7 @@
 
 'use strict';
 
+import uri from 'vs/base/common/uri';
 import {getFileIconClasses} from 'vs/base/browser/ui/fileLabel/fileLabel';
 import {IconLabel, IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
@@ -12,8 +13,14 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {getResource} from 'vs/workbench/common/editor';
 
+export interface IEditorLabel {
+	name: string;
+	description?: string;
+	resource?: uri;
+}
+
 export class EditorLabel extends IconLabel {
-	private input: IEditorInput;
+	private label: IEditorLabel;
 	private options: IIconLabelOptions;
 
 	constructor(
@@ -29,18 +36,26 @@ export class EditorLabel extends IconLabel {
 	}
 
 	public setInput(input: IEditorInput, options?: IIconLabelOptions): void {
-		this.input = input;
+		this.setLabel({
+			resource: getResource(input),
+			name: input.getName(),
+			description: input.getDescription()
+		}, options);
+	}
+
+	public setLabel(label: IEditorLabel, options?: IIconLabelOptions): void {
+		this.label = label;
 		this.options = options;
 
 		this.render();
 	}
 
 	private render(): void {
-		if (!this.input) {
+		if (!this.label) {
 			return;
 		}
 
-		const resource = getResource(this.input);
+		const resource = this.label.resource;
 
 		let title = '';
 		if (this.options && this.options.title) {
@@ -56,11 +71,11 @@ export class EditorLabel extends IconLabel {
 			extraClasses.push(...this.options.extraClasses);
 		}
 
-		this.setValue(this.input.getName(), this.input.getDescription(), { title, extraClasses, italic });
+		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic });
 	}
 
 	public dispose(): void {
-		this.input = void 0;
+		this.label = void 0;
 		this.options = void 0;
 	}
 }
