@@ -168,6 +168,7 @@ export class MarkersPanel extends Panel {
 
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
+		dom.addClass(this.treeContainer, 'show-file-icons');
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
 		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations);
@@ -175,6 +176,7 @@ export class MarkersPanel extends Panel {
 			dataSource: new Viewer.DataSource(),
 			renderer,
 			controller,
+			sorter: new Viewer.Sorter(),
 			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider()
 		}, {
 				indentPixels: 0,
@@ -229,17 +231,20 @@ export class MarkersPanel extends Panel {
 	}
 
 	private updateResources(resources: URI[]) {
-		resources.forEach((resource) => {
-			let markers = this.markerService.read({ resource: resource }).slice(0);
-			this.markersModel.update(resource, markers);
+		const bulkUpdater = this.markersModel.getBulkUpdater();
+		for (const resource of resources) {
+			bulkUpdater.add(resource, this.markerService.read({ resource }));
+		}
+		bulkUpdater.done();
+		for (const resource of resources) {
 			if (!this.markersModel.hasResource(resource)) {
 				this.autoExpanded.unset(resource.toString());
 			}
-		});
+		}
 	}
 
 	private render(): void {
-		let allMarkers = this.markerService.read().slice(0);
+		let allMarkers = this.markerService.read();
 		this.markersModel.update(allMarkers);
 		this.tree.setInput(this.markersModel).then(this.autoExpand.bind(this));
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());

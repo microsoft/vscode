@@ -13,7 +13,9 @@ import { IEnvService } from 'vs/code/electron-main/env';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
 import { IWindowsService } from 'vs/code/electron-main/windows';
 import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/code/electron-main/storage';
+import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
 import { Keybinding } from 'vs/base/common/keybinding';
 import product from 'vs/platform/product';
@@ -46,6 +48,8 @@ export class VSCodeMenu {
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
+	private currentAutoSaveSetting: string;
+
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
 
@@ -57,6 +61,7 @@ export class VSCodeMenu {
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IUpdateService private updateService: IUpdateService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IEnvService private envService: IEnvService
 	) {
@@ -64,6 +69,9 @@ export class VSCodeMenu {
 
 		this.mapResolvedKeybindingToActionId = Object.create(null);
 		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
+
+		const config = configurationService.getConfiguration<IFilesConfiguration>();
+		this.currentAutoSaveSetting = config && config.files && config.files.autoSave;
 	}
 
 	public ready(): void {
@@ -119,8 +127,19 @@ export class VSCodeMenu {
 			}
 		});
 
+		// Update when auto save config changes
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
+
 		// Listen to update service
 		this.updateService.on('change', () => this.updateMenu());
+	}
+
+	private onConfigurationUpdated(config: IFilesConfiguration): void {
+		const newAutoSaveSetting = config && config.files && config.files.autoSave;
+		if (newAutoSaveSetting !== this.currentAutoSaveSetting) {
+			this.currentAutoSaveSetting = newAutoSaveSetting;
+			this.updateMenu();
+		}
 	}
 
 	private resolveKeybindings(win: VSCodeWindow): void {
@@ -290,6 +309,9 @@ export class VSCodeMenu {
 		const saveFileAs = this.createMenuItem(nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."), 'workbench.action.files.saveAs', this.windowsService.getWindowCount() > 0);
 		const saveAllFiles = this.createMenuItem(nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "Save A&&ll"), 'workbench.action.files.saveAll', this.windowsService.getWindowCount() > 0);
 
+		const autoSaveEnabled = [AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => this.currentAutoSaveSetting === s);
+		const autoSave = new MenuItem({ label: mnemonicLabel(nls.localize('miAutoSave', "Auto Save")), type: 'checkbox', checked: autoSaveEnabled, enabled: this.windowsService.getWindowCount() > 0, click: () => this.windowsService.sendToFocused('vscode.toggleAutoSave') });
+
 		const preferences = this.getPreferencesMenu();
 
 		const newWindow = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window")), accelerator: this.getAccelerator('workbench.action.newWindow'), click: () => this.windowsService.openNewWindow() });
@@ -313,6 +335,8 @@ export class VSCodeMenu {
 			saveFile,
 			saveFileAs,
 			saveAllFiles,
+			__separator__(),
+			autoSave,
 			__separator__(),
 			!platform.isMacintosh ? preferences : null,
 			!platform.isMacintosh ? __separator__() : null,
@@ -397,8 +421,9 @@ export class VSCodeMenu {
 
 	private createOpenRecentMenuItem(path: string): Electron.MenuItem {
 		return new MenuItem({
-			label: unMnemonicLabel(path), click: () => {
-				const success = !!this.windowsService.open({ cli: this.envService.cliArgs, pathsToOpen: [path] });
+			label: unMnemonicLabel(path), click: (menuItem, win, event) => {
+				const openInNewWindow = event && ((!platform.isMacintosh && event.ctrlKey) || (platform.isMacintosh && event.metaKey));
+				const success = !!this.windowsService.open({ cli: this.envService.cliArgs, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
 					this.windowsService.removeFromRecentPathsList(path);
 					this.updateMenu();

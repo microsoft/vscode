@@ -135,7 +135,13 @@ export interface IGalleryMetadata {
 	publisherDisplayName: string;
 }
 
+export enum LocalExtensionType {
+	System,
+	User
+}
+
 export interface ILocalExtension {
+	type: LocalExtensionType;
 	id: string;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
@@ -205,7 +211,7 @@ export interface IExtensionManagementService {
 	install(zipPath: string): TPromise<void>;
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension): TPromise<void>;
-	getInstalled(): TPromise<ILocalExtension[]>;
+	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');

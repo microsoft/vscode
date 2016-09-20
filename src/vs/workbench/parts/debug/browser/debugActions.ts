@@ -147,7 +147,7 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	private setLabel(config: debug.IConfig): void {
-		this.updateLabel(config.request === 'attach' ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
+		this.updateLabel(config && config.request === 'attach' ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
 	public run(): TPromise<any> {

@@ -9,6 +9,7 @@ import Event from 'vs/base/common/event';
 import {Registry} from 'vs/platform/platform';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {IEditor} from 'vs/platform/editor/common/editor';
+import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Mime type used by the output editor.
@@ -37,6 +38,8 @@ export const Extensions = {
 export const OUTPUT_SERVICE_ID = 'outputService';
 
 export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
+
+export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
 /**
  * The output event informs when new output got received.

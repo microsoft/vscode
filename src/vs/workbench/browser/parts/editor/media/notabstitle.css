@@ -40,6 +40,10 @@
 	padding-left: 2px;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .monaco-icon-label::before {
+	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
+}
+
 /* Title Actions */
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-actions {
 	display: flex;

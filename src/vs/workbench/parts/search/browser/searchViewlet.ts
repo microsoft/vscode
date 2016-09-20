@@ -374,6 +374,7 @@ export class SearchViewlet extends Viewlet {
 	private createSearchResultsView(builder: Builder): void {
 		builder.div({ 'class': 'results' }, (div) => {
 			this.results = div;
+			this.results.addClass('show-file-icons');
 
 			let dataSource = new SearchDataSource();
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);

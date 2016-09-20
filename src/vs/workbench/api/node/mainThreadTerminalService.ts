@@ -27,6 +27,7 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		this._proxy = threadService.get(ExtHostContext.ExtHostTerminalService);
 		this._toDispose = [];
 		this._toDispose.push(terminalService.onInstanceDisposed((terminalInstance) => this._onTerminalDisposed(terminalInstance)));
+		this._toDispose.push(terminalService.onInstanceProcessIdReady((terminalInstance) => this._onTerminalProcessIdReady(terminalInstance)));
 	}
 
 	public dispose(): void {
@@ -67,5 +68,9 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalClosed(terminalInstance.id);
+	}
+
+	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
+		this._proxy.$acceptTerminalProcessId(terminalInstance.id, terminalInstance.processId);
 	}
 }

@@ -375,8 +375,9 @@ export function stopwatch<T>(event: Event<T>): Event<number> {
  * // 4
  * ```
  */
-export function buffer<T>(event: Event<T>, nextTick = false): Event<T> {
-	let buffer: T[] = [];
+export function buffer<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Event<T> {
+	buffer = buffer.slice();
+
 	let listener = event(e => {
 		if (buffer) {
 			buffer.push(e);

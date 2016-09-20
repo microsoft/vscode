@@ -70,7 +70,7 @@
     "chokidar": {
       "version": "1.6.0",
       "from": "bpasero/chokidar#vscode",
-      "resolved": "git://github.com/bpasero/chokidar.git#8b64fda5a22cc9850f1346d12302051c5ba65b10"
+      "resolved": "git+https://github.com/bpasero/chokidar.git#8b64fda5a22cc9850f1346d12302051c5ba65b10"
     },
     "concat-map": {
       "version": "0.0.1",
@@ -150,7 +150,7 @@
     "fsevents": {
       "version": "0.3.8",
       "from": "bpasero/fsevents#vscode",
-      "resolved": "git://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
+      "resolved": "git+https://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
     },
     "gc-signals": {
       "version": "0.0.1",
@@ -427,7 +427,7 @@
     "xterm": {
       "version": "1.1.3",
       "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.6",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#f15f2b1bbcce8c51949152a28211b5439f3e3bd5"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#b04f8c06bf9720d37cec703632dcb889a7a16b2c"
     },
     "yauzl": {
       "version": "2.3.1",

@@ -402,6 +402,21 @@ suite('Event utils', () => {
 				assert.deepEqual(result, [1,2,3,4]);
 			});
 		});
+
+		test('should fire initial buffer events', () => {
+			const result = [];
+			const emitter = new Emitter<number>();
+			const event = emitter.event;
+			const bufferedEvent = buffer(event, false, [-2, -1, 0]);
+
+			emitter.fire(1);
+			emitter.fire(2);
+			emitter.fire(3);
+			assert.deepEqual(result, []);
+
+			bufferedEvent(num => result.push(num));
+			assert.deepEqual(result, [-2,-1,0,1,2,3]);
+		});
 	});
 
 });

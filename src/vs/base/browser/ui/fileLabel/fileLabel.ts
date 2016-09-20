@@ -9,23 +9,22 @@ import dom = require('vs/base/browser/dom');
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IMatch } from 'vs/base/common/filters';
+import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import {IMatch} from 'vs/base/common/filters';
 import {IWorkspaceProvider, getPathLabel} from 'vs/base/common/labels';
 
 export class FileLabel {
-
 	private domNode: HTMLElement;
 	private labelNode: HighlightedLabel;
 	private directoryNode: HTMLElement;
 	private basepath: string;
 	private path: string;
-	private labelHighlights: IMatch[]= [];
+	private labelHighlights: IMatch[] = [];
 
 	constructor(container: HTMLElement, arg2?: uri | string, arg3?: uri | string | IWorkspaceProvider) {
 		this.domNode = dom.append(container, dom.$('.monaco-file-label'));
-		this.labelNode= new HighlightedLabel(dom.append(this.domNode, dom.$('span.file-name')));
-		this.directoryNode= dom.append(this.domNode, dom.$('span.file-path'));
+		this.labelNode = new HighlightedLabel(dom.append(this.domNode, dom.$('span.file-name')));
+		this.directoryNode = dom.append(this.domNode, dom.$('span.file-path'));
 
 		if (arg3) {
 			this.basepath = getPath(arg3);
@@ -41,17 +40,19 @@ export class FileLabel {
 	}
 
 	public setValue(arg1: uri | string, labelHighlights?: IMatch[]): void {
-		let newPath = getPath(arg1);
+		const newPath = getPath(arg1);
+
 		this.path = newPath;
-		this.labelHighlights= labelHighlights;
+		this.labelHighlights = labelHighlights;
 		this.render();
 	}
 
 	private render(): void {
 		this.domNode.title = this.path;
 		this.labelNode.set(paths.basename(this.path), this.labelHighlights);
-		let parent = paths.dirname(this.path);
-		this.directoryNode.textContent= parent && parent !== '.' ? getPathLabel(parent, this.basepath) : '';
+
+		const parent = paths.dirname(this.path);
+		this.directoryNode.textContent = parent && parent !== '.' ? getPathLabel(parent, this.basepath) : '';
 	}
 }
 
@@ -65,7 +66,7 @@ function getPath(arg1: uri | string | IWorkspaceProvider): string {
 	}
 
 	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
-		let ws = (<IWorkspaceProvider>arg1).getWorkspace();
+		const ws = (<IWorkspaceProvider>arg1).getWorkspace();
 		return ws ? ws.resource.fsPath : void 0;
 	}
 

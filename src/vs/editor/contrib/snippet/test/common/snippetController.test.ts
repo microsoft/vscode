@@ -23,14 +23,19 @@ class TestSnippetController extends SnippetController {
 
 suite('SnippetController', () => {
 
-	function snippetTest(cb:(editor:MockCodeEditor, cursor:Cursor, codeSnippet: CodeSnippet, snippetController:TestSnippetController)=>void): void {
-		withMockCodeEditor([
-			'function test() {',
-			'\tvar x = 3;',
-			'\tvar arr = [];',
-			'\t',
-			'}'
-		], {}, (editor, cursor) => {
+	function snippetTest(cb: (editor: MockCodeEditor, cursor: Cursor, codeSnippet: CodeSnippet, snippetController: TestSnippetController) => void, lines?: string[]): void {
+
+		if (!lines) {
+			lines = [
+				'function test() {',
+				'\tvar x = 3;',
+				'\tvar arr = [];',
+				'\t',
+				'}'
+			];
+		};
+
+		withMockCodeEditor(lines, {}, (editor, cursor) => {
 			editor.getModel().updateOptions({
 				insertSpaces: false
 			});
@@ -222,64 +227,201 @@ suite('SnippetController', () => {
 	});
 
 	test('Final tabstop with multiple selections', () => {
-		// snippetTest((editor, cursor, codeSnippet, snippetController) => {
-		// 	editor.setSelections([
-		// 		new Selection(1, 1, 1, 1),
-		// 		new Selection(2, 1, 2, 1),
-		// 	]);
+		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1),
+				new Selection(2, 1, 2, 1),
+			]);
 
-		// 	codeSnippet = CodeSnippet.fromInternal('foo{{}}');
-		// 	snippetController.run(codeSnippet, 0, 0, false);
+			codeSnippet = CodeSnippet.fromInternal('foo{{}}');
+			snippetController.run(codeSnippet, 0, 0, false);
 
-		// 	assert.equal(editor.getSelections().length, 2);
-		// 	const [first, second] = editor.getSelections();
-		// 	assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
-		// 	assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
-		// });
+			assert.equal(editor.getSelections().length, 2);
+			const [first, second] = editor.getSelections();
+			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
+			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
+		});
 
-		// snippetTest((editor, cursor, codeSnippet, snippetController) => {
-		// 	editor.setSelections([
-		// 		new Selection(1, 1, 1, 1),
-		// 		new Selection(2, 1, 2, 1),
-		// 	]);
+		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1),
+				new Selection(2, 1, 2, 1),
+			]);
 
-		// 	codeSnippet = CodeSnippet.fromInternal('foo{{}}bar');
-		// 	snippetController.run(codeSnippet, 0, 0, false);
+			codeSnippet = CodeSnippet.fromInternal('foo{{}}bar');
+			snippetController.run(codeSnippet, 0, 0, false);
 
-		// 	assert.equal(editor.getSelections().length, 2);
-		// 	const [first, second] = editor.getSelections();
-		// 	assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
-		// 	assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
-		// });
+			assert.equal(editor.getSelections().length, 2);
+			const [first, second] = editor.getSelections();
+			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
+			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 4, endLineNumber: 2, endColumn: 4 }), second.toString());
+		});
 
-		// snippetTest((editor, cursor, codeSnippet, snippetController) => {
-		// 	editor.setSelections([
-		// 		new Selection(1, 1, 1, 1),
-		// 		new Selection(1, 5, 1, 5),
-		// 	]);
+		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1),
+				new Selection(1, 5, 1, 5),
+			]);
 
-		// 	codeSnippet = CodeSnippet.fromInternal('foo{{}}bar');
-		// 	snippetController.run(codeSnippet, 0, 0, false);
+			codeSnippet = CodeSnippet.fromInternal('foo{{}}bar');
+			snippetController.run(codeSnippet, 0, 0, false);
 
-		// 	assert.equal(editor.getSelections().length, 2);
-		// 	const [first, second] = editor.getSelections();
-		// 	assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
-		// 	assert.ok(second.equalsRange({ startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 14 }), second.toString());
-		// });
+			assert.equal(editor.getSelections().length, 2);
+			const [first, second] = editor.getSelections();
+			assert.ok(first.equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), first.toString());
+			assert.ok(second.equalsRange({ startLineNumber: 1, startColumn: 14, endLineNumber: 1, endColumn: 14 }), second.toString());
+		});
 
-		// snippetTest((editor, cursor, codeSnippet, snippetController) => {
-		// 	editor.setSelections([
-		// 		new Selection(1, 1, 1, 1),
-		// 		new Selection(1, 5, 1, 5),
-		// 	]);
+		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1),
+				new Selection(1, 5, 1, 5),
+			]);
 
-		// 	codeSnippet = CodeSnippet.fromInternal('foo\n{{}}\nbar');
-		// 	snippetController.run(codeSnippet, 0, 0, false);
+			codeSnippet = CodeSnippet.fromInternal('foo\n{{}}\nbar');
+			snippetController.run(codeSnippet, 0, 0, false);
 
-		// 	assert.equal(editor.getSelections().length, 2);
-		// 	const [first, second] = editor.getSelections();
-		// 	assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), first.toString());
-		// 	assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
-		// });
+			assert.equal(editor.getSelections().length, 2);
+			const [first, second] = editor.getSelections();
+			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), first.toString());
+			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
+		});
+
+		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1),
+				new Selection(1, 5, 1, 5),
+			]);
+
+			codeSnippet = CodeSnippet.fromInternal('foo\n{{}}\nbar');
+			snippetController.run(codeSnippet, 0, 0, false);
+
+			assert.equal(editor.getSelections().length, 2);
+			const [first, second] = editor.getSelections();
+			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), first.toString());
+			assert.ok(second.equalsRange({ startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 1 }), second.toString());
+		});
+
+		snippetTest((editor, cursor, codeSnippet, snippetController) => {
+			editor.setSelections([
+				new Selection(2, 7, 2, 7),
+			]);
+
+			codeSnippet = CodeSnippet.fromInternal('xo{{}}r');
+			snippetController.run(codeSnippet, 1, 0, false);
+
+			assert.equal(editor.getSelections().length, 1);
+			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 2, startColumn: 8, endColumn: 8, endLineNumber: 2 }));
+		});
+	});
+
+	test('Final tabstop, #11742 simple', () => {
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelection(new Selection(1, 19, 1, 19));
+
+			codeSnippet = CodeSnippet.fromTextmate('{{% url_**$1** %}}');
+			controller.run(codeSnippet, 2, 0, true);
+
+			assert.equal(editor.getSelections().length, 1);
+			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 1, startColumn: 27, endLineNumber: 1, endColumn: 27 }));
+			assert.equal(editor.getModel().getValue(), 'example example {{% url_**** %}}');
+
+		}, ['example example sc']);
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelection(new Selection(1, 3, 1, 3));
+
+			codeSnippet = CodeSnippet.fromTextmate([
+				'afterEach((done) => {',
+				'\t${1}test',
+				'});'
+			].join('\n'));
+
+			controller.run(codeSnippet, 2, 0, true);
+
+			assert.equal(editor.getSelections().length, 1);
+			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), editor.getSelection().toString());
+			assert.equal(editor.getModel().getValue(), 'afterEach((done) => {\n\ttest\n});');
+
+		}, ['af']);
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelection(new Selection(1, 3, 1, 3));
+
+			codeSnippet = CodeSnippet.fromTextmate([
+				'afterEach((done) => {',
+				'${1}\ttest',
+				'});'
+			].join('\n'));
+
+			controller.run(codeSnippet, 2, 0, true);
+
+			assert.equal(editor.getSelections().length, 1);
+			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 }), editor.getSelection().toString());
+			assert.equal(editor.getModel().getValue(), 'afterEach((done) => {\n\ttest\n});');
+
+		}, ['af']);
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelection(new Selection(1, 9, 1, 9));
+
+			codeSnippet = CodeSnippet.fromTextmate([
+				'aft${1}er'
+			].join('\n'));
+
+			controller.run(codeSnippet, 8, 0, true);
+
+			assert.equal(editor.getModel().getValue(), 'after');
+			assert.equal(editor.getSelections().length, 1);
+			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 4 }), editor.getSelection().toString());
+
+		}, ['afterone']);
+	});
+
+	test('Final tabstop, #11742 different indents', () => {
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(2, 4, 2, 4),
+				new Selection(1, 3, 1, 3)
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate([
+				'afterEach((done) => {',
+				'\t${1}test',
+				'});'
+			].join('\n'));
+
+			controller.run(codeSnippet, 2, 0, true);
+
+			assert.equal(editor.getSelections().length, 2);
+			const [first, second] = editor.getSelections();
+
+			assert.ok(first.equalsRange({ startLineNumber: 5, startColumn: 3, endLineNumber: 5, endColumn: 3 }), first.toString());
+			assert.ok(second.equalsRange({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 2 }), second.toString());
+
+		}, ['af', '\taf']);
+	});
+
+	test('Final tabstop, no tabstop', () => {
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 3, 1, 3)
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate('afterEach');
+
+			controller.run(codeSnippet, 2, 0, true);
+
+			assert.ok(editor.getSelection().equalsRange({ startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 10 }));
+
+		}, ['af', '\taf']);
 	});
 });

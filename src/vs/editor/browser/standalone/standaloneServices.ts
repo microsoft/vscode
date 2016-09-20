@@ -41,8 +41,6 @@ import {
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
-import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
-import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -136,8 +134,6 @@ export module StaticServices {
 	export const modeService = define(IModeService, (o) => new MainThreadModeServiceImpl(instantiationService.get(o), extensionService.get(o), configurationService.get(o)));
 
 	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), messageService.get(o)));
-
-	export const compatWorkerService = define(ICompatWorkerService, (o) => new MainThreadCompatWorkerService(modelService.get(o)));
 
 	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o)));
 

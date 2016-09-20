@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 12 18" style="enable-background:new 0 0 12 18;">
-<g>
-	<polygon points="4.3,16.5 5.9,11.9 1.1,11.9 11.5,1.2 11.5,15.6 8.7,13 7.1,17.5 	"/>
-	<path style="fill:#FFFFFF" d="M11,14.5l-2.5-2.3l-1.7,4.7l-1.9-0.7l1.7-4.8H2.2l8.7-9 M0,12.4h5.2l-1.5,4.2L7.5,18l1.5-4.1l3.1,2.9L12,0
-		L0,12.4z"/>
-</g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="12" height="18" viewBox="0 0 12 18"><style>.st0{fill:#fff}</style><title>flipped-cursor-mac</title><path d="M4.3 16.5l1.6-4.6H1.1L11.5 1.2v14.4L8.7 13l-1.6 4.5z"/><path class="st0" d="M11 14.5l-2.5-2.3L7 16.7 5 16l1.6-4.5h-4l8.5-9M0 12.5h5.2l-1.5 4.1L7.5 18 9 14.2l2.9 2.3V0L0 12.5z"/></svg>

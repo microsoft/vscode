@@ -10,6 +10,7 @@ import path = require('path');
 import os = require('os');
 import assert = require('assert');
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {FileService, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
 import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
 import {nfcall} from 'vs/base/common/async';
@@ -75,6 +76,26 @@ suite('FileService', () => {
 				assert.equal(fs.existsSync(f.resource.fsPath), true);
 
 				done();
+			});
+		});
+	});
+
+	test('touchFile', function (done: () => void) {
+		service.touchFile(uri.file(path.join(testDir, 'test.txt'))).done(s => {
+			assert.equal(s.name, 'test.txt');
+			assert.equal(fs.existsSync(s.resource.fsPath), true);
+			assert.equal(fs.readFileSync(s.resource.fsPath).length, 0);
+
+			const stat = fs.statSync(s.resource.fsPath);
+
+			return TPromise.timeout(10).then(() => {
+				return service.touchFile(s.resource).done(s => {
+					const statNow = fs.statSync(s.resource.fsPath);
+					assert.ok(statNow.mtime.getTime() >= stat.mtime.getTime()); // one some OS the resolution seems to be 1s, so we use >= here
+					assert.equal(statNow.size, stat.size);
+
+					done();
+				});
 			});
 		});
 	});

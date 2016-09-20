@@ -13,6 +13,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	private _name: string;
 	private _id: number;
+	private _processId: number;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
 	private _queuedRequests: ApiRequest[];
@@ -32,6 +33,16 @@ export class ExtHostTerminal implements vscode.Terminal {
 	public get name(): string {
 		this._checkDisposed();
 		return this._name;
+	}
+
+	public get processId(): Thenable<number> {
+		this._checkDisposed();
+		if (this._processId) {
+			return Promise.resolve<number>(this._processId);
+		}
+		setTimeout(() => {
+			return this.processId;
+		}, 200);
 	}
 
 	public sendText(text: string, addNewLine: boolean = true): void {
@@ -54,6 +65,10 @@ export class ExtHostTerminal implements vscode.Terminal {
 			this._disposed = true;
 			this._queueApiRequest(this._proxy.$dispose, []);
 		}
+	}
+
+	public setProcessId(processId: number): void {
+		this._processId = processId;
 	}
 
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
@@ -104,6 +119,16 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._onDidCloseTerminal.fire(terminal);
 	}
 
+	public $acceptTerminalProcessId(id: number, processId: number): void {
+		let terminal = this._getTerminalById(id);
+		terminal.setProcessId(processId);
+	}
+
+	private _getTerminalById(id: number): ExtHostTerminal {
+		let index = this._getTerminalIndexById(id);
+		return index !== null ? this._terminals[index] : null;
+	}
+
 	private _getTerminalIndexById(id: number): number {
 		let index: number = null;
 		this._terminals.some((terminal, i) => {
@@ -118,6 +143,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 }
 
 class ApiRequest {
+
 	private _callback: (...args: any[]) => void;
 	private _args: any[];
 

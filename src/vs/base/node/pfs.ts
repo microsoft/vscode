@@ -108,6 +108,10 @@ export function readlink(path: string): TPromise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
+export function utimes(path: string, atime:Date, mtime:Date): Promise {
+	return nfcall(fs.utimes, path, atime, mtime);
+}
+
 function doStatMultiple(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
 	let path = paths.shift();
 	return stat(path).then((value) => {

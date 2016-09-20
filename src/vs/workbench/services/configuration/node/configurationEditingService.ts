@@ -11,6 +11,7 @@ import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
 import * as pfs from 'vs/base/node/pfs';
+import strings = require('vs/base/common/strings');
 import {getConfigurationKeys} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {setProperty} from 'vs/base/common/jsonEdit';
@@ -72,7 +73,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return ensureConfigurationFile.then(() => {
 
 				// Apply all edits to the configuration file
-				const result = this.applyEdits(contents, [operation]);
+				const result = this.applyEdits(contents, operation);
 
 				return pfs.writeFile(resource.fsPath, result, encoding.UTF8).then(() => {
 
@@ -99,9 +100,9 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to the configuration file (Unknown Key)");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_TARGET: return nls.localize('errorInvalidTarget', "Unable to write to the configuration file (Invalid Target)");
-			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorWorkspaceOpened', "Unable to write to the workspace configuration file (No Workspace Opened)");
 
 			// User issues
+			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write settings because no folder is opened. Please open a folder first and try again.");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
 				if (target === ConfigurationTarget.USER) {
 					return nls.localize('errorInvalidConfiguration', "Unable to write settings. Please open **User Settings** to correct errors/warnings in the file and try again.");
@@ -119,16 +120,19 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 	}
 
-	private applyEdits(content: string, values: IConfigurationValue[]): string {
+	private applyEdits(content: string, edit: IConfigurationEditOperation): string {
 		const {tabSize, insertSpaces} = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
 		const {eol} = this.configurationService.getConfiguration<{ eol: string }>('files');
 
-		while (values.length > 0) {
-			const {key, value} = values.pop();
+		const {key, value} = edit;
 
-			const edits = setProperty(content, [key], value, { tabSize, insertSpaces, eol });
-			content = applyEdits(content, edits);
+		// Without key, the entire settings file is being replaced, so we just use JSON.stringify
+		if (!key) {
+			return JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
 		}
+
+		const edits = setProperty(content, [key], value, { tabSize, insertSpaces, eol });
+		content = applyEdits(content, edits);
 
 		return content;
 	}
@@ -160,7 +164,6 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				return { error: ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY };
 			}
 
-			// Target cannot contain JSON errors
 			return pfs.exists(resource.fsPath).then(exists => {
 				if (!exists) {
 					return { exists };
@@ -168,9 +171,16 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 				return pfs.readFile(resource.fsPath).then(contentsRaw => {
 					const contents = contentsRaw.toString(encoding.UTF8);
+
+					// If we write to a workspace standalone file and replace the entire contents (no key provided)
+					// we can return here because any parse errors can safely be ignored since all contents are replaced
+					if (operation.isWorkspaceStandalone && !operation.key) {
+						return { exists, contents };
+					}
+
+					// Target cannot contain JSON errors
 					const parseErrors = [];
 					json.parse(contents, parseErrors);
-
 					if (parseErrors.length > 0) {
 						return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
 					}
@@ -188,9 +198,15 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
 			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
 				const key = standaloneConfigurationKeys[i];
-				const keyPrefix = `${key}.`;
 				const target = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]);
 
+				// Check for prefix
+				if (config.key === key) {
+					return { key: '', value: config.value, target, isWorkspaceStandalone: true };
+				}
+
+				// Check for prefix.<setting>
+				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
 					return { key: config.key.substr(keyPrefix.length), value: config.value, target, isWorkspaceStandalone: true };
 				}

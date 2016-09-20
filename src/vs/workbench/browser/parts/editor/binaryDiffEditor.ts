@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/binarydiffeditor';
+import Event, {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
@@ -30,6 +31,10 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 
 	private static MIN_CONTAINER_WIDTH = 100;
 
+	private _onMetadataChanged: Emitter<void>;
+	private originalMetadata: string;
+	private modifiedMetadata: string;
+
 	private leftBinaryContainer: Builder;
 	private leftScrollbar: DomScrollableElement;
 	private rightBinaryContainer: Builder;
@@ -44,6 +49,12 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(BinaryResourceDiffEditor.ID, telemetryService);
+
+		this._onMetadataChanged = new Emitter<void>();
+	}
+
+	public get onMetadataChanged(): Event<void> {
+		return this._onMetadataChanged.event;
 	}
 
 	public getTitle(): string {
@@ -130,10 +141,28 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		let container = isOriginal ? this.leftBinaryContainer : this.rightBinaryContainer;
 		let scrollbar = isOriginal ? this.leftScrollbar : this.rightScrollbar;
 
-		ResourceViewer.show({ name, resource, size, etag }, container, scrollbar);
+		ResourceViewer.show({ name, resource, size, etag }, container, scrollbar, (meta) => this.handleMetadataChanged(meta, isOriginal));
+	}
+
+	private handleMetadataChanged(meta: string, isOriginal: boolean): void {
+		if (isOriginal) {
+			this.originalMetadata = meta;
+		} else {
+			this.modifiedMetadata = meta;
+		}
+
+		this._onMetadataChanged.fire();
+	}
+
+	public getMetadata(): string {
+		return nls.localize('metadataDiff', "{0} ↔ {1}", this.originalMetadata, this.modifiedMetadata);
 	}
 
 	public clearInput(): void {
+
+		// Clear Meta
+		this.handleMetadataChanged(null, true);
+		this.handleMetadataChanged(null, false);
 
 		// Empty HTML Container
 		$(this.leftBinaryContainer).empty();

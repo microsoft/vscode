@@ -34,8 +34,10 @@ export class TerminalInstance implements ITerminalInstance {
 	private _isExiting: boolean;
 	private _isVisible: boolean;
 	private _onDisposed: Emitter<TerminalInstance>;
+	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
+	private _processId: number;
 	private _skipTerminalKeybindings: Keybinding[];
 	private _title: string;
 	private _toDispose: lifecycle.IDisposable[];
@@ -44,7 +46,9 @@ export class TerminalInstance implements ITerminalInstance {
 	private _xtermElement: HTMLDivElement;
 
 	public get id(): number { return this._id; }
+	public get processId(): number { return this._processId; }
 	public get onClosed(): Event<TerminalInstance> { return this._onDisposed.event; }
+	public get onProcessIdReady(): Event<TerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
 
@@ -64,8 +68,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isVisible = false;
 		this._id = TerminalInstance._idCounter++;
 
-		this._onTitleChanged = new Emitter<string>();
 		this._onDisposed = new Emitter<TerminalInstance>();
+		this._onProcessIdReady = new Emitter<TerminalInstance>();
+		this._onTitleChanged = new Emitter<string>();
 
 		this._createProcess(_workspace, name, shell);
 
@@ -94,6 +99,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', (message) => {
 			if (message.type === 'data') {
 				this._xterm.write(message.content);
+			} else if (message.type === 'pid') {
+				this._processId = message.content;
+				this._onProcessIdReady.fire(this);
 			}
 		});
 		this._xterm.on('data', (data) => {
@@ -220,6 +228,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.scrollDisp(-1);
 	}
 
+	public clear(): void {
+		this._xterm.clear();
+	}
+
 	private sanitizeInput(data: any) {
 		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
 	}
@@ -309,7 +321,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return this._keybindingService.lookupKeybindings(c);
 		}).reduce((prev, curr) => {
 			return prev.concat(curr);
-		});
+		}, []);
 	}
 
 	public layout(dimension: Dimension): void {
