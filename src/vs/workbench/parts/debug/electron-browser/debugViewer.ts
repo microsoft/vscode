@@ -18,7 +18,7 @@ import labels = require('vs/base/common/labels');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import tree = require('vs/base/parts/tree/browser/tree');
-import inputbox = require('vs/base/browser/ui/inputbox/inputBox');
+import {InputBox, IInputValidationOptions} from 'vs/base/browser/ui/inputbox/inputBox';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -89,12 +89,12 @@ interface IRenameBoxOptions {
 	initialValue: string;
 	ariaLabel: string;
 	placeholder?: string;
-	validationOptions?: inputbox.IInputValidationOptions;
+	validationOptions?: IInputValidationOptions;
 }
 
 function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any, container: HTMLElement, options: IRenameBoxOptions): void {
 	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
-	let inputBox = new inputbox.InputBox(inputBoxContainer, contextViewService, {
+	let inputBox = new InputBox(inputBoxContainer, contextViewService, {
 		validationOptions: options.validationOptions,
 		placeholder: options.placeholder,
 		ariaLabel: options.ariaLabel
@@ -102,6 +102,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
+	inputBox.select();
 
 	let disposed = false;
 	const toDispose: [lifecycle.IDisposable] = [inputBox];
