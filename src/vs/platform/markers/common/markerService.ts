@@ -248,12 +248,12 @@ export class MarkerService implements IMarkerService {
 			errors: errors,
 			warnings: warnings,
 			infos: infos,
-			unknwons: unknwons
+			unknowns: unknwons
 		};
 	}
 
 	private _emptyStats(): MarkerStatistics {
-		return { errors: 0, warnings: 0, infos: 0, unknwons: 0 };
+		return { errors: 0, warnings: 0, infos: 0, unknowns: 0 };
 	}
 
 	private _updateStatsPlus(toAdd: MarkerStatistics): void;
@@ -266,7 +266,7 @@ export class MarkerService implements IMarkerService {
 		toUpdate.errors += toAdd.errors;
 		toUpdate.warnings += toAdd.warnings;
 		toUpdate.infos += toAdd.infos;
-		toUpdate.unknwons += toAdd.unknwons;
+		toUpdate.unknowns += toAdd.unknowns;
 	}
 
 	private _updateStatsMinus(toSubtract: MarkerStatistics): void;
@@ -279,7 +279,7 @@ export class MarkerService implements IMarkerService {
 		toUpdate.errors -= toSubtract.errors;
 		toUpdate.warnings -= toSubtract.warnings;
 		toUpdate.infos -= toSubtract.infos;
-		toUpdate.unknwons -= toSubtract.unknwons;
+		toUpdate.unknowns -= toSubtract.unknowns;
 	}
 
 	private _updateStatsMarker(toUpdate: MarkerStatistics, marker: IMarkerData): void {
@@ -294,7 +294,7 @@ export class MarkerService implements IMarkerService {
 				toUpdate.infos++;
 				break;
 			default:
-				toUpdate.unknwons++;
+				toUpdate.unknowns++;
 				break;
 		}
 	}
