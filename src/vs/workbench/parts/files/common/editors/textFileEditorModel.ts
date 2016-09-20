@@ -392,6 +392,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		diag(`doSave(${versionId}) - enter with versionId ' + versionId`, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
+		//
+		// Scenario: user invoked the save action multiple times quickly for the same contents
+		//           while the save was not yet finished to disk
+		//
 		const pendingSave = this.mapPendingSaveToVersionId[versionId];
 		if (pendingSave) {
 			diag(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource, new Date());
@@ -400,10 +404,32 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Return early if not dirty or version changed meanwhile
+		//
+		// Scenario A: user invoked save action even though the model is not dirty
+		// Scenario B: auto save was triggered for a certain change by the user but meanwhile the user changed
+		//             the contents and the version for which auto save was started is no longer the latest.
+		//             Thus we avoid spawning multiple auto saves and only take the latest.
+		//
 		if (!this.dirty || versionId !== this.versionId) {
 			diag(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource, new Date());
 
 			return TPromise.as<void>(null);
+		}
+
+		// Return if currently saving by scheduling another auto save. Never ever must 2 saves execute at the same time because
+		// this can lead to dirty writes and race conditions
+		//
+		// Scenario: auto save was triggered and is currently busy saving to disk. this takes long enough that another auto save
+		//           kicks in. since we never want to trigger 2 saves at the same time, we push out this auto save for the
+		//           configured auto save delay assuming that it can proceed next time it triggers.
+		//
+		if (this.isBusySaving()) {
+			diag(`doSave(${versionId}) - exit - because busy saving`, this.resource, new Date());
+
+			// Avoid endless loop here and guard if auto save is disabled
+			if (this.autoSaveAfterMilliesEnabled) {
+				return this.doAutoSave(versionId);
+			}
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
