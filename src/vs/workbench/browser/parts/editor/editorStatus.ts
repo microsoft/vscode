@@ -64,7 +64,7 @@ function getTextModel(editorWidget: IEditor): IModel {
 	// make sure to resolve any possible diff editors to their modified side
 	editorWidget = getCodeEditor(editorWidget);
 
-	return <IModel>editorWidget.getModel();
+	return editorWidget ? <IModel>editorWidget.getModel() : null;
 }
 
 function asFileOrUntitledEditorInput(input: any): UntitledEditorInput | IFileEditorInput {
