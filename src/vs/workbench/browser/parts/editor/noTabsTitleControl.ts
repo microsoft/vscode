@@ -7,15 +7,15 @@
 
 import 'vs/css!./media/notabstitle';
 import errors = require('vs/base/common/errors');
-import {IEditorGroup} from 'vs/workbench/common/editor';
+import {IEditorGroup, getResource} from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
 import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
+import {EditorLabel} from 'vs/workbench/browser/parts/editor/editorLabel';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
-	private titleLabel: HTMLElement;
 	private titleDecoration: HTMLElement;
-	private titleDescription: HTMLElement;
+	private editorLabel: EditorLabel;
 
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
@@ -27,6 +27,7 @@ export class NoTabsTitleControl extends TitleControl {
 		super.create(parent);
 
 		this.titleContainer = parent;
+		DOM.addClass(this.titleContainer, 'show-file-icons');
 
 		// Pin on double click
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
@@ -39,21 +40,10 @@ export class NoTabsTitleControl extends TitleControl {
 		DOM.addClass(this.titleDecoration, 'title-decoration');
 		this.titleContainer.appendChild(this.titleDecoration);
 
-		// Left Title Label & Description
-		const labelContainer = document.createElement('div');
-		DOM.addClass(labelContainer, 'title-label');
-
-		this.titleLabel = document.createElement('a');
-		labelContainer.appendChild(this.titleLabel);
-
-		this.titleDescription = document.createElement('span');
-		labelContainer.appendChild(this.titleDescription);
-
-		// Detect title label & description click
-		this.toDispose.push(DOM.addDisposableListener(this.titleLabel, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
-		this.toDispose.push(DOM.addDisposableListener(this.titleDescription, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
-
-		this.titleContainer.appendChild(labelContainer);
+		// Editor Label
+		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer);
+		this.toDispose.push(this.editorLabel);
+		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.getHTMLElement(), DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -109,9 +99,7 @@ export class NoTabsTitleControl extends TitleControl {
 		const group = this.context;
 		const editor = group && group.activeEditor;
 		if (!editor) {
-			this.titleLabel.innerText = '';
-			this.titleDescription.innerText = '';
-
+			this.editorLabel.clear();
 			this.clearEditorActionsToolbar();
 
 			return; // return early if we are being closed
@@ -120,13 +108,6 @@ export class NoTabsTitleControl extends TitleControl {
 		const isPinned = group.isPinned(group.activeEditor);
 		const isActive = this.stacks.isActive(group);
 
-		// Pinned state
-		if (isPinned) {
-			DOM.addClass(this.titleContainer, 'pinned');
-		} else {
-			DOM.removeClass(this.titleContainer, 'pinned');
-		}
-
 		// Activity state
 		if (isActive) {
 			DOM.addClass(this.titleContainer, 'active');
@@ -134,7 +115,8 @@ export class NoTabsTitleControl extends TitleControl {
 			DOM.removeClass(this.titleContainer, 'active');
 		}
 
-		// Editor Title
+		// Editor Label
+		const resource = getResource(editor);
 		const name = editor.getName() || '';
 		const description = isActive ? (editor.getDescription() || '') : '';
 		let verboseDescription = editor.getDescription(true) || '';
@@ -142,11 +124,7 @@ export class NoTabsTitleControl extends TitleControl {
 			verboseDescription = ''; // dont repeat what is already shown
 		}
 
-		this.titleLabel.innerText = name;
-		this.titleLabel.title = verboseDescription;
-
-		this.titleDescription.innerText = description;
-		this.titleDescription.title = verboseDescription;
+		this.editorLabel.setLabel({ name, description, resource}, { title: verboseDescription, italic: !isPinned, extraClasses: ['title-label'] });
 
 		// Editor Decoration
 		if (editor.isDirty()) {
