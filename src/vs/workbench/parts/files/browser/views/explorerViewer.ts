@@ -14,6 +14,7 @@ import {MIME_BINARY} from 'vs/base/common/mime';
 import async = require('vs/base/common/async');
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
+import {getFileIconClasses} from 'vs/base/browser/ui/fileLabel/fileLabel';
 import {isString} from 'vs/base/common/types';
 import {IAction, ActionRunner as BaseActionRunner, IActionRunner} from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
@@ -295,7 +296,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 				const fileItem = $(<HTMLElement>fileItems.item(i));
 				const resourcePath = fileItem.getProperty(FileRenderer.RESOURCE_PATH_KEY);
 				if (resourcePath) {
-					fileItem.setClass(['explorer-item', ...this.fileIconClasses(resourcePath)].join(' '));
+					fileItem.setClass(['explorer-item', ...getFileIconClasses(resourcePath, path => this.modeService.getModeIdByFilenameOrFirstLine(path))].join(' '));
 					fileItem.removeProperty(FileRenderer.RESOURCE_PATH_KEY);
 				}
 			}
@@ -312,9 +313,9 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		// Item Container
 		const item = $('.explorer-item');
 		if (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) {
-			item.addClass(...this.folderIconClasses(stat.resource.fsPath));
+			item.addClass(...getFileIconClasses(stat.resource, path => this.modeService.getModeIdByFilenameOrFirstLine(path), true));
 		} else {
-			item.addClass(...this.fileIconClasses(stat.resource.fsPath));
+			item.addClass(...getFileIconClasses(stat.resource, path => this.modeService.getModeIdByFilenameOrFirstLine(path)));
 
 			// We need to re-apply the icon CSS classes once the extension host is ready
 			if (!this.extensionsReady) {
@@ -389,48 +390,6 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		];
 
 		return () => done(true);
-	}
-
-	private fileIconClasses(fsPath: string): string[] {
-		const classes = ['file-icon'];
-
-		const basename = paths.basename(fsPath);
-		const dotSegments = basename.split('.');
-
-		const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
-		if (name) {
-			classes.push(`${this.cssEscape(name.toLowerCase())}-name-file-icon`);
-		}
-
-		const extensions = dotSegments.splice(1);
-		if (extensions.length > 0) {
-			for (let i = 0; i < extensions.length; i++) {
-				classes.push(`${this.cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
-			}
-		}
-
-		const langId = this.modeService.getModeIdByFilenameOrFirstLine(fsPath);
-		if (langId) {
-			classes.push(`${this.cssEscape(langId)}-lang-file-icon`);
-		}
-
-		return classes;
-	}
-
-	private folderIconClasses(fsPath: string): string[] {
-		const basename = paths.basename(fsPath);
-
-		const classes = ['folder-icon'];
-
-		if (basename) {
-			classes.push(`${this.cssEscape(basename.toLowerCase())}-name-folder-icon`);
-		}
-
-		return classes;
-	}
-
-	private cssEscape(val: string): string {
-		return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
 	}
 }
 
