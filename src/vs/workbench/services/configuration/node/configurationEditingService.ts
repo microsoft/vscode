@@ -100,9 +100,9 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to the configuration file (Unknown Key)");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_TARGET: return nls.localize('errorInvalidTarget', "Unable to write to the configuration file (Invalid Target)");
-			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorWorkspaceOpened', "Unable to write to the workspace configuration file (No Workspace Opened)");
 
 			// User issues
+			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write settings because no folder is opened. Please open a folder first and try again.");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
 				if (target === ConfigurationTarget.USER) {
 					return nls.localize('errorInvalidConfiguration', "Unable to write settings. Please open **User Settings** to correct errors/warnings in the file and try again.");
@@ -164,7 +164,6 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				return { error: ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY };
 			}
 
-			// Target cannot contain JSON errors
 			return pfs.exists(resource.fsPath).then(exists => {
 				if (!exists) {
 					return { exists };
@@ -172,9 +171,16 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 				return pfs.readFile(resource.fsPath).then(contentsRaw => {
 					const contents = contentsRaw.toString(encoding.UTF8);
+
+					// If we write to a workspace standalone file and replace the entire contents (no key provided)
+					// we can return here because any parse errors can safely be ignored since all contents are replaced
+					if (operation.isWorkspaceStandalone && !operation.key) {
+						return { exists, contents };
+					}
+
+					// Target cannot contain JSON errors
 					const parseErrors = [];
 					json.parse(contents, parseErrors);
-
 					if (parseErrors.length > 0) {
 						return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
 					}
