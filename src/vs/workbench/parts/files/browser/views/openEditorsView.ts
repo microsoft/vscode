@@ -88,6 +88,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		dom.addClass(this.treeContainer, 'explorer-open-editors');
+		dom.addClass(this.treeContainer, 'show-file-icons');
 
 		const dataSource = this.instantiationService.createInstance(DataSource);
 		const actionProvider = this.instantiationService.createInstance(ActionProvider, this.model);

@@ -145,15 +145,6 @@
 	border: none;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor > .description {
-	opacity: .7;
-	margin-left: .5em;
-	font-size: .9em;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
-	font-style: italic;
-}
 
 /* High Contrast Theming */
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item,
