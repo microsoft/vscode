@@ -240,7 +240,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.push(this.session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
-				if (this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
+				if (this.session && this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (this.session) {
@@ -330,7 +330,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
+			if (this.session && this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (this.session && this.session.getId() === event.body.sessionId) {
