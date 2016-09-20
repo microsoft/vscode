@@ -14,6 +14,11 @@ import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import {IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy} from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 
+export interface BulkUpdater {
+	add(resource: URI, markers: IMarker[]);
+	done();
+}
+
 export class Resource {
 
 	private _name: string = null;
@@ -140,6 +145,17 @@ export class MarkersModel {
 
 	public get nonFilteredResources(): Resource[] {
 		return this._nonFilteredResources;
+	}
+
+	public getBulkUpdater(): BulkUpdater {
+		return {
+			add: (resourceUri: URI, markers: IMarker[]) => {
+				this.updateResource(resourceUri, markers);
+			},
+			done: () => {
+				this.refresh();
+			}
+		};
 	}
 
 	public update(filterOptions: FilterOptions);
