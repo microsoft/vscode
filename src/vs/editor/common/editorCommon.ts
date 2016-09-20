@@ -4136,7 +4136,7 @@ export function isCommonCodeEditor(thing: any): thing is ICommonCodeEditor {
  */
 export function isCommonDiffEditor(thing: any): thing is ICommonDiffEditor {
 	if (thing && typeof (<ICommonDiffEditor>thing).getEditorType === 'function') {
-		return (<ICommonDiffEditor>thing).getEditorType() === EditorType.ICodeEditor;
+		return (<ICommonDiffEditor>thing).getEditorType() === EditorType.IDiffEditor;
 	} else {
 		return false;
 	}

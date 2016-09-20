@@ -7,7 +7,6 @@
 
 import 'vs/css!./media/statusbarpart';
 import dom = require('vs/base/browser/dom');
-import types = require('vs/base/common/types');
 import nls = require('vs/nls');
 import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -16,7 +15,6 @@ import {Builder, $} from 'vs/base/browser/builder';
 import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import {Registry} from 'vs/platform/platform';
 import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IAction} from 'vs/base/common/actions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Part} from 'vs/workbench/browser/part';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -25,6 +23,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IStatusbarService, IStatusbarEntry} from 'vs/platform/statusbar/common/statusbar';
+import {getCodeEditor} from 'vs/editor/common/services/codeEditorService';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -236,30 +235,12 @@ class StatusBarEntryItem implements IStatusbarItem {
 	}
 
 	private executeCommand(id: string) {
-		let action: IAction;
-		let activeEditor = this.editorService.getActiveEditor();
 
 		// Lookup built in commands
 		let builtInActionDescriptor = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).getWorkbenchAction(id);
 		if (builtInActionDescriptor) {
-			action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
-		}
+			let action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
 
-		// Lookup editor commands
-		if (!action) {
-			let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
-			if (activeEditorControl && types.isFunction(activeEditorControl.getAction)) {
-				action = activeEditorControl.getAction(id);
-			}
-		}
-
-		// Some actions or commands might only be enabled for an active editor, so focus it first
-		if (activeEditor) {
-			activeEditor.focus();
-		}
-
-		// Run it if enabled
-		if (action) {
 			if (action.enabled) {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
 				(action.run() || TPromise.as(null)).done(() => {
@@ -268,11 +249,18 @@ class StatusBarEntryItem implements IStatusbarItem {
 			} else {
 				this.messageService.show(Severity.Warning, nls.localize('canNotRun', "Command '{0}' can not be run from here.", action.label || id));
 			}
+
+			return;
 		}
 
-		// Fallback to the keybinding service for any other case
-		else {
-			this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+		// Maintain old behaviour of always focusing the editor here
+		let activeEditor = this.editorService.getActiveEditor();
+		let codeEditor = getCodeEditor(activeEditor);
+		if (codeEditor) {
+			codeEditor.focus();
 		}
+
+		// Fallback to the command service for any other case
+		this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
 	}
 }
