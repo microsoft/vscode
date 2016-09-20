@@ -10,6 +10,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {toErrorMessage} from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
+import * as assert from 'vs/base/common/assert';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
@@ -69,13 +70,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	) {
 		super(modelService, modeService);
 
-		this.toDispose = [];
+		assert.ok(resource.scheme === 'file', 'TextFileEditorModel can only handle file:// resources.');
 
 		this.resource = resource;
-		if (this.resource.scheme !== 'file') {
-			throw new Error('TextFileEditorModel can only handle file:// resources.');
-		}
-
+		this.toDispose = [];
 		this._onDidStateChange = new Emitter<StateChange>();
 		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
@@ -86,6 +84,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.mapPendingSaveToVersionId = {};
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
+
 		this.registerListeners();
 	}
 
@@ -290,11 +289,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private onModelContentChanged(e: IModelContentChangedEvent): void {
-		diag('onModelContentChanged(' + e.changeType + ') - enter', this.resource, new Date());
+		diag(`onModelContentChanged(${e.changeType}) - enter`, this.resource, new Date());
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
 		this.versionId++;
-		diag('onModelContentChanged() - new versionId ' + this.versionId, this.resource, new Date());
+		diag(`onModelContentChanged() - new versionId ${this.versionId}`, this.resource, new Date());
 
 		// Ignore if blocking model changes
 		if (this.blockModelContentChange) {
@@ -323,7 +322,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		diag('onModelContentChanged() - model content changed and marked as dirty', this.resource, new Date());
 
 		// Mark as dirty
-		this.makeDirty(e);
+		this.makeDirty();
 
 		// Start auto save process unless we are in conflict resolution mode and unless it is disabled
 		if (this.autoSaveAfterMilliesEnabled) {
@@ -335,7 +334,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private makeDirty(e?: IModelContentChangedEvent): void {
+	private makeDirty(): void {
 
 		// Track dirty state and version id
 		const wasDirty = this.dirty;
@@ -348,13 +347,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doAutoSave(versionId: number): TPromise<void> {
-		diag('doAutoSave() - enter for versionId ' + versionId, this.resource, new Date());
+		diag(`doAutoSave() - enter for versionId ${versionId}`, this.resource, new Date());
 
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.cancelAutoSavePromises();
 
 		// Create new save promise and keep it
-		const promise: TPromise<void> = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
+		const promise = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
@@ -390,27 +389,42 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doSave(versionId: number, isAutoSaved: boolean, overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
-		diag('doSave(' + versionId + ') - enter with versionId ' + versionId, this.resource, new Date());
+		diag(`doSave(${versionId}) - enter with versionId ' + versionId`, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
+		//
+		// Scenario: user invoked the save action multiple times quickly for the same contents
+		//           while the save was not yet finished to disk
+		//
 		const pendingSave = this.mapPendingSaveToVersionId[versionId];
 		if (pendingSave) {
-			diag('doSave(' + versionId + ') - exit - found a pending save for versionId ' + versionId, this.resource, new Date());
+			diag(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource, new Date());
 
 			return pendingSave;
 		}
 
 		// Return early if not dirty or version changed meanwhile
+		//
+		// Scenario A: user invoked save action even though the model is not dirty
+		// Scenario B: auto save was triggered for a certain change by the user but meanwhile the user changed
+		//             the contents and the version for which auto save was started is no longer the latest.
+		//             Thus we avoid spawning multiple auto saves and only take the latest.
+		//
 		if (!this.dirty || versionId !== this.versionId) {
-			diag('doSave(' + versionId + ') - exit - because not dirty and/or versionId is different (this.isDirty: ' + this.dirty + ', this.versionId: ' + this.versionId + ')', this.resource, new Date());
+			diag(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource, new Date());
 
 			return TPromise.as<void>(null);
 		}
 
 		// Return if currently saving by scheduling another auto save. Never ever must 2 saves execute at the same time because
 		// this can lead to dirty writes and race conditions
+		//
+		// Scenario: auto save was triggered and is currently busy saving to disk. this takes long enough that another auto save
+		//           kicks in. since we never want to trigger 2 saves at the same time, we push out this auto save for the
+		//           configured auto save delay assuming that it can proceed next time it triggers.
+		//
 		if (this.isBusySaving()) {
-			diag('doSave(' + versionId + ') - exit - because busy saving', this.resource, new Date());
+			diag(`doSave(${versionId}) - exit - because busy saving`, this.resource, new Date());
 
 			// Avoid endless loop here and guard if auto save is disabled
 			if (this.autoSaveAfterMilliesEnabled) {
@@ -444,7 +458,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.lastSaveAttemptTime = Date.now();
 
 		// Save to Disk
-		diag('doSave(' + versionId + ') - before updateContent()', this.resource, new Date());
+		diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
 		this.mapPendingSaveToVersionId[versionId] = this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
 			overwriteReadonly: overwriteReadonly,
 			overwriteEncoding: overwriteEncoding,
@@ -452,20 +466,20 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			encoding: this.getEncoding(),
 			etag: this.versionOnDiskStat.etag
 		}).then((stat: IFileStat) => {
-			diag('doSave(' + versionId + ') - after updateContent()', this.resource, new Date());
-
-			// Telemetry
-			this.telemetryService.publicLog('filePUT', { mimeType: stat.mime, ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
+			diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 
 			// Remove from pending saves
 			delete this.mapPendingSaveToVersionId[versionId];
 
+			// Telemetry
+			this.telemetryService.publicLog('filePUT', { mimeType: stat.mime, ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
+
 			// Update dirty state unless model has changed meanwhile
 			if (versionId === this.versionId) {
-				diag('doSave(' + versionId + ') - setting dirty to false because versionId did not change', this.resource, new Date());
+				diag(`doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource, new Date());
 				this.setDirty(false);
 			} else {
-				diag('doSave(' + versionId + ') - not setting dirty to false because versionId did change meanwhile', this.resource, new Date());
+				diag(`doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource, new Date());
 			}
 
 			// Updated resolved stat with updated stat, and keep old for event
@@ -474,7 +488,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Emit File Saved Event
 			this._onDidStateChange.fire(StateChange.SAVED);
 		}, (error) => {
-			diag('doSave(' + versionId + ') - exit - resulted in a save error: ' + error.toString(), this.resource, new Date());
+			diag(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource, new Date());
 
 			// Remove from pending saves
 			delete this.mapPendingSaveToVersionId[versionId];
@@ -550,10 +564,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		TextFileEditorModel.saveErrorHandler.onSaveError(error, this);
 	}
 
-	private isBusySaving(): boolean {
-		return !types.isEmptyObject(this.mapPendingSaveToVersionId);
-	}
-
 	/**
 	 * Returns true if the content of this model has changes that are not yet saved back to the disk.
 	 */
@@ -598,6 +608,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.dirty) {
 			return ModelState.DIRTY;
 		}
+	}
+
+	private isBusySaving(): boolean {
+		return !types.isEmptyObject(this.mapPendingSaveToVersionId);
 	}
 
 	public getEncoding(): string {

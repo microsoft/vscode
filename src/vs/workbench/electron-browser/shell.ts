@@ -58,7 +58,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IMessageService, IChoiceService, Severity} from 'vs/platform/message/common/message';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -212,8 +212,8 @@ export class WorkbenchShell {
 		const disposables = new Disposables();
 
 		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle);
-		sharedProcess.done(service => {
-			service.onClose(() => {
+		sharedProcess.done(client => {
+			client.onClose(() => {
 				this.messageService.show(Severity.Error, {
 					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
 					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
@@ -273,6 +273,7 @@ export class WorkbenchShell {
 
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
+		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));

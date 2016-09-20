@@ -21,7 +21,9 @@ import {ICommandService} from 'vs/platform/commands/common/commands';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IWorkspaceContextService}from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {AutoSaveConfiguration} from 'vs/platform/files/common/files';
+import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
+import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {ElectronWindow} from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
@@ -50,14 +52,17 @@ const TextInputActions: IAction[] = [
 
 export class ElectronIntegration {
 
+	private static AUTO_SAVE_SETTING = 'files.autoSave';
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowService private windowService: IWindowService,
 		@IPartService private partService: IPartService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ICommandService private commandService: ICommandService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -117,6 +122,11 @@ export class ElectronIntegration {
 		// Message support
 		ipc.on('vscode:showInfoMessage', (event, message: string) => {
 			this.messageService.show(Severity.Info, message);
+		});
+
+		// Support toggling auto save
+		ipc.on('vscode.toggleAutoSave', (event) => {
+			this.toggleAutoSave();
 		});
 
 		// Ensure others can listen to zoom level changes
@@ -257,5 +267,18 @@ export class ElectronIntegration {
 
 			return input;
 		});
+	}
+
+	private toggleAutoSave(): void {
+		const userAutoSaveConfig = this.configurationService.lookup(ElectronIntegration.AUTO_SAVE_SETTING).user;
+
+		let newAutoSaveValue: string;
+		if (userAutoSaveConfig === AutoSaveConfiguration.OFF) {
+			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
+		} else {
+			newAutoSaveValue = AutoSaveConfiguration.OFF;
+		}
+
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronIntegration.AUTO_SAVE_SETTING, value: newAutoSaveValue }).done(null, (error) => this.messageService.show(Severity.Error, error));
 	}
 }

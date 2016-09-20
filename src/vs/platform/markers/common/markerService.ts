@@ -6,10 +6,9 @@
 
 import arrays = require('vs/base/common/arrays');
 import network = require('vs/base/common/network');
-import strings = require('vs/base/common/strings');
 import collections = require('vs/base/common/collections');
 import URI from 'vs/base/common/uri';
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import {IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics} from './markers';
 
@@ -18,24 +17,36 @@ interface Key {
 	resource: URI;
 }
 
-module Key {
+namespace Key {
 
 	export function fromValue(value: string): Key {
-		let regexp = /^(.*)→(.*)$/.exec(value);
-		return {
-			owner: regexp[1],
-			resource: URI.parse(regexp[2])
-		};
+		const idx = value.indexOf('→');
+		const owner = value.substring(0, idx);
+		const resource = URI.parse(value.substring(idx + 1));
+		return { owner, resource };
 	}
 
-	export function valueOf(k: Key): string {
-		return k.owner + '→' + k.resource;
-	}
+	export function selector(owner?: string, resource?: URI): (input: string)=> boolean {
 
-	let _selectorPattern = '^({0})→({1})$';
+		if (!owner && !resource) {
+			// anything
+			return input => true;
 
-	export function selector(owner?: string, resource?: URI): RegExp {
-		return new RegExp(strings.format(_selectorPattern, owner ? strings.escapeRegExpCharacters(owner) : '.*', resource ? strings.escapeRegExpCharacters(resource.toString()) : '.*'));
+		} else if (!owner) {
+			// ends with
+			const suffix = '→' + resource.toString();
+			return input => input.lastIndexOf(suffix) === input.length - suffix.length;
+
+		} else if (!resource) {
+			// starts with
+			const prefix = owner + `→`;
+			return input => input.indexOf(prefix) === 0;
+
+		} else {
+			// exact match
+			const match = owner + '→' + resource.toString();
+			return input => input === match;
+		}
 	}
 
 	export function raw(owner: string, resource: URI): string {
@@ -49,15 +60,21 @@ export interface MarkerData {
 
 
 export class MarkerService implements IMarkerService {
+
 	public _serviceBrand: any;
+
 	private _data: { [k: string]: IMarkerData[] };
+
 	private _stats: MarkerStatistics;
-	private _onMarkerChanged: Emitter<URI[]>;
+
+	private _onMarkerChanged = new Emitter<URI[]>();
+
+	private _onMarkerChangedEvent: Event<URI[]> = debounceEvent(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+
 
 	constructor() {
 		this._data = Object.create(null);
 		this._stats = this._emptyStats();
-		this._onMarkerChanged = new Emitter<URI[]>();
 	}
 
 	public getStatistics(): MarkerStatistics {
@@ -67,7 +84,7 @@ export class MarkerService implements IMarkerService {
 	// ---- IMarkerService ------------------------------------------
 
 	public get onMarkerChanged(): Event<URI[]> {
-		return this._onMarkerChanged ? this._onMarkerChanged.event : null;
+		return this._onMarkerChangedEvent;
 	}
 
 	public changeOne(owner: string, resource: URI, markers: IMarkerData[]): void {
@@ -123,7 +140,7 @@ export class MarkerService implements IMarkerService {
 
 		// remove and record old markers
 		let oldStats = this._emptyStats();
-		this._forEach(owner, undefined, undefined, -1, (e, r) => {
+		this._forEach(owner, undefined, -1, (e, r) => {
 			let resource = Key.fromValue(e.key).resource;
 			if (this._isStatRelevant(resource)) {
 				this._updateStatsPlus(oldStats, this._computeStats(e.value));
@@ -148,9 +165,9 @@ export class MarkerService implements IMarkerService {
 		this._onMarkerChanged.fire(collections.values(changedResources));
 	}
 
-	public read(filter: { owner?: string; resource?: URI; selector?: RegExp, take?: number; } = Object.create(null)): IMarker[] {
+	public read(filter: { owner?: string; resource?: URI; take?: number; } = Object.create(null)): IMarker[] {
 		let ret: IMarker[] = [];
-		this._forEach(filter.owner, filter.resource, filter.selector, filter.take, entry => this._fromEntry(entry, ret));
+		this._forEach(filter.owner, filter.resource, filter.take, entry => this._fromEntry(entry, ret));
 		return ret;
 	}
 
@@ -159,19 +176,19 @@ export class MarkerService implements IMarkerService {
 		return resource.scheme !== network.Schemas.inMemory;
 	}
 
-	private _forEach(owner: string, resource: URI, regexp: RegExp, take: number, callback: (entry: { key: string; value: IMarkerData[]; }, remove: Function) => any): void {
+	private _forEach(owner: string, resource: URI, take: number, callback: (entry: { key: string; value: IMarkerData[]; }, remove: Function) => any): void {
 		//TODO@Joh: be smart and use an index
-		let selector = regexp || Key.selector(owner, resource),
-			took = 0;
+		const selector = Key.selector(owner, resource);
 
-		collections.forEach(this._data, (entry, remove) => {
-			if (selector.test(entry.key)) {
-				callback(entry, remove);
+		let took = 0;
+		for (let key in this._data) {
+			if (selector(key)) {
+				callback({ key, value: this._data[key] }, () => delete this._data[key]);
 				if (take > 0 && took++ >= take) {
-					return false;
+					break;
 				}
 			}
-		});
+		}
 	}
 
 	private _fromEntry(entry: { key: string; value: IMarkerData[]; }, bucket: IMarker[]): void {
@@ -231,12 +248,12 @@ export class MarkerService implements IMarkerService {
 			errors: errors,
 			warnings: warnings,
 			infos: infos,
-			unknwons: unknwons
+			unknowns: unknwons
 		};
 	}
 
 	private _emptyStats(): MarkerStatistics {
-		return { errors: 0, warnings: 0, infos: 0, unknwons: 0 };
+		return { errors: 0, warnings: 0, infos: 0, unknowns: 0 };
 	}
 
 	private _updateStatsPlus(toAdd: MarkerStatistics): void;
@@ -249,7 +266,7 @@ export class MarkerService implements IMarkerService {
 		toUpdate.errors += toAdd.errors;
 		toUpdate.warnings += toAdd.warnings;
 		toUpdate.infos += toAdd.infos;
-		toUpdate.unknwons += toAdd.unknwons;
+		toUpdate.unknowns += toAdd.unknowns;
 	}
 
 	private _updateStatsMinus(toSubtract: MarkerStatistics): void;
@@ -262,7 +279,7 @@ export class MarkerService implements IMarkerService {
 		toUpdate.errors -= toSubtract.errors;
 		toUpdate.warnings -= toSubtract.warnings;
 		toUpdate.infos -= toSubtract.infos;
-		toUpdate.unknwons -= toSubtract.unknwons;
+		toUpdate.unknowns -= toSubtract.unknowns;
 	}
 
 	private _updateStatsMarker(toUpdate: MarkerStatistics, marker: IMarkerData): void {
@@ -277,7 +294,7 @@ export class MarkerService implements IMarkerService {
 				toUpdate.infos++;
 				break;
 			default:
-				toUpdate.unknwons++;
+				toUpdate.unknowns++;
 				break;
 		}
 	}
@@ -293,5 +310,23 @@ export class MarkerService implements IMarkerService {
 		data.endLineNumber = data.endLineNumber >= data.startLineNumber ? data.endLineNumber : data.startLineNumber;
 		data.endColumn = data.endColumn > 0 ? data.endColumn : data.startColumn;
 		return true;
+	}
+
+	// --- event debounce logic
+
+	private static _dedupeMap: { [uri: string]: boolean };
+
+	private static _debouncer(last: URI[], event: URI[]): URI[] {
+		if (!last) {
+			MarkerService._dedupeMap = Object.create(null);
+			last = [];
+		}
+		for (const uri of event) {
+			if (MarkerService._dedupeMap[uri.toString()] === void 0) {
+				MarkerService._dedupeMap[uri.toString()] = true;
+				last.push(uri);
+			}
+		}
+		return last;
 	}
 }

@@ -178,15 +178,25 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const menu = instantiationService.createInstance(VSCodeMenu);
 	menu.ready();
 
-	// Install Tasks
-	if (platform.isWindows && envService.isBuilt) {
-		app.setUserTasks([
+	// Install JumpList on Windows
+	if (platform.isWindows) {
+		app.setJumpList([
 			{
-				title: nls.localize('newWindow', "New Window"),
-				program: process.execPath,
-				arguments: '-n', // force new window
-				iconPath: process.execPath,
-				iconIndex: 0
+				type: 'tasks',
+				items: [
+					{
+						type: 'task',
+						title: nls.localize('newWindow', "New Window"),
+						description: nls.localize('newWindowDesc', "Opens a new window"),
+						program: process.execPath,
+						args: '-n', // force new window
+						iconPath: process.execPath,
+						iconIndex: 0
+					}
+				]
+			},
+			{
+				type: 'recent' // this enables to show files in the "recent" category
 			}
 		]);
 	}
@@ -287,7 +297,7 @@ function getUnixShellEnvironment(): TPromise<IEnv> {
 			ELECTRON_NO_ATTACH_CONSOLE: '1'
 		});
 
-		const command = `'${process.execPath}' -p '"${ mark }" + JSON.stringify(process.env) + "${ mark }"'`;
+		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
@@ -412,7 +422,7 @@ function start(): void {
 				.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
 		});
 	})
-	.done(null, err => instantiationService.invokeFunction(quit, err));
+		.done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
 start();

@@ -27,8 +27,8 @@ before_install:
   - git submodule update --init --recursive
   - git clone https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
-  - nvm install 5.10
-  - nvm use 5.10
+  - nvm install 6.6.0
+  - nvm use 6.6.0
   - npm config set python `which python`
   - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then

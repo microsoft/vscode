@@ -31,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer } from './extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from './extensions';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, InstallVSIXAction } from './extensionsActions';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
 import { Query } from '../common/extensionQuery';
 import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
@@ -204,7 +204,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private query(value: string): TPromise<PagedModel<IExtension>> {
 		if (!value || /@outdated/i.test(value)) {
-			let local = this.extensionsWorkbenchService.queryLocal();
+			let local = this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.filter(e => e.type === LocalExtensionType.User));
 
 			if (/@outdated/i.test(value)) {
 				local = local.then(result => result.filter(e => e.outdated));
@@ -233,20 +234,22 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		if (/@recommended/i.test(query.value)) {
 			const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
-			return this.extensionsWorkbenchService.queryLocal().then(local => {
-				const names = this.tipsService.getRecommendations()
-					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
-					.filter(name => name.toLowerCase().indexOf(value) > -1);
+			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.filter(e => e.type === LocalExtensionType.User))
+				.then(local => {
+					const names = this.tipsService.getRecommendations()
+						.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
+						.filter(name => name.toLowerCase().indexOf(value) > -1);
 
-				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
+					this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
 
-				if (!names.length) {
-					return new PagedModel([]);
-				}
+					if (!names.length) {
+						return new PagedModel([]);
+					}
 
-				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(result => new PagedModel(result));
-			});
+					return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+						.then(result => new PagedModel(result));
+				});
 		}
 
 		if (query.value) {

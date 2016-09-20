@@ -59,6 +59,7 @@ export interface ITerminalService {
 	configHelper: TerminalConfigHelper;
 	onActiveInstanceChanged: Event<string>;
 	onInstanceDisposed: Event<ITerminalInstance>;
+	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
@@ -84,6 +85,11 @@ export interface ITerminalInstance {
 	 * terminal instance.
 	 */
 	id: number;
+
+	/**
+	 * The process ID of the shell process.
+	 */
+	processId: number;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.
@@ -140,6 +146,11 @@ export interface ITerminalInstance {
 	 * Scroll the terminal buffer up 1 line.
 	 */
 	scrollUp(): void;
+
+	/**
+	 * Clears the terminal buffer, leaving only the prompt line.
+	 */
+	clear(): void;
 
 	/**
 	 * Attaches the terminal instance to an element on the DOM, before this is called the terminal

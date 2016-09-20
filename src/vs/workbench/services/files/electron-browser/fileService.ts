@@ -216,6 +216,10 @@ export class FileService implements IFileService {
 		return this.raw.createFolder(resource);
 	}
 
+	public touchFile(resource: uri): TPromise<IFileStat> {
+		return this.raw.touchFile(resource);
+	}
+
 	public rename(resource: uri, newName: string): TPromise<IFileStat> {
 		return this.raw.rename(resource, newName);
 	}

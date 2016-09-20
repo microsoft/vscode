@@ -20,38 +20,20 @@
 	flex-wrap: nowrap;
 }
 
-.explorer-viewlet .explorer-item-label,
+.explorer-viewlet .explorer-item > a,
 .explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.explorer-viewlet .explorer-item-label,
+.explorer-viewlet .explorer-item,
 .explorer-viewlet .explorer-item .monaco-inputbox {
-	display: inline-block; /* required for icons support :before rule */
 	flex: 1;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content {
 	display: flex;
-}
-
-.explorer-viewlet .explorer-folders-view.show-file-icons .folder-icon::before,
-.explorer-viewlet .explorer-folders-view.show-file-icons .file-icon::before {
-
-	/* svg icons rendered as background image */
-	background-size: 16px;
-	background-position: left center;
-	background-repeat: no-repeat;
-	padding-right: 6px;
-	width: 16px;
-	height: 22px;
-	display: inline-block;
-
-	/* fonts icons */
-	-webkit-font-smoothing: antialiased;
-	vertical-align: top;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
@@ -145,15 +127,6 @@
 	border: none;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor > .description {
-	opacity: .7;
-	margin-left: .5em;
-	font-size: .9em;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
-	font-style: italic;
-}
 
 /* High Contrast Theming */
 .hc-black .monaco-workbench .explorer-viewlet .explorer-item,

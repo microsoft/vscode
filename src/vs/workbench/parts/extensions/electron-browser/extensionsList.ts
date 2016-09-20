@@ -15,7 +15,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension } from './extensions';
-import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, BuiltinStatusLabelAction } from './extensionsActions';
 import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 
@@ -68,12 +68,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
 
+		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const restartAction = this.instantiationService.createInstance(EnableAction);
 
-		actionbar.push([restartAction, updateAction, installAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, installAction, updateAction, restartAction, actionbar];
+		actionbar.push([restartAction, updateAction, installAction, builtinStatusAction], actionOptions);
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, installAction, builtinStatusAction, updateAction, restartAction, actionbar];
 
 		return {
 			element, icon, name, installCount, ratings, author, description, disposables,
@@ -82,6 +83,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				versionWidget.extension = extension;
 				installCountWidget.extension = extension;
 				ratingsWidget.extension = extension;
+				builtinStatusAction.extension = extension;
 				installAction.extension = extension;
 				updateAction.extension = extension;
 				restartAction.extension = extension;

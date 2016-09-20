@@ -117,7 +117,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'explorer-folders-view');
-		DOM.addClass(this.treeContainer, 'show-file-icons'); // always on, for now
+		DOM.addClass(this.treeContainer, 'show-file-icons');
 
 		this.tree = this.createViewer($(this.treeContainer));
 
