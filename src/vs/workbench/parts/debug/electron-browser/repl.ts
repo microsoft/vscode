@@ -126,7 +126,7 @@ export class Repl extends Panel implements IPrivateReplService {
 				this.refreshTimeoutHandle = null;
 				const previousScrollPosition = this.tree.getScrollPosition();
 				this.tree.refresh().then(() => {
-					if (previousScrollPosition === 1) {
+					if (previousScrollPosition === 1 || previousScrollPosition === 0) {
 						// Only scroll if we were scrolled all the way down before tree refreshed #10486
 						this.tree.setScrollPosition(1);
 					}
