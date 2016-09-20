@@ -13,6 +13,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 
 export interface TextDocumentWillSaveEvent {
+	document: vscode.TextDocument;
 	waitUntil(t: Thenable<any>): void;
 }
 
@@ -52,16 +53,23 @@ export class ExtHostDocumentSaveParticipant {
 	}
 
 	private _deliverEventAsync(listener: Function, thisArg: any, document: vscode.TextDocument): TPromise<any> {
+
 		const promises: TPromise<any>[] = [];
-		const event = {
+
+		const event: TextDocumentWillSaveEvent = Object.freeze({
+			document,
 			waitUntil(p: Thenable<any>) {
+				if (Object.isFrozen(promises)) {
+					throw illegalState('waitUntil can not be called async');
+				}
 				promises.push(TPromise.wrap(p));
 			}
-		};
+		});
+
 		try {
 			listener.apply(thisArg, [event]);
 		} finally {
-			event.waitUntil = () => { throw illegalState(); };
+			Object.freeze(promises);
 			return TPromise.join(promises).then(() => void 0, err => void 0 /* ignore */);
 		}
 	}

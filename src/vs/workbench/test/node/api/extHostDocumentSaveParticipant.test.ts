@@ -61,7 +61,23 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 	});
 
-	test('event delivery in subscribe order', () => {
+	test('event delivery, immutable', () => {
+		const participant = new ExtHostDocumentSaveParticipant(documents);
+
+		let event: TextDocumentWillSaveEvent;
+		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
+			event = e;
+		});
+
+		return participant.$participateInSave(resource).then(() => {
+			sub.dispose();
+
+			assert.ok(event);
+			assert.throws(() => event.document = null);
+		});
+	});
+
+	test('event delivery, in subscriber order', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents);
 
 		let counter = 0;
