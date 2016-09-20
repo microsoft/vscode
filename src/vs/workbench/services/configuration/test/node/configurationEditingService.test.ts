@@ -291,4 +291,26 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 			});
 		});
 	});
+
+	test('write workspace standalone setting - existing file with JSON errors - full JSON', (done: () => void) => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
+			return createServices(workspaceDir, globalSettingsFile).then(services => {
+				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
+
+				fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
+
+				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } }).then(res => {
+					const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+					const contents = fs.readFileSync(target).toString('utf8');
+					const parsed = json.parse(contents);
+
+					assert.equal(parsed['version'], '1.0.0');
+					assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+
+					services.configurationService.dispose();
+					cleanUp(done);
+				});
+			});
+		});
+	});
 });
