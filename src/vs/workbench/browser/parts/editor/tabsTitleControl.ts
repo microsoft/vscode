@@ -15,7 +15,7 @@ import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEditorGroup, IEditorIdentifier, asFileEditorInput, getResource} from 'vs/workbench/common/editor';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {EditorLabel} from 'vs/workbench/browser/parts/editor/editorLabel';
+import {EditorLabel} from 'vs/workbench/browser/labels';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
