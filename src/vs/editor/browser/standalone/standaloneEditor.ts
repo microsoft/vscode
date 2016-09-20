@@ -148,7 +148,7 @@ export function createModel(value:string, language?:string, uri?:URI): IModel {
  * Change the language for a model.
  */
 export function setModelLanguage(model:IModel, language:string): void {
-	model.setMode(StaticServices.modeService.get().getOrCreateMode(language));
+	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(language));
 }
 
 /**
@@ -243,7 +243,7 @@ export function colorizeModelLine(model:IModel, lineNumber:number, tabSize:numbe
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
 		// methods
-		create: create,
+		create: <any>create,
 		createDiffEditor: createDiffEditor,
 		createDiffNavigator: createDiffNavigator,
 

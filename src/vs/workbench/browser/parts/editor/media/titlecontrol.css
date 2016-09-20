@@ -9,12 +9,11 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
 	white-space: nowrap;
 	flex: 1;
-	font-style: italic;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.pinned .title-label,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.pinned .tab-label {
-	font-style: normal;
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .monaco-icon-label::before,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label::before {
+	height: 16px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,

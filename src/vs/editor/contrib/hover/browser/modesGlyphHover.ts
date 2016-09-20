@@ -12,6 +12,7 @@ import {$} from 'vs/base/browser/dom';
 import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
 import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -154,7 +155,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 		messages.forEach((msg) => {
 			const renderedContents = renderMarkedString(msg.value, {
-				actionCallback: content => this.openerService.open(URI.parse(content)),
+				actionCallback: content => this.openerService.open(URI.parse(content)).then(undefined, onUnexpectedError),
 				codeBlockRenderer: (modeId, value): string | TPromise<string> => {
 					const mode = this.modeService.getMode(modeId || this._editor.getModel().getModeId());
 					const getMode = mode => mode ? TPromise.as(mode) : this.modeService.getOrCreateMode(modeId);

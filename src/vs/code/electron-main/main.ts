@@ -22,7 +22,7 @@ import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/code/electron-main/sharedProcess';
+import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -66,6 +66,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const envService = accessor.get(IEnvService);
+	const environmentService = accessor.get(IEnvironmentService);
 	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
@@ -121,10 +122,13 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	electronIpcServer.registerChannel('url', urlChannel);
 
 	// Spawn shared process
-	const sharedProcess = spawnSharedProcess({
+	const initData = { args: environmentService.args };
+	const options = {
 		allowOutput: !envService.isBuilt || envService.cliArgs.verbose,
 		debugPort: envService.isBuilt ? null : 5871
-	});
+	};
+
+	const sharedProcess = spawnSharedProcess(initData, options);
 
 	// Make sure we associate the program with the app user model id
 	// This will help Windows to associate the running program with
@@ -174,15 +178,25 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const menu = instantiationService.createInstance(VSCodeMenu);
 	menu.ready();
 
-	// Install Tasks
-	if (platform.isWindows && envService.isBuilt) {
-		app.setUserTasks([
+	// Install JumpList on Windows
+	if (platform.isWindows) {
+		app.setJumpList([
 			{
-				title: nls.localize('newWindow', "New Window"),
-				program: process.execPath,
-				arguments: '-n', // force new window
-				iconPath: process.execPath,
-				iconIndex: 0
+				type: 'tasks',
+				items: [
+					{
+						type: 'task',
+						title: nls.localize('newWindow', "New Window"),
+						description: nls.localize('newWindowDesc', "Opens a new window"),
+						program: process.execPath,
+						args: '-n', // force new window
+						iconPath: process.execPath,
+						iconIndex: 0
+					}
+				]
+			},
+			{
+				type: 'recent' // this enables to show files in the "recent" category
 			}
 		]);
 	}
@@ -273,17 +287,17 @@ interface IEnv {
 
 function getUnixShellEnvironment(): TPromise<IEnv> {
 	const promise = new TPromise((c, e) => {
-		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
 		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
 		const regex = new RegExp(mark + '(.*)' + mark);
 
 		const env = assign({}, process.env, {
-			ATOM_SHELL_INTERNAL_RUN_AS_NODE: '1',
+			ELECTRON_RUN_AS_NODE: '1',
 			ELECTRON_NO_ATTACH_CONSOLE: '1'
 		});
 
-		const command = `'${process.execPath}' -p '"${ mark }" + JSON.stringify(process.env) + "${ mark }"'`;
+		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
@@ -307,9 +321,9 @@ function getUnixShellEnvironment(): TPromise<IEnv> {
 				const env = JSON.parse(rawStripped);
 
 				if (runAsNode) {
-					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;
+					env['ELECTRON_RUN_AS_NODE'] = runAsNode;
 				} else {
-					delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+					delete env['ELECTRON_RUN_AS_NODE'];
 				}
 
 				if (noAttach) {
@@ -408,7 +422,7 @@ function start(): void {
 				.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
 		});
 	})
-	.done(null, err => instantiationService.invokeFunction(quit, err));
+		.done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
 start();

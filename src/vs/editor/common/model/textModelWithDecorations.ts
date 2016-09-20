@@ -7,12 +7,10 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {MarkedString, markedStringsEquals} from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {TextModelWithTrackedRanges} from 'vs/editor/common/model/textModelWithTrackedRanges';
-import {IMode} from 'vs/editor/common/modes';
 
 export class DeferredEventsBuilder {
 
@@ -96,9 +94,9 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	private decorations:IInternalDecorationsMap;
 	private rangeIdToDecorationId:IRangeIdToDecorationIdMap;
 
-	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, languageId:string) {
 		allowedEventTypes.push(editorCommon.EventType.ModelDecorationsChanged);
-		super(allowedEventTypes, rawText, modeOrPromise);
+		super(allowedEventTypes, rawText, languageId);
 
 		// Initialize decorations
 		this._decorationIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');

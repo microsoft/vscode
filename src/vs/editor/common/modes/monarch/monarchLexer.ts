@@ -13,7 +13,7 @@ import * as modes from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
-import {IEnteringNestedModeData, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {IModeLocator, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
 /**
@@ -39,8 +39,8 @@ export class MonarchLexer extends AbstractState {
 	private groupMatched: string[];
 	private groupRule: monarchCommon.IRule;
 
-	constructor(mode: modes.IMode, modeService:IModeService, lexer: monarchCommon.ILexer, stack?: string[], embeddedMode?: string) {
-		super(mode);
+	constructor(modeId: string, modeService:IModeService, lexer: monarchCommon.ILexer, stack?: string[], embeddedMode?: string) {
+		super(modeId);
 		this.id = MonarchLexer.ID++; // for debugging, assigns unique id to each instance
 		this.modeService = modeService;
 
@@ -61,7 +61,7 @@ export class MonarchLexer extends AbstractState {
 	}
 
 	public makeClone(): MonarchLexer {
-		return new MonarchLexer(this.getMode(), this.modeService, this.lexer, this.stack.slice(0), this.embeddedMode);
+		return new MonarchLexer(this.getModeId(), this.modeService, this.lexer, this.stack.slice(0), this.embeddedMode);
 	}
 
 	public equals(other: modes.IState): boolean {
@@ -386,10 +386,10 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	return null;
 }
 
-export function createTokenizationSupport(modeService:IModeService, mode:modes.IMode, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
-	return new TokenizationSupport(mode, {
+export function createTokenizationSupport(_modeService:IModeService, modeId:string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
+	return new TokenizationSupport(_modeService, modeId, {
 		getInitialState: (): modes.IState => {
-			return new MonarchLexer(mode, modeService, lexer);
+			return new MonarchLexer(modeId, _modeService, lexer);
 		},
 
 		enterNestedMode: (state: modes.IState): boolean => {
@@ -399,31 +399,9 @@ export function createTokenizationSupport(modeService:IModeService, mode:modes.I
 			return false;
 		},
 
-		getNestedMode: (rawState: modes.IState): IEnteringNestedModeData => {
-			var mime = (<MonarchLexer>rawState).embeddedMode;
-
-			if (!modeService.isRegisteredMode(mime)) {
-				// unknown mode
-				return {
-					mode: modeService.getMode('text/plain'),
-					missingModePromise: null
-				};
-			}
-
-			var mode = modeService.getMode(mime);
-			if (mode) {
-				// mode is available
-				return {
-					mode: mode,
-					missingModePromise: null
-				};
-			}
-
-			// mode is not yet loaded
-			return {
-				mode: modeService.getMode('text/plain'),
-				missingModePromise: modeService.getOrCreateMode(mime).then(() => null)
-			};
+		getNestedMode: (rawState: modes.IState, locator:IModeLocator): modes.IMode => {
+			let mime = (<MonarchLexer>rawState).embeddedMode;
+			return locator.getMode(mime);
 		},
 
 		getLeavingNestedModeData: (line: string, state: modes.IState) => {

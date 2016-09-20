@@ -113,6 +113,8 @@ suite('Files - TextFileEditorModelManager', () => {
 					assert.notEqual(model3, model2);
 					assert.equal(manager.get(resource), model3);
 
+					model3.dispose();
+
 					done();
 				});
 			});
@@ -158,6 +160,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		accessor.editorGroupService.fireChange();
 		assert.ok(model.isDisposed());
 
+		model.dispose();
 		manager.dispose();
 	});
 
@@ -175,6 +178,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource)));
 
 		assert.ok(model.isDisposed());
+
+		model.dispose();
 
 		manager.dispose();
 	});
@@ -252,9 +257,81 @@ suite('Files - TextFileEditorModelManager', () => {
 
 				assert.ok(!model.isDisposed());
 
+				model.dispose();
 				manager.dispose();
 				done();
 			});
+		});
+	});
+
+	test('events', function (done) {
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+
+		const resource1 = toResource('/path/index.txt');
+		const resource2 = toResource('/path/other.txt');
+
+		let dirtyCounter = 0;
+		let revertedCounter = 0;
+		let savedCounter = 0;
+		let encodingCounter = 0;
+
+		manager.onModelDirty(e => {
+			dirtyCounter++;
+			assert.equal(e.resource.toString(), resource1.toString());
+		});
+
+		manager.onModelReverted(e => {
+			revertedCounter++;
+			assert.equal(e.resource.toString(), resource1.toString());
+		});
+
+		manager.onModelSaved(e => {
+			savedCounter++;
+			assert.equal(e.resource.toString(), resource1.toString());
+		});
+
+		manager.onModelEncodingChanged(e => {
+			encodingCounter++;
+			assert.equal(e.resource.toString(), resource1.toString());
+		});
+
+		manager.loadOrCreate(resource1, 'utf8').then(model1 => {
+			return manager.loadOrCreate(resource2, 'utf8').then(model2 => {
+				model1.textEditorModel.setValue('changed');
+				model1.updatePreferredEncoding('utf16');
+
+				return model1.revert().then(() => {
+					model1.textEditorModel.setValue('changed again');
+
+					return model1.save().then(() => {
+						model1.dispose();
+						model2.dispose();
+
+						return model1.revert().then(() => { // should not trigger another event if disposed
+							assert.equal(dirtyCounter, 2);
+							assert.equal(revertedCounter, 1);
+							assert.equal(savedCounter, 1);
+							assert.equal(encodingCounter, 2);
+
+							done();
+						});
+					});
+				});
+			});
+		});
+	});
+
+	test('disposing model takes it out of the manager', function (done) {
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+
+		const resource = toResource('/path/index_something.txt');
+
+		manager.loadOrCreate(resource, 'utf8').then(model => {
+			model.dispose();
+
+			assert.ok(!manager.get(resource));
+			manager.dispose();
+			done();
 		});
 	});
 });

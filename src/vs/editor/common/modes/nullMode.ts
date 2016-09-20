@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMode, IState, IStream, ITokenizationResult, ILineTokens} from 'vs/editor/common/modes';
+import {IState, IStream, ITokenizationResult, ILineTokens} from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {Token} from 'vs/editor/common/core/token';
 
 export class NullState implements IState {
 
-	private mode: IMode;
+	private modeId: string;
 	private stateData: IState;
 
-	constructor(mode: IMode, stateData: IState) {
-		this.mode = mode;
+	constructor(modeId: string, stateData: IState) {
+		this.modeId = modeId;
 		this.stateData = stateData;
 	}
 
 	public clone(): IState {
 		let stateDataClone:IState = (this.stateData ? this.stateData.clone() : null);
-		return new NullState(this.mode, stateDataClone);
+		return new NullState(this.modeId, stateDataClone);
 	}
 
 	public equals(other:IState): boolean {
-		if (this.mode !== other.getMode()) {
+		if (this.modeId !== other.getModeId()) {
 			return false;
 		}
 		let otherStateData = other.getStateData();
@@ -37,8 +37,8 @@ export class NullState implements IState {
 		return false;
 	}
 
-	public getMode(): IMode {
-		return this.mode;
+	public getModeId(): string {
+		return this.modeId;
 	}
 
 	public tokenize(stream:IStream):ITokenizationResult {
@@ -55,22 +55,7 @@ export class NullState implements IState {
 	}
 }
 
-export class NullMode implements IMode {
-
-
-	public static ID = 'vs.editor.nullMode';
-
-	constructor() {
-	}
-
-	public getId():string {
-		return NullMode.ID;
-	}
-
-	public toSimplifiedMode(): IMode {
-		return this;
-	}
-}
+export const NULL_MODE_ID = 'vs.editor.nullMode';
 
 export function nullTokenize(modeId: string, buffer:string, state: IState, deltaOffset:number = 0, stopAtOffset?:number): ILineTokens {
 	let tokens:Token[] = [new Token(deltaOffset, '')];

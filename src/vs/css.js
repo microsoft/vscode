@@ -22,7 +22,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 var _cssPluginGlobal = this;
 var CSSLoaderPlugin;
 (function (CSSLoaderPlugin) {
-    var global = _cssPluginGlobal;
+    var global = _cssPluginGlobal || {};
     /**
      * Known issue:
      * - In IE there is no way to know if the CSS file loaded successfully or not.

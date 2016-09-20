@@ -155,7 +155,14 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$registerNavigateTypeSupport(handle: number): TPromise<any> {
 		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
 			provideWorkspaceSymbols: (search: string): TPromise<IWorkspaceSymbol[]> => {
-				return this._proxy.$provideWorkspaceSymbols(handle, search);
+				return this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
+					if (result) {
+						for (const item of result) {
+							trackGarbageCollection(item, ObjectIdentifier.get(item));
+						}
+					}
+					return result;
+				});
 			},
 			resolveWorkspaceSymbol: (item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> => {
 				return this._proxy.$resolveWorkspaceSymbol(handle, item);
@@ -182,8 +189,10 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 			triggerCharacters: triggerCharacters,
 			provideCompletionItems: (model:IReadOnlyModel, position:EditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult> => {
 				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position)).then(result => {
-					for (const suggestion of result.suggestions) {
-						trackGarbageCollection(suggestion, ObjectIdentifier.get(suggestion));
+					if (result && result.suggestions) {
+						for (const suggestion of result.suggestions) {
+							trackGarbageCollection(suggestion, ObjectIdentifier.get(suggestion));
+						}
 					}
 					return result;
 				});

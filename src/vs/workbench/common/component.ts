@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Scope, Memento} from 'vs/workbench/common/memento';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -14,7 +13,7 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
  * Provides some convinience methods to participate in the workbench lifecycle (dispose, shutdown) and
  * loading and saving settings through memento.
  */
-export interface IWorkbenchComponent extends IDisposable, IEventEmitter {
+export interface IWorkbenchComponent extends IDisposable {
 
 	/**
 	* The unique identifier of this component.
@@ -55,14 +54,12 @@ export interface IWorkbenchComponent extends IDisposable, IEventEmitter {
 	dispose(): void;
 }
 
-export class WorkbenchComponent extends EventEmitter implements IWorkbenchComponent {
+export class WorkbenchComponent implements IWorkbenchComponent {
 	private _toUnbind: IDisposable[];
 	private id: string;
 	private componentMemento: Memento;
 
 	constructor(id: string) {
-		super();
-
 		this._toUnbind = [];
 		this.id = id;
 		this.componentMemento = new Memento(this.id);
@@ -92,7 +89,5 @@ export class WorkbenchComponent extends EventEmitter implements IWorkbenchCompon
 
 	public dispose(): void {
 		this._toUnbind = dispose(this._toUnbind);
-
-		super.dispose();
 	}
 }

@@ -13,22 +13,22 @@ import {RAZORWorker} from 'vs/languages/razor/common/razorWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {TokenizationSupport, ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
 class RAZORState extends htmlMode.State {
 
-	constructor(mode:modes.IMode, kind:htmlMode.States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValueLength:number) {
-		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValueLength);
+	constructor(modeId:string, kind:htmlMode.States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValueLength:number) {
+		super(modeId, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValueLength);
 	}
 
 	public makeClone():RAZORState {
-		return new RAZORState(this.getMode(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
+		return new RAZORState(this.getModeId(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
 	}
 
 	public equals(other:modes.IState):boolean {
@@ -45,10 +45,10 @@ class RAZORState extends htmlMode.State {
 		if (!stream.eos() && stream.peek() === '@') {
 			stream.next();
 			if (!stream.eos() && stream.peek() === '*') {
-				return { nextState: new csharpTokenization.CSComment(this.getMode(), this, '@') };
+				return { nextState: new csharpTokenization.CSComment(this.getModeId(), this, '@') };
 			}
 			if (stream.eos() || stream.peek() !== '@') {
-				return { type: razorTokenTypes.EMBED_CS, nextState: new csharpTokenization.CSStatement(this.getMode(), this, 0, 0, true, true, true, false) };
+				return { type: razorTokenTypes.EMBED_CS, nextState: new csharpTokenization.CSStatement(this.getModeId(), this, 0, 0, true, true, true, false) };
 			}
 		}
 
@@ -132,6 +132,8 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		}, true);
 
 		LanguageConfigurationRegistry.register(this.getId(), RAZORMode.LANG_CONFIG);
+
+		modes.TokenizationRegistry.register(this.getId(), new TokenizationSupport(this._modeService, this.getId(), this, true));
 	}
 
 	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {
@@ -139,13 +141,13 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	}
 
 	public getInitialState(): modes.IState {
-		return new RAZORState(this, htmlMode.States.Content, '', '', '', '', 0);
+		return new RAZORState(this.getId(), htmlMode.States.Content, '', '', '', '', 0);
 	}
 
 	public getLeavingNestedModeData(line:string, state:modes.IState): ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
-			leavingNestedModeData.stateAfterNestedMode = new RAZORState(this, htmlMode.States.Content, '', '', '', '', 0);
+			leavingNestedModeData.stateAfterNestedMode = new RAZORState(this.getId(), htmlMode.States.Content, '', '', '', '', 0);
 		}
 		return leavingNestedModeData;
 	}

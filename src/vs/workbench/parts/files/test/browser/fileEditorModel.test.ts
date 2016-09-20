@@ -14,7 +14,7 @@ import paths = require('vs/base/common/paths');
 import {EncodingMode} from 'vs/workbench/common/editor';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
-import {EventType, ITextFileService, ModelState} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, ModelState, StateChange} from 'vs/workbench/parts/files/common/files';
 import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
 import {FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
@@ -40,6 +40,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
+		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 	});
 
 	test('Save', function (done) {
@@ -83,6 +84,18 @@ suite('Files - TextFileEditorModel', () => {
 		model.dispose();
 	});
 
+	test('disposes when underlying model is destroyed', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.load().then(() => {
+			model.textEditorModel.destroy();
+
+			assert.ok(model.isDisposed());
+
+			done();
+		});
+	});
+
 	test('Load does not trigger save', function (done) {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
 		assert.equal(model.getState(), ModelState.SAVED);
@@ -91,12 +104,8 @@ suite('Files - TextFileEditorModel', () => {
 			assert.ok(false);
 		});
 
-		accessor.eventService.addListener2(EventType.FILE_DIRTY, () => {
-			assert.ok(false);
-		});
-
-		accessor.eventService.addListener2(EventType.FILE_SAVED, () => {
-			assert.ok(false);
+		model.onDidStateChange(e => {
+			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
 		});
 
 		model.load().then(() => {
@@ -129,11 +138,14 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', function (done) {
 		let eventCounter = 0;
 
-		accessor.eventService.addListener2(EventType.FILE_REVERTED, () => {
-			eventCounter++;
-		});
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		model.onDidStateChange(e => {
+			if (e === StateChange.REVERTED) {
+				eventCounter++;
+			}
+		});
 
 		model.load().then(() => {
 			model.textEditorModel.setValue('foo');
@@ -205,12 +217,10 @@ suite('Files - TextFileEditorModel', () => {
 		(<any>model).autoSaveAfterMillies = 10;
 		(<any>model).autoSaveAfterMilliesEnabled = true;
 
-		accessor.eventService.addListener2(EventType.FILE_DIRTY, () => {
-			eventCounter++;
-		});
-
-		accessor.eventService.addListener2(EventType.FILE_SAVED, () => {
-			eventCounter++;
+		model.onDidStateChange(e => {
+			if (e === StateChange.DIRTY || e === StateChange.SAVED) {
+				eventCounter++;
+			}
 		});
 
 		model.load().then(() => {
@@ -270,17 +280,21 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
 
-		accessor.eventService.addListener2(EventType.FILE_SAVED, (e) => {
-			assert.equal(model.getValue(), 'bar');
-			assert.ok(!model.isDirty());
-			eventCounter++;
+		model.onDidStateChange(e => {
+			if (e === StateChange.SAVED) {
+				assert.equal(model.getValue(), 'bar');
+				assert.ok(!model.isDirty());
+				eventCounter++;
+			}
 		});
 
-		accessor.eventService.addListener2(EventType.FILE_SAVING, (e) => {
-			assert.ok(model.isDirty());
-			model.textEditorModel.setValue('bar');
-			assert.ok(model.isDirty());
-			eventCounter++;
+		TextFileEditorModel.setSaveParticipant({
+			participate: (model) => {
+				assert.ok(model.isDirty());
+				model.textEditorModel.setValue('bar');
+				assert.ok(model.isDirty());
+				eventCounter++;
+			}
 		});
 
 		model.load().then(() => {

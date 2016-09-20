@@ -71,6 +71,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			_serviceBrand: IModelService,
 			getModel(): any { return model; },
 			createModel(): any { throw new Error(); },
+			setMode(): any { throw new Error(); },
 			destroyModel(): any { throw new Error(); },
 			getModels(): any { throw new Error(); },
 			onModelAdded: undefined,

@@ -10,7 +10,7 @@ import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
 import { realpath, exists} from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions, ICommit } from 'vs/workbench/parts/git/common/git';
-import Event, { Emitter, fromPromise } from 'vs/base/common/event';
+import Event, { Emitter, delayed } from 'vs/base/common/event';
 
 export class RawGitService implements IRawGitService {
 
@@ -207,7 +207,7 @@ export class RawGitService implements IRawGitService {
 
 export class DelayedRawGitService implements IRawGitService {
 	constructor(private raw: TPromise<IRawGitService>){}
-	onOutput: Event<string> = fromPromise(this.raw.then(r => r.onOutput));
+	onOutput: Event<string> = delayed(this.raw.then(r => r.onOutput));
 	getVersion(): TPromise<string> { return this.raw.then(r => r.getVersion()); }
 	serviceState(): TPromise<RawServiceState> { return this.raw.then(r => r.serviceState()); }
 	statusCount(): TPromise<number> { return this.raw.then(r => r.statusCount()); }

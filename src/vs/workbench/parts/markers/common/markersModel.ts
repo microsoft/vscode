@@ -28,7 +28,15 @@ export class Resource {
 export class Marker {
 	constructor(public id:string, public marker: IMarker,
 								public labelMatches: IMatch[] = [],
-								public sourceMatches: IMatch[] = []){}
+								public sourceMatches: IMatch[] = []) { }
+
+	public get resource(): URI {
+		return this.marker.resource;
+	}
+
+	public get range(): Range {
+		return new Range(this.marker.startLineNumber, this.marker.startColumn, this.marker.endLineNumber, this.marker.endLineNumber);
+	}
 }
 
 export class FilterOptions {
@@ -255,7 +263,7 @@ export class MarkersModel {
 					return;
 			}
 		});
-		return {errors: errors, warnings: warnings, infos: infos, unknwons: unknowns};
+		return {errors, warnings, infos, unknowns};
 	}
 
 	public dispose() : void {
@@ -286,7 +294,7 @@ export class MarkersModel {
 		if (!onlyErrors) {
 			label= this.getLabel(label,  markerStatistics.warnings, Messages.MARKERS_PANEL_SINGLE_WARNING_LABEL, Messages.MARKERS_PANEL_MULTIPLE_WARNINGS_LABEL);
 			label= this.getLabel(label,  markerStatistics.infos, Messages.MARKERS_PANEL_SINGLE_INFO_LABEL, Messages.MARKERS_PANEL_MULTIPLE_INFOS_LABEL);
-			label= this.getLabel(label,  markerStatistics.unknwons, Messages.MARKERS_PANEL_SINGLE_UNKNOWN_LABEL, Messages.MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL);
+			label= this.getLabel(label,  markerStatistics.unknowns, Messages.MARKERS_PANEL_SINGLE_UNKNOWN_LABEL, Messages.MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL);
 		}
 		return label;
 	}

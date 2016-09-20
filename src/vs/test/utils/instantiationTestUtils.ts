@@ -5,6 +5,7 @@
 
 import * as sinon from 'sinon';
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as types from 'vs/base/common/types';
 import { LinkedMap } from 'vs/base/common/map';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -26,6 +27,8 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { ReplaceService } from 'vs/workbench/parts/search/browser/replaceService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;
@@ -48,6 +51,7 @@ export class TestInstantiationService extends InstantiationService {
 		this._servciesMap.set(IExtensionService, SimpleExtensionService);
 		this._servciesMap.set(IMarkerService, MarkerService);
 		this._servciesMap.set(IReplaceService, ReplaceService);
+		this._servciesMap.set(IKeybindingService, WorkbenchKeybindingService);
 	}
 
 	public mock<T>(service:ServiceIdentifier<T>): T | sinon.SinonMock {
@@ -134,6 +138,13 @@ export class TestInstantiationService extends InstantiationService {
 	private isServiceMock(arg1: any): boolean {
 		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
 	}
+}
+
+export function stubFunction<T>(ctor: any, fnProperty: string, value: any): T | sinon.SinonStub {
+	let stub = sinon.createStubInstance(ctor);
+	stub[fnProperty].restore();
+	sinon.stub(stub, fnProperty, types.isFunction(value) ? value : () => { return value; });
+	return stub;
 }
 
 interface SinonOptions {

@@ -35,7 +35,7 @@ suite('Workbench - EditorInput', () => {
 		assert(!input.matches(null));
 		assert(!input.getName());
 
-		input.addListener2('dispose', function () {
+		input.onDispose(() => {
 			assert(true);
 			counter++;
 		});
@@ -47,13 +47,13 @@ suite('Workbench - EditorInput', () => {
 	test('DiffEditorInput', function () {
 		let counter = 0;
 		let input = new MyEditorInput();
-		input.addListener2('dispose', function () {
+		input.onDispose(() => {
 			assert(true);
 			counter++;
 		});
 
 		let otherInput = new MyEditorInput();
-		otherInput.addListener2('dispose', function () {
+		otherInput.onDispose(() => {
 			assert(true);
 			counter++;
 		});
@@ -76,7 +76,7 @@ suite('Workbench - EditorInput', () => {
 		let otherInput = new MyEditorInput();
 
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
-		diffInput.addListener2('dispose', function () {
+		diffInput.onDispose(() => {
 			counter++;
 			assert(true);
 		});
@@ -87,7 +87,7 @@ suite('Workbench - EditorInput', () => {
 		otherInput = new MyEditorInput();
 
 		let diffInput2 = new DiffEditorInput('name', 'description', input, otherInput);
-		diffInput2.addListener2('dispose', function () {
+		diffInput2.onDispose(() => {
 			counter++;
 			assert(true);
 		});

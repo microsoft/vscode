@@ -9,14 +9,14 @@ import URI from 'vs/base/common/uri';
 import {isUnspecific, guessMimeTypes, MIME_TEXT, suggestFilename} from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import {UntitledEditorInput as AbstractUntitledEditorInput, EditorModel, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
+import {UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IEventService} from 'vs/platform/event/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
 
 import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
 
@@ -33,6 +33,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 
+	private _onDidModelChangeEncoding: Emitter<void>;
+
 	private toUnbind: IDisposable[];
 
 	constructor(
@@ -43,8 +45,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IEventService private eventService: IEventService
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
@@ -52,6 +53,11 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
+		this._onDidModelChangeEncoding = new Emitter<void>();
+	}
+
+	public get onDidModelChangeEncoding(): Event<void> {
+		return this._onDidModelChangeEncoding.event;
 	}
 
 	public getTypeId(): string {
@@ -125,7 +131,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		}
 	}
 
-	public resolve(refresh?: boolean): TPromise<EditorModel> {
+	public resolve(refresh?: boolean): TPromise<UntitledEditorModel> {
 
 		// Use Cached Model
 		if (this.cachedModel) {
@@ -153,8 +159,9 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 		const model = this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
 
-		// detect dirty state changes on model and re-emit
+		// re-emit some events from the model
 		this.toUnbind.push(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this.toUnbind.push(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 
 		return model;
 	}
@@ -175,6 +182,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public dispose(): void {
+		this._onDidModelChangeEncoding.dispose();
 
 		// Listeners
 		dispose(this.toUnbind);

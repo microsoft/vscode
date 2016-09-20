@@ -14,6 +14,7 @@ import {MIME_BINARY} from 'vs/base/common/mime';
 import async = require('vs/base/common/async');
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
+import {getFileIconClasses} from 'vs/base/browser/ui/fileLabel/fileLabel';
 import {isString} from 'vs/base/common/types';
 import {IAction, ActionRunner as BaseActionRunner, IActionRunner} from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
@@ -25,7 +26,6 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from 'vs/platform/files/common/files';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
 import {IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT} from 'vs/base/parts/tree/browser/tree';
 import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
@@ -47,7 +47,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IMessageService, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {Keybinding} from 'vs/base/common/keybinding';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
@@ -295,7 +296,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 				const fileItem = $(<HTMLElement>fileItems.item(i));
 				const resourcePath = fileItem.getProperty(FileRenderer.RESOURCE_PATH_KEY);
 				if (resourcePath) {
-					fileItem.setClass(['explorer-item', ...this.fileIconClasses(resourcePath)].join(' '));
+					fileItem.setClass(['explorer-item', ...getFileIconClasses(resourcePath, path => this.modeService.getModeIdByFilenameOrFirstLine(path))].join(' '));
 					fileItem.removeProperty(FileRenderer.RESOURCE_PATH_KEY);
 				}
 			}
@@ -312,9 +313,9 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		// Item Container
 		const item = $('.explorer-item');
 		if (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) {
-			item.addClass(...this.folderIconClasses(stat.resource.fsPath));
+			item.addClass(...getFileIconClasses(stat.resource, path => this.modeService.getModeIdByFilenameOrFirstLine(path), true));
 		} else {
-			item.addClass(...this.fileIconClasses(stat.resource.fsPath));
+			item.addClass(...getFileIconClasses(stat.resource, path => this.modeService.getModeIdByFilenameOrFirstLine(path)));
 
 			// We need to re-apply the icon CSS classes once the extension host is ready
 			if (!this.extensionsReady) {
@@ -375,11 +376,11 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(CommonKeybindings.ENTER)) {
+				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
 						done(true);
 					}
-				} else if (e.equals(CommonKeybindings.ESCAPE)) {
+				} else if (e.equals(KeyCode.Escape)) {
 					done(false);
 				}
 			}),
@@ -389,44 +390,6 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		];
 
 		return () => done(true);
-	}
-
-	private fileIconClasses(fsPath: string): string[] {
-		const classes = ['file-icon'];
-
-		const basename = paths.basename(fsPath);
-		const dotSegments = basename.split('.');
-
-		const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
-		if (name) {
-			classes.push(`${name.toLowerCase()}-name-file-icon`);
-		}
-
-		const extensions = dotSegments.splice(1);
-		if (extensions.length > 0) {
-			for (let i = 0; i < extensions.length; i++) {
-				classes.push(`${extensions.slice(i).join('.').toLowerCase()}-ext-file-icon`); // add each combination of all found extensions if more than one
-			}
-		}
-
-		const langId = this.modeService.getModeIdByFilenameOrFirstLine(fsPath);
-		if (langId) {
-			classes.push(`${langId}-lang-file-icon`);
-		}
-
-		return classes;
-	}
-
-	private folderIconClasses(fsPath: string): string[] {
-		const basename = paths.basename(fsPath);
-
-		const classes = ['folder-icon'];
-
-		if (basename) {
-			classes.push(`${basename.toLowerCase()}-name-folder-icon`);
-		}
-
-		return classes;
 	}
 }
 
@@ -466,23 +429,23 @@ export class FileController extends DefaultController {
 
 		this.didCatchEnterDown = false;
 
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? CommonKeybindings.CTRLCMD_DOWN_ARROW : CommonKeybindings.ENTER, this.onEnterDown.bind(this));
-		this.upKeyBindingDispatcher.set(platform.isMacintosh ? CommonKeybindings.CTRLCMD_DOWN_ARROW : CommonKeybindings.ENTER, this.onEnterUp.bind(this));
+		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, this.onEnterDown.bind(this));
+		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.DownArrow : KeyCode.Enter, this.onEnterUp.bind(this));
 		if (platform.isMacintosh) {
-			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
+			this.upKeyBindingDispatcher.set(KeyMod.WinCtrl | KeyCode.Enter, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		} else {
-			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
+			this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		}
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? CommonKeybindings.ENTER : CommonKeybindings.F2, this.onF2.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_C, this.onCopy.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_V, this.onPaste.bind(this));
+		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyCode.Enter : KeyCode.F2, this.onF2.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_C, this.onCopy.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.KEY_V, this.onPaste.bind(this));
 
 		if (platform.isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_UP_ARROW, this.onLeft.bind(this));
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, this.onLeft.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DELETE, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
 		}
 
 		this.state = state;
@@ -577,10 +540,11 @@ export class FileController extends DefaultController {
 			},
 			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
 			getKeyBinding: (a): Keybinding => keybindingForAction(a.id),
-			getActionsContext: () => {
+			getActionsContext: (event) => {
 				return {
 					viewletState: this.state,
-					stat: stat
+					stat,
+					event
 				};
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -679,8 +643,7 @@ export class FileController extends DefaultController {
 		if (stat && !stat.isDirectory) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			const editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-			this.editorService.openEditor(editorInput, { preserveFocus, pinned }, sideBySide).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, mime: stat.mime, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 

@@ -70,7 +70,7 @@
     "chokidar": {
       "version": "1.6.0",
       "from": "bpasero/chokidar#vscode",
-      "resolved": "git://github.com/bpasero/chokidar.git#8b64fda5a22cc9850f1346d12302051c5ba65b10"
+      "resolved": "git+https://github.com/bpasero/chokidar.git#8b64fda5a22cc9850f1346d12302051c5ba65b10"
     },
     "concat-map": {
       "version": "0.0.1",
@@ -150,7 +150,7 @@
     "fsevents": {
       "version": "0.3.8",
       "from": "bpasero/fsevents#vscode",
-      "resolved": "git://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
+      "resolved": "git+https://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
     },
     "gc-signals": {
       "version": "0.0.1",
@@ -414,7 +414,7 @@
       "from": "vscode-textmate@2.1.1",
       "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.1.1.tgz"
     },
-    "windows-mutex": {
+        "windows-mutex": {
       "version": "0.2.0",
       "from": "windows-mutex@>=0.2.0 <0.3.0",
       "resolved": "https://registry.npmjs.org/windows-mutex/-/windows-mutex-0.2.0.tgz"
@@ -426,8 +426,8 @@
     },
     "xterm": {
       "version": "1.1.3",
-      "from": "git+https://github.com/sourcelair/xterm.js.git#220828f",
-      "resolved": "git+https://github.com/sourcelair/xterm.js.git#220828f7db9932acbd3198be5b97d81f5a7b6880"
+      "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.6",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#b04f8c06bf9720d37cec703632dcb889a7a16b2c"
     },
     "yauzl": {
       "version": "2.3.1",

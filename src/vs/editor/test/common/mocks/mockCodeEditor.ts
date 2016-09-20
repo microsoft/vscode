@@ -61,6 +61,14 @@ export class MockCodeEditor extends CommonCodeEditor {
 		this._contributions[r.getId()] = r;
 		return r;
 	}
+
+	public dispose() {
+		super.dispose();
+		if (this.model) {
+			this.model.dispose();
+		}
+		this._contextKeyService.dispose();
+	}
 }
 
 export class MockScopeLocation implements IContextKeyServiceTarget {
@@ -72,6 +80,12 @@ export class MockScopeLocation implements IContextKeyServiceTarget {
 }
 
 export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEditorWidgetCreationOptions, callback:(editor:MockCodeEditor, cursor:Cursor)=>void): void {
+	let editor = <MockCodeEditor>mockCodeEditor(text, options);
+	callback(editor, editor.getCursor());
+	editor.dispose();
+}
+
+export function mockCodeEditor(text:string[], options:editorCommon.ICodeEditorWidgetCreationOptions): CommonCodeEditor {
 
 	let contextKeyService = new MockKeybindingService();
 
@@ -80,17 +94,10 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 	let instantiationService = new InstantiationService(services);
 
 	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, contextKeyService);
-	let model: Model;
-	if (!options.model) {
-		model = Model.createFromString(text.join('\n'));
+	let model = options.model || Model.createFromString(text.join('\n'));
+	if (model) {
 		editor.setModel(model);
 	}
 
-	callback(editor, editor.getCursor());
-
-	editor.dispose();
-	if (model) {
-		model.dispose();
-	}
-	contextKeyService.dispose();
+	return editor;
 }

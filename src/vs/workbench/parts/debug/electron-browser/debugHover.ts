@@ -5,7 +5,7 @@
 
 import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
 import dom = require('vs/base/browser/dom');
 import * as nls from 'vs/nls';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
@@ -84,7 +84,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}));
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.domNode, 'keydown', (e: IKeyboardEvent) => {
-			if (e.equals(CommonKeybindings.ESCAPE)) {
+			if (e.equals(KeyCode.Escape)) {
 				this.hide();
 			}
 		}));

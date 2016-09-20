@@ -17,6 +17,11 @@ export enum ConfigurationEditingErrorCode {
 	ERROR_UNKNOWN_KEY,
 
 	/**
+	 * Error when trying to write to user target but not supported for provided key.
+	 */
+	ERROR_INVALID_TARGET,
+
+	/**
 	 * Error when trying to write to the workspace configuration without having a workspace opened.
 	 */
 	ERROR_NO_WORKSPACE_OPENED,
@@ -63,5 +68,5 @@ export interface IConfigurationEditingService {
 	 * Allows to write to either the user or workspace configuration file. The returned promise will be
 	 * in error state in any of the error cases from [ConfigurationEditingErrorCode](#ConfigurationEditingErrorCode)
 	 */
-	writeConfiguration(target: ConfigurationTarget, values: IConfigurationValue[]): TPromise<void>;
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue): TPromise<void>;
 }

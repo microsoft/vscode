@@ -68,5 +68,5 @@ export interface MarkerStatistics {
 	errors: number;
 	warnings: number;
 	infos: number;
-	unknwons: number;
+	unknowns: number;
 }

@@ -296,44 +296,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 	}
 }
 
-export class TestUntitledEditorService implements IUntitledEditorService {
-	public _serviceBrand: any;
-
-	private _onDidChangeDirty = new Emitter<URI>();
-
-	public get onDidChangeDirty(): Event<URI> {
-		return this._onDidChangeDirty.event;
-	}
-
-	public get(resource: URI) {
-		return null;
-	}
-
-	public getAll() {
-		return [];
-	}
-
-	public getDirty() {
-		return [];
-	}
-
-	public revertAll(resources?: URI[]): URI[] {
-		return [];
-	}
-
-	public isDirty() {
-		return false;
-	}
-
-	public createOrGet(resource?: URI) {
-		return null;
-	}
-
-	public hasAssociatedFilePath(resource: URI) {
-		return false;
-	}
-}
-
 export class TestEditorGroupService implements IEditorGroupService {
 	public _serviceBrand: any;
 

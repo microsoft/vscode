@@ -135,12 +135,19 @@ export interface IGalleryMetadata {
 	publisherDisplayName: string;
 }
 
+export enum LocalExtensionType {
+	System,
+	User
+}
+
 export interface ILocalExtension {
+	type: LocalExtensionType;
 	id: string;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
 	path: string;
 	readmeUrl: string;
+	changelogUrl: string;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
@@ -179,8 +186,19 @@ export interface IExtensionGalleryService {
 	getAsset(url: string): TPromise<IRequestContext>;
 }
 
-export type InstallExtensionEvent = { id: string; gallery?: IGalleryExtension; };
-export type DidInstallExtensionEvent = { id: string; local?: ILocalExtension; error?: Error; };
+export interface InstallExtensionEvent {
+	id: string;
+	zipPath?: string;
+	gallery?: IGalleryExtension;
+}
+
+export interface DidInstallExtensionEvent {
+	id: string;
+	zipPath?: string;
+	gallery?: IGalleryExtension;
+	local?: ILocalExtension;
+	error?: Error;
+}
 
 export interface IExtensionManagementService {
 	_serviceBrand: any;
@@ -193,7 +211,7 @@ export interface IExtensionManagementService {
 	install(zipPath: string): TPromise<void>;
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension): TPromise<void>;
-	getInstalled(): TPromise<ILocalExtension[]>;
+	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
@@ -201,6 +219,7 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 export interface IExtensionTipsService {
 	_serviceBrand: any;
 	getRecommendations(): string[];
+	getWorkspaceRecommendations(): string[];
 }
 
 export const ExtensionsLabel = nls.localize('extensions', "Extensions");

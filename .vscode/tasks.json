@@ -47,7 +47,7 @@
 				],
 				"severity": "warning",
 				"pattern": {
-					"regexp": "^\\[tslint\\] (.*):(\\d+):(\\d+):\\s+(.*)$",
+					"regexp": "(.*):(\\d+):(\\d+):(.*)$",
 					"file": 1,
 					"line": 2,
 					"column": 3,

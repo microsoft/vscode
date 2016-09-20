@@ -153,16 +153,8 @@ export class TextFileService extends AbstractTextFileService {
 			defaultPath: defaultPath
 		};
 
-		// Filters are working flaky in Electron and there are bugs. On Windows they are working
-		// somewhat but we see issues:
-		// - https://github.com/electron/electron/issues/3556
-		// - https://github.com/Microsoft/vscode/issues/451
-		// - Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
-		// - Bug on Windows: Cannot save file without extension
-		// - Bug on Windows: Untitled files get just the first extension of the list
-		// Until these issues are resolved, we disable the dialog file extension filtering.
-		const disable = true; // Simply using if (true) flags the code afterwards as not reachable.
-		if (disable) {
+		// Filters are only enabled on Windows where they work properly
+		if (!isWindows) {
 			return options;
 		}
 
@@ -194,10 +186,13 @@ export class TextFileService extends AbstractTextFileService {
 		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
 		if (matchingFilter) {
 			filters.unshift(matchingFilter);
-			filters.push(allFilesFilter);
+			filters.unshift(allFilesFilter);
 		} else {
 			filters.unshift(allFilesFilter);
 		}
+
+		// Allow to save file without extension
+		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
 
 		options.filters = filters;
 

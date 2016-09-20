@@ -38,6 +38,11 @@
 	text-overflow: ellipsis;
 	position: relative;
 	padding-left: 2px;
+	font-style: italic;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.pinned .title-label {
+	font-style: normal;
 }
 
 /* Title Actions */

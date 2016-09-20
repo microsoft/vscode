@@ -180,6 +180,14 @@ suite('window namespace tests', () => {
 		]);
 	});
 
+	test('showInputBox - default value on Enter', function () {
+		const p = window.showInputBox({ value: 'farboo' });
+		return Promise.all<any>([
+			p.then(value => assert.equal(value, 'farboo')),
+			commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem'),
+		]);
+	});
+
 	test('showInputBox - `undefined` on Esc', function () {
 		const p = window.showInputBox();
 		return Promise.all<any>([
@@ -187,6 +195,15 @@ suite('window namespace tests', () => {
 			p.then(value => assert.equal(value, undefined))
 		]);
 	});
+
+	test('showInputBox - `undefined` on Esc (despite default)', function () {
+		const p = window.showInputBox({ value: 'farboo' });
+		return Promise.all<any>([
+			commands.executeCommand('workbench.action.closeQuickOpen'),
+			p.then(value => assert.equal(value, undefined))
+		]);
+	});
+
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
@@ -232,6 +249,20 @@ suite('window namespace tests', () => {
 		return result;
 	});
 
+	test('showQuickPick, native promise - #11754', function () {
+
+		const data = new Promise<string[]>(resolve => {
+			resolve(['a', 'b', 'c']);
+		});
+
+		const source = new CancellationTokenSource();
+		const result = window.showQuickPick(data, undefined, source.token);
+		source.cancel();
+		return result.then(value => {
+			assert.equal(value, undefined);
+		});
+	});
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
@@ -265,5 +296,14 @@ suite('window namespace tests', () => {
 		var terminal = window.createTerminal();
 		// This should not throw an exception
 		terminal.sendText('echo "foo"');
+	});
+
+	test('onDidCloseTerminal, event fires when terminal is disposed', (done) => {
+		var terminal = window.createTerminal();
+		window.onDidCloseTerminal((eventTerminal) => {
+			assert.equal(terminal, eventTerminal);
+			done();
+		});
+		terminal.dispose();
 	});
 });

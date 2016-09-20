@@ -118,7 +118,6 @@ export class Adapter {
 				this.warnRelativePaths(properties.outDir);
 				this.warnRelativePaths(properties.program);
 				this.warnRelativePaths(properties.cwd);
-				this.warnRelativePaths(properties.runtimeExecutable);
 				const osProperties = objects.deepClone(properties);
 				properties.windows = {
 					type: 'object',

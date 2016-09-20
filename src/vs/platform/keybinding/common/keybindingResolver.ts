@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BinaryKeybindings, ISimplifiedPlatform, Keybinding} from 'vs/base/common/keyCodes';
+import {BinaryKeybindings} from 'vs/base/common/keyCodes';
+import {ISimplifiedPlatform, Keybinding} from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
 import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';

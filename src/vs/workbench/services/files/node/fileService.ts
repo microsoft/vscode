@@ -314,6 +314,31 @@ export class FileService implements IFileService {
 		});
 	}
 
+	public touchFile(resource: uri): TPromise<IFileStat> {
+		const absolutePath = this.toAbsolutePath(resource);
+
+		// 1.) check file
+		return this.checkFile(absolutePath).then(exists => {
+			let createPromise: TPromise<IFileStat>;
+			if (exists) {
+				createPromise = TPromise.as(null);
+			} else {
+				createPromise = this.createFile(resource);
+			}
+
+			// 2.) create file as needed
+			return createPromise.then(() => {
+
+				// 3.) update atime and mtime
+				return pfs.utimes(absolutePath, new Date(), new Date()).then(() => {
+
+					// 4.) resolve
+					return this.resolve(resource);
+				});
+			});
+		});
+	}
+
 	public rename(resource: uri, newName: string): TPromise<IFileStat> {
 		const newPath = paths.join(paths.dirname(resource.fsPath), newName);
 
@@ -532,7 +557,7 @@ export class FileService implements IFileService {
 		return null;
 	}
 
-	private checkFile(absolutePath: string, options: IUpdateContentOptions): TPromise<boolean /* exists */> {
+	private checkFile(absolutePath: string, options: IUpdateContentOptions = Object.create(null)): TPromise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
 				return pfs.stat(absolutePath).then(stat => {

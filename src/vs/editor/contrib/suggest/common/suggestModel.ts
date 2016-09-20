@@ -134,7 +134,7 @@ export class Context {
 	}
 }
 
-enum State {
+const enum State {
 	Idle = 0,
 	Manual = 1,
 	Auto = 2

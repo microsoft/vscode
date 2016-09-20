@@ -25,7 +25,7 @@ class FindController extends CommonFindController implements IFindController {
 	) {
 		super(editor, contextKeyService);
 
-		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService));
+		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService));
 	}
 
 	protected _start(opts:IFindStartOptions): void {

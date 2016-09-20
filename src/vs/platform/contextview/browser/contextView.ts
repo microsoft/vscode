@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
@@ -35,11 +35,18 @@ export interface IContextMenuService {
 	showContextMenu(delegate: IContextMenuDelegate): void;
 }
 
+export interface IEvent {
+	shiftKey?: boolean;
+	ctrlKey?: boolean;
+	altKey?: boolean;
+	metaKey?: boolean;
+}
+
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; };
 	getActions(): TPromise<(IAction | ContextSubMenu)[]>;
 	getActionItem?(action: IAction): IActionItem;
-	getActionsContext?(): any;
+	getActionsContext?(event?: IEvent): any;
 	getKeyBinding?(action: IAction): Keybinding;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;

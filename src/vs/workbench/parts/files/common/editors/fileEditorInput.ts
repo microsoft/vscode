@@ -15,21 +15,18 @@ import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
 import {IEditorRegistry, Extensions, EditorModel, EncodingMode, ConfirmResult, IEditorDescriptor} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
-import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, EventType as FileEventType, TextFileChangeEvent, IFileEditorDescriptor} from 'vs/workbench/parts/files/common/files';
+import {IFileOperationResult, FileOperationResult, FileChangesEvent, EventType} from 'vs/platform/files/common/files';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, TextFileModelChangeEvent, IFileEditorDescriptor, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IEventService} from 'vs/platform/event/common/event';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
 export class FileEditorInput extends CommonFileEditorInput {
-
-	// Do ref counting for all inputs that resolved to a model to be able to dispose when count = 0
-	private static FILE_EDITOR_MODEL_CLIENTS: { [resource: string]: FileEditorInput[]; } = Object.create(null);
-
 	private resource: URI;
 	private mime: string;
 	private preferredEncoding: string;
@@ -47,9 +44,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		resource: URI,
 		mime: string,
 		preferredEncoding: string,
-		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService,
+		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
@@ -66,13 +64,32 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+
+		// Model changes
+		this.toUnbind.push(this.textFileService.models.onModelDirty(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
+
+		// File changes
+		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
 	}
 
-	private onDirtyStateChange(e: TextFileChangeEvent): void {
+	private onLocalFileChange(e: LocalFileChangeEvent): void {
+		const movedTo = e.gotMoved() && e.getAfter() && e.getAfter().resource;
+		if (e.gotDeleted() || movedTo) {
+			this.disposeIfRelated(e.getBefore().resource, movedTo);
+		}
+	}
+
+	private onFileChanges(e: FileChangesEvent): void {
+		e.getDeleted().forEach(deleted => {
+			this.disposeIfRelated(deleted.resource);
+		});
+	}
+
+	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
 		if (e.resource.toString() === this.resource.toString()) {
 			this._onDidChangeDirty.fire();
 		}
@@ -221,16 +238,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
-		const resource = this.resource.toString();
-
-		// Keep clients who resolved the input to support proper disposal
-		const clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource];
-		if (types.isUndefinedOrNull(clients)) {
-			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource] = [this];
-		} else if (this.indexOfClient() === -1) {
-			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource].push(this);
-		}
-
 		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
@@ -243,30 +250,29 @@ export class FileEditorInput extends CommonFileEditorInput {
 		});
 	}
 
-	private indexOfClient(): number {
-		const inputs = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()];
-		if (inputs) {
-			for (let i = 0; i < inputs.length; i++) {
-				const client = inputs[i];
-				if (client === this) {
-					return i;
-				}
-			}
+	private disposeIfRelated(resource: URI, movedTo?: URI): void {
+		if (this.isDirty()) {
+			return; // we never dispose dirty files
 		}
 
-		return -1;
+		// Special case: a resource was renamed to the same path with different casing. Since our paths
+		// API is treating the paths as equal (they are on disk), we end up disposing the input we just
+		// renamed. The workaround is to detect that we do not dispose any input we are moving the file to
+		if (movedTo && movedTo.fsPath === this.resource.fsPath) {
+			return;
+		}
+
+		// Check if path is identical or path is a folder that the content is inside
+		if (paths.isEqualOrParent(this.resource.toString(), resource.toString())) {
+			this.historyService.remove(this);
+			this.dispose();
+		}
 	}
 
 	public dispose(): void {
 
 		// Listeners
 		dispose(this.toUnbind);
-
-		// Clear from our input cache
-		const index = this.indexOfClient();
-		if (index >= 0) {
-			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].splice(index, 1);
-		}
 
 		super.dispose();
 	}
@@ -288,25 +294,5 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 
 		return false;
-	}
-
-	/**
-	 * Exposed so that other internal file API can access the list of all file editor inputs
-	 * that have been loaded during the session.
-	 */
-	public static getAll(desiredFileOrFolderResource: URI): FileEditorInput[] {
-		const inputsContainingResource: FileEditorInput[] = [];
-
-		const clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS;
-		for (const resource in clients) {
-			const inputs = clients[resource];
-
-			// Check if path is identical or path is a folder that the content is inside
-			if (paths.isEqualOrParent(resource, desiredFileOrFolderResource.toString())) {
-				inputsContainingResource.push(...inputs);
-			}
-		}
-
-		return inputsContainingResource;
 	}
 }

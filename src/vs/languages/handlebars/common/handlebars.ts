@@ -12,11 +12,11 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
-import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {TokenizationSupport, ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 export enum States {
 	HTML,
@@ -26,7 +26,7 @@ export enum States {
 
 export class HandlebarsState extends htmlMode.State {
 
-	constructor(mode:modes.IMode,
+	constructor(modeId:string,
 		kind:htmlMode.States,
 		public handlebarsKind:States,
 		lastTagName:string,
@@ -35,11 +35,11 @@ export class HandlebarsState extends htmlMode.State {
 		attributeValueQuote:string,
 		attributeValueLength:number) {
 
-		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValueLength);
+		super(modeId, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValueLength);
 	}
 
 	public makeClone(): HandlebarsState {
-		return new HandlebarsState(this.getMode(), this.kind, this.handlebarsKind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
+		return new HandlebarsState(this.getModeId(), this.kind, this.handlebarsKind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValueLength);
 	}
 
 	public equals(other:modes.IState):boolean {
@@ -184,16 +184,18 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		}, true);
 
 		LanguageConfigurationRegistry.register(this.getId(), HandlebarsMode.LANG_CONFIG);
+
+		modes.TokenizationRegistry.register(this.getId(), new TokenizationSupport(this._modeService, this.getId(), this, true));
 	}
 
 	public getInitialState() : modes.IState {
-		return new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', 0);
+		return new HandlebarsState(this.getId(), htmlMode.States.Content, States.HTML, '', '', '', '', 0);
 	}
 
 	public getLeavingNestedModeData(line:string, state:modes.IState):ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
-			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', 0);
+			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this.getId(), htmlMode.States.Content, States.HTML, '', '', '', '', 0);
 		}
 		return leavingNestedModeData;
 	}

@@ -6,7 +6,8 @@
 'use strict';
 
 import 'vs/css!./media/extensionsViewlet';
-import Event, { Emitter } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
+import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { isUUID } from 'vs/base/common/uuid';
@@ -16,7 +17,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,9 +29,12 @@ import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { readFile } from 'vs/base/node/pfs';
 import { asText } from 'vs/base/node/request';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from './extensions';
 import { UpdateAllAction } from './extensionsActions';
-
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import { IURLService } from 'vs/platform/url/common/url';
+import { ExtensionsInput } from './extensionsInput';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -45,6 +50,10 @@ class Extension implements IExtension {
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension = null
 	) {}
+
+	get type(): LocalExtensionType {
+		return this.local ? this.local.type : null;
+	}
 
 	get name(): string {
 		return this.local ? this.local.manifest.name : this.gallery.name;
@@ -92,6 +101,14 @@ class Extension implements IExtension {
 		}
 
 		return this.gallery && this.gallery.assets.readme;
+	}
+
+	get changelogUrl(): string {
+		if (this.local && this.local.changelogUrl) {
+			return this.local.changelogUrl;
+		}
+
+		return ''; // Hopefully we will change this once the gallery will support that.
 	}
 
 	get iconUrl(): string {
@@ -178,6 +195,26 @@ class Extension implements IExtension {
 
 		return this.galleryService.getAsset(readmeUrl).then(asText);
 	}
+
+	get hasChangelog() : boolean {
+		return !!(this.local && this.local.changelogUrl ? this.local.changelogUrl : '');
+	}
+
+	getChangelog() : TPromise<string> {
+		const changelogUrl = this.local && this.local.changelogUrl ? this.local.changelogUrl : '';
+
+		if (!changelogUrl) {
+			return TPromise.wrapError('not available');
+		}
+
+		const uri = URI.parse(changelogUrl);
+
+		if (uri.scheme === 'file') {
+			return readFile(uri.fsPath, 'utf8');
+		}
+
+		return TPromise.wrapError('not available');
+	}
 }
 
 function stripVersion(id: string): string {
@@ -224,20 +261,26 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IExtensionManagementService private extensionService: IExtensionManagementService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IURLService urlService: IURLService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
-		this.disposables.push(extensionService.onInstallExtension(({ id, gallery }) => this.onInstallExtension(id, gallery)));
-		this.disposables.push(extensionService.onDidInstallExtension(({ id, local, error }) => this.onDidInstallExtension(id, local, error)));
-		this.disposables.push(extensionService.onUninstallExtension(id => this.onUninstallExtension(id)));
-		this.disposables.push(extensionService.onDidUninstallExtension(id => this.onDidUninstallExtension(id)));
+		extensionService.onInstallExtension(this.onInstallExtension, this, this.disposables);
+		extensionService.onDidInstallExtension(this.onDidInstallExtension, this, this.disposables);
+		extensionService.onUninstallExtension(this.onUninstallExtension, this, this.disposables);
+		extensionService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
+
+		chain(urlService.onOpenURL)
+			.filter(uri => /^extension/.test(uri.path))
+			.on(this.onOpenExtensionUrl, this, this.disposables);
 
 		this.queryLocal().done(() => this.eventuallySyncWithGallery(true));
 	}
@@ -310,7 +353,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		return this.queryGallery({ ids, pageSize: ids.length }).then(() => {
-			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>('extensions');
+			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
 
 			if (!config.autoUpdate) {
 				return;
@@ -329,7 +372,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return !!(extension as Extension).gallery;
 	}
 
-	install(extension: IExtension): TPromise<void> {
+	install(extension: string | IExtension): TPromise<void> {
+		if (typeof extension === 'string') {
+			return this.extensionService.install(extension);
+		}
+
 		if (!(extension instanceof Extension)) {
 			return;
 		}
@@ -359,7 +406,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.extensionService.uninstall(local);
 	}
 
-	private onInstallExtension(id: string, gallery: IGalleryExtension): void {
+	private onInstallExtension(event: InstallExtensionEvent): void {
+		const { id, gallery } = event;
+
 		if (!gallery) {
 			return;
 		}
@@ -379,12 +428,22 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this._onChange.fire();
 	}
 
-	private onDidInstallExtension(id: string, local: ILocalExtension, error: Error): void {
-		id = stripVersion(id);
-
+	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
+		const { local, zipPath, error } = event;
+		const id = stripVersion(event.id);
 		const installing = this.installing.filter(e => e.id === id)[0];
 
 		if (!installing) {
+			if (zipPath) {
+				this.messageService.show(
+					Severity.Info,
+					{
+						message: localize('successSingle', "'{0}' was successfully installed. Restart to enable it.", id),
+						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Restart Now"))]
+					}
+				);
+			}
+
 			return;
 		}
 
@@ -467,11 +526,36 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		const message = err && err.message || '';
 
-		if (/getaddrinfo ENOTFOUND/.test(message)) {
+		if (/getaddrinfo ENOTFOUND|getaddrinfo ENOENT|connect EACCES|connect ECONNREFUSED/.test(message)) {
 			return;
 		}
 
 		this.messageService.show(Severity.Error, err);
+	}
+
+	private onOpenExtensionUrl(uri: URI): void {
+		const match = /^extension\/([^/]+)$/.exec(uri.path);
+
+		if (!match) {
+			return;
+		}
+
+		const extensionId = match[1];
+
+		this.queryGallery({ names: [extensionId] })
+			.done(result => {
+				if (result.total < 1) {
+					return;
+				}
+
+				const extension = result.firstPage[0];
+				this.openExtension(extension);
+			});
+	}
+
+	private openExtension(extension: IExtension): void {
+		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
+			.done(null, err => this.onError(err));
 	}
 
 	dispose(): void {
