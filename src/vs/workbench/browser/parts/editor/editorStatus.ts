@@ -60,20 +60,11 @@ function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 }
 
 function getTextModel(editorWidget: IEditor): IModel {
-	let textModel: IModel;
 
-	// Support for diff
-	const model = editorWidget.getModel();
-	if (model && !!(<IDiffEditorModel>model).modified) {
-		textModel = (<IDiffEditorModel>model).modified;
-	}
+	// make sure to resolve any possible diff editors to their modified side
+	editorWidget = getCodeEditor(editorWidget);
 
-	// Normal editor
-	else {
-		textModel = <IModel>model;
-	}
-
-	return textModel;
+	return editorWidget ? <IModel>editorWidget.getModel() : null;
 }
 
 function asFileOrUntitledEditorInput(input: any): UntitledEditorInput | IFileEditorInput {
