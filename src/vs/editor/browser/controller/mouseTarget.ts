@@ -15,6 +15,51 @@ import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import {IViewCursorRenderData} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
+interface IETextRange {
+	boundingHeight: number;
+	boundingLeft: number;
+	boundingTop: number;
+	boundingWidth: number;
+	htmlText: string;
+	offsetLeft: number;
+	offsetTop: number;
+	text: string;
+	collapse(start?: boolean): void;
+	compareEndPoints(how: string, sourceRange: IETextRange): number;
+	duplicate(): IETextRange;
+	execCommand(cmdID: string, showUI?: boolean, value?: any): boolean;
+	execCommandShowHelp(cmdID: string): boolean;
+	expand(Unit: string): boolean;
+	findText(string: string, count?: number, flags?: number): boolean;
+	getBookmark(): string;
+	getBoundingClientRect(): ClientRect;
+	getClientRects(): ClientRectList;
+	inRange(range: IETextRange): boolean;
+	isEqual(range: IETextRange): boolean;
+	move(unit: string, count?: number): number;
+	moveEnd(unit: string, count?: number): number;
+	moveStart(unit: string, count?: number): number;
+	moveToBookmark(bookmark: string): boolean;
+	moveToElementText(element: Element): void;
+	moveToPoint(x: number, y: number): void;
+	parentElement(): Element;
+	pasteHTML(html: string): void;
+	queryCommandEnabled(cmdID: string): boolean;
+	queryCommandIndeterm(cmdID: string): boolean;
+	queryCommandState(cmdID: string): boolean;
+	queryCommandSupported(cmdID: string): boolean;
+	queryCommandText(cmdID: string): string;
+	queryCommandValue(cmdID: string): any;
+	scrollIntoView(fStart?: boolean): void;
+	select(): void;
+	setEndPoint(how: string, SourceRange: IETextRange): void;
+}
+
+declare var IETextRange: {
+	prototype: IETextRange;
+	new(): IETextRange;
+};
+
 interface IHitTestResult {
 	position: IPosition;
 	hitTarget: Element;
@@ -471,7 +516,7 @@ export class MouseTargetFactory {
 		let resultPosition: IPosition = null;
 		let resultHitTarget: Element = null;
 
-		let textRange:TextRange = (<any>document.body).createTextRange();
+		let textRange: IETextRange = (<any>document.body).createTextRange();
 		try {
 			textRange.moveToPoint(e.viewportx, e.viewporty);
 		} catch (err) {
