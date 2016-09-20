@@ -321,7 +321,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return this._keybindingService.lookupKeybindings(c);
 		}).reduce((prev, curr) => {
 			return prev.concat(curr);
-		});
+		}, []);
 	}
 
 	public layout(dimension: Dimension): void {
