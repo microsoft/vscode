@@ -155,8 +155,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	protected send(command: string, args: any, cancelOnDisconnect = true): TPromise<DebugProtocol.Response> {
 		return this.initServer().then(() => {
 			const promise = super.send(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
-				const error = errorResponse.body ? errorResponse.body.error : null;
-				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorResponse.message;
+				const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
+				const errorMessage = errorResponse ? errorResponse.message : '';
+				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorMessage;
 				if (error && error.sendTelemetry) {
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					if (this.customTelemetryService) {
@@ -168,7 +169,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 					return TPromise.as(null);
 				}
 
-				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
+				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorMessage;
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 					return TPromise.wrapError(errors.create(userMessage, { actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {

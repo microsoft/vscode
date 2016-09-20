@@ -132,6 +132,10 @@ export class Thread implements debug.IThread {
 	private getCallStackImpl(debugService: debug.IDebugService, startFrame: number): TPromise<debug.IStackFrame[]> {
 		let session = debugService.getActiveSession();
 		return session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
+			if (!response || !response.body) {
+				return [];
+			}
+
 			this.stoppedDetails.totalFrames = response.body.totalFrames;
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
@@ -295,9 +299,9 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 			count,
 			filter
 		}).then(response => {
-			return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
+			return response && response.body && response.body.variables ? arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
 				v => new Variable(this, v.variablesReference, v.name, v.value, v.namedVariables, v.indexedVariables, v.type)
-			);
+			) : [];
 		}, (e: Error) => [new Variable(this, 0, null, e.message, 0, 0, null, false)]);
 	}
 
@@ -384,7 +388,8 @@ export class StackFrame implements debug.IStackFrame {
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {
 		if (!this.scopes) {
 			this.scopes = debugService.getActiveSession().scopes({ frameId: this.frameId }).then(response => {
-				return response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables));
+				return response && response.body && response.body.scopes ?
+					response.body.scopes.map(rs => new Scope(this.threadId, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables)) : [];
 			}, err => []);
 		}
 
