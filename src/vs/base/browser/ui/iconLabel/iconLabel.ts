@@ -21,7 +21,7 @@ export class IconLabel {
 
 	constructor(container: HTMLElement, label?: string, description?: string, options?: IIconLabelOptions) {
 		this.domNode = dom.append(container, dom.$('.monaco-icon-label'));
-		this.labelNode = dom.append(this.domNode, dom.$('span.label-name'));
+		this.labelNode = dom.append(this.domNode, dom.$('a.label-name'));
 		this.descriptionNode = dom.append(this.domNode, dom.$('span.label-description'));
 
 		if (label) {
