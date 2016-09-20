@@ -220,17 +220,17 @@ export class MarkersModel {
 		for (let i = 0; i < entry.value.length; i++) {
 			const m = entry.value[i];
 			const uri = entry.key.toString();
-			if (!this._filterOptions.filter || this.filterMarker(m)) {
+			if (!this._filterOptions.hasFilters() || this.filterMarker(m)) {
 				markers.push(this.toMarker(m, i, uri));
 			}
 		}
-		const matches = this._filterOptions.filter ? FilterOptions._filter(this._filterOptions.filter, paths.basename(entry.key.fsPath)) : [];
+		const matches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(entry.key.fsPath)) : [];
 		return new Resource(entry.key, markers, this.getStatistics(entry.value), matches || []);
 	}
 
 	private toMarker(marker: IMarker, index: number, uri: string): Marker {
-		const labelMatches = this._filterOptions.filter ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message) : [];
-		const sourceMatches = marker.source && this._filterOptions.filter ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
+		const labelMatches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message) : [];
+		const sourceMatches = marker.source && this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
 		return new Marker(uri + index, marker, labelMatches || [], sourceMatches || []);
 	}
 
