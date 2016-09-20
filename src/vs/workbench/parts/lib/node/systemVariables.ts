@@ -16,6 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 export class SystemVariables extends AbstractSystemVariables {
 	private _workspaceRoot: string;
+	private _workspaceRootFolderName: string;
 	private _execPath: string;
 
 	// Optional workspaceRoot there to be used in tests.
@@ -32,6 +33,7 @@ export class SystemVariables extends AbstractSystemVariables {
 			fsPath = workspaceRoot ? workspaceRoot.fsPath : contextService.getWorkspace().resource.fsPath;
 		}
 		this._workspaceRoot = Paths.normalize(fsPath, true);
+		this._workspaceRootFolderName = Paths.basename(this._workspaceRoot);
 		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
 			this[`env.${key}`] = envVariables[key];
@@ -52,6 +54,10 @@ export class SystemVariables extends AbstractSystemVariables {
 
 	public get workspaceRoot(): string {
 		return this._workspaceRoot;
+	}
+
+	public get workspaceRootFolderName(): string {
+		return this._workspaceRootFolderName;
 	}
 
 	public get file(): string {
