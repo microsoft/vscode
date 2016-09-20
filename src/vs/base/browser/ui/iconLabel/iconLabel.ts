@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./iconLabel';
+import 'vs/css!./iconlabel';
 import dom = require('vs/base/browser/dom');
 
 export interface IIconLabelOptions {
