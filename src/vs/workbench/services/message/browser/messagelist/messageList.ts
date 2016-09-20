@@ -34,9 +34,10 @@ interface IMessageEntry {
 	id: any;
 	text: string;
 	severity: Severity;
-	time?: number;
+	time: number;
 	count?: number;
-	actions?: Action[];
+	actions: Action[];
+	onHide: () => void;
 }
 
 export class IMessageListOptions {
@@ -85,15 +86,15 @@ export class MessageList {
 		return this._onMessagesCleared.event;
 	}
 
-	public showMessage(severity: Severity, message: string): () => void;
-	public showMessage(severity: Severity, message: Error): () => void;
-	public showMessage(severity: Severity, message: string[]): () => void;
-	public showMessage(severity: Severity, message: Error[]): () => void;
-	public showMessage(severity: Severity, message: IMessageWithAction): () => void;
-	public showMessage(severity: Severity, message: any): () => void {
+	public showMessage(severity: Severity, message: string, onHide?: ()=>void): () => void;
+	public showMessage(severity: Severity, message: Error, onHide?: ()=>void): () => void;
+	public showMessage(severity: Severity, message: string[], onHide?: ()=>void): () => void;
+	public showMessage(severity: Severity, message: Error[], onHide?: ()=>void): () => void;
+	public showMessage(severity: Severity, message: IMessageWithAction, onHide?: ()=>void): () => void;
+	public showMessage(severity: Severity, message: any, onHide?: ()=>void): () => void {
 		if (Array.isArray(message)) {
 			const closeFns: Function[] = [];
-			message.forEach((msg: any) => closeFns.push(this.showMessage(severity, msg)));
+			message.forEach((msg: any) => closeFns.push(this.showMessage(severity, msg, onHide)));
 
 			return () => closeFns.forEach((fn) => fn());
 		}
@@ -105,7 +106,7 @@ export class MessageList {
 		}
 
 		// Show message
-		return this.doShowMessage(message, messageText, severity);
+		return this.doShowMessage(message, messageText, severity, onHide);
 	}
 
 	private getMessageText(message: any): string {
@@ -124,10 +125,10 @@ export class MessageList {
 		return null;
 	}
 
-	private doShowMessage(id: string, message: string, severity: Severity): () => void;
-	private doShowMessage(id: Error, message: string, severity: Severity): () => void;
-	private doShowMessage(id: IMessageWithAction, message: string, severity: Severity): () => void;
-	private doShowMessage(id: any, message: string, severity: Severity): () => void {
+	private doShowMessage(id: string, message: string, severity: Severity, onHide: ()=>void): () => void;
+	private doShowMessage(id: Error, message: string, severity: Severity, onHide: ()=>void): () => void;
+	private doShowMessage(id: IMessageWithAction, message: string, severity: Severity, onHide: ()=>void): () => void;
+	private doShowMessage(id: any, message: string, severity: Severity, onHide: ()=>void): () => void {
 
 		// Trigger Auto-Purge of messages to keep list small
 		this.purgeMessages();
@@ -138,7 +139,8 @@ export class MessageList {
 			text: message,
 			severity: severity,
 			time: Date.now(),
-			actions: (<IMessageWithAction>id).actions
+			actions: (<IMessageWithAction>id).actions,
+			onHide
 		});
 
 		// Render
@@ -303,6 +305,10 @@ export class MessageList {
 
 	private disposeMessages(messages: IMessageEntry[]): void {
 		messages.forEach((message) => {
+			if (message.onHide) {
+				message.onHide();
+			}
+
 			if (message.actions) {
 				message.actions.forEach((action) => {
 					action.dispose();
