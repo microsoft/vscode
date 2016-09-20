@@ -21,7 +21,7 @@ import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {$, Builder} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
-import {FileLabel} from 'vs/workbench/parts/files/browser/files';
+import {FileLabel} from 'vs/workbench/browser/labels';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';

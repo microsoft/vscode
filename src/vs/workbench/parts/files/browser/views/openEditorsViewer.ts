@@ -8,7 +8,7 @@ import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
-import {EditorLabel} from 'vs/workbench/browser/parts/editor/editorLabel';
+import {EditorLabel} from 'vs/workbench/browser/labels';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import {IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer} from 'vs/base/parts/tree/browser/tree';
 import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
@@ -178,7 +178,7 @@ export class Renderer implements IRenderer {
 
 	private renderOpenEditor(tree: ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
-		templateData.root.setInput(editor.editorInput, { italic: editor.isPreview(), extraClasses: ['open-editor'] });
+		templateData.root.setEditor(editor.editorInput, { italic: editor.isPreview(), extraClasses: ['open-editor'] });
 		templateData.actionBar.context = { group: editor.editorGroup, editor: editor.editorInput };
 	}
 
