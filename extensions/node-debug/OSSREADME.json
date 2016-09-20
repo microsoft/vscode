@@ -72,7 +72,7 @@
 },
 {
 	"name": "inflight",
-	"repositoryURL": "https://www.npmjs.com/package/inflight",
+	"repositoryURL": "https://github.com/npm/inflight",
 	"version": "1.0.5",
 	"license": "ISC",
 	"isProd": true
