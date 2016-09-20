@@ -153,7 +153,7 @@ export class WorkbenchMessageService implements IMessageService, IChoiceService 
 		const promise = new TPromise((c, e) => {
 			const callback = index => () => {
 				c(index);
-				return TPromise.as(null);
+				return TPromise.as(true);
 			};
 
 			const actions = options.map((option, index) => new Action('?', option, '', true, callback(index)));
