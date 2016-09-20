@@ -105,7 +105,7 @@ export interface IFileService {
 	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
 	// TODO: doc
-	backupFile(resource: URI): TPromise<IFileStat>;
+	backupFile(resource: URI, content: string): TPromise<IFileStat>;
 
 	/**
 	 * Imports the file to the parent identified by the resource.

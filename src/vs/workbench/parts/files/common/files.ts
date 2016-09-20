@@ -389,6 +389,9 @@ export interface ITextFileService extends IDisposable {
 	 */
 	confirmSave(resources?: URI[]): ConfirmResult;
 
+	// TODO: Doc
+	backup(resource: URI): void;
+
 	/**
 	 * Convinient fast access to the current auto save mode.
 	 */
@@ -398,4 +401,9 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+
+	/**
+	 * Whether hot exit is enabled.
+	 */
+	isHotExitEnabled(): boolean;
 }

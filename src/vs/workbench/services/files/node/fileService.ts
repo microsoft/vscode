@@ -433,9 +433,13 @@ export class FileService implements IFileService {
 		return nfcall(extfs.del, absolutePath, this.tmpPath);
 	}
 
-	public backupFile(resource: uri): TPromise<IFileStat> {
-		// TODO: Implement
-		return null;
+	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
+		// TODO: Implement properly
+		var backupName = paths.basename(resource.fsPath);
+		var backupPath = paths.join(process.env['HOME'], 'backup-test', backupName);
+
+		let backupResource = uri.file(backupPath);
+		return this.updateContent(backupResource, content);
 	}
 
 	// Helpers

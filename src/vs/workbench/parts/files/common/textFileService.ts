@@ -42,7 +42,7 @@ export abstract class TextFileService implements ITextFileService {
 	private _onFilesAssociationChange: Emitter<void>;
 	private currentFilesAssociationConfig: { [key: string]: string; };
 
-	private isHotExitEnabled: boolean;
+	private configuredHotExit: boolean;
 
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 	private configuredAutoSaveDelay: number;
@@ -118,11 +118,8 @@ export abstract class TextFileService implements ITextFileService {
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
 			// If hot exit is enabled then save the dirty files in the workspace and then exit
-			if (this.isHotExitEnabled) {
-				return this.backupDirtyFiles().then(() => {
-					// TODO: return false here to actually exit
-					return true;
-				});
+			if (this.configuredHotExit) {
+				// TODO: Do last minute backup if needed
 			}
 
 			// If auto save is enabled, save all files and then check again for dirty files
@@ -141,27 +138,6 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		return false; // no veto
-	}
-
-	private backupDirtyFiles(): TPromise<ITextFileOperationResult> {
-		const toSave = this.getDirty();
-
-		// TODO: Reuse code in saveAll
-		const filesToSave: URI[] = [];
-		const untitledToSave: URI[] = [];
-		toSave.forEach(s => {
-			if (s.scheme === 'file') {
-				filesToSave.push(s);
-			} else if (s.scheme === 'untitled') {
-				untitledToSave.push(s);
-			}
-		});
-
-		return this.backupFiles(filesToSave, untitledToSave);
-	}
-
-	private backupFiles(fileResources: URI[], untitledResources: URI[]): TPromise<ITextFileOperationResult> {
-		return null;
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
@@ -239,7 +215,7 @@ export abstract class TextFileService implements ITextFileService {
 			this.saveAll().done(null, errors.onUnexpectedError);
 		}
 
-		this.isHotExitEnabled = configuration && configuration.files && configuration.files.hotExit;
+		this.configuredHotExit = configuration && configuration.files && configuration.files.hotExit;
 
 		// Check for change in files associations
 		const filesAssociation = configuration && configuration.files && configuration.files.associations;
@@ -552,6 +528,14 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
+	public backup(resource: URI): void {
+		let model = this.getDirtyFileModels(resource);
+		if (!model || model.length === 0) {
+			return;
+		}
+		this.fileService.backupFile(resource, model[0].getValue());
+	}
+
 	public getAutoSaveMode(): AutoSaveMode {
 		if (this.configuredAutoSaveOnFocusChange) {
 			return AutoSaveMode.ON_FOCUS_CHANGE;
@@ -574,6 +558,10 @@ export abstract class TextFileService implements ITextFileService {
 			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange,
 			autoSaveApplicationChange: this.configuredAutoSaveOnWindowChange
 		};
+	}
+
+	public isHotExitEnabled(): boolean {
+		return this.configuredHotExit;
 	}
 
 	public dispose(): void {

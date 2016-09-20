@@ -19,6 +19,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
+import {IFileService} from 'vs/platform/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import arrays = require('vs/base/common/arrays');
 
@@ -36,6 +37,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
+		@IFileService private fileService: IFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -65,6 +67,8 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	}
 
 	private onUntitledDidChangeDirty(resource: URI): void {
+		console.log('onUntitledDidChangeDirty', resource);
+
 		const gotDirty = this.untitledEditorService.isDirty(resource);
 
 		if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
@@ -74,9 +78,21 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		if (gotDirty || this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
+
+		// TODO: This needs to be moved elsewhere since dirty events cannot be reused because when a backup is
+		//       performed then dirty status does not change.
+		if (this.textFileService.isHotExitEnabled()) {
+			console.log('trigger hot exit');
+			// TODO: Delay/throttle
+			//let untitledEditorInput = this.untitledEditorService.get(resource);
+			//untitledEditorInput
+			//this.fileService.backupFile(resource);
+		}
 	}
 
 	private onTextFileDirty(e: TextFileModelChangeEvent): void {
+		console.log('onTextFileDirty', e);
+
 		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
@@ -92,6 +108,12 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		this.pendingDirtyResources.push(e.resource);
 		if (!this.pendingDirtyHandle) {
 			this.pendingDirtyHandle = setTimeout(() => this.doOpenDirtyResources(), 250);
+		}
+
+		if (this.textFileService.isHotExitEnabled()) {
+			console.log('trigger hot exit');
+			// TODO: Delay/throttle
+			this.textFileService.backup(e.resource);
 		}
 	}
 
