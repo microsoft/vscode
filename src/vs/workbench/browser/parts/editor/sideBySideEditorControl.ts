@@ -783,6 +783,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			if (useTabs) {
 				titleContainer.addClass('tabs');
 			}
+			titleContainer.addClass('show-file-icons');
 			this.hookTitleDragListener(titleContainer);
 
 			// Title Control

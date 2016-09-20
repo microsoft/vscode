@@ -27,7 +27,6 @@ export class NoTabsTitleControl extends TitleControl {
 		super.create(parent);
 
 		this.titleContainer = parent;
-		DOM.addClass(this.titleContainer, 'show-file-icons');
 
 		// Pin on double click
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
