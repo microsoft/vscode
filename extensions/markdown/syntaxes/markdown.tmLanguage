@@ -529,7 +529,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -545,7 +545,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -561,7 +561,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -577,7 +577,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -593,7 +593,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -609,7 +609,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -625,7 +625,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -641,7 +641,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -657,7 +657,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -673,7 +673,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -689,7 +689,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -705,7 +705,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -721,7 +721,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -737,7 +737,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -753,7 +753,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -769,7 +769,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -785,7 +785,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -801,7 +801,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -817,7 +817,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -833,7 +833,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -849,7 +849,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -865,7 +865,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -881,7 +881,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -897,7 +897,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -913,7 +913,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -929,7 +929,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -945,7 +945,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -961,7 +961,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -977,7 +977,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -993,7 +993,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1009,7 +1009,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1025,7 +1025,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1041,7 +1041,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1057,7 +1057,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1073,7 +1073,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1089,7 +1089,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1105,7 +1105,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\n</string>
+					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
 					<key>patterns</key>
 					<array>
 						<dict>
