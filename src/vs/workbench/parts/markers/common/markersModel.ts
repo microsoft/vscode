@@ -15,13 +15,27 @@ import {IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesF
 import Messages from 'vs/workbench/parts/markers/common/messages';
 
 export class Resource {
-	public name: string;
-	public path: string;
+
+	private _name: string = null;
+	private _path: string = null;
+
 	constructor(public uri: URI, public markers: Marker[],
 								public statistics: MarkerStatistics,
 								public matches: IMatch[] = []){
-		this.path= uri.fsPath;
-		this.name= paths.basename(uri.fsPath);
+	}
+
+	public get path(): string {
+		if (this._path === null) {
+			this._path = this.uri.fsPath;
+		}
+		return this._path;
+	}
+
+	public get name(): string {
+		if (this._name === null) {
+			this._name = paths.basename(this.uri.fsPath);
+		}
+		return this._name;
 	}
 }
 
@@ -32,10 +46,6 @@ export class Marker {
 
 	public get resource(): URI {
 		return this.marker.resource;
-	}
-
-	public get range(): Range {
-		return new Range(this.marker.startLineNumber, this.marker.startColumn, this.marker.endLineNumber, this.marker.endLineNumber);
 	}
 }
 
@@ -156,18 +166,16 @@ export class MarkersModel {
 	}
 
 	private refreshResources(): void {
-		var resources= <Resource[]>this.markersByResource.entries().map(this.toFilteredResource.bind(this));
-		this._nonFilteredResources= resources.filter((resource) => {return resource.markers.length === 0;});
-		this._filteredResources= resources.filter((resource) => {return resource.markers.length > 0;});
-		this._filteredResources.sort((a: Resource, b: Resource) => {
-			if (a.statistics.errors === 0 && b.statistics.errors > 0) {
-				return 1;
+		this._nonFilteredResources = [];
+		this._filteredResources = [];
+		for (const entry of this.markersByResource.entries()) {
+			const filteredResource = this.toFilteredResource(entry);
+			if (filteredResource.markers.length) {
+				this._filteredResources.push(filteredResource);
+			} else {
+				this._nonFilteredResources.push(filteredResource);
 			}
-			if (b.statistics.errors === 0 && a.statistics.errors > 0) {
-				return -1;
-			}
-			return a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
-		});
+		}
 	}
 
 	private updateResource(resourceUri: URI, markers: IMarker[]) {
@@ -192,77 +200,64 @@ export class MarkersModel {
 	}
 
 	private toFilteredResource(entry: Map.Entry<URI, IMarker[]>) {
-		let markers:Marker[]= entry.value.filter(this.filterMarker.bind(this)).map((marker, index) => {
-			return this.toMarker(marker, index);
-		});
-		markers.sort(this.compareMarkers.bind(this));
-		const matches = FilterOptions._filter(this._filterOptions.filter, paths.basename(entry.key.fsPath));
+		let markers: Marker[] = [];
+		for (let i = 0; i < entry.value.length; i++) {
+			const m = entry.value[i];
+			const uri = entry.key.toString();
+			if (!this._filterOptions.filter || this.filterMarker(m)) {
+				markers.push(this.toMarker(m, i, uri));
+			}
+		}
+		const matches = this._filterOptions.filter ? FilterOptions._filter(this._filterOptions.filter, paths.basename(entry.key.fsPath)) : [];
 		return new Resource(entry.key, markers, this.getStatistics(entry.value), matches || []);
 	}
 
-	private toMarker(marker: IMarker, index: number):Marker {
-		const labelMatches = FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message);
-		const sourceMatches = !!marker.source ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
-		return new Marker(marker.resource.toString() + index, marker, labelMatches || [], sourceMatches || []);
+	private toMarker(marker: IMarker, index: number, uri: string): Marker {
+		const labelMatches = this._filterOptions.filter ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message) : [];
+		const sourceMatches = marker.source && this._filterOptions.filter ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
+		return new Marker(uri + index, marker, labelMatches || [], sourceMatches || []);
 	}
 
 	private filterMarker(marker: IMarker):boolean {
-		if (this._filterOptions.filter) {
-			if (this._filterOptions.filterErrors && Severity.Error === marker.severity) {
-				return true;
-			}
-			if (this._filterOptions.filterWarnings && Severity.Warning === marker.severity) {
-				return true;
-			}
-			if (this._filterOptions.filterInfos && Severity.Info === marker.severity) {
-				return true;
-			}
-			if (!!FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message)) {
-				return true;
-			}
-			if (!!FilterOptions._filter(this._filterOptions.filter, paths.basename(marker.resource.fsPath))) {
-				return true;
-			}
-			if (!!marker.source && !!FilterOptions._filter(this._filterOptions.filter, marker.source)) {
-				return true;
-			}
-			return false;
+		if (this._filterOptions.filterErrors && Severity.Error === marker.severity) {
+			return true;
 		}
-		return true;
-	}
-
-	private compareMarkers(a: Marker, b:Marker): number {
-		return Range.compareRangesUsingStarts({
-			startLineNumber: a.marker.startLineNumber,
-			startColumn: a.marker.startColumn,
-			endLineNumber: a.marker.endLineNumber,
-			endColumn: a.marker.endColumn
-		}, {
-			startLineNumber: b.marker.startLineNumber,
-			startColumn: b.marker.startColumn,
-			endLineNumber: b.marker.endLineNumber,
-			endColumn: b.marker.endColumn
-		});
+		if (this._filterOptions.filterWarnings && Severity.Warning === marker.severity) {
+			return true;
+		}
+		if (this._filterOptions.filterInfos && Severity.Info === marker.severity) {
+			return true;
+		}
+		if (!!FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message)) {
+			return true;
+		}
+		if (!!FilterOptions._filter(this._filterOptions.filter, paths.basename(marker.resource.fsPath))) {
+			return true;
+		}
+		if (!!marker.source && !!FilterOptions._filter(this._filterOptions.filter, marker.source)) {
+			return true;
+		}
+		return false;
 	}
 
 	private getStatistics(markers: IMarker[]): MarkerStatistics {
-		let errors= 0, warnings= 0, infos= 0, unknowns = 0;
-		markers.forEach((marker) => {
+		let errors = 0, warnings = 0, infos = 0, unknowns = 0;
+		for (const marker of markers) {
 			switch (marker.severity) {
 				case Severity.Error:
 					errors++;
-					return;
+					break;
 				case Severity.Warning:
 					warnings++;
-					return;
+					break;
 				case Severity.Info:
 					infos++;
-					return;
+					break;
 				default:
 					unknowns++;
-					return;
+					break;
 			}
-		});
+		}
 		return {errors, warnings, infos, unknowns};
 	}
 
@@ -306,6 +301,30 @@ export class MarkersModel {
 		title= title ? title + ', ' : '';
 		title += markersCount === 1 ? singleMarkerString : multipleMarkersFunction(markersCount);
 		return title;
+	}
+
+	public static compare(a: any, b: any): number {
+		if (a instanceof Resource && b instanceof Resource) {
+			return MarkersModel.compareResources(a, b);
+		}
+		if (a instanceof Marker && b instanceof Marker) {
+			return MarkersModel.compareMarkers(a, b);
+		}
+		return 0;
+	}
+
+	private static compareResources(a: Resource, b: Resource): number {
+		if (a.statistics.errors === 0 && b.statistics.errors > 0) {
+			return 1;
+		}
+		if (b.statistics.errors === 0 && a.statistics.errors > 0) {
+			return -1;
+		}
+		return a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
+	}
+
+	private static compareMarkers(a: Marker, b:Marker): number {
+		return Range.compareRangesUsingStarts(a.marker, b.marker);
 	}
 }
 
