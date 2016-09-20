@@ -288,9 +288,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "0.1.2",
-      "from": "native-keymap@0.1.2",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.1.2.tgz"
+      "version": "0.2.0",
+      "from": "native-keymap@0.2.0",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.2.0.tgz"
     },
     "normalize-path": {
       "version": "2.0.1",
@@ -303,9 +303,9 @@
       "resolved": "https://registry.npmjs.org/object.omit/-/object.omit-2.0.0.tgz"
     },
     "oniguruma": {
-      "version": "6.1.0",
+      "version": "6.1.1",
       "from": "oniguruma@>=6.0.1 <7.0.0",
-      "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.1.0.tgz"
+      "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.1.1.tgz"
     },
     "parse-glob": {
       "version": "3.0.4",
