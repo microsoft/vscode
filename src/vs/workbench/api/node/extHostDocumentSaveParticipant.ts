@@ -10,20 +10,26 @@ import URI from 'vs/base/common/uri';
 import {sequence} from 'vs/base/common/async';
 import {illegalState} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {MainThreadWorkspaceShape} from 'vs/workbench/api/node/extHost.protocol';
+import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
+import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 
 export interface TextDocumentWillSaveEvent {
 	document: vscode.TextDocument;
+	pushEdits(edits: vscode.TextEdit[]): void;
 	waitUntil(t: Thenable<any>): void;
 }
 
 export class ExtHostDocumentSaveParticipant {
 
-	private _callbacks = new CallbackList();
 	private _documents: ExtHostDocuments;
+	private _workspace: MainThreadWorkspaceShape;
+	private _callbacks = new CallbackList();
 
-	constructor(documents: ExtHostDocuments) {
+	constructor(documents: ExtHostDocuments, workspace: MainThreadWorkspaceShape) {
 		this._documents = documents;
+		this._workspace = workspace;
 	}
 
 	dispose(): void {
@@ -55,22 +61,58 @@ export class ExtHostDocumentSaveParticipant {
 	private _deliverEventAsync(listener: Function, thisArg: any, document: vscode.TextDocument): TPromise<any> {
 
 		const promises: TPromise<any>[] = [];
+		const resourceEdits: IResourceEdit[] = [];
 
-		const event: TextDocumentWillSaveEvent = Object.freeze({
+		const {version} = document;
+
+		const event = Object.freeze(<TextDocumentWillSaveEvent> {
 			document,
+			pushEdits(edits) {
+				if (Object.isFrozen(resourceEdits)) {
+					throw illegalState('pushEdits can not be called anymore');
+				}
+				for (const {newText, range} of edits) {
+					resourceEdits.push({
+						newText,
+						range: fromRange(range),
+						resource: <URI> document.uri,
+					});
+				}
+			},
 			waitUntil(p: Thenable<any>) {
 				if (Object.isFrozen(promises)) {
-					throw illegalState('waitUntil can not be called async');
+					throw illegalState('waitUntil can not be called anymore');
 				}
 				promises.push(TPromise.wrap(p));
 			}
 		});
 
 		try {
+			// fire event
 			listener.apply(thisArg, [event]);
 		} finally {
+			// freeze promises after event call
 			Object.freeze(promises);
-			return TPromise.join(promises).then(() => void 0, err => void 0 /* ignore */);
+
+			return TPromise.join(promises).then(() => {
+				// freeze edits after async/sync is done
+				Object.freeze(resourceEdits);
+
+				if (resourceEdits.length === 0) {
+					return;
+				}
+
+				if (version !== document.version) {
+					// TODO@joh - fail?
+					return;
+				}
+
+				// apply edits iff any
+				return this._workspace.$applyWorkspaceEdit(resourceEdits);
+
+			}, err => {
+				// ignore error
+			});
 		}
 	}
 }
