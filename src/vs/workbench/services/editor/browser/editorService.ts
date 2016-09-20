@@ -142,7 +142,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
-		return this.editorPart.openEditor(input, options, arg3);
+		// @dirk TS(2.0.2) - This is very likely a bug in TS.
+		return (this.editorPart as any).openEditor(input, options, arg3);
 	}
 
 	public openEditors(editors: { input: IResourceInput, position: Position }[]): TPromise<IEditor[]>;
@@ -158,8 +159,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 					position: editors[index].position
 				};
 			});
-
-			return this.editorPart.openEditors(typedInputs);
+			// @dirk TS(2.0.2) - This is very likely a bug in TS.
+			return (this.editorPart as any).openEditors(typedInputs);
 		});
 	}
 
@@ -177,8 +178,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 						options
 					};
 				});
-
-				return this.editorPart.replaceEditors(typedReplacements);
+				// @dirk TS(2.0.2) - This is very likely a bug in TS.
+				return (this.editorPart as any).replaceEditors(typedReplacements);
 			});
 		});
 	}

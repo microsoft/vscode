@@ -738,7 +738,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Expression && element.name;
+		return element instanceof model.Expression && !!element.name;
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {

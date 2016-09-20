@@ -591,11 +591,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
+		// @ben TS(2.0.2) - Direction.LEFT = 0 so !direction is true even if direction === Direction.LEFT.
+		// This is now detected by the compiler. I think the code is bogus but I commented out code to keep
+		// the current semantic.
 		let editorsToClose: EditorInput[];
 		if (!direction) {
 			editorsToClose = group.getEditors().filter(e => !except || !e.matches(except));
 		} else {
-			editorsToClose = (direction === Direction.LEFT) ? group.getEditors().slice(0, group.indexOf(except)) : group.getEditors().slice(group.indexOf(except) + 1);
+			// editorsToClose = (direction === Direction.LEFT) ? group.getEditors().slice(0, group.indexOf(except)) : group.getEditors().slice(group.indexOf(except) + 1);
+			editorsToClose = group.getEditors().slice(group.indexOf(except) + 1);
 		}
 
 		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
