@@ -295,7 +295,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	}
 
 	private renderLabel(container: Builder, stat: FileStat): IElementCallback {
-		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement());
+		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
 
 		const extraClasses = ['explorer-item'];
 		label.setFile(stat.resource, { hidePath: true, isFolder: stat.isDirectory, extraClasses });

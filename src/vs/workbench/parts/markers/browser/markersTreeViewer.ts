@@ -12,11 +12,12 @@ import Severity from 'vs/base/common/severity';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
+import { FileLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import Messages from 'vs/workbench/parts/markers/common/messages';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 interface IResourceTemplateData {
 	file: FileLabel;
@@ -70,7 +71,8 @@ export class Renderer implements IRenderer {
 
 	constructor(private actionRunner: IActionRunner,
 				private actionProvider:ActionProvider,
-				@IWorkspaceContextService private contextService: IWorkspaceContextService
+				@IWorkspaceContextService private contextService: IWorkspaceContextService,
+				@IInstantiationService private instantiationService: IInstantiationService
 	) {
 	}
 
@@ -101,7 +103,7 @@ export class Renderer implements IRenderer {
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		var data: IResourceTemplateData = Object.create(null);
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.file = new FileLabel(resourceLabelContainer, null, this.contextService);
+		data.file =  this.instantiationService.createInstance(FileLabel, resourceLabelContainer, { supportHighlights: true });
 
 		// data.statistics= new MarkersStatisticsWidget(dom.append(container, dom.emmet('.marker-stats')));
 
@@ -130,7 +132,7 @@ export class Renderer implements IRenderer {
 	}
 
 	private renderResourceElement(tree: ITree, element: Resource, templateData: IResourceTemplateData) {
-		templateData.file.setValue(element.uri, element.matches);
+		templateData.file.setFile(element.uri, { matches: element.matches });
 		// templateData.statistics.setStatistics(element.statistics);
 		templateData.count.setCount(element.markers.length);
 	}

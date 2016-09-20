@@ -168,6 +168,7 @@ export class MarkersPanel extends Panel {
 
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
+		dom.addClass(this.treeContainer, 'show-file-icons');
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
 		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations);

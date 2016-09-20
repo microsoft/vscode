@@ -140,7 +140,7 @@ export class SearchRenderer extends ActionsRenderer {
 			let widget: LeftRightWidget;
 
 			leftRenderer = (left: HTMLElement): any => {
-				const label = this.instantiationService.createInstance(FileLabel, left);
+				const label = this.instantiationService.createInstance(FileLabel, left, void 0);
 				label.setFile(fileMatch.resource());
 
 				return () => label.dispose();
