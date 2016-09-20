@@ -88,7 +88,6 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer = document.createElement('div');
 		this.tabsContainer.setAttribute('role', 'tablist');
 		DOM.addClass(this.tabsContainer, 'tabs-container');
-		DOM.addClass(this.tabsContainer, 'show-file-icons');
 
 		// Forward scrolling inside the container to our custom scrollbar
 		this.toDispose.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
