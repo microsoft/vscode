@@ -60,8 +60,8 @@ export interface LanguageConfiguration {
 	 */
 	indentationRules?: IndentationRule;
 	/**
-		 * The language's rules to be evaluated when pressing Enter.
-		 */
+	 * The language's rules to be evaluated when pressing Enter.
+	 */
 	onEnterRules?: OnEnterRule[];
 	/**
 	 * The language's auto closing pairs. The 'close' character is automatically inserted with the
