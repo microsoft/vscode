@@ -339,7 +339,7 @@ export class TabsTitleControl extends TitleControl {
 			tabContainers.push(tabContainer);
 
 			// Tab Editor Label
-			const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer);
+			const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
 			this.editorLabels.push(editorLabel);
 
 			// Tab Close

@@ -158,7 +158,7 @@ export class Renderer implements IRenderer {
 		editorTemplate.container = container;
 		editorTemplate.actionBar = new ActionBar(container);
 		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false });
-		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container);
+		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container, void 0);
 
 		return editorTemplate;
 	}

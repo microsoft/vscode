@@ -7,7 +7,7 @@
 
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {IconLabel, IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
+import {IconLabel, IIconLabelOptions, IIconLabelCreationOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
@@ -34,12 +34,13 @@ export class ResourceLabel extends IconLabel {
 
 	constructor(
 		container: HTMLElement,
+		options: IIconLabelCreationOptions,
 		@IExtensionService private extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService
 	) {
-		super(container);
+		super(container, options);
 
 		this.toDispose = [];
 
@@ -85,8 +86,9 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		const italic = this.options && this.options.italic;
+		const matches = this.options && this.options.matches;
 
-		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic });
+		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic, matches });
 	}
 
 	protected getIconClasses(arg1?: uri | string): string[] {
@@ -129,6 +131,8 @@ export class ResourceLabel extends IconLabel {
 	}
 
 	public dispose(): void {
+		super.dispose();
+
 		this.toDispose = dispose(this.toDispose);
 		this.label = void 0;
 		this.options = void 0;

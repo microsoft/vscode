@@ -41,7 +41,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.titleContainer.appendChild(this.titleDecoration);
 
 		// Editor Label
-		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer);
+		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer, void 0);
 		this.toDispose.push(this.editorLabel);
 		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.getHTMLElement(), DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
 
