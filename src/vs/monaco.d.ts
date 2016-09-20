@@ -89,7 +89,7 @@ declare module monaco {
     }
 
     export class CancellationTokenSource {
-        token: CancellationToken;
+        readonly token: CancellationToken;
         cancel(): void;
         dispose(): void;
     }
@@ -121,31 +121,31 @@ declare module monaco {
          * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
          * The part before the first colon.
          */
-        scheme: string;
+        readonly scheme: string;
         /**
          * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
          * The part between the first double slashes and the next slash.
          */
-        authority: string;
+        readonly authority: string;
         /**
          * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
          */
-        path: string;
+        readonly path: string;
         /**
          * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
          */
-        query: string;
+        readonly query: string;
         /**
          * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
          */
-        fragment: string;
+        readonly fragment: string;
         /**
          * Returns a string representing the corresponding file system path of this Uri.
          * Will handle UNC paths and normalize windows drive letters to lower-case. Also
          * uses the platform specific path separator. Will *not* validate the path for
          * invalid characters and semantics. Will *not* look at the scheme of this Uri.
          */
-        fsPath: string;
+        readonly fsPath: string;
         with(change: {
             scheme?: string;
             authority?: string;

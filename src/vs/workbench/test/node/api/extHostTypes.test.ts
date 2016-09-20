@@ -66,9 +66,9 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Position(0, -1));
 
 		let pos = new types.Position(0, 0);
-		assert.throws(() => pos.line = -1);
-		assert.throws(() => pos.character = -1);
-		assert.throws(() => pos.line = 12);
+		assert.throws(() => (pos as any).line = -1);
+		assert.throws(() => (pos as any).character = -1);
+		assert.throws(() => (pos as any).line = 12);
 
 		let {line, character} = pos.toJSON();
 		assert.equal(line, 0);
@@ -185,8 +185,8 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(null, new types.Position(0, 0)));
 
 		let range = new types.Range(1, 0, 0, 0);
-		assert.throws(() => range.start = null);
-		assert.throws(() => range.start = new types.Position(0, 3));
+		assert.throws(() => (range as any).start= null);
+		assert.throws(() => (range as any).start = new types.Position(0, 3));
 	});
 
 	test('Range, toJSON', function () {

@@ -785,7 +785,9 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		let searchRange:Range;
 		if (Range.isIRange(rawSearchScope)) {
-			searchRange = rawSearchScope;
+			// @alex TS(2.0.2) - isIRange tests for IRange but all our code assumes Range which now fails.
+			// Kept sematic using cast. But you should check.
+			searchRange = rawSearchScope as Range;
 		} else {
 			searchRange = this.getFullModelRange();
 		}
