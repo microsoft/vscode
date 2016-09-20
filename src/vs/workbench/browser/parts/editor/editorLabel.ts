@@ -71,12 +71,12 @@ export class EditorLabel extends IconLabel {
 			title = resource.fsPath;
 		}
 
-		const italic = this.options && this.options.italic;
-
 		const extraClasses = getFileIconClasses(resource, path => this.modeService.getModeIdByFilenameOrFirstLine(path));
 		if (this.options && this.options.extraClasses) {
 			extraClasses.push(...this.options.extraClasses);
 		}
+
+		const italic = this.options && this.options.italic;
 
 		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic });
 	}
