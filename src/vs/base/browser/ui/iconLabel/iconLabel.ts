@@ -33,7 +33,7 @@ export class IconLabel {
 		return this.domNode;
 	}
 
-	public setValue(label: string, description?: string, options?: IIconLabelOptions): void {
+	public setValue(label?: string, description?: string, options?: IIconLabelOptions): void {
 		this.labelNode.textContent = label || '';
 		this.descriptionNode.textContent = description || '';
 

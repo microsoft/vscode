@@ -38,11 +38,10 @@
 	text-overflow: ellipsis;
 	position: relative;
 	padding-left: 2px;
-	font-style: italic;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.pinned .title-label {
-	font-style: normal;
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .monaco-icon-label::before {
+	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 /* Title Actions */

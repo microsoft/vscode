@@ -50,6 +50,13 @@ export class EditorLabel extends IconLabel {
 		this.render();
 	}
 
+	public clear(): void {
+		this.label = void 0;
+		this.options = void 0;
+
+		this.setValue();
+	}
+
 	private render(): void {
 		if (!this.label) {
 			return;
