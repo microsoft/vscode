@@ -6,7 +6,7 @@
 
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {IDataSource, ITree, IRenderer, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
+import {IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter } from 'vs/base/parts/tree/browser/tree';
 import { IActionRunner } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -177,6 +177,14 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider 
 			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element.marker);
 		}
 		return null;
+	}
+
+}
+
+export class Sorter implements ISorter {
+
+	public compare(tree: ITree, element: any, otherElement: any): number {
+		return MarkersModel.compare(element, otherElement);
 	}
 
 }

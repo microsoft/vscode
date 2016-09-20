@@ -176,6 +176,7 @@ export class MarkersPanel extends Panel {
 			dataSource: new Viewer.DataSource(),
 			renderer,
 			controller,
+			sorter: new Viewer.Sorter(),
 			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider()
 		}, {
 				indentPixels: 0,
