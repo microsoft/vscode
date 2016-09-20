@@ -9,12 +9,6 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
 	white-space: nowrap;
 	flex: 1;
-	font-style: italic;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.pinned .title-label,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.pinned .tab-label {
-	font-style: normal;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
@@ -47,24 +41,6 @@
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-label a,
 .vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab .tab-label a {
 	color: white;
-}
-
-/* Title Description */
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label span,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
-	margin-left: 0.5em;
-	font-size: 0.9em;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label span,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
-	color: rgba(108, 108, 108, 0.7);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label span,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span {
-	color: rgba(204, 204, 204, 0.7);
 }
 
 /* Title Actions */

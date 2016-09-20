@@ -117,6 +117,8 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 	}
 
 	private onFocusStackFrame(stackFrame: debug.IStackFrame): void {
+		// Always clear tree highlight to avoid ending up in a broken state #12203
+		this.tree.clearHighlight();
 		this.tree.refresh().then(() => {
 			if (stackFrame) {
 				return stackFrame.getScopes(this.debugService).then(scopes => {

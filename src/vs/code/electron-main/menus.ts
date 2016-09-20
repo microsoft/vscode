@@ -421,8 +421,9 @@ export class VSCodeMenu {
 
 	private createOpenRecentMenuItem(path: string): Electron.MenuItem {
 		return new MenuItem({
-			label: unMnemonicLabel(path), click: () => {
-				const success = !!this.windowsService.open({ cli: this.envService.cliArgs, pathsToOpen: [path] });
+			label: unMnemonicLabel(path), click: (menuItem, win, event) => {
+				const openInNewWindow = event && ((!platform.isMacintosh && event.ctrlKey) || (platform.isMacintosh && event.metaKey));
+				const success = !!this.windowsService.open({ cli: this.envService.cliArgs, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
 					this.windowsService.removeFromRecentPathsList(path);
 					this.updateMenu();

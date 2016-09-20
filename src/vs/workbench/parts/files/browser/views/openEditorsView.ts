@@ -58,7 +58,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IViewletService private viewletService: IViewletService,
 		@IEventService private eventService: IEventService
 	) {
-		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), messageService, keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
@@ -70,7 +70,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = dom.append(container, $('.title'));
 		const titleSpan = dom.append(titleDiv, $('span'));
-		titleSpan.textContent = nls.localize('openEditors', "Open Editors");
+		titleSpan.textContent = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 		this.dirtyCountElement = dom.append(titleDiv, $('.monaco-count-badge'));
 		this.updateDirtyIndicator();
@@ -88,6 +88,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		dom.addClass(this.treeContainer, 'explorer-open-editors');
+		dom.addClass(this.treeContainer, 'show-file-icons');
 
 		const dataSource = this.instantiationService.createInstance(DataSource);
 		const actionProvider = this.instantiationService.createInstance(ActionProvider, this.model);
@@ -105,7 +106,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}, {
 			indentPixels: 0,
 			twistiePixels: 20,
-			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
+			ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors")
 		});
 
 		this.fullRefreshNeeded = true;

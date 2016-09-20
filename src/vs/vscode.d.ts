@@ -2648,6 +2648,17 @@ declare namespace vscode {
 		has(section: string): boolean;
 
 		/**
+		 * Update a configuration value. A value can be changed for the current
+		 * [workspace](#workspace.rootPath) only or globally for all instances of the
+		 * editor. The updated configuration values are persisted.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param value The new value.
+		 * @param global When `true` changes the configuration value for all instances of the editor.
+		 */
+		update(section: string, value: any, global: boolean): Thenable<void>;
+
+		/**
 		 * Readable dictionary that backs this configuration.
 		 * @readonly
 		 */
@@ -3002,10 +3013,15 @@ declare namespace vscode {
 		name: string;
 
 		/**
+		 * The process ID of the shell process.
+		 *
+		 * @readonly
+		 */
+		processId: Thenable<number>;
+
+		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
-		 * (shell) of the terminal. Note that this will currently force the terminal panel to the
-		 * foreground, this is changing in v1.6 such that it will require an explicit call to
-		 * [Terminal.show](#Terminal.show) in order to show the terminal panel.
+		 * (shell) of the terminal.
 		 *
 		 * @param text The text to send.
 		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
@@ -3329,7 +3345,7 @@ declare namespace vscode {
 		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
 
 		/**
-		 * An [event](#Event) which fires when a terminal closes.
+		 * An [event](#Event) which fires when a terminal is disposed.
 		 */
 		export const onDidCloseTerminal: Event<Terminal>;
 
@@ -3497,9 +3513,7 @@ declare namespace vscode {
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
-		 * Creates a [Terminal](#Terminal). Note that this will currently force the terminal panel
-		 * to the foreground, this is changing in v1.6 such that it will require an explicit call to
-		 * [Terminal.show](#Terminal.show) in order to show the terminal panel.
+		 * Creates a [Terminal](#Terminal).
 		 *
 		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
 		 * @param shellPath Optional path to a custom shell executable to be used in the terminal.

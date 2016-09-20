@@ -31,6 +31,7 @@ export const CancelAction = new Action('cancel.message', nls.localize('cancel', 
 export const IMessageService = createDecorator<IMessageService>('messageService');
 
 export interface IMessageService {
+
 	_serviceBrand: any;
 
 	/**
@@ -52,6 +53,22 @@ export interface IMessageService {
 	 * Ask the user for confirmation.
 	 */
 	confirm(confirmation: IConfirmation): boolean;
+}
+
+export const IChoiceService = createDecorator<IChoiceService>('choiceService');
+
+export interface IChoiceService {
+
+	_serviceBrand: any;
+
+	/**
+	 * Prompt the user for a choice between multiple options.
+	 *
+	 * @returns A promise with the selected choice index. The promise is cancellable
+	 * which hides the message. The promise can return an error, meaning that
+	 * the user refused to choose.
+	 */
+	choose(severity: Severity, message: string, options: string[]): TPromise<number>;
 }
 
 export import Severity = Severity;

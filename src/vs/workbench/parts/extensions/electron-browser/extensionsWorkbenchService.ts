@@ -18,7 +18,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -50,6 +50,10 @@ class Extension implements IExtension {
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension = null
 	) {}
+
+	get type(): LocalExtensionType {
+		return this.local ? this.local.type : null;
+	}
 
 	get name(): string {
 		return this.local ? this.local.manifest.name : this.gallery.name;

@@ -41,6 +41,7 @@ import {RawText} from 'vs/editor/common/model/textModel';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {Schemas} from 'vs/base/common/network';
 
 import IGitService = git.IGitService;
 
@@ -121,8 +122,6 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 }
 
 class DirtyDiffModelDecorator {
-	static GIT_ORIGINAL_SCHEME = 'git-index';
-
 	static ID = 'vs.git.editor.dirtyDiffDecorator';
 	static MODIFIED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
 		linesDecorationsClassName: 'git-dirty-modified-diff-glyph',
@@ -181,7 +180,7 @@ class DirtyDiffModelDecorator {
 		this.gitService = gitService;
 
 		this.model = model;
-		this._originalContentsURI = model.uri.with({ scheme: DirtyDiffModelDecorator.GIT_ORIGINAL_SCHEME });
+		this._originalContentsURI = model.uri.with({ scheme: Schemas.internal });
 		this.path = path;
 		this.decorations = [];
 

@@ -35,11 +35,18 @@ export interface IContextMenuService {
 	showContextMenu(delegate: IContextMenuDelegate): void;
 }
 
+export interface IEvent {
+	shiftKey?: boolean;
+	ctrlKey?: boolean;
+	altKey?: boolean;
+	metaKey?: boolean;
+}
+
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; };
 	getActions(): TPromise<(IAction | ContextSubMenu)[]>;
 	getActionItem?(action: IAction): IActionItem;
-	getActionsContext?(): any;
+	getActionsContext?(event?: IEvent): any;
 	getKeyBinding?(action: IAction): Keybinding;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;

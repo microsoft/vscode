@@ -12,7 +12,7 @@ import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ICommandAndKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {ICodeEditorService, getCodeEditor} from 'vs/editor/common/services/codeEditorService';
 import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 
 import H = editorCommon.Handler;
@@ -112,7 +112,7 @@ export abstract class EditorCommand extends Command {
 	public runCommand(accessor:ServicesAccessor, args: any): void | TPromise<void> {
 		let editor = findFocusedEditor(this.id, accessor, false);
 		if (!editor) {
-			editor = getActiveEditor(accessor);
+			editor = getActiveEditorWidget(accessor);
 		}
 		if (!editor) {
 			// well, at least we tried...
@@ -150,22 +150,10 @@ function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesA
 	}
 }
 
-function getActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
-	let editorService = accessor.get(IEditorService);
+function getActiveEditorWidget(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	const editorService = accessor.get(IEditorService);
 	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
-	if (activeEditor) {
-		let editor = <editorCommon.IEditor>activeEditor.getControl();
-
-		// Substitute for (editor instanceof ICodeEditor)
-		if (editor && typeof editor.getEditorType === 'function') {
-			if (editor.getEditorType() === editorCommon.EditorType.ICodeEditor) {
-				return <editorCommon.ICommonCodeEditor>editor;
-			}
-			return (<editorCommon.ICommonDiffEditor>editor).getModifiedEditor();
-		}
-	}
-
-	return null;
+	return getCodeEditor(activeEditor);
 }
 
 function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, args: any): void {
@@ -796,7 +784,7 @@ class SelectAllCommand extends Command {
 		}
 
 		// Redirecting to last active editor
-		let activeEditor = getActiveEditor(accessor);
+		let activeEditor = getActiveEditorWidget(accessor);
 		if (activeEditor) {
 			activeEditor.focus();
 			activeEditor.trigger('keyboard', HANDLER, args);

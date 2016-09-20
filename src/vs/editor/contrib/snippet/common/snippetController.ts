@@ -381,7 +381,7 @@ export class SnippetController {
 
 	public run(snippet: CodeSnippet, overwriteBefore: number, overwriteAfter: number, stripPrefix?: boolean): void {
 		this._runAndRestoreController(() => {
-			if (snippet.isInsertOnly/* || snippet.isSingleTabstopOnly*/) {
+			if (snippet.isInsertOnly || snippet.isSingleTabstopOnly) {
 				// Only inserts text, not placeholders, tabstops etc
 				// Only cursor endposition
 				this._runForAllSelections(snippet, overwriteBefore, overwriteAfter, stripPrefix);
@@ -483,41 +483,77 @@ export class SnippetController {
 
 		const edits: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		const selections = this._editor.getSelections();
-		let lineDelta = 0;
-		let columnDelta = 0;
+		const model = this._editor.getModel();
 
-		for (let i = 0; i < selections.length; i++) {
-			let {adaptedSnippet, typeRange} = SnippetController._prepareSnippet(this._editor, selections[i], snippet, overwriteBefore, overwriteAfter, stripPrefix);
+		let totalDelta = 0;
+		const newSelections: { offset: number; i: number }[] = [];
+
+		// sort selections by start position but remember where
+		// each selection came from
+		const selectionEntries = selections
+			.map((selection, i) => ({ selection, i }))
+			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+
+		for (const {selection, i} of selectionEntries) {
+
+			let {adaptedSnippet, typeRange} = SnippetController._prepareSnippet(this._editor, selection, snippet, overwriteBefore, overwriteAfter, stripPrefix);
+
 			SnippetController._addCommandForSnippet(this._editor.getModel(), adaptedSnippet, typeRange, edits);
 
-			if (i === 0 && snippet.isSingleTabstopOnly) {
-				const finalCursorPos = SnippetController._getSnippetCursorOnly(adaptedSnippet);
-				const editEnd = typeRange.getEndPosition();
-				editEnd.lineNumber += adaptedSnippet.lines.length - 1;
-				editEnd.column = adaptedSnippet.lines[adaptedSnippet.lines.length - 1].length + 1;
+			// compute new selection offset
+			// * get current offset
+			// * get length of snippet that we insert
+			// * get final cursor position of snippet that we insert (might not exist)
+			// * NEW selection offset is current + final cursor pos + inserts_until_here
 
-				lineDelta = finalCursorPos.lineNumber - editEnd.lineNumber;
-				columnDelta = finalCursorPos.column - editEnd.column;
+			let offset = model.getOffsetAt(typeRange.getStartPosition());
+
+			// inserts until here
+			offset += totalDelta;
+
+			// each snippet has a different length (because of whitespace changes)
+			let snippetLength = (adaptedSnippet.lines.length - 1) * model.getEOL().length;
+			for (const line of adaptedSnippet.lines) {
+				snippetLength += line.length;
 			}
+
+			// each snippet has a different cursor offset
+			const finalCursorPos = SnippetController._getSnippetCursorOnly(adaptedSnippet);
+			if (finalCursorPos) {
+				let finalCursorOffset: number;
+				if (finalCursorPos.lineNumber === typeRange.startLineNumber) {
+					finalCursorOffset = finalCursorPos.column - typeRange.startColumn;
+				} else {
+					finalCursorOffset = finalCursorPos.column - 1;
+					for (let i = 0, lineNumber = typeRange.startLineNumber; lineNumber < finalCursorPos.lineNumber; i++, lineNumber++) {
+						finalCursorOffset += adaptedSnippet.lines[i].length + model.getEOL().length;
+					}
+				}
+				offset += finalCursorOffset;
+
+			} else {
+				offset += snippetLength;
+			}
+
+			newSelections.push({ offset, i });
+			totalDelta += (snippetLength - model.getValueLengthInRange(typeRange));
 		}
 
 		if (edits.length === 0) {
 			return;
 		}
 
-		const cursorStateComputer: editorCommon.ICursorStateComputer = function (inverseEdits) {
-
-			return inverseEdits.map((edit, i) => {
-
-				let {endLineNumber, endColumn} = edit.range;
-				endLineNumber += lineDelta;
-				endColumn += columnDelta;
-
-				return new Selection(endLineNumber, endColumn, endLineNumber, endColumn);
-			});
+		const cursorStateComputer: editorCommon.ICursorStateComputer = function () {
+			// create new selections from the new selection offsets
+			// and restore the order we had at the beginning
+			const result: Selection[] = [];
+			for (const {offset, i} of newSelections) {
+				const pos = model.getPositionAt(offset);
+				result[i] = new Selection(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
+			}
+			return result;
 		};
 
-		const model = this._editor.getModel();
 		model.pushStackElement();
 		this._editor.setSelections(model.pushEditOperations(selections, edits, cursorStateComputer));
 		model.pushStackElement();

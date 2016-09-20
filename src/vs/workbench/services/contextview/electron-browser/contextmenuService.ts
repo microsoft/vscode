@@ -10,7 +10,7 @@ import severity from 'vs/base/common/severity';
 import {IAction} from 'vs/base/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
-import {IContextMenuService, IContextMenuDelegate, ContextSubMenu} from 'vs/platform/contextview/browser/contextView';
+import {IContextMenuService, IContextMenuDelegate, ContextSubMenu, IEvent} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
@@ -84,8 +84,8 @@ export class ContextMenuService implements IContextMenuService {
 					checked: !!e.checked,
 					accelerator,
 					enabled: !!e.enabled,
-					click: () => {
-						this.runAction(e, delegate);
+					click: (menuItem, win, event) => {
+						this.runAction(e, delegate, event);
 					}
 				});
 
@@ -96,10 +96,10 @@ export class ContextMenuService implements IContextMenuService {
 		return menu;
 	}
 
-	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate): void {
+	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
-		const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
+		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
 		const res = actionToRun.run(context) || TPromise.as(null);
 
 		res.done(null, e => this.messageService.show(severity.Error, e));

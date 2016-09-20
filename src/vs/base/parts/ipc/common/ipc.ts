@@ -9,14 +9,26 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable }  from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 
-enum RequestType {
-	Common,
-	Cancel
+enum MessageType {
+	RequestCommon,
+	RequestCancel,
+	ResponseInitialize,
+	ResponseSuccess,
+	ResponseProgress,
+	ResponseError,
+	ResponseErrorObj
 }
 
-interface IRawRequest {
+function isResponse(messageType: MessageType): boolean {
+	return messageType >= MessageType.ResponseInitialize;
+}
+
+interface IRawMessage {
 	id: number;
-	type: RequestType;
+	type: MessageType;
+}
+
+interface IRawRequest extends IRawMessage {
 	channelName?: string;
 	name?: string;
 	arg?: any;
@@ -28,17 +40,7 @@ interface IRequest {
 	flush?: ()=>void;
 }
 
-enum ResponseType {
-	Initialize,
-	Success,
-	Progress,
-	Error,
-	ErrorObj
-}
-
-interface IRawResponse {
-	id: number;
-	type: ResponseType;
+interface IRawResponse extends IRawMessage {
 	data: any;
 }
 
@@ -77,7 +79,7 @@ export class Server {
 		this.channels = Object.create(null);
 		this.activeRequests = Object.create(null);
 		this.protocol.onMessage(r => this.onMessage(r));
-		this.protocol.send(<IRawResponse> { type: ResponseType.Initialize });
+		this.protocol.send(<IRawResponse> { type: MessageType.ResponseInitialize });
 	}
 
 	registerChannel(channelName: string, channel: IChannel): void {
@@ -86,11 +88,11 @@ export class Server {
 
 	private onMessage(request: IRawRequest): void {
 		switch (request.type) {
-			case RequestType.Common:
+			case MessageType.RequestCommon:
 				this.onCommonRequest(request);
 				break;
 
-			case RequestType.Cancel:
+			case MessageType.RequestCancel:
 				this.onCancelRequest(request);
 				break;
 		}
@@ -109,7 +111,7 @@ export class Server {
 		const id = request.id;
 
 		const requestPromise = promise.then(data => {
-			this.protocol.send(<IRawResponse> { id, data, type: ResponseType.Success });
+			this.protocol.send(<IRawResponse> { id, data, type: MessageType.ResponseSuccess });
 			delete this.activeRequests[request.id];
 		}, data => {
 			if (data instanceof Error) {
@@ -117,14 +119,14 @@ export class Server {
 					message: data.message,
 					name: data.name,
 					stack: data.stack ? data.stack.split('\n') : void 0
-				}, type: ResponseType.Error });
+				}, type: MessageType.ResponseError });
 			} else {
-				this.protocol.send(<IRawResponse> { id, data, type: ResponseType.ErrorObj });
+				this.protocol.send(<IRawResponse> { id, data, type: MessageType.ResponseErrorObj });
 			}
 
 			delete this.activeRequests[request.id];
 		}, data => {
-			this.protocol.send(<IRawResponse> { id, data, type: ResponseType.Progress });
+			this.protocol.send(<IRawResponse> { id, data, type: MessageType.ResponseProgress });
 		});
 
 		this.activeRequests[request.id] = toDisposable(() => requestPromise.cancel());
@@ -174,7 +176,7 @@ export class Client implements IClient, IDisposable {
 		const request = {
 			raw: {
 				id: this.lastRequestId++,
-				type: RequestType.Common,
+				type: MessageType.RequestCommon,
 				channelName,
 				name,
 				arg
@@ -200,12 +202,12 @@ export class Client implements IClient, IDisposable {
 		return new Promise((c, e, p) => {
 			this.handlers[id] = response => {
 				switch (response.type) {
-					case ResponseType.Success:
+					case MessageType.ResponseSuccess:
 						delete this.handlers[id];
 						c(response.data);
 						break;
 
-					case ResponseType.Error:
+					case MessageType.ResponseError:
 						delete this.handlers[id];
 						const error = new Error(response.data.message);
 						(<any> error).stack = response.data.stack;
@@ -213,12 +215,12 @@ export class Client implements IClient, IDisposable {
 						e(error);
 						break;
 
-					case ResponseType.ErrorObj:
+					case MessageType.ResponseErrorObj:
 						delete this.handlers[id];
 						e(response.data);
 						break;
 
-					case ResponseType.Progress:
+					case MessageType.ResponseProgress:
 						p(response.data);
 						break;
 				}
@@ -226,7 +228,7 @@ export class Client implements IClient, IDisposable {
 
 			this.send(request.raw);
 		},
-		() => this.send({ id, type: RequestType.Cancel }));
+		() => this.send({ id, type: MessageType.RequestCancel }));
 	}
 
 	private bufferRequest(request: IRequest): Promise {
@@ -262,7 +264,11 @@ export class Client implements IClient, IDisposable {
 	}
 
 	private onMessage(response: IRawResponse): void {
-		if (this.state === State.Uninitialized && response.type === ResponseType.Initialize) {
+		if (!isResponse(response.type)) {
+			return;
+		}
+
+		if (this.state === State.Uninitialized && response.type === MessageType.ResponseInitialize) {
 			this.state = State.Idle;
 			this.bufferedRequests.forEach(r => r.flush && r.flush());
 			this.bufferedRequests = null;

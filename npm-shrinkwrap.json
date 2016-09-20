@@ -70,7 +70,7 @@
     "chokidar": {
       "version": "1.6.0",
       "from": "bpasero/chokidar#vscode",
-      "resolved": "git://github.com/bpasero/chokidar.git#8b64fda5a22cc9850f1346d12302051c5ba65b10"
+      "resolved": "git+https://github.com/bpasero/chokidar.git#8b64fda5a22cc9850f1346d12302051c5ba65b10"
     },
     "concat-map": {
       "version": "0.0.1",
@@ -150,7 +150,7 @@
     "fsevents": {
       "version": "0.3.8",
       "from": "bpasero/fsevents#vscode",
-      "resolved": "git://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
+      "resolved": "git+https://github.com/bpasero/fsevents.git#fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
     },
     "gc-signals": {
       "version": "0.0.1",

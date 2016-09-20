@@ -8,7 +8,7 @@ import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
 import json = require('vs/base/common/json');
 import model = require('vs/platform/configuration/common/model');
-import {CONFIG_DEFAULT_NAME} from 'vs/workbench/services/configuration/common/configuration';
+import {CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
 
 export interface IConfigFile {
 	contents: any;
@@ -35,7 +35,7 @@ export function newConfigFile(value: string): IConfigFile {
 }
 
 export function merge(base: any, add: any, overwrite: boolean): void {
-	Object.keys(add).forEach((key) => {
+	Object.keys(add).forEach(key => {
 		if (key in base) {
 			if (types.isObject(base[key]) && types.isObject(add[key])) {
 				merge(base[key], add[key], overwrite);
@@ -53,8 +53,16 @@ export function consolidate(configMap: { [key: string]: IConfigFile; }): { conte
 	const parseErrors: string[] = [];
 	const regexp = /\/(team\.)?([^\.]*)*\.json/;
 
+	// We want to use the default settings file as base and let all other config
+	// files overwrite the base one
+	const configurationFiles = Object.keys(configMap);
+	const defaultIndex = configurationFiles.indexOf(WORKSPACE_CONFIG_DEFAULT_PATH);
+	if (defaultIndex > 0) {
+		configurationFiles.unshift(configurationFiles.splice(defaultIndex, 1)[0]);
+	}
+
 	// For each config file in .vscode folder
-	Object.keys(configMap).forEach((configFileName) => {
+	configurationFiles.forEach(configFileName => {
 		const config = objects.clone(configMap[configFileName]);
 		const matches = regexp.exec(configFileName);
 		if (!matches || !config) {
@@ -82,7 +90,6 @@ export function consolidate(configMap: { [key: string]: IConfigFile; }): { conte
 		if (config.parseError) {
 			parseErrors.push(configFileName);
 		}
-
 	});
 
 	return {

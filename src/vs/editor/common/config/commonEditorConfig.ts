@@ -622,11 +622,6 @@ let editorConfiguration:IConfigurationNode = {
 			'default': DefaultConfig.editor.relativeLineNumbers,
 			'description': nls.localize('relativeLineNumbers', "Controls behaviour of relative line numbers")
 		},
-		'editor.glyphMargin' : {
-			'type': 'boolean',
-			'default': DefaultConfig.editor.glyphMargin,
-			'description': nls.localize('glyphMargin', "Controls visibility of the glyph margin")
-		},
 		'editor.rulers' : {
 			'type': 'array',
 			'items': {

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IExtensionIdentity, ILocalExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentity, ILocalExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
 
@@ -43,7 +43,7 @@ export function getOutdatedExtensions(extensionsService: IExtensionManagementSer
 		return TPromise.as([]);
 	}
 
-	return extensionsService.getInstalled().then(installed => {
+	return extensionsService.getInstalled(LocalExtensionType.User).then(installed => {
 		const names = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
 
 		if (installed.length === 0) {
