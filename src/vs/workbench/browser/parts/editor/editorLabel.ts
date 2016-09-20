@@ -28,7 +28,7 @@ export class EditorLabel extends IconLabel {
 		});
 	}
 
-	public setInput(input: IEditorInput, options: IIconLabelOptions): void {
+	public setInput(input: IEditorInput, options?: IIconLabelOptions): void {
 		this.input = input;
 		this.options = options;
 
@@ -57,5 +57,10 @@ export class EditorLabel extends IconLabel {
 		}
 
 		this.setValue(this.input.getName(), this.input.getDescription(), { title, extraClasses, italic });
+	}
+
+	public dispose(): void {
+		this.input = void 0;
+		this.options = void 0;
 	}
 }

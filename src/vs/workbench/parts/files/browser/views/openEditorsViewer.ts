@@ -185,6 +185,7 @@ export class Renderer implements IRenderer {
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		if (templateId === Renderer.OPEN_EDITOR_TEMPLATE_ID) {
 			(<IOpenEditorTemplateData>templateData).actionBar.dispose();
+			(<IOpenEditorTemplateData>templateData).root.dispose();
 		}
 		if (templateId === Renderer.EDITOR_GROUP_TEMPLATE_ID) {
 			(<IEditorGroupTemplateData>templateData).actionBar.dispose();
