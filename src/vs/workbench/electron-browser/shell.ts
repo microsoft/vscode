@@ -212,8 +212,8 @@ export class WorkbenchShell {
 		const disposables = new Disposables();
 
 		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle);
-		sharedProcess.done(service => {
-			service.onClose(() => {
+		sharedProcess.done(client => {
+			client.onClose(() => {
 				this.messageService.show(Severity.Error, {
 					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
 					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
