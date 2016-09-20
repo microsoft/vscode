@@ -6,6 +6,7 @@
 'use strict';
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {ISaveParticipant, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
@@ -47,10 +48,11 @@ export class SaveParticipant implements ISaveParticipant, IWorkbenchContribution
 		this.trimTrailingWhitespace = configuration && configuration.files && configuration.files.trimTrailingWhitespace;
 	}
 
-	public participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): void {
+	public participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
 		if (this.trimTrailingWhitespace) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.isAutoSaved);
 		}
+		return TPromise.as(undefined);
 	}
 
 	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
