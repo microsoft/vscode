@@ -14,6 +14,8 @@ import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {getResource} from 'vs/workbench/common/editor';
 import {getPathLabel} from 'vs/base/common/labels';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export interface IEditorLabel {
 	name: string;
@@ -26,6 +28,7 @@ export interface IResourceLabelOptions extends IIconLabelOptions {
 }
 
 export class ResourceLabel extends IconLabel {
+	private toDispose: IDisposable[];
 	private label: IEditorLabel;
 	private options: IResourceLabelOptions;
 
@@ -33,13 +36,19 @@ export class ResourceLabel extends IconLabel {
 		container: HTMLElement,
 		@IExtensionService private extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService
 	) {
 		super(container);
 
-		this.extensionService.onReady().then(() => {
-			this.render(); // there can be additional modes once the extension host is ready so we need to render again
-		});
+		this.toDispose = [];
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.extensionService.onReady().then(() => this.render()); // update when extensions are loaded with potentially new languages
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render())); // update when file.associations change
 	}
 
 	public setLabel(label: IEditorLabel, options?: IResourceLabelOptions): void {
@@ -80,11 +89,6 @@ export class ResourceLabel extends IconLabel {
 		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic });
 	}
 
-	public dispose(): void {
-		this.label = void 0;
-		this.options = void 0;
-	}
-
 	protected getIconClasses(arg1?: uri | string): string[] {
 		let path: string;
 		if (typeof arg1 === 'string') {
@@ -122,6 +126,12 @@ export class ResourceLabel extends IconLabel {
 
 	private cssEscape(val: string): string {
 		return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+		this.label = void 0;
+		this.options = void 0;
 	}
 }
 
