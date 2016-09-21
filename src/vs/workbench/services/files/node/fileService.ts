@@ -70,6 +70,7 @@ export class FileService implements IFileService {
 
 	public _serviceBrand: any;
 
+	private static SESSION_BACKUP_ID = crypto.randomBytes(20).toString('hex'); // defined the directory to store backups for the session
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
@@ -437,7 +438,7 @@ export class FileService implements IFileService {
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
 		// TODO: Implement properly
 		var backupName = paths.basename(resource.fsPath);
-		var backupPath = paths.join(this.environmentService.userDataPath, 'File Backups', backupName);
+		var backupPath = paths.join(this.environmentService.userDataPath, 'File Backups', FileService.SESSION_BACKUP_ID, backupName);
 
 		let backupResource = uri.file(backupPath);
 		return this.updateContent(backupResource, content);
