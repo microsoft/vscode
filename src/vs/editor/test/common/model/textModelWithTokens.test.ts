@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
-import {TokenizationRegistry} from 'vs/editor/common/modes';
+import {TokenizationRegistry, CharacterPair} from 'vs/editor/common/modes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {Token} from 'vs/editor/common/core/token';
 import {Range} from 'vs/editor/common/core/range';
@@ -19,7 +19,7 @@ import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConf
 
 suite('TextModelWithTokens', () => {
 
-	function testBrackets(contents: string[], brackets:string[][]): void {
+	function testBrackets(contents: string[], brackets:CharacterPair[]): void {
 		function toRelaxedFoundBracket(a:IFoundBracket) {
 			if (!a) {
 				return null;
@@ -67,7 +67,16 @@ suite('TextModelWithTokens', () => {
 			}
 		}
 
-		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
+		class Mode extends MockMode {
+			constructor() {
+				super();
+				LanguageConfigurationRegistry.register(this.getId(), {
+					brackets: brackets
+				});
+			}
+		}
+
+		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), new Mode().getId());
 
 		// findPrevBracket
 		{
