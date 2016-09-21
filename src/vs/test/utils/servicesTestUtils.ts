@@ -569,6 +569,10 @@ export const TestFileService = {
 				name: paths.basename(res.fsPath)
 			};
 		});
+	},
+
+	discardBackups: function () {
+		return TPromise.as(void 0);
 	}
 };
 

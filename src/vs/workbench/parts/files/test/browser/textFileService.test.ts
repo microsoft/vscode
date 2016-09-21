@@ -60,11 +60,14 @@ suite('Files - TextFileService', () => {
 		accessor.untitledEditorService.revertAll();
 	});
 
-	test('confirm onWillShutdown - no veto', function () {
+	test('confirm onWillShutdown - no veto', function (done) {
 		const event = new ShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
-		assert.ok(!event.value);
+		return (<TPromise<boolean>>event.value).then(veto => {
+			assert.ok(!veto);
+			done();
+		});
 	});
 
 	test('confirm onWillShutdown - veto if user cancels', function (done) {
@@ -97,9 +100,10 @@ suite('Files - TextFileService', () => {
 			const event = new ShutdownEventImpl();
 			accessor.lifecycleService.fireWillShutdown(event);
 
-			assert.ok(!event.value);
-
-			done();
+			return (<TPromise<boolean>>event.value).then(veto => {
+				assert.ok(!veto);
+				done();
+			});
 		});
 	});
 
