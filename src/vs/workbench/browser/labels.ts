@@ -77,7 +77,7 @@ export class ResourceLabel extends IconLabel {
 		if (this.options && this.options.title) {
 			title = this.options.title;
 		} else if (resource) {
-			title = resource.fsPath;
+			title = getPathLabel(resource.fsPath);
 		}
 
 		const extraClasses = getIconClasses(this.modeService, resource, this.options && this.options.isFolder);
