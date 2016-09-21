@@ -23,7 +23,9 @@ function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 class Protocol implements IMessagePassingProtocol {
 
 	private static Boundary = new Buffer([0]);
-	private onMessageEvent: Event<any>;
+
+	private _onMessage: Event<any>;
+	get onMessage(): Event<any> { return this._onMessage; }
 
 	constructor(private socket: Socket) {
 		let buffer = null;
@@ -58,7 +60,7 @@ class Protocol implements IMessagePassingProtocol {
 			}
 		});
 
-		this.onMessageEvent = emitter.event;
+		this._onMessage = emitter.event;
 	}
 
 	public send(message: any): void {
@@ -68,10 +70,6 @@ class Protocol implements IMessagePassingProtocol {
 		} catch (e) {
 			// noop
 		}
-	}
-
-	public onMessage(callback: (message: any) => void): void {
-		this.onMessageEvent(callback);
 	}
 }
 

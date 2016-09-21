@@ -50,7 +50,7 @@ interface IHandler {
 
 export interface IMessagePassingProtocol {
 	send(request: any): void;
-	onMessage(callback: (response: any) => void): void;
+	onMessage: Event<any>;
 }
 
 enum State {
@@ -82,11 +82,12 @@ export class ChannelServer {
 
 	private channels: { [name: string]: IChannel };
 	private activeRequests: { [id: number]: IDisposable; };
+	private protocolListener: IDisposable;
 
 	constructor(private protocol: IMessagePassingProtocol) {
 		this.channels = Object.create(null);
 		this.activeRequests = Object.create(null);
-		this.protocol.onMessage(r => this.onMessage(r));
+		this.protocolListener = this.protocol.onMessage(r => this.onMessage(r));
 		this.protocol.send(<IRawResponse> { type: MessageType.ResponseInitialize });
 	}
 
@@ -150,6 +151,9 @@ export class ChannelServer {
 	}
 
 	public dispose(): void {
+		this.protocolListener.dispose();
+		this.protocolListener = null;
+
 		Object.keys(this.activeRequests).forEach(id => {
 			this.activeRequests[<any>id].dispose();
 		});
@@ -165,6 +169,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private bufferedRequests: IRequest[];
 	private handlers: { [id: number]: IHandler; };
 	private lastRequestId: number;
+	private protocolListener: IDisposable;
 
 	constructor(private protocol: IMessagePassingProtocol) {
 		this.state = State.Uninitialized;
@@ -172,7 +177,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		this.bufferedRequests = [];
 		this.handlers = Object.create(null);
 		this.lastRequestId = 0;
-		this.protocol.onMessage(r => this.onMessage(r));
+		this.protocolListener = this.protocol.onMessage(r => this.onMessage(r));
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
@@ -298,6 +303,9 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	dispose(): void {
+		this.protocolListener.dispose();
+		this.protocolListener = null;
+
 		this.activeRequests.forEach(r => r.cancel());
 		this.activeRequests = [];
 	}
