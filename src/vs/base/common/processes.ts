@@ -11,8 +11,7 @@ import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as Types from 'vs/base/common/types';
 
-import { ValidationStatus, ValidationState, ILogger, Parser, ISystemVariables } from 'vs/base/common/parsers';
-
+import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/common/parsers';
 
 /**
  * Options to be passed to the external program or shell.
@@ -251,25 +250,4 @@ export class ExecutableParser extends Parser {
 		Parser.merge(executable, other, true);
 		return executable;
 	}
-}
-
-export function resolveCommandOptions(options: CommandOptions, variables: ISystemVariables): CommandOptions {
-	let result = Objects.clone(options);
-	if (result.cwd) {
-		result.cwd = variables.resolve(result.cwd);
-	}
-	if (result.env) {
-		result.env = variables.resolve(result.env);
-	}
-	return result;
-}
-
-export function resolveExecutable(executable: Executable, variables: ISystemVariables): Executable {
-	let result = Objects.clone(executable);
-	result.command = variables.resolve(result.command);
-	result.args = variables.resolve(result.args);
-	if (result.options) {
-		result.options = resolveCommandOptions(result.options, variables);
-	}
-	return result;
 }

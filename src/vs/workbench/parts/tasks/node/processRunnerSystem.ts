@@ -18,7 +18,7 @@ import { TerminateResponse, SuccessData, ErrorData } from 'vs/base/common/proces
 import { LineProcess, LineData } from 'vs/base/node/processes';
 
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
-import { ISystemVariables } from 'vs/base/common/parsers';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ValidationStatus } from 'vs/base/common/parsers';
@@ -37,11 +37,11 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	public static TelemetryEventName: string = 'taskService';
 
 	private fileConfig: FileConfig.ExternalTaskRunnerConfiguration;
-	private variables: ISystemVariables;
 	private markerService: IMarkerService;
 	private modelService: IModelService;
 	private outputService: IOutputService;
 	private telemetryService: ITelemetryService;
+	private configurationResolverService: IConfigurationResolverService;
 
 	private validationStatus: ValidationStatus;
 	private defaultBuildTaskIdentifier: string;
@@ -54,14 +54,15 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private activeTaskIdentifier: string;
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
-	constructor(fileConfig:FileConfig.ExternalTaskRunnerConfiguration, variables:ISystemVariables, markerService:IMarkerService, modelService: IModelService, telemetryService: ITelemetryService, outputService:IOutputService, outputChannelId:string, clearOutput: boolean = true) {
+	constructor(fileConfig: FileConfig.ExternalTaskRunnerConfiguration, markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
+		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string, clearOutput: boolean = true) {
 		super();
 		this.fileConfig = fileConfig;
-		this.variables = variables;
 		this.markerService = markerService;
 		this.modelService = modelService;
 		this.outputService = outputService;
 		this.telemetryService = telemetryService;
+		this.configurationResolverService = configurationResolverService;
 
 		this.defaultBuildTaskIdentifier = null;
 		this.defaultTestTaskIdentifier = null;
@@ -405,7 +406,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveVariable(value: string): string {
-		return this.variables.resolve(value);
+		return this.configurationResolverService.resolve(value);
 	}
 
 	public log(value: string): void  {
