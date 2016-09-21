@@ -561,8 +561,8 @@ export class HTMLWorker {
 						break;
 
 					case ATTRIB_NAME:
-						nextTokenEndIndex = tokens.getTokenEndIndex(i, lineContentLength);
-						tokenContent = lineContent.substring(tokens.getTokenStartIndex(i), nextTokenEndIndex).toLowerCase();
+						nextTokenEndIndex = tokens.getTokenEndOffset(i, lineContentLength);
+						tokenContent = lineContent.substring(tokens.getTokenStartOffset(i), nextTokenEndIndex).toLowerCase();
 
 						if (tokenContent === 'src' || tokenContent === 'href') {
 							state = LinkDetectionState.AFTER_HREF_OR_SRC;
@@ -573,10 +573,10 @@ export class HTMLWorker {
 
 					case ATTRIB_VALUE:
 						if (state === LinkDetectionState.AFTER_HREF_OR_SRC) {
-							nextTokenEndIndex = tokens.getTokenEndIndex(i, lineContentLength);
-							tokenContent = lineContent.substring(tokens.getTokenStartIndex(i), nextTokenEndIndex);
+							nextTokenEndIndex = tokens.getTokenEndOffset(i, lineContentLength);
+							tokenContent = lineContent.substring(tokens.getTokenStartOffset(i), nextTokenEndIndex);
 
-							link = this.createLink(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent, lineNumber, tokens.getTokenStartIndex(i) + 2, nextTokenEndIndex);
+							link = this.createLink(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent, lineNumber, tokens.getTokenStartOffset(i) + 2, nextTokenEndIndex);
 							if (link) {
 								newLinks.push(link);
 							}

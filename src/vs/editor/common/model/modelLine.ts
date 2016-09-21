@@ -746,7 +746,7 @@ export class LineTokens implements ILineTokens {
 		return this._tokens.length;
 	}
 
-	public getTokenStartIndex(tokenIndex:number): number {
+	public getTokenStartOffset(tokenIndex:number): number {
 		return TokensBinaryEncoding.getStartIndex(this._tokens[tokenIndex]);
 	}
 
@@ -754,7 +754,7 @@ export class LineTokens implements ILineTokens {
 		return TokensBinaryEncoding.getType(this.map, this._tokens[tokenIndex]);
 	}
 
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
+	public getTokenEndOffset(tokenIndex:number, textLength:number): number {
 		if (tokenIndex + 1 < this._tokens.length) {
 			return TokensBinaryEncoding.getStartIndex(this._tokens[tokenIndex + 1]);
 		}
@@ -803,7 +803,7 @@ class EmptyLineTokens implements ILineTokens {
 		return 0;
 	}
 
-	public getTokenStartIndex(tokenIndex:number): number {
+	public getTokenStartOffset(tokenIndex:number): number {
 		return 0;
 	}
 
@@ -811,7 +811,7 @@ class EmptyLineTokens implements ILineTokens {
 		return strings.empty;
 	}
 
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
+	public getTokenEndOffset(tokenIndex:number, textLength:number): number {
 		return 0;
 	}
 
@@ -840,7 +840,7 @@ export class DefaultLineTokens implements ILineTokens {
 		return 1;
 	}
 
-	public getTokenStartIndex(tokenIndex:number): number {
+	public getTokenStartOffset(tokenIndex:number): number {
 		return 0;
 	}
 
@@ -848,7 +848,7 @@ export class DefaultLineTokens implements ILineTokens {
 		return strings.empty;
 	}
 
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
+	public getTokenEndOffset(tokenIndex:number, textLength:number): number {
 		return textLength;
 	}
 

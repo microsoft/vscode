@@ -301,11 +301,11 @@ suite('Editor Modes - Tokenization', () => {
 		handleEvent(createMockLineContext('abc (def', lineTokens), 0, (modeId:string, context:modes.ILineContext, offset:number) => {
 			assert.deepEqual(modeId, 'A');
 			assert.equal(context.getTokenCount(), 3);
-			assert.equal(context.getTokenStartIndex(0), 0);
+			assert.equal(context.getTokenStartOffset(0), 0);
 			assert.equal(context.getTokenType(0), 'A.abc');
-			assert.equal(context.getTokenStartIndex(1), 3);
+			assert.equal(context.getTokenStartOffset(1), 3);
 			assert.equal(context.getTokenType(1), '');
-			assert.equal(context.getTokenStartIndex(2), 4);
+			assert.equal(context.getTokenStartOffset(2), 4);
 			assert.equal(context.getTokenType(2), 'A.(');
 			assert.deepEqual(offset, 0);
 			assert.equal(context.getLineContent(), 'abc (');
@@ -314,7 +314,7 @@ suite('Editor Modes - Tokenization', () => {
 		handleEvent(createMockLineContext('abc (def', lineTokens), 6, (modeId:string, context:modes.ILineContext, offset:number) => {
 			assert.deepEqual(modeId, 'B');
 			assert.equal(context.getTokenCount(), 1);
-			assert.equal(context.getTokenStartIndex(0), 0);
+			assert.equal(context.getTokenStartOffset(0), 0);
 			assert.equal(context.getTokenType(0), 'B.def');
 			assert.deepEqual(offset, 1);
 			assert.equal(context.getLineContent(), 'def');

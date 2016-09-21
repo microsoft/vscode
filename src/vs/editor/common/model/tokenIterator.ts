@@ -28,7 +28,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		var columnIndex = position.column - 1, tokenEndIndex = Number.MAX_VALUE;
 
 		for (var i = this._currentLineTokens.getTokenCount() - 1; i >= 0; i--) {
-			let tokenStartIndex = this._currentLineTokens.getTokenStartIndex(i);
+			let tokenStartIndex = this._currentLineTokens.getTokenStartOffset(i);
 
 			if (tokenStartIndex <= columnIndex && columnIndex <= tokenEndIndex) {
 
@@ -97,9 +97,9 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 	}
 
 	private _current(): editorCommon.ITokenInfo {
-		let startIndex = this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex);
+		let startIndex = this._currentLineTokens.getTokenStartOffset(this._currentTokenIndex);
 		let type = this._currentLineTokens.getTokenType(this._currentTokenIndex);
-		let endIndex = this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._model.getLineContent(this._currentLineNumber).length);
+		let endIndex = this._currentLineTokens.getTokenEndOffset(this._currentTokenIndex, this._model.getLineContent(this._currentLineNumber).length);
 
 		return {
 			token: new Token(startIndex, type),

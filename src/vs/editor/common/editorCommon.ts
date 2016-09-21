@@ -1452,10 +1452,25 @@ export interface ICursorStateComputer {
  * @internal
  */
 export interface ILineTokens {
+	/**
+	 * Get the number of tokens on this line.
+	 */
 	getTokenCount(): number;
-	getTokenStartIndex(tokenIndex:number): number;
+
+	/**
+	 * Get the start offset of the token at `tokenIndex`.
+	 */
+	getTokenStartOffset(tokenIndex:number): number;
+
+	/**
+	 * Get the type of the token at `tokenIndex`.
+	 */
 	getTokenType(tokenIndex:number): string;
-	getTokenEndIndex(tokenIndex:number, textLength:number): number;
+
+	/**
+	 * Get the end offset of the token at `tokenIndex`.
+	 */
+	getTokenEndOffset(tokenIndex:number, textLength:number): number;
 
 	/**
 	 * Check if tokens have changed. This is called by the view to validate rendered lines
