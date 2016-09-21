@@ -155,7 +155,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 
 		this._lastState = null;
-		this._tokensInflatorMap = new TokensInflatorMap();
+		this._tokensInflatorMap = new TokensInflatorMap(this.getModeId());
 		this._invalidLineStartIndex = 0;
 		this._beginBackgroundTokenization();
 	}
@@ -405,7 +405,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				// Make sure there is at least the transition to the top-most mode
 				r.modeTransitions.push(new ModeTransition(0, this.getModeId()));
 			}
-			this._lines[lineIndex].setTokens(this._tokensInflatorMap, r.tokens, this.getModeId(), r.modeTransitions);
+			this._lines[lineIndex].setTokens(this._tokensInflatorMap, r.tokens, r.modeTransitions);
 			this._lines[lineIndex].isInvalid = false;
 
 			if (endStateIndex < linesLength) {

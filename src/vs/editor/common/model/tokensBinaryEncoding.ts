@@ -23,14 +23,17 @@ const INFLATED_TOKENS_NON_EMPTY_TEXT:ViewLineToken[] = [DEFAULT_VIEW_TOKEN];
 const DEFLATED_TOKENS_NON_EMPTY_TEXT:number[] = [0];
 
 export class TokensInflatorMap {
+	_tokensInflatorMapBrand: void;
 
+	public topLevelModeId: string;
 	public _inflate:string[];
 
 	public _deflate: {
 		[token:string]:number;
 	};
 
-	constructor() {
+	constructor(topLevelModeId: string) {
+		this.topLevelModeId = topLevelModeId;
 		this._inflate = [ '' ];
 		this._deflate = { '': 0 };
 	}

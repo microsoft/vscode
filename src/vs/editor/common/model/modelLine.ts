@@ -186,9 +186,9 @@ export class ModelLine {
 
 	// --- BEGIN TOKENS
 
-	public setTokens(map: TokensInflatorMap, tokens: Token[], topLevelModeId:string, modeTransitions:ModeTransition[]): void {
+	public setTokens(map: TokensInflatorMap, tokens: Token[], modeTransitions:ModeTransition[]): void {
 		this._lineTokens = toLineTokensFromInflated(map, tokens, this._text.length);
-		this._modeTransitions = toModeTransitions(topLevelModeId, modeTransitions);
+		this._modeTransitions = toModeTransitions(map.topLevelModeId, modeTransitions);
 	}
 
 	private _setLineTokensFromDeflated(tokens:number[]): void {
