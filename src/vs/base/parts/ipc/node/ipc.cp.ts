@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promise} from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
-import { Server as IPCServer, Client as IPCClient, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class Server extends IPCServer {
 	constructor() {
@@ -54,7 +54,7 @@ export interface IIPCOptions {
 	debugBrk?:number;
 }
 
-export class Client implements IClient, IDisposable {
+export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
 	private activeRequests: Promise[];

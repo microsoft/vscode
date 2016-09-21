@@ -62,15 +62,23 @@ export interface IChannel {
 	call(command: string, arg: any): TPromise<any>;
 }
 
-export interface IServer {
+export interface IChannelServer {
 	registerChannel(channelName: string, channel: IChannel): void;
 }
 
-export interface IClient {
+export interface IChannelClient {
 	getChannel<T extends IChannel>(channelName: string): T;
 }
 
-export class Server {
+export interface IClientRouter {
+	routeCall(command: string, arg: any): string;
+}
+
+export interface IMultiChannelClient {
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T;
+}
+
+export class ChannelServer {
 
 	private channels: { [name: string]: IChannel };
 	private activeRequests: { [id: number]: IDisposable; };
@@ -150,7 +158,7 @@ export class Server {
 	}
 }
 
-export class Client implements IClient, IDisposable {
+export class ChannelClient implements IChannelClient, IDisposable {
 
 	private state: State;
 	private activeRequests: Promise[];
