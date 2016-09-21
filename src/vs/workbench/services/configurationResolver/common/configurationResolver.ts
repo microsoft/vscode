@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IStringDictionary} from 'vs/base/common/collections';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
@@ -17,4 +18,5 @@ export interface IConfigurationResolverService {
 	resolve(value: IStringDictionary<string[]>): IStringDictionary<string[]>;
 	resolve(value: IStringDictionary<IStringDictionary<string>>): IStringDictionary<IStringDictionary<string>>;
 	resolveAny<T>(value: T): T;
+	resolveInteractiveVariables(configuration: any, interactiveVariablesMap: { [key: string]: string }): TPromise<any>;
 }

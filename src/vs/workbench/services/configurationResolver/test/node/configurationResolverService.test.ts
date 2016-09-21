@@ -9,7 +9,7 @@ import platform = require('vs/base/common/platform');
 import {IConfigurationService, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import {ConfigurationResolverService} from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
-import {TestEnvironmentService, TestConfigurationService, TestEditorService} from 'vs/test/utils/servicesTestUtils';
+import {TestEnvironmentService, TestConfigurationService, TestEditorService, } from 'vs/test/utils/servicesTestUtils';
 import {TPromise} from 'vs/base/common/winjs.base';
 
 suite('Configuration Resolver Service', () => {
@@ -17,7 +17,7 @@ suite('Configuration Resolver Service', () => {
 	let envVariables: { [key: string]: string } = { key1: 'Value for Key1', key2: 'Value for Key2' };
 
 	setup(() => {
-		configurationResolverService = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, new TestConfigurationService());
+		configurationResolverService = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, new TestConfigurationService(), null);
 	});
 
 	teardown(() => {
@@ -70,7 +70,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService);
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, null);
 		assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
@@ -87,7 +87,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService);
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, null);
 		assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
 	});
 
@@ -104,7 +104,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService);
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, null);
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} xyz'), 'abc foo \\VSCode\\workspaceLocation bar bar xyz');
 		} else {
@@ -125,7 +125,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService);
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, null);
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} xyz'), 'abc foo \\VSCode\\workspaceLocation bar  bar xyz');
 		} else {
@@ -146,7 +146,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService);
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, null);
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} ${workspaceRoot} ${env.key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for Key1 xyz');
 		} else {
@@ -167,7 +167,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService);
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, null);
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve('${config.editor.fontFamily} ${config.terminal.integrated.fontFamily} ${workspaceRoot} - ${workspaceRoot} ${env.key1} - ${env.key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for Key1 - Value for Key2');
 		} else {
@@ -201,7 +201,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService);
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, null);
 		assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} ${config.editor.lineNumbers} ${config.editor.insertSpaces} ${config.json.schemas[0].fileMatch[1]} xyz'), 'abc foo 123 false {{/myOtherfile}} xyz');
 	});
 });

@@ -5,7 +5,6 @@
 
 import path = require('path');
 import nls = require('vs/nls');
-import {sequence} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
@@ -23,7 +22,6 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ICommandService} from 'vs/platform/commands/common/commands';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -184,7 +182,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ICommandService private commandService: ICommandService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
 		this._onDidConfigurationChange = new Emitter<debug.IConfig>();
@@ -264,59 +261,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		}
 
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
-	}
-
-	/**
-	 * Resolve all interactive variables in configuration #6569
-	 */
-	public resolveInteractiveVariables(): TPromise<debug.IConfig>  {
-		if (!this.configuration) {
-			return TPromise.as(null);
-		}
-
-		// We need a map from interactive variables to keys because we only want to trigger an command once per key -
-		// even though it might occure multiple times in configuration #7026.
-		const interactiveVariablesToSubstitutes: { [interactiveVariable: string]: { object: any, key: string }[] } = {};
-		const findInteractiveVariables = (object: any) => {
-			Object.keys(object).forEach(key => {
-				if (object[key] && typeof object[key] === 'object') {
-					findInteractiveVariables(object[key]);
-				} else if (typeof object[key] === 'string') {
-					const matches = /\${command.(.+)}/.exec(object[key]);
-					if (matches && matches.length === 2) {
-						const interactiveVariable = matches[1];
-						if (!interactiveVariablesToSubstitutes[interactiveVariable]) {
-							interactiveVariablesToSubstitutes[interactiveVariable] = [];
-						}
-						interactiveVariablesToSubstitutes[interactiveVariable].push({ object, key });
-					}
-				}
-			});
-		};
-		findInteractiveVariables(this.configuration);
-
-		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToSubstitutes).map(interactiveVariable => {
-			return () => {
-				let commandId = null;
-				if (this.adapter !== null) {
-					commandId = this.adapter.variables ? this.adapter.variables[interactiveVariable] : null;
-				}
-				if (!commandId) {
-					return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter !== null ? this.adapter.type : null, interactiveVariable));
-				} else {
-					return this.commandService.executeCommand<string>(commandId, this.configuration).then(result => {
-						if (!result) {
-							this.configuration.silentlyAbort = true;
-						}
-						interactiveVariablesToSubstitutes[interactiveVariable].forEach(substitute =>
-							substitute.object[substitute.key] = substitute.object[substitute.key].replace(`\${command.${interactiveVariable}}`, result)
-						);
-					});
-				}
-			};
-		});
-
-		return sequence(factory).then(() => this.configuration);
 	}
 
 	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
@@ -459,5 +403,9 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
 		return TPromise.as(this.configurationService.getConfiguration<debug.IGlobalConfig>('launch'));
+	}
+
+	public resolveInteractiveVariables(): TPromise<any> {
+		return this.configurationResolverService.resolveInteractiveVariables(this.configuration, this.adapter ? this.adapter.variables : null);
 	}
 }
