@@ -21,7 +21,7 @@ import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {$, Builder} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
-import {FileLabel} from 'vs/workbench/browser/labels';
+import {FileLabel, IFileLabelOptions} from 'vs/workbench/browser/labels';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
@@ -284,10 +284,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		// File Rename/Add Input Field
 		const editableData: IEditableData = this.state.getEditableData(stat);
 		if (editableData) {
-			const item = $('.explorer-item');
-			item.appendTo(el);
-
-			return this.renderInputBox(item, tree, stat, editableData);
+			return this.renderInputBox(el, tree, stat, editableData);
 		}
 
 		// Label
@@ -304,14 +301,25 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	}
 
 	private renderInputBox(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
+		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
+
+		const extraClasses = ['explorer-item'];
+		const isFolder = stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder());
+		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, isFolder, extraClasses };
+		label.setFile(stat.resource, labelOptions);
 
 		// Input field (when creating a new file or folder or renaming)
-		const inputBox = new InputBox(container.getHTMLElement(), this.contextViewService, {
+		const inputBox = new InputBox(label.getHTMLElement(), this.contextViewService, {
 			validationOptions: {
 				validation: editableData.validator,
 				showMessage: true
 			},
 			ariaLabel: nls.localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
+		});
+
+		const parent = paths.dirname(stat.resource.fsPath);
+		inputBox.onDidChange(value => {
+			label.setFile(URI.file(paths.join(parent, value)), labelOptions); // update label icon while typing!
 		});
 
 		const value = stat.name || '';
@@ -347,7 +355,8 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, 'blur', () => {
 				done(inputBox.isInputValid());
-			})
+			}),
+			label
 		];
 
 		return () => done(true);

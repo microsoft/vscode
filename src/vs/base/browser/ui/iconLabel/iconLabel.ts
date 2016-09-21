@@ -50,6 +50,12 @@ export class IconLabel {
 
 		this.descriptionNode.textContent = description || '';
 
+		if (!description) {
+			dom.addClass(this.descriptionNode, 'empty');
+		} else {
+			dom.removeClass(this.descriptionNode, 'empty');
+		}
+
 		this.domNode.title = options && options.title ? options.title : '';
 
 		const classes = ['monaco-icon-label'];

@@ -151,6 +151,7 @@ export class EditorLabel extends ResourceLabel {
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
+	hideLabel?: boolean;
 	hidePath?: boolean;
 }
 
@@ -159,7 +160,7 @@ export class FileLabel extends ResourceLabel {
 	public setFile(resource: uri, options: IFileLabelOptions = Object.create(null)): void {
 		this.setLabel({
 			resource,
-			name: paths.basename(resource.fsPath),
+			name: !options.hideLabel ? paths.basename(resource.fsPath) : void 0,
 			description: !options.hidePath ? getPathLabel(paths.dirname(resource.fsPath), this.contextService) : void 0
 		}, options);
 	}
