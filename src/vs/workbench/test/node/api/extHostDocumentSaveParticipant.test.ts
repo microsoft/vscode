@@ -168,7 +168,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 
 		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
-			e.pushEdits([TextEdit.insert(new Position(0, 0), 'bar')]);
+			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
 
 		return participant.$participateInSave(resource).then(() => {
