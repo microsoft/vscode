@@ -6,6 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -13,6 +14,10 @@ export interface ITelemetryInfo {
 	sessionId: string;
 	machineId: string;
 	instanceId: string;
+}
+
+export interface ITelemetryExperiments {
+	showDefaultViewlet: boolean;
 }
 
 export interface ITelemetryService {
@@ -28,10 +33,17 @@ export interface ITelemetryService {
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
 	isOptedIn: boolean;
+
+	getExperiments(): ITelemetryExperiments;
 }
 
-export const NullTelemetryService: ITelemetryService = {
+export const defaultExperiments: ITelemetryExperiments = {
+	showDefaultViewlet: false
+};
+
+export const NullTelemetryService = {
 	_serviceBrand: undefined,
+	_experiments: defaultExperiments,
 	publicLog(eventName: string, data?: any) {
 		return TPromise.as<void>(null);
 	},
@@ -42,8 +54,24 @@ export const NullTelemetryService: ITelemetryService = {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
+	},
+	getExperiments(): ITelemetryExperiments {
+		return this._experiments;
 	}
 };
+
+export function loadExperiments(storageService: IStorageService): ITelemetryExperiments {
+	const key = 'experiments.randomness';
+	let valueString = storageService.get(key);
+	if (!valueString) {
+		valueString = Math.random().toString();
+		storageService.store(key, valueString);
+	}
+	const value = parseFloat(valueString);
+	return {
+		showDefaultViewlet: value < 0.5
+	};
+}
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
