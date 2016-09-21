@@ -9,8 +9,9 @@
 	"exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
 	"findInFolder": "Rechercher dans le dossier",
 	"name": "Recherche",
-	"openAnythingHandlerDescription": "Ouvrir des fichiers et des symboles globaux par nom",
+	"openAnythingHandlerDescription": "Ouvrir les fichiers par nom",
 	"openSymbolDescriptionNormal": "Ouvrir n'importe quel symbole par nom",
+	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour l'ouverture rapide.",
 	"searchConfigurationTitle": "Rechercher",
 	"showTriggerActions": "Afficher tous les symboles",
 	"view": "Affichage"

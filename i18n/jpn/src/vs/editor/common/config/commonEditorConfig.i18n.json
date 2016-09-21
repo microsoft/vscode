@@ -14,7 +14,7 @@
 	"folding": "エディターでコードの折りたたみを有効にするかどうかを制御します",
 	"fontFamily": "フォント ファミリを制御します。",
 	"fontLigatures": "フォントの合字を使用します",
-	"fontSize": "フォント サイズを制御します。",
+	"fontSize": "フォント サイズをピクセル単位で制御します。",
 	"fontWeight": "フォントの太さを制御します。",
 	"formatOnType": "エディターで入力後に自動的に行の書式設定を行うかどうかを制御します",
 	"glyphMargin": "グリフ余白の表示を制御します",
@@ -32,6 +32,7 @@
 	"quickSuggestionsDelay": "クイック候補が表示されるまでの待ち時間 (ミリ秒) を制御します",
 	"renderControlCharacters": "エディターで制御文字を表示する必要があるかどうかを制御します",
 	"renderIndentGuides": "エディターでインデントのガイドを表示する必要があるかどうかを制御します",
+	"renderLineHighlight": "エディターが現在の行を強調表示するかどうかを制御します",
 	"renderWhitespace": "エディターで空白文字を表示するかどうかを制御します",
 	"roundedSelection": "選択範囲の角を丸くするかどうかを制御します",
 	"rulers": "垂直ルーラーを表示する列",
@@ -49,6 +50,7 @@
 	"useTabStops": "空白の挿入や削除はタブ位置に従って行われます",
 	"wordBasedSuggestions": "単語ベースの修正候補を有効にします。",
 	"wordSeparators": "単語に関連したナビゲーションまたは操作を実行するときに、単語の区切り文字として使用される文字",
+	"wordWrap": "行を折り返すかどうかを制御します。行は min(editor.wrappingColumn, viewportWidthInColumns) で折り返します。",
 	"wrappingColumn": "エディターで次の行に折り返される文字数を制御します。これを 0 に設定すると、ビューポートの幅での折り返しがオンになります (ワード ラップ)。これを -1 に設定するとエディターによる折り返しが禁止されます。",
 	"wrappingIndent": "折り返し行のインデントを制御します。'none'、'same'、または 'indent' のいずれかを指定できます。"
 }

@@ -12,5 +12,8 @@
 	"format.preserveNewLines": "Gibt an, ob vorhandene Zeilenumbrüche vor Elemente beibehalten werden sollen. Funktioniert nur vor Elementen, nicht in Tags oder für Text.",
 	"format.unformatted": "Die Liste der Tags (durch Kommas getrennt), die nicht erneut formatiert werden sollen. \"null\" bezieht sich standardmäßig auf alle Tags, die unter https://www.w3.org/TR/html5/dom.html#phrasing-content aufgeführt werden.",
 	"format.wrapLineLength": "Die maximale Anzahl von Zeichen pro Zeile (0 = deaktiviert).",
-	"htmlConfigurationTitle": "HTML"
+	"htmlConfigurationTitle": "HTML",
+	"suggest.angular1": "Konfiguriert, ob die integrierte HTML-Sprachuntersützung Angular V1-Tags und -Eigenschaften vorschlägt.",
+	"suggest.html5": "Konfiguriert, ob die integrierte HTML-Sprachuntersützung HTML5-Tags, -Eigenschaften und -Werte vorschlägt.",
+	"suggest.ionic": "Konfiguriert, ob die integrierte HTML-Sprachuntersützung Ionic-Tags, -Eigenschaften und -Werte vorschlägt."
 }

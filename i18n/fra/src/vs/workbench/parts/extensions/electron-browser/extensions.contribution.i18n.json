@@ -6,7 +6,9 @@
 {
 	"extension": "Extension",
 	"extensions": "Extensions",
+	"extensionsAutoUpdate": "Mettre à jour automatiquement les extensions",
 	"extensionsCommands": "Gérer les extensions",
+	"extensionsConfigurationTitle": "Extensions",
 	"galleryExtensionsCommands": "Installer les extensions de la galerie",
 	"view": "Affichage"
 }
