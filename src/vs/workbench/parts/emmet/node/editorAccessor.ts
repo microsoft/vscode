@@ -145,9 +145,6 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 
-		if (/\b(razor|handlebars)\b/.test(syntax)) { // treat like html
-			return 'html';
-		}
 		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
 			return 'jsx';
 		}
