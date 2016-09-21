@@ -169,7 +169,7 @@ class TokenScanner {
 		}
 
 		let tokenType = this._currentLineTokens.getTokenType(this._currentTokenIndex);
-		let tokenEndIndex = this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._currentLineText.length);
+		let tokenEndIndex = this._currentLineTokens.getTokenEndOffset(this._currentTokenIndex, this._currentLineText.length);
 		let tmpTokenEndIndex = tokenEndIndex;
 
 		let nextBracket: Range = null;
@@ -211,7 +211,7 @@ class TokenScanner {
 				this._currentTokenStart = tmpTokenEndIndex;
 			} else {
 				this._currentTokenIndex += 1;
-				this._currentTokenStart = (this._currentTokenIndex < this._currentLineTokens.getTokenCount() ? this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex) : 0);
+				this._currentTokenStart = (this._currentTokenIndex < this._currentLineTokens.getTokenCount() ? this._currentLineTokens.getTokenStartOffset(this._currentTokenIndex) : 0);
 			}
 			return token;
 		}
@@ -234,7 +234,7 @@ class TokenScanner {
 			this._currentTokenStart = nextBracket.endColumn - 1;
 		} else {
 			this._currentTokenIndex += 1;
-			this._currentTokenStart = (this._currentTokenIndex < this._currentLineTokens.getTokenCount() ? this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex) : 0);
+			this._currentTokenStart = (this._currentTokenIndex < this._currentLineTokens.getTokenCount() ? this._currentLineTokens.getTokenStartOffset(this._currentTokenIndex) : 0);
 		}
 		return token;
 	}

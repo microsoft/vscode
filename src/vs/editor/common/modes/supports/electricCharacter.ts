@@ -131,7 +131,7 @@ export class Brackets {
 
 		let lineText = context.getLineContent();
 		let tokenIndex = context.findIndexOfOffset(offset);
-		let tokenStart = context.getTokenStartIndex(tokenIndex);
+		let tokenStart = context.getTokenStartOffset(tokenIndex);
 		let tokenEnd = offset + 1;
 
 		var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(context.getLineContent());
@@ -181,7 +181,7 @@ export class Brackets {
 
 			// check if the full open bracket matches
 			let lastTokenIndex = context.findIndexOfOffset(offset);
-			if (line.substring(context.getTokenStartIndex(lastTokenIndex), offset+1/* include electric char*/) !== pair.open) {
+			if (line.substring(context.getTokenStartOffset(lastTokenIndex), offset+1/* include electric char*/) !== pair.open) {
 				continue;
 			}
 
