@@ -9,6 +9,7 @@
 
 .monaco-workbench > .part > .composite.title {
 	display: flex;
+	-webkit-app-region: drag;
 }
 
 .monaco-workbench > .part > .composite.title > .title-actions {

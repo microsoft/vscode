@@ -11,9 +11,10 @@
 
 .monaco-workbench > .part.activitybar {
 	z-index: 20;
-	min-width: 50px;
-	width: 50px;
+	min-width: 76px;
+	width: 76px;
 	transition: width 0.2s ease-out;
+	-webkit-app-region: drag;
 }
 
 .monaco-workbench > .activitybar.help {
@@ -26,6 +27,10 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar {
 	text-align: left;
+}
+
+.monaco-workbench > .activitybar > .content .monaco-action-bar .actions-container {
+	padding-top: 28px;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar.position-top {

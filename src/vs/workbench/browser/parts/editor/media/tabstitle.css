@@ -48,6 +48,7 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container {
 	display: flex;
 	height: 35px;
+	-webkit-app-region: drag;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.scroll {
@@ -71,6 +72,7 @@
 	box-sizing: border-box;
 	border: 1px solid transparent;
 	padding-left: 10px;
+	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active {
@@ -223,4 +225,5 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
 	flex: initial;
 	padding-left: 4px;
+	-webkit-app-region: drag;
 }

@@ -168,7 +168,8 @@ export class VSCodeWindow {
 			title: this.envService.product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
-			}
+			},
+			titleBarStyle: 'hidden-inset'
 		};
 
 		if (platform.isLinux) {
