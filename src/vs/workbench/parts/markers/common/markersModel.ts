@@ -9,6 +9,7 @@ import * as types from 'vs/base/common/types';
 import * as Map from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import {IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy} from 'vs/base/common/filters';
@@ -51,6 +52,10 @@ export class Marker {
 
 	public get resource(): URI {
 		return this.marker.resource;
+	}
+
+	public get range(): IRange {
+		return this.marker;
 	}
 }
 
