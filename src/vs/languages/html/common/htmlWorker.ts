@@ -19,6 +19,7 @@ import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
 import {IHTMLConfiguration, IHTMLFormatConfiguration} from 'vs/languages/html/common/html.contribution';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -527,7 +528,7 @@ export class HTMLWorker {
 			lineNumber: number,
 			lineContent: string,
 			lineContentLength: number,
-			tokens: editorCommon.ILineTokens,
+			tokens: LineTokens,
 			tokenType: string,
 			tokensLength: number,
 			i: number,
@@ -561,7 +562,7 @@ export class HTMLWorker {
 						break;
 
 					case ATTRIB_NAME:
-						nextTokenEndIndex = tokens.getTokenEndOffset(i, lineContentLength);
+						nextTokenEndIndex = tokens.getTokenEndOffset(i);
 						tokenContent = lineContent.substring(tokens.getTokenStartOffset(i), nextTokenEndIndex).toLowerCase();
 
 						if (tokenContent === 'src' || tokenContent === 'href') {
@@ -573,7 +574,7 @@ export class HTMLWorker {
 
 					case ATTRIB_VALUE:
 						if (state === LinkDetectionState.AFTER_HREF_OR_SRC) {
-							nextTokenEndIndex = tokens.getTokenEndOffset(i, lineContentLength);
+							nextTokenEndIndex = tokens.getTokenEndOffset(i);
 							tokenContent = lineContent.substring(tokens.getTokenStartOffset(i), nextTokenEndIndex);
 
 							link = this.createLink(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent, lineNumber, tokens.getTokenStartOffset(i) + 2, nextTokenEndIndex);

@@ -6,7 +6,8 @@
 
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {ILineTokens, IModel, IPosition, IRichEditBracket} from 'vs/editor/common/editorCommon';
+import {IModel, IPosition, IRichEditBracket} from 'vs/editor/common/editorCommon';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 import {IRichEditBrackets} from 'vs/editor/common/modes';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -122,7 +123,7 @@ class TokenScanner {
 	private _currentLineNumber: number;
 	private _currentTokenIndex: number;
 	private _currentTokenStart: number;
-	private _currentLineTokens: ILineTokens;
+	private _currentLineTokens: LineTokens;
 	private _currentLineModeTransitions: ModeTransition[];
 	private _currentModeIndex: number;
 	private _nextModeStart: number;
@@ -169,7 +170,7 @@ class TokenScanner {
 		}
 
 		let tokenType = this._currentLineTokens.getTokenType(this._currentTokenIndex);
-		let tokenEndIndex = this._currentLineTokens.getTokenEndOffset(this._currentTokenIndex, this._currentLineText.length);
+		let tokenEndIndex = this._currentLineTokens.getTokenEndOffset(this._currentTokenIndex);
 		let tmpTokenEndIndex = tokenEndIndex;
 
 		let nextBracket: Range = null;

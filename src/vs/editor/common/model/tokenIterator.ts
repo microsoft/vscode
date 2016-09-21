@@ -6,13 +6,14 @@
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Token} from 'vs/editor/common/core/token';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 
 export class TokenIterator implements editorCommon.ITokenIterator {
 
 	private _model:editorCommon.ITokenizedModel;
 	private _currentLineNumber:number;
 	private _currentTokenIndex:number;
-	private _currentLineTokens:editorCommon.ILineTokens;
+	private _currentLineTokens:LineTokens;
 	private _next:editorCommon.ITokenInfo;
 	private _prev:editorCommon.ITokenInfo;
 
@@ -99,7 +100,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 	private _current(): editorCommon.ITokenInfo {
 		let startIndex = this._currentLineTokens.getTokenStartOffset(this._currentTokenIndex);
 		let type = this._currentLineTokens.getTokenType(this._currentTokenIndex);
-		let endIndex = this._currentLineTokens.getTokenEndOffset(this._currentTokenIndex, this._model.getLineContent(this._currentLineNumber).length);
+		let endIndex = this._currentLineTokens.getTokenEndOffset(this._currentTokenIndex);
 
 		return {
 			token: new Token(startIndex, type),
