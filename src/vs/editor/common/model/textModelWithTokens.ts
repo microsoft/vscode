@@ -24,7 +24,7 @@ import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Position} from 'vs/editor/common/core/position';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {Token} from 'vs/editor/common/core/token';
-import {LineTokens} from 'vs/editor/common/core/lineTokens';
+import {LineTokens, LineToken} from 'vs/editor/common/core/lineTokens';
 
 class Mode implements IMode {
 
@@ -610,43 +610,29 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _findMatchingBracketUp(bracket:editorCommon.IRichEditBracket, position:Position): Range {
 		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
-		let modeId = bracket.modeId;
-		let reversedBracketRegex = bracket.reversedRegex;
+		const modeId = bracket.modeId;
+		const reversedBracketRegex = bracket.reversedRegex;
 		let count = -1;
 
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
-			let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
-			let lineText = this._lines[lineNumber - 1].text;
-			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
-			let currentModeIndex = modeTransitions.length - 1;
-			let currentModeStart = modeTransitions[currentModeIndex].startIndex;
-			let currentModeId = modeTransitions[currentModeIndex].modeId;
+			const lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
+			const lineText = this._lines[lineNumber - 1].text;
 
-			let tokensLength = lineTokens.getTokenCount() - 1;
-			let currentTokenEndOffset = lineText.length;
+			let currentToken: LineToken;
+			let searchStopOffset: number;
 			if (lineNumber === position.lineNumber) {
-				tokensLength = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				currentTokenEndOffset = position.column - 1;
-
-				currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
-				currentModeStart = modeTransitions[currentModeIndex].startIndex;
-				currentModeId = modeTransitions[currentModeIndex].modeId;
+				currentToken = lineTokens.findTokenAtOffset(position.column - 1);
+				searchStopOffset = position.column - 1;
+			} else {
+				currentToken = lineTokens.last();
+				searchStopOffset = currentToken.endOffset;
 			}
 
-			for (let tokenIndex = tokensLength; tokenIndex >= 0; tokenIndex--) {
-				let currentTokenType = lineTokens.getTokenType(tokenIndex);
-				let currentTokenStartOffset = lineTokens.getTokenStartOffset(tokenIndex);
-
-				if (currentTokenStartOffset < currentModeStart) {
-					currentModeIndex--;
-					currentModeStart = modeTransitions[currentModeIndex].startIndex;
-					currentModeId = modeTransitions[currentModeIndex].modeId;
-				}
-
-				if (currentModeId === modeId && !ignoreBracketsInToken(currentTokenType)) {
+			do {
+				if (currentToken.modeId === modeId && !ignoreBracketsInToken(currentToken.type)) {
 
 					while (true) {
-						let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentTokenStartOffset, currentTokenEndOffset);
+						let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentToken.startOffset, searchStopOffset);
 						if (!r) {
 							break;
 						}
@@ -664,12 +650,16 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 							return r;
 						}
 
-						currentTokenEndOffset = r.startColumn - 1;
+						searchStopOffset = r.startColumn - 1;
 					}
 				}
 
-				currentTokenEndOffset = currentTokenStartOffset;
-			}
+				currentToken = currentToken.prev();
+				if (currentToken) {
+					searchStopOffset = currentToken.endOffset;
+				}
+
+			} while(currentToken);
 		}
 
 		return null;
@@ -678,42 +668,28 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _findMatchingBracketDown(bracket:editorCommon.IRichEditBracket, position:Position): Range {
 		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
-		let modeId = bracket.modeId;
-		let bracketRegex = bracket.forwardRegex;
+		const modeId = bracket.modeId;
+		const bracketRegex = bracket.forwardRegex;
 		let count = 1;
 
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-			let lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
-			let lineText = this._lines[lineNumber - 1].text;
-			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this.getModeId());
-			let currentModeIndex = 0;
-			let nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
-			let currentModeId = modeTransitions[currentModeIndex].modeId;
+			const lineTokens = this._lines[lineNumber - 1].getTokens(this._tokensInflatorMap);
+			const lineText = this._lines[lineNumber - 1].text;
 
-			let startTokenIndex = 0;
-			let currentTokenStartOffset = lineTokens.getTokenStartOffset(startTokenIndex);
+			let currentToken: LineToken;
+			let searchStartOffset: number;
 			if (lineNumber === position.lineNumber) {
-				startTokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
-				currentTokenStartOffset = Math.max(currentTokenStartOffset, position.column - 1);
-
-				currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
-				nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
-				currentModeId = modeTransitions[currentModeIndex].modeId;
+				currentToken = lineTokens.findTokenAtOffset(position.column - 1);
+				searchStartOffset = position.column - 1;
+			} else {
+				currentToken = lineTokens.first();
+				searchStartOffset = currentToken.startOffset;
 			}
 
-			for (let tokenIndex = startTokenIndex, tokensLength = lineTokens.getTokenCount(); tokenIndex < tokensLength; tokenIndex++) {
-				let currentTokenType = lineTokens.getTokenType(tokenIndex);
-				let currentTokenEndOffset = lineTokens.getTokenEndOffset(tokenIndex);
-
-				if (currentTokenStartOffset >= nextModeStart) {
-					currentModeIndex++;
-					nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
-					currentModeId = modeTransitions[currentModeIndex].modeId;
-				}
-
-				if (currentModeId === modeId && !ignoreBracketsInToken(currentTokenType)) {
+			do {
+				if (currentToken.modeId === modeId && !ignoreBracketsInToken(currentToken.type)) {
 					while (true) {
-						let r = BracketsUtils.findNextBracketInToken(bracketRegex, lineNumber, lineText, currentTokenStartOffset, currentTokenEndOffset);
+						let r = BracketsUtils.findNextBracketInToken(bracketRegex, lineNumber, lineText, searchStartOffset, currentToken.endOffset);
 						if (!r) {
 							break;
 						}
@@ -731,12 +707,15 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 							return r;
 						}
 
-						currentTokenStartOffset = r.endColumn - 1;
+						searchStartOffset = r.endColumn - 1;
 					}
 				}
 
-				currentTokenStartOffset = currentTokenEndOffset;
-			}
+				currentToken = currentToken.next();
+				if (currentToken) {
+					searchStartOffset = currentToken.startOffset;
+				}
+			} while (currentToken);
 		}
 
 		return null;
