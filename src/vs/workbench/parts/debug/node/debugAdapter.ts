@@ -58,11 +58,11 @@ export class Adapter {
 		this.args = this.args || rawAdapter.args;
 
 		if (this.program) {
-			this.program = configurationResolverService.resolve(this.program);
+			this.program = configurationResolverService ? configurationResolverService.resolve(this.program) : this.program;
 			this.program = paths.join(extensionDescription.extensionFolderPath, this.program);
 		}
 		if (this.runtime && this.runtime.indexOf('./') === 0) {
-			this.runtime = configurationResolverService.resolve(this.runtime);
+			this.runtime = configurationResolverService ? configurationResolverService.resolve(this.runtime) : this.runtime;
 			this.runtime = paths.join(extensionDescription.extensionFolderPath, this.runtime);
 		}
 
