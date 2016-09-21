@@ -104,8 +104,16 @@ export interface IFileService {
 	 */
 	del(resource: URI, useTrash?: boolean): TPromise<void>;
 
-	// TODO: doc
+	/**
+	 * Backs up the provided file to a temporary directory to be used by the hot
+	 * exit feature and crash recovery.
+	 */
 	backupFile(resource: URI, content: string): TPromise<IFileStat>;
+
+	/**
+	 * Discards all backups associated with this session.
+	 */
+	discardBackups(): TPromise<void>;
 
 	/**
 	 * Imports the file to the parent identified by the resource.
