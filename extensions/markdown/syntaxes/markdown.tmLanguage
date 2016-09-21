@@ -309,7 +309,7 @@
 								</dict>
 							</array>
 							<key>while</key>
-							<string>\G(?!&lt;/\2\s*&gt;)</string>
+							<string>^(?!\s*$)</string>
 						</dict>
 					</array>
 				</dict>
