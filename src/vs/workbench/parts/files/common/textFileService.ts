@@ -119,7 +119,8 @@ export abstract class TextFileService implements ITextFileService {
 		if (this.getDirty().length) {
 			// If hot exit is enabled then save the dirty files in the workspace and then exit
 			if (this.configuredHotExit) {
-				// TODO: Do last minute backup if needed
+				// TODO: Do a last minute backup if required
+				// TODO: If this is the only instance opened, perform hot exit
 			}
 
 			// If auto save is enabled, save all files and then check again for dirty files
@@ -129,6 +130,7 @@ export abstract class TextFileService implements ITextFileService {
 						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
+					this.fileService.discardBackups();
 					return false; // all good, no veto
 				});
 			}
@@ -137,6 +139,7 @@ export abstract class TextFileService implements ITextFileService {
 			return this.confirmBeforeShutdown();
 		}
 
+		this.fileService.discardBackups();
 		return false; // no veto
 	}
 
@@ -150,12 +153,14 @@ export abstract class TextFileService implements ITextFileService {
 					return true; // veto if some saves failed
 				}
 
+				this.fileService.discardBackups();
 				return false; // no veto
 			});
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
+			this.fileService.discardBackups();
 			return false; // no veto
 		}
 

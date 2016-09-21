@@ -233,8 +233,11 @@ export class FileService implements IFileService {
 	}
 
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
-		// TODO: Use this.environmentService.userDataPath as backup path
 		return this.raw.backupFile(resource, content);
+	}
+
+	public discardBackups(): TPromise<void> {
+		return this.raw.discardBackups();
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
