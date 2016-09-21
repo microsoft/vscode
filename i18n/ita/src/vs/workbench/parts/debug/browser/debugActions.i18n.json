@@ -17,6 +17,7 @@
 	"debugAddToWatch": "Debug: Aggiungi a espressione di controllo",
 	"debugConsoleAction": "Console di debug",
 	"debugEvaluate": "Debug: Valuta",
+	"debugFocusConsole": "Console di debug stato attivo",
 	"disableAllBreakpoints": "Disabilita tutti i punti di interruzione",
 	"disconnectDebug": "Disconnetti",
 	"editConditionalBreakpoint": "Modifica punto di interruzione",

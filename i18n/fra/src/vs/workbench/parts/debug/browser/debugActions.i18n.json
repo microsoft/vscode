@@ -17,6 +17,7 @@
 	"debugAddToWatch": "Déboguer : ajouter à la fenêtre Espion",
 	"debugConsoleAction": "Console de débogage",
 	"debugEvaluate": "Déboguer : évaluer",
+	"debugFocusConsole": "Focus sur la console de débogage",
 	"disableAllBreakpoints": "Désactiver tous les points d'arrêt",
 	"disconnectDebug": "Déconnecter",
 	"editConditionalBreakpoint": "Modifier un point d'arrêt",
