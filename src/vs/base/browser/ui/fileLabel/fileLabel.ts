@@ -4,69 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./fileLabel';
-import dom = require('vs/base/browser/dom');
+import {IconLabel} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
-import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import {IMatch} from 'vs/base/common/filters';
 import {IWorkspaceProvider, getPathLabel} from 'vs/base/common/labels';
 
-export class FileLabel {
-	private domNode: HTMLElement;
-	private labelNode: HighlightedLabel;
-	private directoryNode: HTMLElement;
-	private basepath: string;
-	private path: string;
-	private labelHighlights: IMatch[] = [];
+export class FileLabel extends IconLabel {
 
-	constructor(container: HTMLElement, arg2?: uri | string, arg3?: uri | string | IWorkspaceProvider) {
-		this.domNode = dom.append(container, dom.$('.monaco-file-label'));
-		this.labelNode = new HighlightedLabel(dom.append(this.domNode, dom.$('span.file-name')));
-		this.directoryNode = dom.append(this.domNode, dom.$('span.file-path'));
+	constructor(container: HTMLElement, file: uri, provider: IWorkspaceProvider) {
+		super(container);
 
-		if (arg3) {
-			this.basepath = getPath(arg3);
-		}
-
-		if (arg2) {
-			this.setValue(arg2);
-		}
+		this.setFile(file, provider);
 	}
 
-	public getHTMLElement(): HTMLElement {
-		return this.domNode;
-	}
-
-	public setValue(arg1: uri | string, labelHighlights?: IMatch[]): void {
-		const newPath = getPath(arg1);
-
-		this.path = newPath;
-		this.labelHighlights = labelHighlights;
-		this.render();
-	}
-
-	private render(): void {
-		this.domNode.title = this.path;
-		this.labelNode.set(paths.basename(this.path), this.labelHighlights);
-
-		const parent = paths.dirname(this.path);
-		this.directoryNode.textContent = parent && parent !== '.' ? getPathLabel(parent, this.basepath) : '';
+	public setFile(file: uri, provider: IWorkspaceProvider): void {
+		const path = getPath(file);
+		const parent = paths.dirname(path);
+		
+		this.setValue(paths.basename(path), parent && parent !== '.' ? getPathLabel(parent, provider) : '', { title: path });
 	}
 }
 
-function getPath(arg1: uri | string | IWorkspaceProvider): string {
+function getPath(arg1: uri | IWorkspaceProvider): string {
 	if (!arg1) {
 		return null;
 	}
 
-	if (typeof arg1 === 'string') {
-		return arg1;
-	}
-
 	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
 		const ws = (<IWorkspaceProvider>arg1).getWorkspace();
+
 		return ws ? ws.resource.fsPath : void 0;
 	}
 
