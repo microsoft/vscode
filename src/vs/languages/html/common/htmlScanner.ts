@@ -50,12 +50,12 @@ export function getScanner(model: EditorCommon.ITokenizedModel, position:EditorC
 
 	var tokens = model.getLineTokens(currentLine);
 	var lineContent = model.getLineContent(currentLine);
-	var tokenIndex = tokens.findIndexOfOffset(lineOffset);
+	var tokenIndex = tokens.findTokenIndexAtOffset(lineOffset);
 	var tokensOnLine = tokens.getTokenCount();
 
 	var tokenType = tokens.getTokenType(tokenIndex);
 	var tokenStart = tokens.getTokenStartOffset(tokenIndex);
-	var tokenEnd = tokens.getTokenEndOffset(tokenIndex, lineContent.length);
+	var tokenEnd = tokens.getTokenEndOffset(tokenIndex);
 
 	if ((tokenType === '' || isDelimiter(tokenType)) && tokenStart === lineOffset) {
 		tokenIndex--;
@@ -63,7 +63,7 @@ export function getScanner(model: EditorCommon.ITokenizedModel, position:EditorC
 			// we are at the end of a different token
 			tokenType = tokens.getTokenType(tokenIndex);
 			tokenStart = tokens.getTokenStartOffset(tokenIndex);
-			tokenEnd = tokens.getTokenEndOffset(tokenIndex, lineContent.length);
+			tokenEnd = tokens.getTokenEndOffset(tokenIndex);
 		} else {
 			tokenType = '';
 			tokenStart = tokenEnd = 0;
@@ -89,7 +89,7 @@ export function getScanner(model: EditorCommon.ITokenizedModel, position:EditorC
 				while (tokenIndex >= 0) {
 					tokenType = tokens.getTokenType(tokenIndex);
 					tokenStart = tokens.getTokenStartOffset(tokenIndex);
-					tokenEnd = tokens.getTokenEndOffset(tokenIndex, lineContent.length);
+					tokenEnd = tokens.getTokenEndOffset(tokenIndex);
 
 					if (isInterestingToken(tokenType)) {
 						return true;
@@ -119,7 +119,7 @@ export function getScanner(model: EditorCommon.ITokenizedModel, position:EditorC
 				while (tokenIndex < tokensOnLine) {
 					tokenType = tokens.getTokenType(tokenIndex);
 					tokenStart = tokens.getTokenStartOffset(tokenIndex);
-					tokenEnd = tokens.getTokenEndOffset(tokenIndex, lineContent.length);
+					tokenEnd = tokens.getTokenEndOffset(tokenIndex);
 
 					if (isInterestingToken(tokenType)) {
 						return true;
