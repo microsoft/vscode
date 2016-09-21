@@ -309,7 +309,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		label.setFile(stat.resource, labelOptions);
 
 		// Input field (when creating a new file or folder or renaming)
-		const inputBox = new InputBox(label.getHTMLElement(), this.contextViewService, {
+		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
 				validation: editableData.validator,
 				showMessage: true

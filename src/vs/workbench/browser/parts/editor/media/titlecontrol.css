@@ -15,9 +15,12 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
 	text-decoration: none;
 	font-size: 13px;
-	cursor: pointer;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .monaco-icon-label::before,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label::before,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a,
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label span,
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label span {
 	cursor: pointer;
@@ -68,6 +71,7 @@
 
 /* Drag Cursor */
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title,
+.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .monaco-icon-label::before,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .title-label a,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo > .container > .title .title-label span {
 	cursor: -webkit-grab;
@@ -76,6 +80,7 @@
 #monaco-workbench-editor-move-overlay,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title,
+.monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .monaco-icon-label::before,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .title-label a,
 .monaco-workbench > .part.editor > .content.multiple-editors > .one-editor-silo.drag > .container > .title .title-label span {
 	cursor: -webkit-grabbing;
