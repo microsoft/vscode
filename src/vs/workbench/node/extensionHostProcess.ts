@@ -104,7 +104,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 }
 
 function connectToSharedProcess(): TPromise<Client> {
-	return connect(process.env['VSCODE_SHARED_IPC_HOOK']);
+	return connect(process.env['VSCODE_SHARED_IPC_HOOK'], `extensionHost:${ process.env['VSCODE_WINDOW_ID'] }`);
 }
 
 TPromise.join<any>([connectToRenderer(), connectToSharedProcess()])

@@ -36,7 +36,7 @@ function main(argv: string[]): void {
 	var request = argv[2];
 	var host = argv[4].substring(1, argv[4].length - 2);
 
-	connect(process.env['VSCODE_IPC_HOOK'])
+	connect(process.env['VSCODE_IPC_HOOK'], 'askpass')
 		.then(client => {
 			const channel = client.getChannel<IAskpassChannel>('askpass');
 			const service = new AskpassChannelClient(channel);

@@ -207,9 +207,9 @@ export function serve(hook: any): TPromise<Server> {
 	});
 }
 
-export function connect(port: number, clientId?: string): TPromise<Client>;
-export function connect(namedPipe: string, clientId?: string): TPromise<Client>;
-export function connect(hook: any, clientId: string = ''): TPromise<Client> {
+export function connect(port: number, clientId: string): TPromise<Client>;
+export function connect(namedPipe: string, clientId: string): TPromise<Client>;
+export function connect(hook: any, clientId: string): TPromise<Client> {
 	return new TPromise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
