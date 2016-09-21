@@ -12,6 +12,7 @@ import nls = require('vs/nls');
 import {Dimension, withElementById} from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
+import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
@@ -514,7 +515,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				this.telemetryService
 			);
 
-			this.quickOpenWidget.create();
+			const quickOpenContainer = this.quickOpenWidget.create();
+			DOM.addClass(quickOpenContainer, 'show-file-icons');
 		}
 
 		// Layout

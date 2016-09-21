@@ -80,7 +80,7 @@ export class ResourceLabel extends IconLabel {
 			title = resource.fsPath;
 		}
 
-		const extraClasses = this.getIconClasses(resource);
+		const extraClasses = getIconClasses(this.modeService, resource, this.options && this.options.isFolder);
 		if (this.options && this.options.extraClasses) {
 			extraClasses.push(...this.options.extraClasses);
 		}
@@ -89,45 +89,6 @@ export class ResourceLabel extends IconLabel {
 		const matches = this.options && this.options.matches;
 
 		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic, matches });
-	}
-
-	protected getIconClasses(arg1?: uri | string): string[] {
-		let path: string;
-		if (typeof arg1 === 'string') {
-			path = arg1;
-		} else if (arg1) {
-			path = arg1.fsPath;
-		}
-
-		const classes = (this.options && this.options.isFolder) ? ['folder-icon'] : ['file-icon'];
-
-		if (path) {
-			const basename = paths.basename(path);
-			const dotSegments = basename.split('.');
-
-			const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
-			if (name) {
-				classes.push(`${this.cssEscape(name.toLowerCase())}-name-file-icon`);
-			}
-
-			const extensions = dotSegments.splice(1);
-			if (extensions.length > 0) {
-				for (let i = 0; i < extensions.length; i++) {
-					classes.push(`${this.cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
-				}
-			}
-
-			const langId = this.modeService.getModeIdByFilenameOrFirstLine(path);
-			if (langId) {
-				classes.push(`${this.cssEscape(langId)}-lang-file-icon`);
-			}
-		}
-
-		return classes;
-	}
-
-	private cssEscape(val: string): string {
-		return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
 	}
 
 	public dispose(): void {
@@ -164,4 +125,43 @@ export class FileLabel extends ResourceLabel {
 			description: !options.hidePath ? getPathLabel(paths.dirname(resource.fsPath), this.contextService) : void 0
 		}, options);
 	}
+}
+
+export function getIconClasses(modeService: IModeService, arg1?: uri | string, isFolder?: boolean): string[] {
+	let path: string;
+	if (typeof arg1 === 'string') {
+		path = arg1;
+	} else if (arg1) {
+		path = arg1.fsPath;
+	}
+
+	const classes = isFolder ? ['folder-icon'] : ['file-icon'];
+
+	if (path) {
+		const basename = paths.basename(path);
+		const dotSegments = basename.split('.');
+
+		const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
+		if (name) {
+			classes.push(`${cssEscape(name.toLowerCase())}-name-file-icon`);
+		}
+
+		const extensions = dotSegments.splice(1);
+		if (extensions.length > 0) {
+			for (let i = 0; i < extensions.length; i++) {
+				classes.push(`${cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
+			}
+		}
+
+		const langId = modeService.getModeIdByFilenameOrFirstLine(path);
+		if (langId) {
+			classes.push(`${cssEscape(langId)}-lang-file-icon`);
+		}
+	}
+
+	return classes;
+}
+
+function cssEscape(val: string): string {
+	return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
 }
