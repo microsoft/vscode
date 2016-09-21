@@ -527,6 +527,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		const lineText = this._lines[lineNumber - 1].text;
 
 		const currentToken = lineTokens.findTokenAtOffset(position.column - 1);
+		if (!currentToken) {
+			return null;
+		}
 		const currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentToken.modeId);
 
 		// If position is in between two tokens, try first looking in the previous token
@@ -624,11 +627,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				currentToken = lineTokens.findTokenAtOffset(position.column - 1);
 				searchStopOffset = position.column - 1;
 			} else {
-				currentToken = lineTokens.last();
-				searchStopOffset = currentToken.endOffset;
+				currentToken = lineTokens.lastToken();
+				if (currentToken) {
+					searchStopOffset = currentToken.endOffset;
+				}
 			}
 
-			do {
+			while(currentToken) {
 				if (currentToken.modeId === modeId && !ignoreBracketsInToken(currentToken.type)) {
 
 					while (true) {
@@ -658,8 +663,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				if (currentToken) {
 					searchStopOffset = currentToken.endOffset;
 				}
-
-			} while(currentToken);
+			}
 		}
 
 		return null;
@@ -682,11 +686,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				currentToken = lineTokens.findTokenAtOffset(position.column - 1);
 				searchStartOffset = position.column - 1;
 			} else {
-				currentToken = lineTokens.first();
-				searchStartOffset = currentToken.startOffset;
+				currentToken = lineTokens.firstToken();
+				if (currentToken) {
+					searchStartOffset = currentToken.startOffset;
+				}
 			}
 
-			do {
+			while (currentToken) {
 				if (currentToken.modeId === modeId && !ignoreBracketsInToken(currentToken.type)) {
 					while (true) {
 						let r = BracketsUtils.findNextBracketInToken(bracketRegex, lineNumber, lineText, searchStartOffset, currentToken.endOffset);
@@ -715,7 +721,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				if (currentToken) {
 					searchStartOffset = currentToken.startOffset;
 				}
-			} while (currentToken);
+			}
 		}
 
 		return null;

@@ -18,7 +18,6 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
@@ -1246,7 +1245,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	token: Token;
+	type: string;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;

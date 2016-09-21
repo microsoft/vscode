@@ -132,16 +132,25 @@ export class LineTokens {
 	}
 
 	public findTokenAtOffset(offset:number): LineToken {
+		if (this._textLength === 0) {
+			return null;
+		}
 		let tokenIndex = this.findTokenIndexAtOffset(offset);
 		let modeIndex = ModeTransition.findIndexInSegmentsArray(this.modeTransitions, offset);
 		return new LineToken(this, tokenIndex, modeIndex);
 	}
 
-	public first(): LineToken {
+	public firstToken(): LineToken {
+		if (this._textLength === 0) {
+			return null;
+		}
 		return new LineToken(this, 0, 0);
 	}
 
-	public last(): LineToken {
+	public lastToken(): LineToken {
+		if (this._textLength === 0) {
+			return null;
+		}
 		return new LineToken(this, this._tokens.length - 1, this.modeTransitions.length - 1);
 	}
 
