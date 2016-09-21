@@ -13,6 +13,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
+import {ExtHostDocumentSaveParticipant} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {ExtHostWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
@@ -110,6 +111,7 @@ export class ExtHostAPIImplementation {
 		const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
 		const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
 		const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
+		col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 		col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 
 		col.finish(false, threadService);

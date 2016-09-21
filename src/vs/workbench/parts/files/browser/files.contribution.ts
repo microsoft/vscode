@@ -20,7 +20,6 @@ import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
 import {AutoSaveConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileEditorTracker} from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
-import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
 import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
@@ -149,11 +148,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactor
 // Register File Editor Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	FileEditorTracker
-);
-
-// Register Save Participant
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	SaveParticipant
 );
 
 // Register Save Error Handler
