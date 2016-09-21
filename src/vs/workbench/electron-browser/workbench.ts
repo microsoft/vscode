@@ -391,7 +391,8 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IConfigurationEditingService, this.instantiationService.createInstance(ConfigurationEditingService));
 
 		// Configuration Resolver
-		const configurationResolverService = this.instantiationService.createInstance(ConfigurationResolverService);
+		const workspace = this.contextService.getWorkspace();
+		const configurationResolverService = this.instantiationService.createInstance(ConfigurationResolverService, workspace ? workspace.resource : null, process.env);
 		serviceCollection.set(IConfigurationResolverService, configurationResolverService);
 
 		// Quick open service (quick open controller)

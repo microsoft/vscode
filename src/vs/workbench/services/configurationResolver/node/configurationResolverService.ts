@@ -5,10 +5,11 @@
 
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
+import uri from 'vs/base/common/uri';
 import {IStringDictionary} from 'vs/base/common/collections';
 import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 
@@ -18,16 +19,16 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	private _execPath: string;
 
 	constructor(
+		workspaceRoot: uri,
+		envVariables: { [key: string]: string },
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		const workspace = contextService.getWorkspace();
-		const fsPath = workspace ? workspace.resource.fsPath : '';
-		this._workspaceRoot = paths.normalize(fsPath, true);
+		this._workspaceRoot = paths.normalize(workspaceRoot ? workspaceRoot.fsPath : '', true);
 		this._execPath = environmentService.execPath;
-		Object.keys(process.env).forEach(key => {
-			this[`env.${key}`] = process.env[key];
+		Object.keys(envVariables).forEach(key => {
+			this[`env.${key}`] = envVariables[key];
 		});
 	}
 
@@ -85,9 +86,9 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		if (types.isString(value)) {
 			return this.resolveString(value);
 		} else if (types.isArray(value)) {
-			return this.__resolveArray(value);
+			return this.resolveArray(value);
 		} else if (types.isObject(value)) {
-			return this.__resolveLiteral(value);
+			return this.resolveLiteral(value);
 		}
 
 		return value;
@@ -98,17 +99,17 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		if (types.isString(value)) {
 			return this.resolveString(value);
 		} else if (types.isArray(value)) {
-			return this.__resolveAnyArray(value);
+			return this.resolveAnyArray(value);
 		} else if (types.isObject(value)) {
-			return this.__resolveAnyLiteral(value);
+			return this.resolveAnyLiteral(value);
 		}
 
 		return value;
 	}
 
-	protected resolveString(value: string): string {
+	private resolveString(value: string): string {
 		let regexp = /\$\{(.*?)\}/g;
-		return value.replace(regexp, (match: string, name: string) => {
+		const resolvedString = value.replace(regexp, (match: string, name: string) => {
 			let newValue = (<any>this)[name];
 			if (types.isString(newValue)) {
 				return newValue;
@@ -116,9 +117,25 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				return match && match.indexOf('env.') > 0 ? '' : match;
 			}
 		});
+
+		return this.resolveConfigVariable(resolvedString);
 	}
 
-	private __resolveLiteral(values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
+	private resolveConfigVariable(value: string): string {
+		let regexp = /\$\{config\.(.*?)\}/g;
+		return value.replace(regexp, (match: string, name: string) => {
+			let config = this.configurationService.getConfiguration();
+			let newValue = new Function('_', 'try {return _.' + name + ';} catch (ex) { return "";}')(config);
+			if (types.isString(newValue)) {
+				// Prevent infinite recursion and also support nested references (or tokens)
+				return newValue === value ? '' : this.resolveString(newValue);
+			} else {
+				return this.resolve(newValue) + '';
+			}
+		});
+	}
+
+	private resolveLiteral(values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {
 			let value = values[key];
@@ -127,8 +144,8 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return result;
 	}
 
-	private __resolveAnyLiteral<T>(values: T): T;
-	private __resolveAnyLiteral<T>(values: any): any {
+	private resolveAnyLiteral<T>(values: T): T;
+	private resolveAnyLiteral<T>(values: any): any {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {
 			let value = values[key];
@@ -137,12 +154,12 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return result;
 	}
 
-	private __resolveArray(value: string[]): string[] {
+	private resolveArray(value: string[]): string[] {
 		return value.map(s => this.resolveString(s));
 	}
 
-	private __resolveAnyArray<T>(value: T[]): T[];
-	private __resolveAnyArray(value: any[]): any[] {
+	private resolveAnyArray<T>(value: T[]): T[];
+	private resolveAnyArray(value: any[]): any[] {
 		return value.map(s => this.resolveAny(s));
 	}
 }
