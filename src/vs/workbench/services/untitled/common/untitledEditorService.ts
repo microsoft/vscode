@@ -17,11 +17,6 @@ export interface IUntitledEditorService {
 	_serviceBrand: any;
 
 	/**
-	 * Events for when untitled editors content change.
-	 */
-	onDidChangeContent: Event<URI>;
-
-	/**
 	 * Events for when untitled editors change (e.g. getting dirty, saved or reverted).
 	 */
 	onDidChangeDirty: Event<URI>;
@@ -78,18 +73,12 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
 
-	private _onDidChangeContent: Emitter<URI>;
 	private _onDidChangeDirty: Emitter<URI>;
 	private _onDidChangeEncoding: Emitter<URI>;
 
 	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
-		this._onDidChangeContent = new Emitter<URI>();
 		this._onDidChangeDirty = new Emitter<URI>();
 		this._onDidChangeEncoding = new Emitter<URI>();
-	}
-
-	public get onDidChangeContent(): Event<URI> {
-		return this._onDidChangeContent.event;
 	}
 
 	public get onDidChangeDirty(): Event<URI> {
@@ -182,10 +171,6 @@ export class UntitledEditorService implements IUntitledEditorService {
 			this._onDidChangeEncoding.fire(resource);
 		});
 
-		const updateListener = input.onDidChangeContent(() => {
-			this._onDidChangeContent.fire(resource);
-		});
-
 		// Remove from cache on dispose
 		const onceDispose = once(input.onDispose);
 		onceDispose(() => {
@@ -193,7 +178,6 @@ export class UntitledEditorService implements IUntitledEditorService {
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
 			dirtyListener.dispose();
 			encodingListener.dispose();
-			updateListener.dispose();
 		});
 
 		// Add to cache

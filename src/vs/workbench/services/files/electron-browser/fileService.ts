@@ -78,7 +78,7 @@ export class FileService implements IFileService {
 
 		// create service
 		const workspace = this.contextService.getWorkspace();
-		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService, this.environmentService);
+		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService, this.environmentService, this.configurationService);
 
 		// Listeners
 		this.registerListeners();
@@ -242,6 +242,10 @@ export class FileService implements IFileService {
 
 	public discardBackups(): TPromise<void> {
 		return this.raw.discardBackups();
+	}
+
+	public isHotExitEnabled(): boolean {
+		return this.raw.isHotExitEnabled();
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {

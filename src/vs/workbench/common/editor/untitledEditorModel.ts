@@ -10,7 +10,7 @@ import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
 import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IFileService, IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -23,7 +23,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private configurationChangeListener: IDisposable;
 
 	private dirty: boolean;
-	private _onDidChangeContent: Emitter<void>;
 	private _onDidChangeDirty: Emitter<void>;
 	private _onDidChangeEncoding: Emitter<void>;
 
@@ -32,6 +31,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	private hasAssociatedFilePath: boolean;
 
+	private backupPromises: TPromise<void>[];
+
 	constructor(
 		value: string,
 		mime: string,
@@ -39,6 +40,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		hasAssociatedFilePath: boolean,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
+		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(value, mime, resource, modeService, modelService);
@@ -46,15 +48,12 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
 
-		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();
 
-		this.registerListeners();
-	}
+		this.backupPromises = [];
 
-	public get onDidChangeContent(): Event<void> {
-		return this._onDidChangeContent.event;
+		this.registerListeners();
 	}
 
 	public get onDidChangeDirty(): Event<void> {
@@ -156,9 +155,18 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		else if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
 			this.dirty = false;
 			this._onDidChangeDirty.fire();
+
 		}
 
-		this._onDidChangeContent.fire();
+		if (this.fileService.isHotExitEnabled()) {
+			if (this.dirty) {
+				console.log('backup');
+				this.doBackup();
+			} else {
+				console.log('discard');
+				this.fileService.discardBackup(this.resource);
+			}
+		}
 	}
 
 	public dispose(): void {
@@ -176,5 +184,29 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 		this._onDidChangeDirty.dispose();
 		this._onDidChangeEncoding.dispose();
+
+		this.cancelBackupPromises();
+		console.log('discard');
+		this.fileService.discardBackup(this.resource);
+	}
+
+	private doBackup(): TPromise<void> {
+		// Cancel any currently running backups to make this the one that succeeds
+		this.cancelBackupPromises();
+
+		// Create new backup promise and keep it
+		const promise = TPromise.timeout(1000).then(() => {
+			this.fileService.backupFile(this.resource, this.getValue()); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+		});
+
+		this.backupPromises.push(promise);
+
+		return promise;
+	}
+
+	private cancelBackupPromises(): void {
+		while (this.backupPromises.length) {
+			this.backupPromises.pop().cancel();
+		}
 	}
 }

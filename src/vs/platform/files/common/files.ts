@@ -121,6 +121,11 @@ export interface IFileService {
 	discardBackups(): TPromise<void>;
 
 	/**
+	 * Whether hot exit is enabled.
+	 */
+	isHotExitEnabled(): boolean;
+
+	/**
 	 * Imports the file to the parent identified by the resource.
 	 */
 	importFile(source: URI, targetFolder: URI): TPromise<IImportResult>;

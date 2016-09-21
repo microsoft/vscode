@@ -259,7 +259,6 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface ITextFileEditorModelManager {
 
-	onModelContentChanged: Event<URI>;
 	onModelDirty: Event<TextFileModelChangeEvent>;
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
@@ -274,8 +273,6 @@ export interface ITextFileEditorModelManager {
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
-
-	onDidContentChange: Event<void>;
 
 	onDidStateChange: Event<StateChange>;
 
@@ -404,9 +401,4 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
-
-	/**
-	 * Whether hot exit is enabled.
-	 */
-	isHotExitEnabled(): boolean;
 }
