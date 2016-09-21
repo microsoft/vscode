@@ -489,7 +489,7 @@
 				<key>paragraph</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)(?=\S)</string>
+					<string>(^|\G)[ ]{0,3}(?=\S)</string>
 					<key>name</key>
 					<string>meta.paragraph.markdown</string>
 					<key>patterns</key>
