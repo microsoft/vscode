@@ -130,8 +130,9 @@ export abstract class TextFileService implements ITextFileService {
 						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
 					}
 
-					this.fileService.discardBackups();
-					return false; // all good, no veto
+					return this.fileService.discardBackups().then(() => {
+						return false; // all good, no veto
+					});
 				});
 			}
 
@@ -139,8 +140,9 @@ export abstract class TextFileService implements ITextFileService {
 			return this.confirmBeforeShutdown();
 		}
 
-		this.fileService.discardBackups();
-		return false; // no veto
+		return this.fileService.discardBackups().then(() => {
+			return false; // no veto
+		});
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
@@ -153,15 +155,17 @@ export abstract class TextFileService implements ITextFileService {
 					return true; // veto if some saves failed
 				}
 
-				this.fileService.discardBackups();
-				return false; // no veto
+				return this.fileService.discardBackups().then(() => {
+					return false; // no veto
+				});
 			});
 		}
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
-			this.fileService.discardBackups();
-			return false; // no veto
+			return this.fileService.discardBackups().then(() => {
+				return false; // no veto
+			});
 		}
 
 		// Cancel
