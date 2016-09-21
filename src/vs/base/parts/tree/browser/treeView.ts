@@ -1277,17 +1277,20 @@ export class TreeView extends HeightMap {
 		e.dataTransfer.effectAllowed = 'copyMove';
 		e.dataTransfer.setData('URL', item.uri);
 		if(e.dataTransfer.setDragImage) {
-			if (elements.length === 1 && item.element) {
-				e.dataTransfer.setDragImage(item.element, e.offsetX || 6, e.offsetY || 6);
+			let label: string;
 
-			} else if (elements.length > 1) {
-				var dragImage = document.createElement('div');
-				dragImage.className = 'monaco-tree-drag-image';
-				dragImage.textContent = '' + elements.length;
-				document.body.appendChild(dragImage);
-				e.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => document.body.removeChild(dragImage), 0);
+			if (this.context.dnd.getDragLabel) {
+				label = this.context.dnd.getDragLabel(this.context.tree, elements);
+			} else {
+				label = String(elements.length);
 			}
+
+			const dragImage = document.createElement('div');
+			dragImage.className = 'monaco-tree-drag-image';
+			dragImage.textContent = label;
+			document.body.appendChild(dragImage);
+			e.dataTransfer.setDragImage(dragImage, -10, -10);
+			setTimeout(() => document.body.removeChild(dragImage), 0);
 		}
 
 		this.currentDragAndDropData = new dnd.ElementsDragAndDropData(elements);
