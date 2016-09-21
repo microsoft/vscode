@@ -71,6 +71,10 @@ suite('Emmet', () => {
 			testIsEnabled('nunjucks', 'text.html.nunjucks');
 			testIsEnabled('laravel-blade', 'text.html.php.laravel-blade');
 
+			// languages that have different Language Id and scopeName
+			testIsEnabled('razer', 'text.html.cshtml');
+			testIsEnabled('HTML (Eex)', 'text.html.elixir');
+
 			// not enabled syntaxes
 			testIsEnabled('java', 'source.java', false);
 			testIsEnabled('javascript', 'source.js', false);
@@ -122,6 +126,10 @@ suite('Emmet', () => {
 			testSyntax('handlebars', 'text.html.handlebars', 'html');
 			testSyntax('nunjucks', 'text.html.nunjucks', 'html');
 			testSyntax('laravel-blade', 'text.html.php.laravel-blade', 'html');
+
+			// languages that have different Language Id and scopeName
+			testSyntax('razer', 'text.html.cshtml', 'html');
+			testSyntax('HTML (Eex)', 'text.html.elixir', 'html');
 
 			// user define mapping
 			testSyntax('java', 'source.java', 'html', {
