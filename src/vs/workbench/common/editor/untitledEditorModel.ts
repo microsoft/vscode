@@ -23,6 +23,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private configurationChangeListener: IDisposable;
 
 	private dirty: boolean;
+	private _onDidChangeContent: Emitter<void>;
 	private _onDidChangeDirty: Emitter<void>;
 	private _onDidChangeEncoding: Emitter<void>;
 
@@ -45,10 +46,15 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
 
+		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();
 
 		this.registerListeners();
+	}
+
+	public get onDidChangeContent(): Event<void> {
+		return this._onDidChangeContent.event;
 	}
 
 	public get onDidChangeDirty(): Event<void> {
@@ -139,6 +145,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	}
 
 	private onModelContentChanged(): void {
+		this._onDidChangeContent.fire();
 
 		// turn dirty if we were not
 		if (!this.dirty) {

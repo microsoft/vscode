@@ -160,6 +160,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		const model = this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model
+		this.toUnbind.push(model.onDidChangeContent(() => this._onDidChangeContent.fire()));
 		this.toUnbind.push(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this.toUnbind.push(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 
