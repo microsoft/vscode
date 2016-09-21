@@ -17,6 +17,7 @@
 	"debugAddToWatch": "偵錯: 加入監看",
 	"debugConsoleAction": "偵錯主控台",
 	"debugEvaluate": "偵錯: 評估",
+	"debugFocusConsole": "焦點偵錯主控台",
 	"disableAllBreakpoints": "停用所有中斷點",
 	"disconnectDebug": "中斷連接",
 	"editConditionalBreakpoint": "編輯中斷點",

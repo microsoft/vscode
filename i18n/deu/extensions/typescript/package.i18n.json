@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "JavaScript-Überprüfung aktivieren/deaktivieren",
 	"typescript.reloadProjects.title": "TypeScript-Projekt erneut laden",
 	"typescript.tsdk.desc": "Gibt den Ordnerpfad mit den zu verwendenden tsserver- und lib*.d.ts-Dateien an.",
+	"typescript.tsdk_version.desc": "Gibt die Version von tsserver an. Nur erforderlich, wenn der tsserver nicht mithilfe von npm installiert wird.",
 	"typescript.tsserver.experimentalAutoBuild": "Ermöglicht experimentelle automatische Buildvorgänge. Erfordert Version 1.9 dev oder 2.x tsserver sowie einen Neustart von VS Code nach der Änderung.",
 	"typescript.tsserver.trace": "Aktiviert die Nachverfolgung von an den TS-Server gesendeten Nachrichten.",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Vervollständigen Sie Funktionen mit deren Parametersignatur.",

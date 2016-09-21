@@ -19,5 +19,6 @@
 	"showRecommendedExtensions": "Показать рекомендуемые расширения",
 	"toggleExtensionsViewlet": "Показать расширения",
 	"uninstall": "Удалить",
-	"updateAction": "Обновить"
+	"updateAction": "Обновить",
+	"updateAll": "Обновить все расширения"
 }

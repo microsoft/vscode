@@ -17,6 +17,7 @@
 	"debugAddToWatch": "デバッグ: ウォッチに追加",
 	"debugConsoleAction": "デバッグ コンソール",
 	"debugEvaluate": "デバッグ: 評価",
+	"debugFocusConsole": "デバッグ コンソールにフォーカスを移動",
 	"disableAllBreakpoints": "すべてのブレークポイントを無効にする",
 	"disconnectDebug": "切断",
 	"editConditionalBreakpoint": "ブレークポイントの編集",
