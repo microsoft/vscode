@@ -108,7 +108,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.model = null;
 	}
 
-	getModel(): IModel<any> {
+	public getModel(): IModel<any> {
 		return this.model;
 	}
 
@@ -116,7 +116,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.callbacks = callbacks;
 	}
 
-	public create(): void {
+	public create(): HTMLElement {
 		this.builder = $().div((div: Builder) => {
 
 			// Eventing
@@ -300,6 +300,8 @@ export class QuickOpenWidget implements IModelProvider {
 		if (this.layoutDimensions) {
 			this.layout(this.layoutDimensions);
 		}
+
+		return this.builder.getHTMLElement();
 	}
 
 	private onType(): void {

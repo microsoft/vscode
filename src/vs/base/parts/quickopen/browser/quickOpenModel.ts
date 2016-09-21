@@ -13,6 +13,7 @@ import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
+import {IconLabel, IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {Action, IAction, IActionRunner} from 'vs/base/common/actions';
@@ -74,6 +75,13 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * The options for the label to use for this entry
+	 */
+	public getLabelOptions(): IIconLabelOptions {
+		return null;
+	}
+
+	/**
 	 * The label of the entry to use when a screen reader wants to read about the entry
 	 */
 	public getAriaLabel(): string {
@@ -106,13 +114,6 @@ export class QuickOpenEntry {
 	 * them together.
 	 */
 	public getResource(): URI {
-		return null;
-	}
-
-	/**
-	 * Extra CSS class name to add to the quick open entry to do custom styling of entries.
-	 */
-	public getExtraClass(): string {
 		return null;
 	}
 
@@ -331,6 +332,10 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
+	public getLabelOptions(): IIconLabelOptions {
+		return this.entry ? this.entry.getLabelOptions() : super.getLabelOptions();
+	}
+
 	public getAriaLabel(): string {
 		return this.entry ? this.entry.getAriaLabel() : super.getAriaLabel();
 	}
@@ -357,10 +362,6 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 
 	public getHighlights(): [IHighlight[], IHighlight[], IHighlight[]] {
 		return this.entry ? this.entry.getHighlights() : super.getHighlights();
-	}
-
-	public getExtraClass(): string {
-		return this.entry ? this.entry.getExtraClass() : super.getExtraClass();
 	}
 
 	public isHidden(): boolean {
@@ -426,7 +427,7 @@ export interface IQuickOpenEntryTemplateData {
 	container: HTMLElement;
 	entry: HTMLElement;
 	icon: HTMLSpanElement;
-	label: HighlightedLabel;
+	label: IconLabel;
 	detail: HighlightedLabel;
 	description: HighlightedLabel;
 	actionBar: ActionBar;
@@ -510,7 +511,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		entry.appendChild(icon);
 
 		// Label
-		const label = new HighlightedLabel(entry);
+		const label = new IconLabel(entry, { supportHighlights: true });
 
 		// Description
 		const descriptionContainer = document.createElement('span');
@@ -585,20 +586,14 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		if (entry instanceof QuickOpenEntry) {
 			const [labelHighlights, descriptionHighlights, detailHighlights] = entry.getHighlights();
 
-			// Extra Class
-			const extraClass = entry.getExtraClass();
-			if (extraClass) {
-				DOM.addClass(data.entry, extraClass);
-			} else {
-				data.entry.className = 'quick-open-entry';
-			}
-
 			// Icon
 			const iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
 			data.icon.className = iconClass;
 
 			// Label
-			data.label.set(entry.getLabel(), labelHighlights || []);
+			const options:IIconLabelOptions = entry.getLabelOptions() || Object.create(null);
+			options.matches = labelHighlights || [];
+			data.label.setValue(entry.getLabel(), null, options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);
