@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
-import { ChannelServer, ChannelClient, IMessagePassingProtocol, IChannelServer, IChannelClient, IMultiChannelClient, IClientRouter, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ChannelServer, ChannelClient, IMessagePassingProtocol, IChannelServer, IChannelClient, IRoutingChannelClient, IClientRouter, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 	while (start < buffer.length && buffer[start] !== value) {
@@ -73,7 +73,7 @@ class Protocol implements IMessagePassingProtocol {
 	}
 }
 
-class RoutingChannelClient implements IMultiChannelClient {
+class RoutingChannelClient implements IRoutingChannelClient {
 
 	private ipcClients: { [id:string]: ChannelClient; };
 
@@ -107,7 +107,7 @@ class RoutingChannelClient implements IMultiChannelClient {
 }
 
 // TODO@joao: move multi channel implementation down to ipc
-export class Server implements IChannelServer, IMultiChannelClient, IDisposable {
+export class Server implements IChannelServer, IRoutingChannelClient, IDisposable {
 
 	private channels: { [name: string]: IChannel };
 	private router: RoutingChannelClient;
