@@ -566,9 +566,23 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			// limit search to not go after `maxBracketLength`
 			const searchEndOffset = Math.min(currentToken.endOffset, position.column - 1 + currentModeBrackets.maxBracketLength);
 
+			// first, check if there is a bracket to the right of `position`
+			let foundBracket = BracketsUtils.findNextBracketInToken(currentModeBrackets.forwardRegex, lineNumber, lineText, position.column - 1, searchEndOffset);
+			if (foundBracket && foundBracket.startColumn === position.column) {
+				let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
+				foundBracketText = foundBracketText.toLowerCase();
+
+				let r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText]);
+
+				// check that we can actually match this bracket
+				if (r) {
+					return r;
+				}
+			}
+
 			// it might still be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
 			while (true) {
-				let foundBracket = BracketsUtils.findNextBracketInText(currentModeBrackets.forwardRegex, lineNumber, lineText.substring(searchStartOffset, searchEndOffset), searchStartOffset);
+				let foundBracket = BracketsUtils.findNextBracketInToken(currentModeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 				if (!foundBracket) {
 					// there are no brackets in this text
 					break;
