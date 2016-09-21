@@ -40,6 +40,22 @@ suite('commands namespace tests', () => {
 		}, done);
 	});
 
+	test('command with args', function () {
+
+		let args: IArguments;
+		let registration = commands.registerCommand('t1', function() {
+			args = arguments;
+		});
+
+		return commands.executeCommand('t1', 'start').then(() => {
+			registration.dispose();
+
+			assert.ok(args);
+			assert.equal(args.length, 1);
+			assert.equal(args[0], 'start');
+		});
+	});
+
 	test('editorCommand with extra args', function () {
 
 		let args: IArguments;

@@ -54,9 +54,9 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-import { ConfigVariables } from 'vs/workbench/parts/lib/node/configVariables';
 import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
@@ -184,7 +184,8 @@ abstract class OpenTaskConfigurationAction extends Action {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService private environmentService: IEnvironmentService) {
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService) {
 
 		super(id, label);
 		this.configurationService = configurationService;
@@ -216,7 +217,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 					outputChannel.show();
 					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
-					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new ConfigVariables(this.configurationService, this.editorService, this.contextService, this.environmentService));
+					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService);
 					contentPromise = detector.detect(false, selection.id).then((value) => {
 						let config = value.config;
 						if (value.stderr && value.stderr.length > 0) {
@@ -278,9 +279,10 @@ class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService environmentService: IEnvironmentService) {
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService) {
 			super(id, label, configurationService, editorService, fileService, contextService,
-			outputService, messageService, quickOpenService, environmentService);
+			outputService, messageService, quickOpenService, environmentService, configurationResolverService);
 		}
 
 }
@@ -293,9 +295,10 @@ class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService environmentService: IEnvironmentService) {
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService) {
 			super(id, label, configurationService, editorService, fileService, contextService,
-			outputService, messageService, quickOpenService, environmentService);
+			outputService, messageService, quickOpenService, environmentService, configurationResolverService);
 		}
 }
 
@@ -628,7 +631,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@ILifecycleService lifecycleService: ILifecycleService, @IEventService eventService: IEventService,
 		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService private environmentService: IEnvironmentService) {
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService) {
 
 		super();
 		this.modeService = modeService;
@@ -680,7 +684,6 @@ class TaskService extends EventEmitter implements ITaskService {
 				this._taskSystem = new NullTaskSystem();
 				this._taskSystemPromise = TPromise.as(this._taskSystem);
 			} else {
-				let variables = new ConfigVariables(this.configurationService, this.editorService, this.contextService, this.environmentService);
 				let clearOutput = true;
 				this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfiguration>('tasks')).then((config: TaskConfiguration) => {
 					let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
@@ -702,7 +705,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (config) {
 						if (this.isRunnerConfig(config) && this.hasDetectorSupport(<FileConfig.ExternalTaskRunnerConfiguration>config)) {
 							let fileConfig = <FileConfig.ExternalTaskRunnerConfiguration>config;
-							configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, variables, fileConfig).detect(true).then((value) => {
+							configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, fileConfig).detect(true).then((value) => {
 								clearOutput = this.printStderr(value.stderr);
 								let detectedConfig = value.config;
 								if (!detectedConfig) {
@@ -728,7 +731,7 @@ class TaskService extends EventEmitter implements ITaskService {
 							configPromise = TPromise.as<TaskConfiguration>(config);
 						}
 					} else {
-						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, variables).detect(true).then((value) => {
+						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
 							clearOutput = this.printStderr(value.stderr);
 							return value.config;
 						});
@@ -742,7 +745,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (config.buildSystem === 'service') {
 							result = new LanguageServiceTaskSystem(<LanguageServiceTaskConfiguration>config, this.telemetryService, this.modeService);
 						} else if (this.isRunnerConfig(config)) {
-							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, variables, this.markerService, this.modelService, this.telemetryService, this.outputService, TaskService.OutputChannelId, clearOutput);
+							result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, this.markerService, this.modelService, this.telemetryService, this.outputService, this.configurationResolverService, TaskService.OutputChannelId, clearOutput);
 						}
 						if (result === null) {
 							this._taskSystemPromise = null;
@@ -788,13 +791,13 @@ class TaskService extends EventEmitter implements ITaskService {
 	public configureAction(): Action {
 		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService, this.quickOpenService, this.environmentService);
+			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService);
 	}
 
 	private configureBuildTask(): Action {
 		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService, this.quickOpenService, this.environmentService);
+			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService);
 	}
 
 	public build(): TPromise<ITaskSummary> {

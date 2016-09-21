@@ -228,6 +228,7 @@ class SuggestionDetails {
 			this.widget.toggleDetails();
 		};
 
+		this.body.scrollTop = 0;
 		this.scrollbar.scanDomNode();
 
 		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.detail || '', item.suggestion.documentation || '');

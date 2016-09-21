@@ -12,7 +12,11 @@ import labels = require('vs/base/common/labels');
 import * as objects from 'vs/base/common/objects';
 import uuid = require('vs/base/common/uuid');
 import URI from 'vs/base/common/uri';
+import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {IRange} from 'vs/editor/common/editorCommon';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {getIconClasses} from 'vs/workbench/browser/labels';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
@@ -42,19 +46,22 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private description: string,
 		private icon: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IModeService private modeService: IModeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(editorService);
-
-		this.resource = resource;
-		this.name = name;
-		this.description = description;
 	}
 
 	public getLabel(): string {
 		return this.name;
+	}
+
+	public getLabelOptions(): IIconLabelOptions {
+		return {
+			extraClasses: getIconClasses(this.modeService, this.resource)
+		};
 	}
 
 	public getAriaLabel(): string {
@@ -98,7 +105,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 }
 
 export interface IOpenFileOptions {
-	useIcons: boolean;
+	forceUseIcons: boolean;
 }
 
 export class OpenFileHandler extends QuickOpenHandler {
@@ -109,6 +116,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	constructor(
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService
 	) {
@@ -146,6 +154,11 @@ export class OpenFileHandler extends QuickOpenHandler {
 			query.sortByScore = true;
 		}
 
+		let iconClass: string;
+		if (this.options && this.options.forceUseIcons && !this.themeService.getFileIconTheme()) {
+			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
+		}
+
 		return this.searchService.search(this.queryBuilder.file(query)).then((complete) => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
@@ -154,7 +167,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const label = paths.basename(fileMatch.resource.fsPath);
 				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
 
-				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, (this.options && this.options.useIcons) ? 'file' : null));
+				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
 
 			return new FileQuickOpenModel(results, complete.stats);

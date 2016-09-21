@@ -164,6 +164,9 @@ export class Renderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+		if (templateId === Renderer.RESOURCE_TEMPLATE_ID) {
+			(<IResourceTemplateData>templateData).file.dispose();
+		}
 	}
 }
 

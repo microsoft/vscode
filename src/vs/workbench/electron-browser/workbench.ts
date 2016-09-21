@@ -53,6 +53,8 @@ import {IActivityService} from 'vs/workbench/services/activity/common/activitySe
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {IFileService} from 'vs/platform/files/common/files';
+import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import {ConfigurationResolverService} from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -387,6 +389,11 @@ export class Workbench implements IPartService {
 
 		// Configuration Editing
 		serviceCollection.set(IConfigurationEditingService, this.instantiationService.createInstance(ConfigurationEditingService));
+
+		// Configuration Resolver
+		const workspace = this.contextService.getWorkspace();
+		const configurationResolverService = this.instantiationService.createInstance(ConfigurationResolverService, workspace ? workspace.resource : null, process.env);
+		serviceCollection.set(IConfigurationResolverService, configurationResolverService);
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);

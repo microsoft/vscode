@@ -5,7 +5,6 @@
 
 var gulp = require('gulp');
 var path = require('path');
-var _ = require('underscore');
 var util = require('./lib/util');
 var common = require('./gulpfile.common');
 var es = require('event-stream');
@@ -32,7 +31,7 @@ var editorEntryPoints = [
 		append: [ 'vs/base/worker/workerMain' ],
 		dest: 'vs/base/worker/workerMain.js'
 	},
-]
+];
 
 var editorResources = [
 	'out-build/vs/{base,editor}/**/*.{svg,png}',

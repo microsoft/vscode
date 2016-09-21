@@ -8,8 +8,8 @@ import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {ISystemVariables} from 'vs/base/common/parsers';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
+import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export class Adapter {
 
@@ -25,7 +25,7 @@ export class Adapter {
 	public enableBreakpointsFor: { languageIds: string[] };
 	public aiKey: string;
 
-	constructor(rawAdapter: debug.IRawAdapter, systemVariables: ISystemVariables, public extensionDescription: IExtensionDescription) {
+	constructor(rawAdapter: debug.IRawAdapter, public extensionDescription: IExtensionDescription, configurationResolverService: IConfigurationResolverService) {
 		if (rawAdapter.windows) {
 			rawAdapter.win = rawAdapter.windows;
 		}
@@ -58,11 +58,11 @@ export class Adapter {
 		this.args = this.args || rawAdapter.args;
 
 		if (this.program) {
-			this.program = systemVariables ? systemVariables.resolve(this.program) : this.program;
+			this.program = configurationResolverService ? configurationResolverService.resolve(this.program) : this.program;
 			this.program = paths.join(extensionDescription.extensionFolderPath, this.program);
 		}
 		if (this.runtime && this.runtime.indexOf('./') === 0) {
-			this.runtime = systemVariables ? systemVariables.resolve(this.runtime) : this.runtime;
+			this.runtime = configurationResolverService ? configurationResolverService.resolve(this.runtime) : this.runtime;
 			this.runtime = paths.join(extensionDescription.extensionFolderPath, this.runtime);
 		}
 

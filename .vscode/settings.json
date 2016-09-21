@@ -4,6 +4,7 @@
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
+		".build": true,
 		"**/.DS_Store": true
 	},
 	"search.exclude": {

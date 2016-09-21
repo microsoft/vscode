@@ -18,6 +18,7 @@ const filter = require('gulp-filter');
 const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
+const ext = require('./lib/extensions');
 const buildfile = require('../src/buildfile');
 const common = require('./gulpfile.common');
 const nlsDev = require('vscode-nls-dev');
@@ -34,6 +35,10 @@ const nodeModules = ['electron', 'original-fs']
 	.concat(baseModules);
 
 // Build
+
+const builtInExtensions = [
+	// { name: 'vscodevim.vim', version: '0.2.0' }
+];
 
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
@@ -167,7 +172,17 @@ function packageTask(platform, arch, opts) {
 			'!extensions/vscode-colorize-tests/**'
 		], { base: '.' });
 
-		const sources = es.merge(src, extensions)
+		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+			return ext.src(extension.name, extension.version)
+				.pipe(rename(p => p.dirname = `extensions/${ extension.name }/${ p.dirname }`));
+		}));
+
+		const allExtensions = es.merge(
+			extensions,
+			marketplaceExtensions
+		);
+
+		const sources = es.merge(src, allExtensions)
 			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
 			.pipe(filter(['**', '!**/*.js.map']))
 			.pipe(util.handleAzureJson({ platform }));

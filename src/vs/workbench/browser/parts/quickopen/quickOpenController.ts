@@ -12,9 +12,11 @@ import nls = require('vs/nls');
 import {Dimension, withElementById} from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
+import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
+import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -24,6 +26,8 @@ import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import {Registry} from 'vs/platform/platform';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {getIconClasses} from 'vs/workbench/browser/labels';
 import {EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -514,7 +518,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				this.telemetryService
 			);
 
-			this.quickOpenWidget.create();
+			const quickOpenContainer = this.quickOpenWidget.create();
+			DOM.addClass(quickOpenContainer, 'show-file-icons');
 		}
 
 		// Layout
@@ -1075,6 +1080,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		input: EditorInput,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IModeService private modeService: IModeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
@@ -1090,6 +1096,12 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public getLabel(): string {
 		return this.input.getName();
+	}
+
+	public getLabelOptions(): IIconLabelOptions {
+		return {
+			extraClasses: getIconClasses(this.modeService, this.resource),
+		};
 	}
 
 	public getAriaLabel(): string {

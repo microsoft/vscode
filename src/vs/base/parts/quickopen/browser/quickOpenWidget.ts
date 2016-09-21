@@ -108,7 +108,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.model = null;
 	}
 
-	getModel(): IModel<any> {
+	public getModel(): IModel<any> {
 		return this.model;
 	}
 
@@ -116,12 +116,12 @@ export class QuickOpenWidget implements IModelProvider {
 		this.callbacks = callbacks;
 	}
 
-	public create(): void {
+	public create(): HTMLElement {
 		this.builder = $().div((div: Builder) => {
 
 			// Eventing
 			div.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+				const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
 
@@ -151,7 +151,7 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputElement.setAttribute('aria-autocomplete', 'list');
 
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
 					// Do not handle Tab: It is used to navigate between elements without mouse
 					if (keyboardEvent.keyCode === KeyCode.Tab) {
@@ -169,7 +169,7 @@ export class QuickOpenWidget implements IModelProvider {
 					else if (keyboardEvent.keyCode === KeyCode.Enter) {
 						DOM.EventHelper.stop(e, true);
 
-						let focus = this.tree.getFocus();
+						const focus = this.tree.getFocus();
 						if (focus) {
 							this.elementSelected(focus, e);
 						}
@@ -218,7 +218,7 @@ export class QuickOpenWidget implements IModelProvider {
 				}));
 			}).
 				on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
 					// Only handle when in quick navigation mode
 					if (!this.quickNavigateConfiguration) {
@@ -233,8 +233,8 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 				}).
 				on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
-					let keyCode = keyboardEvent.keyCode;
+					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+					const keyCode = keyboardEvent.keyCode;
 
 					// Only handle when in quick navigation mode
 					if (!this.quickNavigateConfiguration) {
@@ -242,8 +242,8 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 
 					// Select element when keys are pressed that signal it
-					let quickNavKeys = this.quickNavigateConfiguration.keybindings;
-					let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
+					const quickNavKeys = this.quickNavigateConfiguration.keybindings;
+					const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
 						if (k.hasShift() && keyCode === KeyCode.Shift) {
 							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
@@ -282,7 +282,7 @@ export class QuickOpenWidget implements IModelProvider {
 					});
 
 					if (wasTriggerKeyPressed) {
-						let focus = this.tree.getFocus();
+						const focus = this.tree.getFocus();
 						if (focus) {
 							this.elementSelected(focus, e);
 						}
@@ -300,10 +300,12 @@ export class QuickOpenWidget implements IModelProvider {
 		if (this.layoutDimensions) {
 			this.layout(this.layoutDimensions);
 		}
+
+		return this.builder.getHTMLElement();
 	}
 
 	private onType(): void {
-		let value = this.inputBox.value;
+		const value = this.inputBox.value;
 
 		// Adjust help text as needed if present
 		if (this.helpText) {
@@ -411,8 +413,8 @@ export class QuickOpenWidget implements IModelProvider {
 		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list
 		// to measure the rate of the success and the relevance of the order
 		if (this.usageLogger) {
-			let indexOfAcceptedElement = this.model.entries.indexOf(value);
-			let entriesCount = this.model.entries.length;
+			const indexOfAcceptedElement = this.model.entries.indexOf(value);
+			const entriesCount = this.model.entries.length;
 			this.usageLogger.publicLog('quickOpenWidgetItemAccepted', { index: indexOfAcceptedElement, count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
 		}
 
@@ -516,10 +518,10 @@ export class QuickOpenWidget implements IModelProvider {
 		if (autoFocus.autoFocusPrefixMatch) {
 			let caseSensitiveMatch: any;
 			let caseInsensitiveMatch: any;
-			let prefix = autoFocus.autoFocusPrefixMatch;
-			let lowerCasePrefix = prefix.toLowerCase();
+			const prefix = autoFocus.autoFocusPrefixMatch;
+			const lowerCasePrefix = prefix.toLowerCase();
 			for (let i = 0; i < entries.length; i++) {
-				let entry = entries[i];
+				const entry = entries[i];
 				const label = input.dataSource.getLabel(entry);
 
 				if (!caseSensitiveMatch && label.indexOf(prefix) === 0) {
@@ -533,7 +535,7 @@ export class QuickOpenWidget implements IModelProvider {
 				}
 			}
 
-			let entryToFocus = caseSensitiveMatch || caseInsensitiveMatch;
+			const entryToFocus = caseSensitiveMatch || caseInsensitiveMatch;
 			if (entryToFocus) {
 				this.tree.setFocus(entryToFocus);
 				this.tree.reveal(entryToFocus, 0).done(null, errors.onUnexpectedError);
@@ -599,7 +601,7 @@ export class QuickOpenWidget implements IModelProvider {
 		const renderer = input.renderer;
 
 		if (!input) {
-			let itemHeight = renderer.getHeight(null);
+			const itemHeight = renderer.getHeight(null);
 
 			return this.options.minItemsToShow ? this.options.minItemsToShow * itemHeight : 0;
 		}
@@ -615,10 +617,10 @@ export class QuickOpenWidget implements IModelProvider {
 			preferredItemsHeight = QuickOpenWidget.MAX_ITEMS_HEIGHT;
 		}
 
-		let entries = input.entries.filter(e => this.isElementVisible(input, e));
-		let maxEntries = this.options.maxItemsToShow || entries.length;
+		const entries = input.entries.filter(e => this.isElementVisible(input, e));
+		const maxEntries = this.options.maxItemsToShow || entries.length;
 		for (let i = 0; i < maxEntries && i < entries.length; i++) {
-			let entryHeight = renderer.getHeight(entries[i]);
+			const entryHeight = renderer.getHeight(entries[i]);
 			if (height + entryHeight <= preferredItemsHeight) {
 				height += entryHeight;
 			} else {
@@ -641,7 +643,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// report failure cases
 		if (reason === HideReason.CANCELED) {
 			if (this.model) {
-				let entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
+				const entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
 				if (this.usageLogger) {
 					this.usageLogger.publicLog('quickOpenWidgetCancelled', { count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
 				}
@@ -762,7 +764,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public accept(): void {
 		if (this.isVisible()) {
-			let focus = this.tree.getFocus();
+			const focus = this.tree.getFocus();
 			if (focus) {
 				this.elementSelected(focus);
 			}
@@ -774,7 +776,7 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	public setExtraClass(clazz: string): void {
-		let previousClass = this.builder.getProperty('extra-class');
+		const previousClass = this.builder.getProperty('extra-class');
 		if (previousClass) {
 			this.builder.removeClass(previousClass);
 		}
@@ -795,7 +797,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.layoutDimensions = dimension;
 
 		// Apply to quick open width (height is dynamic by number of items to show)
-		let quickOpenWidth = Math.min(this.layoutDimensions.width * 0.62 /* golden cut */, QuickOpenWidget.MAX_WIDTH);
+		const quickOpenWidth = Math.min(this.layoutDimensions.width * 0.62 /* golden cut */, QuickOpenWidget.MAX_WIDTH);
 		if (this.builder) {
 
 			// quick open
