@@ -72,7 +72,7 @@ suite('Emmet', () => {
 			testIsEnabled('laravel-blade', 'text.html.php.laravel-blade');
 
 			// languages that have different Language Id and scopeName
-			testIsEnabled('razer', 'text.html.cshtml');
+			testIsEnabled('razor', 'text.html.cshtml');
 			testIsEnabled('HTML (Eex)', 'text.html.elixir');
 
 			// not enabled syntaxes
@@ -128,7 +128,7 @@ suite('Emmet', () => {
 			testSyntax('laravel-blade', 'text.html.php.laravel-blade', 'html');
 
 			// languages that have different Language Id and scopeName
-			testSyntax('razer', 'text.html.cshtml', 'html');
+			testSyntax('razor', 'text.html.cshtml', 'html');
 			testSyntax('HTML (Eex)', 'text.html.elixir', 'html');
 
 			// user define mapping
