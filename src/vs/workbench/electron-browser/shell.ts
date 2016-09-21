@@ -22,7 +22,7 @@ import {ContextViewService} from 'vs/platform/contextview/browser/contextViewSer
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/electron-browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, NullTelemetryService, loadExperiments} from 'vs/platform/telemetry/common/telemetry';
 import {ITelemetryAppenderChannel, TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
 import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
 import {IdleMonitor, UserStatus} from  'vs/platform/telemetry/browser/idleMonitor';
@@ -197,7 +197,8 @@ export class WorkbenchShell {
 				emptyWorkbench: !this.contextService.getWorkspace(),
 				customKeybindingsCount,
 				theme: this.themeService.getColorTheme(),
-				language: platform.language
+				language: platform.language,
+				experiments: this.telemetryService.getExperiments()
 			});
 
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
@@ -249,7 +250,8 @@ export class WorkbenchShell {
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
-				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
+				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
+				experiments: loadExperiments(this.storageService)
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -266,6 +268,7 @@ export class WorkbenchShell {
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
+			NullTelemetryService._experiments = loadExperiments(this.storageService);
 			this.telemetryService = NullTelemetryService;
 		}
 
