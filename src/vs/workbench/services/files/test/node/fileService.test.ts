@@ -33,7 +33,7 @@ suite('FileService', () => {
 
 		extfs.copy(sourceDir, testDir, () => {
 			events = new utils.TestEventService();
-			service = new FileService(testDir, { disableWatcher: true }, events);
+			service = new FileService(testDir, { disableWatcher: true }, events, null);
 			done();
 		});
 	});
@@ -494,7 +494,7 @@ suite('FileService', () => {
 				encoding: 'windows1252',
 				encodingOverride: encodingOverride,
 				disableWatcher: true
-			}, null);
+			}, null, null);
 
 			_service.resolveContent(uri.file(path.join(testDir, 'index.html'))).done(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -520,7 +520,7 @@ suite('FileService', () => {
 
 		let _service = new FileService(_testDir, {
 			disableWatcher: true
-		}, null);
+		}, null, null);
 
 		extfs.copy(_sourceDir, _testDir, () => {
 			fs.readFile(resource.fsPath, (error, data) => {
