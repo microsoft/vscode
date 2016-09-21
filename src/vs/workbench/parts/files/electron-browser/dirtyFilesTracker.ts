@@ -76,8 +76,13 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 			// TODO: Delay/throttle
 			let untitledEditorInput = this.untitledEditorService.get(resource);
 			untitledEditorInput.resolve().then((model) => {
-				// TODO: Deal with encoding?
-				this.fileService.backupFile(resource, model.getValue());
+				if (model.isDirty()) {
+					// TODO: Deal with encoding?
+					this.fileService.backupFile(resource, model.getValue());
+				} else {
+					console.log('discard');
+					this.fileService.discardBackup(resource);
+				}
 			});
 		}
 	}
@@ -100,12 +105,16 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 		if (this.textFileService.isHotExitEnabled()) {
 			let model = this.textFileService.models.get(resource);
-			this.fileService.backupFile(resource, model.getValue());
+			if (model.isDirty()) {
+				this.fileService.backupFile(resource, model.getValue());
+			} else {
+				console.log('discard');
+				this.fileService.discardBackup(resource);
+			}
 		}
 	}
 
 	private onTextFileDirty(e: TextFileModelChangeEvent): void {
-		console.log('onTextFileDirty', e);
 
 		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
@@ -122,12 +131,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		this.pendingDirtyResources.push(e.resource);
 		if (!this.pendingDirtyHandle) {
 			this.pendingDirtyHandle = setTimeout(() => this.doOpenDirtyResources(), 250);
-		}
-
-		if (this.textFileService.isHotExitEnabled()) {
-			console.log('trigger hot exit');
-			// TODO: Delay/throttle
-			this.textFileService.backup(e.resource);
 		}
 	}
 

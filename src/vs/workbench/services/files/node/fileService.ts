@@ -437,12 +437,19 @@ export class FileService implements IFileService {
 
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
 		// TODO: Implement properly
-		var backupName = paths.basename(resource.fsPath);
-		var backupPath = paths.join(this.environmentService.userDataPath, 'File Backups', FileService.SESSION_BACKUP_ID, backupName);
+		const backupName = paths.basename(resource.fsPath);
+		const backupPath = paths.join(this.environmentService.userDataPath, 'File Backups', FileService.SESSION_BACKUP_ID, backupName);
+		const backupResource = uri.file(backupPath);
 
-		let backupResource = uri.file(backupPath);
 		console.log(`Backing up to ${backupResource.fsPath}`);
 		return this.updateContent(backupResource, content);
+	}
+
+	public discardBackup(resource: uri): TPromise<void> {
+		const backupName = paths.basename(resource.fsPath);
+		const backupPath = paths.join(this.environmentService.userDataPath, 'File Backups', FileService.SESSION_BACKUP_ID, backupName);
+		const backupResource = uri.file(backupPath);
+		return this.del(backupResource);
 	}
 
 	public discardBackups(): TPromise<void> {
