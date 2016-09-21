@@ -8,13 +8,15 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promise} from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
+import { Emitter } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class Server extends IPCServer {
 	constructor() {
 		super({
 			send: r => { try { process.send(r); } catch (e) { /* not much to do */ } },
-			onMessage: cb => process.on('message', cb)
+			onMessage: fromEventEmitter(process, 'message', msg => msg)
 		});
 
 		process.once('disconnect', () => this.dispose());
@@ -121,31 +123,36 @@ export class Client implements IChannelClient, IDisposable {
 			}
 
 			this.child = fork(this.modulePath, args, forkOpts);
-			this._client = new IPCClient({
-				send: r => this.child && this.child.connected && this.child.send(r),
-				onMessage: cb => {
-					this.child.on('message', (msg) => {
 
-						// Handle console logs specially
-						if (msg && msg.type === '__$console') {
-							let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
-							try {
-								const parsed = JSON.parse(msg.arguments);
-								args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-							} catch (error) {
-								args.push(msg.arguments);
-							}
+			const onMessageEmitter = new Emitter<any>();
+			const onRawMessage = fromEventEmitter(this.child, 'message', msg => msg);
 
-							console[msg.severity].apply(console, args);
-						}
+			onRawMessage(msg => {
+				// Handle console logs specially
+				if (msg && msg.type === '__$console') {
+					let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
+					try {
+						const parsed = JSON.parse(msg.arguments);
+						args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
+					} catch (error) {
+						args.push(msg.arguments);
+					}
 
-						// Anything else goes to the outside
-						else {
-							cb(msg);
-						}
-					});
+					console[msg.severity].apply(console, args);
+					return null;
+				}
+
+				// Anything else goes to the outside
+				else {
+					onMessageEmitter.fire(msg);
 				}
 			});
+
+			const send = r => this.child && this.child.connected && this.child.send(r);
+			const onMessage = onMessageEmitter.event;
+			const protocol = { send, onMessage };
+
+			this._client = new IPCClient(protocol);
 
 			const onExit = () => this.disposeClient();
 			process.once('exit', onExit);
