@@ -34,7 +34,7 @@ import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersAction
 import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
-import { RangeHighlightDecorations, IRangeHighlightDecoration } from 'vs/workbench/common/editor/rangeDecorations';
+import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 
 export class MarkersPanel extends Panel {
 
@@ -327,7 +327,8 @@ export class MarkersPanel extends Panel {
 	private highlightCurrentSelectedMarkerRange() {
 		let selections = this.tree.getSelection();
 		if (selections && selections.length === 1 && selections[0] instanceof Marker) {
-			this.rangeHighlightDecorations.highlightRange(<IRangeHighlightDecoration>selections[0]);
+			const marker: Marker = selections[0];
+			this.rangeHighlightDecorations.highlightRange(marker);
 		}
 	}
 

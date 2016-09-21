@@ -12,7 +12,6 @@ import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import { MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IMarker } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class Controller extends treedefaults.DefaultController {
@@ -60,24 +59,19 @@ export class Controller extends treedefaults.DefaultController {
 
 	private openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		if (element instanceof Marker) {
-			this.telemetryService.publicLog('problems.marker.opened', { source: element.source });
-			let marker = <IMarker>element.marker;
+			const marker: Marker = element;
+			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
 			this.editorService.openEditor({
 				resource: marker.resource,
 				options: {
-					selection: {
-						startLineNumber: marker.startLineNumber,
-						startColumn: marker.startColumn,
-						endLineNumber: marker.endLineNumber,
-						endColumn: marker.endColumn
-					},
+					selection: marker.range,
 					preserveFocus,
 					pinned,
 					revealIfVisible: true
 				},
 			}, sideByside).done((editor) => {
 				if (preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange(element, editor);
+					this.rangeHighlightDecorations.highlightRange(marker, editor);
 				} else {
 					this.rangeHighlightDecorations.removeHighlightRange();
 				}
