@@ -122,7 +122,7 @@ function setupIPC(hook: string): TPromise<Server> {
 
 			// should retry, not windows and eaddrinuse
 
-			return connect(hook).then(
+			return connect(hook, '').then(
 				client => {
 					// we could connect to a running instance. this is not good, abort
 					client.dispose();
