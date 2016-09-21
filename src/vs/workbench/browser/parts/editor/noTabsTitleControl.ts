@@ -14,7 +14,6 @@ import {EditorLabel} from 'vs/workbench/browser/labels';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
-	private titleDecoration: HTMLElement;
 	private editorLabel: EditorLabel;
 
 	public setContext(group: IEditorGroup): void {
@@ -33,11 +32,6 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Detect mouse click
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => this.onTitleClick(e)));
-
-		// Left Title Decoration
-		this.titleDecoration = document.createElement('div');
-		DOM.addClass(this.titleDecoration, 'title-decoration');
-		this.titleContainer.appendChild(this.titleDecoration);
 
 		// Editor Label
 		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer, void 0);
@@ -114,6 +108,13 @@ export class NoTabsTitleControl extends TitleControl {
 			DOM.removeClass(this.titleContainer, 'active');
 		}
 
+		// Dirty state
+		if (editor.isDirty()) {
+			DOM.addClass(this.titleContainer, 'dirty');
+		} else {
+			DOM.removeClass(this.titleContainer, 'dirty');
+		}
+
 		// Editor Label
 		const resource = getResource(editor);
 		const name = editor.getName() || '';
@@ -124,13 +125,6 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		this.editorLabel.setLabel({ name, description, resource}, { title: verboseDescription, italic: !isPinned, extraClasses: ['title-label'] });
-
-		// Editor Decoration
-		if (editor.isDirty()) {
-			DOM.addClass(this.titleDecoration, 'dirty');
-		} else {
-			DOM.removeClass(this.titleDecoration, 'dirty');
-		}
 
 		// Update Editor Actions Toolbar
 		this.updateEditorActionsToolbar();
