@@ -11,14 +11,14 @@ import {sequence} from 'vs/base/common/async';
 import {illegalState} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {MainThreadWorkspaceShape} from 'vs/workbench/api/node/extHost.protocol';
+import {TextEdit} from 'vs/workbench/api/node/extHostTypes';
 import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 
 export interface TextDocumentWillSaveEvent {
 	document: vscode.TextDocument;
-	pushEdits(edits: vscode.TextEdit[]): void;
-	waitUntil(t: Thenable<any>): void;
+	waitUntil(t: Thenable<any | vscode.TextEdit[]>): void;
 }
 
 export class ExtHostDocumentSaveParticipant {
@@ -60,28 +60,15 @@ export class ExtHostDocumentSaveParticipant {
 
 	private _deliverEventAsync(listener: Function, thisArg: any, document: vscode.TextDocument): TPromise<any> {
 
-		const promises: TPromise<any>[] = [];
-		const resourceEdits: IResourceEdit[] = [];
+		const promises: TPromise<any | vscode.TextEdit[]>[] = [];
 
 		const {version} = document;
 
 		const event = Object.freeze(<TextDocumentWillSaveEvent> {
 			document,
-			pushEdits(edits) {
-				if (Object.isFrozen(resourceEdits)) {
-					throw illegalState('pushEdits can not be called anymore');
-				}
-				for (const {newText, range} of edits) {
-					resourceEdits.push({
-						newText,
-						range: fromRange(range),
-						resource: <URI> document.uri,
-					});
-				}
-			},
-			waitUntil(p: Thenable<any>) {
+			waitUntil(p: Thenable<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {
-					throw illegalState('waitUntil can not be called anymore');
+					throw illegalState('waitUntil can not be called async');
 				}
 				promises.push(TPromise.wrap(p));
 			}
@@ -94,21 +81,33 @@ export class ExtHostDocumentSaveParticipant {
 			// freeze promises after event call
 			Object.freeze(promises);
 
-			return TPromise.join(promises).then(() => {
-				// freeze edits after async/sync is done
-				Object.freeze(resourceEdits);
+			return TPromise.join(promises).then(values => {
 
-				if (resourceEdits.length === 0) {
+				const edits: IResourceEdit[] = [];
+				for (const value of values) {
+					if (Array.isArray(value) && (<vscode.TextEdit[]> value).every(e => e instanceof TextEdit)) {
+						for (const {newText, range} of value) {
+							edits.push({
+								resource: <URI>document.uri,
+								range: fromRange(range),
+								newText
+							});
+						}
+					}
+				}
+
+				// apply edits iff any and iff document
+				// didn't change somehow in the meantime
+				if (edits.length === 0) {
 					return;
 				}
 
-				if (version !== document.version) {
-					// TODO@joh - fail?
-					return;
+				if (version === document.version) {
+					return this._workspace.$applyWorkspaceEdit(edits);
 				}
 
-				// apply edits iff any
-				return this._workspace.$applyWorkspaceEdit(resourceEdits);
+				// TODO@joh - fail?
+				console.warn('IGNORING changes because document has changed while computing changes');
 
 			}, err => {
 				// ignore error
