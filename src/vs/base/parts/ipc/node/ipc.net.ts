@@ -8,7 +8,7 @@
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, once } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { ChannelServer, ChannelClient, IMessagePassingProtocol, IChannelServer, IChannelClient, IMultiChannelClient, IClientRouter, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
@@ -118,15 +118,9 @@ export class Server implements IChannelServer, IMultiChannelClient, IDisposable 
 
 		this.server.on('connection', (socket: Socket) => {
 			const protocol = new Protocol(socket);
+			const onFirstMessage = once(protocol.onMessage);
 
-			let didGetId = false;
-			protocol.onMessage(id => {
-				if (didGetId) {
-					return;
-				}
-
-				didGetId = true;
-
+			onFirstMessage(id => {
 				const channelServer = new ChannelServer(protocol);
 
 				Object.keys(this.channels)
