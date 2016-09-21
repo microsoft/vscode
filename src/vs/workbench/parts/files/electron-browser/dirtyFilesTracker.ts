@@ -56,9 +56,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Local text file changes
-		this.toUnbind.push(this.untitledEditorService.onDidChangeContent(e => this.onUntitledDidChangeContent(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
-		this.toUnbind.push(this.textFileService.models.onModelContentChanged((resource) => this.onTextFileDidChangeContent(resource)));
 		this.toUnbind.push(this.textFileService.models.onModelDirty(e => this.onTextFileDirty(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onTextFileSaved(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onTextFileSaveError(e)));
@@ -66,25 +64,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
-	}
-
-	private onUntitledDidChangeContent(resource: URI): void {
-		console.log('onUntitledDidChangeContent', resource);
-
-		if (this.textFileService.isHotExitEnabled()) {
-			console.log('trigger hot exit');
-			// TODO: Delay/throttle
-			let untitledEditorInput = this.untitledEditorService.get(resource);
-			untitledEditorInput.resolve().then((model) => {
-				if (model.isDirty()) {
-					// TODO: Deal with encoding?
-					this.fileService.backupFile(resource, model.getValue());
-				} else {
-					console.log('discard');
-					this.fileService.discardBackup(resource);
-				}
-			});
-		}
 	}
 
 	private onUntitledDidChangeDirty(resource: URI): void {
@@ -97,20 +76,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 		if (gotDirty || this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
-		}
-	}
-
-	private onTextFileDidChangeContent(resource: URI): void {
-		console.log('onTextFileDidChangeContent', resource);
-
-		if (this.textFileService.isHotExitEnabled()) {
-			let model = this.textFileService.models.get(resource);
-			if (model.isDirty()) {
-				this.fileService.backupFile(resource, model.getValue());
-			} else {
-				console.log('discard');
-				this.fileService.discardBackup(resource);
-			}
 		}
 	}
 

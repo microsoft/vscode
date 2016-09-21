@@ -121,26 +121,17 @@ export interface IEditorInputFactory {
  */
 export abstract class EditorInput implements IEditorInput {
 	private _onDispose: Emitter<void>;
-	protected _onDidChangeContent: Emitter<void>;
 	protected _onDidChangeDirty: Emitter<void>;
 	protected _onDidChangeLabel: Emitter<void>;
 
 	private disposed: boolean;
 
 	constructor() {
-		this._onDidChangeContent = new Emitter<void>();
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeLabel = new Emitter<void>();
 		this._onDispose = new Emitter<void>();
 
 		this.disposed = false;
-	}
-
-	/**
-	 * Fired when the content of this input changes.
-	 */
-	public get onDidChangeContent(): Event<void> {
-		return this._onDidChangeContent.event;
 	}
 
 	/**

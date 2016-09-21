@@ -569,10 +569,6 @@ export abstract class TextFileService implements ITextFileService {
 		};
 	}
 
-	public isHotExitEnabled(): boolean {
-		return this.configuredHotExit;
-	}
-
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
 

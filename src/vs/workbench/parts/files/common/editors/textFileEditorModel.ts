@@ -49,13 +49,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMillies: number;
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromises: TPromise<void>[];
+	private backupPromises: TPromise<void>[];
 	private mapPendingSaveToVersionId: { [versionId: string]: TPromise<void> };
 	private disposed: boolean;
 	private inConflictResolutionMode: boolean;
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private _onDidContentChange: Emitter<void>;
 	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
@@ -75,12 +75,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.toDispose = [];
-		this._onDidContentChange = new Emitter<void>();
 		this._onDidStateChange = new Emitter<StateChange>();
 		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
 		this.dirty = false;
 		this.autoSavePromises = [];
+		this.backupPromises = [];
 		this.versionId = 0;
 		this.lastSaveAttemptTime = 0;
 		this.mapPendingSaveToVersionId = {};
@@ -111,10 +111,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	public get onDidStateChange(): Event<StateChange> {
 		return this._onDidStateChange.event;
-	}
-
-	public get onDidContentChange(): Event<void> {
-		return this._onDidContentChange.event;
 	}
 
 	/**
@@ -322,7 +318,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
 
-			this._onDidContentChange.fire(void 0);
+			if (this.fileService.isHotExitEnabled()) {
+				console.log('discard');
+				this.fileService.discardBackup(this.resource);
+			}
 
 			return;
 		}
@@ -341,7 +340,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		this._onDidContentChange.fire(void 0);
+		if (this.fileService.isHotExitEnabled()) {
+			console.log('backup');
+			this.doBackup();
+		}
 	}
 
 	private makeDirty(): void {
@@ -379,6 +381,26 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private cancelAutoSavePromises(): void {
 		while (this.autoSavePromises.length) {
 			this.autoSavePromises.pop().cancel();
+		}
+	}
+
+	private doBackup(): TPromise<void> {
+		// Cancel any currently running backups to make this the one that succeeds
+		this.cancelBackupPromises();
+
+		// Create new backup promise and keep it
+		const promise = TPromise.timeout(1000).then(() => {
+			this.fileService.backupFile(this.resource, this.getValue()); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+		});
+
+		this.backupPromises.push(promise);
+
+		return promise;
+	}
+
+	private cancelBackupPromises(): void {
+		while (this.backupPromises.length) {
+			this.backupPromises.pop().cancel();
 		}
 	}
 
@@ -713,6 +735,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.createTextEditorModelPromise = null;
 
 		this.cancelAutoSavePromises();
+		this.cancelBackupPromises();
+
+		console.log('discard');
+		this.fileService.discardBackup(this.resource);
 
 		super.dispose();
 	}
