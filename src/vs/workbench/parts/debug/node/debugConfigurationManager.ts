@@ -29,9 +29,8 @@ import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {ConfigVariables} from 'vs/workbench/parts/lib/node/configVariables';
-import {ISystemVariables} from 'vs/base/common/parsers';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
@@ -172,7 +171,6 @@ jsonRegistry.registerSchema(schemaId, schema);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
 	public configuration: debug.IConfig;
-	private systemVariables: ISystemVariables;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
 	private _onDidConfigurationChange: Emitter<debug.IConfig>;
@@ -186,9 +184,9 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
-		this.systemVariables = this.contextService.getWorkspace() ? new ConfigVariables(this.configurationService, this.editorService, this.contextService, this.environmentService) : null;
 		this._onDidConfigurationChange = new Emitter<debug.IConfig>();
 		this.setConfiguration(configName);
 		this.adapters = [];
@@ -201,7 +199,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 			extensions.forEach(extension => {
 				extension.value.forEach(rawAdapter => {
-					const adapter = new Adapter(rawAdapter, this.systemVariables, extension.description);
+					const adapter = new Adapter(rawAdapter, extension.description, this.configurationResolverService);
 					const duplicate = this.adapters.filter(a => a.type === adapter.type)[0];
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
 						extension.collector.error(nls.localize('debugNoType', "Debug adapter 'type' can not be omitted and must be of type 'string'."));
@@ -358,11 +356,9 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				}
 
 				// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-				if (this.systemVariables) {
-					Object.keys(this.configuration).forEach(key => {
-						this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
-					});
-				}
+				Object.keys(this.configuration).forEach(key => {
+					this.configuration[key] = this.configurationResolverService.resolveAny(this.configuration[key]);
+				});
 			}
 		}).then(() => this._onDidConfigurationChange.fire(this.configuration));
 	}
