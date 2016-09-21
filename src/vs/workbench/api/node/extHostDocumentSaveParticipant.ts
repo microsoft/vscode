@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import {sequence} from 'vs/base/common/async';
 import {illegalState} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {MainThreadWorkspaceShape} from 'vs/workbench/api/node/extHost.protocol';
+import {MainThreadWorkspaceShape, ExtHostDocumentSaveParticipantShape} from 'vs/workbench/api/node/extHost.protocol';
 import {TextEdit} from 'vs/workbench/api/node/extHostTypes';
 import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
@@ -21,13 +21,14 @@ export interface TextDocumentWillSaveEvent {
 	waitUntil(t: Thenable<any | vscode.TextEdit[]>): void;
 }
 
-export class ExtHostDocumentSaveParticipant {
+export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipantShape {
 
 	private _documents: ExtHostDocuments;
 	private _workspace: MainThreadWorkspaceShape;
 	private _callbacks = new CallbackList();
 
 	constructor(documents: ExtHostDocuments, workspace: MainThreadWorkspaceShape) {
+		super();
 		this._documents = documents;
 		this._workspace = workspace;
 	}
