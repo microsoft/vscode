@@ -53,7 +53,7 @@ export function getPathLabel(resource: URI | string, basePathProvider?: URI | st
 	}
 
 	if (platform.isWindows && absolutePath && absolutePath[1] === ':') {
-		return paths.normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true);
+		return paths.normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true); // convert c:\something => C:\something
 	}
 
 	return paths.normalize(absolutePath, true);

@@ -11,14 +11,13 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode} from 'vs/editor/common/modes';
-import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
@@ -1246,7 +1245,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	token: Token;
+	type: string;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;
@@ -1445,59 +1444,6 @@ export interface ICursorStateComputer {
 	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
 	 */
 	(inverseEditOperations:IIdentifiedSingleEditOperation[]): Selection[];
-}
-
-/**
- * A list of tokens on a line.
- * @internal
- */
-export interface ILineTokens {
-	/**
-	 * Get the number of tokens on this line.
-	 */
-	getTokenCount(): number;
-
-	/**
-	 * Get the start offset of the token at `tokenIndex`.
-	 */
-	getTokenStartOffset(tokenIndex:number): number;
-
-	/**
-	 * Get the type of the token at `tokenIndex`.
-	 */
-	getTokenType(tokenIndex:number): string;
-
-	/**
-	 * Get the end offset of the token at `tokenIndex`.
-	 */
-	getTokenEndOffset(tokenIndex:number, textLength:number): number;
-
-	/**
-	 * Check if tokens have changed. This is called by the view to validate rendered lines
-	 * and decide which lines need re-rendering.
-	 */
-	equals(other:ILineTokens): boolean;
-
-	/**
-	 * Find the token containing offset `offset`.
-	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
-	 *    Searching for 0, 1, 2, 3 or 4 will return 0.
-	 *    Searching for 5, 6, 7 or 8 will return 1.
-	 *    Searching for 9, 10, 11, ... will return 2.
-	 * @param offset The search offset
-	 * @return The index of the token containing the offset.
-	 */
-	findIndexOfOffset(offset:number): number;
-
-	/**
-	 * @internal
-	 */
-	sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[];
-
-	/**
-	 * @internal
-	 */
-	inflate(): ViewLineToken[];
 }
 
 export interface ITextModelResolvedOptions {
@@ -1839,7 +1785,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param inaccurateTokensAcceptable Are inaccurate tokens acceptable? Defaults to false
 	 * @internal
 	 */
-	getLineTokens(lineNumber:number, inaccurateTokensAcceptable?:boolean): ILineTokens;
+	getLineTokens(lineNumber:number, inaccurateTokensAcceptable?:boolean): LineTokens;
 
 	/**
 	 * Tokenize if necessary and get the tokenization result for the line `lineNumber`, as returned by the language mode.

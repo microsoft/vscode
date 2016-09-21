@@ -7,6 +7,7 @@
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 import {FilteredLineTokens, IdentityFilteredLineTokens} from 'vs/editor/common/viewModel/filteredLineTokens';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {ILinesCollection} from 'vs/editor/common/viewModel/viewModelImpl';
@@ -35,7 +36,7 @@ export interface ILineMapperFactory {
 }
 
 export interface IModel {
-	getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean): editorCommon.ILineTokens;
+	getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean): LineTokens;
 	getLineContent(lineNumber:number): string;
 	getLineMinColumn(lineNumber:number): number;
 	getLineMaxColumn(lineNumber:number): number;

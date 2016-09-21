@@ -85,8 +85,6 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	public resolve(value: string): string;
 	public resolve(value: string[]): string[];
 	public resolve(value: IStringDictionary<string>): IStringDictionary<string>;
-	public resolve(value: IStringDictionary<string[]>): IStringDictionary<string[]>;
-	public resolve(value: IStringDictionary<IStringDictionary<string>>): IStringDictionary<IStringDictionary<string>>;
 	public resolve(value: any): any {
 		if (types.isString(value)) {
 			return this.resolveString(value);
