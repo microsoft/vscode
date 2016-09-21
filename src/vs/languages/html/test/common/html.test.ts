@@ -772,7 +772,7 @@ suite('Colorizing - HTML', () => {
 		assertBracket(['<p></p>'], 1, 1, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
 		assertBracket(['<p></p>'], 1, 2, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
 		assertBracket(['<p></p>'], 1, 3, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
-		assertBracket(['<p></p>'], 1, 4, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 4, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
 		assertBracket(['<p></p>'], 1, 5, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
 		assertBracket(['<p></p>'], 1, 6, null);
 		assertBracket(['<p></p>'], 1, 7, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
