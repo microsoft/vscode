@@ -31,6 +31,7 @@ import flow = require('vs/base/node/flow');
 import {FileWatcher as UnixWatcherService} from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import {FileWatcher as WindowsWatcherService} from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import {toFileChangesEvent, normalize, IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';
+import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IEventService} from 'vs/platform/event/common/event';
 
 export interface IEncodingOverride {
@@ -82,7 +83,7 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	constructor(basePath: string, options: IFileServiceOptions, private eventEmitter: IEventService) {
+	constructor(basePath: string, options: IFileServiceOptions, private eventEmitter: IEventService, private environmentService: IEnvironmentService) {
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
 		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
@@ -436,7 +437,7 @@ export class FileService implements IFileService {
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
 		// TODO: Implement properly
 		var backupName = paths.basename(resource.fsPath);
-		var backupPath = paths.join(process.env['HOME'], 'backup-test', backupName);
+		var backupPath = paths.join(this.environmentService.userDataPath, 'File Backups', backupName);
 
 		let backupResource = uri.file(backupPath);
 		return this.updateContent(backupResource, content);
