@@ -5,9 +5,9 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import Event, { chain } from 'vs/base/common/event';
+import Event, { Emitter, chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
-import { Server as IPCServer, Client as IPCClient, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelServer, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 const Hello = 'ipc:hello';
 const Goodbye = 'ipc:goodbye';
@@ -23,14 +23,17 @@ class Protocol implements IMessagePassingProtocol {
 
 	private listener: IDisposable;
 
-	constructor(private sender: Sender, private onMessageEvent: Event<any>) {}
+	private _onMessage: Event<any>;
+	get onMessage(): Event<any> { return this._onMessage; }
+
+	constructor(private sender: Sender, private onMessageEvent: Event<any>) {
+		const emitter = new Emitter<any>();
+		onMessageEvent(msg => emitter.fire(msg));
+		this._onMessage = emitter.event;
+	}
 
 	send(message: any): void {
 		this.sender.send(Message, message);
-	}
-
-	onMessage(callback: (message: any) => void): void {
-		this.listener = this.onMessageEvent(callback);
 	}
 
 	dispose(): void {
@@ -43,7 +46,7 @@ interface IIPCEvent {
 	message: string;
 }
 
-export class Server implements IServer, IDisposable {
+export class Server implements IChannelServer, IDisposable {
 
 	private channels: { [name: string]: IChannel } = Object.create(null);
 
@@ -84,7 +87,7 @@ export class Server implements IServer, IDisposable {
 	}
 }
 
-export class Client implements IClient, IDisposable {
+export class Client implements IChannelClient, IDisposable {
 
 	private protocol: Protocol;
 	private ipcClient: IPCClient;

@@ -123,7 +123,12 @@ class ExtensionHostProcessManager {
 
 	public startExtensionHostProcess(onExtensionHostMessage: (msg: any) => void): void {
 		let opts: any = {
-			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
+			env: objects.mixin(objects.clone(process.env), {
+				AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
+				PIPE_LOGGING: 'true',
+				VERBOSE_LOGGING: true,
+				VSCODE_WINDOW_ID: String(this.windowService.getWindowId())
+			})
 		};
 
 		// Help in case we fail to start it

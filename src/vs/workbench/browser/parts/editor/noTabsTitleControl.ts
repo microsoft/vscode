@@ -14,7 +14,6 @@ import {EditorLabel} from 'vs/workbench/browser/labels';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
-	private titleDecoration: HTMLElement;
 	private editorLabel: EditorLabel;
 
 	public setContext(group: IEditorGroup): void {
@@ -34,15 +33,11 @@ export class NoTabsTitleControl extends TitleControl {
 		// Detect mouse click
 		this.toDispose.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.MOUSE_UP, (e: MouseEvent) => this.onTitleClick(e)));
 
-		// Left Title Decoration
-		this.titleDecoration = document.createElement('div');
-		DOM.addClass(this.titleDecoration, 'title-decoration');
-		this.titleContainer.appendChild(this.titleDecoration);
-
 		// Editor Label
 		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer, void 0);
 		this.toDispose.push(this.editorLabel);
-		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.getHTMLElement(), DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.labelElement, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.descriptionElement, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -114,6 +109,13 @@ export class NoTabsTitleControl extends TitleControl {
 			DOM.removeClass(this.titleContainer, 'active');
 		}
 
+		// Dirty state
+		if (editor.isDirty()) {
+			DOM.addClass(this.titleContainer, 'dirty');
+		} else {
+			DOM.removeClass(this.titleContainer, 'dirty');
+		}
+
 		// Editor Label
 		const resource = getResource(editor);
 		const name = editor.getName() || '';
@@ -123,14 +125,7 @@ export class NoTabsTitleControl extends TitleControl {
 			verboseDescription = ''; // dont repeat what is already shown
 		}
 
-		this.editorLabel.setLabel({ name, description, resource}, { title: verboseDescription, italic: !isPinned, extraClasses: ['title-label'] });
-
-		// Editor Decoration
-		if (editor.isDirty()) {
-			DOM.addClass(this.titleDecoration, 'dirty');
-		} else {
-			DOM.removeClass(this.titleDecoration, 'dirty');
-		}
+		this.editorLabel.setLabel({ name, description, resource }, { title: verboseDescription, italic: !isPinned, extraClasses: ['title-label'] });
 
 		// Update Editor Actions Toolbar
 		this.updateEditorActionsToolbar();

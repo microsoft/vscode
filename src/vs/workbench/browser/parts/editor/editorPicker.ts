@@ -11,9 +11,12 @@ import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
+import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import scorer = require('vs/base/common/scorer');
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {getIconClasses} from 'vs/workbench/browser/labels';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -29,6 +32,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		private editor: EditorInput,
 		private _group: IEditorGroup,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IModeService private modeService: IModeService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super();
@@ -36,12 +40,19 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		this.stacks = editorGroupService.getStacksModel();
 	}
 
-	public getIcon(): string {
-		return this.editor.isDirty() ? 'dirty' : '';
+	public getLabelOptions(): IIconLabelOptions {
+		return {
+			extraClasses: getIconClasses(this.modeService, this.getResource()),
+			italic: this._group.isPreview(this.editor)
+		};
 	}
 
 	public getLabel(): string {
 		return this.editor.getName();
+	}
+
+	public getIcon(): string {
+		return this.editor.isDirty() ? 'dirty' : '';
 	}
 
 	public get group(): IEditorGroup {
@@ -60,10 +71,6 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	public getDescription(): string {
 		return this.editor.getDescription();
-	}
-
-	public getExtraClass(): string {
-		return this._group.isPreview(this.editor) ? 'editor-preview' : '';
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {

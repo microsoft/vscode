@@ -77,7 +77,7 @@ suite('Debug - Model', () => {
 
 	test('threads simple', () => {
 		var threadId = 1;
-		var threadName = "firstThread";
+		var threadName = 'firstThread';
 		model.rawUpdate({
 			threadId: threadId,
 			thread: {
@@ -98,10 +98,10 @@ suite('Debug - Model', () => {
 		const sessionStub = sinon.spy(mockDebugService.getActiveSession(), 'stackTrace');
 
 		const threadId1 = 1;
-		const threadName1 = "firstThread";
+		const threadName1 = 'firstThread';
 		const threadId2 = 2;
-		const threadName2 = "secondThread";
-		const stoppedReason = "breakpoint";
+		const threadName2 = 'secondThread';
+		const stoppedReason = 'breakpoint';
 
 		// Add the threads
 		model.rawUpdate({
@@ -184,10 +184,10 @@ suite('Debug - Model', () => {
 		const sessionStub = sinon.spy(mockDebugService.getActiveSession(), 'stackTrace');
 
 		const stoppedThreadId = 1;
-		const stoppedThreadName = "stoppedThread";
+		const stoppedThreadName = 'stoppedThread';
 		const runningThreadId = 2;
-		const runningThreadName = "runningThread";
-		const stoppedReason = "breakpoint";
+		const runningThreadName = 'runningThread';
+		const stoppedReason = 'breakpoint';
 
 		// Add the threads
 		model.rawUpdate({

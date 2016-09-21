@@ -211,16 +211,6 @@ export class WorkbenchShell {
 	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
 
-		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle);
-		sharedProcess.done(client => {
-			client.onClose(() => {
-				this.messageService.show(Severity.Error, {
-					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
-					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
-				});
-			});
-		}, errors.onUnexpectedError);
-
 		const mainProcessClient = new ElectronIPCClient(ipcRenderer);
 		disposables.add(mainProcessClient);
 
@@ -234,6 +224,16 @@ export class WorkbenchShell {
 
 		this.windowService = instantiationService.createInstance(WindowService);
 		serviceCollection.set(IWindowService, this.windowService);
+
+		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${ this.windowService.getWindowId() }`);
+		sharedProcess.done(client => {
+			client.onClose(() => {
+				this.messageService.show(Severity.Error, {
+					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
+					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
+				});
+			});
+		}, errors.onUnexpectedError);
 
 		// Storage
 		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state

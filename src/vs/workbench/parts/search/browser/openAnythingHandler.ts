@@ -129,7 +129,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Files
 		this.openFileHandler.setOptions({
-			useIcons: this.includeSymbols // only need icons for file results if we mix with symbol results
+			forceUseIcons: this.includeSymbols // only need icons for file results if we mix with symbol results
 		});
 
 		// Symbols

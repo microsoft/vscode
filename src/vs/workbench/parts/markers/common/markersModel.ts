@@ -9,6 +9,7 @@ import * as types from 'vs/base/common/types';
 import * as Map from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import {IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy} from 'vs/base/common/filters';
@@ -51,6 +52,10 @@ export class Marker {
 
 	public get resource(): URI {
 		return this.marker.resource;
+	}
+
+	public get range(): IRange {
+		return this.marker;
 	}
 }
 
@@ -220,17 +225,17 @@ export class MarkersModel {
 		for (let i = 0; i < entry.value.length; i++) {
 			const m = entry.value[i];
 			const uri = entry.key.toString();
-			if (!this._filterOptions.filter || this.filterMarker(m)) {
+			if (!this._filterOptions.hasFilters() || this.filterMarker(m)) {
 				markers.push(this.toMarker(m, i, uri));
 			}
 		}
-		const matches = this._filterOptions.filter ? FilterOptions._filter(this._filterOptions.filter, paths.basename(entry.key.fsPath)) : [];
+		const matches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(entry.key.fsPath)) : [];
 		return new Resource(entry.key, markers, this.getStatistics(entry.value), matches || []);
 	}
 
 	private toMarker(marker: IMarker, index: number, uri: string): Marker {
-		const labelMatches = this._filterOptions.filter ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message) : [];
-		const sourceMatches = marker.source && this._filterOptions.filter ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
+		const labelMatches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message) : [];
+		const sourceMatches = marker.source && this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
 		return new Marker(uri + index, marker, labelMatches || [], sourceMatches || []);
 	}
 

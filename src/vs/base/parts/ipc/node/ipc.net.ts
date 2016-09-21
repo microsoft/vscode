@@ -8,9 +8,9 @@
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, once } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
-import { Server as IPCServer, Client as IPCClient, IMessagePassingProtocol, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ChannelServer, ChannelClient, IMessagePassingProtocol, IChannelServer, IChannelClient, IRoutingChannelClient, IClientRouter, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 	while (start < buffer.length && buffer[start] !== value) {
@@ -23,7 +23,9 @@ function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 class Protocol implements IMessagePassingProtocol {
 
 	private static Boundary = new Buffer([0]);
-	private onMessageEvent: Event<any>;
+
+	private _onMessage: Event<any>;
+	get onMessage(): Event<any> { return this._onMessage; }
 
 	constructor(private socket: Socket) {
 		let buffer = null;
@@ -58,7 +60,7 @@ class Protocol implements IMessagePassingProtocol {
 			}
 		});
 
-		this.onMessageEvent = emitter.event;
+		this._onMessage = emitter.event;
 	}
 
 	public send(message: any): void {
@@ -69,27 +71,17 @@ class Protocol implements IMessagePassingProtocol {
 			// noop
 		}
 	}
-
-	public onMessage(callback: (message: any) => void): void {
-		this.onMessageEvent(callback);
-	}
 }
 
-// TODO: NAME IT BETTER
-export interface IClientPicker {
-	getClientId(): string;
-}
+class RoutingChannelClient implements IRoutingChannelClient {
 
-// TODO: NAME IT BETTER
-class ClientMultiplexer implements IClient {
+	private ipcClients: { [id:string]: ChannelClient; };
 
-	private ipcClients: { [id:string]: IPCClient; };
-
-	constructor(private clientPicker: IClientPicker) {
+	constructor() {
 		this.ipcClients = Object.create(null);
 	}
 
-	add(id: string, client: IPCClient): void {
+	add(id: string, client: ChannelClient): void {
 		this.ipcClients[id] = client;
 	}
 
@@ -97,62 +89,57 @@ class ClientMultiplexer implements IClient {
 		delete this.ipcClients[id];
 	}
 
-	getChannel<T extends IChannel>(channelName: string): T {
-		return {
-			call: (command: string, arg: any) => {
-				const id = this.clientPicker.getClientId();
-				const client = this.ipcClients[id];
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T {
+		const call = (command: string, arg: any) => {
+			const id = router.routeCall(command, arg);
+			const client = this.ipcClients[id];
 
-				if (!client) {
-					return TPromise.wrapError('Client unknown');
-				}
-
-				return client.getChannel(channelName).call(command, arg);
+			if (!client) {
+				return TPromise.wrapError('Unknown client');
 			}
-		} as T;
+
+			return client.getChannel(channelName)
+				.call(command, arg);
+		};
+
+		return { call } as T;
 	}
 }
 
-// TODO: name it better!
-export class Server implements IServer, IClient, IDisposable {
+// TODO@joao: move multi channel implementation down to ipc
+export class Server implements IChannelServer, IRoutingChannelClient, IDisposable {
 
 	private channels: { [name: string]: IChannel };
-	private clientMultiplexer: ClientMultiplexer;
+	private router: RoutingChannelClient;
 
-	constructor(private server: NetServer, private clientPicker: IClientPicker) {
+	constructor(private server: NetServer) {
 		this.channels = Object.create(null);
-		this.clientMultiplexer = new ClientMultiplexer(clientPicker);
+		this.router = new RoutingChannelClient();
 
 		this.server.on('connection', (socket: Socket) => {
 			const protocol = new Protocol(socket);
+			const onFirstMessage = once(protocol.onMessage);
 
-			let didGetId = false;
-			protocol.onMessage(id => {
-				if (didGetId) {
-					return;
-				}
-
-				didGetId = true;
-
-				const ipcServer = new IPCServer(protocol);
+			onFirstMessage(id => {
+				const channelServer = new ChannelServer(protocol);
 
 				Object.keys(this.channels)
-					.forEach(name => ipcServer.registerChannel(name, this.channels[name]));
+					.forEach(name => channelServer.registerChannel(name, this.channels[name]));
 
-				const ipcClient = new IPCClient(protocol);
-				this.clientMultiplexer.add(id, ipcClient);
+				const channelClient = new ChannelClient(protocol);
+				this.router.add(id, channelClient);
 
 				socket.once('close', () => {
-					ipcClient.dispose();
-					this.clientMultiplexer.remove(id);
-					ipcServer.dispose();
+					channelClient.dispose();
+					this.router.remove(id);
+					channelServer.dispose();
 				});
 			});
 		});
 	}
 
-	getChannel<T extends IChannel>(channelName: string): T {
-		return this.clientMultiplexer.getChannel<T>(channelName);
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T {
+		return this.router.getChannel<T>(channelName, router);
 	}
 
 	registerChannel(channelName: string, channel: IChannel): void {
@@ -166,11 +153,10 @@ export class Server implements IServer, IClient, IDisposable {
 	}
 }
 
-// TODO: name it!
-export class Client implements IClient, IServer, IDisposable {
+export class Client implements IChannelClient, IChannelServer, IDisposable {
 
-	private ipcClient: IPCClient;
-	private ipcServer: IPCServer;
+	private channelClient: ChannelClient;
+	private channelServer: ChannelServer;
 
 	private _onClose = new Emitter<void>();
 	get onClose(): Event<void> { return this._onClose.event; }
@@ -179,25 +165,25 @@ export class Client implements IClient, IServer, IDisposable {
 		const protocol = new Protocol(socket);
 		protocol.send(id);
 
-		this.ipcClient = new IPCClient(protocol);
-		this.ipcServer = new IPCServer(protocol);
+		this.channelClient = new ChannelClient(protocol);
+		this.channelServer = new ChannelServer(protocol);
 		socket.once('close', () => this._onClose.fire());
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		return this.ipcClient.getChannel(channelName) as T;
+		return this.channelClient.getChannel(channelName) as T;
 	}
 
 	registerChannel(channelName: string, channel: IChannel): void {
-		this.ipcServer.registerChannel(channelName, channel);
+		this.channelServer.registerChannel(channelName, channel);
 	}
 
 	dispose(): void {
 		this.socket.end();
 		this.socket = null;
-		this.ipcClient = null;
-		this.ipcServer.dispose();
-		this.ipcServer = null;
+		this.channelClient = null;
+		this.channelServer.dispose();
+		this.channelServer = null;
 	}
 }
 
@@ -210,20 +196,18 @@ export function serve(hook: any): TPromise<Server> {
 		server.on('error', e);
 		server.listen(hook, () => {
 			server.removeListener('error', e);
-			c(new Server(server, {
-				getClientId: () => ''
-			}));
+			c(new Server(server));
 		});
 	});
 }
 
-export function connect(port: number): TPromise<Client>;
-export function connect(namedPipe: string): TPromise<Client>;
-export function connect(hook: any): TPromise<Client> {
+export function connect(port: number, clientId: string): TPromise<Client>;
+export function connect(namedPipe: string, clientId: string): TPromise<Client>;
+export function connect(hook: any, clientId: string): TPromise<Client> {
 	return new TPromise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(new Client(socket, ''));
+			c(new Client(socket, clientId));
 		});
 
 		socket.once('error', e);

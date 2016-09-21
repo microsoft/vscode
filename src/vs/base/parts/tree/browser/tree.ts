@@ -559,6 +559,11 @@ export interface IDragAndDrop {
 	getDragURI(tree: ITree, element: any): string;
 
 	/**
+	 * Returns a label to display when dragging the element.
+	 */
+	getDragLabel?(tree: ITree, elements: any[]): string;
+
+	/**
 	 * Sent when the drag operation is starting.
 	 */
 	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent:Mouse.DragMouseEvent): void;
