@@ -181,8 +181,8 @@ export class QuickOpenEntry {
 		let nameA = elementA.getLabel();
 		let nameB = elementB.getLabel();
 		if (nameA === nameB) {
-			let resourceA = elementA.getResource();
-			let resourceB = elementB.getResource();
+			const resourceA = elementA.getResource();
+			const resourceB = elementB.getResource();
 
 			if (resourceA && resourceB) {
 				nameA = resourceA.fsPath;
@@ -202,7 +202,7 @@ export class QuickOpenEntry {
 	 */
 	public static highlight(entry: QuickOpenEntry, lookFor: string, fuzzyHighlight = false): { labelHighlights: IHighlight[], descriptionHighlights: IHighlight[] } {
 		let labelHighlights: IHighlight[] = [];
-		let descriptionHighlights: IHighlight[] = [];
+		const descriptionHighlights: IHighlight[] = [];
 
 		const normalizedLookFor = strings.stripWildcards(lookFor);
 		const label = entry.getLabel();
@@ -219,7 +219,7 @@ export class QuickOpenEntry {
 
 			// Fuzzy/Full-Path: Highlight is special
 			else if (fuzzyHighlight || lookFor.indexOf(paths.nativeSep) >= 0) {
-				let candidateLabelHighlights = filters.matchesFuzzy(lookFor, label, fuzzyHighlight);
+				const candidateLabelHighlights = filters.matchesFuzzy(lookFor, label, fuzzyHighlight);
 				if (!candidateLabelHighlights) {
 					const pathPrefix = description ? (description + paths.nativeSep) : '';
 					const pathPrefixLength = pathPrefix.length;
@@ -488,41 +488,41 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		// Action Bar
 		DOM.addClass(container, 'actions');
 
-		let entryContainer = document.createElement('div');
+		const entryContainer = document.createElement('div');
 		DOM.addClass(entryContainer, 'sub-content');
 		container.appendChild(entryContainer);
 
-		let actionBarContainer = document.createElement('div');
+		const actionBarContainer = document.createElement('div');
 		DOM.addClass(actionBarContainer, 'primary-action-bar');
 		container.appendChild(actionBarContainer);
 
-		let actionBar = new ActionBar(actionBarContainer, {
+		const actionBar = new ActionBar(actionBarContainer, {
 			actionRunner: this.actionRunner
 		});
 
 		// Entry
-		let entry = document.createElement('div');
+		const entry = document.createElement('div');
 		DOM.addClass(entry, 'quick-open-entry');
 		entryContainer.appendChild(entry);
 
 		// Icon
-		let icon = document.createElement('span');
+		const icon = document.createElement('span');
 		entry.appendChild(icon);
 
 		// Label
-		let label = new HighlightedLabel(entry);
+		const label = new HighlightedLabel(entry);
 
 		// Description
-		let descriptionContainer = document.createElement('span');
+		const descriptionContainer = document.createElement('span');
 		entry.appendChild(descriptionContainer);
 		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
-		let description = new HighlightedLabel(descriptionContainer);
+		const description = new HighlightedLabel(descriptionContainer);
 
 		// Detail
-		let detailContainer = document.createElement('div');
+		const detailContainer = document.createElement('div');
 		entry.appendChild(detailContainer);
 		DOM.addClass(detailContainer, 'quick-open-entry-meta');
-		let detail = new HighlightedLabel(detailContainer);
+		const detail = new HighlightedLabel(detailContainer);
 
 		return {
 			container,
@@ -544,7 +544,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			return;
 		}
 
-		let data: IQuickOpenEntryTemplateData = templateData;
+		const data: IQuickOpenEntryTemplateData = templateData;
 
 		// Action Bar
 		if (this.actionProvider.hasActions(null, entry)) {
@@ -567,7 +567,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 		// Entry group
 		if (entry instanceof QuickOpenEntryGroup) {
-			let group = <QuickOpenEntryGroup>entry;
+			const group = <QuickOpenEntryGroup>entry;
 
 			// Border
 			if (group.showBorder()) {
@@ -577,16 +577,16 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			}
 
 			// Group Label
-			let groupLabel = group.getGroupLabel() || '';
+			const groupLabel = group.getGroupLabel() || '';
 			(<IQuickOpenEntryGroupTemplateData>templateData).group.textContent = groupLabel;
 		}
 
 		// Normal Entry
 		if (entry instanceof QuickOpenEntry) {
-			let [labelHighlights, descriptionHighlights, detailHighlights] = entry.getHighlights();
+			const [labelHighlights, descriptionHighlights, detailHighlights] = entry.getHighlights();
 
 			// Extra Class
-			let extraClass = entry.getExtraClass();
+			const extraClass = entry.getExtraClass();
 			if (extraClass) {
 				DOM.addClass(data.entry, extraClass);
 			} else {
@@ -594,7 +594,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			}
 
 			// Icon
-			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
+			const iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
 			data.icon.className = iconClass;
 
 			// Label
