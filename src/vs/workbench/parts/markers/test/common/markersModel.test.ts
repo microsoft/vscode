@@ -142,6 +142,6 @@ suite('MarkersModel Test', () => {
 			startColumn: startColumn,
 			endLineNumber: endLineNumber,
 			endColumn: endColumn
-		}
+		};
 	}
 });
