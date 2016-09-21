@@ -24,6 +24,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	private toUnbind: IDisposable[];
 
+	private _onModelContentChanged: Emitter<URI>;
 	private _onModelDirty: Emitter<TextFileModelChangeEvent>;
 	private _onModelSaveError: Emitter<TextFileModelChangeEvent>;
 	private _onModelSaved: Emitter<TextFileModelChangeEvent>;
@@ -43,6 +44,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	) {
 		this.toUnbind = [];
 
+		this._onModelContentChanged = new Emitter<URI>();
 		this._onModelDirty = new Emitter<TextFileModelChangeEvent>();
 		this._onModelSaveError = new Emitter<TextFileModelChangeEvent>();
 		this._onModelSaved = new Emitter<TextFileModelChangeEvent>();
@@ -142,6 +144,10 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		return true;
 	}
 
+	public get onModelContentChanged(): Event<URI> {
+		return this._onModelContentChanged.event;
+	}
+
 	public get onModelDirty(): Event<TextFileModelChangeEvent> {
 		return this._onModelDirty.event;
 	}
@@ -211,6 +217,11 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 						this._onModelEncodingChanged.fire(event);
 						break;
 				}
+			});
+
+			// TODO: Dispose of me properly
+			model.onDidContentChange(() => {
+				this._onModelContentChanged.fire(model.getResource());
 			});
 		}
 

@@ -56,7 +56,9 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Local text file changes
+		this.toUnbind.push(this.untitledEditorService.onDidChangeContent(e => this.onUntitledDidChangeContent(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
+		this.toUnbind.push(this.textFileService.models.onModelContentChanged((resource) => this.onTextFileDidChangeContent(resource)));
 		this.toUnbind.push(this.textFileService.models.onModelDirty(e => this.onTextFileDirty(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onTextFileSaved(e)));
 		this.toUnbind.push(this.textFileService.models.onModelSaveError(e => this.onTextFileSaveError(e)));
@@ -66,8 +68,21 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
+	private onUntitledDidChangeContent(resource: URI): void {
+		console.log('onUntitledDidChangeContent', resource);
+
+		if (this.textFileService.isHotExitEnabled()) {
+			console.log('trigger hot exit');
+			// TODO: Delay/throttle
+			let untitledEditorInput = this.untitledEditorService.get(resource);
+			untitledEditorInput.resolve().then((model) => {
+				// TODO: Deal with encoding?
+				this.fileService.backupFile(resource, model.getValue());
+			});
+		}
+	}
+
 	private onUntitledDidChangeDirty(resource: URI): void {
-		console.log('onUntitledDidChangeDirty', resource);
 
 		const gotDirty = this.untitledEditorService.isDirty(resource);
 
@@ -78,15 +93,14 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		if (gotDirty || this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
+	}
 
-		// TODO: This needs to be moved elsewhere since dirty events cannot be reused because when a backup is
-		//       performed then dirty status does not change.
+	private onTextFileDidChangeContent(resource: URI): void {
+		console.log('onTextFileDidChangeContent', resource);
+
 		if (this.textFileService.isHotExitEnabled()) {
-			console.log('trigger hot exit');
-			// TODO: Delay/throttle
-			//let untitledEditorInput = this.untitledEditorService.get(resource);
-			//untitledEditorInput
-			//this.fileService.backupFile(resource);
+			let model = this.textFileService.models.get(resource);
+			this.fileService.backupFile(resource, model.getValue());
 		}
 	}
 

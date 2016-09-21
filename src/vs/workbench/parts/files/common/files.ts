@@ -259,6 +259,7 @@ export interface IRawTextContent extends IBaseStat {
 
 export interface ITextFileEditorModelManager {
 
+	onModelContentChanged: Event<URI>;
 	onModelDirty: Event<TextFileModelChangeEvent>;
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
@@ -273,6 +274,8 @@ export interface ITextFileEditorModelManager {
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
+
+	onDidContentChange: Event<void>;
 
 	onDidStateChange: Event<StateChange>;
 

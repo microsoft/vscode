@@ -55,6 +55,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inErrorMode: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
+	private _onDidContentChange: Emitter<void>;
 	private _onDidStateChange: Emitter<StateChange>;
 
 	constructor(
@@ -74,6 +75,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.toDispose = [];
+		this._onDidContentChange = new Emitter<void>();
 		this._onDidStateChange = new Emitter<StateChange>();
 		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
@@ -109,6 +111,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	public get onDidStateChange(): Event<StateChange> {
 		return this._onDidStateChange.event;
+	}
+
+	public get onDidContentChange(): Event<void> {
+		return this._onDidContentChange.event;
 	}
 
 	/**
@@ -299,6 +305,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.blockModelContentChange) {
 			return;
 		}
+
+		this._onDidContentChange.fire(void 0);
 
 		// The contents changed as a matter of Undo and the version reached matches the saved one
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
