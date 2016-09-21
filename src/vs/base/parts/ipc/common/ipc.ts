@@ -74,7 +74,7 @@ export interface IClientRouter {
 	routeCall(command: string, arg: any): string;
 }
 
-export interface IMultiChannelClient {
+export interface IRoutingChannelClient {
 	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T;
 }
 
