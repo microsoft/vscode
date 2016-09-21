@@ -344,10 +344,10 @@ suite('Files - TextFileEditorModel', () => {
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');
 			return model.save().then(() => {
-				assert.ok(false);
+				assert.ok(true);
 				model.dispose();
 			}, err => {
-				assert.ok(err);
+				assert.ok(false);
 			});
 		});
 	});

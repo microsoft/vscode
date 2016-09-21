@@ -450,9 +450,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}).then(() => {
 				this.blockModelContentChange = false;
 				return this.versionId;
-			}, err => {
+				}, err => {
+				// ignore error and proceed as if nothing has happend
 				this.blockModelContentChange = false;
-				return TPromise.wrapError(err);
+				return this.versionId;
 			});
 		}
 
