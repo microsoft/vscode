@@ -757,6 +757,15 @@ export class FileDragAndDrop implements IDragAndDrop {
 		return stat.resource.toString();
 	}
 
+	getDragLabel(tree: ITree, elements: any[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		const stat = elements[0] as FileStat;
+		return paths.basename(stat.resource.fsPath);
+	}
+
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 		const sources: FileStat[] = data.getData();
 		let source: FileStat = null;
