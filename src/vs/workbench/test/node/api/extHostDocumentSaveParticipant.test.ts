@@ -177,4 +177,82 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			assert.equal(edits.length, 1);
 		});
 	});
+
+	test('event delivery, concurrent change', () => {
+
+		let edits: IResourceEdit[];
+		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
+			$applyWorkspaceEdit(_edits) {
+				edits = _edits;
+				return TPromise.as(true);
+			}
+		});
+
+		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
+
+			// concurrent change from somewhere
+			documents.$acceptModelChanged(resource.toString(), [{
+				versionId: 2,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				text: 'bar',
+				rangeLength: undefined, eol: undefined, isRedoing: undefined, isUndoing: undefined,
+			}]);
+
+			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
+		});
+
+		return participant.$participateInSave(resource).then(values => {
+			sub.dispose();
+
+			assert.equal(edits, undefined);
+			assert.ok((<Error>values[0]).message);
+		});
+
+	});
+
+	test('event delivery, two listeners -> two document states', () => {
+
+		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
+			$applyWorkspaceEdit(_edits: IResourceEdit[]) {
+
+				for (const {resource, newText, range} of _edits) {
+					documents.$acceptModelChanged(resource.toString(), [{
+						range,
+						text: newText,
+						versionId: documents.getDocumentData(resource).version + 1,
+						rangeLength: undefined, eol: undefined, isRedoing: undefined, isUndoing: undefined,
+					}]);
+				}
+				return TPromise.as(true);
+			}
+		});
+
+		const document = documents.getDocumentData(resource).document;
+
+		let sub1 = participant.onWillSaveTextDocumentEvent(function (e) {
+			// the document state we started with
+			assert.equal(document.version, 1);
+			assert.equal(document.getText(), 'foo');
+
+			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
+		});
+
+		let sub2 = participant.onWillSaveTextDocumentEvent(function (e) {
+			// the document state AFTER the first listener kicked in
+			assert.equal(document.version, 2);
+			assert.equal(document.getText(), 'barfoo');
+
+			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
+		});
+
+		return participant.$participateInSave(resource).then(values => {
+			sub1.dispose();
+			sub2.dispose();
+
+			// the document state AFTER eventing is done
+			assert.equal(document.version, 3);
+			assert.equal(document.getText(), 'barbarfoo');
+		});
+
+	});
 });

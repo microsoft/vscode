@@ -47,7 +47,7 @@ export class ExtHostDocumentSaveParticipant {
 		};
 	}
 
-	$participateInSave(resource: URI): TPromise<any> {
+	$participateInSave(resource: URI): TPromise<any[]> {
 		const entries = this._callbacks.entries();
 
 		return sequence(entries.map(([fn, thisArg]) => {
@@ -106,8 +106,8 @@ export class ExtHostDocumentSaveParticipant {
 					return this._workspace.$applyWorkspaceEdit(edits);
 				}
 
-				// TODO@joh - fail?
-				console.warn('IGNORING changes because document has changed while computing changes');
+				// TODO@joh bubble this to listener?
+				return new Error('ignoring change because of concurrent edits');
 
 			}, err => {
 				// ignore error
