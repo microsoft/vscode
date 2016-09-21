@@ -145,8 +145,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	}
 
 	private onModelContentChanged(): void {
-		this._onDidChangeContent.fire();
-
 		// turn dirty if we were not
 		if (!this.dirty) {
 			this.dirty = true;
@@ -159,6 +157,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.dirty = false;
 			this._onDidChangeDirty.fire();
 		}
+
+		this._onDidChangeContent.fire();
 	}
 
 	public dispose(): void {

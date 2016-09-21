@@ -111,6 +111,11 @@ export interface IFileService {
 	backupFile(resource: URI, content: string): TPromise<IFileStat>;
 
 	/**
+	 * Discard the backup for the resource specified.
+	 */
+	discardBackup(resource: URI): TPromise<void>;
+
+	/**
 	 * Discards all backups associated with this session.
 	 */
 	discardBackups(): TPromise<void>;

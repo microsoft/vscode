@@ -236,6 +236,10 @@ export class FileService implements IFileService {
 		return this.raw.backupFile(resource, content);
 	}
 
+	public discardBackup(resource: uri): TPromise<void> {
+		return this.raw.discardBackup(resource);
+	}
+
 	public discardBackups(): TPromise<void> {
 		return this.raw.discardBackups();
 	}

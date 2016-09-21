@@ -306,8 +306,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return;
 		}
 
-		this._onDidContentChange.fire(void 0);
-
 		// The contents changed as a matter of Undo and the version reached matches the saved one
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 		// Note: we currently only do this check when auto-save is turned off because there you see
@@ -323,6 +321,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (wasDirty) {
 				this._onDidStateChange.fire(StateChange.REVERTED);
 			}
+
+			this._onDidContentChange.fire(void 0);
 
 			return;
 		}
@@ -340,6 +340,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				diag('makeDirty() - prevented save because we are in conflict resolution mode', this.resource, new Date());
 			}
 		}
+
+		this._onDidContentChange.fire(void 0);
 	}
 
 	private makeDirty(): void {
