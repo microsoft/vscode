@@ -36,7 +36,8 @@ export class NoTabsTitleControl extends TitleControl {
 		// Editor Label
 		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer, void 0);
 		this.toDispose.push(this.editorLabel);
-		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.getHTMLElement(), DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.labelElement, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
+		this.toDispose.push(DOM.addDisposableListener(this.editorLabel.descriptionElement, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleLabelClick(e)));
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -124,7 +125,7 @@ export class NoTabsTitleControl extends TitleControl {
 			verboseDescription = ''; // dont repeat what is already shown
 		}
 
-		this.editorLabel.setLabel({ name, description, resource}, { title: verboseDescription, italic: !isPinned, extraClasses: ['title-label'] });
+		this.editorLabel.setLabel({ name, description, resource }, { title: verboseDescription, italic: !isPinned, extraClasses: ['title-label'] });
 
 		// Update Editor Actions Toolbar
 		this.updateEditorActionsToolbar();

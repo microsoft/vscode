@@ -36,8 +36,21 @@ export class IconLabel {
 		this.descriptionNode = dom.append(this.domNode, dom.$('span.label-description'));
 	}
 
-	public getHTMLElement(): HTMLElement {
+	public get element(): HTMLElement {
 		return this.domNode;
+	}
+
+	public get labelElement(): HTMLElement {
+		const labelNode = this.labelNode;
+		if (labelNode instanceof HighlightedLabel) {
+			return labelNode.element;
+		} else {
+			return labelNode;
+		}
+	}
+
+	public get descriptionElement(): HTMLElement {
+		return this.descriptionNode;
 	}
 
 	public setValue(label?: string, description?: string, options?: IIconLabelOptions): void {
