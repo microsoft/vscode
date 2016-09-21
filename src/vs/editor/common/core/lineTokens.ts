@@ -42,11 +42,33 @@ export class LineToken {
 		if (this._modeIndex === 0) {
 			return new LineToken(this._source, this._tokenIndex - 1, this._modeIndex);
 		}
-		let modeTransition = this._source.modeTransitions[this._modeIndex];
-		if (this.startOffset === modeTransition.startIndex) {
+		const modeTransitions = this._source.modeTransitions;
+		const currentModeTransition = modeTransitions[this._modeIndex];
+		const prevStartOffset = this._source.getTokenStartOffset(this._tokenIndex - 1);
+
+		if (prevStartOffset < currentModeTransition.startIndex) {
+			// Going to previous mode transition
 			return new LineToken(this._source, this._tokenIndex - 1, this._modeIndex - 1);
 		}
 		return new LineToken(this._source, this._tokenIndex - 1, this._modeIndex);
+	}
+
+	public next(): LineToken {
+		if (!this.hasNext) {
+			return null;
+		}
+		const modeTransitions = this._source.modeTransitions;
+		if (this._modeIndex === modeTransitions.length - 1) {
+			return new LineToken(this._source, this._tokenIndex + 1, this._modeIndex);
+		}
+		const nextModeTransition = modeTransitions[this._modeIndex + 1];
+		const nextStartOffset = this._source.getTokenStartOffset(this._tokenIndex + 1);
+
+		if (nextStartOffset >= nextModeTransition.startIndex) {
+			// Going to next mode transition
+			return new LineToken(this._source, this._tokenIndex + 1, this._modeIndex + 1);
+		}
+		return new LineToken(this._source, this._tokenIndex + 1, this._modeIndex);
 	}
 }
 
@@ -112,11 +134,15 @@ export class LineTokens {
 	public findTokenAtOffset(offset:number): LineToken {
 		let tokenIndex = this.findTokenIndexAtOffset(offset);
 		let modeIndex = ModeTransition.findIndexInSegmentsArray(this.modeTransitions, offset);
-		return new LineToken(
-			this,
-			tokenIndex,
-			modeIndex
-		);
+		return new LineToken(this, tokenIndex, modeIndex);
+	}
+
+	public first(): LineToken {
+		return new LineToken(this, 0, 0);
+	}
+
+	public last(): LineToken {
+		return new LineToken(this, this._tokens.length - 1, this.modeTransitions.length - 1);
 	}
 
 	public inflate(): ViewLineToken[] {
