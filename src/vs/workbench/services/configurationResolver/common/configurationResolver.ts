@@ -12,11 +12,10 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	_serviceBrand: any;
 
+	// TODO@Isidor improve this API
 	resolve(value: string): string;
 	resolve(value: string[]): string[];
 	resolve(value: IStringDictionary<string>): IStringDictionary<string>;
-	resolve(value: IStringDictionary<string[]>): IStringDictionary<string[]>;
-	resolve(value: IStringDictionary<IStringDictionary<string>>): IStringDictionary<IStringDictionary<string>>;
 	resolveAny<T>(value: T): T;
 	resolveInteractiveVariables(configuration: any, interactiveVariablesMap: { [key: string]: string }): TPromise<any>;
 }

@@ -21,7 +21,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {GestureEvent} from 'vs/base/browser/touch';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
-import {FileLabel} from 'vs/base/browser/ui/fileLabel/fileLabel';
+import {FileLabel} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {LeftRightWidget} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import * as tree from 'vs/base/parts/tree/browser/tree';
 import {DefaultController, LegacyRenderer} from 'vs/base/parts/tree/browser/treeDefaults';
