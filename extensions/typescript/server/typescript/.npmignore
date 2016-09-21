@@ -1,10 +1,12 @@
 built
 doc
+internal
+issue_template.md
 lib/README.md
+pull_request_template.md
 scripts
 src
 tests
-internal
 tslint.json
 Jakefile.js
 .editorconfig
