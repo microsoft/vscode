@@ -142,7 +142,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
-		// @dirk TS(2.0.2) - This is very likely a bug in TS.
+		// @ben TS(2.0.2) - See https://github.com/Microsoft/TypeScript/issues/7294
+		// For now I opt we make the signatures the same if possible
 		return (this.editorPart as any).openEditor(input, options, arg3);
 	}
 
@@ -159,7 +160,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 					position: editors[index].position
 				};
 			});
-			// @dirk TS(2.0.2) - This is very likely a bug in TS.
+			// @ben TS(2.0.2) - See https://github.com/Microsoft/TypeScript/issues/7294
+			// For now I opt we make the signatures the same if possible
 			return (this.editorPart as any).openEditors(typedInputs);
 		});
 	}
@@ -178,7 +180,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 						options
 					};
 				});
-				// @dirk TS(2.0.2) - This is very likely a bug in TS.
+				// @ben TS(2.0.2) - See https://github.com/Microsoft/TypeScript/issues/7294
+				// For now I opt we make the signatures the same if possible
 				return (this.editorPart as any).replaceEditors(typedReplacements);
 			});
 		});
