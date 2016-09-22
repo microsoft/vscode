@@ -35,7 +35,7 @@ import {KeyMod} from 'vs/base/common/keyCodes';
 import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -273,7 +273,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				this.telemetryService
 			);
 
-			this.pickOpenWidget.create();
+			const pickOpenContainer = this.pickOpenWidget.create();
+			DOM.addClass(pickOpenContainer, 'show-file-icons');
 		}
 
 		// Update otherwise
@@ -325,9 +326,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 				// Model
 				const model = new QuickOpenModel();
-				const entries = picks.map(e => new PickOpenEntry(e, () => progress(e)));
+				const entries = picks.map(e => this.instantiationService.createInstance(PickOpenEntry, e, () => progress(e)));
 				if (picks.length === 0) {
-					entries.push(new PickOpenEntry({ label: nls.localize('emptyPicks', "There are no entries to pick from") }));
+					entries.push(this.instantiationService.createInstance(PickOpenEntry, { label: nls.localize('emptyPicks', "There are no entries to pick from") }, null));
 				}
 
 				model.setEntries(entries);
@@ -941,10 +942,13 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private hasSeparator: boolean;
 	private separatorLabel: string;
 	private alwaysShow: boolean;
+	private resource: URI;
+	private isFolder: boolean;
 
 	constructor(
 		item: IPickOpenEntry,
-		private onPreview?: () => void
+		private onPreview: () => void,
+		@IModeService private modeService: IModeService
 	) {
 		super(item.label);
 
@@ -953,6 +957,16 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		this.hasSeparator = item.separator && item.separator.border;
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
+
+		const fileItem = <IFilePickOpenEntry>item;
+		this.resource = fileItem.resource;
+		this.isFolder = fileItem.isFolder;
+	}
+
+	public getLabelOptions(): IIconLabelOptions {
+		return {
+			extraClasses: this.resource ? getIconClasses(this.modeService, this.resource, this.isFolder) : []
+		};
 	}
 
 	public get shouldRunWithContext(): IEntryRunContext {
@@ -1026,7 +1040,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: getIconClasses(this.modeService, this.resource),
+			extraClasses: getIconClasses(this.modeService, this.resource)
 		};
 	}
 
