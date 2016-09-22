@@ -17,6 +17,7 @@
 	"debugAddToWatch": "Depuración: Agregar a inspección",
 	"debugConsoleAction": "Consola de depuración",
 	"debugEvaluate": "Depuración: Evaluar",
+	"debugFocusConsole": "Enfocar consola de depuración",
 	"disableAllBreakpoints": "Deshabilitar todos los puntos de interrupción",
 	"disconnectDebug": "Desconectar",
 	"editConditionalBreakpoint": "Editar punto de interrupción",

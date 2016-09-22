@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import {TPromise} from 'vs/base/common/winjs.base';
 import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import {ICommandService} from 'vs/platform/commands/common/commands';
 
 export class Adapter {
 
@@ -20,12 +22,15 @@ export class Adapter {
 	public type: string;
 	private _label: string;
 	private configurationAttributes: any;
-	public initialConfigurations: any[];
+	public initialConfigurations: any[] | string;
 	public variables: { [key: string]: string };
 	public enableBreakpointsFor: { languageIds: string[] };
 	public aiKey: string;
 
-	constructor(rawAdapter: debug.IRawAdapter, public extensionDescription: IExtensionDescription, configurationResolverService: IConfigurationResolverService) {
+	constructor(public rawAdapter: debug.IRawAdapter, public extensionDescription: IExtensionDescription,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@ICommandService private commandService: ICommandService
+	) {
 		if (rawAdapter.windows) {
 			rawAdapter.win = rawAdapter.windows;
 		}
@@ -75,8 +80,23 @@ export class Adapter {
 		this.aiKey = rawAdapter.aiKey;
 	}
 
+	public getInitialConfigurations(): TPromise<string> {
+		if (typeof this.initialConfigurations === 'string') {
+			// Contributed initialConfigurations is a command that needs to be invoked
+			// Debug adapter will dynamically provide the initial conifguraiton
+			return this.commandService.executeCommand<string>(<string>this.initialConfigurations)
+				.then(result => JSON.parse(result));
+		}
+
+		return TPromise.as(this.initialConfigurations);
+	};
+
 	public get label() {
 		return this._label || this.type;
+	}
+
+	public set label(value: string) {
+		this._label = value;
 	}
 
 	public getSchemaAttributes(): any[] {

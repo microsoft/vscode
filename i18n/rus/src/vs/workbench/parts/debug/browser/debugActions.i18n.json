@@ -17,6 +17,7 @@
 	"debugAddToWatch": "Отладка: добавить контрольное значение",
 	"debugConsoleAction": "Консоль отладки",
 	"debugEvaluate": "Отладка: вычисление",
+	"debugFocusConsole": "Фокус консоли отладки",
 	"disableAllBreakpoints": "Отключить все точки останова",
 	"disconnectDebug": "Отключить",
 	"editConditionalBreakpoint": "Изменить точку останова",

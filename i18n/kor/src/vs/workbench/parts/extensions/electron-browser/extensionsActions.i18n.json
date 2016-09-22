@@ -19,5 +19,6 @@
 	"showRecommendedExtensions": "권장되는 확장 표시",
 	"toggleExtensionsViewlet": "확장 표시",
 	"uninstall": "제거",
-	"updateAction": "업데이트"
+	"updateAction": "업데이트",
+	"updateAll": "모든 확장 업데이트"
 }

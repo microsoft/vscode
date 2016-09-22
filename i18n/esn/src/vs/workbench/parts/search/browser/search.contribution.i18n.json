@@ -9,8 +9,9 @@
 	"exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
 	"findInFolder": "Buscar en carpeta",
 	"name": "Búsqueda",
-	"openAnythingHandlerDescription": "Abrir archivos y símbolos globales por nombre",
+	"openAnythingHandlerDescription": "Abrir archivos por nombre",
 	"openSymbolDescriptionNormal": "Abrir cualquier símbolo por nombre",
+	"search.quickOpen.includeSymbols": "Configurar para incluir los resultados de una búsqueda global de símbolos en los resultados de archivos de Quick Open.",
 	"searchConfigurationTitle": "Buscar",
 	"showTriggerActions": "Mostrar todos los símbolos",
 	"view": "Ver"

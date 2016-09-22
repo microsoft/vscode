@@ -7,12 +7,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IChoiceService/*, Severity*/ } from 'vs/platform/message/common/message';
-
-// TODO@Sandeep implement these guys
+import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 
 export interface IChoiceChannel extends IChannel {
-	// call(command: 'getInstalled'): TPromise<ILocalExtension[]>;
+	call(command: 'choose'): TPromise<number>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -21,22 +19,22 @@ export class ChoiceChannel implements IChoiceChannel {
 	constructor(private service: IChoiceService) {
 	}
 
-	call(command: string, arg: any): TPromise<any> {
+	call(command: string, args: any): TPromise<any> {
 		switch (command) {
-			// case 'getInstalled': return this.service.getInstalled(arg);
+			case 'choose': return this.service.choose(<Severity>args[0], <string>args[1], <string[]>args[2]);
 		}
-
 		return TPromise.wrapError('invalid command');
 	}
 }
 
-export class ChoiceChannelClient /*implements IChoiceService*/ {
+export class ChoiceChannelClient implements IChoiceService {
 
 	_serviceBrand: any;
 
 	constructor(private channel: IChoiceChannel) { }
 
-	// getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {
-	// 	return this.channel.call('getInstalled', type);
-	// }
+	choose(severity: Severity, message: string, options: string[]): TPromise<number> {
+		return this.channel.call('choose', [severity, message, options]);
+	}
+
 }

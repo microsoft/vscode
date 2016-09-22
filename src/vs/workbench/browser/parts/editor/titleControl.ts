@@ -146,8 +146,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		this.previewEditors = config.workbench.editor.enablePreview;
-		this.showTabs = config.workbench.editor.showTabs;
+		this.previewEditors = config.workbench && config.workbench.editor && config.workbench.editor.enablePreview;
+		this.showTabs = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 	}
 
 	private updateSplitActionEnablement(): void {

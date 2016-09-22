@@ -725,7 +725,7 @@ export class ChangeModeAction extends Action {
 		});
 
 		if (fileinput) {
-			picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
+			picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages (identifier)") };
 		}
 
 		// Offer action to configure via settings

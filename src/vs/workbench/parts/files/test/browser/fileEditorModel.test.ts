@@ -294,6 +294,7 @@ suite('Files - TextFileEditorModel', () => {
 				model.textEditorModel.setValue('bar');
 				assert.ok(model.isDirty());
 				eventCounter++;
+				return undefined;
 			}
 		});
 
@@ -306,6 +307,47 @@ suite('Files - TextFileEditorModel', () => {
 				assert.equal(eventCounter, 2);
 
 				done();
+			});
+		});
+	});
+
+	test('Save Participant, async participant', function () {
+
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		TextFileEditorModel.setSaveParticipant({
+			participate: (model) => {
+				return TPromise.timeout(10);
+			}
+		});
+
+		return model.load().then(() => {
+			model.textEditorModel.setValue('foo');
+			const now = Date.now();
+			return model.save().then(() => {
+				assert.ok(Date.now() - now >= 10);
+				model.dispose();
+			});
+		});
+	});
+
+	test('Save Participant, bad participant', function () {
+
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
+
+		TextFileEditorModel.setSaveParticipant({
+			participate: (model) => {
+				return TPromise.wrapError('boom');
+			}
+		});
+
+		return model.load().then(() => {
+			model.textEditorModel.setValue('foo');
+			return model.save().then(() => {
+				assert.ok(true);
+				model.dispose();
+			}, err => {
+				assert.ok(false);
 			});
 		});
 	});
