@@ -14,7 +14,7 @@
 	"folding": "Contrôle si le pliage de code est activé dans l'éditeur",
 	"fontFamily": "Contrôle la famille de polices.",
 	"fontLigatures": "Active les ligatures de police",
-	"fontSize": "Contrôle la taille de police.",
+	"fontSize": "Contrôle la taille de police en pixels.",
 	"fontWeight": "Contrôle l'épaisseur de police.",
 	"formatOnType": "Contrôle si l'éditeur doit automatiquement mettre en forme la ligne après la saisie",
 	"glyphMargin": "Contrôle la visibilité de la marge des glyphes",
@@ -32,6 +32,7 @@
 	"quickSuggestionsDelay": "Contrôle le délai en ms au bout duquel les suggestions rapides s'affichent",
 	"renderControlCharacters": "Contrôle si l'éditeur doit afficher les caractères de contrôle",
 	"renderIndentGuides": "Contrôle si l'éditeur doit afficher les repères de mise en retrait",
+	"renderLineHighlight": "Contrôle si l'éditeur doit afficher la surbrillance de la ligne active",
 	"renderWhitespace": "Contrôle si l'éditeur doit restituer des espaces",
 	"roundedSelection": "Contrôle si les sélections ont des angles arrondis",
 	"rulers": "Colonnes où afficher les règles verticales",
@@ -49,6 +50,7 @@
 	"useTabStops": "L'insertion et la suppression d'un espace blanc suit les taquets de tabulation",
 	"wordBasedSuggestions": "Activez les suggestions basées sur les mots.",
 	"wordSeparators": "Caractères utilisés comme séparateurs de mots durant la navigation ou les opérations basées sur les mots",
+	"wordWrap": "Contrôle le retour automatique à la ligne. Le retour automatique à la ligne s'effectue à min(editor.wrappingColumn, viewportWidthInColumns).",
 	"wrappingColumn": "Contrôle le nombre de caractères après lesquels l'éditeur effectue un retour automatique à la ligne suivante. Si vous affectez la valeur 0, le retour automatique à la ligne s'effectue en fonction de la largeur de la fenêtre d'affichage (retour automatique à la ligne). Si vous affectez la valeur -1, l'éditeur n'effectue jamais de retour automatique à la ligne.",
 	"wrappingIndent": "Contrôle le retrait des lignes renvoyées. La valeur peut être 'none', 'same' ou 'indent'."
 }

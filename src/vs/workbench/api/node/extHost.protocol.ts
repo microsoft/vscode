@@ -232,6 +232,10 @@ export abstract class ExtHostDocumentsShape {
 	$acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void { throw ni(); }
 }
 
+export abstract class ExtHostDocumentSaveParticipantShape {
+	$participateInSave(resource: URI): TPromise<any[]> { throw ni(); }
+}
+
 export interface ITextEditorAddData {
 	id: string;
 	document: URI;
@@ -342,6 +346,7 @@ export const ExtHostContext = {
 	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration', ExtHostConfigurationShape),
 	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics', ExtHostDiagnosticsShape),
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments', ExtHostDocumentsShape),
+	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant', ExtHostDocumentSaveParticipantShape),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ExtHostEditorsShape),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService', ExtHostFileSystemEventServiceShape),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor', ExtHostHeapServiceShape),

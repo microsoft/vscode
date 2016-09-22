@@ -14,7 +14,7 @@
 	"folding": "Controla si el editor tiene habilitado el plegado de código.",
 	"fontFamily": "Controla la familia de fuentes.",
 	"fontLigatures": "Habilita las ligaduras tipográficas.",
-	"fontSize": "Controla el tamaño de la fuente.",
+	"fontSize": "Controla el tamaño de fuente en píxeles.",
 	"fontWeight": "Controla el grosor de la fuente.",
 	"formatOnType": "Controla si el editor debe dar formato automáticamente a la línea después de escribirla",
 	"glyphMargin": "Controla la visibilidad del margen del glifo",
@@ -32,6 +32,7 @@
 	"quickSuggestionsDelay": "Controla el retardo en ms tras el cual aparecerán sugerencias rápidas",
 	"renderControlCharacters": "Controla si el editor debe representar caracteres de control",
 	"renderIndentGuides": "Controla si el editor debe representar guías de sangría.",
+	"renderLineHighlight": "Controla si el editor debe representar el resaltado de línea actual",
 	"renderWhitespace": "Controla si el editor debe representar los espacios en blanco",
 	"roundedSelection": "Controla si las selecciones tienen esquinas redondeadas",
 	"rulers": "Columnas en las que mostrar reglas verticales",
@@ -49,6 +50,7 @@
 	"useTabStops": "La inserción y eliminación del espacio en blanco sigue a las tabulaciones.",
 	"wordBasedSuggestions": "Habilita sugerencias basadas en palabras.",
 	"wordSeparators": "Caracteres que se usarán como separadores de palabras al realizar operaciones o navegaciones relacionadas con palabras.",
+	"wordWrap": "Controla si las líneas deben ajustarse. Las líneas se ajustarán en min(editor.wrappingColumn, viewportWidthInColumns).",
 	"wrappingColumn": "Controla el número de caracteres tras los cuales el editor salta a la línea siguiente. Si el valor se establece en 0, se activa el ajuste del ancho de la ventanilla (ajuste de línea). Si se establece en -1, hace que el editor no ajuste las líneas nunca.",
 	"wrappingIndent": "Controla el sangrado de las líneas ajustadas. Puede ser uno los valores 'none', 'same' o 'indent'."
 }

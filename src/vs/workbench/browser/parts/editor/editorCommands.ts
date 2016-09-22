@@ -73,7 +73,8 @@ function registerActiveEditorMoveCommand() {
 }
 
 function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor) {
-	const tabsShown = !!(<IWorkbenchEditorConfiguration>accessor.get(IConfigurationService).getConfiguration()).workbench.editor.showTabs;
+	const config = <IWorkbenchEditorConfiguration>accessor.get(IConfigurationService).getConfiguration();
+	const tabsShown = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 	args.to = args.to || ActiveEditorMovePositioning.RIGHT;
 	args.by = tabsShown ? args.by || ActiveEditorMovePositioningBy.TAB : ActiveEditorMovePositioningBy.GROUP;
 	args.value = types.isUndefined(args.value) ? 1 : args.value;

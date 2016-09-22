@@ -23,7 +23,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import {isMacintosh} from 'vs/base/common/platform';
-import {IQuickOpenService, IPickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
@@ -428,8 +428,10 @@ export class OpenRecentAction extends Action {
 	}
 
 	private openRecent(recentFiles: string[], recentFolders: string[]): void {
-		function toPick(path: string, separator: ISeparator): IPickOpenEntry {
+		function toPick(path: string, separator: ISeparator, isFolder: boolean): IFilePickOpenEntry {
 			return {
+				resource: URI.file(path),
+				isFolder,
 				label: paths.basename(path),
 				description: paths.dirname(path),
 				separator,
@@ -443,8 +445,8 @@ export class OpenRecentAction extends Action {
 			ipc.send('vscode:windowOpen', [path], newWindow);
 		}
 
-		const folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0));
-		const filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0));
+		const folderPicks: IFilePickOpenEntry[] = recentFolders.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('folders', "folders") } : void 0, true));
+		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, false));
 
 		const hasWorkspace = !!this.contextService.getWorkspace();
 
