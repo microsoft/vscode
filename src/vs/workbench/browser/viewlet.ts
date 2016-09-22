@@ -152,11 +152,9 @@ export abstract class ViewerViewlet extends Viewlet {
  * A viewlet descriptor is a leightweight descriptor of a viewlet in the workbench.
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
-	public isGlobal: boolean;
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, isGlobal?: boolean) {
+	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
 		super(moduleId, ctorName, id, name, cssClass, order);
-		this.isGlobal = isGlobal || false;
 	}
 }
 

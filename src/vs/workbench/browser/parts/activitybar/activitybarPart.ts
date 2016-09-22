@@ -147,7 +147,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Add to viewlet switcher
 		this.compositeSwitcherBar.push(allViewletActions
-			.filter(v => !v.isGlobal)
 			.sort((v1, v2) => v1.order - v2.order)
 			.map(toAction)
 			, actionOptions);
