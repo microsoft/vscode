@@ -17,7 +17,7 @@ import {Registry} from 'vs/platform/platform';
 import {IViewlet} from 'vs/workbench/common/viewlet';
 import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, Viewlet} from 'vs/workbench/browser/viewlet';
 import {CompositeDescriptor, Composite} from 'vs/workbench/browser/composite';
-import {Panel} from 'vs/workbench/browser/panel';
+import {Panel, PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -120,8 +120,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Build Viewlet Actions in correct order
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activePanel = this.panelService.getActivePanel();
-		const registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
-		const allViewletActions = registry.getViewlets();
+		const allViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().sort((v1, v2) => v1.order - v2.order);
+		const allPanels = (<PanelRegistry>Registry.as(PanelExtensions.Panels)).getPanels().sort((p1, p2) => p1.order - p2.order);
 		const actionOptions = { label: true, icon: true };
 
 		const toAction = (composite: CompositeDescriptor<Viewlet | Panel>) => {
@@ -145,11 +145,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 			return action;
 		};
 
-		// Add to viewlet switcher
-		this.compositeSwitcherBar.push(allViewletActions
-			.sort((v1, v2) => v1.order - v2.order)
-			.map(toAction)
-			, actionOptions);
+		// Add both viewlet and panel actions to the switcher
+		const allActions = allViewlets.concat(allPanels).map(toAction);
+		this.compositeSwitcherBar.push(allActions, actionOptions);
 	}
 
 	public dispose(): void {
