@@ -13,7 +13,9 @@ import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
-import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
+import { IWindowsService, WindowsManager, WindowEventService } from 'vs/code/electron-main/windows';
+import { IWindowEventService } from 'vs/code/common/windows';
+import { WindowsChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
@@ -68,6 +70,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const envService = accessor.get(IEnvService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const windowsService = accessor.get(IWindowsService);
+	const windowEventService = accessor.get(IWindowEventService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
@@ -131,6 +134,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	let sharedProcessDisposable;
 	spawnSharedProcess(initData, options).done(disposable => {
 		sharedProcessDisposable = disposable;
+		const sharedProcessConnect = connect(environmentService.sharedIPCHandle, 'main');
+		sharedProcessConnect.done(client => {
+			client.registerChannel('windowEvent', new WindowsChannel(windowEventService));
+		});
 	});
 
 	// Make sure we associate the program with the app user model id
@@ -408,6 +415,7 @@ function start(): void {
 	services.set(IEnvService, new SyncDescriptor(EnvService));
 	services.set(ILogService, new SyncDescriptor(MainLogService));
 	services.set(IWindowsService, new SyncDescriptor(WindowsManager));
+	services.set(IWindowEventService, new SyncDescriptor(WindowEventService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));

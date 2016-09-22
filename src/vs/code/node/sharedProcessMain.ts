@@ -30,6 +30,8 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetry
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ISharedProcessInitData } from './sharedProcess';
+import { WindowEventChannelClient } from 'vs/code/common/windowsIpc';
+import { IWindowEventService } from 'vs/code/common/windows';
 
 function quit(err?: Error) {
 	if (err) {
@@ -61,6 +63,13 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, initData.args, process.execPath));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
+
+	const windowEventService:IWindowEventService = new WindowEventChannelClient(server.getChannel('windowEvent', {
+		routeCall: (command: any, arg: any) => {
+			return 'main';
+		}
+	}));
+	services.set(IWindowEventService, windowEventService);
 
 	const instantiationService = new InstantiationService(services);
 
