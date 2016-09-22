@@ -992,7 +992,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		function createOverlay(target: HTMLElement): void {
 			if (!overlay) {
-				const {showTabs} = this.getConfig();
+				const {showTabs} = $this.getConfig();
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
