@@ -103,6 +103,7 @@ export class ExtHostAPIImplementation {
 
 		const extHostHeapMonitor = col.define(ExtHostContext.ExtHostHeapService).set<ExtHostHeapService>(new ExtHostHeapService());
 		const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set<ExtHostDocuments>(new ExtHostDocuments(threadService));
+		const estHostDocumentSaveParticipant = col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocuments));
 		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostEditors));
 		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration)));
@@ -111,7 +112,6 @@ export class ExtHostAPIImplementation {
 		const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
 		const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
 		const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
-		col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 		col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 
 		col.finish(false, threadService);
@@ -324,6 +324,9 @@ export class ExtHostAPIImplementation {
 			},
 			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocuments.onDidSaveDocument(listener, thisArgs, disposables);
+			},
+			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
+				return estHostDocumentSaveParticipant.onWillSaveTextDocumentEvent(listener, thisArgs, disposables);
 			},
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);

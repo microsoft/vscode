@@ -16,10 +16,6 @@ import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 
-export interface TextDocumentWillSaveEvent {
-	document: vscode.TextDocument;
-	waitUntil(t: Thenable<any | vscode.TextEdit[]>): void;
-}
 
 export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipantShape {
 
@@ -37,7 +33,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 		this._callbacks.dispose();
 	}
 
-	get onWillSaveTextDocumentEvent(): Event<TextDocumentWillSaveEvent> {
+	get onWillSaveTextDocumentEvent(): Event<vscode.TextDocumentWillSaveEvent> {
 		return (listener, thisArg, disposables) => {
 			this._callbacks.add(listener, thisArg);
 			const result = { dispose: () => this._callbacks.remove(listener, thisArg) };
@@ -65,7 +61,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 
 		const {version} = document;
 
-		const event = Object.freeze(<TextDocumentWillSaveEvent> {
+		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent> {
 			document,
 			waitUntil(p: Thenable<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {

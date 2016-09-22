@@ -10,7 +10,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {TextEdit, Position} from 'vs/workbench/api/node/extHostTypes';
 import {MainThreadWorkspaceShape} from 'vs/workbench/api/node/extHost.protocol';
-import {ExtHostDocumentSaveParticipant, TextDocumentWillSaveEvent} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
+import {ExtHostDocumentSaveParticipant} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import {OneGetThreadService} from './testThreadService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
@@ -52,7 +52,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, workspace);
 
-		let event: TextDocumentWillSaveEvent;
+		let event: vscode.TextDocumentWillSaveEvent;
 		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
 			event = e;
 		});
@@ -68,7 +68,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, immutable', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, workspace);
 
-		let event: TextDocumentWillSaveEvent;
+		let event: vscode.TextDocumentWillSaveEvent;
 		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
 			event = e;
 		});
@@ -145,7 +145,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			e.waitUntil(TPromise.wrapError('dddd'));
 		});
 
-		let event: TextDocumentWillSaveEvent;
+		let event: vscode.TextDocumentWillSaveEvent;
 		let sub2 = participant.onWillSaveTextDocumentEvent(function (e) {
 			event = e;
 		});
