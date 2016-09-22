@@ -70,7 +70,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 			this.viewletIdToActions[viewlet.getId()].activate();
 
 			// There can only be one active viewlet action
-			for (const key in this.viewletIdToActions) {
+			for (let key in this.viewletIdToActions) {
 				if (this.viewletIdToActions.hasOwnProperty(key) && key !== viewlet.getId()) {
 					this.viewletIdToActions[key].deactivate();
 				}
@@ -85,7 +85,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	public showActivity(viewletId: string, badge: IBadge, clazz?: string): void {
-		const action = this.viewletIdToActions[viewletId];
+		let action = this.viewletIdToActions[viewletId];
 		if (action) {
 			action.setBadge(badge);
 			if (clazz) {
@@ -99,8 +99,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	public createContentArea(parent: Builder): Builder {
-		const $el = $(parent);
-		const $result = $('.content').appendTo($el);
+		let $el = $(parent);
+		let $result = $('.content').appendTo($el);
 
 		// Top Actionbar with action items for each viewlet action
 		this.createViewletSwitcher($result.clone());
@@ -131,15 +131,15 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Build Viewlet Actions in correct order
 		const activeViewlet = this.viewletService.getActiveViewlet();
-		const registry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
+		const registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 		const allViewletActions = registry.getViewlets();
 		const actionOptions = { label: true, icon: true };
 
 		const toAction = (viewlet: ViewletDescriptor) => {
-			const action = this.instantiationService.createInstance(ViewletActivityAction, viewlet.id + '.activity-bar-action', viewlet);
+			let action = this.instantiationService.createInstance(ViewletActivityAction, viewlet.id + '.activity-bar-action', viewlet);
 
 			let keybinding: string = null;
-			const keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => this.keybindingService.getLabelFor(k));
+			let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => this.keybindingService.getLabelFor(k));
 			if (keys && keys.length) {
 				keybinding = keys[0];
 			}
@@ -193,8 +193,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		});
 
 		// Build Global Actions in correct order
-		const primaryActions = this.getGlobalActions(true);
-		const secondaryActions = this.getGlobalActions(false);
+		let primaryActions = this.getGlobalActions(true);
+		let secondaryActions = this.getGlobalActions(false);
 
 		if (primaryActions.length + secondaryActions.length > 0) {
 			this.globalToolBar.getContainer().addClass('position-bottom');
@@ -205,7 +205,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private getGlobalActions(primary: boolean): IAction[] {
-		const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
+		let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 
 		// Collect actions from actionbar contributor
 		let actions: IAction[];
@@ -218,12 +218,13 @@ export class ActivitybarPart extends Part implements IActivityService {
 		return actions.map((action: ActivityAction) => {
 			if (primary) {
 				let keybinding: string = null;
-				const keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
+				let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
 				if (keys && keys.length) {
 					keybinding = keys[0];
 				}
 
 				let actionItem = actionBarRegistry.getActionItemForContext(Scope.GLOBAL, CONTEXT, action);
+
 				if (!actionItem) {
 					actionItem = new ActivityActionItem(action, action.label, keybinding);
 				}
@@ -273,14 +274,14 @@ class ViewletActivityAction extends ActivityAction {
 	public run(): TPromise<any> {
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
-		const now = Date.now();
+		let now = Date.now();
 		if (now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
 			return TPromise.as(true);
 		}
 		this.lastRun = now;
 
-		const sideBarHidden = this.partService.isSideBarHidden();
-		const activeViewlet = this.viewletService.getActiveViewlet();
+		let sideBarHidden = this.partService.isSideBarHidden();
+		let activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
 		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
