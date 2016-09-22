@@ -82,7 +82,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 	}
 
 	participate(editorModel: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
-		if (true || this._configurationService.lookup('files.formatOnSave').value) {
+		if (this._configurationService.lookup('files.formatOnSave').value) {
 			const model: IModel = editorModel.textEditorModel;
 			const editor = this._findEditor(model);
 			return formatDocument(model, editor);
