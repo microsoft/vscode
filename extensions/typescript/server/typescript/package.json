@@ -2,25 +2,25 @@
   "_args": [
     [
       {
-        "raw": "typescript@2.0.2",
+        "raw": "typescript",
         "scope": null,
         "escapedName": "typescript",
         "name": "typescript",
-        "rawSpec": "2.0.2",
-        "spec": "2.0.2",
-        "type": "version"
+        "rawSpec": "",
+        "spec": "latest",
+        "type": "tag"
       },
-      "P:\\tmp\\ts-2.0.2"
+      "P:\\tmp"
     ]
   ],
-  "_from": "typescript@2.0.2",
-  "_id": "typescript@2.0.2",
+  "_from": "typescript@latest",
+  "_id": "typescript@2.0.3",
   "_inCache": true,
   "_location": "/typescript",
   "_nodeVersion": "5.11.1",
   "_npmOperationalInternal": {
     "host": "packages-12-west.internal.npmjs.com",
-    "tmp": "tmp/typescript-2.0.2.tgz_1472573195120_0.8466535992920399"
+    "tmp": "tmp/typescript-2.0.3.tgz_1474560003144_0.4724818258546293"
   },
   "_npmUser": {
     "name": "typescript",
@@ -29,22 +29,22 @@
   "_npmVersion": "3.8.6",
   "_phantomChildren": {},
   "_requested": {
-    "raw": "typescript@2.0.2",
+    "raw": "typescript",
     "scope": null,
     "escapedName": "typescript",
     "name": "typescript",
-    "rawSpec": "2.0.2",
-    "spec": "2.0.2",
-    "type": "version"
+    "rawSpec": "",
+    "spec": "latest",
+    "type": "tag"
   },
   "_requiredBy": [
     "#USER"
   ],
-  "_resolved": "https://registry.npmjs.org/typescript/-/typescript-2.0.2.tgz",
-  "_shasum": "a63f848074498a4dfa7f293afda0835d501d9540",
+  "_resolved": "https://registry.npmjs.org/typescript/-/typescript-2.0.3.tgz",
+  "_shasum": "33dec9eae86b8eee327dd419ca050c853cabd514",
   "_shrinkwrap": null,
-  "_spec": "typescript@2.0.2",
-  "_where": "P:\\tmp\\ts-2.0.2",
+  "_spec": "typescript",
+  "_where": "P:\\tmp",
   "author": {
     "name": "Microsoft Corp."
   },
@@ -110,18 +110,18 @@
     "through2": "latest",
     "travis-fold": "latest",
     "ts-node": "latest",
-    "tslint": "next",
-    "typescript": "next"
+    "tslint": "3.15.1",
+    "typescript": "2.0.*"
   },
   "directories": {},
   "dist": {
-    "shasum": "a63f848074498a4dfa7f293afda0835d501d9540",
-    "tarball": "https://registry.npmjs.org/typescript/-/typescript-2.0.2.tgz"
+    "shasum": "33dec9eae86b8eee327dd419ca050c853cabd514",
+    "tarball": "https://registry.npmjs.org/typescript/-/typescript-2.0.3.tgz"
   },
   "engines": {
     "node": ">=0.8.0"
   },
-  "gitHead": "d6dac6a6cb83164db329482357dbd2ed3a6f459b",
+  "gitHead": "4f65a2885e000c27e5f079171d440797d7307b97",
   "homepage": "http://typescriptlang.org/",
   "keywords": [
     "TypeScript",
@@ -159,5 +159,5 @@
     "test": "jake runtests-parallel"
   },
   "typings": "./lib/typescript.d.ts",
-  "version": "2.0.2"
+  "version": "2.0.3"
 }
