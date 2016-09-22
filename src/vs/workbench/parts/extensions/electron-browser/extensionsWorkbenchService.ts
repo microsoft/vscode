@@ -109,7 +109,7 @@ class Extension implements IExtension {
 			return this.local.changelogUrl;
 		}
 
-		return ''; // Hopefully we will change this once the gallery will support that.
+		return this.gallery && this.gallery.assets.changelog;
 	}
 
 	get iconUrl(): string {

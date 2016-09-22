@@ -111,6 +111,7 @@ export interface IGalleryExtensionProperties {
 export interface IGalleryExtensionAssets {
 	manifest: string;
 	readme: string;
+	changelog: string;
 	download: string;
 	icon: string;
 	iconFallback: string;
