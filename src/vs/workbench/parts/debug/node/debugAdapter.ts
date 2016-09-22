@@ -80,7 +80,7 @@ export class Adapter {
 		this.aiKey = rawAdapter.aiKey;
 	}
 
-	public getInitialConfigurations(): TPromise<string> {
+	public getInitialConfigurations(): TPromise<string | any[]> {
 		if (typeof this.initialConfigurations === 'string') {
 			// Contributed initialConfigurations is a command that needs to be invoked
 			// Debug adapter will dynamically provide the initial conifguraiton
