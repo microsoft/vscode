@@ -38,7 +38,7 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	// { name: 'vscodevim.vim', version: '0.2.0' }
+	{ name: 'ms-vscode.node-debug', version: '1.6.1' }
 ];
 
 const vscodeEntryPoints = _.flatten([
