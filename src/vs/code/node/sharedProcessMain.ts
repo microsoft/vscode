@@ -137,7 +137,7 @@ function setupIPC(hook: string): TPromise<Server> {
 					} catch (e) {
 						return TPromise.wrapError(new Error('Error deleting the shared ipc hook.'));
 					}
-
+					
 					return setup(false);
 				}
 			);
@@ -155,7 +155,8 @@ function handshake(): TPromise<ISharedProcessInitData> {
 	});
 }
 
-TPromise.join<any>([setupIPC(process.env['VSCODE_SHARED_IPC_HOOK']), handshake()])
-	.then(r => main(r[0], r[1]))
-	.then(() => setupPlanB(process.env['VSCODE_PID']))
-	.done(null, quit);
+setupIPC(process.env['VSCODE_SHARED_IPC_HOOK'])
+	.then(server => handshake()
+		.then(data => main(server, data))
+		.then(() => setupPlanB(process.env['VSCODE_PID']))
+		.done(null, quit));
