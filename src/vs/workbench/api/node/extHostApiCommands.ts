@@ -114,7 +114,7 @@ class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
-			description: 'Execute code lens provider.',
+			description: 'Execute CodeLens provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
 			],
