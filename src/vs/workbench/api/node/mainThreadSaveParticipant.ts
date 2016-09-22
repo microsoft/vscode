@@ -11,7 +11,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ISaveParticipant, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IPosition, IModel} from 'vs/editor/common/editorCommon';
+import {IPosition, IModel, ICommonCodeEditor, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
@@ -95,31 +95,65 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		const {tabSize, insertSpaces} = model.getOptions();
 
 		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }).then(edits => {
-			if (!edits) {
-				return;
-			}
-
-			if (!editor) {
-
-				model.applyEdits(edits.map(({text, range}) => ({
-					text,
-					range: Range.lift(range),
-					identifier: undefined,
-					forceMoveMarkers: true
-				})));
-
-			} else {
-				editor.executeCommand('format.document', new EditOperationsCommand(edits, editor.getSelection()));
+			if (edits) {
+				if (editor) {
+					this._editsWithEditor(editor, edits, env.isAutoSaved);
+				} else {
+					this._editWithModel(model, edits);
+				}
 			}
 		});
 	}
 
-	private _findEditor(model: IModel) {
-		for (const editor of this._editorService.listCodeEditors()) {
-			if (editor.getModel() === model) {
-				return editor;
+	private _editsWithEditor(editor: ICommonCodeEditor, edits: ISingleEditOperation[], isAutoSaved: boolean): void {
+
+		if (isAutoSaved && editor.isFocused()) {
+			// when we save an focus (active) editor we check if
+			// formatting edits intersect with any cursor. iff so
+			// we ignore this
+
+			let intersectsCursor = false;
+			outer: for (const selection of editor.getSelections()) {
+				for (const {range} of edits) {
+					if (Range.areIntersectingOrTouching(range, selection)) {
+						intersectsCursor = true;
+						break outer;
+					}
+				}
+			}
+			if (intersectsCursor) {
+				return;
 			}
 		}
+
+		editor.executeCommand('files.formatOnSave', new EditOperationsCommand(edits, editor.getSelection()));
+	}
+
+	private _editWithModel(model: IModel, edits: ISingleEditOperation[]): void {
+		model.applyEdits(edits.map(({text, range}) => ({
+			text,
+			range: Range.lift(range),
+			identifier: undefined,
+			forceMoveMarkers: true
+		})));
+	}
+
+	private _findEditor(model: IModel) {
+		if (!model.isAttachedToEditor()) {
+			return;
+		}
+
+		let candidate: ICommonCodeEditor;
+		for (const editor of this._editorService.listCodeEditors()) {
+			if (editor.getModel() === model) {
+				if (editor.isFocused()) {
+					return editor;
+				} else {
+					candidate = editor;
+				}
+			}
+		}
+		return candidate;
 	}
 }
 
