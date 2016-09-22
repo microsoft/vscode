@@ -6,6 +6,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {sequence} from 'vs/base/common/async';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ISaveParticipant, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
@@ -131,12 +132,11 @@ export class SaveParticipant implements ISaveParticipant {
 		TextFileEditorModel.setSaveParticipant(this);
 	}
 	participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
-		const promises: TPromise<any>[] = [];
-		for (const participant of this._saveParticipants) {
-			promises.push(TPromise.as(participant.participate(model, env)).then(undefined, err => {
-				console.error(err);
-			}));
-		}
-		return TPromise.join(promises);
+		const promiseFactory = this._saveParticipants.map(p => () => {
+			return TPromise.as(p.participate(model, env)).then(undefined, err => {
+				// console.error(err);
+			});
+		});
+		return sequence(promiseFactory);
 	}
 }
