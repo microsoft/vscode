@@ -15,7 +15,7 @@ import { mkdirp } from 'vs/base/node/pfs';
 import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager, WindowEventService } from 'vs/code/electron-main/windows';
 import { IWindowEventService } from 'vs/code/common/windows';
-import { WindowsChannel } from 'vs/code/common/windowsIpc';
+import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
@@ -74,6 +74,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
+	const windowEventChannel = new WindowEventChannel(windowEventService);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -136,7 +137,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 		sharedProcessDisposable = disposable;
 		const sharedProcessConnect = connect(environmentService.sharedIPCHandle, 'main');
 		sharedProcessConnect.done(client => {
-			client.registerChannel('windowEvent', new WindowsChannel(windowEventService));
+			client.registerChannel('windowEvent', windowEventChannel);
 		});
 	});
 

@@ -17,6 +17,7 @@ import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
 import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
@@ -64,6 +65,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IFileService private fileService: IFileService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextFileService private textFileService: ITextFileService
@@ -441,9 +443,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// A save participant can still change the model now and since we are so close to saving
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
+		// We DO NOT run any save participant if we are in the shutdown phase and files are being
+		// saved as a result of that.
 		let saveParticipantPromise = TPromise.as(versionId);
 
-		if (TextFileEditorModel.saveParticipant) {
+		if (TextFileEditorModel.saveParticipant && !this.lifecycleService.willShutdown) {
 			saveParticipantPromise = TPromise.as(undefined).then(() => {
 				this.blockModelContentChange = true;
 				return TextFileEditorModel.saveParticipant.participate(this, { isAutoSaved });

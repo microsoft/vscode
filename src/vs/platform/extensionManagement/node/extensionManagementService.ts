@@ -17,6 +17,7 @@ import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryMetadata,
 	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -59,6 +60,23 @@ function validate(zipPath: string, extension?: IExtensionIdentity, version?: str
 
 			return TPromise.as(manifest);
 		});
+}
+
+function readManifest(extensionPath: string): TPromise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
+	const promises = [
+		pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
+			.then(raw => parseManifest(raw)),
+		pfs.readFile(path.join(extensionPath, 'package.nls.json'), 'utf8')
+			.then<string>(null, err => err.code !== 'ENOENT' ? TPromise.wrapError(err) : '{}')
+			.then(raw => JSON.parse(raw))
+	];
+
+	return TPromise.join<any>(promises).then(([{ manifest, metadata }, translations]) => {
+		return {
+			manifest: localizeManifest(manifest, translations),
+			metadata
+		};
+	});
 }
 
 function getExtensionId(extension: IExtensionIdentity, version: string): string {
@@ -145,11 +163,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private installExtension(zipPath: string, id: string, metadata: IGalleryMetadata = null): TPromise<ILocalExtension> {
 		const extensionPath = path.join(this.extensionsPath, id);
-		const manifestPath = path.join(extensionPath, 'package.json');
 
 		return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
-			.then(() => pfs.readFile(manifestPath, 'utf8'))
-			.then(raw => parseManifest(raw))
+			.then(() => readManifest(extensionPath))
 			.then(({ manifest }) => {
 				return pfs.readdir(extensionPath).then(children => {
 					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
@@ -159,9 +175,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					const type = LocalExtensionType.User;
 
 					const local: ILocalExtension = { type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
-					const rawManifest = assign(manifest, { __metadata: metadata });
+					const manifestPath = path.join(extensionPath, 'package.json');
 
-					return pfs.writeFile(manifestPath, JSON.stringify(rawManifest, null, '\t'))
+					return pfs.readFile(manifestPath, 'utf8')
+						.then(raw => parseManifest(raw))
+						.then(({ manifest }) => assign(manifest, { __metadata: metadata }))
+						.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
 						.then(() => local);
 				});
 			});
@@ -230,8 +249,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 							const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
 
-							return pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
-								.then(raw => parseManifest(raw))
+							return readManifest(extensionPath)
 								.then<ILocalExtension>(({ manifest, metadata }) => ({ type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl }));
 						}).then(null, () => null);
 
