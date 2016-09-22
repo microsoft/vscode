@@ -30,8 +30,10 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetry
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ISharedProcessInitData } from './sharedProcess';
+import {IChoiceService} from 'vs/platform/message/common/message';
+import {ChoiceChannelClient} from 'vs/platform/message/common/messageIpc';
 import { WindowEventChannelClient } from 'vs/code/common/windowsIpc';
-import { IWindowEventService } from 'vs/code/common/windows';
+import { IWindowEventService, ActiveWindowManager } from 'vs/code/common/windows';
 
 function quit(err?: Error) {
 	if (err) {
@@ -70,6 +72,13 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 		}
 	}));
 	services.set(IWindowEventService, windowEventService);
+
+	const activeWindowManager = new ActiveWindowManager(windowEventService);
+	services.set(IChoiceService, new ChoiceChannelClient(server.getChannel('choice', {
+		routeCall: (command: any, arg: any) => {
+			return activeWindowManager.activeWindowId;
+		}
+	})));
 
 	const instantiationService = new InstantiationService(services);
 
@@ -146,7 +155,7 @@ function setupIPC(hook: string): TPromise<Server> {
 					} catch (e) {
 						return TPromise.wrapError(new Error('Error deleting the shared ipc hook.'));
 					}
-					
+
 					return setup(false);
 				}
 			);

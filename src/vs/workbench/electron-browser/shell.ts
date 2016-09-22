@@ -59,6 +59,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IMessageService, IChoiceService, Severity} from 'vs/platform/message/common/message';
+import {ChoiceChannel} from 'vs/platform/message/common/messageIpc';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -228,6 +229,9 @@ export class WorkbenchShell {
 
 		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${ this.windowService.getWindowId() }`);
 		sharedProcess.done(client => {
+
+			client.registerChannel('choice', new ChoiceChannel(this.messageService));
+
 			client.onClose(() => {
 				this.messageService.show(Severity.Error, {
 					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
