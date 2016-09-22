@@ -13,7 +13,7 @@ import Event, { buffer } from 'vs/base/common/event';
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onNewWindowOpen'): TPromise<number>;
 	call(command: 'event:onWindowFocus'): TPromise<number>;
-	call(command: string, arg: any): any;
+	call(command: string, arg?: any): any;
 }
 
 export class WindowsChannel implements IWindowsChannel {
@@ -26,7 +26,7 @@ export class WindowsChannel implements IWindowsChannel {
 		this.onWindowFocus = buffer(service.onWindowFocus, true);
 	}
 
-	call(command: string, args: any): any {
+	call(command: string, args?: any): any {
 		switch (command) {
 			case 'event:onNewWindowOpen':
 				return eventToCall(this.onNewWindowOpen);

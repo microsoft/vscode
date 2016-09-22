@@ -59,7 +59,7 @@ enum State {
 }
 
 export interface IChannel {
-	call(command: string, arg: any): TPromise<any>;
+	call(command: string, arg?: any): TPromise<any>;
 }
 
 export interface IChannelServer {
