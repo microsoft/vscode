@@ -81,6 +81,41 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 	});
 
+	test('event delivery, bad listener', () => {
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace);
+
+		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
+			throw new Error('💀');
+		});
+
+		return participant.$participateInSave(resource).then(values => {
+			sub.dispose();
+
+			const [first] = values;
+			assert.ok(first instanceof Error);
+			assert.ok((<Error>first).message);
+		});
+	});
+
+	test('event delivery, bad listener doesn\'t prevent more events', () => {
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace);
+
+		let sub1 = participant.onWillSaveTextDocumentEvent(function (e) {
+			throw new Error('💀');
+		});
+		let event: vscode.TextDocumentWillSaveEvent;
+		let sub2 = participant.onWillSaveTextDocumentEvent(function (e) {
+			event = e;
+		});
+
+		return participant.$participateInSave(resource).then(() => {
+			sub1.dispose();
+			sub2.dispose();
+
+			assert.ok(event);
+		});
+	});
+
 	test('event delivery, in subscriber order', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, workspace);
 
@@ -135,6 +170,22 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		return participant.$participateInSave(resource).then(() => {
 			sub.dispose();
+		});
+	});
+
+	test('event delivery, waitUntil will timeout', () => {
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, 5);
+
+		let sub = participant.onWillSaveTextDocumentEvent(function (event) {
+			event.waitUntil(TPromise.timeout(15));
+		});
+
+		return participant.$participateInSave(resource).then(values => {
+			sub.dispose();
+
+			const [first] = values;
+			assert.ok(first instanceof Error);
+			assert.ok((<Error>first).message);
 		});
 	});
 

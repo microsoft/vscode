@@ -7,7 +7,7 @@
 import Event from 'vs/base/common/event';
 import CallbackList from 'vs/base/common/callbackList';
 import URI from 'vs/base/common/uri';
-import {sequence} from 'vs/base/common/async';
+import {sequence, always} from 'vs/base/common/async';
 import {illegalState} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {MainThreadWorkspaceShape, ExtHostDocumentSaveParticipantShape} from 'vs/workbench/api/node/extHost.protocol';
@@ -21,12 +21,14 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 
 	private _documents: ExtHostDocuments;
 	private _workspace: MainThreadWorkspaceShape;
+	private _listenerTimeout: number;
 	private _callbacks = new CallbackList();
 
-	constructor(documents: ExtHostDocuments, workspace: MainThreadWorkspaceShape) {
+	constructor(documents: ExtHostDocuments, workspace: MainThreadWorkspaceShape, listenerTimeout: number = 1000) {
 		super();
 		this._documents = documents;
 		this._workspace = workspace;
+		this._listenerTimeout = listenerTimeout;
 	}
 
 	dispose(): void {
@@ -61,7 +63,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 
 		const {version} = document;
 
-		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent> {
+		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
 			document,
 			waitUntil(p: Thenable<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {
@@ -74,41 +76,49 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 		try {
 			// fire event
 			listener.apply(thisArg, [event]);
-		} finally {
-			// freeze promises after event call
-			Object.freeze(promises);
+		} catch (err) {
+			return TPromise.as(new Error(err));
+		}
 
-			return TPromise.join(promises).then(values => {
+		// freeze promises after event call
+		Object.freeze(promises);
 
-				const edits: IResourceEdit[] = [];
-				for (const value of values) {
-					if (Array.isArray(value) && (<vscode.TextEdit[]> value).every(e => e instanceof TextEdit)) {
-						for (const {newText, range} of value) {
-							edits.push({
-								resource: <URI>document.uri,
-								range: fromRange(range),
-								newText
-							});
-						}
+		return new TPromise<any[]>((resolve, reject) => {
+			// join on all listener promises, reject after timeout
+			const handle = setTimeout(() => reject(new Error('timeout')), this._listenerTimeout);
+			return always(TPromise.join(promises), () => clearTimeout(handle)).then(resolve, reject);
+
+		}).then(values => {
+
+			const edits: IResourceEdit[] = [];
+			for (const value of values) {
+				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
+					for (const {newText, range} of value) {
+						edits.push({
+							resource: <URI>document.uri,
+							range: fromRange(range),
+							newText
+						});
 					}
 				}
+			}
 
-				// apply edits iff any and iff document
-				// didn't change somehow in the meantime
-				if (edits.length === 0) {
-					return;
-				}
+			// apply edits iff any and iff document
+			// didn't change somehow in the meantime
+			if (edits.length === 0) {
+				return;
+			}
 
-				if (version === document.version) {
-					return this._workspace.$applyWorkspaceEdit(edits);
-				}
+			if (version === document.version) {
+				return this._workspace.$applyWorkspaceEdit(edits);
+			}
 
-				// TODO@joh bubble this to listener?
-				return new Error('ignoring change because of concurrent edits');
+			// TODO@joh bubble this to listener?
+			return new Error('ignoring change because of concurrent edits');
 
-			}, err => {
-				// ignore error
-			});
-		}
+		}, err => {
+			// soft ignore, turning into result
+			return err;
+		});
 	}
 }
