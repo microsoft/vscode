@@ -12,9 +12,11 @@ import {IThreadService} from 'vs/workbench/services/thread/common/threadService'
 import {ISaveParticipant, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IPosition, IModel} from 'vs/editor/common/editorCommon';
+import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import {formatDocument} from 'vs/editor/contrib/format/common/format';
+import {getDocumentRangeFormattingEdits} from 'vs/editor/contrib/format/common/format';
+import {EditOperationsCommand} from 'vs/editor/contrib/format/common/formatCommand';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ExtHostContext, ExtHostDocumentSaveParticipantShape} from './extHost.protocol';
@@ -83,11 +85,33 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 	}
 
 	participate(editorModel: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
-		if (this._configurationService.lookup('files.formatOnSave').value) {
-			const model: IModel = editorModel.textEditorModel;
-			const editor = this._findEditor(model);
-			return formatDocument(model, editor);
+
+		if (!this._configurationService.lookup('files.formatOnSave').value) {
+			return;
 		}
+
+		const model: IModel = editorModel.textEditorModel;
+		const editor = this._findEditor(model);
+		const {tabSize, insertSpaces} = model.getOptions();
+
+		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }).then(edits => {
+			if (!edits) {
+				return;
+			}
+
+			if (!editor) {
+
+				model.applyEdits(edits.map(({text, range}) => ({
+					text,
+					range: Range.lift(range),
+					identifier: undefined,
+					forceMoveMarkers: true
+				})));
+
+			} else {
+				editor.executeCommand('format.document', new EditOperationsCommand(edits, editor.getSelection()));
+			}
+		});
 	}
 
 	private _findEditor(model: IModel) {
