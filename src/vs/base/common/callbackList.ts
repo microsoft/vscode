@@ -72,6 +72,13 @@ export default class CallbackList {
 		return !this._callbacks || this._callbacks.length === 0;
 	}
 
+	public entries(): [Function, any][] {
+		if (!this._callbacks) {
+			return [];
+		}
+		return this._callbacks.map((fn, index) => <[Function, any]>[fn, this._contexts[index]]);
+	}
+
 	public dispose(): void {
 		this._callbacks = undefined;
 		this._contexts = undefined;
