@@ -487,6 +487,14 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		return resource ? resource.toString() : element.editorInput.getName();
 	}
 
+	public getDragLabel(tree: ITree, elements: OpenEditor[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		return elements[0].editorInput.getName();
+	}
+
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: OpenEditor | EditorGroup, originalEvent: DragMouseEvent): IDragOverReaction {
 		if (!(target instanceof OpenEditor) && !(target instanceof EditorGroup)) {
 			return DRAG_OVER_REJECT;
