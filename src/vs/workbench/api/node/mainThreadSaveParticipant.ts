@@ -6,8 +6,9 @@
 'use strict';
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
+import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ISaveParticipant, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IPosition, IModel} from 'vs/editor/common/editorCommon';
@@ -15,28 +16,24 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {ExtHostContext, ExtHostDocumentSaveParticipantShape} from './extHost.protocol';
 
-// The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
-export class SaveParticipant implements ISaveParticipant, IWorkbenchContribution {
-	private trimTrailingWhitespace: boolean;
-	private toUnbind: IDisposable[];
+// TODO@joh move this to the extension host
+class TrimWhitespaceParticipant {
+
+	private trimTrailingWhitespace: boolean = false;
+	private toUnbind: IDisposable[] = [];
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService
 	) {
-		this.toUnbind = [];
-		this.trimTrailingWhitespace = false;
-
 		this.registerListeners();
 		this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>());
-
-		// Hook into model
-		TextFileEditorModel.setSaveParticipant(this);
 	}
 
-	public getId(): string {
-		return 'vs.files.saveparticipant';
+	public dispose(): void {
+		this.toUnbind = dispose(this.toUnbind);
 	}
 
 	private registerListeners(): void {
@@ -47,7 +44,7 @@ export class SaveParticipant implements ISaveParticipant, IWorkbenchContribution
 		this.trimTrailingWhitespace = configuration && configuration.files && configuration.files.trimTrailingWhitespace;
 	}
 
-	public participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): void {
+	public participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): any {
 		if (this.trimTrailingWhitespace) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.isAutoSaved);
 		}
@@ -90,8 +87,36 @@ export class SaveParticipant implements ISaveParticipant, IWorkbenchContribution
 
 		model.pushEditOperations(prevSelection, ops, (edits) => prevSelection);
 	}
+}
 
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
+// The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
+export class SaveParticipant implements ISaveParticipant {
+
+	private _mainThreadSaveParticipant: TrimWhitespaceParticipant;
+	private _extHostSaveParticipant: ExtHostDocumentSaveParticipantShape;
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IThreadService threadService: IThreadService
+	) {
+		this._mainThreadSaveParticipant = new TrimWhitespaceParticipant(configurationService, codeEditorService);
+		this._extHostSaveParticipant = threadService.get(ExtHostContext.ExtHostDocumentSaveParticipant);
+
+		// Hook into model
+		TextFileEditorModel.setSaveParticipant(this);
+	}
+
+	dispose() {
+		this._mainThreadSaveParticipant.dispose();
+	}
+
+	participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
+		try {
+			this._mainThreadSaveParticipant.participate(model, env);
+		} catch (err) {
+			// ignore
+		}
+		return this._extHostSaveParticipant.$participateInSave(model.getResource());
 	}
 }

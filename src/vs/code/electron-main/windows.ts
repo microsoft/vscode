@@ -22,7 +22,9 @@ import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
+import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import CommonEvent, { Emitter } from 'vs/base/common/event';
 
 const EventTypes = {
 	OPEN: 'open',
@@ -90,6 +92,8 @@ export interface IWindowsService {
 	onOpen(clb: (path: IPath) => void): () => void;
 	onReady(clb: (win: VSCodeWindow) => void): () => void;
 	onClose(clb: (id: number) => void): () => void;
+	onNewWindowOpen: CommonEvent<number>;
+	onWindowFocus: CommonEvent<number>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
@@ -115,6 +119,21 @@ export interface IWindowsService {
 	clearRecentPathsList(): void;
 }
 
+export class WindowEventService implements IWindowEventService {
+
+	_serviceBrand: any;
+
+	constructor(@IWindowsService private windowsService: IWindowsService) { }
+
+	public get onWindowFocus(): CommonEvent<number> {
+		return this.windowsService.onWindowFocus;
+	}
+
+	public get onNewWindowOpen(): CommonEvent<number> {
+		return this.windowsService.onNewWindowOpen;
+	}
+}
+
 export class WindowsManager implements IWindowsService {
 
 	_serviceBrand: any;
@@ -130,6 +149,12 @@ export class WindowsManager implements IWindowsService {
 	private eventEmitter = new EventEmitter();
 	private initialUserEnv: IProcessEnvironment;
 	private windowsState: IWindowsState;
+
+	private _onFocus = new Emitter<number>();
+	onWindowFocus: CommonEvent<number> = this._onFocus.event;
+
+	private _onNewWindow = new Emitter<number>();
+	onNewWindowOpen: CommonEvent<number> = this._onNewWindow.event;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -938,7 +963,9 @@ export class WindowsManager implements IWindowsService {
 			vscodeWindow.win.on('unresponsive', () => this.onWindowError(vscodeWindow, WindowError.UNRESPONSIVE));
 			vscodeWindow.win.on('close', () => this.onBeforeWindowClose(vscodeWindow));
 			vscodeWindow.win.on('closed', () => this.onWindowClosed(vscodeWindow));
+			vscodeWindow.win.on('focus', () => this._onFocus.fire(vscodeWindow.id));
 
+			this._onNewWindow.fire(vscodeWindow.id);
 			// Lifecycle
 			this.lifecycleService.registerWindow(vscodeWindow);
 		}

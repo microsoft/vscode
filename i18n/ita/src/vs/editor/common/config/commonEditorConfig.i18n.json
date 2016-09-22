@@ -14,7 +14,7 @@
 	"folding": "Controlla se per l'editor è abilitata la riduzione del codice",
 	"fontFamily": "Controlla la famiglia di caratteri.",
 	"fontLigatures": "Abilita i caratteri legatura",
-	"fontSize": "Controlla le dimensioni del carattere.",
+	"fontSize": "Controlla le dimensioni del carattere in pixel.",
 	"fontWeight": "Controlla lo spessore del carattere.",
 	"formatOnType": "Controlla se l'editor deve formattare automaticamente la riga dopo la digitazione",
 	"glyphMargin": "Controlla la visibilità del margine del glifo",
@@ -32,6 +32,7 @@
 	"quickSuggestionsDelay": "Controlla il ritardo in ms dopo il quale verranno visualizzati i suggerimenti rapidi",
 	"renderControlCharacters": "Controlla se l'editor deve eseguire il rendering dei caratteri di controllo",
 	"renderIndentGuides": "Controlla se l'editor deve eseguire il rendering delle guide con rientro",
+	"renderLineHighlight": "Controlla se l'editor deve eseguire il rendering dell'evidenziazione riga corrente",
 	"renderWhitespace": "Controlla se l'editor deve eseguire il rendering dei spazi vuoti",
 	"roundedSelection": "Controlla se gli angoli delle selezioni sono arrotondati",
 	"rulers": "Colonne in corrispondenza delle quali visualizzare i righelli verticali",
@@ -49,6 +50,7 @@
 	"useTabStops": "Inserimento ed eliminazione dello spazio vuoto dopo le tabulazioni",
 	"wordBasedSuggestions": "Abilita i suggerimenti basati su parole.",
 	"wordSeparators": "Caratteri che verranno usati come separatori di parola quando si eseguono operazioni o spostamenti correlati a parole",
+	"wordWrap": "Controlla se le righe devono andare a capo. Le righe andranno a capo alla posizione definita da min(editor.wrappingColumn, viewportWidthInColumns).",
 	"wrappingColumn": "Controlla il numero di caratteri dopo i quali l'editor attiverà l'a capo automatico alla riga successiva. Se è impostato su 0, verrà attivato l'a capo automatico in base alla larghezza del viewport (ritorno a capo automatico). Se è impostato su -1, forzerà l'editor a non eseguire mai il wrapping.",
 	"wrappingIndent": "Controlla il rientro delle righe con ritorno a capo. Può essere uno dei valori seguenti: 'none', 'same' o 'indent'."
 }

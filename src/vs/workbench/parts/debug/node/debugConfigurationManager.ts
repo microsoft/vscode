@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import path = require('path');
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
@@ -22,12 +21,12 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 // debuggers extension point
@@ -82,7 +81,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 			},
 			initialConfigurations: {
 				description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
-				type: 'array',
+				type: ['array', 'string'],
 			},
 			configurationAttributes: {
 				description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
@@ -180,9 +179,9 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this._onDidConfigurationChange = new Emitter<debug.IConfig>();
 		this.setConfiguration(configName);
@@ -196,18 +195,18 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 			extensions.forEach(extension => {
 				extension.value.forEach(rawAdapter => {
-					const adapter = new Adapter(rawAdapter, extension.description, this.configurationResolverService);
+					const adapter = this.instantiationService.createInstance(Adapter, rawAdapter, extension.description);
 					const duplicate = this.adapters.filter(a => a.type === adapter.type)[0];
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
 						extension.collector.error(nls.localize('debugNoType', "Debug adapter 'type' can not be omitted and must be of type 'string'."));
 					}
 
 					if (duplicate) {
-						Object.keys(adapter).forEach(attribute => {
-							if (adapter[attribute]) {
+						Object.keys(rawAdapter).forEach(attribute => {
+							if (rawAdapter[attribute]) {
 								if (attribute === 'enableBreakpointsFor' && duplicate[attribute]) {
 									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
-								} else if (duplicate[attribute] && attribute !== 'type' && attribute !== 'extensionDescription') {
+								} else if (duplicate[attribute] && attribute !== 'type' && attribute !== 'label') {
 									// give priority to the later registered extension.
 									duplicate[attribute] = adapter[attribute];
 									extension.collector.error(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
@@ -345,47 +344,15 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				return null;
 			}
 
-			return this.massageInitialConfigurations(adapter).then(() => {
+			return adapter.getInitialConfigurations().then(configurations => {
 				let editorConfig = this.configurationService.getConfiguration<any>();
 				return JSON.stringify(
 					{
 						version: '0.2.0',
-						configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
+						configurations: configurations || []
 					},
 					null,
 					editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
-			});
-		});
-	}
-
-	private massageInitialConfigurations(adapter: Adapter): TPromise<void> {
-		if (!adapter || !adapter.initialConfigurations || adapter.type !== 'node') {
-			return TPromise.as(undefined);
-		}
-
-		// check package.json for 'main' or 'scripts' so we generate a more pecise 'program' attribute in launch.json.
-		const packageJsonUri = uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '/package.json'));
-		return this.fileService.resolveContent(packageJsonUri).then(jsonContent => {
-			try {
-				const jsonObject = JSON.parse(jsonContent.value);
-				if (jsonObject.main) {
-					return jsonObject.main;
-				} else if (jsonObject.scripts && typeof jsonObject.scripts.start === 'string') {
-					return (<string>jsonObject.scripts.start).split(' ').pop();
-				}
-
-			} catch (error) { }
-
-			return null;
-		}, err => null).then((program: string) => {
-			adapter.initialConfigurations.forEach(config => {
-				if (program && config.program) {
-					if (!path.isAbsolute(program)) {
-						program = paths.join('${workspaceRoot}', program);
-					}
-
-					config.program = program;
-				}
 			});
 		});
 	}

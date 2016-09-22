@@ -19,5 +19,6 @@
 	"showRecommendedExtensions": "お勧めの拡張機能を表示",
 	"toggleExtensionsViewlet": "拡張機能を表示する",
 	"uninstall": "アンインストール",
-	"updateAction": "更新"
+	"updateAction": "更新",
+	"updateAll": "すべての拡張機能を更新します"
 }

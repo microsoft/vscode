@@ -17,6 +17,7 @@
 	"debugAddToWatch": "디버그: 조사식에 추가",
 	"debugConsoleAction": "디버그 콘솔",
 	"debugEvaluate": "디버그: 평가",
+	"debugFocusConsole": "포커스 디버그 콘솔",
 	"disableAllBreakpoints": "모든 중단점 해제",
 	"disconnectDebug": "연결 끊기",
 	"editConditionalBreakpoint": "중단점 편집",

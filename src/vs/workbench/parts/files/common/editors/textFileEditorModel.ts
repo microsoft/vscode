@@ -441,66 +441,82 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// A save participant can still change the model now and since we are so close to saving
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
+		let saveParticipantPromise = TPromise.as(versionId);
+
 		if (TextFileEditorModel.saveParticipant) {
-			this.blockModelContentChange = true;
-			try {
-				TextFileEditorModel.saveParticipant.participate(this, { isAutoSaved });
-			} finally {
+			saveParticipantPromise = TPromise.as(undefined).then(() => {
+				this.blockModelContentChange = true;
+				return TextFileEditorModel.saveParticipant.participate(this, { isAutoSaved });
+			}).then(() => {
 				this.blockModelContentChange = false;
-			}
-			versionId = this.versionId;
+				return this.versionId;
+				}, err => {
+				// ignore error and proceed as if nothing has happend
+				this.blockModelContentChange = false;
+				return this.versionId;
+			});
 		}
 
-		// Clear error flag since we are trying to save again
-		this.inErrorMode = false;
+		this.mapPendingSaveToVersionId[versionId] = saveParticipantPromise.then(newVersionId => {
 
-		// Remember when this model was saved last
-		this.lastSaveAttemptTime = Date.now();
-
-		// Save to Disk
-		diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
-		this.mapPendingSaveToVersionId[versionId] = this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
-			overwriteReadonly: overwriteReadonly,
-			overwriteEncoding: overwriteEncoding,
-			mtime: this.versionOnDiskStat.mtime,
-			encoding: this.getEncoding(),
-			etag: this.versionOnDiskStat.etag
-		}).then((stat: IFileStat) => {
-			diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
-
-			// Remove from pending saves
+			// remove save participant promise and update versionId with
+			// its new value (if pre-save changes happened)
 			delete this.mapPendingSaveToVersionId[versionId];
+			versionId = newVersionId;
 
-			// Telemetry
-			this.telemetryService.publicLog('filePUT', { mimeType: stat.mime, ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
+			// Clear error flag since we are trying to save again
+			this.inErrorMode = false;
 
-			// Update dirty state unless model has changed meanwhile
-			if (versionId === this.versionId) {
-				diag(`doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource, new Date());
-				this.setDirty(false);
-			} else {
-				diag(`doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource, new Date());
-			}
+			// Remember when this model was saved last
+			this.lastSaveAttemptTime = Date.now();
 
-			// Updated resolved stat with updated stat, and keep old for event
-			this.updateVersionOnDiskStat(stat);
+			// Save to Disk
+			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
+			this.mapPendingSaveToVersionId[versionId] = this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
+				overwriteReadonly: overwriteReadonly,
+				overwriteEncoding: overwriteEncoding,
+				mtime: this.versionOnDiskStat.mtime,
+				encoding: this.getEncoding(),
+				etag: this.versionOnDiskStat.etag
+			}).then((stat: IFileStat) => {
+				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 
-			// Emit File Saved Event
-			this._onDidStateChange.fire(StateChange.SAVED);
-		}, (error) => {
-			diag(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource, new Date());
+				// Remove from pending saves
+				delete this.mapPendingSaveToVersionId[versionId];
 
-			// Remove from pending saves
-			delete this.mapPendingSaveToVersionId[versionId];
+				// Telemetry
+				this.telemetryService.publicLog('filePUT', { mimeType: stat.mime, ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
 
-			// Flag as error state
-			this.inErrorMode = true;
+				// Update dirty state unless model has changed meanwhile
+				if (versionId === this.versionId) {
+					diag(`doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource, new Date());
+					this.setDirty(false);
+				} else {
+					diag(`doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource, new Date());
+				}
 
-			// Show to user
-			this.onSaveError(error);
+				// Updated resolved stat with updated stat, and keep old for event
+				this.updateVersionOnDiskStat(stat);
 
-			// Emit as event
-			this._onDidStateChange.fire(StateChange.SAVE_ERROR);
+				// Emit File Saved Event
+				this._onDidStateChange.fire(StateChange.SAVED);
+			}, (error) => {
+				diag(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource, new Date());
+
+				// Remove from pending saves
+				delete this.mapPendingSaveToVersionId[versionId];
+
+				// Flag as error state
+				this.inErrorMode = true;
+
+				// Show to user
+				this.onSaveError(error);
+
+				// Emit as event
+				this._onDidStateChange.fire(StateChange.SAVE_ERROR);
+			});
+
+			return this.mapPendingSaveToVersionId[versionId];
 		});
 
 		return this.mapPendingSaveToVersionId[versionId];

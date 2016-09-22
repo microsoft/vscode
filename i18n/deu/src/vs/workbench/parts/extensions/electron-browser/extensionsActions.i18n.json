@@ -19,5 +19,6 @@
 	"showRecommendedExtensions": "Empfohlene Extensions anzeigen",
 	"toggleExtensionsViewlet": "Extensions anzeigen",
 	"uninstall": "Deinstallieren",
-	"updateAction": "Aktualisieren"
+	"updateAction": "Aktualisieren",
+	"updateAll": "Alle Extensions aktualisieren"
 }
