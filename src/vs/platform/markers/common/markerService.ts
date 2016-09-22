@@ -97,6 +97,9 @@ export class MarkerService implements IMarkerService {
 			// remove marker for this (owner,resource)-tuple
 			const a = MapMap.remove(this._byResource, resource.toString(), owner);
 			const b = MapMap.remove(this._byOwner, owner, resource.toString());
+			if (a !== b) {
+				throw new Error('invalid marker service state');
+			}
 			if (a && b) {
 				this._onMarkerChanged.fire([resource]);
 			}
