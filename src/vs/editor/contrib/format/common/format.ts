@@ -9,12 +9,13 @@ import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {IReadOnlyModel, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, ISingleEditOperation, IModel, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {Position} from 'vs/editor/common/core/position';
+import {EditOperationsCommand} from './formatCommand';
 
 export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
@@ -85,3 +86,28 @@ CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvide
 	}
 	return getOnTypeFormattingEdits(model, position, ch, options);
 });
+
+
+export function formatDocument(model: IModel, editor: ICommonCodeEditor) {
+
+	const {tabSize, insertSpaces} = model.getOptions();
+
+	return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }).then(edits => {
+		if (!edits) {
+			return;
+		}
+
+		if (!editor) {
+
+			model.applyEdits(edits.map(({text, range}) => ({
+				text,
+				range: Range.lift(range),
+				identifier: undefined,
+				forceMoveMarkers: true
+			})));
+
+		} else {
+			editor.executeCommand('format.document', new EditOperationsCommand(edits, editor.getSelection()));
+		}
+	});
+};

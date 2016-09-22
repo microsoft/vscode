@@ -5,47 +5,30 @@
 
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ISaveParticipant, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IPosition, IModel} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import {formatDocument} from 'vs/editor/contrib/format/common/format';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ExtHostContext, ExtHostDocumentSaveParticipantShape} from './extHost.protocol';
 
-// TODO@joh move this to the extension host
-class TrimWhitespaceParticipant {
-
-	private trimTrailingWhitespace: boolean = false;
-	private toUnbind: IDisposable[] = [];
+class TrimWhitespaceParticipant implements ISaveParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService
 	) {
-		this.registerListeners();
-		this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>());
-	}
-
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
-	}
-
-	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
-	}
-
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		this.trimTrailingWhitespace = configuration && configuration.files && configuration.files.trimTrailingWhitespace;
+		// Nothing
 	}
 
 	public participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): any {
-		if (this.trimTrailingWhitespace) {
+		if (this.configurationService.lookup('files.trimTrailingWhitespace').value) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.isAutoSaved);
 		}
 	}
@@ -89,34 +72,71 @@ class TrimWhitespaceParticipant {
 	}
 }
 
+class FormatOnSaveParticipant implements ISaveParticipant {
+
+	constructor(
+		@ICodeEditorService private _editorService: ICodeEditorService,
+		@IConfigurationService private _configurationService: IConfigurationService
+	) {
+		// Nothing
+	}
+
+	participate(editorModel: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
+		if (true || this._configurationService.lookup('files.formatOnSave').value) {
+			const model: IModel = editorModel.textEditorModel;
+			const editor = this._findEditor(model);
+			return formatDocument(model, editor);
+		}
+	}
+
+	private _findEditor(model: IModel) {
+		for (const editor of this._editorService.listCodeEditors()) {
+			if (editor.getModel() === model) {
+				return editor;
+			}
+		}
+	}
+}
+
+class ExtHostSaveParticipant implements ISaveParticipant {
+
+	private _proxy: ExtHostDocumentSaveParticipantShape;
+
+	constructor( @IThreadService threadService: IThreadService) {
+		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentSaveParticipant);
+	}
+
+	participate(editorModel: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
+		return this._proxy.$participateInSave(editorModel.getResource());
+	}
+}
+
 // The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
 export class SaveParticipant implements ISaveParticipant {
 
-	private _mainThreadSaveParticipant: TrimWhitespaceParticipant;
-	private _extHostSaveParticipant: ExtHostDocumentSaveParticipantShape;
+	private _saveParticipants: ISaveParticipant[];
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
-		this._mainThreadSaveParticipant = new TrimWhitespaceParticipant(configurationService, codeEditorService);
-		this._extHostSaveParticipant = threadService.get(ExtHostContext.ExtHostDocumentSaveParticipant);
+
+		this._saveParticipants = [
+			instantiationService.createInstance(TrimWhitespaceParticipant),
+			instantiationService.createInstance(FormatOnSaveParticipant),
+			instantiationService.createInstance(ExtHostSaveParticipant)
+		];
 
 		// Hook into model
 		TextFileEditorModel.setSaveParticipant(this);
 	}
-
-	dispose() {
-		this._mainThreadSaveParticipant.dispose();
-	}
-
 	participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
-		try {
-			this._mainThreadSaveParticipant.participate(model, env);
-		} catch (err) {
-			// ignore
+		const promises: TPromise<any>[] = [];
+		for (const participant of this._saveParticipants) {
+			promises.push(TPromise.as(participant.participate(model, env)).then(undefined, err => {
+				console.error(err);
+			}));
 		}
-		return this._extHostSaveParticipant.$participateInSave(model.getResource());
+		return TPromise.join(promises);
 	}
 }
