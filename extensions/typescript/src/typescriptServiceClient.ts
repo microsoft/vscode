@@ -294,7 +294,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let versionCheckPromise: Thenable<string> = Promise.resolve(modulePath);
 		const doLocalVersionCheckKey: string = 'doLocalVersionCheck';
 
-		if (!this.tsdk && workspace.rootPath && this.globalState.get(doLocalVersionCheckKey, true)) {
+		if (!this.tsdk && workspace.rootPath) {
 			let localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
 			if (fs.existsSync(localModulePath)) {
 				let localVersion = this.getTypeScriptVersion(localModulePath);
@@ -307,7 +307,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							'The workspace folder contains TypeScript version {0}. Do you want to use this version instead of the bundled version {1}?',
 							localVersion, shippedVersion
 						),
-						...[{
+						{
 							title: localize('use', 'Use {0}', localVersion),
 							id: MessageAction.useLocal
 						},
@@ -323,7 +323,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							title: localize('doNotCheckAgain', 'Don\'t Check Again'),
 							id: MessageAction.doNotCheckAgain,
 							isCloseAffordance: true
-						}].reverse()
+						}
 					).then((selected) => {
 						if (!selected) {
 							return modulePath;
@@ -346,6 +346,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						}
 					});
 				}
+			} else {
+				this.informAboutTS20();
 			}
 		}
 		versionCheckPromise.then((modulePath) => {
@@ -383,9 +385,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				} catch (error) {
 				}
 				if (tscVersion && tscVersion !== version) {
-					window.showInformationMessage(
+					window.showInformationMessage<MyMessageItem>(
 						localize('versionMismatch', 'A version mismatch between the globally installed tsc compiler ({0}) and VS Code\'s language service ({1}) has been detected. This might result in inconsistent compile errors.', tscVersion, version),
-						...[{
+						{
 							title: localize('moreInformation', 'More Information'),
 							id: 1
 						},
@@ -393,7 +395,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							title: localize('doNotCheckAgain', 'Don\'t Check Again'),
 							id: 2,
 							isCloseAffordance: true
-						}].reverse()
+						}
 					).then((selected) => {
 						if (!selected) {
 							return;
@@ -413,8 +415,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 				try {
 					let options: electron.IForkOptions = {
-						execArgv: [] // [`--debug-brk=5859`]
+						execArgv: [`--debug-brk=5859`]
 					};
+					if (workspace.rootPath) {
+						options.cwd = fs.realpathSync(workspace.rootPath);
+					}
 					let value = process.env.TSS_DEBUG;
 					if (value) {
 						let port = parseInt(value);
@@ -453,6 +458,27 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			});
 			this.serviceStarted(resendModels);
 		});
+	}
+
+	private informAboutTS20(): void {
+		const informAboutTS20: string = 'informAboutTS20';
+		if (!this.globalState.get(informAboutTS20, false)) {
+			window.showInformationMessage(
+				localize(
+					'tsversion20',
+					'VS Code version 1.6 ships with TypeScript version 2.0.x. If you have to use a previous version of typescript set the \'typescript.tsdk\' option.'
+				),
+				{
+					title: localize('moreInformation', 'More Information'),
+					id: 1
+				}
+			).then((selected) => {
+				this.globalState.update(informAboutTS20, true);
+				if (selected && selected.id === 1) {
+					openUrl('https://go.microsoft.com/fwlink/?LinkID=533483#vscode');
+				}
+			});
+		}
 	}
 
 	private serviceStarted(resendModels: boolean): void {
@@ -526,7 +552,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		let result = resource.fsPath;
 		// Both \ and / must be escaped in regular expressions
-		return result ? result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/') : null;
+		return result ? fs.realpathSync(result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/')) : null;
 	}
 
 	public asUrl(filepath: string): Uri {
