@@ -30,7 +30,7 @@ export class ActiveWindowManager implements IDisposable {
 		this._activeWindowId = windowId;
 	}
 
-	public get activeWindowId(): string {
+	public get activeClientId(): string {
 		return `window:${ this._activeWindowId }`;
 	}
 
