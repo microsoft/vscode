@@ -453,24 +453,20 @@ export class FileService implements IFileService {
 	}
 
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
-		// TODO: Implement properly
-		const backupName = paths.basename(resource.fsPath);
-		const backupPath = paths.join(this.environmentService.userDataPath, 'File Backups', FileService.SESSION_BACKUP_ID, backupName);
-		const backupResource = uri.file(backupPath);
-
+		if (resource.scheme === 'file') {
+			// TODO: Persist hash -> file map on disk (json file?)
+		}
+		const backupResource = this.getBackupPath(resource);
 		console.log(`Backing up to ${backupResource.fsPath}`);
 		return this.updateContent(backupResource, content);
 	}
 
 	public discardBackup(resource: uri): TPromise<void> {
-		const backupName = paths.basename(resource.fsPath);
-		const backupPath = paths.join(this.environmentService.userDataPath, 'File Backups', FileService.SESSION_BACKUP_ID, backupName);
-		const backupResource = uri.file(backupPath);
-		return this.del(backupResource);
+		return this.del(this.getBackupPath(resource));
 	}
 
 	public discardBackups(): TPromise<void> {
-		return this.del(uri.file(paths.join(this.environmentService.userDataPath, 'File Backups', FileService.SESSION_BACKUP_ID)));
+		return this.del(uri.file(this.getBackupRoot()));
 	}
 
 	public isHotExitEnabled(): boolean {
@@ -478,6 +474,16 @@ export class FileService implements IFileService {
 	}
 
 	// Helpers
+
+	private getBackupPath(resource: uri): uri {
+		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
+		const backupPath = paths.join(this.getBackupRoot(), resource.scheme, backupName);
+		return uri.file(backupPath);
+	}
+
+	private getBackupRoot(): string {
+		return paths.join(this.environmentService.userDataPath, 'Backups', FileService.SESSION_BACKUP_ID);
+	}
 
 	private toAbsolutePath(arg1: uri | IFileStat): string {
 		let resource: uri;
