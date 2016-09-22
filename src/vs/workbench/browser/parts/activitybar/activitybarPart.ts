@@ -15,10 +15,13 @@ import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/act
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {Registry} from 'vs/platform/platform';
 import {IViewlet} from 'vs/workbench/common/viewlet';
-import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
+import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, Viewlet} from 'vs/workbench/browser/viewlet';
+import {CompositeDescriptor, Composite} from 'vs/workbench/browser/composite';
+import {Panel} from 'vs/workbench/browser/panel';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IActivityService, IBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -162,45 +165,69 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 }
 
-class ViewletActivityAction extends ActivityAction {
+abstract class CompositeActivityAction<T extends Composite> extends ActivityAction {
 	private static preventDoubleClickDelay = 300;
 	private lastRun: number = 0;
 
-	private viewlet: ViewletDescriptor;
+	protected composite: CompositeDescriptor<T>;
 
 	constructor(
-		id: string, viewlet: ViewletDescriptor,
-		@IViewletService private viewletService: IViewletService,
-		@IPartService private partService: IPartService
+		id: string, composite: CompositeDescriptor<T>,
+		@IViewletService protected viewletService: IViewletService,
+		@IPanelService protected panelService: IPanelService,
+		@IPartService protected partService: IPartService
 	) {
-		super(id, viewlet.name, viewlet.cssClass);
+		super(id, composite.name, composite.cssClass);
 
-		this.viewlet = viewlet;
+		this.composite = composite;
 	}
 
 	public run(): TPromise<any> {
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		let now = Date.now();
-		if (now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
+		if (now - this.lastRun < CompositeActivityAction.preventDoubleClickDelay) {
 			return TPromise.as(true);
 		}
 		this.lastRun = now;
 
-		let sideBarHidden = this.partService.isSideBarHidden();
-		let activeViewlet = this.viewletService.getActiveViewlet();
-
-		// Hide sidebar if selected viewlet already visible
-		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
-			this.partService.setSideBarHidden(true);
-		}
-
-		// Open viewlet and focus it
-		else {
-			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
-			this.activate();
-		}
+		this.toggleComposite();
 
 		return TPromise.as(true);
+	}
+
+	protected abstract toggleComposite(): void;
+}
+
+class ViewletActivityAction extends CompositeActivityAction<Viewlet> {
+
+	protected toggleComposite(): void {
+		const sideBarHidden = this.partService.isSideBarHidden();
+		const activeViewlet = this.viewletService.getActiveViewlet();
+
+		// Hide sidebar if selected viewlet already visible
+		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.composite.id) {
+			this.partService.setSideBarHidden(true);
+		} else {
+			this.viewletService.openViewlet(this.composite.id, true).done(null, errors.onUnexpectedError);
+			this.activate();
+		}
+	}
+}
+
+class PanelActivityAction extends CompositeActivityAction<Panel> {
+
+	protected toggleComposite(): void {
+
+		const panelHidden = this.partService.isPanelHidden();
+		const activePanel = this.panelService.getActivePanel();
+
+		// Hide panel if selected panel already visible
+		if (!panelHidden && activePanel && activePanel.getId() === this.composite.id) {
+			this.partService.setPanelHidden(true);
+		} else {
+			this.panelService.openPanel(this.composite.id, true).done(null, errors.onUnexpectedError);
+			this.activate();
+		}
 	}
 }
