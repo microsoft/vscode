@@ -75,9 +75,7 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 	const activeWindowManager = new ActiveWindowManager(windowEventService);
 	services.set(IChoiceService, new ChoiceChannelClient(server.getChannel('choice', {
-		routeCall: (command: any, arg: any) => {
-			return activeWindowManager.activeWindowId;
-		}
+		routeCall: () => activeWindowManager.activeClientId
 	})));
 
 	const instantiationService = new InstantiationService(services);

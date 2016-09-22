@@ -7,16 +7,16 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowEventService } from './windows';
+import { IWindowEventService } from 'vs/code/common/windows';
 import Event, { buffer } from 'vs/base/common/event';
 
-export interface IWindowsChannel extends IChannel {
+export interface IWindowEventChannel extends IChannel {
 	call(command: 'event:onNewWindowOpen'): TPromise<number>;
 	call(command: 'event:onWindowFocus'): TPromise<number>;
 	call(command: string, arg: any): any;
 }
 
-export class WindowsChannel implements IWindowsChannel {
+export class WindowEventChannel implements IWindowEventChannel {
 
 	onNewWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
@@ -41,7 +41,7 @@ export class WindowEventChannelClient implements IWindowEventService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IWindowsChannel) { }
+	constructor(private channel: IWindowEventChannel) { }
 
 	private _onNewWindowOpen: Event<number> = eventFromCall<number>(this.channel, 'event:onNewWindowOpen');
 	get onNewWindowOpen(): Event<number> {

@@ -114,6 +114,9 @@ class RoutingChannelClient implements IRoutingChannelClient, IDisposable {
 	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T {
 		const call = (command: string, arg: any) => {
 			const id = router.routeCall(command, arg);
+			if (!id) {
+				return TPromise.wrapError('Client id should be provided');
+			}
 			return this.getClient(id).then(client => client.getChannel(channelName).call(command, arg));
 		};
 		return { call } as T;
