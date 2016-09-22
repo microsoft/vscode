@@ -22,7 +22,7 @@ export interface IMarkerService {
 
 	remove(owner: string, resources: URI[]): void;
 
-	read(filter?: { owner?: string; resource?: URI; selector?: RegExp, take?: number; }): IMarker[];
+	read(filter?: { owner?: string; resource?: URI; take?: number; }): IMarker[];
 
 	onMarkerChanged: Event<URI[]>;
 }
