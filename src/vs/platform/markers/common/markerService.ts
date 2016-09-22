@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as arrays from 'vs/base/common/arrays';
-import * as network from 'vs/base/common/network';
-// import * as collections from 'vs/base/common/collections';
+import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import {Schemas} from 'vs/base/common/network';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {isEmptyObject} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
@@ -43,6 +43,78 @@ namespace MapMap {
 	}
 }
 
+class MarkerStats implements MarkerStatistics {
+
+	errors: number = 0;
+	infos: number = 0;
+	warnings: number = 0;
+	unknowns: number = 0;
+
+	private _data: { [resource: string]: MarkerStatistics } = Object.create(null);
+	private _service: IMarkerService;
+	private _subscription: IDisposable;
+
+	constructor(service: IMarkerService) {
+		this._service = service;
+		this._subscription = service.onMarkerChanged(this._update, this);
+	}
+
+	dispose(): void {
+		this._subscription.dispose();
+		this._data = undefined;
+	}
+
+	private _update(resources: URI[]): void {
+		for (const resource of resources) {
+			const key = resource.toString();
+			const oldStats = this._data[key];
+			if (oldStats) {
+				this._substract(oldStats);
+			}
+			const newStats = this._resourceStats(resource);
+			this._add(newStats);
+			this._data[key] = newStats;
+		}
+	}
+
+	private _resourceStats(resource: URI): MarkerStatistics {
+		const result: MarkerStatistics = { errors: 0, warnings: 0, infos: 0, unknowns: 0 };
+
+		// TODO this is a hack
+		if (resource.scheme === Schemas.inMemory) {
+			return result;
+		}
+
+		for (const {severity} of this._service.read({ resource })) {
+			if (severity === Severity.Error) {
+				result.errors += 1;
+			} else if (severity === Severity.Warning) {
+				result.warnings += 1;
+			} else if (severity === Severity.Info) {
+				result.infos += 1;
+			} else {
+				result.unknowns += 1;
+			}
+		}
+
+		return result;
+	}
+
+	private _substract(op: MarkerStatistics) {
+		this.errors -= op.errors;
+		this.warnings -= op.warnings;
+		this.infos -= op.infos;
+		this.unknowns -= op.unknowns;
+	}
+
+	private _add(op: MarkerStatistics) {
+		this.errors += op.errors;
+		this.warnings += op.warnings;
+		this.infos += op.infos;
+		this.unknowns += op.unknowns;
+	}
+}
+
 export class MarkerService implements IMarkerService {
 
 	_serviceBrand: any;
@@ -51,10 +123,14 @@ export class MarkerService implements IMarkerService {
 	private _onMarkerChangedEvent: Event<URI[]> = debounceEvent(this._onMarkerChanged.event, MarkerService._debouncer, 0);
 	private _byResource: MapMap<IMarker[]> = Object.create(null);
 	private _byOwner: MapMap<IMarker[]> = Object.create(null);
-	private _stats: MarkerStatistics;
+	private _stats: MarkerStats;
 
 	constructor() {
-		this._onMarkerChangedEvent(() => this._stats = undefined);
+		this._stats = new MarkerStats(this);
+	}
+
+	dispose(): void {
+		this._stats.dispose();
 	}
 
 	get onMarkerChanged(): Event<URI[]> {
@@ -62,29 +138,11 @@ export class MarkerService implements IMarkerService {
 	}
 
 	getStatistics(): MarkerStatistics {
-		if (!this._stats) {
-			this._stats = { errors: 0, infos: 0, warnings: 0, unknowns: 0 };
-			for (const {severity, resource} of this.read()) {
-				// TODO this is a hack
-				if (resource.scheme === network.Schemas.inMemory) {
-					continue;
-				}
-				if (severity === Severity.Error) {
-					this._stats.errors += 1;
-				} else if (severity === Severity.Warning) {
-					this._stats.warnings += 1;
-				} else if (severity === Severity.Info) {
-					this._stats.infos += 1;
-				} else {
-					this._stats.unknowns += 1;
-				}
-			}
-		}
 		return this._stats;
 	}
 
 	remove(owner: string, resources: URI[]): void {
-		if (!arrays.isFalsyOrEmpty(resources)) {
+		if (!isFalsyOrEmpty(resources)) {
 			for (const resource of resources) {
 				this.changeOne(owner, resource, undefined);
 			}
@@ -93,7 +151,7 @@ export class MarkerService implements IMarkerService {
 
 	changeOne(owner: string, resource: URI, markerData: IMarkerData[]): void {
 
-		if (arrays.isFalsyOrEmpty(markerData)) {
+		if (isFalsyOrEmpty(markerData)) {
 			// remove marker for this (owner,resource)-tuple
 			const a = MapMap.remove(this._byResource, resource.toString(), owner);
 			const b = MapMap.remove(this._byOwner, owner, resource.toString());
@@ -166,7 +224,7 @@ export class MarkerService implements IMarkerService {
 		}
 
 		// add new markers
-		if (!arrays.isFalsyOrEmpty(data)) {
+		if (!isFalsyOrEmpty(data)) {
 
 			// group by resource
 			const groups: { [resource: string]: IMarker[] } = Object.create(null);
