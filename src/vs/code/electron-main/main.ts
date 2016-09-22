@@ -128,7 +128,10 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 		debugPort: envService.isBuilt ? null : 5871
 	};
 
-	const sharedProcess = spawnSharedProcess(initData, options);
+	let sharedProcessDisposable;
+	spawnSharedProcess(initData, options).done(disposable => {
+		sharedProcessDisposable = disposable;
+	});
 
 	// Make sure we associate the program with the app user model id
 	// This will help Windows to associate the running program with
@@ -144,7 +147,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 			mainIpcServer = null;
 		}
 
-		sharedProcess.dispose();
+		if (sharedProcessDisposable) {
+			sharedProcessDisposable.dispose();
+		}
 
 		if (windowsMutex) {
 			windowsMutex.release();
