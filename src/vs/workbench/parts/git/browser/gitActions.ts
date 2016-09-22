@@ -166,7 +166,7 @@ export class OpenFileAction extends GitAction {
 		}
 
 		if (OpenFileAction.DELETED_STATES.indexOf(status.getStatus()) > -1) {
-			return Promise.wrapError(new Error('Can\'t open file which is has been deleted.'));
+			return Promise.wrapError(new Error('Can\'t open file which has been deleted.'));
 		}
 
 		const resource = URI.file(paths.join(this.gitService.getModel().getRepositoryRoot(), this.getPath(status)));
