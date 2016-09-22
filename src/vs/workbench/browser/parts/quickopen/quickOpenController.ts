@@ -19,10 +19,9 @@ import types = require('vs/base/common/types');
 import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenWidget, HideReason} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import {Registry} from 'vs/platform/platform';
@@ -47,11 +46,6 @@ import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 const HELP_PREFIX = '?';
 const QUICK_OPEN_MODE = new RawContextKey<boolean>('inQuickOpen', false);
-
-interface IPickOpenEntryItem extends IPickOpenEntry {
-	height?: number;
-	render?: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
-}
 
 interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
@@ -331,15 +325,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 				// Model
 				const model = new QuickOpenModel();
-				const entries = picks.map(e => {
-					const entry = (<IPickOpenEntryItem>e);
-					if (entry.height && entry.render) {
-						return new PickOpenItem(entry, () => progress(e));
-					}
-
-					return new PickOpenEntry(entry, () => progress(e));
-				});
-
+				const entries = picks.map(e => new PickOpenEntry(e, () => progress(e)));
 				if (picks.length === 0) {
 					entries.push(new PickOpenEntry({ label: nls.localize('emptyPicks', "There are no entries to pick from") }));
 				}
@@ -987,66 +973,6 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	public getGroupLabel(): string {
 		return this.separatorLabel;
-	}
-
-	public shouldAlwaysShow(): boolean {
-		return this.alwaysShow;
-	}
-
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			this._shouldRunWithContext = context;
-
-			return true;
-		}
-
-		if (mode === Mode.PREVIEW && this.onPreview) {
-			this.onPreview();
-		}
-
-		return false;
-	}
-}
-
-class PickOpenItem extends QuickOpenEntryItem {
-	private _shouldRunWithContext: IEntryRunContext;
-	private label: string;
-	private description: string;
-	private height: number;
-	private renderFn: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback;
-	private alwaysShow: boolean;
-
-	constructor(
-		item: IPickOpenEntryItem,
-		private onPreview?: () => void
-	) {
-		super();
-
-		this.label = item.label;
-		this.description = item.description;
-		this.height = item.height;
-		this.renderFn = item.render.bind(item);
-		this.alwaysShow = item.alwaysShow;
-	}
-
-	public getHeight(): number {
-		return this.height;
-	}
-
-	public render(tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-		return this.renderFn(tree, container, previousCleanupFn);
-	}
-
-	public get shouldRunWithContext(): IEntryRunContext {
-		return this._shouldRunWithContext;
-	}
-
-	public getLabel(): string {
-		return this.label;
-	}
-
-	public getDescription(): string {
-		return this.description;
 	}
 
 	public shouldAlwaysShow(): boolean {
