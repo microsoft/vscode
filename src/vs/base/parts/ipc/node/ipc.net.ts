@@ -73,9 +73,10 @@ class Protocol implements IMessagePassingProtocol {
 	}
 }
 
-class RoutingChannelClient implements IRoutingChannelClient {
+class RoutingChannelClient implements IRoutingChannelClient, IDisposable {
 
-	private ipcClients: { [id:string]: ChannelClient; };
+	private ipcClients: { [id: string]: ChannelClient; };
+	private onClientAdded = new Emitter();
 
 	constructor() {
 		this.ipcClients = Object.create(null);
@@ -83,26 +84,44 @@ class RoutingChannelClient implements IRoutingChannelClient {
 
 	add(id: string, client: ChannelClient): void {
 		this.ipcClients[id] = client;
+		this.onClientAdded.fire();
 	}
 
 	remove(id: string): void {
 		delete this.ipcClients[id];
 	}
 
+	private getClient(clientId: string): TPromise<IChannelClient> {
+		const getClientFn = (clientId: string, c: (client: IChannelClient) => void): boolean => {
+			let client = this.ipcClients[clientId];
+			if (client) {
+				c(client);
+				return true;
+			}
+			return false;
+		};
+		return new TPromise<IChannelClient>((c, e) => {
+			if (!getClientFn(clientId, c)) {
+				let disposable = this.onClientAdded.event(() => {
+					if (getClientFn(clientId, c)) {
+						disposable.dispose();
+					}
+				});
+			}
+		});
+	}
+
 	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T {
 		const call = (command: string, arg: any) => {
 			const id = router.routeCall(command, arg);
-			const client = this.ipcClients[id];
-
-			if (!client) {
-				return TPromise.wrapError('Unknown client');
-			}
-
-			return client.getChannel(channelName)
-				.call(command, arg);
+			return this.getClient(id).then(client => client.getChannel(channelName).call(command, arg));
 		};
-
 		return { call } as T;
+	}
+
+	dispose() {
+		this.ipcClients = null;
+		this.onClientAdded.dispose();
 	}
 }
 
@@ -147,6 +166,8 @@ export class Server implements IChannelServer, IRoutingChannelClient, IDisposabl
 	}
 
 	dispose(): void {
+		this.router.dispose();
+		this.router = null;
 		this.channels = null;
 		this.server.close();
 		this.server = null;
