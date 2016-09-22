@@ -13,6 +13,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
+import {ExtHostDocumentSaveParticipant} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {ExtHostWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
@@ -102,6 +103,7 @@ export class ExtHostAPIImplementation {
 
 		const extHostHeapMonitor = col.define(ExtHostContext.ExtHostHeapService).set<ExtHostHeapService>(new ExtHostHeapService());
 		const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set<ExtHostDocuments>(new ExtHostDocuments(threadService));
+		const estHostDocumentSaveParticipant = col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocuments));
 		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostEditors));
 		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration)));
@@ -322,6 +324,9 @@ export class ExtHostAPIImplementation {
 			},
 			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocuments.onDidSaveDocument(listener, thisArgs, disposables);
+			},
+			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
+				return estHostDocumentSaveParticipant.onWillSaveTextDocumentEvent(listener, thisArgs, disposables);
 			},
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);

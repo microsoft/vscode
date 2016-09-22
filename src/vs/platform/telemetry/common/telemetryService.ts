@@ -7,7 +7,7 @@
 
 import {localize} from 'vs/nls';
 import {escapeRegExpCharacters} from 'vs/base/common/strings';
-import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryAppender, ITelemetryInfo, ITelemetryExperiments, defaultExperiments} from 'vs/platform/telemetry/common/telemetry';
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
@@ -21,6 +21,7 @@ export interface ITelemetryServiceConfig {
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
 	userOptIn?: boolean;
+	experiments?: ITelemetryExperiments;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -34,6 +35,7 @@ export class TelemetryService implements ITelemetryService {
 	private _commonProperties: TPromise<{ [name: string]: any; }>;
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
+	private _experiments: ITelemetryExperiments;
 
 	private _disposables: IDisposable[] = [];
 	private _cleanupPatterns: [RegExp, string][] = [];
@@ -46,6 +48,7 @@ export class TelemetryService implements ITelemetryService {
 		this._commonProperties = config.commonProperties || TPromise.as({});
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
+		this._experiments = config.experiments || defaultExperiments;
 
 		// static cleanup patterns for:
 		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
@@ -74,6 +77,10 @@ export class TelemetryService implements ITelemetryService {
 
 	get isOptedIn(): boolean {
 		return this._userOptIn;
+	}
+
+	getExperiments(): ITelemetryExperiments {
+		return this._experiments;
 	}
 
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {

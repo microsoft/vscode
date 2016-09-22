@@ -6,7 +6,9 @@
 {
 	"extension": "拡張機能",
 	"extensions": "拡張機能",
+	"extensionsAutoUpdate": "拡張機能を自動的に更新します",
 	"extensionsCommands": "拡張機能の管理",
+	"extensionsConfigurationTitle": "拡張機能",
 	"galleryExtensionsCommands": "ギャラリー拡張機能のインストール",
 	"view": "表示"
 }

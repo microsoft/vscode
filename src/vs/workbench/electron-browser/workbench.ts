@@ -73,6 +73,7 @@ import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -154,6 +155,7 @@ export class Workbench implements IPartService {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
 		@IThreadService private threadService: IThreadService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.container = container;
@@ -418,7 +420,7 @@ export class Workbench implements IPartService {
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
 		if (!this.contextService.getWorkspace()) {
-			this.sideBarHidden = true; // we hide sidebar in single-file-mode
+			this.sideBarHidden = !this.telemetryService.getExperiments().showDefaultViewlet;
 		}
 
 		const viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));

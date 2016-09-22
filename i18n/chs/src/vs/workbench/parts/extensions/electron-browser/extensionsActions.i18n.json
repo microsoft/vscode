@@ -19,5 +19,6 @@
 	"showRecommendedExtensions": "显示推荐的扩展",
 	"toggleExtensionsViewlet": "显示扩展",
 	"uninstall": "卸载",
-	"updateAction": "更新"
+	"updateAction": "更新",
+	"updateAll": "更新所有扩展"
 }

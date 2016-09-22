@@ -757,7 +757,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 		return stat.resource.toString();
 	}
 
-	getDragLabel(tree: ITree, elements: any[]): string {
+	public getDragLabel(tree: ITree, elements: any[]): string {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}

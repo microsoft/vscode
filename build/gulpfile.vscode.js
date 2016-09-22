@@ -15,6 +15,7 @@ const vfs = require('vinyl-fs');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
+const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
@@ -37,7 +38,7 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	// { name: 'vscodevim.vim', version: '0.2.0' }
+	{ name: 'ms-vscode.node-debug', version: '1.6.2' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -182,8 +183,14 @@ function packageTask(platform, arch, opts) {
 			marketplaceExtensions
 		);
 
+		const nlsFilter = filter('**/*.nls.json', { restore: true });
+
 		const sources = es.merge(src, allExtensions)
+			// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
+			.pipe(nlsFilter)
+			.pipe(buffer())
 			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
+			.pipe(nlsFilter.restore)
 			.pipe(filter(['**', '!**/*.js.map']))
 			.pipe(util.handleAzureJson({ platform }));
 

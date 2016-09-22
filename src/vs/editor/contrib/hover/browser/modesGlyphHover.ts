@@ -156,13 +156,12 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		messages.forEach((msg) => {
 			const renderedContents = renderMarkedString(msg.value, {
 				actionCallback: content => this.openerService.open(URI.parse(content)).then(undefined, onUnexpectedError),
-				codeBlockRenderer: (modeId, value): string | TPromise<string> => {
-					const mode = this.modeService.getMode(modeId || this._editor.getModel().getModeId());
-					const getMode = mode => mode ? TPromise.as(mode) : this.modeService.getOrCreateMode(modeId);
-
-					return getMode(mode)
-						.then(null, err => null)
-						.then(mode => `<div class="code">${ tokenizeToString(value, mode) }</div>`);
+				codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
+					const modeId = this.modeService.getModeIdForLanguageName(languageAlias);
+					return this.modeService.getOrCreateMode(modeId).then(_ => {
+						return `<div class="code">${ tokenizeToString(value, modeId) }</div>`;
+					});
 				}
 			});
 

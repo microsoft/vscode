@@ -74,6 +74,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 			'default': true
 		},
+		'workbench.editor.showIcons': {
+			'type': 'boolean',
+			'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not."),
+			'default': true
+		},
 		'workbench.editor.enablePreview': {
 			'type': 'boolean',
 			'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),

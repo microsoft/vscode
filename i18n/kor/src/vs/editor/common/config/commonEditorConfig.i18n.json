@@ -14,7 +14,7 @@
 	"folding": "편집기에서 코드 접기를 사용할지 여부를 제어합니다.",
 	"fontFamily": "글꼴 패밀리를 제어합니다.",
 	"fontLigatures": "글꼴 합자 사용",
-	"fontSize": "글꼴 크기를 제어합니다.",
+	"fontSize": "글꼴 크기(픽셀)를 제어합니다.",
 	"fontWeight": "글꼴 두께를 제어합니다.",
 	"formatOnType": "입력 후 편집기에서 자동으로 줄의 서식을 지정할지 여부를 제어합니다.",
 	"glyphMargin": "문자 모양 여백의 표시 여부를 제어합니다.",
@@ -32,6 +32,7 @@
 	"quickSuggestionsDelay": "빠른 제안을 표시할 지연 시간(밀리초)을 제어합니다.",
 	"renderControlCharacters": "편집기에서 제어 문자를 렌더링할지를 제어합니다.",
 	"renderIndentGuides": "편집기에서 들여쓰기 가이드를 렌더링할지를 제어합니다.",
+	"renderLineHighlight": "편집기가 현재 줄 강조 표시를 렌더링하는지 여부를 제어합니다.",
 	"renderWhitespace": "편집기에서 공백 문자를 렌더링할지 여부를 제어합니다.",
 	"roundedSelection": "선택 항목의 모서리를 둥글게 할지 여부를 제어합니다.",
 	"rulers": "세로 눈금자를 표시할 열",
@@ -49,6 +50,7 @@
 	"useTabStops": "탭 정지 뒤에 공백 삽입 및 삭제",
 	"wordBasedSuggestions": "단어 기반 추천을 사용합니다.",
 	"wordSeparators": "단어 관련 탐색 또는 작업을 수행할 때 단어 구분 기호로 사용되는 문자입니다.",
+	"wordWrap": "줄 바꿈 여부를 제어합니다. 줄 바꿈은 min(editor.wrappingColumn, viewportWidthInColumns)에서 수행됩니다.",
 	"wrappingColumn": "편집기에서 몇 개의 문자 이후에 줄을 바꿀지를 제어합니다. 이 값을 0으로 설정하면 뷰포트 너비 줄 바꿈이 설정됩니다(자동 줄바꿈). -1로 설정하면 편집기에서 줄바꿈을 하지 않습니다.",
 	"wrappingIndent": "줄 바꿈 행의 들여쓰기를 제어합니다. 'none', 'same' 또는 'indent' 중 하나일 수 있습니다."
 }
