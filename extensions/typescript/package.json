@@ -75,6 +75,16 @@
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
+				"typescript.check.workspaceVersion" :{
+					"type": "boolean",
+					"default": true,
+					"description": "%typescript.check.workspaceVersion%"
+				},
+				"typescript.check.tscVersion" :{
+					"type": "boolean",
+					"default": true,
+					"description": "%typescript.check.tscVersion%"
+				},
 				"typescript.tsserver.trace": {
 					"type": "string",
 					"enum": ["off", "messages", "verbose"],
