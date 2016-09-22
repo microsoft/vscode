@@ -237,7 +237,7 @@ export interface IRawEnvAdapter {
 export interface IRawAdapter extends IRawEnvAdapter {
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
-	initialConfigurations?: any[];
+	initialConfigurations?: any[] | string;
 	variables: { [key: string]: string };
 	aiKey?: string;
 	win?: IRawEnvAdapter;
