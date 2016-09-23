@@ -161,6 +161,10 @@
 	width: 26px;
 }
 
+.monaco-shell .statusbar-item > .dropdown.send-feedback.patched > .dropdown-label.send-feedback {
+	background: url('smiley-patched.svg') center center no-repeat;
+}
+
 /* Theming */
 .monaco-shell.vs .feedback-form {
 	color: black;

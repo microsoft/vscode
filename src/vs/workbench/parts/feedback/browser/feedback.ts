@@ -13,6 +13,7 @@ import {Dropdown} from 'vs/base/browser/ui/dropdown/dropdown';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import product from 'vs/platform/product';
+import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 
 export interface IFeedback {
 	feedback: string;
@@ -56,16 +57,27 @@ export class FeedbackDropdown extends Dropdown {
 	protected requestFeatureLink: string;
 	protected reportIssueLink: string;
 
+	private _isPure: boolean;
+
 	constructor(
 		container: HTMLElement,
 		options: IFeedbackDropdownOptions,
-		@ITelemetryService protected telemetryService: ITelemetryService
+		@ITelemetryService protected telemetryService: ITelemetryService,
+		@IIntegrityService protected integrityService: IIntegrityService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
 			labelRenderer: (container: HTMLElement): IDisposable => {
 				$(container).addClass('send-feedback');
 				return null;
+			}
+		});
+
+		this._isPure = true;
+		this.integrityService.isPure().then(result => {
+			if (!result.isPure) {
+				this._isPure = false;
+				this.$el.addClass('patched');
 			}
 		});
 
@@ -109,6 +121,12 @@ export class FeedbackDropdown extends Dropdown {
 		let $content = $('div.content').appendTo($form);
 
 		let $sentimentContainer = $('div').appendTo($content);
+		if (!this._isPure) {
+			$('span').text(nls.localize("patchedVersion1", "Your installation is corrupt.")).appendTo($sentimentContainer);
+			$('br').appendTo($sentimentContainer);
+			$('span').text(nls.localize("patchedVersion2", "Please specify this if you submit a bug.")).appendTo($sentimentContainer);
+			$('br').appendTo($sentimentContainer);
+		}
 		$('span').text(nls.localize("sentiment", "How was your experience?")).appendTo($sentimentContainer);
 
 		let $feedbackSentiment = $('div.feedback-sentiment').appendTo($sentimentContainer);
