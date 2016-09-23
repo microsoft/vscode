@@ -283,11 +283,7 @@ let _b24_getActualKeyCodeMap = (function() {
 				if (nativeMapping.value && _b24_interestingChars[nativeMapping.value]) {
 					// console.log(nativeMapping.value + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
-					// @alex TS(2.0.2) - KeyCode.Unknown === 0 so if (keyCode) is true then KeyCode !== KeyCode.Unknown
-					// is superflous code which is now flagged as a compile error (actually as a type check error that
-					// is very hard to understand)
-					// Will comment out the keyCode !== KeyCode.Unknown check.
-					if (keyCode /* && keyCode !== KeyCode.Unknown */) {
+					if (keyCode) {
 						if (!result[nativeMapping.value] || result[nativeMapping.value] > keyCode) {
 							result[nativeMapping.value] = keyCode;
 						}
@@ -297,11 +293,7 @@ let _b24_getActualKeyCodeMap = (function() {
 				if (nativeMapping.withShift && _b24_interestingChars[nativeMapping.withShift]) {
 					// console.log(nativeMapping.withShift + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
-					// @alex TS(2.0.2) - KeyCode.Unknown === 0 so if (keyCode) is true then KeyCode !== KeyCode.Unknown
-					// is superflous code which is now flagged as a compile error (actually as a type check error that
-					// is very hard to understand)
-					// Will comment out the keyCode !== KeyCode.Unknown check.
-					if (keyCode /* && keyCode !== KeyCode.Unknown */) {
+					if (keyCode) {
 						if (!result[nativeMapping.withShift] || result[nativeMapping.withShift] > keyCode) {
 							result[nativeMapping.withShift] = keyCode;
 						}
