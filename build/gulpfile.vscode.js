@@ -28,6 +28,7 @@ const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
+const crypto = require('crypto');
 
 const dependencies = Object.keys(shrinkwrap.dependencies);
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
@@ -143,6 +144,40 @@ gulp.task('electron', ['clean-electron'], () => {
 
 const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 
+/**
+ * Compute checksums for some files.
+ *
+ * @param {string} out The out folder to read the file from.
+ * @param {string[]} filenames The paths to compute a checksum for.
+ * @return {Object} A map of paths to checksums.
+ */
+function computeChecksums(out, filenames) {
+	var result = {};
+	filenames.forEach(function(filename) {
+		var fullPath = path.join(process.cwd(), out, filename);
+		result[filename] = computeChecksum(fullPath);
+	});
+	return result;
+}
+
+/**
+ * Compute checksum for a file.
+ *
+ * @param {string} filename The absolute path to a filename.
+ * @return {string} The checksum for `filename`.
+ */
+function computeChecksum(filename) {
+	var contents = fs.readFileSync(filename);
+
+	var hash = crypto
+		.createHash('md5')
+		.update(contents)
+		.digest('base64')
+		.replace(/=+$/, '');
+
+	return hash;
+}
+
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
 
@@ -152,6 +187,11 @@ function packageTask(platform, arch, opts) {
 
 	return () => {
 		const out = opts.minified ? 'out-vscode-min' : 'out-vscode';
+
+		const checksums = computeChecksums(out, [
+			'vs/workbench/workbench.main.js',
+			'vs/workbench/workbench.main.css',
+		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
@@ -208,7 +248,7 @@ function packageTask(platform, arch, opts) {
 
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date }));
+			.pipe(json({ commit, date, checksums }));
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 
