@@ -141,7 +141,7 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 			shell.open();
 
 			shell.joinCreation().then(() => {
-				timer.start(timer.Topic.STARTUP, 'Open Shell, Viewconst & Editor', beforeOpen, 'Workbench has opened after this event with viewconst and editor restored').stop();
+				timer.start(timer.Topic.STARTUP, 'Open Shell, Viewlet & Editor', beforeOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
 			});
 
 			// Inform user about loading issues from the loader

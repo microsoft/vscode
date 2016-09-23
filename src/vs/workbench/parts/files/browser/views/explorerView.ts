@@ -350,7 +350,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public getOptimalWidth(): number {
 		const parentNode = this.explorerViewer.getHTMLElement();
-		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item-label > a'));
+		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item > a'));
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}

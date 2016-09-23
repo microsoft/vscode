@@ -95,7 +95,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview;
 
 		// Open editors view should always be visible in no folder workspace.
-		let openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
+		const openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
 
 		// Create views on startup and if open editors visibility has changed #6919
 		if (this.openEditorsVisible !== openEditorsVisible) {
@@ -178,7 +178,7 @@ export class ExplorerViewlet extends Viewlet {
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 
-			const headerSize = this.openEditorsVisible ? undefined : 0; // If open editors are not visible set header size explicitly to 0, otherwise let it be computed by super class.
+			const headerSize = this.openEditorsVisible ? undefined : 0; // If open editors are not visible set header size explicitly to 0, otherwise const it be computed by super class.
 			this.explorerView = explorerView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
 		}
 
@@ -278,11 +278,12 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	public getOptimalWidth(): number {
-		let additionalMargin = 16;
-		let openedEditorsViewWidth = this.openEditorsVisible ? this.openEditorsView.getOptimalWidth() : 0;
-		let explorerView = this.getExplorerView();
-		let explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
-		let optimalWidth = Math.max(openedEditorsViewWidth, explorerViewWidth);
+		const additionalMargin = 16;
+		const openedEditorsViewWidth = this.openEditorsVisible ? this.openEditorsView.getOptimalWidth() : 0;
+		const explorerView = this.getExplorerView();
+		const explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
+		const optimalWidth = Math.max(openedEditorsViewWidth, explorerViewWidth);
+
 		return optimalWidth + additionalMargin;
 	}
 
