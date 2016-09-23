@@ -36,6 +36,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private globalToolBar: ToolBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
+	private viewletActions: Action[];
+	private panelActions: Action[];
+	private showPanelAction: ShowPanelAction;
 
 	constructor(
 		id: string,
@@ -45,7 +48,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private partService: IPartService
 	) {
 		super(id);
 
@@ -120,9 +124,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Build Viewlet Actions in correct order
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activePanel = this.panelService.getActivePanel();
-		const allViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets().sort((v1, v2) => v1.order - v2.order);
-		const allPanels = (<PanelRegistry>Registry.as(PanelExtensions.Panels)).getPanels().sort((p1, p2) => p1.order - p2.order);
-		const actionOptions = { label: true, icon: true };
+		const allViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
+		const allPanels = (<PanelRegistry>Registry.as(PanelExtensions.Panels)).getPanels();
 
 		const toAction = (composite: CompositeDescriptor<Viewlet | Panel>) => {
 			const action = composite instanceof ViewletDescriptor ? this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite)
@@ -144,10 +147,20 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 			return action;
 		};
+		this.viewletActions = allViewlets.sort((v1, v2) => v1.order - v2.order).map(toAction);
+		this.showPanelAction = this.instantiationService.createInstance(ShowPanelAction);
+		this.panelActions = allPanels.sort((p1, p2) => p1.order - p2.order).map(toAction);
+
 
 		// Add both viewlet and panel actions to the switcher
-		const allActions = allViewlets.concat(allPanels).map(toAction);
-		this.compositeSwitcherBar.push(allActions, actionOptions);
+		this.updateActionBar();
+	}
+
+	private updateActionBar(): void {
+		this.compositeSwitcherBar.clear();
+		const actions = this.partService.isPanelHidden() ? this.viewletActions.concat(this.showPanelAction) : this.viewletActions.concat(this.panelActions);
+
+		this.compositeSwitcherBar.push(actions, { label: true, icon: true });
 	}
 
 	public dispose(): void {
@@ -229,5 +242,18 @@ class PanelActivityAction extends CompositeActivityAction<Panel> {
 			this.panelService.openPanel(this.composite.id, true).done(null, errors.onUnexpectedError);
 			this.activate();
 		}
+	}
+}
+
+class ShowPanelAction extends ActivityAction {
+	private static ID = 'workbench.action.panel.show';
+
+	constructor(@IPartService private partService: IPartService) {
+		super(ShowPanelAction.ID, nls.localize('showPanel', "Show Panel"), 'panel');
+		}
+
+	public run(): TPromise<any> {
+		this.partService.setPanelHidden(false);
+		return TPromise.as(null);
 	}
 }
