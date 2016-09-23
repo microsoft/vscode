@@ -15,7 +15,7 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 
 export class ToggleOutputAction extends Action {
 
-	public static ID = OUTPUT_PANEL_ID;
+	public static ID = 'workbench.action.output.toggleOutput';
 	public static LABEL = nls.localize('toggleOutput', "Toggle Output");
 
 	constructor(
