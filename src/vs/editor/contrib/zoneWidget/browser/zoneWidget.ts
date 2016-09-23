@@ -294,6 +294,15 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		// implement in subclass
 	}
 
+	protected _relayout(newHeightInLines: number): void {
+		if (this._viewZone.heightInLines !== newHeightInLines) {
+			this.editor.changeViewZones(accessor => {
+				this._viewZone.heightInLines = newHeightInLines;
+				accessor.layoutZone(this._viewZone.id);
+			});
+		}
+	}
+
 	// --- sash
 
 	private _initSash(): void{
@@ -325,10 +334,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 				let newHeightInLines = data.heightInLines + roundedLineDelta;
 
 				if (newHeightInLines > 5 && newHeightInLines < 35) {
-					this.editor.changeViewZones(accessor => {
-						this._viewZone.heightInLines = newHeightInLines;
-						accessor.layoutZone(this._viewZone.id);
-					});
+					this._relayout(newHeightInLines);
 				}
 			}
 		}));
