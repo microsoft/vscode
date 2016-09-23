@@ -74,6 +74,7 @@ import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import * as watermark from 'vs/workbench/parts/watermark/watermark';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -322,7 +323,7 @@ export class Workbench implements IPartService {
 		}
 
 		// Empty workbench
-		else if (!this.workbenchParams.workspace) {
+		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
 			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
 		}
 
@@ -779,6 +780,10 @@ export class Workbench implements IPartService {
 				id: Identifiers.EDITOR_PART,
 				role: 'main'
 			});
+
+		if (this.telemetryService.getExperiments().showCommandsWatermark) {
+			this.toDispose.push(watermark.create(editorContainer, this.keybindingService));
+		}
 
 		this.editorPart.create(editorContainer);
 	}
