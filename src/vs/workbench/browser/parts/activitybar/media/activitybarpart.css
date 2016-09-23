@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.panel {
+	background: url('panel.svg') center center no-repeat;
+	background-position: 50% !important;
+	background-size: 32px;
+}
+
 .monaco-workbench > .part.activitybar {
 	z-index: 20;
 	min-width: 50px;
