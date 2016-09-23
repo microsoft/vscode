@@ -66,6 +66,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	private _messageService: IMessageService;
 	private _storage:IntegrityStorage;
 	private _loaderChecksums: ILoaderChecksums;
+	private _isPurePromise: TPromise<IntegrityTestResult>;
 
 	constructor(
 		@IMessageService messageService: IMessageService,
@@ -83,6 +84,8 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			let scriptUri = URI.file(scriptSrc).toString();
 			this._loaderChecksums[scriptUri.toString()] = loaderChecksums[scriptSrc];
 		});
+
+		this._isPurePromise = this._isPure();
 
 		this.isPure().then(r => {
 			if (r.isPure) {
@@ -127,6 +130,10 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	}
 
 	public isPure(): TPromise<IntegrityTestResult> {
+		return this._isPurePromise;
+	}
+
+	private _isPure(): TPromise<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
 		let syncResults: ChecksumPair[] = [];
 		let asyncResults: TPromise<ChecksumPair>[] = [];
