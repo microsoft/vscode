@@ -59,11 +59,10 @@ function registerActiveEditorMoveCommand() {
 			args: [
 				{
 					name: nls.localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
-					description: nls.localize('editorCommand.activeEditorMove.arg.description', `
-						Argument Properties:
-						'to': String value providing where to move.
-						'by': String value providing the unit for move. By tab or by group.
-						'value': Number value providing how many positions or an absolute position to move.
+					description: nls.localize('editorCommand.activeEditorMove.arg.description', `Argument Properties:
+						* 'to': String value providing where to move.
+						* 'by': String value providing the unit for move. By tab or by group.
+						* 'value': Number value providing how many positions or an absolute position to move.
 					`),
 					constraint: isActiveEditorMoveArg
 				}

@@ -560,7 +560,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 					{
 						name: 'Unfold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
-							'level': Number of levels to unfold
+							* 'level': Number of levels to unfold
 						`,
 						constraint: foldingArgumentsConstraint
 					}
@@ -614,8 +614,8 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 					{
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
-							'levels': Number of levels to fold
-							'up': If 'true' folds given number of levels up otherwise folds down
+							* 'levels': Number of levels to fold
+							* 'up': If 'true' folds given number of levels up otherwise folds down
 						`,
 						constraint: foldingArgumentsConstraint
 					}
