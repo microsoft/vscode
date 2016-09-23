@@ -269,9 +269,11 @@ export class FindModelBoundToEditorModel {
 	private _moveToNextMatch(nextMatch: Range): void
 	private _moveToNextMatch(after: Position): void
 	private _moveToNextMatch(arg: any): void {
-		let nextMatch = Range.isIRange(arg) ? arg : Position.isIPosition(arg) ? this._getNextMatch(arg) : null;
+		// @sandeep TS(2.0.2) - Adding cast to keep semantic. Necessary since the test are for interface but the code expects
+		// implemations.
+		let nextMatch = Range.isIRange(arg) ? arg : Position.isIPosition(arg) ? this._getNextMatch(arg as Position) : null;
 		if (nextMatch) {
-			this._setCurrentFindMatch(nextMatch);
+			this._setCurrentFindMatch(nextMatch as Range);
 		}
 	}
 

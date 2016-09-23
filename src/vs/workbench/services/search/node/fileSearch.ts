@@ -131,10 +131,11 @@ export class FileWalker {
 					this.traversal = Traversal.MacFind;
 					traverse = this.macFindTraversal;
 				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
-				} else if (false && platform.isWindows) {
+				// TS (2.0.2) warns about unreachable code. Using comments.
+				} /* else if (false && platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
-				} else if (platform.isLinux) {
+				} */ else if (platform.isLinux) {
 					this.traversal = Traversal.LinuxFind;
 					traverse = this.linuxFindTraversal;
 				}
@@ -196,7 +197,7 @@ export class FileWalker {
 		});
 	}
 
-	private windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+	protected windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
 		const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d', rootFolder]);
 		this.readStdout(cmd, 'ucs2', (err: Error, stdout?: string) => {
 			if (err) {

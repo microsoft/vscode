@@ -41,7 +41,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 
 	return new TPromise<IRequestContext>((c, e) => {
 		const endpoint = parseUrl(options.url);
-		const protocol = endpoint.protocol === 'https:' ? https : http;
+		const request = endpoint.protocol === 'https:' ? https.request : http.request;
 		const opts: https.RequestOptions = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
@@ -56,7 +56,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 			opts.auth = options.user + ':' + options.password;
 		}
 
-		req = protocol.request(opts, (res: http.ClientResponse) => {
+		req = request(opts, (res: http.ClientResponse) => {
 			const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : 3;
 
 			if (res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {

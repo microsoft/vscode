@@ -65,7 +65,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.6.0",
-    "gulp-tsb": "^1.10.1",
+    "gulp-tsb": "^2.0.1",
     "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^2.0.0",
     "gulp-util": "^3.0.6",
@@ -88,12 +88,12 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^3.3.0",
-    "typescript": "^1.8.10",
+    "typescript": "^2.0.3",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
-    "vscode-nls-dev": "^1.0.0"
+    "vscode-nls-dev": "^2.0.1"
   },
   "repository": {
     "type": "git",

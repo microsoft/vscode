@@ -19,7 +19,7 @@ export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'installFromGallery', extension: IGalleryExtension): TPromise<void>;
 	call(command: 'uninstall', extension: ILocalExtension): TPromise<void>;
 	call(command: 'getInstalled'): TPromise<ILocalExtension[]>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: string, arg?: any): TPromise<any>;
 }
 
 export class ExtensionManagementChannel implements IExtensionManagementChannel {
@@ -36,7 +36,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 		this.onDidUninstallExtension = buffer(service.onDidUninstallExtension, true);
 	}
 
-	call(command: string, arg: any): TPromise<any> {
+	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'event:onInstallExtension': return eventToCall(this.onInstallExtension);
 			case 'event:onDidInstallExtension': return eventToCall(this.onDidInstallExtension);

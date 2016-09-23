@@ -78,10 +78,12 @@ export class TokenStylesContribution {
 	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]): void {
 		let theme = new Theme(themeId, themeDocument);
 		theme.getSettings().forEach((s: IThemeSetting, index, arr) => {
+			// @alex TS(2.0.2) - s.scope is already a string[] so no need for all this checking.
+			// However will add a cast at split to keep semantic in case s.scope is wrongly typed.
 			let scope: string | string[] = s.scope;
 			let settings = s.settings;
 			if (scope && settings) {
-				let rules = Array.isArray(scope) ? <string[]>scope : scope.split(',');
+				let rules = Array.isArray(scope) ? <string[]>scope : (scope as string).split(',');
 				let statements = this._settingsToStatements(settings);
 				rules.forEach(rule => {
 					rule = rule.trim().replace(/ /g, '.'); // until we have scope hierarchy in the editor dom: replace spaces with .
