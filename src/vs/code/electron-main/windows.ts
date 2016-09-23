@@ -492,9 +492,9 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
-		this.updateService.on('update-available', (url: string) => {
+		this.updateService.on('update-available', (url: string, version: string) => {
 			if (url) {
-				this.sendToFocused('vscode:update-available', url);
+				this.sendToFocused('vscode:update-available', url, version);
 			}
 		});
 
