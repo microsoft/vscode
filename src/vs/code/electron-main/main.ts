@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -39,10 +38,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import * as cp from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
+import { getPathLabel } from 'vs/base/common/labels';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
+
+import * as fs from 'original-fs';
+import * as cp from 'child_process';
+import * as path from 'path';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -193,25 +196,52 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 	// Install JumpList on Windows
 	if (platform.isWindows) {
-		app.setJumpList([
-			{
-				type: 'tasks',
-				items: [
-					{
+		const jumpList: Electron.JumpListCategory[] = [];
+
+		// Tasks
+		jumpList.push({
+			type: 'tasks',
+			items: [
+				{
+					type: 'task',
+					title: nls.localize('newWindow', "New Window"),
+					description: nls.localize('newWindowDesc', "Opens a new window"),
+					program: process.execPath,
+					args: '-n', // force new window
+					iconPath: process.execPath,
+					iconIndex: 0
+				}
+			]
+		});
+
+		// Recent Folders
+		const folders = windowsService.getRecentPathsList().folders;
+		if (folders.length > 0) {
+			jumpList.push({
+				type: 'custom',
+				name: 'Recent Folders',
+				items: windowsService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
+					return <Electron.JumpListItem>{
 						type: 'task',
-						title: nls.localize('newWindow', "New Window"),
-						description: nls.localize('newWindowDesc', "Opens a new window"),
+						title: getPathLabel(folder),
+						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
 						program: process.execPath,
-						args: '-n', // force new window
-						iconPath: process.execPath,
-						iconIndex: 0
-					}
-				]
-			},
-			{
-				type: 'recent' // this enables to show files in the "recent" category
-			}
-		]);
+						args: folder, // open folder
+					};
+				})
+			});
+		}
+
+		// Recent
+		jumpList.push({
+			type: 'recent' // this enables to show files in the "recent" category
+		});
+
+		try {
+			app.setJumpList(jumpList);
+		} catch (error) {
+			logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
+		}
 	}
 
 	// Setup auto update
