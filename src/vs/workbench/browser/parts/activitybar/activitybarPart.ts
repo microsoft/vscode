@@ -149,7 +149,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const allPanels = (<PanelRegistry>Registry.as(PanelExtensions.Panels)).getPanels();
 
 		this.showPanelAction = this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL);
-		this.activityActionItems[this.showPanelAction.id] = new ActivityActionItem(this.showPanelAction);
+		this.activityActionItems[this.showPanelAction.id] = new ActivityActionItem(this.showPanelAction, TogglePanelAction.LABEL, this.getKeybindingLabel(TogglePanelAction.ID));
 		this.panelActions = allPanels.sort((p1, p2) => p1.order - p2.order).map(panel => this.toAction(panel));
 
 		// Add both viewlet and panel actions to the switcher
@@ -172,13 +172,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const action = composite instanceof ViewletDescriptor ? this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite)
 			: this.instantiationService.createInstance(PanelActivityAction, composite.id + '.activity-bar-action', composite);
 
-		let keybinding: string = null;
-		const keys = this.keybindingService.lookupKeybindings(composite.id).map(k => this.keybindingService.getLabelFor(k));
-		if (keys && keys.length) {
-			keybinding = keys[0];
-		}
-
-		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, keybinding);
+		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, this.getKeybindingLabel(composite.id));
 		this.compositeIdToActions[composite.id] = action;
 
 		// Mark active viewlet and panel action as active
@@ -188,6 +182,15 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		return action;
 	};
+
+	private getKeybindingLabel(id: string): string {
+		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
+		if (keys && keys.length) {
+			return keys[0];
+		}
+
+		return null;
+	}
 
 	public dispose(): void {
 		if (this.viewletSwitcherBar) {
