@@ -538,7 +538,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				};
 
 				if (!isValidExtensionVersion(pkg.version, desc, [])) {
-					return this.getLastValidExtensionVersion(extension, versions.slice(1));
+					return this.getLastValidExtensionVersionReccursively(extension, versions.slice(1));
 				}
 				version.properties = version.properties || [];
 				version.properties.push({ key: PropertyType.Engine, value: manifest.engines.vscode });
