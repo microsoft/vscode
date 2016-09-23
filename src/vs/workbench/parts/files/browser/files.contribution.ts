@@ -212,11 +212,6 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when you save a file.")
 		},
-		'files.formatOnSave': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available and the file must not be auto-saved")
-		},
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, , AutoSaveConfiguration.ON_WINDOW_CHANGE],
@@ -232,6 +227,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'default': (platform.isLinux || platform.isMacintosh) ? { '**/.git/objects/**': true, '**/node_modules/**': true } : { '**/.git/objects/**': true },
 			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
+		},
+		'editor.formatOnSave': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available and the file must not be auto-saved.")
 		}
 	}
 });
