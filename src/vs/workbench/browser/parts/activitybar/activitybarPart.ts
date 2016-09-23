@@ -20,6 +20,7 @@ import {CompositeDescriptor, Composite} from 'vs/workbench/browser/composite';
 import {Panel, PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
+import {TogglePanelAction} from 'vs/workbench/browser/parts/panel/panelPart';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IActivityService, IBadge} from 'vs/workbench/services/activity/common/activityService';
@@ -37,7 +38,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 	private panelActions: Action[];
-	private showPanelAction: ShowPanelAction;
+	private showPanelAction: TogglePanelAction;
 
 	constructor(
 		id: string,
@@ -147,7 +148,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		const allPanels = (<PanelRegistry>Registry.as(PanelExtensions.Panels)).getPanels();
 
-		this.showPanelAction = this.instantiationService.createInstance(ShowPanelAction);
+		this.showPanelAction = this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL);
 		this.activityActionItems[this.showPanelAction.id] = new ActivityActionItem(this.showPanelAction);
 		this.panelActions = allPanels.sort((p1, p2) => p1.order - p2.order).map(panel => this.toAction(panel));
 
@@ -268,18 +269,5 @@ class PanelActivityAction extends CompositeActivityAction<Panel> {
 			this.panelService.openPanel(this.composite.id, true).done(null, errors.onUnexpectedError);
 			this.activate();
 		}
-	}
-}
-
-class ShowPanelAction extends ActivityAction {
-	private static ID = 'workbench.action.panel.show';
-
-	constructor(@IPartService private partService: IPartService) {
-		super(ShowPanelAction.ID, nls.localize('showPanel', "Show Panel"), 'panel');
-		}
-
-	public run(): TPromise<any> {
-		this.partService.setPanelHidden(false);
-		return TPromise.as(null);
 	}
 }
