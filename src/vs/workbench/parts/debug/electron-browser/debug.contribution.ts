@@ -54,7 +54,7 @@ class OpenDebugViewletAction extends viewlet.ToggleViewletAction {
 }
 
 class OpenDebugPanelAction extends panel.TogglePanelAction {
-	public static ID = debug.REPL_ID;
+	public static ID = 'workbench.debug.action.toggleRepl';
 	public static LABEL = nls.localize('toggleDebugPanel', "Debug Console");
 
 	constructor(

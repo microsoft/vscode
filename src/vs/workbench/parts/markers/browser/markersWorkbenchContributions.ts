@@ -40,7 +40,7 @@ export function registerContributions(): void {
 
 	let registry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
 
-	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, Constants.MARKERS_PANEL_ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
+	registry.registerWorkbenchAction(new SyncActionDescriptor(markersPanelActions.ToggleMarkersPanelAction, markersPanelActions.ToggleMarkersPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_LABEL, {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
 	}), 'View: ' + Messages.MARKERS_PANEL_TOGGLE_LABEL, Messages.MARKERS_PANEL_VIEW_CATEGORY);
 
