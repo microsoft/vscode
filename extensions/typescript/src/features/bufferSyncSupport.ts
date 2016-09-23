@@ -15,7 +15,7 @@ interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
 }
 
-const Mode2ScriptKind: Map<"TS" | "JS" | "TSX" | "JSX"> = {
+const Mode2ScriptKind: Map<'TS' | 'JS' | 'TSX' | 'JSX'> = {
 	'typescript': 'TS',
 	'typescriptreact': 'TSX',
 	'javascript': 'JS',
