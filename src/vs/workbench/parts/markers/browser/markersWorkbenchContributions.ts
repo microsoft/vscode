@@ -30,7 +30,7 @@ class StatusUpdater implements IWorkbenchContribution
 	) {
 
 		this.toDispose = [];
-		this.toDispose.push(markerService.onMarkerChanged(() => this.updateActivityBadge());
+		this.toDispose.push(markerService.onMarkerChanged(() => this.updateActivityBadge()));
 	}
 
 	private updateActivityBadge(): void {
