@@ -4,23 +4,76 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IIntegrityService, IntegrityTestResult, ChecksumPair} from 'vs/platform/integrity/common/integrity';
+import {IMessageService} from 'vs/platform/message/common/message';
 import product from 'vs/platform/product';
 import URI from 'vs/base/common/uri';
-import * as fs from 'fs';
-const crypto = require('crypto');
+import Severity from 'vs/base/common/severity';
+import {Action} from 'vs/base/common/actions';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 
 interface ILoaderChecksums {
 	[scriptSrc:string]: string;
 }
 
+
+interface IStorageData {
+	dontShowPrompt: boolean;
+	commit: string;
+}
+
+class IntegrityStorage {
+	private static KEY = 'integrityService';
+
+	private _storageService: IStorageService;
+	private _value: IStorageData;
+
+	constructor(storageService: IStorageService) {
+		this._storageService = storageService;
+		this._value = this._read();
+	}
+
+	private _read(): IStorageData {
+		let jsonValue = this._storageService.get(IntegrityStorage.KEY, StorageScope.GLOBAL);
+		if (!jsonValue) {
+			return null;
+		}
+		try {
+			return JSON.parse(jsonValue);
+		} catch (err) {
+			return null;
+		}
+	}
+
+	public get(): IStorageData {
+		return this._value;
+	}
+
+	public set(data:IStorageData): void {
+		this._value = data;
+		this._storageService.store(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
+	}
+}
+
 export class IntegrityServiceImpl implements IIntegrityService {
 
 	public _serviceBrand: any;
+
+	private _messageService: IMessageService;
+	private _storage:IntegrityStorage;
 	private _loaderChecksums: ILoaderChecksums;
 
-	constructor() {
+	constructor(
+		@IMessageService messageService: IMessageService,
+		@IStorageService storageService: IStorageService
+	) {
+		this._messageService = messageService;
+		this._storage = new IntegrityStorage(storageService);
+
 		// Fetch checksums from loader
 		let loaderChecksums = <ILoaderChecksums>(<any>require).getChecksums();
 
@@ -29,6 +82,47 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		Object.keys(loaderChecksums).forEach((scriptSrc) => {
 			let scriptUri = URI.file(scriptSrc).toString();
 			this._loaderChecksums[scriptUri.toString()] = loaderChecksums[scriptSrc];
+		});
+
+		this.isPure().then(r => {
+			if (r.isPure) {
+				// all is good
+				return;
+			}
+			this._prompt();
+		});
+	}
+
+	private _prompt(): void {
+		const storedData = this._storage.get();
+		if (storedData && storedData.dontShowPrompt && storedData.commit === product.commit) {
+			// Do not prompt
+			return;
+		}
+		const OkAction = new Action(
+			'integrity.ok',
+			nls.localize('integrity.ok', "OK"),
+			null,
+			true,
+			() => TPromise.as(true)
+		);
+		const DontShowAgainAction = new Action(
+			'integrity.dontShowAgain',
+			nls.localize('integrity.dontShowAgain', "Don't show again"),
+			null,
+			true,
+			() => {
+				this._storage.set({
+					dontShowPrompt: true,
+					commit: product.commit
+				});
+				return TPromise.as(true);
+			}
+		);
+
+		this._messageService.show(Severity.Warning, {
+			message: nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
+			actions: [OkAction, DontShowAgainAction]
 		});
 	}
 
