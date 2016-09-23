@@ -211,22 +211,23 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.downloadAndInstall(extension)
 			.then(localExtension => {
 				return TPromise.join(dependecies.map((dep) => this.installCompatibleVersion(dep, false)))
-					.then(
-					installedLocalExtensions => {
+					.then(installedLocalExtensions => {
 						for (const installedLocalExtension of installedLocalExtensions) {
 							const gallery = this.getGalleryExtensionForLocalExtension(dependecies, installedLocalExtension);
 							this._onDidInstallExtension.fire({ id: installedLocalExtension.id, local: installedLocalExtension, gallery });
 						}
 						return localExtension;
-					},
-					error => {
+					}, error => {
 						return this.rollback(localExtension, dependecies).then(() => {
-							for (const dependency of dependecies) {
-								this._onDidInstallExtension.fire({ id: getExtensionId(dependency, dependency.version), gallery: dependency, error });
-							}
 							return TPromise.wrapError(Array.isArray(error) ? error[error.length - 1] : error);
 						});
 					});
+			})
+			.then(localExtension => localExtension, error => {
+				for (const dependency of dependecies) {
+					this._onDidInstallExtension.fire({ id: getExtensionId(dependency, dependency.version), gallery: dependency, error });
+				}
+				return TPromise.wrapError(error);
 			});
 	}
 
