@@ -38,7 +38,7 @@ interface IRawGalleryExtensionVersion {
 	lastUpdated: string;
 	assetUri: string;
 	files: IRawGalleryExtensionFile[];
-	properties: IRawGalleryExtensionProperty[];
+	properties?: IRawGalleryExtensionProperty[];
 }
 
 interface IRawGalleryExtensionStatistics {
@@ -190,8 +190,8 @@ function getAssetSource(files: IRawGalleryExtensionFile[], type: string): string
 	const result = files.filter(f => f.assetType === type)[0];
 	return result && result.source;
 }
-function getDependencies(properties: IRawGalleryExtensionProperty[]): string[] {
-	const values = properties.filter(p => p.key === PropertyType.Dependency);
+function getDependencies(version: IRawGalleryExtensionVersion): string[] {
+	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Dependency) : [];
 	if (values.length && values[0].value) {
 		return values[0].value.split(',');
 	}
@@ -221,8 +221,6 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		license: getAssetSource(version.files, AssetType.License)
 	};
 
-	const dependencies = version.properties ? getDependencies(version.properties) : void 0;
-
 	return {
 		id: galleryExtension.extensionId,
 		name: galleryExtension.extensionName,
@@ -238,7 +236,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assets,
 		properties: {
-			dependencies
+			dependencies: getDependencies(version)
 		},
 		downloadHeaders
 	};
@@ -401,7 +399,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			}
 			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
 				.then(rawVersion => {
-					extension.properties.dependencies = getDependencies(rawVersion.properties);
+					extension.properties.dependencies = getDependencies(rawVersion);
 					extension.assets.download = `${ getAssetSource(rawVersion.files, AssetType.VSIX) }?install=true`;
 					return extension;
 				});
