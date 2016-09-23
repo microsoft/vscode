@@ -141,7 +141,8 @@ function main() {
 			recordStats: !!configuration.performance,
 			ignoreDuplicateModules: [
 				'vs/workbench/parts/search/common/searchQuery'
-			]
+			],
+			checksum: true
 		});
 
 		if (nlsConfig.pseudo) {

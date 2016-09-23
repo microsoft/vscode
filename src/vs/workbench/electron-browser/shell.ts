@@ -46,6 +46,8 @@ import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerServic
 import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {IntegrityServiceImpl} from 'vs/platform/integrity/node/integrityServiceImpl';
+import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {MainProcessExtensionService} from 'vs/workbench/api/node/mainThreadExtensionService';
@@ -326,6 +328,9 @@ export class WorkbenchShell {
 
 		const codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
 		serviceCollection.set(ICodeEditorService, codeEditorService);
+
+		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
+		serviceCollection.set(IIntegrityService, integrityService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
