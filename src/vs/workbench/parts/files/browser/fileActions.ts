@@ -183,7 +183,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewconst state provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
 		}
 
 		const stat = <IFileStat>context.stat;
@@ -395,7 +395,7 @@ export class BaseNewAction extends BaseFileAction {
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewconst state provided to BaseNewAction.');
+			return TPromise.wrapError('Invalid viewlet state provided to BaseNewAction.');
 		}
 
 		let folder: FileStat = this.presetFolder;

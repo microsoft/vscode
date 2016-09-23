@@ -265,7 +265,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	public getOptimalWidth():number {
 		let parentNode = this.tree.getHTMLElement();
-		let childNodes = [].slice.call(parentNode.querySelectorAll('.monaco-file-label > .file-name'));
+		let childNodes = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}
 

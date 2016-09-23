@@ -650,6 +650,11 @@ export function getTotalWidth(element: HTMLElement): number {
 	return element.offsetWidth + margin;
 }
 
+export function getTotalScrollWidth(element: HTMLElement): number {
+	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	return element.scrollWidth + margin;
+}
+
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element: HTMLElement): number {
@@ -678,7 +683,7 @@ function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
 
 export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
 	let childWidths = children.map((child) => {
-		return getTotalWidth(child) + getRelativeLeft(child, parent) || 0;
+		return Math.max(getTotalScrollWidth(child), getTotalWidth(child)) + getRelativeLeft(child, parent) || 0;
 	});
 	let maxWidth = Math.max(...childWidths);
 	return maxWidth;
