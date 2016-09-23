@@ -212,6 +212,11 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when you save a file.")
 		},
+		'files.formatOnSave': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('formatOnSave', "Format a file on save - a matching formatting provider must be available.")
+		},
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, , AutoSaveConfiguration.ON_WINDOW_CHANGE],
