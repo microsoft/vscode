@@ -99,8 +99,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 		}
 	});
 
-	logService.log('### VSCode main.js ###');
-	logService.log(envService.appRoot, envService.cliArgs);
+	logService.log('Starting VS Code in verbose mode');
+	logService.log(`from: ${envService.appRoot}`);
+	logService.log('args:', envService.cliArgs);
 
 	// Setup Windows mutex
 	let windowsMutex: Mutex = null;

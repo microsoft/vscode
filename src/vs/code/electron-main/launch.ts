@@ -56,7 +56,7 @@ export class LaunchService implements ILaunchService {
 	) {}
 
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
-		this.logService.log('Received data from other instance', args, userEnv);
+		this.logService.log('Received data from other instance: ', args, userEnv);
 
 		// Otherwise handle in windows service
 		let usedWindows: VSCodeWindow[];
