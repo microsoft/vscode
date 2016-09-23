@@ -32,10 +32,10 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;
-	private compositeSwitcherBar: ActionBar;
+	private viewletSwitcherBar: ActionBar;
+	private panelSwitcherBar: ActionBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
-	private viewletActions: Action[];
 	private panelActions: Action[];
 	private showPanelAction: ShowPanelAction;
 
@@ -76,7 +76,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private onActivePanelChanged(panel: IPanel): void {
-		this.updateActionBar();
+		this.updatePanelSwitcher();
 		this.onActiveCompositeChanged(panel);
 	}
 
@@ -87,7 +87,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private onPanelClosed(panel: IPanel): void {
-		this.updateActionBar();
+		this.updatePanelSwitcher();
 		this.onCompositeClosed(panel);
 	}
 
@@ -110,68 +110,90 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const $result = $('.content').appendTo($el);
 
 		// Top Actionbar with action items for each viewlet action
-		this.createCompositeSwitcher($result.clone());
+		this.createViewletSwitcher($result.clone());
+		this.createPanelSwitcher($result.clone());
 
 		return $result;
 	}
 
-	private createCompositeSwitcher(div: Builder): void {
+	private createViewletSwitcher(div: Builder): void {
 
 		// Composite switcher is on top
-		this.compositeSwitcherBar = new ActionBar(div, {
+		this.viewletSwitcherBar = new ActionBar(div, {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher")
 		});
-		this.compositeSwitcherBar.getContainer().addClass('position-top');
+		this.viewletSwitcherBar.getContainer().addClass('position-top');
 
 		// Build Viewlet Actions in correct order
-		const activeViewlet = this.viewletService.getActiveViewlet();
-		const activePanel = this.panelService.getActivePanel();
 		const allViewlets = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).getViewlets();
+		const viewletActions = allViewlets.sort((v1, v2) => v1.order - v2.order).map(viewlet => this.toAction(viewlet));
+
+		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
+	}
+
+	private createPanelSwitcher(div: Builder): void {
+
+		// Composite switcher is on top
+		this.panelSwitcherBar = new ActionBar(div, {
+			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
+			orientation: ActionsOrientation.VERTICAL,
+			ariaLabel: nls.localize('activityBarPanelAriaLabel', "Active Panel Switcher")
+		});
+		this.panelSwitcherBar.getContainer().addClass('position-bottom');
+
+		// Build Viewlet Actions in correct order
+
 		const allPanels = (<PanelRegistry>Registry.as(PanelExtensions.Panels)).getPanels();
 
-		const toAction = (composite: CompositeDescriptor<Viewlet | Panel>) => {
-			const action = composite instanceof ViewletDescriptor ? this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite)
-				: this.instantiationService.createInstance(PanelActivityAction, composite.id + '.activity-bar-action', composite);
-
-			let keybinding: string = null;
-			const keys = this.keybindingService.lookupKeybindings(composite.id).map(k => this.keybindingService.getLabelFor(k));
-			if (keys && keys.length) {
-				keybinding = keys[0];
-			}
-
-			this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, keybinding);
-			this.compositeIdToActions[composite.id] = action;
-
-			// Mark active viewlet and panel action as active
-			if (activeViewlet && activeViewlet.getId() === composite.id || activePanel && activePanel.getId() === composite.id) {
-				action.activate();
-			}
-
-			return action;
-		};
-		this.viewletActions = allViewlets.sort((v1, v2) => v1.order - v2.order).map(toAction);
 		this.showPanelAction = this.instantiationService.createInstance(ShowPanelAction);
 		this.activityActionItems[this.showPanelAction.id] = new ActivityActionItem(this.showPanelAction);
-		this.panelActions = allPanels.sort((p1, p2) => p1.order - p2.order).map(toAction);
-
+		this.panelActions = allPanels.sort((p1, p2) => p1.order - p2.order).map(panel => this.toAction(panel));
 
 		// Add both viewlet and panel actions to the switcher
-		this.updateActionBar();
+		this.updatePanelSwitcher();
 	}
 
-	private updateActionBar(): void {
-		this.compositeSwitcherBar.clear();
-		const actions = this.partService.isPanelHidden() ? this.viewletActions.concat(this.showPanelAction) : this.viewletActions.concat(this.panelActions);
+	private updatePanelSwitcher(): void {
+		this.panelSwitcherBar.clear();
+		const actions = this.partService.isPanelHidden() ? this.showPanelAction : this.panelActions;
 
-		this.compositeSwitcherBar.push(actions, { label: true, icon: true });
+		this.panelSwitcherBar.push(actions, { label: true, icon: true });
 	}
+
+	private toAction(composite: CompositeDescriptor<Viewlet | Panel>): ActivityAction {
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		const activePanel = this.panelService.getActivePanel();
+		const action = composite instanceof ViewletDescriptor ? this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite)
+			: this.instantiationService.createInstance(PanelActivityAction, composite.id + '.activity-bar-action', composite);
+
+		let keybinding: string = null;
+		const keys = this.keybindingService.lookupKeybindings(composite.id).map(k => this.keybindingService.getLabelFor(k));
+		if (keys && keys.length) {
+			keybinding = keys[0];
+		}
+
+		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, keybinding);
+		this.compositeIdToActions[composite.id] = action;
+
+		// Mark active viewlet and panel action as active
+		if (activeViewlet && activeViewlet.getId() === composite.id || activePanel && activePanel.getId() === composite.id) {
+			action.activate();
+		}
+
+		return action;
+	};
 
 	public dispose(): void {
-		if (this.compositeSwitcherBar) {
-			this.compositeSwitcherBar.dispose();
-			this.compositeSwitcherBar = null;
+		if (this.viewletSwitcherBar) {
+			this.viewletSwitcherBar.dispose();
+			this.viewletSwitcherBar = null;
+		}
+
+		if (this.panelSwitcherBar) {
+			this.panelSwitcherBar.dispose();
+			this.panelSwitcherBar = null;
 		}
 
 		if (this.showPanelAction) {
