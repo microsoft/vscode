@@ -209,13 +209,18 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private filterOutInstalled(extensions: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
 		return this.getInstalled().then(local => {
-			return extensions.filter(extension => local.every(local => local.id !== extension.id));
+			return extensions.filter(extension => {
+				const extensionId = getExtensionId(extension, extension.version);
+				return local.every(local => local.id !== extensionId);
+			});
 		});
 	}
 
 	private filterOutUnInstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
 		return this.getInstalled().then(installed => {
-			return installed.filter(local => extensions.every(extension => extension.id === local.id));
+			return installed.filter(local => {
+				return extensions.every(extension => getExtensionId(extension, extension.version) === local.id);
+			});
 		});
 	}
 
