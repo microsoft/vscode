@@ -15,7 +15,6 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
@@ -302,12 +301,35 @@ class FixesWidget {
 	}
 }
 
+class MessageWidget {
+
+	domNode: HTMLDivElement;
+
+	constructor(container: HTMLElement) {
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'block descriptioncontainer';
+		this.domNode.setAttribute('aria-live', 'assertive');
+		this.domNode.setAttribute('role', 'alert');
+		container.appendChild(this.domNode);
+	}
+
+	update({source, message}: IMarker): void {
+		if (source) {
+			const indent = new Array(source.length + 3 + 1).join(' ');
+			message = `[${source}] ` + message.replace(/\r\n|\r|\n/g, function () {
+				return '\n' + indent;
+			});
+		}
+		this.domNode.innerText = message;
+	}
+}
+
 class MarkerNavigationWidget extends ZoneWidget {
 
 	private _parentContainer: HTMLElement;
 	private _container: HTMLElement;
 	private _title: HTMLElement;
-	private _messages: HTMLElement;
+	private _message: MessageWidget;
 	private _fixesWidget: FixesWidget;
 	private _callOnDispose: IDisposable[] = [];
 
@@ -330,12 +352,8 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._title.className = 'block title';
 		this._container.appendChild(this._title);
 
-		this._messages = document.createElement('div');
-		this.editor.applyFontInfo(this._messages);
-		this._messages.className = 'block descriptioncontainer';
-		this._messages.setAttribute('aria-live', 'assertive');
-		this._messages.setAttribute('role', 'alert');
-		this._container.appendChild(this._messages);
+		this._message = new MessageWidget(this._container);
+		this.editor.applyFontInfo(this._message.domNode);
 
 		this._fixesWidget = new FixesWidget(this._container, this._commandService);
 		this._fixesWidget.domNode.classList.add('fixes');
@@ -363,16 +381,10 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
 
 		// update meta title
-		if (marker.source) {
-			this._title.innerHTML = nls.localize('title.w_source', "({0}/{1}) [{2}]", this._model.indexOf(marker), this._model.total, marker.source);
-		} else {
-			this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", this._model.indexOf(marker), this._model.total);
-		}
+		this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", this._model.indexOf(marker), this._model.total);
 
-		// update label and show
-		dom.clearNode(this._messages);
-
-		this._messages.appendChild(renderHtml(marker.message));
+		// update message
+		this._message.update(marker);
 
 		const range = Range.lift(marker);
 		this._model.withoutWatchingEditorPosition(() => this.show(range.getStartPosition(), this.computeRequiredHeight()));
