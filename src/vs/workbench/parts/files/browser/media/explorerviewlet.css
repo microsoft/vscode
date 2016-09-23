@@ -104,10 +104,6 @@
 	height: 20px;
 }
 
-.explorer-viewlet-label > .badge-content {
-	background-color: #007ACC;
-}
-
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group {
 	font-size: 11px;
 	font-weight: bold;
