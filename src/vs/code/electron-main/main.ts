@@ -226,7 +226,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 						title: getPathLabel(folder),
 						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
 						program: process.execPath,
-						args: folder, // open folder
+						args: folder, // open folder,
+						iconPath: process.execPath,
+						iconIndex: 0
 					};
 				})
 			});
