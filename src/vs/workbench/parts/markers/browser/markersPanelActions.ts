@@ -26,7 +26,7 @@ import Tree = require('vs/base/parts/tree/browser/tree');
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
-	public static ID:string = 'workbench.actions.view.problems';
+	public static ID = 'workbench.actions.view.problems';
 
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
