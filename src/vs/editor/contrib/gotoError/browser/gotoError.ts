@@ -199,6 +199,7 @@ class FixesWidget {
 
 	constructor(
 		container: HTMLElement,
+		private _markerWidget: MarkerNavigationWidget,
 		@ICommandService private _commandService: ICommandService
 	) {
 		this.domNode = document.createElement('div');
@@ -208,13 +209,11 @@ class FixesWidget {
 			switch (e.asKeybinding()) {
 				case KeyCode.LeftArrow:
 					this._move(true);
-					// this._goLeft();
 					e.preventDefault();
 					e.stopPropagation();
 					break;
 				case KeyCode.RightArrow:
 					this._move(false);
-					// this._goRight();
 					e.preventDefault();
 					e.stopPropagation();
 					break;
@@ -227,10 +226,13 @@ class FixesWidget {
 		this._listener = dispose(this._listener);
 	}
 
-	update(fixes: TPromise<IQuickFix2[]>): TPromise<any> {
+	update(marker: IMarker): TPromise<any> {
 		this._disposeOnUpdate = dispose(this._disposeOnUpdate);
 		this.domNode.style.display = 'none';
-		return fixes.then(fixes => this._doUpdate(fixes), onUnexpectedError);
+		if (marker) {
+			const fixes = getCodeActions(this._markerWidget.editor.getModel(), Range.lift(marker));
+			return fixes.then(fixes => this._doUpdate(fixes), onUnexpectedError);
+		}
 	}
 
 	private _doUpdate(fixes: IQuickFix2[]): void {
@@ -268,15 +270,17 @@ class FixesWidget {
 			entry.dataset['next'] = String(idx < arr.length - 1 ? idx + 1 : 0);
 			entry.dataset['prev'] = String(idx > 0 ? idx - 1 : arr.length - 1);
 			entry.appendChild(document.createTextNode(fix.command.title));
-			this._disposeOnUpdate.push(dom.addDisposableListener(entry, dom.EventType.CLICK, () => {
+			this._disposeOnUpdate.push(dom.addDisposableListener(entry, dom.EventType.CLICK, (e) => {
 				this._commandService.executeCommand(fix.command.id, ...fix.command.arguments);
-				return true;
+				this._markerWidget.focus();
+				e.preventDefault();
 			}));
 			this._disposeOnUpdate.push(dom.addStandardDisposableListener(entry, 'keydown', (e) => {
 				switch (e.asKeybinding()) {
 					case KeyCode.Enter:
 					case KeyCode.Space:
 						this._commandService.executeCommand(fix.command.id, ...fix.command.arguments);
+						this._markerWidget.focus();
 						e.preventDefault();
 						e.stopPropagation();
 				}
@@ -339,6 +343,15 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._wireModelAndView();
 	}
 
+	dispose(): void {
+		this._callOnDispose = dispose(this._callOnDispose);
+		super.dispose();
+	}
+
+	focus(): void {
+		this._parentContainer.focus();
+	}
+
 	protected _fillContainer(container: HTMLElement): void {
 		this._parentContainer = container;
 		dom.addClass(container, 'marker-widget');
@@ -355,14 +368,14 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._message = new MessageWidget(this._container);
 		this.editor.applyFontInfo(this._message.domNode);
 
-		this._fixesWidget = new FixesWidget(this._container, this._commandService);
+		this._fixesWidget = new FixesWidget(this._container, this, this._commandService);
 		this._fixesWidget.domNode.classList.add('fixes');
 		this._callOnDispose.push(this._fixesWidget);
 	}
 
 	public show(where: editorCommon.IPosition, heightInLines: number): void {
 		super.show(where, heightInLines);
-		this._parentContainer.focus();
+		this.focus();
 	}
 
 	private _wireModelAndView(): void {
@@ -377,64 +390,60 @@ class MarkerNavigationWidget extends ZoneWidget {
 			return;
 		}
 
-		// update frame color
-		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
-
-		// update meta title
+		// update:
+		// * title
+		// * message
+		// * quick fixes
+		this._container.classList.remove('stale');
 		this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", this._model.indexOf(marker), this._model.total);
-
-		// update message
 		this._message.update(marker);
+		this._fixesWidget.update(marker).then(() => this._relayout());
 
-		const range = Range.lift(marker);
-		this._model.withoutWatchingEditorPosition(() => this.show(range.getStartPosition(), this.computeRequiredHeight()));
+		this._model.withoutWatchingEditorPosition(() => {
 
-		// check for fixes and update widget
-		this._fixesWidget
-			.update(getCodeActions(this.editor.getModel(), range))
-			.then(() => this.show(range.getStartPosition(), this.computeRequiredHeight()));
+			// update frame color (only applied on 'show')
+			switch (marker.severity) {
+				case Severity.Error:
+					this.options.frameColor = '#ff5a5a';
+					break;
+				case Severity.Warning:
+				case Severity.Info:
+					this.options.frameColor = '#5aac5a';
+					break;
+			}
+
+			this.show({
+				lineNumber: marker.startLineNumber,
+				column: marker.startColumn
+			}, this.computeRequiredHeight());
+		});
 	}
 
 	private _onMarkersChanged(): void {
 
 		const marker = this._model.findMarkerAtPosition(this.position);
-		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
-		const newQuickFixes = marker
-			? getCodeActions(this.editor.getModel(), Range.lift(marker))
-			: TPromise.as([]);
 
-		this._fixesWidget
-			.update(newQuickFixes)
-			.then(() => {
-				const selections = this.editor.getSelections();
-				super.show(this.position, this.computeRequiredHeight());
-				this.editor.setSelections(selections);
-				this.editor.focus();
-			});
+		if (marker) {
+			this._container.classList.remove('stale');
+			this._message.update(marker);
+			this._relayout();
+			this._fixesWidget.update(marker).then(() => this._relayout());
+
+		} else {
+			this._container.classList.add('stale');
+			this._fixesWidget.update(marker);
+			this._relayout();
+		}
+	}
+
+	protected _relayout(): void {
+		super._relayout(this.computeRequiredHeight());
 	}
 
 	private computeRequiredHeight() {
 		// minimum one line content, add one line for zone widget decorations
-		let lineHeight = this.editor.getConfiguration().lineHeight || 12;
+		const lineHeight = this.editor.getConfiguration().lineHeight || 12;
 		return Math.max(1, Math.ceil(this._container.clientHeight / lineHeight)) + 1;
-	}
-
-	private static _getFrameColorFromMarker(marker: IMarker): string {
-		if (marker) {
-			switch (marker.severity) {
-				case Severity.Error:
-					return '#ff5a5a';
-				case Severity.Warning:
-				case Severity.Info:
-					return '#5aac5a';
-			}
-		}
-		return '#ccc';
-	}
-
-	public dispose(): void {
-		this._callOnDispose = dispose(this._callOnDispose);
-		super.dispose();
 	}
 }
 
