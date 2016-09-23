@@ -20,7 +20,7 @@ import { IRequestOptions, IRequestContext, download, asJson } from 'vs/base/node
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
-import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
+import { isValidExtensionVersion, validateVersions } from 'vs/platform/extensions/node/extensionValidator';
 import * as url from 'url';
 
 interface IRawGalleryExtensionFile {
@@ -102,7 +102,8 @@ const AssetType = {
 };
 
 const PropertyType = {
-	Dependency: 'Microsoft.VisualStudio.Code.ExtensionDependencies'
+	Dependency: 'Microsoft.VisualStudio.Code.ExtensionDependencies',
+	Engine: 'Microsoft.VisualStudio.Code.Engine'
 };
 
 interface ICriterium {
@@ -197,6 +198,13 @@ function getDependencies(version: IRawGalleryExtensionVersion): string[] {
 	}
 	return [];
 }
+function getEngine(version: IRawGalleryExtensionVersion): string {
+	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Engine) : [];
+	if (values.length && values[0].value) {
+		return values[0].value;
+	}
+	return '';
+}
 function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: { [key: string]: string; }): IGalleryExtension {
 	const [version] = galleryExtension.versions;
 
@@ -236,9 +244,11 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assets,
 		properties: {
-			dependencies: getDependencies(version)
+			dependencies: getDependencies(version),
+			engine: getEngine(version)
 		},
-		downloadHeaders
+		downloadHeaders,
+		isCompatible: false
 	};
 }
 
@@ -384,7 +394,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
-		// TODO:sandy: Check if the given version is compatible
+		if (extension.isCompatible) {
+			return TPromise.wrap(extension);
+		}
+		if (extension.assets.download && extension.properties.engine && validateVersions(pkg.version, extension.properties.engine, [])) {
+			extension.isCompatible = true;
+			return TPromise.wrap(extension);
+		}
 		const query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1)
@@ -400,7 +416,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
 				.then(rawVersion => {
 					extension.properties.dependencies = getDependencies(rawVersion);
-					extension.assets.download = `${ getAssetSource(rawVersion.files, AssetType.VSIX) }?install=true`;
+					extension.properties.engine = getEngine(rawVersion);
+					extension.assets.download = `${getAssetSource(rawVersion.files, AssetType.VSIX)}?install=true`;
+					extension.isCompatible = true;
 					return extension;
 				});
 		});
@@ -408,7 +426,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private loadDependencies(extensionNames: string[]): TPromise<IGalleryExtension[]> {
 		let query = new Query()
-			.withFlags(Flags.IncludeVersions, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
+			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, extensionNames.length)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX);
@@ -419,10 +437,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				.then(downloadHeaders => {
 					const dependencies = [];
 					const ids = [];
-					for (const galleryExtension of result.galleryExtensions) {
-						if (ids.indexOf(galleryExtension.extensionId) === -1) {
-							dependencies.push(toExtension(galleryExtension, this.extensionsGalleryUrl, downloadHeaders));
-							ids.push(galleryExtension.extensionId);
+					for (const rawExtension of result.galleryExtensions) {
+						if (ids.indexOf(rawExtension.extensionId) === -1) {
+							const galleryExtension = toExtension(rawExtension, this.extensionsGalleryUrl, downloadHeaders);
+							galleryExtension.isCompatible = galleryExtension.properties.engine && validateVersions(pkg.version, galleryExtension.properties.engine, []);
+							dependencies.push(galleryExtension);
+							ids.push(rawExtension.extensionId);
 						}
 					}
 					return dependencies;
@@ -438,7 +458,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		if (!toGet.length) {
 			return TPromise.wrap(result);
 		}
-
 
 		return this.loadDependencies(toGet)
 			.then(loadedDependencies => {
@@ -474,6 +493,27 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
+		const version = this.getLastValidExtensionVersionFromProperties(versions);
+		if (version) {
+			return TPromise.wrap(version);
+		}
+		return this.getLastValidExtensionVersionReccursively(extension, versions);
+	}
+
+	private getLastValidExtensionVersionFromProperties(versions: IRawGalleryExtensionVersion[]): IRawGalleryExtensionVersion {
+		for (const version of versions) {
+			const engine = getEngine(version);
+			if (!engine) {
+				return null;
+			}
+			if (validateVersions(pkg.version, engine, [])) {
+				return version;
+			}
+		}
+		return null;
+	}
+
+	private getLastValidExtensionVersionReccursively(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
 		if (!versions.length) {
 			return TPromise.wrapError(new Error(localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName || extension.extensionName)));
 		}
@@ -495,7 +535,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				if (!isValidExtensionVersion(pkg.version, desc, [])) {
 					return this.getLastValidExtensionVersion(extension, versions.slice(1));
 				}
-
+				version.properties = version.properties || [];
+				version.properties.push({ key: PropertyType.Engine, value: manifest.engines.vscode });
 				return version;
 			});
 	}
