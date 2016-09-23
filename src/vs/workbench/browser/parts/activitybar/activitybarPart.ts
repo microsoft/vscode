@@ -38,7 +38,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 	private panelActions: ActivityAction[];
-	private showPanelAction: TogglePanelAction;
+	private togglePanelAction: TogglePanelAction;
 
 	constructor(
 		id: string,
@@ -95,6 +95,12 @@ export class ActivitybarPart extends Part implements IActivityService {
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
 		const action = this.compositeIdToActions[compositeId];
 		if (action) {
+			if (action instanceof PanelActivityAction && this.partService.isPanelHidden()) {
+				// while the panel badges are hidden we show the badge on the parent action which is visible
+				this.togglePanelAction.setBadge(badge);
+				return;
+			}
+
 			action.setBadge(badge);
 			if (clazz) {
 				action.class = clazz;
@@ -148,8 +154,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		const allPanels = (<PanelRegistry>Registry.as(PanelExtensions.Panels)).getPanels();
 
-		this.showPanelAction = this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL);
-		this.activityActionItems[this.showPanelAction.id] = new ActivityActionItem(this.showPanelAction, TogglePanelAction.LABEL, this.getKeybindingLabel(TogglePanelAction.ID));
+		this.togglePanelAction = this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL);
+		this.activityActionItems[this.togglePanelAction.id] = new ActivityActionItem(this.togglePanelAction, TogglePanelAction.LABEL, this.getKeybindingLabel(TogglePanelAction.ID));
 		this.panelActions = allPanels.sort((p1, p2) => p1.order - p2.order).map(panel => this.toAction(panel));
 
 		// Add both viewlet and panel actions to the switcher
@@ -158,12 +164,25 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private updatePanelSwitcher(): void {
 		this.panelSwitcherBar.clear();
-		const actions:ActivityAction[] = [this.showPanelAction];
+		const actions: ActivityAction[] = [this.togglePanelAction];
 		if (!this.partService.isPanelHidden()) {
 			actions.push(...this.panelActions);
 		}
 
 		this.panelSwitcherBar.push(actions, { label: true, icon: true });
+
+		// TODO@Isidor fix this aweful badge(r) hacks
+		if (!this.partService.isPanelHidden()) {
+			if (!this.panelActions[0].getBadge()) {
+				this.panelActions[0].setBadge(this.togglePanelAction.getBadge());
+			} else {
+				this.panelActions[0].setBadge(this.panelActions[0].getBadge());
+			}
+			this.togglePanelAction.setBadge(null);
+		} else {
+			this.togglePanelAction.setBadge(this.panelActions[0].getBadge());
+			this.panelActions[0].setBadge(null);
+		}
 	}
 
 	private toAction(composite: CompositeDescriptor<Viewlet | Panel>): ActivityAction {
@@ -203,8 +222,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 			this.panelSwitcherBar = null;
 		}
 
-		if (this.showPanelAction) {
-			this.showPanelAction.dispose();
+		if (this.togglePanelAction) {
+			this.togglePanelAction.dispose();
 		}
 
 		super.dispose();
