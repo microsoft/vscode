@@ -69,7 +69,8 @@ namespace Trace {
 enum MessageAction {
 	useLocal,
 	useBundled,
-	neverCheckLocalVersion
+	neverCheckLocalVersion,
+	close
 }
 
 interface MyMessageItem extends MessageItem  {
@@ -321,9 +322,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							{
 								title: localize('neverCheckLocalVesion', 'Never Check for Workspace Version'),
 								id: MessageAction.neverCheckLocalVersion
+							},
+							{
+								title: localize('close', 'Close'),
+								id: MessageAction.close,
+								isCloseAffordance: true
 							}
 						).then((selected) => {
-							if (!selected) {
+							if (!selected || selected.id === MessageAction.close) {
 								return modulePath;
 							}
 							switch(selected.id) {
@@ -402,9 +408,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						{
 							title: localize('doNotCheckAgain', 'Don\'t Check Again'),
 							id: 2
+						},
+						{
+							title: localize('close', 'Close'),
+							id: 3,
+							isCloseAffordance: true
 						}
 					).then((selected) => {
-						if (!selected) {
+						if (!selected || selected.id === 3) {
 							return;
 						}
 						switch (selected.id) {
