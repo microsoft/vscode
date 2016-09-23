@@ -320,8 +320,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							},
 							{
 								title: localize('neverCheckLocalVesion', 'Never Check for Workspace Version'),
-								id: MessageAction.neverCheckLocalVersion,
-								isCloseAffordance: true
+								id: MessageAction.neverCheckLocalVersion
 							}
 						).then((selected) => {
 							if (!selected) {
@@ -379,6 +378,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			const checkTscVersion = 'check.tscVersion';
 			if (!globalStateValue) {
 				tsConfig.update(checkTscVersion, false, true);
+				this.globalState.update(doGlobalVersionCheckKey, true);
 			}
 			if (checkGlobalVersion && tsConfig.get(checkTscVersion)) {
 				let tscVersion: string = undefined;
@@ -401,8 +401,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						},
 						{
 							title: localize('doNotCheckAgain', 'Don\'t Check Again'),
-							id: 2,
-							isCloseAffordance: true
+							id: 2
 						}
 					).then((selected) => {
 						if (!selected) {

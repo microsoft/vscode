@@ -243,7 +243,7 @@ class DocumentHighlightAdapter {
 	private static _convertDocumentHighlight(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
 		return {
 			range: TypeConverters.fromRange(documentHighlight.range),
-			kind: documentHighlight.kind
+			kind: <modes.DocumentHighlightKind><any>documentHighlight.kind
 		};
 	}
 }
@@ -583,8 +583,8 @@ class SuggestAdapter {
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
-		return asWinJsPromise(token => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			return TypeConverters.Suggest.from(resolvedItem || item, this._disposables[id]);
+		return asWinJsPromise(token => this._provider.resolveCompletionItem(<vscode.CompletionItem><any>item, token)).then(resolvedItem => {
+			return TypeConverters.Suggest.from(resolvedItem || <vscode.CompletionItem><any>item, this._disposables[id]);
 		});
 	}
 }

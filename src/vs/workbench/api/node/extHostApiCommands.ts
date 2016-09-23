@@ -350,7 +350,7 @@ class ExtHostApiCommands {
 					incomplete = item.container.incomplete || incomplete;
 					items.push(typeConverters.Suggest.to(item.container, position, item.suggestion));
 				}
-				return new types.CompletionList(items, incomplete);
+				return new types.CompletionList(<vscode.CompletionItem[]><any>items, incomplete);
 			}
 		});
 	}
