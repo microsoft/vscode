@@ -118,9 +118,9 @@
       "resolved": "https://registry.npmjs.org/extract-opts/-/extract-opts-2.2.0.tgz"
     },
     "fast-plist": {
-      "version": "0.1.1",
-      "from": "fast-plist@0.1.1",
-      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.1.tgz"
+      "version": "0.1.2",
+      "from": "fast-plist@0.1.2",
+      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.2.tgz"
     },
     "fd-slicer": {
       "version": "1.0.1",
