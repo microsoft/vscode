@@ -1,0 +1,50 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .part.editor > .watermark {
+	position: absolute;
+	width: 100%;
+	bottom: 10%;
+}
+
+.monaco-workbench > .part.editor > .watermark dl {
+	width: 100%;
+}
+
+.monaco-workbench > .part.editor > .watermark dt {
+	clear: left;
+	float: left;
+	width: 49%;
+	margin: 0 1% 0 0;
+	text-align: right;
+}
+
+.monaco-workbench > .part.editor > .watermark dd {
+	float: left;
+	width: 49%;
+	margin: 0 0 0 1%;
+	text-align: left;
+}
+
+.monaco-workbench > .part.editor > .watermark dt {
+	color: #2B91AF;
+}
+.monaco-workbench > .part.editor > .watermark dl {
+	color: #2B91AF;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .watermark dt {
+	color: #5A5A5A;
+}
+.vs-dark .monaco-workbench > .part.editor > .watermark dl {
+	color: #5A5A5A;
+}
+
+.hc-black .monaco-workbench > .part.editor > .watermark dt {
+	color: #FFF;
+}
+.hc-black .monaco-workbench > .part.editor > .watermark dl {
+	color: #FFF;
+}
