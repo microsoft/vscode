@@ -86,7 +86,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 
 	participate(editorModel: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
 
-		if (env.isAutoSaved || !this._configurationService.lookup('files.formatOnSave').value) {
+		if (env.isAutoSaved || !this._configurationService.lookup('editor.formatOnSave').value) {
 			return;
 		}
 
