@@ -191,7 +191,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activePanel = this.panelService.getActivePanel();
 		const action = composite instanceof ViewletDescriptor ? this.instantiationService.createInstance(ViewletActivityAction, composite.id + '.activity-bar-action', composite)
-			: this.instantiationService.createInstance(PanelActivityAction, composite.id + '.activity-bar-action', composite);
+			: this.instantiationService.createInstance(PanelActivityAction, (<PanelDescriptor>composite).id + '.activity-bar-action', composite);
 
 		this.activityActionItems[action.id] = new ActivityActionItem(action, composite.name, this.getKeybindingLabel(composite.id));
 		this.compositeIdToActions[composite.id] = action;
