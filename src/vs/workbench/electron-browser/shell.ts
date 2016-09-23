@@ -22,6 +22,7 @@ import {ContextViewService} from 'vs/platform/contextview/browser/contextViewSer
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/electron-browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
+import {BackupService} from 'vs/workbench/common/backup';
 import {ITelemetryService, NullTelemetryService, loadExperiments} from 'vs/platform/telemetry/common/telemetry';
 import {ITelemetryAppenderChannel, TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
 import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
@@ -51,6 +52,7 @@ import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerServic
 import {MainProcessExtensionService} from 'vs/workbench/api/node/mainThreadExtensionService';
 import {IOptions} from 'vs/workbench/common/options';
 import {IStorageService} from 'vs/platform/storage/common/storage';
+import {IBackupService} from 'vs/platform/backup/common/backup';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
@@ -239,6 +241,10 @@ export class WorkbenchShell {
 				});
 			});
 		}, errors.onUnexpectedError);
+
+		// Backup
+		const backupService = instantiationService.createInstance(BackupService);
+		serviceCollection.set(IBackupService, backupService);
 
 		// Storage
 		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state

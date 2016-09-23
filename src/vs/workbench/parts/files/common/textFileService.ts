@@ -26,6 +26,7 @@ import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorMode
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IBackupService} from 'vs/platform/backup/common/backup';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -58,7 +59,8 @@ export abstract class TextFileService implements ITextFileService {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService protected fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.toUnbind = [];
 
@@ -115,14 +117,21 @@ export abstract class TextFileService implements ITextFileService {
 
 	private beforeShutdown(): boolean | TPromise<boolean> {
 
+		// If hot exit is enabled then save the dirty files in the workspace and then exit
+		if (this.configuredHotExit) {
+			// TODO: Check if dirty
+			// TODO: Do a last minute backup if required
+			// TODO: There may be a better way of verifying that only a single window is open?
+			// Only remove the workspace from the backup service if it's not the last one or it's not dirty
+			if (this.backupService.getBackupWorkspaces().length > 1 || this.getDirty().length === 0) {
+				this.backupService.removeWorkspace(this.contextService.getWorkspace().resource.fsPath);
+			} else {
+				return false; // the backup will be restored, no veto
+			}
+		}
+
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
-			// If hot exit is enabled then save the dirty files in the workspace and then exit
-			if (this.configuredHotExit) {
-				// TODO: Do a last minute backup if required
-				// TODO: If this is the only instance opened, perform hot exit
-			}
-
 			// If auto save is enabled, save all files and then check again for dirty files
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 				return this.saveAll(false /* files only */).then(() => {
