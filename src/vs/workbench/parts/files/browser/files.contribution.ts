@@ -215,7 +215,7 @@ configurationRegistry.registerConfiguration({
 		'files.formatOnSave': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('formatOnSave', "Format a file on save - a matching formatting provider must be available.")
+			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available and the file must not be auto-saved")
 		},
 		'files.autoSave': {
 			'type': 'string',

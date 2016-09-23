@@ -86,7 +86,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 
 	participate(editorModel: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
 
-		if (!this._configurationService.lookup('files.formatOnSave').value) {
+		if (env.isAutoSaved || !this._configurationService.lookup('files.formatOnSave').value) {
 			return;
 		}
 
@@ -97,7 +97,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }).then(edits => {
 			if (edits) {
 				if (editor) {
-					this._editsWithEditor(editor, edits, env.isAutoSaved);
+					this._editsWithEditor(editor, edits);
 				} else {
 					this._editWithModel(model, edits);
 				}
@@ -105,27 +105,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		});
 	}
 
-	private _editsWithEditor(editor: ICommonCodeEditor, edits: ISingleEditOperation[], isAutoSaved: boolean): void {
-
-		if (isAutoSaved && editor.isFocused()) {
-			// when we save an focus (active) editor we check if
-			// formatting edits intersect with any cursor. iff so
-			// we ignore this
-
-			let intersectsCursor = false;
-			outer: for (const selection of editor.getSelections()) {
-				for (const {range} of edits) {
-					if (Range.areIntersectingOrTouching(range, selection)) {
-						intersectsCursor = true;
-						break outer;
-					}
-				}
-			}
-			if (intersectsCursor) {
-				return;
-			}
-		}
-
+	private _editsWithEditor(editor: ICommonCodeEditor, edits: ISingleEditOperation[]): void {
 		editor.executeCommand('files.formatOnSave', new EditOperationsCommand(edits, editor.getSelection()));
 	}
 
