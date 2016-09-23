@@ -12,9 +12,9 @@ import {Builder, $} from 'vs/base/browser/builder';
 import {Action} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {Registry} from 'vs/platform/platform';
-import {IViewlet} from 'vs/workbench/common/viewlet';
+import {IComposite} from 'vs/workbench/common/composite';
+import {IPanel} from 'vs/workbench/common/panel';
 import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, Viewlet} from 'vs/workbench/browser/viewlet';
 import {CompositeDescriptor, Composite} from 'vs/workbench/browser/composite';
 import {Panel, PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
@@ -33,7 +33,6 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;
 	private compositeSwitcherBar: ActionBar;
-	private globalToolBar: ToolBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
 	private viewletActions: Action[];
@@ -62,29 +61,34 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private registerListeners(): void {
 
 		// Activate viewlet action on opening of a viewlet
-		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.onActiveViewletChanged(viewlet)));
+		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.onActiveCompositeChanged(viewlet)));
+		this.toUnbind.push(this.panelService.onDidPanelOpen(panel => this.onActivePanelChanged(panel)));
 
 		// Deactivate viewlet action on close
-		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onViewletClosed(viewlet)));
+		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
+		this.toUnbind.push(this.panelService.onDidPanelClose(panel => this.onPanelClosed(panel)));
 	}
 
-	private onActiveViewletChanged(viewlet: IViewlet): void {
-		if (this.compositeIdToActions[viewlet.getId()]) {
-			this.compositeIdToActions[viewlet.getId()].activate();
-
-			// There can only be one active viewlet action
-			for (let key in this.compositeIdToActions) {
-				if (this.compositeIdToActions.hasOwnProperty(key) && key !== viewlet.getId() && this.compositeIdToActions[key] instanceof ViewletActivityAction) {
-					this.compositeIdToActions[key].deactivate();
-				}
-			}
+	private onActiveCompositeChanged(composite: IComposite): void {
+		if (this.compositeIdToActions[composite.getId()]) {
+			this.compositeIdToActions[composite.getId()].activate();
 		}
 	}
 
-	private onViewletClosed(viewlet: IViewlet): void {
-		if (this.compositeIdToActions[viewlet.getId()]) {
-			this.compositeIdToActions[viewlet.getId()].deactivate();
+	private onActivePanelChanged(panel: IPanel): void {
+		this.updateActionBar();
+		this.onActiveCompositeChanged(panel);
+	}
+
+	private onCompositeClosed(composite: IComposite): void {
+		if (this.compositeIdToActions[composite.getId()]) {
+			this.compositeIdToActions[composite.getId()].deactivate();
 		}
+	}
+
+	private onPanelClosed(panel: IPanel): void {
+		this.updateActionBar();
+		this.onCompositeClosed(panel);
 	}
 
 	public showActivity(compositeId: string, badge: IBadge, clazz?: string): void {
@@ -149,6 +153,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 		};
 		this.viewletActions = allViewlets.sort((v1, v2) => v1.order - v2.order).map(toAction);
 		this.showPanelAction = this.instantiationService.createInstance(ShowPanelAction);
+		this.activityActionItems[this.showPanelAction.id] = new ActivityActionItem(this.showPanelAction);
 		this.panelActions = allPanels.sort((p1, p2) => p1.order - p2.order).map(toAction);
 
 
@@ -169,9 +174,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 			this.compositeSwitcherBar = null;
 		}
 
-		if (this.globalToolBar) {
-			this.globalToolBar.dispose();
-			this.globalToolBar = null;
+		if (this.showPanelAction) {
+			this.showPanelAction.dispose();
 		}
 
 		super.dispose();
