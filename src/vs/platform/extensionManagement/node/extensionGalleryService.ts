@@ -229,7 +229,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		license: getAssetSource(version.files, AssetType.License)
 	};
 
-	return {
+	return setCompatibilityProperties({
 		id: galleryExtension.extensionId,
 		name: galleryExtension.extensionName,
 		version: version.version,
@@ -248,8 +248,17 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 			engine: getEngine(version)
 		},
 		downloadHeaders,
+		compatibilityChecked: false,
 		isCompatible: false
-	};
+	});
+}
+
+function setCompatibilityProperties(galleryExtension: IGalleryExtension): IGalleryExtension {
+	if (!galleryExtension.compatibilityChecked) {
+		galleryExtension.compatibilityChecked = !!galleryExtension.properties.engine;
+		galleryExtension.isCompatible = galleryExtension.properties.engine && validateVersions(pkg.version, galleryExtension.properties.engine, []);
+	}
+	return galleryExtension;
 }
 
 export class ExtensionGalleryService implements IExtensionGalleryService {
@@ -302,7 +311,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		this.telemetryService.publicLog('galleryService:query', { type, text });
 
 		let query = new Query()
-			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles)
+			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, pageSize)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX);
@@ -394,11 +403,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
-		if (extension.isCompatible) {
-			return TPromise.wrap(extension);
-		}
-		if (extension.assets.download && extension.properties.engine && validateVersions(pkg.version, extension.properties.engine, [])) {
-			extension.isCompatible = true;
+		extension = setCompatibilityProperties(extension);
+		if (extension.compatibilityChecked && extension.isCompatible) {
 			return TPromise.wrap(extension);
 		}
 		const query = new Query()
@@ -418,6 +424,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					extension.properties.dependencies = getDependencies(rawVersion);
 					extension.properties.engine = getEngine(rawVersion);
 					extension.assets.download = `${getAssetSource(rawVersion.files, AssetType.VSIX)}?install=true`;
+					extension.compatibilityChecked = true;
 					extension.isCompatible = true;
 					return extension;
 				});
@@ -439,9 +446,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					const ids = [];
 					for (const rawExtension of result.galleryExtensions) {
 						if (ids.indexOf(rawExtension.extensionId) === -1) {
-							const galleryExtension = toExtension(rawExtension, this.extensionsGalleryUrl, downloadHeaders);
-							galleryExtension.isCompatible = galleryExtension.properties.engine && validateVersions(pkg.version, galleryExtension.properties.engine, []);
-							dependencies.push(galleryExtension);
+							dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl, downloadHeaders));
 							ids.push(rawExtension.extensionId);
 						}
 					}

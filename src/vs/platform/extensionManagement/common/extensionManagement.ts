@@ -133,6 +133,8 @@ export interface IGalleryExtension {
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	downloadHeaders: { [key: string]: string; };
+	/** We need this check until all extension in the market place contain engine property */
+	compatibilityChecked: boolean;
 	isCompatible: boolean;
 }
 
