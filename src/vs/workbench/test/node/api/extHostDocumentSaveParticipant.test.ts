@@ -92,8 +92,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			const [first] = values;
-			assert.ok(first instanceof Error);
-			assert.ok((<Error>first).message);
+			assert.equal(first, false);
 		});
 	});
 
@@ -131,6 +130,27 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		return participant.$participateInSave(resource).then(() => {
 			sub1.dispose();
 			sub2.dispose();
+		});
+	});
+
+	test('event delivery, ignore bad listeners', () => {
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, { timeout: 5, errors: 1 });
+
+		let callCount = 0;
+		let sub = participant.onWillSaveTextDocumentEvent(function (event) {
+			callCount += 1;
+			throw new Error('boom');
+		});
+
+		return TPromise.join([
+			participant.$participateInSave(resource),
+			participant.$participateInSave(resource),
+			participant.$participateInSave(resource),
+			participant.$participateInSave(resource)
+
+		]).then(values => {
+			sub.dispose();
+			assert.equal(callCount, 2);
 		});
 	});
 
@@ -174,7 +194,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, waitUntil will timeout', () => {
-		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, 5);
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, { timeout: 5, errors: 3 });
 
 		let sub = participant.onWillSaveTextDocumentEvent(function (event) {
 			event.waitUntil(TPromise.timeout(15));
@@ -184,8 +204,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			const [first] = values;
-			assert.ok(first instanceof Error);
-			assert.ok((<Error>first).message);
+			assert.equal(first, false);
 		});
 	});
 
@@ -256,7 +275,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.equal(edits, undefined);
-			assert.ok((<Error>values[0]).message);
+			assert.equal(values[0], false);
 		});
 
 	});
