@@ -16,8 +16,8 @@ import {Registry} from 'vs/platform/platform';
 import {IComposite} from 'vs/workbench/common/composite';
 import {IPanel} from 'vs/workbench/common/panel';
 import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, Viewlet} from 'vs/workbench/browser/viewlet';
-import {CompositeDescriptor, Composite} from 'vs/workbench/browser/composite';
-import {Panel, PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
+import {CompositeDescriptor} from 'vs/workbench/browser/composite';
+import {Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor} from 'vs/workbench/browser/panel';
 import {Part} from 'vs/workbench/browser/part';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
 import {TogglePanelAction} from 'vs/workbench/browser/parts/panel/panelPart';
@@ -208,69 +208,52 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 }
 
-abstract class CompositeActivityAction<T extends Composite> extends ActivityAction {
+class ViewletActivityAction extends ActivityAction {
 	private static preventDoubleClickDelay = 300;
 	private lastRun: number = 0;
 
-	protected composite: CompositeDescriptor<T>;
-
 	constructor(
-		id: string, composite: CompositeDescriptor<T>,
-		@IViewletService protected viewletService: IViewletService,
-		@IPanelService protected panelService: IPanelService,
-		@IPartService protected partService: IPartService
+		id: string, private viewlet: ViewletDescriptor,
+		@IViewletService private viewletService: IViewletService,
+		@IPartService private partService: IPartService
 	) {
-		super(id, composite.name, composite.cssClass);
-
-		this.composite = composite;
+		super(id, viewlet.name, viewlet.cssClass);
 	}
 
 	public run(): TPromise<any> {
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
-		if (now - this.lastRun < CompositeActivityAction.preventDoubleClickDelay) {
+		if (now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
 			return TPromise.as(true);
 		}
 		this.lastRun = now;
 
-		this.toggleComposite();
-
-		return TPromise.as(true);
-	}
-
-	protected abstract toggleComposite(): void;
-}
-
-class ViewletActivityAction extends CompositeActivityAction<Viewlet> {
-
-	protected toggleComposite(): void {
 		const sideBarHidden = this.partService.isSideBarHidden();
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.composite.id) {
+		if (!sideBarHidden && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
 			this.partService.setSideBarHidden(true);
 		} else {
-			this.viewletService.openViewlet(this.composite.id, true).done(null, errors.onUnexpectedError);
+			this.viewletService.openViewlet(this.viewlet.id, true).done(null, errors.onUnexpectedError);
 			this.activate();
 		}
+
+		return TPromise.as(true);
 	}
 }
 
-class PanelActivityAction extends CompositeActivityAction<Panel> {
+class PanelActivityAction extends ActivityAction {
 
-	protected toggleComposite(): void {
+	constructor(
+		id: string, private panel: PanelDescriptor,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, panel.name, panel.cssClass);
+	}
 
-		const panelHidden = this.partService.isPanelHidden();
-		const activePanel = this.panelService.getActivePanel();
-
-		// Hide panel if selected panel already visible
-		if (!panelHidden && activePanel && activePanel.getId() === this.composite.id) {
-			this.partService.setPanelHidden(true);
-		} else {
-			this.panelService.openPanel(this.composite.id, true).done(null, errors.onUnexpectedError);
-			this.activate();
-		}
+	public run(): TPromise<any> {
+		return this.panelService.openPanel(this.panel.id, true).then(() => this.activate());
 	}
 }
