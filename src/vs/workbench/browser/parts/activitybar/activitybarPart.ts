@@ -181,7 +181,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 			this.togglePanelAction.setBadge(null);
 		} else {
 			this.togglePanelAction.setBadge(this.panelActions[0].getBadge());
-			this.panelActions[0].setBadge(null);
+			if (this.panelActions[0].getBadge()) {
+				this.panelActions[0].setBadge(null);
+			}
 		}
 	}
 
