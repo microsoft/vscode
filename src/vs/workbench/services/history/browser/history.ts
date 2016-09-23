@@ -26,6 +26,7 @@ import {once} from 'vs/base/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -81,22 +82,32 @@ export abstract class BaseHistoryService {
 	protected toUnbind: IDisposable[];
 
 	private activeEditorListeners: IDisposable[];
+	private _isPure: boolean;
 
 	constructor(
 		private eventService: IEventService,
 		protected editorGroupService: IEditorGroupService,
 		protected editorService: IWorkbenchEditorService,
 		protected contextService: IWorkspaceContextService,
-		private environmentService: IEnvironmentService
+		private environmentService: IEnvironmentService,
+		private integrityService: IIntegrityService
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
+		this._isPure = true;
 
 		// Window Title
 		window.document.title = this.getWindowTitle(null);
 
 		// Editor Input Changes
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		integrityService.isPure().then((r) => {
+			if (!r.isPure) {
+				this._isPure = false;
+				window.document.title = this.getWindowTitle(null);
+			}
+		});
 	}
 
 	private onEditorsChanged(): void {
@@ -157,7 +168,10 @@ export abstract class BaseHistoryService {
 	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
 
 	protected getWindowTitle(input?: IEditorInput): string {
-		const title = this.doGetWindowTitle(input);
+		let title = this.doGetWindowTitle(input);
+		if (!this._isPure) {
+			title += nls.localize('patchedWindowTitle', " [Unsupported]");
+		}
 
 		// Extension Development Host gets a special title to identify itself
 		if (this.environmentService.extensionDevelopmentPath) {
@@ -244,9 +258,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IIntegrityService integrityService: IIntegrityService
 	) {
-		super(eventService, editorGroupService, editorService, contextService, environmentService);
+		super(eventService, editorGroupService, editorService, contextService, environmentService, integrityService);
 
 		this.index = -1;
 		this.stack = [];
