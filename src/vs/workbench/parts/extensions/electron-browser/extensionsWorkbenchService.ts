@@ -157,7 +157,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return semver.gt(this.latestVersion, this.version);
+		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
