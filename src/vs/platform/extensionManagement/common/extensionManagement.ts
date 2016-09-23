@@ -103,6 +103,10 @@ export interface IExtensionIdentity {
 	publisher: string;
 }
 
+export interface IGalleryExtensionProperties {
+	dependencies?: string[];
+}
+
 export interface IGalleryExtensionAssets {
 	manifest: string;
 	readme: string;
@@ -126,6 +130,7 @@ export interface IGalleryExtension {
 	rating: number;
 	ratingCount: number;
 	assets: IGalleryExtensionAssets;
+	properties: IGalleryExtensionProperties;
 	downloadHeaders: { [key: string]: string; };
 }
 
@@ -184,6 +189,8 @@ export interface IExtensionGalleryService {
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
 	getAsset(url: string): TPromise<IRequestContext>;
+	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
+	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]>;
 }
 
 export interface InstallExtensionEvent {
