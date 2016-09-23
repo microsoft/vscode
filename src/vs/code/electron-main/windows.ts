@@ -14,6 +14,7 @@ import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { EventEmitter } from 'events';
+import { IBackupService } from 'vs/code/electron-main/backup';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
@@ -46,6 +47,7 @@ export interface IOpenConfiguration {
 	forceEmpty?: boolean;
 	windowToUse?: VSCodeWindow;
 	diffMode?: boolean;
+	restoreBackups?: boolean;
 }
 
 interface IWindowState {
@@ -163,7 +165,8 @@ export class WindowsManager implements IWindowsService {
 		@IEnvService private envService: IEnvService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IUpdateService private updateService: IUpdateService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IBackupService private backupService: IBackupService
 	) { }
 
 	onOpen(clb: (path: IPath) => void): () => void {
@@ -599,6 +602,21 @@ export class WindowsManager implements IWindowsService {
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
+		// Restore backups if they exist and it's the first instance
+		if (openConfig.restoreBackups) {
+			const backupWorkspaces = this.backupService.getBackupWorkspaces();
+			if (backupWorkspaces.length > 0) {
+				backupWorkspaces.forEach(workspace => {
+					iPathsToOpen.push(this.toIPath(workspace));
+				});
+				// Get rid of duplicates
+				iPathsToOpen = arrays.distinct(iPathsToOpen, path => {
+					return path.workspacePath;
+				});
+				this.backupService.clearBackupWorkspaces();
+			}
+		}
+
 		let filesToOpen: IPath[] = [];
 		let filesToDiff: IPath[] = [];
 		let foldersToOpen = iPathsToOpen.filter(iPath => iPath.workspacePath && !iPath.filePath);
@@ -726,6 +744,11 @@ export class WindowsManager implements IWindowsService {
 
 		// Emit events
 		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
+
+		// Add to backups
+		this.backupService.pushBackupWorkspaces(iPathsToOpen.map((path) => {
+			return path.workspacePath;
+		}));
 
 		return arrays.distinct(usedWindows);
 	}

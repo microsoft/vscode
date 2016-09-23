@@ -33,6 +33,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
+import { IBackupService, BackupService } from 'vs/code/electron-main/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -219,11 +220,11 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 
 	// Open our first window
 	if (envService.cliArgs['new-window'] && envService.cliArgs.paths.length === 0) {
-		windowsService.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
+		windowsService.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true, restoreBackups: true }); // new window if "-n" was used without paths
 	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.paths || !envService.cliArgs.paths.length)) {
-		windowsService.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
+		windowsService.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles, restoreBackups: true }); // mac: open-file event received on startup
 	} else {
-		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs['new-window'], diffMode: envService.cliArgs.diff }); // default: read paths from cli
+		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs['new-window'], diffMode: envService.cliArgs.diff, restoreBackups: true }); // default: read paths from cli
 	}
 }
 
@@ -422,6 +423,7 @@ function start(): void {
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
+	services.set(IBackupService, new SyncDescriptor(BackupService));
 
 	const instantiationService = new InstantiationService(services);
 
