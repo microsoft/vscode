@@ -37,7 +37,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private panelSwitcherBar: ActionBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private compositeIdToActions: { [compositeId: string]: ActivityAction; };
-	private panelActions: Action[];
+	private panelActions: ActivityAction[];
 	private showPanelAction: TogglePanelAction;
 
 	constructor(
@@ -158,7 +158,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private updatePanelSwitcher(): void {
 		this.panelSwitcherBar.clear();
-		const actions = this.partService.isPanelHidden() ? this.showPanelAction : this.panelActions;
+		const actions:ActivityAction[] = [this.showPanelAction];
+		if (!this.partService.isPanelHidden()) {
+			actions.push(...this.panelActions);
+		}
 
 		this.panelSwitcherBar.push(actions, { label: true, icon: true });
 	}
