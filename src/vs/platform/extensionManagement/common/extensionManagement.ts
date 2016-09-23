@@ -105,6 +105,7 @@ export interface IExtensionIdentity {
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
+	engine?: string;
 }
 
 export interface IGalleryExtensionAssets {
@@ -132,6 +133,7 @@ export interface IGalleryExtension {
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	downloadHeaders: { [key: string]: string; };
+	isCompatible: boolean;
 }
 
 export interface IGalleryMetadata {
