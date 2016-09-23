@@ -220,7 +220,7 @@ export namespace SymbolInformation {
 	export function toOutlineEntry(symbol: vscode.SymbolInformation): modes.SymbolInformation {
 		return <modes.SymbolInformation>{
 			name: symbol.name,
-			kind: <modes.SymbolKind><any>symbol.kind,
+			kind: symbol.kind,
 			containerName: symbol.containerName,
 			location: {
 				uri: <URI>symbol.location.uri,
@@ -317,7 +317,7 @@ export const Suggest = {
 		const suggestion: modes.ISuggestion = {
 			label: item.label,
 			insertText: item.insertText || item.label,
-			type: CompletionItemKind.from(<types.CompletionItemKind><any>item.kind),
+			type: CompletionItemKind.from(item.kind),
 			detail: item.detail,
 			documentation: item.documentation,
 			sortText: item.sortText,
