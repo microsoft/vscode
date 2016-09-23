@@ -573,27 +573,27 @@ export interface DefinitionProvider {
  * A symbol kind.
  */
 export enum SymbolKind {
-	File,
-	Module,
-	Namespace,
-	Package,
-	Class,
-	Method,
-	Property,
-	Field,
-	Constructor,
-	Enum,
-	Interface,
-	Function,
-	Variable,
-	Constant,
-	String,
-	Number,
-	Boolean,
-	Array,
-	Object,
-	Key,
-	Null
+	File = 0,
+	Module = 1,
+	Namespace = 2,
+	Package = 3,
+	Class = 4,
+	Method = 5,
+	Property = 6,
+	Field = 7,
+	Constructor = 8,
+	Enum = 9,
+	Interface = 10,
+	Function = 11,
+	Variable = 12,
+	Constant = 13,
+	String = 14,
+	Number = 15,
+	Boolean = 16,
+	Array = 17,
+	Object = 18,
+	Key = 19,
+	Null = 20
 }
 /**
  * @internal
@@ -869,21 +869,21 @@ export enum IndentAction {
 	/**
 	 * Insert new line and copy the previous line's indentation.
 	 */
-	None,
+	None = 0,
 	/**
 	 * Insert new line and indent once (relative to the previous line's indentation).
 	 */
-	Indent,
+	Indent = 1,
 	/**
 	 * Insert two new lines:
 	 *  - the first one indented which will hold the cursor
 	 *  - the second one at the same indentation level
 	 */
-	IndentOutdent,
+	IndentOutdent = 2,
 	/**
 	 * Insert new line and outdent once (relative to the previous line's indentation).
 	 */
-	Outdent
+	Outdent = 3
 }
 
 /**

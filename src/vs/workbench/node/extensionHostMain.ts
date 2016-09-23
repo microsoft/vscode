@@ -24,7 +24,6 @@ import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Client} from 'vs/base/parts/ipc/node/ipc.net';
-import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
 const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
@@ -82,12 +81,14 @@ export class ExtensionHostMain {
 		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, {_serviceBrand: 'optionalArgs', workspaceStoragePath });
 
 		// Connect to shared process services
+		/*
 		const channel = sharedProcessClient.getChannel<IExtensionManagementChannel>('extensions');
 		const extensionsService = new ExtensionManagementChannelClient(channel);
 		if (false && false) {
 			// TODO: what to do with the ExtensionManagementChannelClient?
 			console.log(extensionsService);
 		}
+		*/
 
 		// Create the ext host API
 		defineAPI(new ExtHostAPIImplementation(threadService, this._extensionService, this._contextService, telemetryService));

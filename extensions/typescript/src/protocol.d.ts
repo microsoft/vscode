@@ -482,7 +482,7 @@ export interface FormatOptions extends EditorOptions {
     placeOpenBraceOnNewLineForControlBlocks?: boolean;
 
     /** Index operator */
-    [key: string]: string | number | boolean;
+    [key: string]: string | number | boolean | undefined;
 }
 
 /**

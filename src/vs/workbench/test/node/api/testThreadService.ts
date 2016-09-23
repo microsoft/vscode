@@ -85,7 +85,7 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 			setTimeout(c, 0);
 		}).then(() => {
 			const instance = this._testInstances[proxyId];
-			let p: TPromise<any>;
+			let p: Thenable<any>;
 			try {
 				let result = (<Function>instance[path]).apply(instance, args);
 				p = TPromise.is(result) ? result : TPromise.as(result);

@@ -11,7 +11,8 @@ export function clone<T>(obj: T): T {
 		return obj;
 	}
 	if (obj instanceof RegExp) {
-		return obj;
+		// See https://github.com/Microsoft/TypeScript/issues/10990
+		return obj as any;
 	}
 	var result = (Array.isArray(obj)) ? <any>[] : <any>{};
 	Object.keys(obj).forEach((key) => {

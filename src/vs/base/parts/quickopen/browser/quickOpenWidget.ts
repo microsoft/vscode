@@ -159,7 +159,7 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 
 					// Pass tree navigation keys to the tree but leave focus in input field
-					else if (keyboardEvent.keyCode === KeyCode.Tab || keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
+					else if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
 						DOM.EventHelper.stop(e, true);
 
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);

@@ -214,13 +214,15 @@ export class TextEditorEdit {
 	replace(location: Position | Range | Selection, value: string): void {
 		let range: Range = null;
 
+		// @alex TS(2.0.2) - Selection is subclass of Range so the else if (location instanceof Selection) isn't reachable.
+		// Deleted it to keep sematic. You need to check if creating a new Range from a Selection is intended.
 		if (location instanceof Position) {
 			range = new Range(location, location);
 		} else if (location instanceof Range) {
 			range = location;
-		} else if (location instanceof Selection) {
+		} /* else if (location instanceof Selection) {
 			range = new Range(location.start, location.end);
-		} else {
+		} */ else {
 			throw new Error('Unrecognized location');
 		}
 
@@ -242,11 +244,13 @@ export class TextEditorEdit {
 	delete(location: Range | Selection): void {
 		let range: Range = null;
 
+		// @alex TS(2.0.2) - Selection is subclass of Range so the else if (location instanceof Selection) isn't reachable.
+		// Deleted it to keep sematic. You need to check if creating a new Range from a Selection is intended.
 		if (location instanceof Range) {
 			range = location;
-		} else if (location instanceof Selection) {
+		} /* else if (location instanceof Selection) {
 			range = new Range(location.start, location.end);
-		} else {
+		} */ else {
 			throw new Error('Unrecognized location');
 		}
 
@@ -393,7 +397,9 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			() => this._proxy.$tryRevealRange(
 				this._id,
 				TypeConverters.fromRange(range),
-				revealType || TextEditorRevealType.Default
+				// @alex TS(2.0.2) - we still don't hack duck typing on enums. I added a cast since the
+				// values are the same. May be you want to write nicer code for this.
+				(revealType || TextEditorRevealType.Default) as any
 			),
 			true
 		);
