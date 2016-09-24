@@ -21,33 +21,21 @@
 }
 
 .monaco-workbench .part.editor.empty {
-	background-image: url('letterpress.png');
+	background-image: url('letterpress.svg');
 }
 
 .vs-dark .monaco-workbench .part.editor.empty {
-	background-image: url('letterpress-dark.png');
+	background-image: url('letterpress-dark.svg');
 }
 
 .hc-black .monaco-workbench .part.editor.empty {
-	background-image: url('letterpress-dark.png');
+	background-image: url('letterpress-hc.svg');
 }
 
 @media
 (-webkit-min-device-pixel-ratio: 2),
 (min-resolution: 192dppx) {
 	.monaco-workbench .part.editor {
-		background-size: 256px 256px;
-	}
-
-	.monaco-workbench .part.editor.empty {
-		background-image: url('letterpress@2x.png');
-	}
-
-	.vs-dark .monaco-workbench .part.editor.empty {
-		background-image: url('letterpress-dark@2x.png');
-	}
-
-	.hc-black .monaco-workbench .part.editor.empty {
-		background-image: url('letterpress-dark@2x.png');
+		background-size: 260px 260px;
 	}
 }
