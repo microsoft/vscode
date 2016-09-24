@@ -11,6 +11,8 @@
 
 .monaco-workbench > .part.editor > .watermark dl {
 	width: 100%;
+	opacity: .8;
+	cursor: default;
 }
 
 .monaco-workbench > .part.editor > .watermark dt {
@@ -28,18 +30,24 @@
 	text-align: left;
 }
 
+.monaco-workbench > .part.editor > .watermark dt,
+.monaco-workbench > .part.editor > .watermark dd {
+	margin-bottom: 17px;
+	font-weight: 300;
+}
+
 .monaco-workbench > .part.editor > .watermark dt {
-	color: #2B91AF;
+	color: rgba(0,0,0,.68);
 }
 .monaco-workbench > .part.editor > .watermark dl {
-	color: #2B91AF;
+	color: rgba(0,0,0,.9);
 }
 
 .vs-dark .monaco-workbench > .part.editor > .watermark dt {
-	color: #5A5A5A;
+	color: rgba(255,255,255,.6);
 }
 .vs-dark .monaco-workbench > .part.editor > .watermark dl {
-	color: #5A5A5A;
+	color: #fff;
 }
 
 .hc-black .monaco-workbench > .part.editor > .watermark dt {
@@ -47,4 +55,5 @@
 }
 .hc-black .monaco-workbench > .part.editor > .watermark dl {
 	color: #FFF;
+	opacity: 1;
 }
