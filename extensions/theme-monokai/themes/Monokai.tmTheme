@@ -16,7 +16,7 @@
 				<key>foreground</key>
 				<string>#F8F8F2</string>
 				<key>invisibles</key>
-				<string>#48473E</string>
+				<string>#3B3A32</string>
 				<key>lineHighlight</key>
 				<string>#3E3D32</string>
 				<key>selection</key>
@@ -29,6 +29,8 @@
 				<string>#222218</string>
 				<key>activeGuide</key>
 				<string>#9D550FB0</string>
+				<key>guide</key>
+				<string>#48473E</string>
 
 				<key>bracketsForeground</key>
 				<string>#F8F8F2A5</string>
