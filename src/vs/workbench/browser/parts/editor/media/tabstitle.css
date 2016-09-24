@@ -68,7 +68,8 @@
 	overflow: hidden;
 	white-space: nowrap;
 	cursor: pointer;
-	height: 35px;
+	margin-top: 9px;
+	height: 26px;
 	box-sizing: border-box;
 	border: 1px solid transparent;
 	padding-left: 10px;
