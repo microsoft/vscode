@@ -1152,6 +1152,25 @@ export class UndoLastCommitAction extends GitAction {
 		super(UndoLastCommitAction.ID, UndoLastCommitAction.LABEL, 'git-action undo-last-commit', gitService);
 	}
 
+	protected isEnabled():boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		var model = this.gitService.getModel();
+		var HEAD = model.getHEAD();
+
+		if (!HEAD || !HEAD.commit ) {
+			return false;
+		}
+
+		return true;
+	}
+
 	public run():Promise {
 		return this.gitService.reset('HEAD~');
 	}
