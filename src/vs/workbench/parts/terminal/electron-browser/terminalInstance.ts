@@ -310,7 +310,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setCursorBlink(blink: boolean): void {
-		if (this._xterm && this._xterm.cursorBlink !== blink) {
+		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
 			this._xterm.setOption('cursorBlink', blink);
 			this._xterm.refresh(0, this._xterm.rows - 1);
 		}
