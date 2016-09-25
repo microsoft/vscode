@@ -24,7 +24,7 @@ interface IState {
 	isSyncing: boolean;
 	HEAD: IBranch;
 	remotes: IRemote[];
-	ps1: string;
+	label: string;
 }
 
 const DisablementDelay = 500;
@@ -73,7 +73,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 			isSyncing: false,
 			HEAD: null,
 			remotes: [],
-			ps1: ''
+			label: ''
 		};
 	}
 
@@ -100,6 +100,9 @@ export class GitStatusbarItem implements IStatusbarItem {
 
 	private onGitServiceChange(): void {
 		const model = this.gitService.getModel();
+		const ps1 = model.getPS1();
+		const tags = model.getRefs().filter(iref => iref.commit.substr(0,8) === ps1);
+		const name = tags.length > 0 ? tags[0].name : model.getPS1();
 
 		this.setState({
 			serviceState: this.gitService.getState(),
@@ -107,7 +110,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 			isSyncing: this.gitService.getRunningOperations().some(op => op.id === ServiceOperations.SYNC),
 			HEAD: model.getHEAD(),
 			remotes: model.getRemotes(),
-			ps1: model.getPS1()
+			label: name
 		});
 	}
 
@@ -136,14 +139,14 @@ export class GitStatusbarItem implements IStatusbarItem {
 			}
 
 			if (!HEAD) {
-				textContent = state.ps1;
+				textContent = state.label;
 			} else if (!HEAD.name) {
-				textContent = state.ps1;
+				textContent = state.label;
 				className += ' headless';
 			} else if (!HEAD.commit || !HEAD.upstream || (!HEAD.ahead && !HEAD.behind)) {
-				textContent = state.ps1;
+				textContent = state.label;
 			} else {
-				textContent = state.ps1;
+				textContent = state.label;
 				aheadBehindLabel = strings.format('{0}↓ {1}↑', HEAD.behind, HEAD.ahead);
 			}
 		}
