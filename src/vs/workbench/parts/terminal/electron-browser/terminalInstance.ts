@@ -220,12 +220,20 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public scrollDown(): void {
+	public scrollDownLine(): void {
 		this._xterm.scrollDisp(1);
 	}
 
-	public scrollUp(): void {
+	public scrollDownPage(): void {
+		this._xterm.scrollDisp(this._xterm.rows - 1);
+	}
+
+	public scrollUpLine(): void {
 		this._xterm.scrollDisp(-1);
+	}
+
+	public scrollUpPage(): void {
+		this._xterm.scrollDisp(-(this._xterm.rows - 1));
 	}
 
 	public clear(): void {
