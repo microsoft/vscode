@@ -251,7 +251,7 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 export class ScrollDownTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.scrollDown';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollDown', "Scroll Down");
+	public static LABEL = nls.localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)");
 
 	constructor(
 		id: string, label: string,
@@ -263,7 +263,28 @@ export class ScrollDownTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.scrollDown();
+			terminalInstance.scrollDownLine();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ScrollDownPageTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollDownPage';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollDownPage();
 		}
 		return TPromise.as(void 0);
 	}
@@ -272,7 +293,7 @@ export class ScrollDownTerminalAction extends Action {
 export class ScrollUpTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.scrollUp';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollUp', "Scroll Up");
+	public static LABEL = nls.localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)");
 
 	constructor(
 		id: string, label: string,
@@ -284,7 +305,28 @@ export class ScrollUpTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		let terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
-			terminalInstance.scrollUp();
+			terminalInstance.scrollUpLine();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ScrollUpPageTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.scrollUpPage';
+	public static LABEL = nls.localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.scrollUpPage();
 		}
 		return TPromise.as(void 0);
 	}
