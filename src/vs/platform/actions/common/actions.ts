@@ -5,15 +5,15 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Actions = require('vs/base/common/actions');
-import WinJS = require('vs/base/common/winjs.base');
-import Descriptors = require('vs/platform/instantiation/common/descriptors');
-import Instantiation = require('vs/platform/instantiation/common/instantiation');
-import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyExpr, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { IAction, Action } from 'vs/base/common/actions';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
+import { IConstructorSignature2, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export interface ICommandAction {
@@ -25,7 +25,7 @@ export interface ICommandAction {
 
 export interface IMenu extends IDisposable {
 	onDidChange: Event<IMenu>;
-	getActions(): [string, Actions.IAction[]][];
+	getActions(): [string, IAction[]][];
 }
 
 export interface IMenuItem {
@@ -100,7 +100,7 @@ export const MenuRegistry: IMenuRegistry = new class {
 };
 
 
-export class MenuItemAction extends Actions.Action {
+export class MenuItemAction extends Action {
 
 	private static _getMenuItemId(item: IMenuItem): string {
 		let result = item.command.id;
@@ -148,7 +148,7 @@ export class MenuItemAction extends Actions.Action {
 }
 
 
-export class ExecuteCommandAction extends Actions.Action {
+export class ExecuteCommandAction extends Action {
 
 	constructor(
 		id: string,
@@ -158,14 +158,14 @@ export class ExecuteCommandAction extends Actions.Action {
 		super(id, label);
 	}
 
-	run(...args: any[]): WinJS.TPromise<any> {
+	run(...args: any[]): TPromise<any> {
 		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
 
 export class SyncActionDescriptor {
 
-	private _descriptor: Descriptors.SyncDescriptor0<Actions.Action>;
+	private _descriptor: SyncDescriptor0<Action>;
 
 	private _id: string;
 	private _label: string;
@@ -173,7 +173,7 @@ export class SyncActionDescriptor {
 	private _keybindingContext: ContextKeyExpr;
 	private _keybindingWeight: number;
 
-	constructor(ctor: Instantiation.IConstructorSignature2<string, string, Actions.Action>,
+	constructor(ctor: IConstructorSignature2<string, string, Action>,
 		id: string, label: string, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	) {
 		this._id = id;
@@ -181,10 +181,10 @@ export class SyncActionDescriptor {
 		this._keybindings = keybindings;
 		this._keybindingContext = keybindingContext;
 		this._keybindingWeight = keybindingWeight;
-		this._descriptor = Descriptors.createSyncDescriptor(ctor, this._id, this._label);
+		this._descriptor = createSyncDescriptor(ctor, this._id, this._label);
 	}
 
-	public get syncDescriptor(): Descriptors.SyncDescriptor0<Actions.Action> {
+	public get syncDescriptor(): SyncDescriptor0<Action> {
 		return this._descriptor;
 	}
 
@@ -213,27 +213,27 @@ export class SyncActionDescriptor {
  * A proxy for an action that needs to load code in order to confunction. Can be used from contributions to defer
  * module loading up to the point until the run method is being executed.
  */
-export class DeferredAction extends Actions.Action {
-	private _cachedAction: Actions.IAction;
+export class DeferredAction extends Action {
+	private _cachedAction: IAction;
 	private _emitterUnbind: IDisposable;
 
-	constructor(private _instantiationService: Instantiation.IInstantiationService,
-		private _descriptor: Descriptors.AsyncDescriptor0<Actions.Action>,
+	constructor(private _instantiationService: IInstantiationService,
+		private _descriptor: AsyncDescriptor0<Action>,
 		id: string, label = '', cssClass = '', enabled = true) {
 
 		super(id, label, cssClass, enabled);
 	}
 
-	public get cachedAction(): Actions.IAction {
+	public get cachedAction(): IAction {
 		return this._cachedAction;
 	}
 
-	public set cachedAction(action: Actions.IAction) {
+	public set cachedAction(action: IAction) {
 		this._cachedAction = action;
 	}
 
 	public get id(): string {
-		if (this._cachedAction instanceof Actions.Action) {
+		if (this._cachedAction instanceof Action) {
 			return this._cachedAction.id;
 		}
 
@@ -241,7 +241,7 @@ export class DeferredAction extends Actions.Action {
 	}
 
 	public get label(): string {
-		if (this._cachedAction instanceof Actions.Action) {
+		if (this._cachedAction instanceof Action) {
 			return this._cachedAction.label;
 		}
 
@@ -249,7 +249,7 @@ export class DeferredAction extends Actions.Action {
 	}
 
 	public set label(value: string) {
-		if (this._cachedAction instanceof Actions.Action) {
+		if (this._cachedAction instanceof Action) {
 			this._cachedAction.label = value;
 		} else {
 			this._setLabel(value);
@@ -257,7 +257,7 @@ export class DeferredAction extends Actions.Action {
 	}
 
 	public get class(): string {
-		if (this._cachedAction instanceof Actions.Action) {
+		if (this._cachedAction instanceof Action) {
 			return this._cachedAction.class;
 		}
 
@@ -265,7 +265,7 @@ export class DeferredAction extends Actions.Action {
 	}
 
 	public set class(value: string) {
-		if (this._cachedAction instanceof Actions.Action) {
+		if (this._cachedAction instanceof Action) {
 			this._cachedAction.class = value;
 		} else {
 			this._setClass(value);
@@ -273,14 +273,14 @@ export class DeferredAction extends Actions.Action {
 	}
 
 	public get enabled(): boolean {
-		if (this._cachedAction instanceof Actions.Action) {
+		if (this._cachedAction instanceof Action) {
 			return this._cachedAction.enabled;
 		}
 		return this._enabled;
 	}
 
 	public set enabled(value: boolean) {
-		if (this._cachedAction instanceof Actions.Action) {
+		if (this._cachedAction instanceof Action) {
 			this._cachedAction.enabled = value;
 		} else {
 			this._setEnabled(value);
@@ -288,35 +288,35 @@ export class DeferredAction extends Actions.Action {
 	}
 
 	public get order(): number {
-		if (this._cachedAction instanceof Actions.Action) {
-			return (<Actions.Action>this._cachedAction).order;
+		if (this._cachedAction instanceof Action) {
+			return (<Action>this._cachedAction).order;
 		}
 		return this._order;
 	}
 
 	public set order(order: number) {
-		if (this._cachedAction instanceof Actions.Action) {
-			(<Actions.Action>this._cachedAction).order = order;
+		if (this._cachedAction instanceof Action) {
+			(<Action>this._cachedAction).order = order;
 		} else {
 			this._order = order;
 		}
 	}
 
-	public run(event?: any): WinJS.Promise {
+	public run(event?: any): Promise {
 		if (this._cachedAction) {
 			return this._cachedAction.run(event);
 		}
-		return this._createAction().then((action: Actions.IAction) => {
+		return this._createAction().then((action: IAction) => {
 			return action.run(event);
 		});
 	}
 
-	private _createAction(): WinJS.TPromise<Actions.IAction> {
-		let promise = WinJS.TPromise.as(undefined);
+	private _createAction(): TPromise<IAction> {
+		let promise = TPromise.as(undefined);
 		return promise.then(() => {
 			return this._instantiationService.createInstance(this._descriptor);
 		}).then(action => {
-			if (action instanceof Actions.Action) {
+			if (action instanceof Action) {
 				this._cachedAction = action;
 				// Pipe events from the instantated action through this deferred action
 				this._emitterUnbind = action.onDidChange(e => this._onDidChange.fire(e));
