@@ -616,6 +616,13 @@ declare namespace vscode {
 		 * When setting a text editor's options, this property is optional.
 		 */
 		cursorStyle?: TextEditorCursorStyle;
+
+		/**
+		 * Render relative line numbers w.r.t. the current line number.
+		 * When getting a text editor's options, this property will always be present.
+		 * When setting a text editor's options, this property is optional.
+		 */
+		lineNumbers?: boolean | 'relative';
 	}
 
 	/**
