@@ -24,11 +24,8 @@
 .hc-black .monaco-workbench .panel.integrated-terminal { color: #FFF; }
 
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
-	align-content: flex-start;
-	align-items: flex-end;
-	display: flex;
+	height: 100%;
 	padding: 0 20px;
-	flex-grow: 1;
 	width: 100%;
 }
 
@@ -37,6 +34,8 @@
 }
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
 	display: block;
+	position: absolute;
+	bottom: 0;
 }
 
 /* Terminal actions */
