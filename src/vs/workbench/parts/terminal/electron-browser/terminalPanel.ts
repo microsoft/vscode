@@ -140,6 +140,10 @@ export class TerminalPanel extends Panel {
 		return super.getActionItem(action);
 	}
 
+	public focus(): void {
+		this._terminalService.getActiveInstance().focus();
+	}
+
 	private _attachEventListeners(): void {
 		this._toDispose.push(DOM.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
