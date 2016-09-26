@@ -129,6 +129,19 @@ export class ElectronIntegration {
 			this.toggleAutoSave();
 		});
 
+		// Fullscreen Events
+		ipc.on('vscode:enterFullScreen', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.partService.addClass('fullscreen');
+			});
+		});
+
+		ipc.on('vscode:leaveFullScreen', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.partService.removeClass('fullscreen');
+			});
+		});
+
 		// Ensure others can listen to zoom level changes
 		browser.setZoomLevel(webFrame.getZoomLevel());
 
