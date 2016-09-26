@@ -467,12 +467,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const extension = installing.extension;
-		extension.local = local;
-		extension.needsRestart = true;
-
 		this.installing = this.installing.filter(e => e.id !== id);
 
 		if (!error) {
+			extension.local = local;
+			extension.needsRestart = true;
+
 			const galleryId = local.metadata && local.metadata.id;
 			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
 
