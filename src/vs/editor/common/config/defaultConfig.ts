@@ -41,6 +41,7 @@ class ConfigClass implements IConfiguration {
 			selectionClipboard: true,
 			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 			lineNumbers: true,
+			relativeLineNumbers: false,
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,
 			glyphMargin: false,

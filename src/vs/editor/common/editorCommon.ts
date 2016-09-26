@@ -208,6 +208,11 @@ export interface IEditorOptions {
 	 */
 	lineNumbers?:any;
 	/**
+	 * Renders line numbers relative to cursor position.
+	 * Line with a cursor will have absolute number.
+	 */
+	relativeLineNumbers?: boolean;
+	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
 	 */
@@ -631,6 +636,7 @@ export class InternalEditorViewOptions {
 	rulers: number[];
 	ariaLabel: string;
 	lineNumbers:any;
+	relativeLineNumbers:boolean;
 	selectOnLineNumbers:boolean;
 	glyphMargin:boolean;
 	revealHorizontalRightPadding:number;
@@ -659,6 +665,7 @@ export class InternalEditorViewOptions {
 		rulers: number[];
 		ariaLabel: string;
 		lineNumbers:any;
+		relativeLineNumbers:boolean;
 		selectOnLineNumbers:boolean;
 		glyphMargin:boolean;
 		revealHorizontalRightPadding:number;
@@ -683,6 +690,7 @@ export class InternalEditorViewOptions {
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
 		this.lineNumbers = source.lineNumbers;
+		this.relativeLineNumbers = Boolean(source.relativeLineNumbers);
 		this.selectOnLineNumbers = Boolean(source.selectOnLineNumbers);
 		this.glyphMargin = Boolean(source.glyphMargin);
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding|0;
@@ -740,6 +748,7 @@ export class InternalEditorViewOptions {
 			&& this.experimentalScreenReader === other.experimentalScreenReader
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
+			&& this.relativeLineNumbers === other.relativeLineNumbers
 			&& this.lineNumbers === other.lineNumbers
 			&& this.selectOnLineNumbers === other.selectOnLineNumbers
 			&& this.glyphMargin === other.glyphMargin
@@ -772,6 +781,7 @@ export class InternalEditorViewOptions {
 			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
 			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
 			lineNumbers: this.lineNumbers !== newOpts.lineNumbers,
+			relativeLineNumbers: this.relativeLineNumbers !== newOpts.relativeLineNumbers,
 			selectOnLineNumbers: this.selectOnLineNumbers !== newOpts.selectOnLineNumbers,
 			glyphMargin: this.glyphMargin !== newOpts.glyphMargin,
 			revealHorizontalRightPadding: this.revealHorizontalRightPadding !== newOpts.revealHorizontalRightPadding,
@@ -807,6 +817,7 @@ export interface IViewConfigurationChangedEvent {
 	rulers: boolean;
 	ariaLabel:  boolean;
 	lineNumbers: boolean;
+	relativeLineNumbers: boolean;
 	selectOnLineNumbers: boolean;
 	glyphMargin: boolean;
 	revealHorizontalRightPadding: boolean;

@@ -21,12 +21,16 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _lineNumbersLeft:number;
 	private _lineNumbersWidth:number;
 	private _renderResult:string[];
+	private _relativeLineNumbers:boolean;
+	private _currentLineNumber:number;
 
 	constructor(context:ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
+		this._relativeLineNumbers = this._context.configuration.editor.viewInfo.relativeLineNumbers;
+		this._currentLineNumber = 1;
 		this._lineNumbersLeft = 0;
 		this._lineNumbersWidth = 0;
 		this._renderResult = null;
@@ -57,7 +61,15 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		return true;
 	}
 	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
-		return false;
+		let modelPosition = this._context.model.convertViewPositionToModelPosition(e.position.lineNumber, e.position.column);
+
+		if (!this._relativeLineNumbers || this._currentLineNumber === modelPosition.lineNumber) {
+			return false;
+		}
+
+		this._currentLineNumber = modelPosition.lineNumber;
+
+		return true;
 	}
 	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		return false;
@@ -71,6 +83,9 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 		if (e.viewInfo.lineNumbers) {
 			this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
+		}
+		if (e.viewInfo.relativeLineNumbers) {
+			this._relativeLineNumbers = this._context.configuration.editor.viewInfo.relativeLineNumbers;
 		}
 		return true;
 	}
@@ -103,22 +118,31 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		let common = '<div class="' + ClassNames.LINE_NUMBERS + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;height:' + lineHeight + 'px;">';
+		let commonLeft = '<div class="' + ClassNames.LINE_NUMBERS + lineHeightClassName + '" style="text-align:left;left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;height:' + lineHeight + 'px;">';
 
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			let lineIndex = lineNumber - visibleStartLineNumber;
+			let position = this._context.model.convertViewPositionToModelPosition(lineNumber, 1);
+			let relativeLineNumber = position.lineNumber;
 
-			let renderLineNumber = this._context.model.getLineRenderLineNumber(lineNumber);
-			if (renderLineNumber) {
+			if (position.column === 1) {
+				if (this._relativeLineNumbers) {
+					if (relativeLineNumber !== this._currentLineNumber) {
+						relativeLineNumber = Math.abs(relativeLineNumber - this._currentLineNumber);
+					}
+				}
+
 				output[lineIndex] = (
-					common
-					+ renderLineNumber
+					(position.lineNumber === this._currentLineNumber && this._relativeLineNumbers ? commonLeft : common)
+					+ relativeLineNumber
 					+ '</div>'
 				);
 			} else {
 				output[lineIndex] = '';
 			}
-		}
+
+	}
 
 		this._renderResult = output;
 	}

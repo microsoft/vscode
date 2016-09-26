@@ -14,6 +14,7 @@ export interface IEditorLayoutProviderOpts {
 	lineHeight:number;
 
 	showLineNumbers:boolean;
+	relativeLineNumbers: boolean;
 	lineNumbersMinChars:number;
 	lineDecorationsWidth:number;
 	maxDigitWidth:number;
