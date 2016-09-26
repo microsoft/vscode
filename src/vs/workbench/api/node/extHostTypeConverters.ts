@@ -315,7 +315,7 @@ export const Suggest = {
 
 	from(item: vscode.CompletionItem, disposables: IDisposable[]): modes.ISuggestion {
 		const suggestion: modes.ISuggestion = {
-			label: item.label,
+			label: item.label || '<missing label>',
 			insertText: item.insertText || item.label,
 			type: CompletionItemKind.from(item.kind),
 			detail: item.detail,
