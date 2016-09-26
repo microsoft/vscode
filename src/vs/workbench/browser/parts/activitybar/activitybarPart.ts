@@ -158,6 +158,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 	private updatePanelSwitcher(): void {
 		this.panelSwitcherBar.clear();
+		this.togglePanelAction.class = this.partService.isPanelHidden() ? 'panel' : 'panel expanded';
 		const actions: ActivityAction[] = [this.togglePanelAction];
 		if (!this.partService.isPanelHidden()) {
 			actions.push(...this.panelActions);

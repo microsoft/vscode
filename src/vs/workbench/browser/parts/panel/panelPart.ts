@@ -137,7 +137,7 @@ export class TogglePanelAction extends ActivityAction {
 		name: string,
 		@IPartService private partService: IPartService
 	) {
-		super(id, name, 'panel');
+		super(id, name, partService.isPanelHidden() ? 'panel' : 'panel expanded');
 	}
 
 	public run(): TPromise<boolean> {

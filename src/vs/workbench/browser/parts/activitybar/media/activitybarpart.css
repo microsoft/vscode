@@ -9,6 +9,10 @@
 	background-size: 32px;
 }
 
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.panel.expanded {
+	transform: rotate(180deg);
+}
+
 .monaco-workbench > .part.activitybar {
 	z-index: 20;
 	min-width: 50px;
