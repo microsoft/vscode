@@ -142,6 +142,7 @@ export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
 	publisherDisplayName: string;
+	dependenciesInstalled: boolean;
 }
 
 export enum LocalExtensionType {

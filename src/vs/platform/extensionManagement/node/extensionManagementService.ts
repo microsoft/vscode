@@ -146,7 +146,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
 			}
 			this._onInstallExtension.fire({ id, gallery: extension });
-			return this.installCompatibleVersion(extension, true)
+			return this.getLocalExtension(extension)
+					.then(local => this.installCompatibleVersion(extension, local ? local.metadata && local.metadata.dependenciesInstalled : true, !local))
 					.then(
 						local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
 						error => {
@@ -157,32 +158,42 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
-	private installCompatibleVersion(extension: IGalleryExtension, checkDependecies: boolean): TPromise<ILocalExtension> {
+	private installCompatibleVersion(extension: IGalleryExtension, installDependencies: boolean, promptToInstallDependencies: boolean): TPromise<ILocalExtension> {
 		return this.galleryService.loadCompatibleVersion(extension)
-			.then(compatibleVersion => this.getDependenciesToInstall(extension, checkDependecies)
+			.then(compatibleVersion => this.getDependenciesToInstall(extension, installDependencies)
 				.then(dependencies => {
 					if (!dependencies.length) {
-						return this.downloadAndInstall(compatibleVersion);
+						return this.downloadAndInstall(compatibleVersion, installDependencies && !!compatibleVersion.properties.dependencies.length);
 					}
-					const message = nls.localize('installDependecies', "Would you also like to install dependencies of {0}?", extension.displayName);
-					const options = [
-						nls.localize('installWithDependenices', "Yes"),
-						nls.localize('installWithoutDependenices', "No"),
-						nls.localize('cancel', "Cancel")
-					];
-					return this.choiceService.choose(Severity.Info, message, options)
-						.then(value => {
-							switch (value) {
-								case 0:
-									return this.installWithDependencies(compatibleVersion);
-								case 1:
-									return this.downloadAndInstall(compatibleVersion);
-								default:
-									return TPromise.wrapError(errors.canceled());
-							}
-						}, error => TPromise.wrapError(errors.canceled()));
+					if (promptToInstallDependencies) {
+						const message = nls.localize('installDependecies', "Would you also like to install dependencies of {0}?", extension.displayName);
+						const options = [
+							nls.localize('installWithDependenices', "Yes"),
+							nls.localize('installWithoutDependenices', "No"),
+							nls.localize('cancel', "Cancel")
+						];
+						return this.choiceService.choose(Severity.Info, message, options)
+							.then(value => {
+								switch (value) {
+									case 0:
+										return this.installWithDependencies(compatibleVersion);
+									case 1:
+										return this.downloadAndInstall(compatibleVersion, false);
+									default:
+										return TPromise.wrapError(errors.canceled());
+								}
+							}, error => TPromise.wrapError(errors.canceled()));
+					} else {
+						return this.installWithDependencies(compatibleVersion);
+					}
 				})
 		);
+	}
+
+	private getLocalExtension(extension: IGalleryExtension): TPromise<ILocalExtension> {
+		const extensionName = `${extension.publisher}.${extension.name}`;
+		return this.getInstalled().then(installed => installed.filter(local => `${local.manifest.publisher}.${local.manifest.name}` === extensionName))
+			.then(local => local.length ? local[0] : null);
 	}
 
 	private getDependenciesToInstall(extension: IGalleryExtension, checkDependecies: boolean): TPromise<string[]> {
@@ -219,9 +230,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			const id = getExtensionId(dependency, dependency.version);
 			this._onInstallExtension.fire({ id, gallery: dependency });
 		}
-		return this.downloadAndInstall(extension)
+		return this.downloadAndInstall(extension, true)
 			.then(localExtension => {
-				return TPromise.join(dependecies.map((dep) => this.installCompatibleVersion(dep, false)))
+				return TPromise.join(dependecies.map((dep) => this.installCompatibleVersion(dep, false, false)))
 					.then(installedLocalExtensions => {
 						for (const installedLocalExtension of installedLocalExtensions) {
 							const gallery = this.getGalleryExtensionForLocalExtension(dependecies, installedLocalExtension);
@@ -271,12 +282,13 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return filtered.length ? filtered[0] : null;
 	}
 
-	private downloadAndInstall(extension: IGalleryExtension): TPromise<ILocalExtension> {
+	private downloadAndInstall(extension: IGalleryExtension, dependenciesInstalled: boolean): TPromise<ILocalExtension> {
 		const id = getExtensionId(extension, extension.version);
 		const metadata = {
 				id: extension.id,
 				publisherId: extension.publisherId,
-				publisherDisplayName: extension.publisherDisplayName
+				publisherDisplayName: extension.publisherDisplayName,
+				dependenciesInstalled: dependenciesInstalled
 			};
 		return this.galleryService.download(extension)
 			.then(zipPath => validate(zipPath).then(() => zipPath))
