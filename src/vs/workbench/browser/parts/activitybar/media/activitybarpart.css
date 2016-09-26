@@ -9,14 +9,14 @@
 	background-size: 32px;
 }
 
-.monaco-workbench > .part.activitybar, .monaco-workbench.mac.fullscreen > .part.activitybar {
+.monaco-workbench > .part.activitybar, .monaco-workbench.mac.fullscreen.use-inline-toolbar > .part.activitybar {
 	z-index: 20;
 	min-width: 50px;
 	width: 50px;
 	transition: width 0.2s ease-out;
 }
 
-.monaco-workbench.mac > .part.activitybar {
+.monaco-workbench.mac.use-inline-toolbar > .part.activitybar {
 	min-width: 76px;
 	width: 76px;
 	-webkit-app-region: drag;
@@ -30,11 +30,11 @@
 	height: 100%;
 }
 
-.monaco-workbench.mac > .activitybar > .content {
+.monaco-workbench.mac.use-inline-toolbar > .activitybar > .content {
 	padding-top: 28px;
 }
 
-.monaco-workbench.mac.fullscreen > .activitybar > .content {
+.monaco-workbench.mac.fullscreen.use-inline-toolbar > .activitybar > .content {
 	padding-top: 0px;
 }
 

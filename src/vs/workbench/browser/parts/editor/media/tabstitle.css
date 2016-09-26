@@ -50,7 +50,7 @@
 	height: 35px;
 }
 
-.monaco-workbench.mac > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container {
+.monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container {
 	-webkit-app-region: drag;
 }
 
@@ -77,7 +77,7 @@
 	padding-left: 10px;
 }
 
-.monaco-workbench.mac > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
+.monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
 	margin-top: 9px;
 	height: 26px;
 	-webkit-app-region: no-drag;
@@ -235,6 +235,6 @@
 	padding-left: 4px;
 }
 
-.monaco-workbench.mac > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
+.monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
 	-webkit-app-region: drag;
 }

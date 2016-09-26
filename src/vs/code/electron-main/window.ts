@@ -177,7 +177,6 @@ export class VSCodeWindow {
 			options.icon = path.join(this.envService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
-		// TODO: Orta - this is not working
 		if (platform.isMacintosh && this.options.macOSUseInlineToolbar) {
 			options.titleBarStyle = 'hidden-inset';
 		}

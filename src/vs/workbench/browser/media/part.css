@@ -17,8 +17,8 @@
 	overflow: hidden;
 }
 
-.monaco-workbench.mac > .part > .title,
-.monaco-workbench.mac > .part.editor > .content > .one-editor-silo > .container > .title {
+.monaco-workbench.mac.use-inline-toolbar > .part > .title,
+.monaco-workbench.mac.use-inline-toolbar > .part.editor > .content > .one-editor-silo > .container > .title {
 	height: 36px;
 }
 
@@ -34,7 +34,7 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench.mac > .part > .title > .title-label {
+.monaco-workbench.mac.use-inline-toolbar > .part > .title > .title-label {
 	line-height: 36px;
 }
 
@@ -59,7 +59,7 @@
 	padding-left: 5px;
 }
 
-.monaco-workbench.mac > .part > .title > .title-actions {
+.monaco-workbench.mac.use-inline-toolbar > .part > .title > .title-actions {
 	height: 36px;
 }
 
@@ -72,7 +72,7 @@
 	background-repeat: no-repeat;
 }
 
-.monaco-workbench.mac > .part > .title > .title-actions .action-label {
+.monaco-workbench.mac.use-inline-toolbar > .part > .title > .title-actions .action-label {
 	height: 36px;
 }
 
@@ -92,7 +92,7 @@
 	height: 2px;
 }
 
-.monaco-workbench.mac > .part > .content  .progress-container {
+.monaco-workbench.mac.use-inline-toolbar > .part > .content  .progress-container {
 	top: 34px
 }
 
