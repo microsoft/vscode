@@ -147,7 +147,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private createPanelSwitcher(div: Builder): void {
-		
+
 		// Composite switcher is on top
 		this.panelSwitcherBar = new ActionBar(div, {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
@@ -155,6 +155,9 @@ export class ActivitybarPart extends Part implements IActivityService {
 			ariaLabel: nls.localize('activityBarPanelAriaLabel', "Active Panel Switcher")
 		});
 		this.panelSwitcherBar.getContainer().addClass('position-bottom');
+		if (!this.configurationService.lookup('workbench.panels.showInSidebar').value) {
+			this.panelSwitcherBar.getContainer().hide();
+		}
 
 		// Build Viewlet Actions in correct order
 
