@@ -67,7 +67,7 @@ export default class URI {
 	private _formatted: string;
 	private _fsPath: string;
 
-	constructor() {
+	protected constructor() {
 		this._scheme = URI._empty;
 		this._authority = URI._empty;
 		this._path = URI._empty;
