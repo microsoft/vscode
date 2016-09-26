@@ -25,7 +25,7 @@ const entries = [
 	},
 	{
 		text: nls.localize('watermark.addCursor', "Add Cursors Above/Below"),
-		ids: ['cursorColumnSelectUp', 'cursorColumnSelectDown']
+		ids: ['editor.action.insertCursorAbove', 'editor.action.insertCursorBelow']
 	},
 	{
 		text: nls.localize('watermark.toggleTerminal', "Toggle Terminal"),
