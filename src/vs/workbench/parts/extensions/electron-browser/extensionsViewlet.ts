@@ -29,7 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from './extensionsList';
-import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from './extensions';
+import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState, filterOutdatedExtensions } from './extensions';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, InstallVSIXAction } from './extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from './extensionsInput';
@@ -203,15 +203,17 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private query(value: string): TPromise<PagedModel<IExtension>> {
-		if (!value || /@outdated/i.test(value)) {
-			let local = this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.filter(e => e.type === LocalExtensionType.User));
+		if (!value) {
+			// Show installed extensions
+			return this.extensionsWorkbenchService.queryLocal()
+				.then(result => result.filter(e => e.type === LocalExtensionType.User))
+				.then(result => new PagedModel(result));
+		}
 
-			if (/@outdated/i.test(value)) {
-				local = local.then(result => result.filter(e => e.outdated));
-			}
-
-			return local.then(result => new PagedModel(result));
+		if (/@outdated/i.test(value)) {
+			return this.extensionsWorkbenchService.queryLocal()
+				.then(extensions => filterOutdatedExtensions(extensions))
+				.then(result => new PagedModel(result));
 		}
 
 		const query = Query.parse(value);
@@ -377,14 +379,14 @@ export class StatusUpdater implements IWorkbenchContribution {
 			return;
 		}
 
-		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
-
-		if (outdated > 0) {
-			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
-			this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
-		} else {
-			this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
-		}
+		filterOutdatedExtensions(this.extensionsWorkbenchService.local).then(outdated => {
+			if (outdated.length > 0) {
+				const badge = new NumberBadge(outdated.length, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
+				this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+			} else {
+				this.activityService.showActivity(VIEWLET_ID, null, 'extensions-badge');
+			}
+		});
 	}
 
 	dispose(): void {

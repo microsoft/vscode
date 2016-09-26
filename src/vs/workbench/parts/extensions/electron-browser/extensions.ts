@@ -39,7 +39,7 @@ export interface IExtension {
 	installCount: number;
 	rating: number;
 	ratingCount: number;
-	outdated: boolean;
+	isOutdated(): TPromise<boolean>;
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
@@ -68,4 +68,15 @@ export const ConfigurationKey = 'extensions';
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
 	recommendations: string[];
+}
+
+export function filterOutdatedExtensions(extensions: IExtension[]): TPromise<IExtension[]> {
+	const promises: TPromise<IExtension>[] = [];
+	for (const extension of extensions) {
+		if (extension.type === LocalExtensionType.User) {
+			promises.push(extension.isOutdated()
+				.then(outdated => outdated ? extension : null));
+		}
+	}
+	return TPromise.join(promises).then(outDated => outDated.filter(e => !!e));
 }
