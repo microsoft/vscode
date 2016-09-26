@@ -12,7 +12,7 @@ import * as nls from 'vs/nls';
 
 const entries = [
 	{
-		text: nls.localize('watermark.showCommands', "Command Pallette"),
+		text: nls.localize('watermark.showCommands', "Command Palette"),
 		ids: ['workbench.action.showCommands']
 	},
 	{
