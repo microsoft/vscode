@@ -46,6 +46,7 @@ const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}")
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
 let MAX_MATCHES_COUNT_WIDTH = 69;
+const WIDGET_FIXED_WIDTH = 411 - 69;
 
 export class FindWidget extends Widget implements IOverlayWidget {
 
@@ -102,6 +103,26 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this._buildDomNode();
 		this._updateButtons();
 
+		let checkEditorWidth = () => {
+			let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+			let collapsedFindWidget = false;
+			let reducedFindWidget = false;
+			let narrowFindWidget = false;
+			if (WIDGET_FIXED_WIDTH + 28 >= editorWidth + 50) {
+				collapsedFindWidget = true;
+			}
+			if (WIDGET_FIXED_WIDTH + 28 >= editorWidth) {
+				narrowFindWidget = true;
+			}
+			if (WIDGET_FIXED_WIDTH + MAX_MATCHES_COUNT_WIDTH + 28 >= editorWidth) {
+				reducedFindWidget = true;
+			}
+			dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
+			dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
+			dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
+		};
+		checkEditorWidth();
+
 		this._register(this._codeEditor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.readOnly) {
 				if (this._codeEditor.getConfiguration().readOnly) {
@@ -109,6 +130,9 @@ export class FindWidget extends Widget implements IOverlayWidget {
 					this._state.change({ isReplaceRevealed: false }, false);
 				}
 				this._updateButtons();
+			}
+			if (e.layoutInfo) {
+				checkEditorWidth();
 			}
 		}));
 		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
