@@ -76,7 +76,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.showIcons': {
 			'type': 'boolean',
-			'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not."),
+			'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
 			'default': true
 		},
 		'workbench.editor.enablePreview': {
