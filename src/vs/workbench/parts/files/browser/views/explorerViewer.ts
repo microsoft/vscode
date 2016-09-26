@@ -413,6 +413,7 @@ export class FileController extends DefaultController {
 		if (platform.isMacintosh) {
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, this.onLeft.bind(this));
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
 			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
 			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
