@@ -77,7 +77,6 @@ export class FeedbackDropdown extends Dropdown {
 		this.integrityService.isPure().then(result => {
 			if (!result.isPure) {
 				this._isPure = false;
-				this.$el.addClass('patched');
 			}
 		});
 
