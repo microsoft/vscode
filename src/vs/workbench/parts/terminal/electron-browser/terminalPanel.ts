@@ -141,7 +141,7 @@ export class TerminalPanel extends Panel {
 	}
 
 	public focus(): void {
-		this._terminalService.getActiveInstance().focus();
+		this._terminalService.getActiveInstance().focus(true);
 	}
 
 	private _attachEventListeners(): void {
