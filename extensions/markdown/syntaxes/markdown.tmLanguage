@@ -311,6 +311,19 @@
 							<key>while</key>
 							<string>^(?!\s*$)</string>
 						</dict>
+						<dict>
+							<key>begin</key>
+							<string>(^|\G)\s*(?=&lt;!--)</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>text.html.basic</string>
+								</dict>
+							</array>
+							<key>end</key>
+							<string>--&gt;</string>
+						</dict>
 					</array>
 				</dict>
 				<key>link-def</key>
