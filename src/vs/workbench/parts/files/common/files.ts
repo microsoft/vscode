@@ -233,6 +233,13 @@ export enum AutoSaveMode {
 	ON_WINDOW_CHANGE
 }
 
+export enum SaveReason {
+	EXPLICIT,
+	AUTO,
+	FOCUS_CHANGE,
+	WINDOW_CHANGE
+}
+
 export interface IFileEditorDescriptor extends IEditorDescriptor {
 	getMimeTypes(): string[];
 }
@@ -272,6 +279,12 @@ export interface ITextFileEditorModelManager {
 	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
+export interface IModelSaveOptions {
+	reason?: SaveReason;
+	overwriteReadonly?: boolean;
+	overwriteEncoding?: boolean;
+}
+
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
 	onDidStateChange: Event<StateChange>;
@@ -286,7 +299,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	updatePreferredEncoding(encoding: string): void;
 
-	save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void>;
+	save(options?: IModelSaveOptions): TPromise<void>;
 
 	revert(): TPromise<void>;
 

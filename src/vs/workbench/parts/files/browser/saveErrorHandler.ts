@@ -103,7 +103,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 			if (isReadonly) {
 				actions.push(new Action('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"), null, true, () => {
 					if (!model.isDisposed()) {
-						model.save(true /* overwrite readonly */).done(null, errors.onUnexpectedError);
+						model.save({ overwriteReadonly: true }).done(null, errors.onUnexpectedError);
 					}
 
 					return TPromise.as(true);
