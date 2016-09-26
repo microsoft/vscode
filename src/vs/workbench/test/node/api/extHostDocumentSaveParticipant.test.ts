@@ -154,6 +154,37 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 	});
 
+	test('event delivery, overall timeout', () => {
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, { timeout: 10, errors: 5 });
+
+		let callCount = 0;
+		let sub1 = participant.onWillSaveTextDocumentEvent(function (event) {
+			callCount += 1;
+			event.waitUntil(TPromise.timeout(7));
+		});
+
+		let sub2 = participant.onWillSaveTextDocumentEvent(function (event) {
+			callCount += 1;
+			event.waitUntil(TPromise.timeout(7));
+		});
+
+		let sub3 = participant.onWillSaveTextDocumentEvent(function (event) {
+			callCount += 1;
+		});
+
+		return participant.$participateInSave(resource).then(values => {
+			sub1.dispose();
+			sub2.dispose();
+			sub3.dispose();
+
+			assert.equal(callCount, 2);
+			assert.equal(values.length, 2);
+			const [first, second] = values;
+			assert.equal(first, true);
+			assert.equal(second, true);
+		});
+	});
+
 	test('event delivery, waitUntil', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, workspace);
 
