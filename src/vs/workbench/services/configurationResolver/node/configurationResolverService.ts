@@ -49,6 +49,10 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return this._workspaceRoot;
 	}
 
+	private get workspaceRootFolderName(): string {
+		return this.workspaceRoot ? paths.basename(this.workspaceRoot) : '';
+	}
+
 	private get file(): string {
 		return this.getFilePath();
 	}
