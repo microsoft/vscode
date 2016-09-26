@@ -55,6 +55,10 @@ class SyncedBuffer {
 		this.client.execute('open', args, false);
 	}
 
+	public get lineCount(): number {
+		return this.document.lineCount;
+	}
+
 	public close(): void {
 		let args: Proto.FileRequestArgs = {
 			file: this.filepath
@@ -117,7 +121,7 @@ export default class BufferSyncSupport {
 		this.projectValidationRequested = false;
 
 		this.pendingDiagnostics = Object.create(null);
-		this.diagnosticDelayer = new Delayer<any>(100);
+		this.diagnosticDelayer = new Delayer<any>(300);
 
 		this.syncedBuffers = Object.create(null);
 	}
@@ -204,7 +208,7 @@ export default class BufferSyncSupport {
 		Object.keys(this.syncedBuffers).forEach(filePath => this.pendingDiagnostics[filePath] = Date.now());
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
-		});
+		}, 200);
 	}
 
 	public requestDiagnostic(file: string): void {
@@ -213,9 +217,15 @@ export default class BufferSyncSupport {
 		}
 
 		this.pendingDiagnostics[file] = Date.now();
+		let buffer = this.syncedBuffers[file];
+		let delay = 300;
+		if (buffer) {
+			let lineCount = buffer.lineCount;
+			delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
+		}
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
-		});
+		}, delay);
 	}
 
 	private sendPendingDiagnostics(): void {
