@@ -237,9 +237,16 @@ export class UpdateAction extends Action {
 		if (canInstall && isInstalled) {
 			this.extension.isOutdated().then(outDated => {
 				this.enabled = outDated;
-				this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
+				this.updateClass();
 			});
+		} else {
+			this.enabled = false;
+			this.updateClass();
 		}
+	}
+
+	private updateClass(): void {
+		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
 	}
 
 	run(): TPromise<any> {
