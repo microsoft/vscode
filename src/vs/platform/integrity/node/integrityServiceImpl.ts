@@ -15,7 +15,6 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import {Action} from 'vs/base/common/actions';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IOpenerService} from 'vs/platform/opener/common/opener';
 
 interface ILoaderChecksums {
 	[scriptSrc:string]: string;
@@ -65,18 +64,15 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	public _serviceBrand: any;
 
 	private _messageService: IMessageService;
-	private _openerService: IOpenerService;
 	private _storage:IntegrityStorage;
 	private _loaderChecksums: ILoaderChecksums;
 	private _isPurePromise: TPromise<IntegrityTestResult>;
 
 	constructor(
 		@IMessageService messageService: IMessageService,
-		@IStorageService storageService: IStorageService,
-		@IOpenerService openerService: IOpenerService
+		@IStorageService storageService: IStorageService
 	) {
 		this._messageService = messageService;
-		this._openerService = openerService;
 		this._storage = new IntegrityStorage(storageService);
 
 		// Fetch checksums from loader
@@ -106,14 +102,14 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			// Do not prompt
 			return;
 		}
-		const OkAction = new Action(
+		const okAction = new Action(
 			'integrity.ok',
 			nls.localize('integrity.ok', "OK"),
 			null,
 			true,
 			() => TPromise.as(true)
 		);
-		const DontShowAgainAction = new Action(
+		const dontShowAgainAction = new Action(
 			'integrity.dontShowAgain',
 			nls.localize('integrity.dontShowAgain', "Don't show again"),
 			null,
@@ -126,21 +122,21 @@ export class IntegrityServiceImpl implements IIntegrityService {
 				return TPromise.as(true);
 			}
 		);
-		const MoreInfoAction = new Action(
+		const moreInfoAction = new Action(
 			'integrity.moreInfo',
 			nls.localize('integrity.moreInfo', "More information"),
 			null,
 			true,
 			() => {
 				const uri = URI.parse(product.checksumFailMoreInfoUrl);
-				this._openerService.open(uri);
+				window.open(uri.toString(true));
 				return TPromise.as(true);
 			}
 		);
 
 		this._messageService.show(Severity.Warning, {
 			message: nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
-			actions: [OkAction, MoreInfoAction, DontShowAgainAction]
+			actions: [okAction, moreInfoAction, dontShowAgainAction]
 		});
 	}
 
