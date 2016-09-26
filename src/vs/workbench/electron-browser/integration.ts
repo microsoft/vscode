@@ -146,6 +146,13 @@ export class ElectronIntegration {
 			});
 		});
 
+		ipc.on('vscode:macOSUseInlineToolbar', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.partService.addClass('use-inline-toolbar');
+				this.partService.setSideBarPosition(this.partService.getSideBarPosition());
+			});
+		});
+
 		// Ensure others can listen to zoom level changes
 		browser.setZoomLevel(webFrame.getZoomLevel());
 

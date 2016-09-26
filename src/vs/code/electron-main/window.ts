@@ -28,6 +28,7 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	allowFullscreen?: boolean;
+	macOSUseInlineToolbar: boolean;
 }
 
 export enum WindowMode {
@@ -106,6 +107,7 @@ export interface IWindowSettings {
 	reopenFolders: 'all' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;
+	macOSUseInlineToolbar: boolean;
 }
 
 export class VSCodeWindow {
@@ -169,11 +171,15 @@ export class VSCodeWindow {
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
 			},
-			titleBarStyle: 'hidden-inset'
 		};
 
 		if (platform.isLinux) {
 			options.icon = path.join(this.envService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+		}
+
+		// TODO: Orta - this is not working
+		if (platform.isMacintosh && this.options.macOSUseInlineToolbar) {
+			options.titleBarStyle = 'hidden-inset';
 		}
 
 		// Create the browser window.
@@ -347,6 +353,11 @@ export class VSCodeWindow {
 				}
 			});
 		}
+
+		if (this.options.macOSUseInlineToolbar) {
+			this.sendWhenReady('vscode:macOSUseInlineToolbar');
+		}
+
 	}
 
 	public load(config: IWindowConfiguration): void {

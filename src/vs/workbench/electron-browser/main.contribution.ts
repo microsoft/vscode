@@ -135,6 +135,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 0,
 			'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
+		},
+		'window.macOSUseInlineToolbar': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('macOSUseInlineToolbar', "Use an inline toolbar style on macOS. Note changes require a full restart to apply.")
 		}
 	}
 });
