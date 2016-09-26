@@ -156,7 +156,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._container.appendChild(this._wrapperElement);
 
-		this.layout(new Dimension(this._container.offsetWidth, this._container.offsetHeight));
+		const computedStyle = window.getComputedStyle(this._container);
+		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
 	}
 
