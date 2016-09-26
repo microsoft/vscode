@@ -11,6 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import {Action} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
+import {IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Registry} from 'vs/platform/platform';
 import {IComposite} from 'vs/workbench/common/composite';
@@ -19,6 +20,7 @@ import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, Vie
 import {CompositeDescriptor} from 'vs/workbench/browser/composite';
 import {Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor} from 'vs/workbench/browser/panel';
 import {Part} from 'vs/workbench/browser/part';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
 import {TogglePanelAction} from 'vs/workbench/browser/parts/panel/panelPart';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -43,7 +45,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		@IPanelService private panelService: IPanelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(id);
 
@@ -62,6 +65,15 @@ export class ActivitybarPart extends Part implements IActivityService {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
 		this.toUnbind.push(this.panelService.onDidPanelClose(panel => this.onPanelClosed(panel)));
+
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+
+	}
+
+	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
+		if (this.panelSwitcherBar) {
+			config.workbench.panels.showInSidebar ? this.panelSwitcherBar.getContainer().show() : this.panelSwitcherBar.getContainer().hide();
+		}
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
@@ -135,7 +147,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 	}
 
 	private createPanelSwitcher(div: Builder): void {
-
+		
 		// Composite switcher is on top
 		this.panelSwitcherBar = new ActionBar(div, {
 			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
