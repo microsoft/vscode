@@ -296,7 +296,7 @@ export class ShowStartupPerformance extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(id, label);
 

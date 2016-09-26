@@ -48,7 +48,7 @@ export class MainThreadService extends AbstractThreadService implements IThreadS
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMessageService messageService: IMessageService,
 		@IWindowService windowService: IWindowService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super(true);
@@ -107,7 +107,7 @@ class ExtensionHostProcessManager {
 		private contextService: IWorkspaceContextService,
 		private messageService: IMessageService,
 		private windowService: IWindowService,
-		private lifecycleService: ILifecycleService,
+		lifecycleService: ILifecycleService,
 		private environmentService: IEnvironmentService
 	) {
 

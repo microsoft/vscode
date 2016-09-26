@@ -26,7 +26,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		workspaceRoot: uri,
 		envVariables: { [key: string]: string },
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {

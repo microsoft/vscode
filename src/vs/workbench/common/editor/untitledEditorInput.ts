@@ -12,7 +12,6 @@ import paths = require('vs/base/common/paths');
 import {UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -42,7 +41,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		hasAssociatedFilePath: boolean,
 		modeId: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService

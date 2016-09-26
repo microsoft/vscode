@@ -92,7 +92,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEventService eventService: IEventService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService

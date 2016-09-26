@@ -78,16 +78,6 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		});
 	}
 
-	interface IConfigurationEditingTestSetting {
-		configurationEditing: {
-			service: {
-				testSetting: string;
-				testSettingTwo: string;
-				testSettingThree: string;
-			}
-		};
-	}
-
 	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		'id': '_test',

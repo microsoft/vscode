@@ -61,10 +61,9 @@ class OpenDebugPanelAction extends panel.TogglePanelAction {
 		id: string,
 		label: string,
 		@IPanelService panelService: IPanelService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IPartService partService: IPartService
 	) {
-		super(id, label, debug.REPL_ID, panelService, partService, editorService);
+		super(id, label, debug.REPL_ID, panelService, partService);
 	}
 }
 

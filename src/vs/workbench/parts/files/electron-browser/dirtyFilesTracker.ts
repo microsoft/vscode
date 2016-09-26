@@ -37,7 +37,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService,

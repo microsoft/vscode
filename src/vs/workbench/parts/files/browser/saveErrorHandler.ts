@@ -20,9 +20,8 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
+import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEventService} from 'vs/platform/event/common/event';
 import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
@@ -39,7 +38,6 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
-		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -187,7 +185,6 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 		@IModelService modelService: IModelService,
 		@IModeService private modeService: IModeService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		// We create a new resource URI here that is different from the file resource because we represent the state of
@@ -291,7 +288,6 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use local changes and overwrite disk contents"), 'conflict-editor-action accept-changes');
@@ -360,7 +356,6 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 export class RevertLocalChangesAction extends EditorInputAction {
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super('workbench.action.files.revert', nls.localize('revertLocalChanges', "Discard local changes and revert to content on disk"), 'conflict-editor-action revert-changes');
