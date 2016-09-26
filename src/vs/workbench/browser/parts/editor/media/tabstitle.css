@@ -48,6 +48,9 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container {
 	display: flex;
 	height: 35px;
+}
+
+.monaco-workbench.mac > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container {
 	-webkit-app-region: drag;
 }
 
@@ -68,11 +71,15 @@
 	overflow: hidden;
 	white-space: nowrap;
 	cursor: pointer;
-	margin-top: 9px;
-	height: 26px;
+	height: 35px;
 	box-sizing: border-box;
 	border: 1px solid transparent;
 	padding-left: 10px;
+}
+
+.monaco-workbench.mac > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
+	margin-top: 9px;
+	height: 26px;
 	-webkit-app-region: no-drag;
 }
 
@@ -226,5 +233,8 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
 	flex: initial;
 	padding-left: 4px;
+}
+
+.monaco-workbench.mac > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
 	-webkit-app-region: drag;
 }

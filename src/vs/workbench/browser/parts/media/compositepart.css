@@ -9,6 +9,9 @@
 
 .monaco-workbench > .part > .composite.title {
 	display: flex;
+}
+
+.monaco-workbench.mac > .part > .composite.title {
 	-webkit-app-region: drag;
 }
 

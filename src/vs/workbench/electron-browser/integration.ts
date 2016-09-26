@@ -133,12 +133,16 @@ export class ElectronIntegration {
 		ipc.on('vscode:enterFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.addClass('fullscreen');
+				// We need to re-layout the sidebar as the activitybar's width can change between
+				// fullscreen and window'd modes on macOS.
+				this.partService.setSideBarPosition(this.partService.getSideBarPosition());
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', (event) => {
 			this.partService.joinCreation().then(() => {
 				this.partService.removeClass('fullscreen');
+				this.partService.setSideBarPosition(this.partService.getSideBarPosition());
 			});
 		});
 
