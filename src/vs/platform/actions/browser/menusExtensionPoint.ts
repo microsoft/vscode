@@ -14,6 +14,8 @@ import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { Registry } from 'vs/platform/platform';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 
 namespace schema {
 
@@ -206,6 +208,29 @@ namespace schema {
 			}
 		]
 	};
+
+	// --- treeExplorers contribution point
+
+	export interface IExplorer {
+		treeContentProviderId: string;
+		icon: IUserFriendlyIcon;
+	}
+
+	export const explorerContribtion: IJSONSchema = {
+		description: localize('vscode.extension.contributes.explorer', "Contributes explorer viewlet to the sidebar"),
+		type: 'object',
+		properties: {
+			treeContentProviderId: {
+				description: localize('vscode.extension.contributes.explorer.treeContentProviderId', 'Unique id used to identify provider registered through vscode.workspace.registerTreeContentProvider'),
+				type: 'string'
+			},
+			icon: {
+				description: localize('vscode.extension.contributes.explorer.icon', 'Icon to put on activity bar'),
+				type: 'string'
+			}
+		}
+	};
+
 }
 
 ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', schema.commandsContribution).setHandler(extensions => {
@@ -305,5 +330,20 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 				});
 			}
 		});
+	}
+});
+
+ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
+	for (let extension of extensions) {
+		const { treeContentProviderId, icon } = extension.value;
+
+		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
+			'TreeExplorerViewlet',
+			'workbench.view.treeExplorer', // Later change this to make it unique
+			localize('treeExplorer', 'treeExplorer'),
+			'treeExplorer',
+			125
+		));
 	}
 });
