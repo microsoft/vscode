@@ -112,7 +112,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any>;
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any>;
 }
 
 /**
@@ -234,10 +234,10 @@ export enum AutoSaveMode {
 }
 
 export enum SaveReason {
-	EXPLICIT,
-	AUTO,
-	FOCUS_CHANGE,
-	WINDOW_CHANGE
+	EXPLICIT = 1,
+	AUTO = 2,
+	FOCUS_CHANGE = 3,
+	WINDOW_CHANGE = 4
 }
 
 export interface IFileEditorDescriptor extends IEditorDescriptor {

@@ -450,7 +450,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (TextFileEditorModel.saveParticipant && !this.lifecycleService.willShutdown) {
 			saveParticipantPromise = TPromise.as(undefined).then(() => {
 				this.blockModelContentChange = true;
-				return TextFileEditorModel.saveParticipant.participate(this, { isAutoSaved: reason === SaveReason.AUTO });
+				return TextFileEditorModel.saveParticipant.participate(this, { reason });
 			}).then(() => {
 				this.blockModelContentChange = false;
 				return this.versionId;
