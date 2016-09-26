@@ -426,6 +426,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					extension.assets.download = `${getAssetSource(rawVersion.files, AssetType.VSIX)}?install=true`;
 					extension.compatibilityChecked = true;
 					extension.isCompatible = true;
+					extension.version = rawVersion.version;
 					return extension;
 				});
 		});
@@ -498,21 +499,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
-		const version = this.getLastValidExtensionVersionFromProperties(versions);
+		const version = this.getLastValidExtensionVersionFromProperties(extension, versions);
 		if (version) {
-			return TPromise.wrap(version);
+			return version;
 		}
 		return this.getLastValidExtensionVersionReccursively(extension, versions);
 	}
 
-	private getLastValidExtensionVersionFromProperties(versions: IRawGalleryExtensionVersion[]): IRawGalleryExtensionVersion {
+	private getLastValidExtensionVersionFromProperties(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
 		for (const version of versions) {
 			const engine = getEngine(version);
 			if (!engine) {
 				return null;
 			}
 			if (validateVersions(pkg.version, engine, [])) {
-				return version;
+				return TPromise.wrap(version);
 			}
 		}
 		return null;
