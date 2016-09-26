@@ -46,6 +46,7 @@ export interface IProductConfiguration {
 	privacyStatementUrl: string;
 	npsSurveyUrl: string;
 	checksums: {[path:string]:string;};
+	checksumFailMoreInfoUrl: string;
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
