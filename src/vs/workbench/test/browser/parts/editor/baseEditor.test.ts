@@ -121,9 +121,6 @@ class MyEditorInputActionContributor extends EditorInputActionContributor {
 	}
 }
 
-class MyClass { }
-class MyOtherClass { }
-
 suite('Workbench BaseEditor', () => {
 
 	test('BaseEditor API', function (done) {

@@ -25,10 +25,7 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IActivityService, IBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 
 export class ActivitybarPart extends Part implements IActivityService {
@@ -44,9 +41,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 		id: string,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
-		@IMessageService private messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService

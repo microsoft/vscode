@@ -10,7 +10,6 @@ import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {Keybinding} from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
 import {toDisposable} from 'vs/base/common/lifecycle';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
@@ -22,7 +21,6 @@ import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ConfigWatcher} from 'vs/base/node/config';
@@ -122,11 +120,9 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		domNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEventService private eventService: IEventService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService
 	) {
 		super(contextKeyService, commandService, messageService, statusBarService);

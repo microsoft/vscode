@@ -258,11 +258,6 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 	return emitter.event;
 }
 
-enum EventDelayerState {
-	Idle,
-	Running
-}
-
 /**
  * The EventDelayer is useful in situations in which you want
  * to delay firing your events during some code.

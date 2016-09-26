@@ -10,7 +10,6 @@ import {IPanel} from 'vs/workbench/common/panel';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export abstract class Panel extends Composite implements IPanel { }
@@ -75,8 +74,7 @@ export abstract class TogglePanelAction extends Action {
 		label: string,
 		panelId: string,
 		protected panelService: IPanelService,
-		private partService: IPartService,
-		private editorService: IWorkbenchEditorService
+		private partService: IPartService
 	) {
 		super(id, name);
 		this.panelId = panelId;

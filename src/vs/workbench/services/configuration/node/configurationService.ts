@@ -59,7 +59,7 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME
 	) {
 		this.toDispose = [];
