@@ -29,7 +29,6 @@ import {CopyValueAction} from 'vs/workbench/parts/debug/electron-browser/electro
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
@@ -833,7 +832,6 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	constructor(
 		actionProvider: renderer.IActionProvider,
 		private actionRunner: actions.IActionRunner,
-		@IMessageService private messageService: IMessageService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService
 	) {
@@ -1079,7 +1077,6 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	constructor(
 		private actionProvider: BreakpointsActionProvider,
 		private actionRunner: actions.IActionRunner,
-		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService
