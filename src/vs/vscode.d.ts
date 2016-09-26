@@ -3740,6 +3740,16 @@ declare namespace vscode {
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) will be saved to disk.
+		 *
+		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrety the editor
+		 * might save without firing this event. For instance when shutting down with dirty files.
+		 *
+		 * *Note 2:* Subscribers are called sequentially and they can [delay](#TextDocumentWillSaveEvent.waitUntil) saving
+		 * by registering asynchronous work. Protection against misbehaving listeners is implemented as such:
+		 *  * there is an overall time budget that all listeners share and if that is exhausted no further listener is called
+		 *  * listeners that take a long time or produce errors frequently will not be called anymore
+		 *
+		 * The current thresholds are 1.5 seconds as overall time budget and a listener can misbehave 3 times before being ignored.
 		 */
 		export const onWillSaveTextDocument: Event<TextDocumentWillSaveEvent>;
 

@@ -7,14 +7,14 @@
 import Event from 'vs/base/common/event';
 import CallbackList from 'vs/base/common/callbackList';
 import URI from 'vs/base/common/uri';
-import {sequence, always} from 'vs/base/common/async';
-import {illegalState} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {MainThreadWorkspaceShape, ExtHostDocumentSaveParticipantShape} from 'vs/workbench/api/node/extHost.protocol';
-import {TextEdit} from 'vs/workbench/api/node/extHostTypes';
-import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
-import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
-import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
+import { sequence, always } from 'vs/base/common/async';
+import { illegalState } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { MainThreadWorkspaceShape, ExtHostDocumentSaveParticipantShape } from 'vs/workbench/api/node/extHost.protocol';
+import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
+import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
+import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 
 declare class WeakMap<K, V> {
 	// delete(key: K): boolean;
@@ -31,7 +31,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 	private _badListeners = new WeakMap<Function, number>();
 	private _thresholds: { timeout: number; errors: number; };
 
-	constructor(documents: ExtHostDocuments, workspace: MainThreadWorkspaceShape, thresholds: { timeout: number; errors: number; } = { timeout: 1000, errors: 5 }) {
+	constructor(documents: ExtHostDocuments, workspace: MainThreadWorkspaceShape, thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }) {
 		super();
 		this._documents = documents;
 		this._workspace = workspace;
@@ -60,34 +60,48 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 	$participateInSave(resource: URI): TPromise<boolean[]> {
 		const entries = this._callbacks.entries();
 
-		return sequence(entries.map(([fn, thisArg]) => {
+		let didTimeout = false;
+		let didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);
+
+		const promise = sequence(entries.map(([fn, thisArg]) => {
 			return () => {
 
-				const errors = this._badListeners.get(fn);
-				if (errors > this._thresholds.errors) {
-					// ignored
-					return TPromise.wrap(false);
+				if (didTimeout) {
+					// timeout - no more listeners
+					return;
 				}
 
 				const document = this._documents.getDocumentData(resource).document;
-				return this._deliverEventAsync(fn, thisArg, document).then(() => {
-					// don't send result across the wire
-					return true;
-
-				}, err => {
-					if (!(err instanceof Error) || (<Error>err).message !== 'concurrent_edits') {
-						const errors = this._badListeners.get(fn);
-						this._badListeners.set(fn, !errors ? 1 : errors + 1);
-
-						// todo@joh signal to the listener?
-						// if (errors === this._thresholds.errors) {
-						// 	console.warn('BAD onWillSaveTextDocumentEvent-listener is from now on being ignored');
-						// }
-					}
-					return false;
-				});
+				return this._deliverEventAsyncAndBlameBadListeners(fn, thisArg, document);
 			};
 		}));
+
+		return always(promise, () => clearTimeout(didTimeoutHandle));
+	}
+
+	private _deliverEventAsyncAndBlameBadListeners(listener: Function, thisArg: any, document: vscode.TextDocument): TPromise<any> {
+		const errors = this._badListeners.get(listener);
+		if (errors > this._thresholds.errors) {
+			// bad listener - ignore
+			return TPromise.wrap(false);
+		}
+
+		return this._deliverEventAsync(listener, thisArg, document).then(() => {
+			// don't send result across the wire
+			return true;
+
+		}, err => {
+			if (!(err instanceof Error) || (<Error>err).message !== 'concurrent_edits') {
+				const errors = this._badListeners.get(listener);
+				this._badListeners.set(listener, !errors ? 1 : errors + 1);
+
+				// todo@joh signal to the listener?
+				// if (errors === this._thresholds.errors) {
+				// 	console.warn('BAD onWillSaveTextDocumentEvent-listener is from now on being ignored');
+				// }
+			}
+			return false;
+		});
 	}
 
 	private _deliverEventAsync(listener: Function, thisArg: any, document: vscode.TextDocument): TPromise<any> {
