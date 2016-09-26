@@ -11,7 +11,7 @@ import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import Event, {Emitter} from 'vs/base/common/event';
-import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions} from 'vs/workbench/parts/files/common/files';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -161,13 +161,13 @@ export abstract class TextFileService implements ITextFileService {
 
 	private onWindowFocusLost(): void {
 		if (this.configuredAutoSaveOnWindowChange && this.isDirty()) {
-			this.saveAll().done(null, errors.onUnexpectedError);
+			this.saveAll(void 0, SaveReason.WINDOW_CHANGE).done(null, errors.onUnexpectedError);
 		}
 	}
 
 	private onEditorFocusChanged(): void {
 		if (this.configuredAutoSaveOnFocusChange && this.isDirty()) {
-			this.saveAll().done(null, errors.onUnexpectedError);
+			this.saveAll(void 0, SaveReason.FOCUS_CHANGE).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -254,9 +254,9 @@ export abstract class TextFileService implements ITextFileService {
 		return this.saveAll([resource]).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
-	public saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
-	public saveAll(resources: URI[]): TPromise<ITextFileOperationResult>;
-	public saveAll(arg1?: any): TPromise<ITextFileOperationResult> {
+	public saveAll(includeUntitled?: boolean, reason?: SaveReason): TPromise<ITextFileOperationResult>;
+	public saveAll(resources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult>;
+	public saveAll(arg1?: any, reason?: SaveReason): TPromise<ITextFileOperationResult> {
 
 		// get all dirty
 		let toSave: URI[] = [];
@@ -277,13 +277,13 @@ export abstract class TextFileService implements ITextFileService {
 			}
 		});
 
-		return this.doSaveAll(filesToSave, untitledToSave);
+		return this.doSaveAll(filesToSave, untitledToSave, reason);
 	}
 
-	private doSaveAll(fileResources: URI[], untitledResources: URI[]): TPromise<ITextFileOperationResult> {
+	private doSaveAll(fileResources: URI[], untitledResources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult> {
 
 		// Handle files first that can just be saved
-		return this.doSaveAllFiles(fileResources).then(result => {
+		return this.doSaveAllFiles(fileResources, reason).then(result => {
 
 			// Preflight for untitled to handle cancellation from the dialog
 			const targetsForUntitled: URI[] = [];
@@ -335,7 +335,7 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doSaveAllFiles(arg1?: any /* URI[] */): TPromise<ITextFileOperationResult> {
+	private doSaveAllFiles(arg1?: any /* URI[] */, reason?: SaveReason): TPromise<ITextFileOperationResult> {
 		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(arg1) ? arg1 : void 0 /* Save All */);
 
 		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
@@ -346,7 +346,7 @@ export abstract class TextFileService implements ITextFileService {
 		});
 
 		return TPromise.join(dirtyFileModels.map(model => {
-			return model.save().then(() => {
+			return model.save({ reason }).then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}

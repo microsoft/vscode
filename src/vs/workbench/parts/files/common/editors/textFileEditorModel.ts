@@ -18,7 +18,7 @@ import types = require('vs/base/common/types');
 import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
@@ -359,7 +359,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
-				this.doSave(versionId, true); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+				this.doSave(versionId, SaveReason.AUTO); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 			}
 		});
 
@@ -377,7 +377,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	/**
 	 * Saves the current versionId of this editor model if it is dirty.
 	 */
-	public save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
+	public save(options: IModelSaveOptions = Object.create(null)): TPromise<void> {
 		if (!this.isResolved()) {
 			return TPromise.as<void>(null);
 		}
@@ -387,10 +387,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.cancelAutoSavePromises();
 
-		return this.doSave(this.versionId, false, overwriteReadonly, overwriteEncoding);
+		return this.doSave(this.versionId, types.isUndefinedOrNull(options.reason) ? SaveReason.EXPLICIT : options.reason, options.overwriteReadonly, options.overwriteEncoding);
 	}
 
-	private doSave(versionId: number, isAutoSaved: boolean, overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
+	private doSave(versionId: number, reason: SaveReason, overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
 		diag(`doSave(${versionId}) - enter with versionId ' + versionId`, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
@@ -450,11 +450,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (TextFileEditorModel.saveParticipant && !this.lifecycleService.willShutdown) {
 			saveParticipantPromise = TPromise.as(undefined).then(() => {
 				this.blockModelContentChange = true;
-				return TextFileEditorModel.saveParticipant.participate(this, { isAutoSaved });
+				return TextFileEditorModel.saveParticipant.participate(this, { isAutoSaved: reason === SaveReason.AUTO });
 			}).then(() => {
 				this.blockModelContentChange = false;
 				return this.versionId;
-				}, err => {
+			}, err => {
 				// ignore error and proceed as if nothing has happend
 				this.blockModelContentChange = false;
 				return this.versionId;
@@ -654,7 +654,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictResolutionMode) {
-				this.save(false, true /* overwriteEncoding due to forced encoding change */).done(null, onUnexpectedError);
+				this.save({ overwriteEncoding: true }).done(null, onUnexpectedError);
 			}
 		}
 
