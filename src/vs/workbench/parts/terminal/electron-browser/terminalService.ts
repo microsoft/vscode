@@ -188,15 +188,6 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	public togglePanel(): TPromise<any> {
-		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true);
-			return TPromise.as(null);
-		}
-		this.showPanel(true);
-	}
-
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
