@@ -414,7 +414,7 @@
       "from": "vscode-textmate@2.2.0",
       "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.2.0.tgz"
     },
-        "windows-mutex": {
+    "windows-mutex": {
       "version": "0.2.0",
       "from": "windows-mutex@>=0.2.0 <0.3.0",
       "resolved": "https://registry.npmjs.org/windows-mutex/-/windows-mutex-0.2.0.tgz"
