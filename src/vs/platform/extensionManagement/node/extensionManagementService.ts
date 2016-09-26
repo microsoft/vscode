@@ -164,11 +164,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					if (!dependencies.length) {
 						return this.downloadAndInstall(compatibleVersion);
 					}
-					const message = nls.localize('installDependecies', "This extension has dependencies. Would you like to install them along with it?");
+					const message = nls.localize('installDependecies', "Would you also like to install dependencies of {0}?", extension.displayName);
 					const options = [
-						nls.localize('installWithDependenices', "Install With Dependencies"),
-						nls.localize('installWithoutDependenices', "Install only this"),
-						nls.localize('close', "Close")
+						nls.localize('installWithDependenices', "Yes"),
+						nls.localize('installWithoutDependenices', "No"),
+						nls.localize('cancel', "Cancel")
 					];
 					return this.choiceService.choose(Severity.Info, message, options)
 						.then(value => {
