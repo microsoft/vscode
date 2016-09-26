@@ -528,8 +528,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(css|css.erb)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -544,8 +544,8 @@
 						<string>(^|\G)\s*([`~]{3,})\s*(html|htm|shtml|xhtml|inc|tmpl|tpl)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -560,8 +560,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(ini|conf)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -576,8 +576,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(java|bsh)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -592,8 +592,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(lua)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -608,8 +608,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(Makefile|makefile|GNUmakefile|OCamlMakefile)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -624,8 +624,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(perl|pl|pm|pod|t|PL|psgi|vcl)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -640,8 +640,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(R|r|s|S|Rprofile)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -656,8 +656,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(ruby|rb|rbx|rjs|Rakefile|rake|cgi|fcgi|gemspec|irbrc|Capfile|ru|prawn|Cheffile|Gemfile|Guardfile|Hobofile|Vagrantfile|Appraisals|Rantfile|Berksfile|Berksfile.lock|Thorfile|Puppetfile)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -672,8 +672,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(php|php3|php4|php5|phpt|phtml|aw|ctp)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -688,8 +688,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(sql|ddl|dml)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -704,8 +704,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(vb)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -720,8 +720,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(xml|xsd|tld|jsp|pt|cpt|dtml|rss|opml)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -736,8 +736,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(xsl|xslt)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -752,8 +752,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(yaml|yml)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -768,8 +768,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(bat|batch)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -784,8 +784,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(clj|cljs|clojure)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -800,8 +800,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(coffee|Cakefile|coffee.erb)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -816,8 +816,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(c|h)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -832,8 +832,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(patch|diff|rej)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -848,8 +848,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(dockerfile|Dockerfile)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -864,8 +864,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(COMMIT_EDITMSG|MERGE_MSG)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -880,8 +880,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(git-rebase-todo)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -896,8 +896,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(groovy|gvy)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -912,8 +912,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(jade)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -928,8 +928,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(js|jsx|javascript)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -944,8 +944,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(regexp)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -960,8 +960,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(json|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -976,8 +976,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(less)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -992,8 +992,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(objectivec|mm|objc|obj-c|m|h)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1008,8 +1008,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(perl6|p6|pl6|pm6|nqp)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1024,8 +1024,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(powershell|ps1|psm1|psd1)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1040,8 +1040,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(python|py|py3|rpy|pyw|cpy|SConstruct|Sconstruct|sconstruct|SConscript|gyp|gypi)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1056,8 +1056,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(re)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1072,8 +1072,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(shell|sh|bash|zsh|bashrc|bash_profile|bash_login|profile|bash_logout|.textmate_init)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1088,8 +1088,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(typescript|ts)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1104,8 +1104,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(tsx)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)[ ]{0,3}(\2)\s*\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1120,8 +1120,8 @@
 					<string>(^|\G)\s*([`~]{3,})\s*(cs|csharp|c#)\s*$</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
-					<key>end</key>
-					<string>(^|\G)(\2)\n</string>
+					<key>while</key>
+					<string>(^|\G)(?!\s*\2\s*$)</string>
 					<key>patterns</key>
 					<array>
 						<dict>
