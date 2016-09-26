@@ -20,6 +20,7 @@ import {EditOperationsCommand} from 'vs/editor/contrib/format/common/formatComma
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ExtHostContext, ExtHostDocumentSaveParticipantShape} from './extHost.protocol';
+import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 class TrimWhitespaceParticipant implements ISaveParticipant {
 
@@ -30,9 +31,9 @@ class TrimWhitespaceParticipant implements ISaveParticipant {
 		// Nothing
 	}
 
-	public participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): any {
+	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): any {
 		if (this.configurationService.lookup('files.trimTrailingWhitespace').value) {
-			this.doTrimTrailingWhitespace(model.textEditorModel, env.isAutoSaved);
+			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
 
@@ -84,9 +85,11 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		// Nothing
 	}
 
-	participate(editorModel: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
+	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
 
-		if (env.isAutoSaved || !this._configurationService.lookup('editor.formatOnSave').value) {
+		if (env.reason === SaveReason.AUTO
+			|| !this._configurationService.lookup('editor.formatOnSave').value) {
+
 			return;
 		}
 
@@ -145,8 +148,8 @@ class ExtHostSaveParticipant implements ISaveParticipant {
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
-	participate(editorModel: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
-		return this._proxy.$participateInSave(editorModel.getResource());
+	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
+		return this._proxy.$participateInSave(editorModel.getResource(), env.reason);
 	}
 }
 
@@ -169,7 +172,7 @@ export class SaveParticipant implements ISaveParticipant {
 		// Hook into model
 		TextFileEditorModel.setSaveParticipant(this);
 	}
-	participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any> {
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any> {
 		const promiseFactory = this._saveParticipants.map(p => () => {
 			return TPromise.as(p.participate(model, env)).then(undefined, err => {
 				// console.error(err);

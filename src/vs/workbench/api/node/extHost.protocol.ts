@@ -21,7 +21,7 @@ import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IMessage, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
@@ -30,6 +30,7 @@ import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
 
 import {IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { SaveReason } from 'vs/workbench/parts/files/common/files';
 import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import {IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent} from './mainThreadEditorsTracker';
 
@@ -233,7 +234,7 @@ export abstract class ExtHostDocumentsShape {
 }
 
 export abstract class ExtHostDocumentSaveParticipantShape {
-	$participateInSave(resource: URI): TPromise<any[]> { throw ni(); }
+	$participateInSave(resource: URI, reason: SaveReason): TPromise<any[]> { throw ni(); }
 }
 
 export interface ITextEditorAddData {
