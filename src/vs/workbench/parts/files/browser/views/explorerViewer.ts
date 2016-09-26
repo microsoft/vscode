@@ -171,12 +171,12 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getSecondaryActions(tree, stat);
 	}
 
-	public runAction(tree: ITree, stat: FileStat, action: IAction, context?: any): TPromise<any>;
+	public runAction(tree: ITree, stat: FileStat, action: IAction, ontext?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): TPromise<any> {
 		context = objects.mixin({
 			viewletState: this.state,
-			stat: stat
+			stat
 		}, context);
 
 		if (!isString(arg)) {
@@ -630,10 +630,9 @@ export class FileController extends DefaultController {
 	}
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const useTrash = !event.shiftKey;
 		const stat: FileStat = tree.getFocus();
 		if (stat) {
-			this.runAction(tree, stat, useTrash ? 'workbench.files.action.moveFileToTrash' : 'workbench.files.action.deleteFile').done();
+			this.runAction(tree, stat, 'workbench.files.action.moveFileToTrash', event).done();
 
 			return true;
 		}
@@ -641,8 +640,8 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private runAction(tree: ITree, stat: FileStat, id: string): TPromise<any> {
-		return this.state.actionProvider.runAction(tree, stat, id);
+	private runAction(tree: ITree, stat: FileStat, id: string, event?: IKeyboardEvent): TPromise<any> {
+		return this.state.actionProvider.runAction(tree, stat, id, { event });
 	}
 }
 
