@@ -49,7 +49,7 @@ suite('Debug - Model', () => {
 
 	test('breakpoints two files', () => {
 		var modelUri1 = uri.file('/myfolder/my file first.js');
-		var modelUri2 = uri.file('/secondfolder/second/second file.js')
+		var modelUri2 = uri.file('/secondfolder/second/second file.js');
 		model.addBreakpoints([{ uri: modelUri1, lineNumber: 5, enabled: true }, { uri: modelUri1, lineNumber: 10, enabled: false }]);
 		model.addBreakpoints([{ uri: modelUri2, lineNumber: 1, enabled: true }, { uri: modelUri2, lineNumber: 2, enabled: true }, { uri: modelUri2, lineNumber: 3, enabled: false }]);
 
