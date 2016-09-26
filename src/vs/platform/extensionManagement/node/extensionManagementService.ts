@@ -180,7 +180,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 								default:
 									return TPromise.wrapError(errors.canceled());
 							}
-						});
+						}, error => TPromise.wrapError(errors.canceled()));
 				})
 		);
 	}
