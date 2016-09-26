@@ -56,7 +56,7 @@ export class TerminalInstance implements ITerminalInstance {
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
-		private _workspace: IWorkspace,
+		workspace: IWorkspace,
 		name: string,
 		shell: IShell,
 		@IKeybindingService private _keybindingService: IKeybindingService,
@@ -72,7 +72,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(_workspace, name, shell);
+		this._createProcess(workspace, name, shell);
 
 		if (_container) {
 			this.attachToElement(_container);
