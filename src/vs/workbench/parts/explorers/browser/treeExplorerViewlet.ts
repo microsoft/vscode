@@ -1,5 +1,3 @@
-import 'vs/css!./media/customViewlet';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { SplitView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
@@ -12,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 import { TreeView } from 'vs/workbench/parts/explorers/browser/views/treeView';
 
-export const CUSTOM_VIEWLET_ID_ROOT = 'workbench.view.customViewlet.';
+export const CUSTOM_VIEWLET_ID_ROOT = 'workbench.view.treeExplorerViewlet.';
 
 export class TreeExplorerViewlet extends Viewlet {
 	private static _idCounter = 1;

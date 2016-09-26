@@ -51,6 +51,15 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.onCompositeClosed(viewlet)));
+
+		// Update activity bar on registering an external viewlet
+		this.toUnbind.push(
+			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).onDidViewletRegister(viewletDescriptor => this.onViewletRegistryUpdated(viewletDescriptor))
+		);
+	}
+
+	private onViewletRegistryUpdated(viewletDescriptor: ViewletDescriptor) {
+		this.viewletSwitcherBar.push(this.toAction(viewletDescriptor), { label: true, icon: true });
 	}
 
 	private onActiveCompositeChanged(composite: IComposite): void {
