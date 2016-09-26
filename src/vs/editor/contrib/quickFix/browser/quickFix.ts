@@ -5,21 +5,21 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {IQuickFix2} from '../common/quickFix';
-import {QuickFixModel} from './quickFixModel';
-import {QuickFixSelectionWidget} from './quickFixSelectionWidget';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IPosition, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { IQuickFix2 } from '../common/quickFix';
+import { QuickFixContentWidget } from './quickFixWidget';
+import { LightBulbWidget } from './lightBulbWidget';
+import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
 
 @editorContribution
 export class QuickFixController implements IEditorContribution {
@@ -30,87 +30,120 @@ export class QuickFixController implements IEditorContribution {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
 	}
 
-	private editor: ICodeEditor;
-	private model: QuickFixModel;
-	private suggestWidget: QuickFixSelectionWidget;
-	private quickFixWidgetVisible: IContextKey<boolean>;
+	private _editor: ICodeEditor;
+	private _model: QuickFixModel;
+	private _quickFixWidgetVisible: IContextKey<boolean>;
+	private _quickFixWidget: QuickFixContentWidget;
+	private _lightBulbWidget: LightBulbWidget;
+
+	private _disposables: IDisposable[] = [];
 
 	constructor(editor: ICodeEditor,
-		@IMarkerService private _markerService: IMarkerService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ICommandService private _commandService: ICommandService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IEditorService editorService: IEditorService,
-		@IMessageService messageService: IMessageService
+		@IMarkerService markerService: IMarkerService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService private _commandService: ICommandService
 	) {
-		this.editor = editor;
-		this.model = new QuickFixModel(this.editor, this._markerService, this.onAccept.bind(this));
+		this._editor = editor;
+		this._model = new QuickFixModel(this._editor, markerService);
 
-		this.quickFixWidgetVisible = CONTEXT_QUICK_FIX_WIDGET_VISIBLE.bindTo(this._contextKeyService);
-		this.suggestWidget = new QuickFixSelectionWidget(this.editor, telemetryService, () => {
-			this.quickFixWidgetVisible.set(true);
-		}, () => {
-			this.quickFixWidgetVisible.reset();
-		});
-		this.suggestWidget.setModel(this.model);
+		this._quickFixWidgetVisible = CONTEXT_QUICK_FIX_WIDGET_VISIBLE.bindTo(contextKeyService);
+		this._quickFixWidget = new QuickFixContentWidget(editor);
+		this._lightBulbWidget = new LightBulbWidget(editor);
+
+		this._disposables.push(
+			this._quickFixWidget.list.onDidSelectQuickFix(this._handleQuickFixSelect, this),
+			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
+			this._model.onDidChangeFixes(e => this._onQuickFixEvent(e)),
+			this._editor.onDidChangeCursorSelection(() => this.closeWidget()),
+			// this._editor.onDidBlurEditorText(() => this.closeWidget())
+		);
+	}
+
+	public dispose(): void {
+		this._quickFixWidget.dispose();
+		dispose(this._disposables);
+	}
+
+	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
+		if (e.type === 'manual') {
+			this._lightBulbWidget.hide();
+			this._quickFixWidgetVisible.set(true);
+			this._quickFixWidget.show(e.fixes, e.position);
+
+		} else if (e.fixes) {
+			// auto magically triggered
+			// * update an existing list of code actions
+			// * manage light bulb
+			if (this._quickFixWidget.isVisible()) {
+				this._quickFixWidget.show(e.fixes, e.position);
+			} else {
+				e.fixes.then(fixes => {
+					if (fixes && fixes.length > 0) {
+						this._lightBulbWidget.show(e.position);
+					} else {
+						this._lightBulbWidget.hide();
+					}
+				}, err => {
+					this._lightBulbWidget.hide();
+				});
+			}
+		} else {
+			this._lightBulbWidget.hide();
+		}
 	}
 
 	public getId(): string {
 		return QuickFixController.ID;
 	}
 
-	private onAccept(fix: IQuickFix2, range: IRange): void {
-		var model = this.editor.getModel();
-		if (model) {
-			let {command} = fix;
-			return this._commandService.executeCommand(command.id, ...command.arguments).done(void 0, onUnexpectedError);
-		}
+	private _handleQuickFixSelect({command}: IQuickFix2): void {
+		this.closeWidget();
+		this._editor.focus();
+		return this._commandService.executeCommand(command.id, ...command.arguments).done(void 0, onUnexpectedError);
 	}
 
-	public run(): void {
-		this.model.triggerDialog(false, this.editor.getPosition());
-		this.editor.focus();
+	private _handleLightBulbSelect(pos: IPosition): void {
+		const selection = new Selection(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
+		this._model.triggerManual(selection);
 	}
 
-	public dispose(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.destroy();
-			this.suggestWidget = null;
-		}
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
-		}
+	public triggerFromEditorSelection(): void {
+		this._model.triggerManual(this._editor.getSelection());
 	}
 
 	public acceptSelectedSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.acceptSelectedSuggestion();
+		if (this._quickFixWidget.isListVisible()) {
+			this._quickFixWidget.list.select();
 		}
 	}
+
 	public closeWidget(): void {
-		if (this.model) {
-			this.model.cancelDialog();
-		}
+		this._lightBulbWidget.hide();
+		this._quickFixWidget.hide();
+		this._quickFixWidgetVisible.reset();
 	}
+
 	public selectNextSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectNext();
+		if (this._quickFixWidget.isListVisible()) {
+			this._quickFixWidget.list.focusNext();
 		}
 	}
+
 	public selectNextPageSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectNextPage();
+		if (this._quickFixWidget.isListVisible()) {
+			this._quickFixWidget.list.focusNextPage();
 		}
 	}
+
 	public selectPrevSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectPrevious();
+		if (this._quickFixWidget.isListVisible()) {
+			this._quickFixWidget.list.focusPrevious();
 		}
 	}
+
 	public selectPrevPageSuggestion(): void {
-		if (this.suggestWidget) {
-			this.suggestWidget.selectPreviousPage();
+		if (this._quickFixWidget.isListVisible()) {
+			this._quickFixWidget.list.focusPreviousPage();
 		}
 	}
 }
@@ -134,12 +167,12 @@ export class QuickFixAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.run();
+			controller.triggerFromEditorSelection();
 		}
 	}
 }
 
-var CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new RawContextKey<boolean>('quickFixWidgetVisible', false);
+const CONTEXT_QUICK_FIX_WIDGET_VISIBLE = new RawContextKey<boolean>('quickFixWidgetVisible', false);
 
 const QuickFixCommand = EditorCommand.bindToContribution<QuickFixController>(QuickFixController.get);
 
