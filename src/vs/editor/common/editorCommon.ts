@@ -171,6 +171,8 @@ export enum WrappingIndent {
 	Indent = 2
 }
 
+export type LineNumbersOption = true | false | 'relative' | ((lineNumber:number)=>string);
+
 /**
  * Configuration options for the editor.
  */
@@ -206,7 +208,7 @@ export interface IEditorOptions {
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to true.
 	 */
-	lineNumbers?:any;
+	lineNumbers?:LineNumbersOption;
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -630,7 +632,9 @@ export class InternalEditorViewOptions {
 	experimentalScreenReader: boolean;
 	rulers: number[];
 	ariaLabel: string;
-	lineNumbers:any;
+	renderLineNumbers:boolean;
+	renderCustomLineNumbers: (lineNumber:number)=>string;
+	renderRelativeLineNumbers: boolean;
 	selectOnLineNumbers:boolean;
 	glyphMargin:boolean;
 	revealHorizontalRightPadding:number;
@@ -658,7 +662,9 @@ export class InternalEditorViewOptions {
 		experimentalScreenReader: boolean;
 		rulers: number[];
 		ariaLabel: string;
-		lineNumbers:any;
+		renderLineNumbers:boolean;
+		renderCustomLineNumbers: (lineNumber:number)=>string;
+		renderRelativeLineNumbers: boolean;
 		selectOnLineNumbers:boolean;
 		glyphMargin:boolean;
 		revealHorizontalRightPadding:number;
@@ -682,7 +688,9 @@ export class InternalEditorViewOptions {
 		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
-		this.lineNumbers = source.lineNumbers;
+		this.renderLineNumbers = Boolean(source.renderLineNumbers);
+		this.renderCustomLineNumbers = source.renderCustomLineNumbers;
+		this.renderRelativeLineNumbers = Boolean(source.renderRelativeLineNumbers);
 		this.selectOnLineNumbers = Boolean(source.selectOnLineNumbers);
 		this.glyphMargin = Boolean(source.glyphMargin);
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding|0;
@@ -740,7 +748,9 @@ export class InternalEditorViewOptions {
 			&& this.experimentalScreenReader === other.experimentalScreenReader
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
-			&& this.lineNumbers === other.lineNumbers
+			&& this.renderLineNumbers === other.renderLineNumbers
+			&& this.renderCustomLineNumbers === other.renderCustomLineNumbers
+			&& this.renderRelativeLineNumbers === other.renderRelativeLineNumbers
 			&& this.selectOnLineNumbers === other.selectOnLineNumbers
 			&& this.glyphMargin === other.glyphMargin
 			&& this.revealHorizontalRightPadding === other.revealHorizontalRightPadding
@@ -771,7 +781,9 @@ export class InternalEditorViewOptions {
 			experimentalScreenReader: this.experimentalScreenReader !== newOpts.experimentalScreenReader,
 			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
 			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
-			lineNumbers: this.lineNumbers !== newOpts.lineNumbers,
+			renderLineNumbers: this.renderLineNumbers !== newOpts.renderLineNumbers,
+			renderCustomLineNumbers: this.renderCustomLineNumbers !== newOpts.renderCustomLineNumbers,
+			renderRelativeLineNumbers: this.renderRelativeLineNumbers !== newOpts.renderRelativeLineNumbers,
 			selectOnLineNumbers: this.selectOnLineNumbers !== newOpts.selectOnLineNumbers,
 			glyphMargin: this.glyphMargin !== newOpts.glyphMargin,
 			revealHorizontalRightPadding: this.revealHorizontalRightPadding !== newOpts.revealHorizontalRightPadding,
@@ -805,8 +817,10 @@ export interface IViewConfigurationChangedEvent {
 	canUseTranslate3d: boolean;
 	experimentalScreenReader: boolean;
 	rulers: boolean;
-	ariaLabel:  boolean;
-	lineNumbers: boolean;
+	ariaLabel: boolean;
+	renderLineNumbers: boolean;
+	renderCustomLineNumbers: boolean;
+	renderRelativeLineNumbers: boolean;
 	selectOnLineNumbers: boolean;
 	glyphMargin: boolean;
 	revealHorizontalRightPadding: boolean;
@@ -817,12 +831,12 @@ export interface IViewConfigurationChangedEvent {
 	cursorStyle: boolean;
 	hideCursorInOverviewRuler: boolean;
 	scrollBeyondLastLine: boolean;
-	editorClassName:  boolean;
-	stopRenderingLineAfter:  boolean;
-	renderWhitespace:  boolean;
+	editorClassName: boolean;
+	stopRenderingLineAfter: boolean;
+	renderWhitespace: boolean;
 	renderControlCharacters: boolean;
-	renderIndentGuides:  boolean;
-	renderLineHighlight:  boolean;
+	renderIndentGuides: boolean;
+	renderLineHighlight: boolean;
 	scrollbar: boolean;
 }
 

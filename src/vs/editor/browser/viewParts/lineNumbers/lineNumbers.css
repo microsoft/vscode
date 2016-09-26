@@ -12,6 +12,12 @@
 	cursor: default;
 }
 
+.monaco-editor .relative-current-line-number {
+	text-align: left;
+	display: inline-block;
+	width: 100%;
+}
+
 .monaco-workbench .monaco-editor .margin-view-overlays .line-numbers {
 	cursor: -webkit-image-set(
 		url('flipped-cursor.svg') 1x,

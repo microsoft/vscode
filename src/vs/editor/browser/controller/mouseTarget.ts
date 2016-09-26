@@ -275,7 +275,7 @@ export class MouseTargetFactory {
 		if (REGEX.IS_TEXTAREA_COVER.test(path)) {
 			if (this._context.configuration.editor.viewInfo.glyphMargin) {
 				return this.createMouseTargetFromGlyphMargin(t, mouseVerticalOffset, mouseColumn);
-			} else if (this._context.configuration.editor.viewInfo.lineNumbers) {
+			} else if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
 				return this.createMouseTargetFromLineNumbers(t, mouseVerticalOffset, mouseColumn);
 			} else {
 				return this.createMouseTargetFromLinesDecorationsChild(t, mouseVerticalOffset, mouseColumn);
