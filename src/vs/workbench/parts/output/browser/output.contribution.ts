@@ -38,7 +38,8 @@ ModesRegistry.registerLanguage({
 	'OutputPanel',
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
-	'output'
+	'output',
+	20
 ));
 
 // register toggle output action globally
