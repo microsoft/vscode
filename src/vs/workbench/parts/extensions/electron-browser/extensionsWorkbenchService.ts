@@ -96,7 +96,7 @@ class Extension implements IExtension {
 		return this.local ? this.local.manifest.description : this.gallery.description;
 	}
 
-	get readmeUrl(): string {
+	private get readmeUrl(): string {
 		if (this.local && this.local.readmeUrl) {
 			return this.local.readmeUrl;
 		}
@@ -104,12 +104,12 @@ class Extension implements IExtension {
 		return this.gallery && this.gallery.assets.readme;
 	}
 
-	get changelogUrl(): string {
+	private get changelogUrl(): string {
 		if (this.local && this.local.changelogUrl) {
 			return this.local.changelogUrl;
 		}
 
-		return ''; // Hopefully we will change this once the gallery will support that.
+		return this.gallery && this.gallery.assets.changelog;
 	}
 
 	get iconUrl(): string {
@@ -200,7 +200,7 @@ class Extension implements IExtension {
 	}
 
 	getReadme(): TPromise<string> {
-		const readmeUrl = this.local && this.local.readmeUrl ? this.local.readmeUrl : this.gallery && this.gallery.assets.readme;
+		const readmeUrl = this.readmeUrl;
 
 		if (!readmeUrl) {
 			return TPromise.wrapError('not available');
@@ -216,11 +216,11 @@ class Extension implements IExtension {
 	}
 
 	get hasChangelog() : boolean {
-		return !!(this.local && this.local.changelogUrl ? this.local.changelogUrl : '');
+		return !!(this.changelogUrl);
 	}
 
 	getChangelog() : TPromise<string> {
-		const changelogUrl = this.local && this.local.changelogUrl ? this.local.changelogUrl : '';
+		const changelogUrl = this.changelogUrl;
 
 		if (!changelogUrl) {
 			return TPromise.wrapError('not available');
