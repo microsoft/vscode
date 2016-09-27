@@ -721,4 +721,12 @@ suite('TextModel.getLineIndentGuide', () => {
 			[0, '}'],
 		]);
 	});
+
+	test('issue #12398 - Problem in indent guidelines', () => {
+		assertIndentGuides([
+			[2, '\t\t.bla'],
+			[3, '\t\t\tlabel(for)'],
+			[0, 'include script'],
+		]);
+	});
 });
