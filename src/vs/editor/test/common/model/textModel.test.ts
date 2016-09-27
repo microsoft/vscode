@@ -437,7 +437,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition', () => {
 
-		var m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
+		let m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
 
 		assert.deepEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -457,6 +457,123 @@ suite('Editor Model - TextModel', () => {
 
 		assert.deepEqual(m.validatePosition(new Position(30, 30)), new Position(2, 9));
 
+		assert.deepEqual(m.validatePosition(new Position(-123.123, -0.5)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(Number.MIN_VALUE, Number.MIN_VALUE)), new Position(1, 1));
+
+		assert.deepEqual(m.validatePosition(new Position(Number.MAX_VALUE, Number.MAX_VALUE)), new Position(2, 9));
+		assert.deepEqual(m.validatePosition(new Position(123.23, 47.5)), new Position(2, 9));
+	});
+
+	test('validatePosition around high-low surrogate pairs 1', () => {
+
+		let m = new TextModel([], TextModel.toRawText('a📚b', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		assert.deepEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(0, 7)), new Position(1, 1));
+
+		assert.deepEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
+		assert.deepEqual(m.validatePosition(new Position(1, 3)), new Position(1, 2));
+		assert.deepEqual(m.validatePosition(new Position(1, 4)), new Position(1, 4));
+		assert.deepEqual(m.validatePosition(new Position(1, 5)), new Position(1, 5));
+		assert.deepEqual(m.validatePosition(new Position(1, 30)), new Position(1, 5));
+
+		assert.deepEqual(m.validatePosition(new Position(2, 0)), new Position(1, 5));
+		assert.deepEqual(m.validatePosition(new Position(2, 1)), new Position(1, 5));
+		assert.deepEqual(m.validatePosition(new Position(2, 2)), new Position(1, 5));
+		assert.deepEqual(m.validatePosition(new Position(2, 30)), new Position(1, 5));
+
+		assert.deepEqual(m.validatePosition(new Position(-123.123, -0.5)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(Number.MIN_VALUE, Number.MIN_VALUE)), new Position(1, 1));
+
+		assert.deepEqual(m.validatePosition(new Position(Number.MAX_VALUE, Number.MAX_VALUE)), new Position(1, 5));
+		assert.deepEqual(m.validatePosition(new Position(123.23, 47.5)), new Position(1, 5));
+	});
+
+	test('validatePosition around high-low surrogate pairs 2', () => {
+
+		let m = new TextModel([], TextModel.toRawText('a📚📚b', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		assert.deepEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
+		assert.deepEqual(m.validatePosition(new Position(1, 3)), new Position(1, 2));
+		assert.deepEqual(m.validatePosition(new Position(1, 4)), new Position(1, 4));
+		assert.deepEqual(m.validatePosition(new Position(1, 5)), new Position(1, 4));
+		assert.deepEqual(m.validatePosition(new Position(1, 6)), new Position(1, 6));
+		assert.deepEqual(m.validatePosition(new Position(1, 7)), new Position(1, 7));
+
+	});
+
+	test('validateRange around high-low surrogate pairs 1', () => {
+
+		let m = new TextModel([], TextModel.toRawText('a📚b', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
+		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
+
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 1)), new Range(1, 1, 1, 1));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 2)), new Range(1, 1, 1, 2));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 3)), new Range(1, 1, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 4)), new Range(1, 1, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 5)), new Range(1, 1, 1, 5));
+
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 2)), new Range(1, 2, 1, 2));
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 3)), new Range(1, 2, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 4)), new Range(1, 2, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 5)), new Range(1, 2, 1, 5));
+
+		assert.deepEqual(m.validateRange(new Range(1, 3, 1, 3)), new Range(1, 2, 1, 2));
+		assert.deepEqual(m.validateRange(new Range(1, 3, 1, 4)), new Range(1, 2, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 3, 1, 5)), new Range(1, 2, 1, 5));
+
+		assert.deepEqual(m.validateRange(new Range(1, 4, 1, 4)), new Range(1, 4, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 4, 1, 5)), new Range(1, 4, 1, 5));
+
+		assert.deepEqual(m.validateRange(new Range(1, 5, 1, 5)), new Range(1, 5, 1, 5));
+	});
+
+	test('validateRange around high-low surrogate pairs 2', () => {
+
+		let m = new TextModel([], TextModel.toRawText('a📚📚b', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
+		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
+
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 1)), new Range(1, 1, 1, 1));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 2)), new Range(1, 1, 1, 2));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 3)), new Range(1, 1, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 4)), new Range(1, 1, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 5)), new Range(1, 1, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 6)), new Range(1, 1, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 1, 1, 7)), new Range(1, 1, 1, 7));
+
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 2)), new Range(1, 2, 1, 2));
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 3)), new Range(1, 2, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 4)), new Range(1, 2, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 5)), new Range(1, 2, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 6)), new Range(1, 2, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 2, 1, 7)), new Range(1, 2, 1, 7));
+
+		assert.deepEqual(m.validateRange(new Range(1, 3, 1, 3)), new Range(1, 2, 1, 2));
+		assert.deepEqual(m.validateRange(new Range(1, 3, 1, 4)), new Range(1, 2, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 3, 1, 5)), new Range(1, 2, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 3, 1, 6)), new Range(1, 2, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 3, 1, 7)), new Range(1, 2, 1, 7));
+
+		assert.deepEqual(m.validateRange(new Range(1, 4, 1, 4)), new Range(1, 4, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 4, 1, 5)), new Range(1, 4, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 4, 1, 6)), new Range(1, 4, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 4, 1, 7)), new Range(1, 4, 1, 7));
+
+		assert.deepEqual(m.validateRange(new Range(1, 5, 1, 5)), new Range(1, 4, 1, 4));
+		assert.deepEqual(m.validateRange(new Range(1, 5, 1, 6)), new Range(1, 4, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 5, 1, 7)), new Range(1, 4, 1, 7));
+
+		assert.deepEqual(m.validateRange(new Range(1, 6, 1, 6)), new Range(1, 6, 1, 6));
+		assert.deepEqual(m.validateRange(new Range(1, 6, 1, 7)), new Range(1, 6, 1, 7));
+
+		assert.deepEqual(m.validateRange(new Range(1, 7, 1, 7)), new Range(1, 7, 1, 7));
 	});
 
 	test('modifyPosition', () => {

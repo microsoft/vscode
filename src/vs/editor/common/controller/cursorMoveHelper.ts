@@ -6,6 +6,7 @@
 
 import {IPosition} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
+import * as strings from 'vs/base/common/strings';
 
 export interface IMoveResult {
 	lineNumber:number;
@@ -51,13 +52,11 @@ export interface IConfiguration {
 }
 
 function isHighSurrogate(model:ICursorMoveHelperModel, lineNumber:number, column:number) {
-	let code = model.getLineContent(lineNumber).charCodeAt(column - 1);
-	return 0xD800 <= code && code <= 0xDBFF;
+	return strings.isHighSurrogate(model.getLineContent(lineNumber).charCodeAt(column - 1));
 }
 
 function isLowSurrogate(model:ICursorMoveHelperModel, lineNumber:number, column:number) {
-	let code = model.getLineContent(lineNumber).charCodeAt(column - 1);
-	return 0xDC00 <= code && code <= 0xDFFF;
+	return strings.isLowSurrogate(model.getLineContent(lineNumber).charCodeAt(column - 1));
 }
 
 export class CursorMoveHelper {

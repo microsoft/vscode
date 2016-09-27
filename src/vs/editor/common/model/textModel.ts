@@ -196,7 +196,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getOffsetAt(rawPosition: editorCommon.IPosition): number {
-		let position = this.validatePosition(rawPosition);
+		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
 		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + position.column - 1;
 	}
@@ -611,35 +611,86 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return lineNumber;
 	}
 
-	public validatePosition(position:editorCommon.IPosition): Position {
-		var lineNumber = position.lineNumber ? position.lineNumber : 1;
-		var column = position.column ? position.column : 1;
+	/**
+	 * @param strict Do NOT allow a position inside a high-low surrogate pair
+	 */
+	private _validatePosition(_lineNumber:number, _column:number, strict:boolean): Position {
+		const lineNumber = Math.floor(typeof _lineNumber === 'number' ? _lineNumber : 1);
+		const column = Math.floor(typeof _column === 'number' ? _column : 1);
 
 		if (lineNumber < 1) {
-			lineNumber = 1;
-			column = 1;
+			return new Position(1, 1);
 		}
-		else if (lineNumber > this._lines.length) {
-			lineNumber = this._lines.length;
-			column = this.getLineMaxColumn(lineNumber);
+
+		if (lineNumber > this._lines.length) {
+			return new Position(this._lines.length, this.getLineMaxColumn(this._lines.length));
 		}
-		else {
-			var maxColumn = this.getLineMaxColumn(lineNumber);
-			if (column < 1) {
-				column = 1;
-			}
-			else if (column > maxColumn) {
-				column = maxColumn;
+
+		if (column <= 1) {
+			return new Position(lineNumber, 1);
+		}
+
+		const maxColumn = this.getLineMaxColumn(lineNumber);
+		if (column >= maxColumn) {
+			return new Position(lineNumber, maxColumn);
+		}
+
+		if (strict) {
+			// If the position would end up in the middle of a high-low surrogate pair,
+			// we move it to before the pair
+			// !!At this point, column > 1
+			const charCodeBefore = this._lines[lineNumber - 1].text.charCodeAt(column - 2);
+			if (strings.isHighSurrogate(charCodeBefore)) {
+				return new Position(lineNumber, column - 1);
 			}
 		}
 
 		return new Position(lineNumber, column);
 	}
 
-	public validateRange(range:editorCommon.IRange): Range {
-		var start = this.validatePosition(new Position(range.startLineNumber, range.startColumn));
-		var end = this.validatePosition(new Position(range.endLineNumber, range.endColumn));
-		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	public validatePosition(position:editorCommon.IPosition): Position {
+		return this._validatePosition(position.lineNumber, position.column, true);
+	}
+
+	public validateRange(_range:editorCommon.IRange): Range {
+		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
+		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);
+
+		const startLineNumber = start.lineNumber;
+		const startColumn = start.column;
+		const endLineNumber = end.lineNumber;
+		const endColumn = end.column;
+
+		const startLineText = this._lines[startLineNumber - 1].text;
+		const endLineText = this._lines[endLineNumber - 1].text;
+
+		const charCodeBeforeStart = (startColumn > 1 ? startLineText.charCodeAt(startColumn - 2) : 0);
+		const charCodeBeforeEnd = (endColumn > 1 && endColumn <= endLineText.length ? endLineText.charCodeAt(endColumn - 2) : 0);
+
+		const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
+		const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
+
+		if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
+			return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+		}
+
+		if (startLineNumber === endLineNumber && startColumn === endColumn) {
+			// do not expand a collapsed range, simply move it to a valid location
+			return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn - 1);
+		}
+
+		if (startInsideSurrogatePair && endInsideSurrogatePair) {
+			// expand range at both ends
+			return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn + 1);
+		}
+
+		if (startInsideSurrogatePair) {
+			// only expand range at the start
+			return new Range(startLineNumber, startColumn - 1, endLineNumber, endColumn);
+		}
+
+		// only expand range at the end
+		return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
 	}
 
 	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number) : Position {
