@@ -488,6 +488,15 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return IndentRange.deepCloneArr(indentRanges);
 	}
 
+	private _toValidLineIndentGuide(lineNumber:number, indentGuide:number): number {
+		let lineIndentLevel = this._lines[lineNumber - 1].getIndentLevel();
+		if (lineIndentLevel === -1) {
+			return indentGuide;
+		}
+		let maxIndentGuide = Math.ceil(lineIndentLevel / this._options.tabSize);
+		return Math.min(maxIndentGuide, indentGuide);
+	}
+
 	public getLineIndentGuide(lineNumber:number): number {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
@@ -499,10 +508,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			let rng = indentRanges[i];
 
 			if (rng.startLineNumber === lineNumber) {
-				return Math.ceil(rng.indent / this._options.tabSize);
+				return this._toValidLineIndentGuide(lineNumber, Math.ceil(rng.indent / this._options.tabSize));
 			}
 			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
-				return 1 + Math.floor(rng.indent / this._options.tabSize);
+				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(rng.indent / this._options.tabSize));
 			}
 			if (rng.endLineNumber + 1 === lineNumber) {
 				let bestIndent = rng.indent;
@@ -513,7 +522,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 						bestIndent = rng.indent;
 					}
 				}
-				return Math.ceil(bestIndent / this._options.tabSize);
+				return this._toValidLineIndentGuide(lineNumber, Math.ceil(bestIndent / this._options.tabSize));
 			}
 		}
 
