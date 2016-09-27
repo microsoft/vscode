@@ -352,11 +352,6 @@ export class VSCodeWindow {
 				}
 			});
 		}
-
-		if (this.options.macOSUseInlineToolbar) {
-			this.sendWhenReady('vscode:macOSUseInlineToolbar');
-		}
-
 	}
 
 	public load(config: IWindowConfiguration): void {
