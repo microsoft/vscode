@@ -276,6 +276,10 @@ const schema: IJSONSchema = {
 					type: 'string'
 				}
 			}
+		},
+		icon: {
+			type: 'string',
+			description: nls.localize('vscode.extension.icon', 'The path to a 128x128 pixel icon.')
 		}
 	}
 };
