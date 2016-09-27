@@ -33,21 +33,16 @@
 .monaco-workbench > .part.editor > .watermark dt,
 .monaco-workbench > .part.editor > .watermark dd {
 	margin-bottom: 17px;
-	font-weight: 300;
 }
 
-.monaco-workbench > .part.editor > .watermark dt {
+.monaco-workbench > .part.editor > .watermark dt,
+.monaco-workbench > .part.editor > .watermark dl {
 	color: rgba(0,0,0,.68);
 }
-.monaco-workbench > .part.editor > .watermark dl {
-	color: rgba(0,0,0,.9);
-}
 
-.vs-dark .monaco-workbench > .part.editor > .watermark dt {
-	color: rgba(255,255,255,.6);
-}
+.vs-dark .monaco-workbench > .part.editor > .watermark dt,
 .vs-dark .monaco-workbench > .part.editor > .watermark dl {
-	color: #fff;
+	color: rgba(255,255,255,.6);
 }
 
 .hc-black .monaco-workbench > .part.editor > .watermark dt {
