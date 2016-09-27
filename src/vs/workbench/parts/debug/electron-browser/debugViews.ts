@@ -317,7 +317,6 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	constructor(
 		actionRunner: actions.IActionRunner,
 		private settings: any,
-		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -325,7 +324,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	) {
 		super(actionRunner, BreakpointsView.getExpandedBodySize(
 			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
-			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), messageService, keybindingService, contextMenuService);
+			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), keybindingService, contextMenuService);
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}

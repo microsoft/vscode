@@ -20,7 +20,6 @@ import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import Tree = require('vs/base/parts/tree/browser/tree');
 
@@ -31,10 +30,9 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService, editorService);
+		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
 	}
 
 	public run(): TPromise<any> {
@@ -53,10 +51,9 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService, editorService);
+		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
 	}
 
 	public run(): TPromise<any> {

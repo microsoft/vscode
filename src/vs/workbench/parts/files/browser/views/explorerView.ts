@@ -30,7 +30,6 @@ import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
@@ -41,7 +40,6 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -80,7 +78,6 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService private eventService: IEventService,
-		@IStorageService private storageService: IStorageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -88,7 +85,6 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionService private extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
@@ -313,7 +309,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public createViewer(container: Builder): ITree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
 		const sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);

@@ -302,7 +302,6 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		initialBodySize: number,
 		collapsed: boolean,
 		private viewName: string,
-		private messageService: IMessageService,
 		private keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService
 	) {

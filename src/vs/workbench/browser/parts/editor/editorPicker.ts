@@ -33,7 +33,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		private _group: IEditorGroup,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
 		super();
 

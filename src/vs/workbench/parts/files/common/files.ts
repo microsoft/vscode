@@ -112,7 +112,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: ITextFileEditorModel, env: { isAutoSaved: boolean }): TPromise<any>;
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any>;
 }
 
 /**
@@ -233,6 +233,13 @@ export enum AutoSaveMode {
 	ON_WINDOW_CHANGE
 }
 
+export enum SaveReason {
+	EXPLICIT = 1,
+	AUTO = 2,
+	FOCUS_CHANGE = 3,
+	WINDOW_CHANGE = 4
+}
+
 export interface IFileEditorDescriptor extends IEditorDescriptor {
 	getMimeTypes(): string[];
 }
@@ -272,6 +279,12 @@ export interface ITextFileEditorModelManager {
 	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
+export interface IModelSaveOptions {
+	reason?: SaveReason;
+	overwriteReadonly?: boolean;
+	overwriteEncoding?: boolean;
+}
+
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
 	onDidStateChange: Event<StateChange>;
@@ -286,7 +299,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	updatePreferredEncoding(encoding: string): void;
 
-	save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void>;
+	save(options?: IModelSaveOptions): TPromise<void>;
 
 	revert(): TPromise<void>;
 

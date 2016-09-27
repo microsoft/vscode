@@ -13,7 +13,7 @@ import {workbenchInstantiationService, TestLifecycleService, TestTextFileService
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {ConfirmResult, EncodingMode} from 'vs/workbench/common/editor';
+import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';

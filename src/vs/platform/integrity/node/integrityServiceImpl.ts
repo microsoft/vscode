@@ -102,14 +102,14 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			// Do not prompt
 			return;
 		}
-		const OkAction = new Action(
+		const okAction = new Action(
 			'integrity.ok',
 			nls.localize('integrity.ok', "OK"),
 			null,
 			true,
 			() => TPromise.as(true)
 		);
-		const DontShowAgainAction = new Action(
+		const dontShowAgainAction = new Action(
 			'integrity.dontShowAgain',
 			nls.localize('integrity.dontShowAgain', "Don't show again"),
 			null,
@@ -122,10 +122,21 @@ export class IntegrityServiceImpl implements IIntegrityService {
 				return TPromise.as(true);
 			}
 		);
+		const moreInfoAction = new Action(
+			'integrity.moreInfo',
+			nls.localize('integrity.moreInfo', "More information"),
+			null,
+			true,
+			() => {
+				const uri = URI.parse(product.checksumFailMoreInfoUrl);
+				window.open(uri.toString(true));
+				return TPromise.as(true);
+			}
+		);
 
 		this._messageService.show(Severity.Warning, {
 			message: nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
-			actions: [OkAction, DontShowAgainAction]
+			actions: [okAction, moreInfoAction, dontShowAgainAction]
 		});
 	}
 

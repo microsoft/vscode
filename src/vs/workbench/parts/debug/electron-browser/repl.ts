@@ -26,9 +26,8 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import {ReplEditor} from 'vs/workbench/parts/debug/electron-browser/replEditor';
@@ -81,10 +80,8 @@ export class Repl extends Panel implements IPrivateReplService {
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
 		@IStorageService private storageService: IStorageService,
 		@IPanelService private panelService: IPanelService,
 		@IThemeService private themeService: IThemeService,

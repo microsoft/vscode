@@ -61,10 +61,9 @@ class OpenDebugPanelAction extends panel.TogglePanelAction {
 		id: string,
 		label: string,
 		@IPanelService panelService: IPanelService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IPartService partService: IPartService
 	) {
-		super(id, label, debug.REPL_ID, panelService, partService, editorService);
+		super(id, label, debug.REPL_ID, panelService, partService);
 	}
 }
 
@@ -91,7 +90,8 @@ const openPanelKb: IKeybindings = {
 	'Repl',
 	debug.REPL_ID,
 	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
-	'repl'
+	'repl',
+	30
 ));
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).setDefaultPanelId(debug.REPL_ID);
 

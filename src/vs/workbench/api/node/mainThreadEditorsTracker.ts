@@ -20,11 +20,13 @@ export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | string;
 	insertSpaces?: boolean | string;
 	cursorStyle?: EditorCommon.TextEditorCursorStyle;
+	lineNumbers?: boolean | 'relative';
 }
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	insertSpaces: boolean;
 	cursorStyle: EditorCommon.TextEditorCursorStyle;
+	lineNumbers: boolean | 'relative';
 }
 
 function configurationsEqual(a:IResolvedTextEditorConfiguration, b:IResolvedTextEditorConfiguration) {
@@ -253,6 +255,18 @@ export class MainThreadTextEditor {
 				cursorStyle: newCursorStyle
 			});
 		}
+
+		if (typeof newConfiguration.lineNumbers !== 'undefined') {
+
+			if (!this._codeEditor) {
+				console.warn('setConfiguration on invisible editor');
+				return;
+			}
+
+			this._codeEditor.updateOptions({
+				lineNumbers: newConfiguration.lineNumbers
+			});
+		}
 	}
 
 	public setDecorations(key: string, ranges:EditorCommon.IDecorationOptions[]): void {
@@ -285,16 +299,26 @@ export class MainThreadTextEditor {
 			return this._configuration;
 		}
 		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
+		let lineNumbers: boolean | 'relative' = this._configuration ? this._configuration.lineNumbers : true;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();
 			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
+
+			if (codeEditorOpts.viewInfo.renderRelativeLineNumbers) {
+				lineNumbers = 'relative';
+			} else if (codeEditorOpts.viewInfo.renderLineNumbers) {
+				lineNumbers = true;
+			} else {
+				lineNumbers = false;
+			}
 		}
 
 		let indent = model.getOptions();
 		return {
 			insertSpaces: indent.insertSpaces,
 			tabSize: indent.tabSize,
-			cursorStyle: cursorStyle
+			cursorStyle: cursorStyle,
+			lineNumbers: lineNumbers
 		};
 	}
 

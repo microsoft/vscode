@@ -11,7 +11,7 @@ import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor, Direction, IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -950,8 +950,7 @@ export class ShowEditorsInLeftGroupAction extends QuickOpenAction {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
 		super(actionId, actionLabel, NAVIGATE_IN_LEFT_GROUP_PREFIX, quickOpenService);
 
@@ -969,8 +968,7 @@ export class ShowEditorsInCenterGroupAction extends QuickOpenAction {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
 		super(actionId, actionLabel, NAVIGATE_IN_CENTER_GROUP_PREFIX, quickOpenService);
 
@@ -988,8 +986,7 @@ export class ShowEditorsInRightGroupAction extends QuickOpenAction {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
 		super(actionId, actionLabel, NAVIGATE_IN_RIGHT_GROUP_PREFIX, quickOpenService);
 
@@ -1048,8 +1045,7 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super(id, label);
 	}
@@ -1086,10 +1082,9 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEd
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(id, label, quickOpenService, keybindingService, editorGroupService, editorService);
+		super(id, label, quickOpenService, keybindingService, editorGroupService);
 	}
 }
 
@@ -1103,10 +1098,9 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditor
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(id, label, quickOpenService, keybindingService, editorGroupService, editorService);
+		super(id, label, quickOpenService, keybindingService, editorGroupService);
 	}
 }
 
@@ -1141,8 +1135,6 @@ export class ClearEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
@@ -1189,10 +1181,6 @@ export class RemoveFromEditorHistoryAction extends Action {
 
 		return TPromise.as(true);
 	}
-}
-
-interface IEditorPickOpenEntry extends IPickOpenEntry {
-	identifier: IEditorIdentifier;
 }
 
 export class FocusLastEditorInStackAction extends Action {

@@ -1019,10 +1019,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	constructor(
 		input: EditorInput,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModeService private modeService: IModeService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(editorService);
 

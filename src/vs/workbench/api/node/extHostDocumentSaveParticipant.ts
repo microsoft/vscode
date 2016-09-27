@@ -12,9 +12,10 @@ import { illegalState } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostDocumentSaveParticipantShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
-import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
+import { fromRange, TextDocumentSaveReason } from 'vs/workbench/api/node/extHostTypeConverters';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 declare class WeakMap<K, V> {
 	// delete(key: K): boolean;
@@ -57,7 +58,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 		};
 	}
 
-	$participateInSave(resource: URI): TPromise<boolean[]> {
+	$participateInSave(resource: URI, reason: SaveReason): TPromise<boolean[]> {
 		const entries = this._callbacks.entries();
 
 		let didTimeout = false;
@@ -72,21 +73,21 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 				}
 
 				const document = this._documents.getDocumentData(resource).document;
-				return this._deliverEventAsyncAndBlameBadListeners(fn, thisArg, document);
+				return this._deliverEventAsyncAndBlameBadListeners(fn, thisArg, <any> { document, reason: TextDocumentSaveReason.to(reason) });
 			};
 		}));
 
 		return always(promise, () => clearTimeout(didTimeoutHandle));
 	}
 
-	private _deliverEventAsyncAndBlameBadListeners(listener: Function, thisArg: any, document: vscode.TextDocument): TPromise<any> {
+	private _deliverEventAsyncAndBlameBadListeners(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): TPromise<any> {
 		const errors = this._badListeners.get(listener);
 		if (errors > this._thresholds.errors) {
 			// bad listener - ignore
 			return TPromise.wrap(false);
 		}
 
-		return this._deliverEventAsync(listener, thisArg, document).then(() => {
+		return this._deliverEventAsync(listener, thisArg, stubEvent).then(() => {
 			// don't send result across the wire
 			return true;
 
@@ -104,14 +105,16 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 		});
 	}
 
-	private _deliverEventAsync(listener: Function, thisArg: any, document: vscode.TextDocument): TPromise<any> {
+	private _deliverEventAsync(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): TPromise<any> {
 
 		const promises: TPromise<any | vscode.TextEdit[]>[] = [];
 
+		const {document, reason} = stubEvent;
 		const {version} = document;
 
 		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
 			document,
+			reason,
 			waitUntil(p: Thenable<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {
 					throw illegalState('waitUntil can not be called async');

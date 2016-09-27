@@ -232,13 +232,32 @@ class InternalEditorOptionsHelper {
 			tabFocusMode = true;
 		}
 
+		let renderLineNumbers: boolean;
+		let renderCustomLineNumbers: (lineNumber:number)=>string;
+		let renderRelativeLineNumbers: boolean;
+		if (typeof lineNumbers === 'function') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = lineNumbers;
+			renderRelativeLineNumbers = false;
+		} else if (lineNumbers === 'relative') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = true;
+		} else {
+			renderLineNumbers = lineNumbers;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = false;
+		}
+
 		let viewInfo = new editorCommon.InternalEditorViewOptions({
 			theme: opts.theme,
 			canUseTranslate3d: canUseTranslate3d,
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
 			rulers: toSortedIntegerArray(opts.rulers),
 			ariaLabel: String(opts.ariaLabel),
-			lineNumbers: lineNumbers,
+			renderLineNumbers: renderLineNumbers,
+			renderCustomLineNumbers: renderCustomLineNumbers,
+			renderRelativeLineNumbers: renderRelativeLineNumbers,
 			selectOnLineNumbers: toBoolean(opts.selectOnLineNumbers),
 			glyphMargin: glyphMargin,
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
@@ -610,7 +629,12 @@ let editorConfiguration:IConfigurationNode = {
 			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the lineHeight from the fontSize.")
 		},
 		'editor.lineNumbers' : {
-			'type': 'boolean',
+			oneOf: [{
+				'type': 'boolean'
+			}, {
+				'type': 'string',
+				'enum': ['relative']
+			}],
 			'default': DefaultConfig.editor.lineNumbers,
 			'description': nls.localize('lineNumbers', "Controls visibility of line numbers")
 		},

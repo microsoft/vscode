@@ -141,7 +141,6 @@ class CommandEntry extends BaseCommandEntry {
 		labelHighlights: IHighlight[],
 		aliasHighlights: IHighlight[],
 		actionDescriptor: SyncActionDescriptor,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
@@ -174,7 +173,6 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		labelHighlights: IHighlight[],
 		aliasHighlights: IHighlight[],
 		action: IEditorAction,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
@@ -242,7 +240,6 @@ export class CommandsHandler extends QuickOpenHandler {
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService
 	) {

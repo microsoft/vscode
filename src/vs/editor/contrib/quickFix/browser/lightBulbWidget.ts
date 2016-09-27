@@ -4,77 +4,78 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
-import {IPosition} from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
-import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
+import { IPosition } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 
 export class LightBulbWidget implements IContentWidget, IDisposable {
 
-	private editor: ICodeEditor;
-	private position: IPosition;
-	private domNode: HTMLElement;
-	private visible: boolean;
-	private onclick: (pos: IPosition) => void;
-	private toDispose: IDisposable[];
+	private _editor: ICodeEditor;
+	private _position: IPosition;
+	private _domNode: HTMLElement;
+	private _visible: boolean;
+	private _onClick = new Emitter<IPosition>();
+	private _toDispose: IDisposable[] = [];
 
-	// Editor.IContentWidget.allowEditorOverflow
-	public allowEditorOverflow = true;
-
-	constructor(editor: ICodeEditor, onclick: (pos: IPosition) => void) {
-		this.editor = editor;
-		this.onclick = onclick;
-		this.toDispose = [];
-		this.editor.addContentWidget(this);
+	constructor(editor: ICodeEditor) {
+		this._editor = editor;
+		this._editor.addContentWidget(this);
 	}
 
 	public dispose(): void {
-		this.editor.removeContentWidget(this);
-		this.toDispose = dispose(this.toDispose);
+		this._editor.removeContentWidget(this);
+		this._toDispose = dispose(this._toDispose);
 	}
 
-	public getId(): string {
+	get onClick(): Event<IPosition> {
+		return this._onClick.event;
+	}
+
+	getId(): string {
 		return '__lightBulbWidget';
 	}
 
-	public getDomNode(): HTMLElement {
-		if (!this.domNode) {
-			this.domNode = document.createElement('div');
-			this.domNode.style.width = '20px';
-			this.domNode.style.height = '20px';
-			this.domNode.className = 'lightbulb-glyph';
-			this.toDispose.push(dom.addDisposableListener(this.domNode, 'mousedown', (e:MouseEvent) => {
-				e.preventDefault();
-				this.onclick(this.position);
-			}));
-		}
-		return this.domNode;
+	// Editor.IContentWidget.allowEditorOverflow
+	get allowEditorOverflow() {
+		return true;
 	}
 
-	public getPosition(): IContentWidgetPosition {
-		return this.visible
-			? { position: this.position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
+	getDomNode(): HTMLElement {
+		if (!this._domNode) {
+			this._domNode = document.createElement('div');
+			this._domNode.style.width = '20px';
+			this._domNode.style.height = '20px';
+			this._domNode.className = 'lightbulb-glyph';
+			this._toDispose.push(dom.addDisposableListener(this._domNode, 'mousedown', (e: MouseEvent) => {
+				e.preventDefault();
+				this._onClick.fire(this._position);
+			}));
+		}
+		return this._domNode;
+	}
+
+	getPosition(): IContentWidgetPosition {
+		return this._visible
+			? { position: this._position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
 			: null;
 	}
 
-	public show(where: IPosition): void {
-		if (this.visible && Position.equals(this.position, where)) {
+	show(where: IPosition): void {
+		if (this._visible && Position.equals(this._position, where)) {
 			return;
 		}
-
-		this.position = where;
-
-		this.visible = true;
-		this.editor.layoutContentWidget(this);
+		this._position = where;
+		this._visible = true;
+		this._editor.layoutContentWidget(this);
 	}
 
-	public hide(): void {
-		if (!this.visible) {
-			return;
+	hide(): void {
+		if (this._visible) {
+			this._visible = false;
+			this._editor.layoutContentWidget(this);
 		}
-
-		this.visible = false;
-		this.editor.layoutContentWidget(this);
 	}
 }

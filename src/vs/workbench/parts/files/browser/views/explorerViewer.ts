@@ -262,7 +262,6 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	constructor(
 		state: FileViewletState,
 		actionRunner: IActionRunner,
-		private container: HTMLElement,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -382,12 +381,10 @@ export class FileController extends DefaultController {
 
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {

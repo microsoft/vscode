@@ -616,6 +616,13 @@ declare namespace vscode {
 		 * When setting a text editor's options, this property is optional.
 		 */
 		cursorStyle?: TextEditorCursorStyle;
+
+		/**
+		 * Render relative line numbers w.r.t. the current line number.
+		 * When getting a text editor's options, this property will always be present.
+		 * When setting a text editor's options, this property is optional.
+		 */
+		lineNumbers?: boolean | 'relative';
 	}
 
 	/**
@@ -3558,6 +3565,27 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Represents reasons why a text document is saved.
+	 */
+	export enum TextDocumentSaveReason {
+
+		/**
+		 * Explicitly triggered, e.g. by the user pressing save or by an API call.
+		 */
+		Explicit = 1,
+
+		/**
+		 * Automatic after a delay.
+		 */
+		Auto = 2,
+
+		/**
+		 * When the editor lost focus.
+		 */
+		FocusOut = 3
+	}
+
+	/**
 	 * An event that is fired when a [document](#TextDocument) will be saved.
 	 *
 	 * To make modifications to the document before it is being saved, call the
@@ -3570,6 +3598,11 @@ declare namespace vscode {
 		 * The document that will be saved.
 		 */
 		document: vscode.TextDocument;
+
+		/**
+		 * The reason why save was triggered.
+		 */
+		reason: TextDocumentSaveReason;
 
 		/**
 		 * Allows to pause the event loop and to apply [pre-save-edits](#TextEdit).

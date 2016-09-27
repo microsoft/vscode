@@ -17,9 +17,6 @@ import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 
 const ExtensionId = Extensions.Editors;
 
-class MyClass { }
-class MyOtherClass { }
-
 suite('Files - TextFileEditor', () => {
 
 	test('TextFile Editor Registration', function () {

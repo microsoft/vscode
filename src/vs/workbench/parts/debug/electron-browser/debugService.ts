@@ -93,7 +93,7 @@ export class DebugService implements debug.IDebugService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
