@@ -191,6 +191,8 @@ function packageTask(platform, arch, opts) {
 		const checksums = computeChecksums(out, [
 			'vs/workbench/workbench.main.js',
 			'vs/workbench/workbench.main.css',
+			'vs/workbench/electron-browser/bootstrap/index.html',
+			'vs/workbench/electron-browser/bootstrap/index.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
