@@ -225,6 +225,7 @@ const schema: IJSONSchema = {
 		categories: {
 			description: nls.localize('vscode.extension.categories', 'The categories used by the VS Code gallery to categorize the extension.'),
 			type: 'array',
+			uniqueItems: true,
 			items: {
 				type: 'string',
 				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Productivity', 'Other']
@@ -290,6 +291,7 @@ const schema: IJSONSchema = {
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
 			type: 'array',
+			uniqueItems: true,
 			items: {
 				type: 'string'
 			}
