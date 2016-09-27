@@ -214,7 +214,7 @@ function packageTask(platform, arch, opts) {
 			'!extensions/vscode-colorize-tests/**'
 		], { base: '.' });
 
-		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+		const marketplaceExtensions = es.merge(builtInExtensions.map(extension => {
 			return ext.src(extension.name, extension.version)
 				.pipe(rename(p => p.dirname = `extensions/${ extension.name }/${ p.dirname }`));
 		}));
