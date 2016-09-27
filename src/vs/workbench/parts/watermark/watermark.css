@@ -3,10 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .part.editor.empty.watermark-tips {
+	background-position-y: calc(50% - 100px);
+	transition: background-position-y 1s;
+}
+
 .monaco-workbench > .part.editor > .watermark {
 	position: absolute;
 	width: 100%;
-	bottom: 10%;
+	top: calc(50% + 55px);
+}
+
+@keyframes watermarkfadein {
+	0% {
+		opacity: 0;
+	}
+	33% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
+@media (min-height: 501px) {
+	.monaco-workbench > .part.editor > .watermark {
+		animation: watermarkfadein 2s;
+		opacity: 1;
+		transition: opacity 1s;
+	}
+}
+
+@media (max-height: 500px) {
+	.monaco-workbench > .part.editor > .watermark {
+		opacity: 0;
+	}
+	.monaco-workbench .part.editor.empty.watermark-tips {
+		background-position-y: 50%;
+	}
 }
 
 .monaco-workbench > .part.editor > .watermark dl {
@@ -21,6 +55,7 @@
 	width: 49%;
 	margin: 0 1% 0 0;
 	text-align: right;
+	font-weight: bold;
 }
 
 .monaco-workbench > .part.editor > .watermark dd {
@@ -33,21 +68,16 @@
 .monaco-workbench > .part.editor > .watermark dt,
 .monaco-workbench > .part.editor > .watermark dd {
 	margin-bottom: 17px;
-	font-weight: 300;
 }
 
-.monaco-workbench > .part.editor > .watermark dt {
+.monaco-workbench > .part.editor > .watermark dt,
+.monaco-workbench > .part.editor > .watermark dl {
 	color: rgba(0,0,0,.68);
 }
-.monaco-workbench > .part.editor > .watermark dl {
-	color: rgba(0,0,0,.9);
-}
 
-.vs-dark .monaco-workbench > .part.editor > .watermark dt {
-	color: rgba(255,255,255,.6);
-}
+.vs-dark .monaco-workbench > .part.editor > .watermark dt,
 .vs-dark .monaco-workbench > .part.editor > .watermark dl {
-	color: #fff;
+	color: rgba(255,255,255,.6);
 }
 
 .hc-black .monaco-workbench > .part.editor > .watermark dt {
