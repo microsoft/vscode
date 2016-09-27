@@ -263,16 +263,16 @@ export class MainThreadTextEditor {
 				return;
 			}
 
-			let lineNumbers: true | false | 'relative';
+			let lineNumbers: 'on' | 'off' | 'relative';
 			switch (newConfiguration.lineNumbers) {
 				case TextEditorLineNumbersStyle.On:
-					lineNumbers = true;
+					lineNumbers = 'on';
 					break;
 				case TextEditorLineNumbersStyle.Relative:
 					lineNumbers = 'relative';
 					break;
 				default:
-					lineNumbers = false;
+					lineNumbers = 'off';
 			}
 			this._codeEditor.updateOptions({
 				lineNumbers: lineNumbers

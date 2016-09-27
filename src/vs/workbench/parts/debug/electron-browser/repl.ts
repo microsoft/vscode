@@ -275,7 +275,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			wrappingColumn: 0,
 			overviewRulerLanes: 0,
 			glyphMargin: false,
-			lineNumbers: false,
+			lineNumbers: 'off',
 			folding: false,
 			selectOnLineNumbers: false,
 			selectionHighlight: false,
