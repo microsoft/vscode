@@ -25,6 +25,7 @@
 	width: 49%;
 	margin: 0 1% 0 0;
 	text-align: right;
+	font-weight: bold;
 }
 
 .monaco-workbench > .part.editor > .watermark dd {
