@@ -14,6 +14,8 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {EditorInput} from 'vs/workbench/common/editor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
+import product from 'vs/platform/product';
+import pkg from 'vs/platform/package';
 import errors = require('vs/base/common/errors');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
@@ -27,8 +29,10 @@ import {IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry, ISeparator} from 
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
+import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 
-import {ipcRenderer as ipc, webFrame, remote} from 'electron';
+import * as os from 'os';
+import {ipcRenderer as ipc, webFrame, remote, shell} from 'electron';
 
 // --- actions
 
@@ -96,7 +100,7 @@ export class SwitchWindow extends Action {
 					}
 				};
 			});
-			this.quickOpenService.pick(picks, {placeHolder: nls.localize('switchWindowPlaceHolder', "Select a window")});
+			this.quickOpenService.pick(picks, { placeHolder: nls.localize('switchWindowPlaceHolder', "Select a window") });
 		});
 
 		return TPromise.as(true);
@@ -484,6 +488,48 @@ export class CloseMessagesAction extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export class ReportIssueAction extends Action {
+
+	public static ID = 'workbench.action.reportIssues';
+	public static LABEL = nls.localize('reportIssues', "Report Issues");
+
+	constructor(
+		id: string,
+		label: string,
+		@IMessageService private messageService: IMessageService,
+		@IIntegrityService private integrityService: IIntegrityService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.integrityService.isPure().then(res => {
+			const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure);
+
+			shell.openExternal(issueUrl);
+
+			return TPromise.as(true);
+		});
+	}
+
+	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean): string {
+		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
+		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
+		const body = encodeURIComponent(
+			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
+- OS Version: ${osVersion}
+
+Steps to Reproduce:
+
+1.
+2.`
+		);
+
+		return `${baseUrl}${queryStringPrefix}body=${body}`;
 	}
 }
 

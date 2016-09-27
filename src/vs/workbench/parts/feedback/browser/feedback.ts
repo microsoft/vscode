@@ -13,6 +13,9 @@ import {Dropdown} from 'vs/base/browser/ui/dropdown/dropdown';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import product from 'vs/platform/product';
+import * as dom from 'vs/base/browser/dom';
+import {ICommandService} from 'vs/platform/commands/common/commands';
+import * as errors from 'vs/base/common/errors';
 import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 
 export interface IFeedback {
@@ -63,6 +66,7 @@ export class FeedbackDropdown extends Dropdown {
 		container: HTMLElement,
 		options: IFeedbackDropdownOptions,
 		@ITelemetryService protected telemetryService: ITelemetryService,
+		@ICommandService private commandService: ICommandService,
 		@IIntegrityService protected integrityService: IIntegrityService
 	) {
 		super(container, {
@@ -102,7 +106,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	public renderContents(container: HTMLElement): IDisposable {
-		let $form = $('form.feedback-form').attr({
+		const $form = $('form.feedback-form').attr({
 			action: 'javascript:void(0);',
 			tabIndex: '-1'
 		}).appendTo(container);
@@ -117,9 +121,9 @@ export class FeedbackDropdown extends Dropdown {
 			this.hide();
 		}).appendTo($form);
 
-		let $content = $('div.content').appendTo($form);
+		const $content = $('div.content').appendTo($form);
 
-		let $sentimentContainer = $('div').appendTo($content);
+		const $sentimentContainer = $('div').appendTo($content);
 		if (!this._isPure) {
 			$('span').text(nls.localize("patchedVersion1", "Your installation is corrupt.")).appendTo($sentimentContainer);
 			$('br').appendTo($sentimentContainer);
@@ -128,7 +132,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 		$('span').text(nls.localize("sentiment", "How was your experience?")).appendTo($sentimentContainer);
 
-		let $feedbackSentiment = $('div.feedback-sentiment').appendTo($sentimentContainer);
+		const $feedbackSentiment = $('div.feedback-sentiment').appendTo($sentimentContainer);
 
 		this.smileyInput = $('div').addClass('sentiment smile').attr({
 			'aria-checked': 'false',
@@ -153,13 +157,17 @@ export class FeedbackDropdown extends Dropdown {
 			this.frownyInput.addClass('checked').attr('aria-checked', 'true');
 		}
 
-		let $contactUs = $('div.contactus').appendTo($content);
+		const $contactUs = $('div.contactus').appendTo($content);
 
 		$('span').text(nls.localize("other ways to contact us", "Other ways to contact us")).appendTo($contactUs);
 
-		let $contactUsContainer = $('div.channels').appendTo($contactUs);
+		const $contactUsContainer = $('div.channels').appendTo($contactUs);
 
-		$('div').append($('a').attr('target', '_blank').attr('href', this.reportIssueLink).text(nls.localize("submit a bug", "Submit a bug")).attr('tabindex', '0'))
+		$('div').append($('a').attr('target', '_blank').attr('href', '#').text(nls.localize("submit a bug", "Submit a bug")).attr('tabindex', '0'))
+			.on('click', event => {
+				dom.EventHelper.stop(event);
+				this.commandService.executeCommand('workbench.action.reportIssues').done(null, errors.onUnexpectedError);
+			})
 			.appendTo($contactUsContainer);
 
 		$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
@@ -182,7 +190,7 @@ export class FeedbackDropdown extends Dropdown {
 			})
 			.appendTo($form).domFocus().getHTMLElement();
 
-		let $buttons = $('div.form-buttons').appendTo($form);
+		const $buttons = $('div.form-buttons').appendTo($form);
 
 		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
 			if (this.isSendingFeedback) {
@@ -202,8 +210,8 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	private getCharCountText(charCount: number): string {
-		let remaining = this.maxFeedbackCharacters - charCount;
-		let text = (remaining === 1)
+		const remaining = this.maxFeedbackCharacters - charCount;
+		const text = (remaining === 1)
 			? nls.localize("character left", "character left")
 			: nls.localize("characters left", "characters left");
 
@@ -237,7 +245,7 @@ export class FeedbackDropdown extends Dropdown {
 		element.on('click', callback);
 		element.on('keypress', (e) => {
 			if (e instanceof KeyboardEvent) {
-				let keyboardEvent = <KeyboardEvent>e;
+				const keyboardEvent = <KeyboardEvent>e;
 				if (keyboardEvent.keyCode === 13 || keyboardEvent.keyCode === 32) { // Enter or Spacebar
 					callback();
 				}
@@ -261,7 +269,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	public onEvent(e: Event, activeElement: HTMLElement): void {
 		if (e instanceof KeyboardEvent) {
-			let keyboardEvent = <KeyboardEvent>e;
+			const keyboardEvent = <KeyboardEvent>e;
 			if (keyboardEvent.keyCode === 27) { // Escape
 				this.hide();
 			}
