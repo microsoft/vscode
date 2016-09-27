@@ -235,6 +235,14 @@ class InternalEditorOptionsHelper {
 		let renderLineNumbers: boolean;
 		let renderCustomLineNumbers: (lineNumber:number)=>string;
 		let renderRelativeLineNumbers: boolean;
+
+		// Compatibility with old true or false values
+		if (<any>lineNumbers === true) {
+			lineNumbers = 'on';
+		} else if (<any>lineNumbers === false) {
+			lineNumbers = 'off';
+		}
+
 		if (typeof lineNumbers === 'function') {
 			renderLineNumbers = true;
 			renderCustomLineNumbers = lineNumbers;
@@ -243,8 +251,12 @@ class InternalEditorOptionsHelper {
 			renderLineNumbers = true;
 			renderCustomLineNumbers = null;
 			renderRelativeLineNumbers = true;
+		} else if (lineNumbers === 'on') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = false;
 		} else {
-			renderLineNumbers = lineNumbers;
+			renderLineNumbers = false;
 			renderCustomLineNumbers = null;
 			renderRelativeLineNumbers = false;
 		}
@@ -629,12 +641,8 @@ let editorConfiguration:IConfigurationNode = {
 			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the lineHeight from the fontSize.")
 		},
 		'editor.lineNumbers' : {
-			oneOf: [{
-				'type': 'boolean'
-			}, {
-				'type': 'string',
-				'enum': ['relative']
-			}],
+			'type': 'string',
+			'enum': ['off', 'on', 'relative'],
 			'default': DefaultConfig.editor.lineNumbers,
 			'description': nls.localize('lineNumbers', "Controls visibility of line numbers")
 		},

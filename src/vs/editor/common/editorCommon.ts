@@ -171,7 +171,7 @@ export enum WrappingIndent {
 	Indent = 2
 }
 
-export type LineNumbersOption = true | false | 'relative' | ((lineNumber:number)=>string);
+export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber:number)=>string);
 
 /**
  * Configuration options for the editor.
