@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "<!--",
-		"t": "block.comment.definition.html.markdown.meta.paragraph.punctuation",
+		"t": "comment.definition.html.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -254,7 +254,7 @@
 	},
 	{
 		"c": " html madness ",
-		"t": "block.comment.html.markdown.meta.paragraph",
+		"t": "block.comment.html",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "-->",
-		"t": "block.comment.definition.html.markdown.meta.paragraph.punctuation",
+		"t": "comment.definition.html.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
