@@ -708,4 +708,25 @@ suite('TextModel.getLineIndentGuide', () => {
 			[0, 'getters:'],
 		]);
 	});
+
+	test('issue #11892 - Indent guides look funny', () => {
+		assertIndentGuides([
+			[0, 'function test(base) {'],
+			[1, '\tswitch (base) {'],
+			[2, '\t\tcase 1:'],
+			[3, '\t\t\treturn 1;'],
+			[2, '\t\tcase 2:'],
+			[3, '\t\t\treturn 2;'],
+			[1, '\t}'],
+			[0, '}'],
+		]);
+	});
+
+	test('issue #12398 - Problem in indent guidelines', () => {
+		assertIndentGuides([
+			[2, '\t\t.bla'],
+			[3, '\t\t\tlabel(for)'],
+			[0, 'include script'],
+		]);
+	});
 });
