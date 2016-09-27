@@ -111,13 +111,13 @@
 },
 {
 	"name": "nodejs",
-	"version": "6.3.0",
+	"version": "6.5.0",
 	"repositoryURL": "https://github.com/nodejs/node",
 	"isProd": true
 },
 {
 	"name": "electron",
-	"version": "1.3.5",
+	"version": "1.3.7",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/electron",
 	"isProd": true
