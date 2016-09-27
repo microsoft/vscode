@@ -4,6 +4,12 @@
 ## Markdown plus h2 with a custom ID ##   {#id-goes-here}
 [Link back to H2](#id-goes-here)
 
+### Alternate heading styles:
+Alternate Header 1
+==================
+Alternate Header 2
+------------------
+
 <!-- html madness -->
 <div class="custom-class" markdown="1">
   <div>
