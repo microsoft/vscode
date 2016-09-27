@@ -23,6 +23,7 @@ import {IConfigurationServiceEvent, getConfigurationValue}  from 'vs/platform/co
 import {ConfigurationService as BaseConfigurationService}  from 'vs/platform/configuration/node/configurationService';
 import {IWorkspaceConfigurationService, IWorkspaceConfigurationValue, CONFIG_DEFAULT_NAME, WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME} from 'vs/workbench/services/configuration/common/configuration';
 import {EventType as FileEventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Event, {Emitter} from 'vs/base/common/event';
 
 interface IStat {
@@ -232,6 +233,10 @@ export class WorkspaceConfigurationService implements IWorkspaceConfigurationSer
 		if (affectedByChanges && !this.reloadConfigurationScheduler.isScheduled()) {
 			this.reloadConfigurationScheduler.schedule();
 		}
+	}
+
+	public set telemetryService(value: ITelemetryService) {
+		this.baseConfigurationService.telemetryService = value;
 	}
 }
 
