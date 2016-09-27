@@ -83,6 +83,7 @@ import {IExtensionManagementService} from 'vs/platform/extensionManagement/commo
 import {URLChannelClient} from 'vs/platform/url/common/urlIpc';
 import {IURLService} from 'vs/platform/url/common/url';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
+import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -279,6 +280,9 @@ export class WorkbenchShell {
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
+		if (this.configurationService instanceof WorkspaceConfigurationService) {
+			this.configurationService.telemetryService = this.telemetryService;
+		}
 
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
