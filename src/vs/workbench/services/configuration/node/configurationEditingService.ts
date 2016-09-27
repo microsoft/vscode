@@ -10,7 +10,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
-import * as pfs from 'vs/base/node/pfs';
 import strings = require('vs/base/common/strings');
 import {getConfigurationKeys} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -20,6 +19,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
+import {IFileService} from 'vs/platform/files/common/files';
 import {IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue} from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
@@ -46,6 +46,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 	}
@@ -65,7 +66,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			let contents: string;
 			if (!validation.exists) {
 				contents = '{}';
-				ensureConfigurationFile = pfs.writeFile(resource.fsPath, contents, encoding.UTF8);
+				ensureConfigurationFile = this.fileService.updateContent(resource, contents, { encoding: encoding.UTF8 });
 			} else {
 				contents = validation.contents;
 			}
@@ -75,7 +76,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				// Apply all edits to the configuration file
 				const result = this.applyEdits(contents, operation);
 
-				return pfs.writeFile(resource.fsPath, result, encoding.UTF8).then(() => {
+				return this.fileService.updateContent(resource, result, { encoding: encoding.UTF8 }).then(() => {
 
 					// Reload the configuration so that we make sure all parties are updated
 					return this.configurationService.reloadConfiguration().then(() => void 0);
@@ -164,28 +165,27 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				return { error: ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY };
 			}
 
-			return pfs.exists(resource.fsPath).then(exists => {
+			return this.fileService.existsFile(resource).then(exists => {
 				if (!exists) {
 					return { exists };
 				}
 
-				return pfs.readFile(resource.fsPath).then(contentsRaw => {
-					const contents = contentsRaw.toString(encoding.UTF8);
+				return this.fileService.resolveContent(resource, { acceptTextOnly: true, encoding: encoding.UTF8 }).then(content => {
 
 					// If we write to a workspace standalone file and replace the entire contents (no key provided)
 					// we can return here because any parse errors can safely be ignored since all contents are replaced
 					if (operation.isWorkspaceStandalone && !operation.key) {
-						return { exists, contents };
+						return { exists, contents: content.value };
 					}
 
 					// Target cannot contain JSON errors
 					const parseErrors = [];
-					json.parse(contents, parseErrors);
+					json.parse(content.value, parseErrors);
 					if (parseErrors.length > 0) {
 						return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
 					}
 
-					return { exists, contents };
+					return { exists, contents: content.value };
 				});
 			});
 		});

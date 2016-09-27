@@ -21,6 +21,8 @@ import uuid = require('vs/base/common/uuid');
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import URI from 'vs/base/common/uri';
+import utils = require('vs/workbench/services/files/test/node/utils');
+import {FileService} from 'vs/workbench/services/files/node/fileService';
 import {ConfigurationEditingService, WORKSPACE_STANDALONE_CONFIGURATIONS} from 'vs/workbench/services/configuration/node/configurationEditingService';
 import {ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode} from 'vs/workbench/services/configuration/common/configurationEditing';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
@@ -69,10 +71,12 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		const configurationService = new WorkspaceConfigurationService(workspaceContextService, new TestEventService(), environmentService);
 		const editorService = new TestWorkbenchEditorService(dirty);
+		const events = new utils.TestEventService();
+		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true }, events);
 
 		return configurationService.initialize().then(() => {
 			return {
-				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, editorService),
+				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, editorService),
 				configurationService: configurationService
 			};
 		});
