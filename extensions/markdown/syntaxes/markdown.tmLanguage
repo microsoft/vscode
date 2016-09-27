@@ -1434,8 +1434,7 @@
 					</dict>
 					<key>match</key>
 					<string>(?x:
-						\!							# Images start with !
-						(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
+						(\!\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
 													# Match the link text.
 						([ ])?						# Space not allowed
 						(\()						# Opening paren for url
@@ -1487,7 +1486,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>\!(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])[ ]?(\[)(.*?)(\])</string>
+					<string>(\!\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])[ ]?(\[)(.*?)(\])</string>
 					<key>name</key>
 					<string>meta.image.reference.markdown</string>
 				</dict>
