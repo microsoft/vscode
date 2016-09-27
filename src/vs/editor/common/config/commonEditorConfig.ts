@@ -261,6 +261,14 @@ class InternalEditorOptionsHelper {
 			renderRelativeLineNumbers = false;
 		}
 
+		let renderWhitespace = opts.renderWhitespace;
+		// Compatibility with old true or false values
+		if (<any>renderWhitespace === true) {
+			renderWhitespace = 'boundary';
+		} else if (<any>renderWhitespace === false) {
+			renderWhitespace = 'none';
+		}
+
 		let viewInfo = new editorCommon.InternalEditorViewOptions({
 			theme: opts.theme,
 			canUseTranslate3d: canUseTranslate3d,
@@ -282,7 +290,7 @@ class InternalEditorOptionsHelper {
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			editorClassName: editorClassName,
 			stopRenderingLineAfter: stopRenderingLineAfter,
-			renderWhitespace: opts.renderWhitespace,
+			renderWhitespace: renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: toBoolean(opts.renderLineHighlight),
