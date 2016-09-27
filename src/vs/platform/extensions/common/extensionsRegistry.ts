@@ -261,6 +261,28 @@ const schema: IJSONSchema = {
 				defaultSnippets: [{ label: 'onLanguage', body: 'onLanguage:{{languageId}}'}, {label: 'onCommand', body: 'onCommand:{{commandId}}'}, {label: 'onDebug', body: 'onDebug:{{type}}'}, {label: 'workspaceContains', body: 'workspaceContains:{{fileName}}'}],
 			}
 		},
+		badges: {
+			type: 'array',
+			description: nls.localize('vscode.extension.badges', 'Array of badges to display in the sidebar of the Marketplace\'s extension page.'),
+			items: {
+				type: 'object',
+				required: ['url', 'href', 'description'],
+				properties: {
+					url: {
+						type: 'string',
+						description: nls.localize('vscode.extension.badges.url', 'Badge image URL.')
+					},
+					href: {
+						type: 'string',
+						description: nls.localize('vscode.extension.badges.href', 'Badge link.')
+					},
+					description: {
+						type: 'string',
+						description: nls.localize('vscode.extension.badges.description', 'Badge description.')
+					}
+				}
+			}
+		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
 			type: 'array',
