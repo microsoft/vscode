@@ -11,6 +11,19 @@
 	position: absolute;
 	width: 100%;
 	top: calc(50% + 55px);
+	animation: watermarkfadein 2s;
+	animation-delay: 1s;
+	animation-fill-mode: forwards;
+	opacity: 0;
+}
+
+@keyframes watermarkfadein {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
 }
 
 .monaco-workbench > .part.editor > .watermark dl {
