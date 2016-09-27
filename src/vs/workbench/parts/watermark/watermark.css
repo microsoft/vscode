@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .part.editor.empty.watermark-tips {
+	background-position-y: calc(50% - 100px);
+}
+
 .monaco-workbench > .part.editor > .watermark {
 	position: absolute;
 	width: 100%;
-	bottom: 10%;
+	top: calc(50% + 55px);
 }
 
 .monaco-workbench > .part.editor > .watermark dl {
