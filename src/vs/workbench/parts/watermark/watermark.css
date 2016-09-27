@@ -5,6 +5,7 @@
 
 .monaco-workbench .part.editor.empty.watermark-tips {
 	background-position-y: calc(50% - 100px);
+	transition: background-position-y 1s;
 }
 
 .monaco-workbench > .part.editor > .watermark {
@@ -29,13 +30,16 @@
 	.monaco-workbench > .part.editor > .watermark {
 		animation: watermarkfadein 2s;
 		opacity: 1;
-		transition: opacity 2s;
+		transition: opacity 1s;
 	}
 }
 
 @media (max-height: 500px) {
 	.monaco-workbench > .part.editor > .watermark {
 		opacity: 0;
+	}
+	.monaco-workbench .part.editor.empty.watermark-tips {
+		background-position-y: 50%;
 	}
 }
 
