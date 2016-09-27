@@ -253,6 +253,10 @@ const schema: IJSONSchema = {
 			},
 			default: {}
 		},
+		preview: {
+			type: 'boolean',
+			description: nls.localize('vscode.extension.preview', 'Sets the extension to be flagged as a Preview in the Marketplace.'),
+		},
 		activationEvents: {
 			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
 			type: 'array',
