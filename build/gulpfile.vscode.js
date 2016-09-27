@@ -197,8 +197,8 @@ function packageTask(platform, arch, opts) {
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const extensions = gulp.src([
-			'extensions/**',
+		const extensionsList = [
+			'extensions/*/**',
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
@@ -211,8 +211,11 @@ function packageTask(platform, arch, opts) {
 			'!extensions/**/tsconfig.json',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
-			'!extensions/vscode-colorize-tests/**'
-		], { base: '.' });
+			'!extensions/vscode-colorize-tests/**',
+			...builtInExtensions.map(e => `!extensions/${ e.name }/**`)
+		];
+
+		const extensions = gulp.src(extensionsList, { base: '.' });
 
 		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
 			return ext.src(extension.name, extension.version)
