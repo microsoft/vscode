@@ -41,6 +41,7 @@ export function create(container: Builder, keybindingService: IKeybindingService
 			'class': 'watermark',
 		});
 	function update() {
+		container.addClass('watermark-tips');
 		$(div).clearChildren()
 			.element('dl', {
 			}, dl => entries.map(entry => {
