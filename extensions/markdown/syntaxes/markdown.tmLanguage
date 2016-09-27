@@ -511,7 +511,7 @@
 					<!-- seperator    [ ]{0,3}([-*_][ ]{0,2}\2){2,}[ \t]*$\n? -->
 					<!-- list         [ ]{0,3}[*+-]([ ]{1,3}|\t) -->
 					<!-- both are folded together in the expression below -->
-					<string>(^|\G)(?!\s*$|#|[ ]{0,3}((([-*_][ ]{0,2}\2){2,}[ \t]*$\n?)|([*+-]([ ]{1,3}|\t)))|\s*\[.+?\]:|&gt;)</string>
+					<string>(^|\G)(?!\s*$|#|[ ]{0,3}((([*_][ ]{0,2}\2){2,}[ \t]*$\n?)|([*+-]([ ]{1,3}|\t)))|\s*\[.+?\]:|&gt;)</string>
 				</dict>
 				<key>raw_block</key>
 				<dict>
@@ -1133,7 +1133,7 @@
 				<key>separator</key>
 				<dict>
 					<key>match</key>
-					<string>(^|\G)[ ]{0,3}([-*_])([ ]{0,2}\2){2,}[ \t]*$\n?</string>
+					<string>(^|\G)[ ]{0,3}([*-_])([ ]{0,2}\2){2,}[ \t]*$\n?</string>
 					<key>name</key>
 					<string>meta.separator.markdown</string>
 				</dict>
