@@ -96,6 +96,7 @@ enum FilterType {
 const AssetType = {
 	Icon: 'Microsoft.VisualStudio.Services.Icons.Default',
 	Details: 'Microsoft.VisualStudio.Services.Content.Details',
+	Changelog: 'Microsoft.VisualStudio.Services.Content.Changelog',
 	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
 	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
 	License: 'Microsoft.VisualStudio.Services.Content.License',
@@ -223,6 +224,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 	const assets = {
 		manifest: getAssetSource(version.files, AssetType.Manifest),
 		readme: getAssetSource(version.files, AssetType.Details),
+		changelog: getAssetSource(version.files, AssetType.Changelog),
 		download: `${ getAssetSource(version.files, AssetType.VSIX) }?install=true`,
 		icon,
 		iconFallback,
