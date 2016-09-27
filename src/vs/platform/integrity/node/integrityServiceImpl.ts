@@ -136,22 +136,24 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	private _isPure(): TPromise<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
 
-		let asyncResults: TPromise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
-			return this._resolve(filename, expectedChecksums[filename]);
-		});
+		return TPromise.timeout(10000).then(() => {
+			let asyncResults: TPromise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
+				return this._resolve(filename, expectedChecksums[filename]);
+			});
 
-		return TPromise.join(asyncResults).then<IntegrityTestResult>((allResults) => {
-			let isPure = true;
-			for (let i = 0, len = allResults.length; isPure && i < len; i++) {
-				if (!allResults[i].isPure) {
-					isPure = false;
+			return TPromise.join(asyncResults).then<IntegrityTestResult>((allResults) => {
+				let isPure = true;
+				for (let i = 0, len = allResults.length; isPure && i < len; i++) {
+					if (!allResults[i].isPure) {
+						isPure = false;
+					}
 				}
-			}
 
-			return {
-				isPure: isPure,
-				proof: allResults
-			};
+				return {
+					isPure: isPure,
+					proof: allResults
+				};
+			});
 		});
 	}
 
