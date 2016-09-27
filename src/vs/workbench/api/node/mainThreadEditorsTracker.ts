@@ -14,19 +14,19 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {EndOfLine} from 'vs/workbench/api/node/extHostTypes';
+import {EndOfLine, TextEditorLineNumbersStyle} from 'vs/workbench/api/node/extHostTypes';
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | string;
 	insertSpaces?: boolean | string;
 	cursorStyle?: EditorCommon.TextEditorCursorStyle;
-	lineNumbers?: boolean | 'relative';
+	lineNumbers?: TextEditorLineNumbersStyle;
 }
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	insertSpaces: boolean;
 	cursorStyle: EditorCommon.TextEditorCursorStyle;
-	lineNumbers: boolean | 'relative';
+	lineNumbers: TextEditorLineNumbersStyle;
 }
 
 function configurationsEqual(a:IResolvedTextEditorConfiguration, b:IResolvedTextEditorConfiguration) {
@@ -263,8 +263,19 @@ export class MainThreadTextEditor {
 				return;
 			}
 
+			let lineNumbers: true | false | 'relative';
+			switch (newConfiguration.lineNumbers) {
+				case TextEditorLineNumbersStyle.On:
+					lineNumbers = true;
+					break;
+				case TextEditorLineNumbersStyle.Relative:
+					lineNumbers = 'relative';
+					break;
+				default:
+					lineNumbers = false;
+			}
 			this._codeEditor.updateOptions({
-				lineNumbers: newConfiguration.lineNumbers
+				lineNumbers: lineNumbers
 			});
 		}
 	}
@@ -299,17 +310,17 @@ export class MainThreadTextEditor {
 			return this._configuration;
 		}
 		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
-		let lineNumbers: boolean | 'relative' = this._configuration ? this._configuration.lineNumbers : true;
+		let lineNumbers: TextEditorLineNumbersStyle = this._configuration ? this._configuration.lineNumbers : TextEditorLineNumbersStyle.On;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();
 			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
 
 			if (codeEditorOpts.viewInfo.renderRelativeLineNumbers) {
-				lineNumbers = 'relative';
+				lineNumbers = TextEditorLineNumbersStyle.Relative;
 			} else if (codeEditorOpts.viewInfo.renderLineNumbers) {
-				lineNumbers = true;
+				lineNumbers = TextEditorLineNumbersStyle.On;
 			} else {
-				lineNumbers = false;
+				lineNumbers = TextEditorLineNumbersStyle.Off;
 			}
 		}
 
