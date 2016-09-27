@@ -36,15 +36,13 @@
 	background-color: inherit;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom .action-item {
-	padding-bottom: 0;
+.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom {
+	position: absolute;
+	bottom: 0;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom:before {
-	content: '';
-	border-top: 1px solid #777;
-	display: block;
-	margin: 10px 10px;
+.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom .action-item {
+	padding-bottom: 0;
 }
 
 .vs .monaco-workbench > .activitybar > .content {
