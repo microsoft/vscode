@@ -291,7 +291,7 @@
 							<key>end</key>
 							<string>(--&gt;)</string>
 							<key>contentName</key>
-							<string>punctuation.definition.comment.html</string>
+							<string>block.comment.html</string>
 							<key>captures</key>
 							<dict>
 								<key>1</key>
