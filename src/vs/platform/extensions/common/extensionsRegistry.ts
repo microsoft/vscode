@@ -214,6 +214,10 @@ const schema: IJSONSchema = {
 		// 		}
 		// 	}
 		// },
+		publisher: {
+			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
+			type: 'string'
+		},
 		displayName: {
 			description: nls.localize('vscode.extension.displayName', 'The display name for the extension used in the VS Code gallery.'),
 			type: 'string'
@@ -241,9 +245,13 @@ const schema: IJSONSchema = {
 				}
 			}
 		},
-		publisher: {
-			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
-			type: 'string'
+		contributes: {
+			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
+			type: 'object',
+			properties: {
+				// extensions will fill in
+			},
+			default: {}
 		},
 		activationEvents: {
 			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
@@ -268,14 +276,6 @@ const schema: IJSONSchema = {
 					type: 'string'
 				}
 			}
-		},
-		contributes: {
-			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
-			type: 'object',
-			properties: {
-				// extensions will fill in
-			},
-			default: {}
 		}
 	}
 };
