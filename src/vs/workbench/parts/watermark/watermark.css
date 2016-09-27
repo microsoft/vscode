@@ -11,18 +11,31 @@
 	position: absolute;
 	width: 100%;
 	top: calc(50% + 55px);
-	animation: watermarkfadein 2s;
-	animation-delay: 1s;
-	animation-fill-mode: forwards;
-	opacity: 0;
 }
 
 @keyframes watermarkfadein {
-	from {
+	0% {
 		opacity: 0;
 	}
-	to {
+	33% {
+		opacity: 0;
+	}
+	100% {
 		opacity: 1;
+	}
+}
+
+@media (min-height: 501px) {
+	.monaco-workbench > .part.editor > .watermark {
+		animation: watermarkfadein 2s;
+		opacity: 1;
+		transition: opacity 2s;
+	}
+}
+
+@media (max-height: 500px) {
+	.monaco-workbench > .part.editor > .watermark {
+		opacity: 0;
 	}
 }
 
