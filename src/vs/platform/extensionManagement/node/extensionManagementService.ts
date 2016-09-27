@@ -147,14 +147,18 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			}
 			this._onInstallExtension.fire({ id, gallery: extension });
 			return this.getLocalExtension(extension)
-					.then(local => this.installCompatibleVersion(extension, local ? local.metadata && local.metadata.dependenciesInstalled : true, !local))
-					.then(
-						local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
-						error => {
-							this._onDidInstallExtension.fire({ id, gallery: extension, error });
-							return TPromise.wrapError(error);
-						}
-					);
+				.then(local => {
+					const installDependencies = local ? local.metadata && local.metadata.dependenciesInstalled : true;
+					const promptToInstallDependencies = !local;
+					return this.installCompatibleVersion(extension, installDependencies, promptToInstallDependencies);
+				})
+				.then(
+					local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
+					error => {
+						this._onDidInstallExtension.fire({ id, gallery: extension, error });
+						return TPromise.wrapError(error);
+					}
+				);
 		});
 	}
 
