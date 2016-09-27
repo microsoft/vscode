@@ -86,6 +86,7 @@ export class ExtHostAPIImplementation {
 	EndOfLine: typeof vscode.EndOfLine;
 	TextDocumentSaveReason: typeof vscode.TextDocumentSaveReason;
 	TextEditorCursorStyle: typeof vscode.TextEditorCursorStyle;
+	TextEditorLineNumbersStyle: typeof vscode.TextEditorLineNumbersStyle;
 	TextEditorSelectionChangeKind: typeof vscode.TextEditorSelectionChangeKind;
 	commands: typeof vscode.commands;
 	window: typeof vscode.window;
@@ -169,6 +170,7 @@ export class ExtHostAPIImplementation {
 		this.TextEditorRevealType = extHostTypes.TextEditorRevealType;
 		this.EndOfLine = extHostTypes.EndOfLine;
 		this.TextEditorCursorStyle = EditorCommon.TextEditorCursorStyle;
+		this.TextEditorLineNumbersStyle = extHostTypes.TextEditorLineNumbersStyle;
 		this.TextEditorSelectionChangeKind = extHostTypes.TextEditorSelectionChangeKind;
 		this.TextDocumentSaveReason = extHostTypes.TextDocumentSaveReason;
 

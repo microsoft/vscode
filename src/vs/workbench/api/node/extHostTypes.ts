@@ -825,6 +825,12 @@ export enum EndOfLine {
 	CRLF = 2
 }
 
+export enum TextEditorLineNumbersStyle {
+	Off = 0,
+	On = 1,
+	Relative = 2
+}
+
 export enum TextDocumentSaveReason {
 	Explicit = 1,
 	Auto = 2,

@@ -589,6 +589,24 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Rendering style of the line numbers.
+	 */
+	export enum TextEditorLineNumbersStyle {
+		/**
+		 * Do not render the line numbers.
+		 */
+		Off = 0,
+		/**
+		 * Render the line numbers.
+		 */
+		On = 1,
+		/**
+		 * Render the line numbers with values relative to the primary cursor location.
+		 */
+		Relative = 2
+	}
+
+	/**
 	 * Represents a [text editor](#TextEditor)'s [options](#TextEditor.options).
 	 */
 	export interface TextEditorOptions {
@@ -622,7 +640,7 @@ declare namespace vscode {
 		 * When getting a text editor's options, this property will always be present.
 		 * When setting a text editor's options, this property is optional.
 		 */
-		lineNumbers?: boolean | 'relative';
+		lineNumbers?: TextEditorLineNumbersStyle;
 	}
 
 	/**
