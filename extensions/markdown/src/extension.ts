@@ -164,6 +164,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 		this._context = context;
 		this._waiting = false;
 		this._renderer = this.createRenderer();
+		this._alertedForMissingTheme = '';
 	}
 
 	private createRenderer(): IRenderer {
