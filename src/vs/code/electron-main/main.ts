@@ -40,6 +40,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getPathLabel } from 'vs/base/common/labels';
+import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
 
@@ -125,7 +126,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const electronIpcServer = new ElectronIPCServer(ipc);
 
 	// Register Electron IPC services
-	const urlService = instantiationService.createInstance(URLService);
+	const urlService = accessor.get(IURLService);
 	const urlChannel = instantiationService.createInstance(URLChannel, urlService);
 	electronIpcServer.registerChannel('url', urlChannel);
 
@@ -455,6 +456,7 @@ function start(): void {
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
+	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
 
 	const instantiationService = new InstantiationService(services);
 

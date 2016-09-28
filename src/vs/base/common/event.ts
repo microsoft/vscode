@@ -217,12 +217,12 @@ export function once<T>(event: Event<T>): Event<T> {
 	};
 }
 
-export function any(...events: Event<any>[]): Event<void> {
+export function any<T>(...events: Event<T>[]): Event<T> {
 	let listeners = [];
 
-	const emitter = new Emitter<void>({
+	const emitter = new Emitter<T>({
 		onFirstListenerAdd() {
-			listeners = events.map(e => e(() => emitter.fire(), null));
+			listeners = events.map(e => e(r => emitter.fire(r)));
 		},
 		onLastListenerRemove() {
 			listeners = dispose(listeners);
