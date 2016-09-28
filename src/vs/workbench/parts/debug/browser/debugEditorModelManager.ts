@@ -292,7 +292,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}
 
 		if (!session || session.configuration.capabilities.supportsConditionalBreakpoints) {
-			const mode = modelData.model.getMode();
+			const mode = modelData ? modelData.model.getMode() : null;
 			const modeId = mode ? mode.getId() : '';
 			const glyphMarginHoverMessage = `\`\`\`${modeId}\n${ breakpoint.condition }\`\`\``;
 
