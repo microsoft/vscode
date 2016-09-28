@@ -16,7 +16,7 @@ const entries = [
 		ids: ['workbench.action.showCommands']
 	},
 	{
-		text: nls.localize('watermark.quickOpen', "Open File in Folder"),
+		text: nls.localize('watermark.quickOpen', "Go to File"),
 		ids: ['workbench.action.quickOpen']
 	},
 	{
@@ -51,7 +51,7 @@ export function create(container: Builder, keybindingService: IKeybindingService
 						.map(id => keybindingService.lookupKeybindings(id).slice(0, 1)
 							.map(k => keybindingService.getLabelFor(k))
 							.join('') || UNBOUND)
-						.join(' or ')
+						.join(' / ')
 				));
 			}));
 	}
