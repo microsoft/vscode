@@ -16,9 +16,10 @@ export const Schema: IJSONSchema = {
 			type: 'array',
 			description: localize('app.extensions.json.recommendations', "List of extensions recommendations. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
 			items: {
-				'type': 'string',
-			}
-		}
+				type: 'string',
+				defaultSnippets: [{ label: 'Example', body: 'vscode.csharp' }],
+			},
+		},
 	}
 };
 
@@ -27,6 +28,7 @@ export const InitialContent: string = [
 	'\t// See http://go.microsoft.com/fwlink/?LinkId=827846',
 	'\t// for the documentation about the extensions.json format',
 	'\t"recommendations": [',
+	'\t\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'\t\t',
 	'\t]',
 	'}'
