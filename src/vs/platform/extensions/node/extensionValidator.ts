@@ -194,10 +194,10 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 		return true;
 	}
 
-	return validateVersions(version, extensionDesc.engines.vscode, notices);
+	return isVersionValid(version, extensionDesc.engines.vscode, notices);
 }
 
-export function validateVersions(currentVersion: string, requestedVersion: string, notices: string[]): boolean {
+export function isVersionValid(currentVersion: string, requestedVersion: string, notices: string[] = []): boolean {
 
 	let desiredVersion = normalizeVersion(parseVersion(requestedVersion));
 	if (!desiredVersion) {
