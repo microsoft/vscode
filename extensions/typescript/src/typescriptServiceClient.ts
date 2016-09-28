@@ -151,9 +151,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.trace = this.readTrace();
 		workspace.onDidChangeConfiguration(() => {
 			this.trace = this.readTrace();
-			let oldTask = this.tsdk;
+			let oldTsdk = this.tsdk;
 			this.tsdk = workspace.getConfiguration().get<string>('typescript.tsdk', null);
-			if (this.servicePromise === null && oldTask !== this.tsdk) {
+			if (this.servicePromise === null && oldTsdk !== this.tsdk) {
 				this.startService();
 			}
 		});
@@ -293,149 +293,152 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 		const tsConfig = workspace.getConfiguration('typescript');
 		const checkWorkspaceVersionKey = 'check.workspaceVersion';
-		let versionCheckPromise: Thenable<string> = Promise.resolve(modulePath);
 
-		if (!workspace.rootPath) {
-			versionCheckPromise = this.informAboutTS20(modulePath);
-		} else {
-			if (!this.tsdk && tsConfig.get(checkWorkspaceVersionKey, true)) {
-				let localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
-				if (fs.existsSync(localModulePath)) {
-					let localVersion = this.getTypeScriptVersion(localModulePath);
-					let shippedVersion = this.getTypeScriptVersion(modulePath);
-					if (localVersion && localVersion !== shippedVersion) {
-						checkGlobalVersion = false;
-						versionCheckPromise = window.showInformationMessage<MyMessageItem>(
-							localize(
-								'localTSFound',
-								'The workspace folder contains TypeScript version {0}. Do you want to use this version instead of the bundled version {1}?',
-								localVersion, shippedVersion
-							),
+		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
+			let versionCheckPromise: Thenable<string> = Promise.resolve(modulePath);
+
+			if (!workspace.rootPath) {
+				versionCheckPromise = this.informAboutTS20(modulePath);
+			} else {
+				if (!this.tsdk && tsConfig.get(checkWorkspaceVersionKey, true)) {
+					let localModulePath = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
+					if (fs.existsSync(localModulePath)) {
+						let localVersion = this.getTypeScriptVersion(localModulePath);
+						let shippedVersion = this.getTypeScriptVersion(modulePath);
+						if (localVersion && localVersion !== shippedVersion) {
+							checkGlobalVersion = false;
+							versionCheckPromise = window.showInformationMessage<MyMessageItem>(
+								localize(
+									'localTSFound',
+									'The workspace folder contains TypeScript version {0}. Do you want to use this version instead of the bundled version {1}?',
+									localVersion, shippedVersion
+								),
+								{
+									title: localize('use', 'Use Workspace ({0})', localVersion),
+									id: MessageAction.useLocal
+								},
+								{
+									title: localize({
+										key: 'useBundled',
+										comment: ["Bundled has the meaning of packaged with VS Code itself."]
+									}, 'Use Bundled ({0})', shippedVersion),
+									id: MessageAction.useBundled,
+								},
+								{
+									title: localize('neverCheckLocalVesion', 'Never Check for Workspace Version'),
+									id: MessageAction.neverCheckLocalVersion
+								},
+								{
+									title: localize('close', 'Close'),
+									id: MessageAction.close,
+									isCloseAffordance: true
+								}
+							).then((selected) => {
+								if (!selected || selected.id === MessageAction.close) {
+									return modulePath;
+								}
+								switch(selected.id) {
+									case MessageAction.useLocal:
+										let pathValue = './node_modules/typescript/lib';
+										tsConfig.update('tsdk', pathValue, false);
+										window.showInformationMessage(localize('updatedtsdk', 'Updated workspace setting \'typescript.tsdk\' to {0}', pathValue));
+										showVersionStatusItem = true;
+										return localModulePath;
+									case MessageAction.useBundled:
+										tsConfig.update(checkWorkspaceVersionKey, false, false);
+										window.showInformationMessage(localize('updateLocalWorkspaceCheck', 'Updated workspace setting \'typescript.check.workspaceVersion\' to false'));
+										return modulePath;
+									case MessageAction.neverCheckLocalVersion:
+										window.showInformationMessage(localize('updateGlobalWorkspaceCheck', 'Updated user setting \'typescript.check.workspaceVersion\' to false'));
+										tsConfig.update(checkWorkspaceVersionKey, false, true);
+										return modulePath;
+									default:
+										return modulePath;
+								}
+							});
+						}
+					} else {
+						versionCheckPromise = this.informAboutTS20(modulePath);
+					}
+				}
+			}
+
+			versionCheckPromise.then((modulePath) => {
+				this.info(`Using tsserver from location: ${modulePath}`);
+				if (!fs.existsSync(modulePath)) {
+					window.showErrorMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. TypeScript language features will be disabled.', path.dirname(modulePath)));
+					this.servicePromise = null;
+					reject(new Error('No TSServer found'));
+					return;
+				}
+
+				let version = this.getTypeScriptVersion(modulePath);
+				if (!version) {
+					version = workspace.getConfiguration().get<string>('typescript.tsdk_version', undefined);
+				}
+				if (version) {
+					this._apiVersion = APIVersion.fromString(version);
+				}
+
+
+				const label = version || localize('versionNumber.custom' ,'custom');
+				const tooltip = modulePath;
+				VersionStatus.enable(!!this.tsdk || showVersionStatusItem);
+				VersionStatus.setInfo(label, tooltip);
+
+				const doGlobalVersionCheckKey: string = 'doGlobalVersionCheck';
+				const globalStateValue = this.globalState.get(doGlobalVersionCheckKey, true);
+				const checkTscVersion = 'check.tscVersion';
+				if (!globalStateValue) {
+					tsConfig.update(checkTscVersion, false, true);
+					this.globalState.update(doGlobalVersionCheckKey, true);
+				}
+				if (checkGlobalVersion && tsConfig.get(checkTscVersion)) {
+					let tscVersion: string = undefined;
+					try {
+						let out = cp.execSync('tsc --version', { encoding: 'utf8' });
+						if (out) {
+							let matches = out.trim().match(/Version\s*(.*)$/);
+							if (matches && matches.length === 2) {
+								tscVersion = matches[1];
+							}
+						}
+					} catch (error) {
+					}
+					if (tscVersion && tscVersion !== version) {
+						window.showInformationMessage<MyMessageItem>(
+							localize('versionMismatch', 'A version mismatch between the globally installed tsc compiler ({0}) and VS Code\'s language service ({1}) has been detected. This might result in inconsistent compile errors.', tscVersion, version),
 							{
-								title: localize('use', 'Use Workspace ({0})', localVersion),
-								id: MessageAction.useLocal
+								title: localize('moreInformation', 'More Information'),
+								id: 1
 							},
 							{
-								title: localize({
-									key: 'useBundled',
-									comment: ["Bundled has the meaning of packaged with VS Code itself."]
-								}, 'Use Bundled ({0})', shippedVersion),
-								id: MessageAction.useBundled,
-							},
-							{
-								title: localize('neverCheckLocalVesion', 'Never Check for Workspace Version'),
-								id: MessageAction.neverCheckLocalVersion
+								title: localize('doNotCheckAgain', 'Don\'t Check Again'),
+								id: 2
 							},
 							{
 								title: localize('close', 'Close'),
-								id: MessageAction.close,
+								id: 3,
 								isCloseAffordance: true
 							}
 						).then((selected) => {
-							if (!selected || selected.id === MessageAction.close) {
-								return modulePath;
+							if (!selected || selected.id === 3) {
+								return;
 							}
-							switch(selected.id) {
-								case MessageAction.useLocal:
-									let pathValue = './node_modules/typescript/lib';
-									tsConfig.update('tsdk', pathValue, false);
-									window.showInformationMessage(localize('updatedtsdk', 'Updated workspace setting \'typescript.tsdk\' to {0}', pathValue));
-									showVersionStatusItem = true;
-									return localModulePath;
-								case MessageAction.useBundled:
-									tsConfig.update(checkWorkspaceVersionKey, false, false);
-									window.showInformationMessage(localize('updateLocalWorkspaceCheck', 'Updated workspace setting \'typescript.check.workspaceVersion\' to false'));
-									return modulePath;
-								case MessageAction.neverCheckLocalVersion:
-									window.showInformationMessage(localize('updateGlobalWorkspaceCheck', 'Updated user setting \'typescript.check.workspaceVersion\' to false'));
-									tsConfig.update(checkWorkspaceVersionKey, false, true);
-									return modulePath;
-								default:
-									return modulePath;
+							switch (selected.id) {
+								case 1:
+									openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
+									break;
+								case 2:
+									tsConfig.update(checkTscVersion, false, true);
+									window.showInformationMessage(localize('updateTscCheck', 'Updated user setting \'typescript.check.tscVersion\' to false'));
+									this.globalState.update(doGlobalVersionCheckKey, false);
+									break;
 							}
 						});
 					}
-				} else {
-					versionCheckPromise = this.informAboutTS20(modulePath);
 				}
-			}
-		}
 
-		versionCheckPromise.then((modulePath) => {
-			this.info(`Using tsserver from location: ${modulePath}`);
-			if (!fs.existsSync(modulePath)) {
-				window.showErrorMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. TypeScript language features will be disabled.', path.dirname(modulePath)));
-				return;
-			}
-
-			let version = this.getTypeScriptVersion(modulePath);
-			if (!version) {
-				version = workspace.getConfiguration().get<string>('typescript.tsdk_version', undefined);
-			}
-			if (version) {
-				this._apiVersion = APIVersion.fromString(version);
-			}
-
-
-			const label = version || localize('versionNumber.custom' ,'custom');
-			const tooltip = modulePath;
-			VersionStatus.enable(!!this.tsdk || showVersionStatusItem);
-			VersionStatus.setInfo(label, tooltip);
-
-			const doGlobalVersionCheckKey: string = 'doGlobalVersionCheck';
-			const globalStateValue = this.globalState.get(doGlobalVersionCheckKey, true);
-			const checkTscVersion = 'check.tscVersion';
-			if (!globalStateValue) {
-				tsConfig.update(checkTscVersion, false, true);
-				this.globalState.update(doGlobalVersionCheckKey, true);
-			}
-			if (checkGlobalVersion && tsConfig.get(checkTscVersion)) {
-				let tscVersion: string = undefined;
-				try {
-					let out = cp.execSync('tsc --version', { encoding: 'utf8' });
-					if (out) {
-						let matches = out.trim().match(/Version\s*(.*)$/);
-						if (matches && matches.length === 2) {
-							tscVersion = matches[1];
-						}
-					}
-				} catch (error) {
-				}
-				if (tscVersion && tscVersion !== version) {
-					window.showInformationMessage<MyMessageItem>(
-						localize('versionMismatch', 'A version mismatch between the globally installed tsc compiler ({0}) and VS Code\'s language service ({1}) has been detected. This might result in inconsistent compile errors.', tscVersion, version),
-						{
-							title: localize('moreInformation', 'More Information'),
-							id: 1
-						},
-						{
-							title: localize('doNotCheckAgain', 'Don\'t Check Again'),
-							id: 2
-						},
-						{
-							title: localize('close', 'Close'),
-							id: 3,
-							isCloseAffordance: true
-						}
-					).then((selected) => {
-						if (!selected || selected.id === 3) {
-							return;
-						}
-						switch (selected.id) {
-							case 1:
-								openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
-								break;
-							case 2:
-								tsConfig.update(checkTscVersion, false, true);
-								window.showInformationMessage(localize('updateTscCheck', 'Updated user setting \'typescript.check.tscVersion\' to false'));
-								this.globalState.update(doGlobalVersionCheckKey, false);
-								break;
-						}
-					});
-				}
-			}
-
-			this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 				try {
 					let options: electron.IForkOptions = {
 						execArgv: [] // [`--debug-brk=5859`]
@@ -474,12 +477,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						});
 						this._onReady.resolve();
 						resolve(childProcess);
+						this.serviceStarted(resendModels);
 					});
 				} catch (error) {
 					reject(error);
 				}
 			});
-			this.serviceStarted(resendModels);
 		});
 	}
 
