@@ -340,9 +340,9 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 			'TreeExplorerViewlet',
-			'workbench.view.treeExplorer', // Later change this to make it unique
-			localize('treeExplorer', 'treeExplorer'),
-			'treeExplorer',
+			'workbench.view.customViewlet.' + treeContentProviderId,
+			treeContentProviderId,
+			treeContentProviderId,
 			125
 		));
 	}
