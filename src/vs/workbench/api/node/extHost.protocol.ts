@@ -115,6 +115,11 @@ export abstract class MainThreadEditorsShape {
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 }
 
+export abstract class MainThreadExplorersShape {
+	$registerTreeContentProvider(treeContentProviderId: string): void { throw ni(); }
+	$unregisterTreeContentProvider(treeContentProviderId: string): void { throw ni(); }
+}
+
 export abstract class MainThreadErrorsShape {
 	onUnexpectedExtHostError(err: any): void { throw ni(); }
 }
@@ -257,6 +262,10 @@ export abstract class ExtHostEditorsShape {
 	$acceptTextEditorRemove(id: string): void { throw ni(); }
 }
 
+export abstract class ExtHostExplorersShape {
+	$provideTextDocumentContent(treeContentProviderId: string): vscode.ITree { throw ni(); };
+}
+
 export abstract class ExtHostExtensionServiceShape {
 	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$activateExtension(extensionDescription: IExtensionDescription): TPromise<void> { throw ni(); }
@@ -331,6 +340,7 @@ export const MainContext = {
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', MainThreadDocumentsShape),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', MainThreadEditorsShape),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors', MainThreadErrorsShape),
+	MainThreadExplorers: createMainId<MainThreadExplorersShape>('MainThreadExplorers', MainThreadExplorersShape),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures', MainThreadLanguageFeaturesShape),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages', MainThreadLanguagesShape),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService', MainThreadMessageServiceShape),
@@ -351,6 +361,7 @@ export const ExtHostContext = {
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments', ExtHostDocumentsShape),
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant', ExtHostDocumentSaveParticipantShape),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ExtHostEditorsShape),
+	ExtHostExplorers: createExtId<ExtHostExplorersShape>('ExtHostExplorers',ExtHostExplorersShape),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService', ExtHostFileSystemEventServiceShape),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor', ExtHostHeapServiceShape),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),

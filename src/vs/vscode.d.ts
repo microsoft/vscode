@@ -1348,6 +1348,22 @@ declare module 'vscode' {
 		provideTextDocumentContent(uri: Uri, token: CancellationToken): string | Thenable<string>;
 	}
 
+	export interface TreeContentProvider {
+		id: string;
+		provideTreeContent(): ITree;
+	}
+
+	export interface ITree {
+		root: ITreeNode;
+	}
+
+	export interface ITreeNode {
+		label: string;
+		isExpanded: boolean;
+		parent: ITreeNode;
+		children: ITreeNode[]
+	}
+
 	/**
 	 * Represents an item that can be selected from
 	 * a list of items.
@@ -3802,6 +3818,8 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
+
+		export function registerTreeContentProvider(provider: TreeContentProvider): Disposable;
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is opened.

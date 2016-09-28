@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.treeExplorer {
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.pineTree {
 	background-image: url('files-dark.svg');
 }

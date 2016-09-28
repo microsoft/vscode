@@ -264,4 +264,5 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			}
 		}, onUnexpectedError);
 	}
+
 }
