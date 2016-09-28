@@ -373,8 +373,8 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
-				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
+				$('tr', null, $('th', null, localize('debugger name', "Name"))),
+				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type)))
 			)
 		);
 
