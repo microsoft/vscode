@@ -61,6 +61,7 @@ export class QuickFixController implements IEditorContribution {
 
 	public dispose(): void {
 		this._quickFixWidget.dispose();
+		this._model.dispose();
 		dispose(this._disposables);
 	}
 
