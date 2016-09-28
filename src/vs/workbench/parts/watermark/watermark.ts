@@ -12,7 +12,7 @@ import * as nls from 'vs/nls';
 
 const entries = [
 	{
-		text: nls.localize('watermark.showCommands', "Command Pallette"),
+		text: nls.localize('watermark.showCommands', "Command Palette"),
 		ids: ['workbench.action.showCommands']
 	},
 	{
@@ -25,7 +25,7 @@ const entries = [
 	},
 	{
 		text: nls.localize('watermark.addCursor', "Add Cursors Above/Below"),
-		ids: ['cursorColumnSelectUp', 'cursorColumnSelectDown']
+		ids: ['editor.action.insertCursorAbove', 'editor.action.insertCursorBelow']
 	},
 	{
 		text: nls.localize('watermark.toggleTerminal', "Toggle Terminal"),
@@ -41,6 +41,7 @@ export function create(container: Builder, keybindingService: IKeybindingService
 			'class': 'watermark',
 		});
 	function update() {
+		container.addClass('watermark-tips');
 		$(div).clearChildren()
 			.element('dl', {
 			}, dl => entries.map(entry => {
@@ -49,8 +50,8 @@ export function create(container: Builder, keybindingService: IKeybindingService
 					entry.ids
 						.map(id => keybindingService.lookupKeybindings(id)
 							.map(k => keybindingService.getLabelFor(k))
-							.join(', ') || UNBOUND)
-						.join(' / ')
+							.join(' or ') || UNBOUND)
+						.join(' or ')
 				));
 			}));
 	}

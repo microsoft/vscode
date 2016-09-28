@@ -39,8 +39,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.6.5' },
-	{ name: 'ms-vscode.node-debug2', version: '0.0.4' }
+	{ name: 'ms-vscode.node-debug', version: '1.6.7' },
+	{ name: 'ms-vscode.node-debug2', version: '0.0.6' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -191,14 +191,16 @@ function packageTask(platform, arch, opts) {
 		const checksums = computeChecksums(out, [
 			'vs/workbench/workbench.main.js',
 			'vs/workbench/workbench.main.css',
+			'vs/workbench/electron-browser/bootstrap/index.html',
+			'vs/workbench/electron-browser/bootstrap/index.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const extensions = gulp.src([
-			'extensions/**',
+		const extensionsList = [
+			'extensions/*/**',
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
@@ -211,8 +213,11 @@ function packageTask(platform, arch, opts) {
 			'!extensions/**/tsconfig.json',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
-			'!extensions/vscode-colorize-tests/**'
-		], { base: '.' });
+			'!extensions/vscode-colorize-tests/**',
+			...builtInExtensions.map(e => `!extensions/${ e.name }/**`)
+		];
+
+		const extensions = gulp.src(extensionsList, { base: '.' });
 
 		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
 			return ext.src(extension.name, extension.version)

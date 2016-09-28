@@ -8,12 +8,13 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
-import {TextEdit, Position} from 'vs/workbench/api/node/extHostTypes';
+import {TextDocumentSaveReason, TextEdit, Position} from 'vs/workbench/api/node/extHostTypes';
 import {MainThreadWorkspaceShape} from 'vs/workbench/api/node/extHost.protocol';
 import {ExtHostDocumentSaveParticipant} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import {OneGetThreadService} from './testThreadService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
+import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -46,7 +47,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('no listeners, no problem', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, workspace);
-		return participant.$participateInSave(resource).then(() => assert.ok(true));
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => assert.ok(true));
 	});
 
 	test('event delivery', () => {
@@ -57,10 +58,11 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			event = e;
 		});
 
-		return participant.$participateInSave(resource).then(() => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 
 			assert.ok(event);
+			assert.equal(event.reason, TextDocumentSaveReason.Explicit);
 			assert.equal(typeof event.waitUntil, 'function');
 		});
 	});
@@ -73,7 +75,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			event = e;
 		});
 
-		return participant.$participateInSave(resource).then(() => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 
 			assert.ok(event);
@@ -88,7 +90,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			throw new Error('💀');
 		});
 
-		return participant.$participateInSave(resource).then(values => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
 			sub.dispose();
 
 			const [first] = values;
@@ -107,7 +109,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			event = e;
 		});
 
-		return participant.$participateInSave(resource).then(() => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub1.dispose();
 			sub2.dispose();
 
@@ -127,7 +129,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			assert.equal(counter++, 1);
 		});
 
-		return participant.$participateInSave(resource).then(() => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub1.dispose();
 			sub2.dispose();
 		});
@@ -143,14 +145,45 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 
 		return TPromise.join([
-			participant.$participateInSave(resource),
-			participant.$participateInSave(resource),
-			participant.$participateInSave(resource),
-			participant.$participateInSave(resource)
+			participant.$participateInSave(resource, SaveReason.EXPLICIT),
+			participant.$participateInSave(resource, SaveReason.EXPLICIT),
+			participant.$participateInSave(resource, SaveReason.EXPLICIT),
+			participant.$participateInSave(resource, SaveReason.EXPLICIT)
 
 		]).then(values => {
 			sub.dispose();
 			assert.equal(callCount, 2);
+		});
+	});
+
+	test('event delivery, overall timeout', () => {
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, { timeout: 10, errors: 5 });
+
+		let callCount = 0;
+		let sub1 = participant.onWillSaveTextDocumentEvent(function (event) {
+			callCount += 1;
+			event.waitUntil(TPromise.timeout(7));
+		});
+
+		let sub2 = participant.onWillSaveTextDocumentEvent(function (event) {
+			callCount += 1;
+			event.waitUntil(TPromise.timeout(7));
+		});
+
+		let sub3 = participant.onWillSaveTextDocumentEvent(function (event) {
+			callCount += 1;
+		});
+
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
+			sub1.dispose();
+			sub2.dispose();
+			sub3.dispose();
+
+			assert.equal(callCount, 2);
+			assert.equal(values.length, 2);
+			const [first, second] = values;
+			assert.equal(first, true);
+			assert.equal(second, true);
 		});
 	});
 
@@ -164,7 +197,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			event.waitUntil(TPromise.timeout(10));
 		});
 
-		return participant.$participateInSave(resource).then(() => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 		});
 
@@ -188,7 +221,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			}));
 		});
 
-		return participant.$participateInSave(resource).then(() => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 		});
 	});
@@ -200,7 +233,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			event.waitUntil(TPromise.timeout(15));
 		});
 
-		return participant.$participateInSave(resource).then(values => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
 			sub.dispose();
 
 			const [first] = values;
@@ -220,7 +253,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			event = e;
 		});
 
-		return participant.$participateInSave(resource).then(() => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			assert.ok(event);
 			sub1.dispose();
 			sub2.dispose();
@@ -241,7 +274,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
 
-		return participant.$participateInSave(resource).then(() => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 
 			assert.equal(edits.length, 1);
@@ -271,7 +304,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
 
-		return participant.$participateInSave(resource).then(values => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
 			sub.dispose();
 
 			assert.equal(edits, undefined);
@@ -315,7 +348,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
 
-		return participant.$participateInSave(resource).then(values => {
+		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
 			sub1.dispose();
 			sub2.dispose();
 

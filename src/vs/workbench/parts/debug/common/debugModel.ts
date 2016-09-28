@@ -355,7 +355,7 @@ export class Variable extends ExpressionContainer implements debug.IExpression {
 export class Scope extends ExpressionContainer implements debug.IScope {
 
 	constructor(
-		private threadId: number,
+		threadId: number,
 		public name: string,
 		reference: number,
 		public expensive: boolean,

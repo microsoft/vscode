@@ -413,7 +413,7 @@ export class List<T> implements IDisposable {
 		return `${ this.idPrefix }_${ index }`;
 	}
 
-	private toListEvent<T>({ indexes }: ITraitChangeEvent) {
+	private toListEvent({ indexes }: ITraitChangeEvent) {
 		return { indexes, elements: indexes.map(i => this.view.element(i)) };
 	}
 

@@ -589,6 +589,24 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Rendering style of the line numbers.
+	 */
+	export enum TextEditorLineNumbersStyle {
+		/**
+		 * Do not render the line numbers.
+		 */
+		Off = 0,
+		/**
+		 * Render the line numbers.
+		 */
+		On = 1,
+		/**
+		 * Render the line numbers with values relative to the primary cursor location.
+		 */
+		Relative = 2
+	}
+
+	/**
 	 * Represents a [text editor](#TextEditor)'s [options](#TextEditor.options).
 	 */
 	export interface TextEditorOptions {
@@ -616,6 +634,13 @@ declare namespace vscode {
 		 * When setting a text editor's options, this property is optional.
 		 */
 		cursorStyle?: TextEditorCursorStyle;
+
+		/**
+		 * Render relative line numbers w.r.t. the current line number.
+		 * When getting a text editor's options, this property will always be present.
+		 * When setting a text editor's options, this property is optional.
+		 */
+		lineNumbers?: TextEditorLineNumbersStyle;
 	}
 
 	/**
@@ -3558,6 +3583,27 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Represents reasons why a text document is saved.
+	 */
+	export enum TextDocumentSaveReason {
+
+		/**
+		 * Explicitly triggered, e.g. by the user pressing save or by an API call.
+		 */
+		Explicit = 1,
+
+		/**
+		 * Automatic after a delay.
+		 */
+		Auto = 2,
+
+		/**
+		 * When the editor lost focus.
+		 */
+		FocusOut = 3
+	}
+
+	/**
 	 * An event that is fired when a [document](#TextDocument) will be saved.
 	 *
 	 * To make modifications to the document before it is being saved, call the
@@ -3570,6 +3616,11 @@ declare namespace vscode {
 		 * The document that will be saved.
 		 */
 		document: vscode.TextDocument;
+
+		/**
+		 * The reason why save was triggered.
+		 */
+		reason: TextDocumentSaveReason;
 
 		/**
 		 * Allows to pause the event loop and to apply [pre-save-edits](#TextEdit).
@@ -3740,6 +3791,16 @@ declare namespace vscode {
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) will be saved to disk.
+		 *
+		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrety the editor
+		 * might save without firing this event. For instance when shutting down with dirty files.
+		 *
+		 * *Note 2:* Subscribers are called sequentially and they can [delay](#TextDocumentWillSaveEvent.waitUntil) saving
+		 * by registering asynchronous work. Protection against misbehaving listeners is implemented as such:
+		 *  * there is an overall time budget that all listeners share and if that is exhausted no further listener is called
+		 *  * listeners that take a long time or produce errors frequently will not be called anymore
+		 *
+		 * The current thresholds are 1.5 seconds as overall time budget and a listener can misbehave 3 times before being ignored.
 		 */
 		export const onWillSaveTextDocument: Event<TextDocumentWillSaveEvent>;
 

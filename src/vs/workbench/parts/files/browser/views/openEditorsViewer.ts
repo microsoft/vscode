@@ -123,10 +123,7 @@ export class Renderer implements IRenderer {
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
-	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
-		@ITextFileService private textFileService: ITextFileService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+	constructor(private actionProvider: ActionProvider, @IInstantiationService private instantiationService: IInstantiationService,
 	) {
 		// noop
 	}
@@ -198,7 +195,6 @@ export class Controller extends treedefaults.DefaultController {
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService

@@ -39,7 +39,6 @@ import {CollapseAction} from 'vs/workbench/browser/viewlet';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Position, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
@@ -554,9 +553,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(id, label);
@@ -806,24 +803,6 @@ export class MoveFileToTrashAction extends BaseDeleteFileAction {
 		@IEventService eventService: IEventService
 	) {
 		super(MoveFileToTrashAction.ID, nls.localize('delete', "Delete"), tree, element, true, contextService, editorService, fileService, messageService, textFileService, eventService);
-	}
-}
-
-/* Delete File/Folder */
-export class DeleteFileAction extends BaseDeleteFileAction {
-	public static ID = 'workbench.files.action.deleteFile';
-
-	constructor(
-		tree: ITree,
-		element: FileStat,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEventService eventService: IEventService
-	) {
-		super(DeleteFileAction.ID, nls.localize('delete', "Delete"), tree, element, false, contextService, editorService, fileService, messageService, textFileService, eventService);
 	}
 }
 
@@ -1253,8 +1232,7 @@ export class GlobalCompareResourcesAction extends Action {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IMessageService private messageService: IMessageService,
-		@IEventService private eventService: IEventService
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}
@@ -1419,7 +1397,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService
 	) {
 		super(id, label, messageService);
@@ -1548,8 +1525,6 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService,
 		@IMessageService messageService: IMessageService
 	) {
 		super(id, label, messageService);
@@ -1909,7 +1884,6 @@ export function keybindingForAction(id: string): Keybinding {
 			return new Keybinding(isMacintosh ? KeyCode.Enter : KeyCode.F2);
 		case SaveFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
-		case DeleteFileAction.ID:
 		case MoveFileToTrashAction.ID:
 			return new Keybinding(isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete);
 		case CopyFileAction.ID:

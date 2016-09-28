@@ -14,6 +14,7 @@ import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
 import {IConfigurationService, IConfigurationServiceEvent, IConfigurationValue, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 export class ConfigurationService<T> implements IConfigurationService, IDisposable {
 
@@ -25,6 +26,8 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 	private cache: T;
 
 	private _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent>;
+
+	private _telemetryService: ITelemetryService;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService
@@ -38,7 +41,12 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 		this.disposables.push(toDisposable(() => this.rawConfig.dispose()));
 
 		// Listeners
-		this.disposables.push(this.rawConfig.onDidUpdateConfiguration(config => this.onConfigurationChange()));
+		this.disposables.push(this.rawConfig.onDidUpdateConfiguration(event => {
+			this.onConfigurationChange();
+			if (this._telemetryService) {
+				this._telemetryService.publicLog('updateUserConfiguration', { userConfigurationKeys: Object.keys(event.config) });
+			}
+		}));
 		this.disposables.push(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onConfigurationChange()));
 	}
 
@@ -94,5 +102,9 @@ export class ConfigurationService<T> implements IConfigurationService, IDisposab
 
 	public dispose(): void {
 		this.disposables = dispose(this.disposables);
+	}
+
+	public set telemetryService(value: ITelemetryService) {
+		this._telemetryService = value;
 	}
 }

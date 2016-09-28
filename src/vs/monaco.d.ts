@@ -116,7 +116,7 @@ declare module monaco {
      */
     export class Uri {
         static isUri(thing: any): thing is Uri;
-        constructor();
+        protected constructor();
         /**
          * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
          * The part before the first colon.
@@ -1035,6 +1035,8 @@ declare module monaco.editor {
         Indent = 2,
     }
 
+    export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
+
     /**
      * Configuration options for the editor.
      */
@@ -1070,7 +1072,7 @@ declare module monaco.editor {
          * Otherwise, line numbers will not be rendered.
          * Defaults to true.
          */
-        lineNumbers?: any;
+        lineNumbers?: LineNumbersOption;
         /**
          * Should the corresponding line be selected when clicking on the line number?
          * Defaults to true.
@@ -1387,7 +1389,9 @@ declare module monaco.editor {
         experimentalScreenReader: boolean;
         rulers: number[];
         ariaLabel: string;
-        lineNumbers: any;
+        renderLineNumbers: boolean;
+        renderCustomLineNumbers: (lineNumber: number) => string;
+        renderRelativeLineNumbers: boolean;
         selectOnLineNumbers: boolean;
         glyphMargin: boolean;
         revealHorizontalRightPadding: number;
@@ -1413,7 +1417,9 @@ declare module monaco.editor {
         experimentalScreenReader: boolean;
         rulers: boolean;
         ariaLabel: boolean;
-        lineNumbers: boolean;
+        renderLineNumbers: boolean;
+        renderCustomLineNumbers: boolean;
+        renderRelativeLineNumbers: boolean;
         selectOnLineNumbers: boolean;
         glyphMargin: boolean;
         revealHorizontalRightPadding: boolean;

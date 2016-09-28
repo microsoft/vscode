@@ -18,7 +18,6 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
-import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
 import {BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions} from 'vs/workbench/common/editor';
@@ -30,7 +29,6 @@ import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, POSITIONS, Direction} from 'vs/platform/editor/common/editor';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IEventService} from 'vs/platform/event/common/event';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -103,7 +101,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		id: string,
 		restoreFromStorage: boolean,
 		@IMessageService private messageService: IMessageService,
-		@IEventService private eventService: IEventService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService,
 		@IPartService private partService: IPartService,

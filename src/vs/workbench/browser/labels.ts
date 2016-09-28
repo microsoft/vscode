@@ -135,27 +135,38 @@ export function getIconClasses(modeService: IModeService, arg1?: uri | string, i
 		path = arg1.fsPath;
 	}
 
+	// we always set these base classes even if we do not have a path
 	const classes = isFolder ? ['folder-icon'] : ['file-icon'];
 
 	if (path) {
 		const basename = paths.basename(path);
 		const dotSegments = basename.split('.');
 
-		const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
-		if (name) {
-			classes.push(`${cssEscape(name.toLowerCase())}-name-file-icon`);
-		}
-
-		const extensions = dotSegments.splice(1);
-		if (extensions.length > 0) {
-			for (let i = 0; i < extensions.length; i++) {
-				classes.push(`${cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
+		// Folders
+		if (isFolder) {
+			if (basename) {
+				classes.push(`${basename.toLowerCase()}-name-folder-icon`);
 			}
 		}
 
-		const langId = modeService.getModeIdByFilenameOrFirstLine(path);
-		if (langId) {
-			classes.push(`${cssEscape(langId)}-lang-file-icon`);
+		// Files
+		else {
+			const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
+			if (name) {
+				classes.push(`${cssEscape(name.toLowerCase())}-name-file-icon`);
+			}
+
+			const extensions = dotSegments.splice(1);
+			if (extensions.length > 0) {
+				for (let i = 0; i < extensions.length; i++) {
+					classes.push(`${cssEscape(extensions.slice(i).join('.').toLowerCase())}-ext-file-icon`); // add each combination of all found extensions if more than one
+				}
+			}
+
+			const langId = modeService.getModeIdByFilenameOrFirstLine(path);
+			if (langId) {
+				classes.push(`${cssEscape(langId)}-lang-file-icon`);
+			}
 		}
 	}
 

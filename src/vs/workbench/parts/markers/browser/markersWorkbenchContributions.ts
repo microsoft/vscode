@@ -74,8 +74,10 @@ export function registerContributions(): void {
 		'vs/workbench/parts/markers/browser/markersPanel',
 		'MarkersPanel',
 		Constants.MARKERS_PANEL_ID,
-		Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS,
-		'markersPanel'
+		Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+		'markersPanel',
+		10
+
 	));
 
 	let registry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);

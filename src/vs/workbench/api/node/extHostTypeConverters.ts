@@ -16,6 +16,7 @@ import {IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation}
 import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
+import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 export interface PositionLike {
 	line: number;
@@ -315,7 +316,7 @@ export const Suggest = {
 
 	from(item: vscode.CompletionItem, disposables: IDisposable[]): modes.ISuggestion {
 		const suggestion: modes.ISuggestion = {
-			label: item.label,
+			label: item.label || '<missing label>',
 			insertText: item.insertText || item.label,
 			type: CompletionItemKind.from(item.kind),
 			detail: item.detail,
@@ -434,5 +435,20 @@ export namespace Command {
 			};
 		}
 		return result;
+	}
+}
+
+export namespace TextDocumentSaveReason {
+
+	export function to(reason: SaveReason): vscode.TextDocumentSaveReason {
+		switch (reason) {
+			case SaveReason.AUTO:
+				return types.TextDocumentSaveReason.Auto;
+			case SaveReason.EXPLICIT:
+				return types.TextDocumentSaveReason.Explicit;
+			case SaveReason.FOCUS_CHANGE:
+			case SaveReason.WINDOW_CHANGE:
+				return types.TextDocumentSaveReason.FocusOut;
+		}
 	}
 }

@@ -182,7 +182,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 				return;
 			}
 			let e = new StandardMouseWheelEvent(browserEvent);
-			if (e.browserEvent.ctrlKey) {
+			if (e.browserEvent.ctrlKey || e.browserEvent.metaKey) {
 				let zoomLevel:number = EditorZoom.getZoomLevel();
 				let delta = e.deltaY > 0 ? 1 : -1;
 				EditorZoom.setZoomLevel(zoomLevel + delta);

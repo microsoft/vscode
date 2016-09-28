@@ -232,13 +232,52 @@ class InternalEditorOptionsHelper {
 			tabFocusMode = true;
 		}
 
+		let renderLineNumbers: boolean;
+		let renderCustomLineNumbers: (lineNumber:number)=>string;
+		let renderRelativeLineNumbers: boolean;
+
+		// Compatibility with old true or false values
+		if (<any>lineNumbers === true) {
+			lineNumbers = 'on';
+		} else if (<any>lineNumbers === false) {
+			lineNumbers = 'off';
+		}
+
+		if (typeof lineNumbers === 'function') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = lineNumbers;
+			renderRelativeLineNumbers = false;
+		} else if (lineNumbers === 'relative') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = true;
+		} else if (lineNumbers === 'on') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = false;
+		} else {
+			renderLineNumbers = false;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = false;
+		}
+
+		let renderWhitespace = opts.renderWhitespace;
+		// Compatibility with old true or false values
+		if (<any>renderWhitespace === true) {
+			renderWhitespace = 'boundary';
+		} else if (<any>renderWhitespace === false) {
+			renderWhitespace = 'none';
+		}
+
 		let viewInfo = new editorCommon.InternalEditorViewOptions({
 			theme: opts.theme,
 			canUseTranslate3d: canUseTranslate3d,
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
 			rulers: toSortedIntegerArray(opts.rulers),
 			ariaLabel: String(opts.ariaLabel),
-			lineNumbers: lineNumbers,
+			renderLineNumbers: renderLineNumbers,
+			renderCustomLineNumbers: renderCustomLineNumbers,
+			renderRelativeLineNumbers: renderRelativeLineNumbers,
 			selectOnLineNumbers: toBoolean(opts.selectOnLineNumbers),
 			glyphMargin: glyphMargin,
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
@@ -251,7 +290,7 @@ class InternalEditorOptionsHelper {
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			editorClassName: editorClassName,
 			stopRenderingLineAfter: stopRenderingLineAfter,
-			renderWhitespace: opts.renderWhitespace,
+			renderWhitespace: renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: toBoolean(opts.renderLineHighlight),
@@ -610,7 +649,8 @@ let editorConfiguration:IConfigurationNode = {
 			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the lineHeight from the fontSize.")
 		},
 		'editor.lineNumbers' : {
-			'type': 'boolean',
+			'type': 'string',
+			'enum': ['off', 'on', 'relative'],
 			'default': DefaultConfig.editor.lineNumbers,
 			'description': nls.localize('lineNumbers', "Controls visibility of line numbers")
 		},

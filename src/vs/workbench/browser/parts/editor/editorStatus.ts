@@ -252,8 +252,7 @@ export class EditorStatus implements IStatusbarItem {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
@@ -683,7 +682,6 @@ export class ChangeModeAction extends Action {
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(actionId, actionLabel);

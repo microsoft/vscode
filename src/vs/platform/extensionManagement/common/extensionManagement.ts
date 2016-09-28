@@ -111,6 +111,7 @@ export interface IGalleryExtensionProperties {
 export interface IGalleryExtensionAssets {
 	manifest: string;
 	readme: string;
+	changelog: string;
 	download: string;
 	icon: string;
 	iconFallback: string;
@@ -142,6 +143,7 @@ export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
 	publisherDisplayName: string;
+	dependenciesInstalled: boolean;
 }
 
 export enum LocalExtensionType {

@@ -290,7 +290,7 @@ export class MarkersModel {
 
 	public getTitle(markerStatistics: MarkerStatistics):string {
 		let title= MarkersModel.getStatisticsLabel(markerStatistics);
-		return title ? title : Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS;
+		return title ? title : Messages.MARKERS_PANEL_TITLE_PROBLEMS;
 	}
 
 	public getMessage():string {

@@ -706,7 +706,7 @@ export class QuickOpenModel implements
 		return nls.localize('quickOpenAriaLabel', "picker");
 	}
 
-	isVisible<T>(entry: QuickOpenEntry): boolean {
+	isVisible(entry: QuickOpenEntry): boolean {
 		return !entry.isHidden();
 	}
 

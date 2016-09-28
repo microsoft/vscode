@@ -16,7 +16,7 @@ import { once } from 'vs/base/common/event';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IFileStatus, IGitServiceError, GitErrorCodes, Status, StatusType, AutoFetcherState, IGitConfiguration, IAutoFetcher, ServiceEvents, ServiceState,
-	IModel, IGitOperation, IRawGitService, IGitService, IGitCredentialScope, RawServiceState, ServiceOperations, IPushOptions, ICommit, IRawStatus } from 'vs/workbench/parts/git/common/git';
+	IModel, IGitOperation, IRawGitService, IGitService, RawServiceState, ServiceOperations, IPushOptions, ICommit, IRawStatus } from 'vs/workbench/parts/git/common/git';
 import { Model } from 'vs/workbench/parts/git/common/gitModel';
 import { NativeGitIndexStringEditorInput, GitIndexDiffEditorInput, GitWorkingTreeDiffEditorInput, GitDiffEditorInput } from 'vs/workbench/parts/git/browser/gitEditorInputs';
 import { GitOperation } from 'vs/workbench/parts/git/browser/gitOperations';
@@ -378,11 +378,6 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 	dispose(): void {
 		this.disable();
 	}
-}
-
-interface IGitCredentialRequest {
-	guid: string;
-	scope: IGitCredentialScope;
 }
 
 const IgnoreOldGitStorageKey = 'settings.workspace.git.ignoreOld';

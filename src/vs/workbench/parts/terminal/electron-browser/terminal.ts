@@ -75,7 +75,6 @@ export interface ITerminalService {
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
-	togglePanel(): TPromise<void>;
 	setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void;
 }
 

@@ -96,6 +96,7 @@ enum FilterType {
 const AssetType = {
 	Icon: 'Microsoft.VisualStudio.Services.Icons.Default',
 	Details: 'Microsoft.VisualStudio.Services.Content.Details',
+	Changelog: 'Microsoft.VisualStudio.Services.Content.Changelog',
 	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
 	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
 	License: 'Microsoft.VisualStudio.Services.Content.License',
@@ -223,6 +224,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 	const assets = {
 		manifest: getAssetSource(version.files, AssetType.Manifest),
 		readme: getAssetSource(version.files, AssetType.Details),
+		changelog: getAssetSource(version.files, AssetType.Changelog),
 		download: `${ getAssetSource(version.files, AssetType.VSIX) }?install=true`,
 		icon,
 		iconFallback,
@@ -426,6 +428,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					extension.assets.download = `${getAssetSource(rawVersion.files, AssetType.VSIX)}?install=true`;
 					extension.compatibilityChecked = true;
 					extension.isCompatible = true;
+					extension.version = rawVersion.version;
 					return extension;
 				});
 		});
@@ -498,21 +501,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
-		const version = this.getLastValidExtensionVersionFromProperties(versions);
+		const version = this.getLastValidExtensionVersionFromProperties(extension, versions);
 		if (version) {
-			return TPromise.wrap(version);
+			return version;
 		}
 		return this.getLastValidExtensionVersionReccursively(extension, versions);
 	}
 
-	private getLastValidExtensionVersionFromProperties(versions: IRawGalleryExtensionVersion[]): IRawGalleryExtensionVersion {
+	private getLastValidExtensionVersionFromProperties(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
 		for (const version of versions) {
 			const engine = getEngine(version);
 			if (!engine) {
 				return null;
 			}
 			if (validateVersions(pkg.version, engine, [])) {
-				return version;
+				return TPromise.wrap(version);
 			}
 		}
 		return null;

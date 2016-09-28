@@ -83,6 +83,7 @@ import {IExtensionManagementService} from 'vs/platform/extensionManagement/commo
 import {URLChannelClient} from 'vs/platform/url/common/urlIpc';
 import {IURLService} from 'vs/platform/url/common/url';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
+import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -257,7 +258,7 @@ export class WorkbenchShell {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
-				experiments: loadExperiments(this.storageService)
+				experiments: loadExperiments(this.storageService, this.configurationService)
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -274,11 +275,14 @@ export class WorkbenchShell {
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
-			NullTelemetryService._experiments = loadExperiments(this.storageService);
+			NullTelemetryService._experiments = loadExperiments(this.storageService, this.configurationService);
 			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
+		if (this.configurationService instanceof WorkspaceConfigurationService) {
+			this.configurationService.telemetryService = this.telemetryService;
+		}
 
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);

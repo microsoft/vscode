@@ -25,16 +25,16 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 
 export interface IEditorPart {
-	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
-	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
-	replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
+	openEditor(input?: IEditorInput, options?: IEditorOptions|ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
+	openEditor(input?: IEditorInput, options?: IEditorOptions|ITextEditorOptions, position?: Position): TPromise<BaseEditor>;
+	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions|ITextEditorOptions }[]): TPromise<BaseEditor[]>;
+	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions|ITextEditorOptions }[]): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
-	getActiveEditorInput(): EditorInput;
+	getActiveEditorInput(): IEditorInput;
 }
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
@@ -142,9 +142,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
-		// @ben TS(2.0.2) - See https://github.com/Microsoft/TypeScript/issues/7294
-		// For now I opt we make the signatures the same if possible
-		return (this.editorPart as any).openEditor(input, options, arg3);
+		return this.editorPart.openEditor(input, options, arg3);
 	}
 
 	public openEditors(editors: { input: IResourceInput, position: Position }[]): TPromise<IEditor[]>;
@@ -160,9 +158,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 					position: editors[index].position
 				};
 			});
-			// @ben TS(2.0.2) - See https://github.com/Microsoft/TypeScript/issues/7294
-			// For now I opt we make the signatures the same if possible
-			return (this.editorPart as any).openEditors(typedInputs);
+
+			return this.editorPart.openEditors(typedInputs);
 		});
 	}
 
@@ -180,9 +177,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 						options
 					};
 				});
-				// @ben TS(2.0.2) - See https://github.com/Microsoft/TypeScript/issues/7294
-				// For now I opt we make the signatures the same if possible
-				return (this.editorPart as any).replaceEditors(typedReplacements);
+
+				return this.editorPart.replaceEditors(typedReplacements);
 			});
 		});
 	}

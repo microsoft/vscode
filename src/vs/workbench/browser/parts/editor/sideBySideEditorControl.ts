@@ -20,12 +20,9 @@ import errors = require('vs/base/common/errors');
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {isMacintosh} from 'vs/base/common/platform';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {IEventService} from 'vs/platform/event/common/event';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -131,10 +128,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		parent: Builder,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,

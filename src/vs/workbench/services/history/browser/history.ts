@@ -16,7 +16,6 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IRecentlyClosedEditor, IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -74,10 +73,6 @@ interface ISerializedEditorInput {
 	value: string;
 }
 
-interface IInputWithPath {
-	getPath?: () => string;
-}
-
 export abstract class BaseHistoryService {
 	protected toUnbind: IDisposable[];
 
@@ -85,12 +80,11 @@ export abstract class BaseHistoryService {
 	private _isPure: boolean;
 
 	constructor(
-		private eventService: IEventService,
 		protected editorGroupService: IEditorGroupService,
 		protected editorService: IWorkbenchEditorService,
 		protected contextService: IWorkspaceContextService,
 		private environmentService: IEnvironmentService,
-		private integrityService: IIntegrityService
+		integrityService: IIntegrityService
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
@@ -251,7 +245,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private registry: IEditorRegistry;
 
 	constructor(
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -261,7 +254,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IIntegrityService integrityService: IIntegrityService
 	) {
-		super(eventService, editorGroupService, editorService, contextService, environmentService, integrityService);
+		super(editorGroupService, editorService, contextService, environmentService, integrityService);
 
 		this.index = -1;
 		this.stack = [];

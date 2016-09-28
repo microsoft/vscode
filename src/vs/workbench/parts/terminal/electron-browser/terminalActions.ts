@@ -8,24 +8,24 @@ import os = require('os');
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { ITerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
-export class ToggleTerminalAction extends Action {
+export class ToggleTerminalAction extends TogglePanelAction {
 
 	public static ID = 'workbench.action.terminal.toggleTerminal';
 	public static LABEL = nls.localize('workbench.action.terminal.toggleTerminal', "Toggle Integrated Terminal");
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService
 	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.terminalService.togglePanel();
+		super(id, label, TERMINAL_PANEL_ID, panelService, partService);
 	}
 }
 

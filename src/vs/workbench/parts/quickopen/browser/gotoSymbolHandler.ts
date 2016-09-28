@@ -21,7 +21,6 @@ import {KeyMod} from 'vs/base/common/keyCodes';
 import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {DocumentSymbolProviderRegistry, SymbolInformation, SymbolKind} from 'vs/editor/common/modes';
@@ -375,8 +374,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private activeOutlineRequest: TPromise<OutlineModel>;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super();
 
