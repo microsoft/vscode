@@ -74,9 +74,10 @@ export abstract class TogglePanelAction extends Action {
 		label: string,
 		panelId: string,
 		protected panelService: IPanelService,
-		private partService: IPartService
+		private partService: IPartService,
+		cssClass?: string
 	) {
-		super(id, name);
+		super(id, label, cssClass);
 		this.panelId = panelId;
 	}
 

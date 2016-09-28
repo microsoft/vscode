@@ -166,7 +166,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return this.downloadAndInstall(compatibleVersion);
 					}
 					if (promptToInstallDependencies) {
-						const message = nls.localize('installDependeciesConfirmation', "Installing {0} also installs its dependencies. Would you like to continue?", extension.displayName);
+						const message = nls.localize('installDependeciesConfirmation', "Installing '{0}' also installs its dependencies. Would you like to continue?", extension.displayName);
 						const options = [
 							nls.localize('install', "Yes"),
 							nls.localize('doNotInstall', "No")
@@ -405,7 +405,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private getOutdatedExtensionIds(): TPromise<ILocalExtension[]> {
-		return this.scanUserExtensions()
+		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User)
 			.then(extensions => values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`)))
 			.then(versions => flatten(versions.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
 	}

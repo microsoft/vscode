@@ -192,20 +192,18 @@ function getAssetSource(files: IRawGalleryExtensionFile[], type: string): string
 	const result = files.filter(f => f.assetType === type)[0];
 	return result && result.source;
 }
+
 function getDependencies(version: IRawGalleryExtensionVersion): string[] {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Dependency) : [];
-	if (values.length && values[0].value) {
-		return values[0].value.split(',');
-	}
-	return [];
+	const value = values.length > 0 && values[0].value;
+	return value ? value.split(',') : [];
 }
+
 function getEngine(version: IRawGalleryExtensionVersion): string {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Engine) : [];
-	if (values.length && values[0].value) {
-		return values[0].value;
-	}
-	return '';
+	return (values.length > 0 && values[0].value) || '';
 }
+
 function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: { [key: string]: string; }): IGalleryExtension {
 	const [version] = galleryExtension.versions;
 
