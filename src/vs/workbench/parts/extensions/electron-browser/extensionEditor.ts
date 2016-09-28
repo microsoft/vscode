@@ -111,6 +111,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	private icon: HTMLImageElement;
 	private name: HTMLElement;
+	private identifier: HTMLElement;
 	private license: HTMLElement;
 	private publisher: HTMLElement;
 	private installCount: HTMLElement;
@@ -164,6 +165,7 @@ export class ExtensionEditor extends BaseEditor {
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		this.name = append(title, $('span.name.clickable'));
+		this.identifier = append(title, $('span.identifier'));
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher.clickable'));
@@ -209,6 +211,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.icon.src = extension.iconUrl;
 
 		this.name.textContent = extension.displayName;
+		this.identifier.textContent = `${extension.publisher}.${extension.name}`;
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
 

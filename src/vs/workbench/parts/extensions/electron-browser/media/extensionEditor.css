@@ -39,11 +39,22 @@
 }
 
 .extension-editor > .header > .details > .title > .name {
-	flex: 1;
+	flex: 0;
 	font-size: 26px;
 	line-height: 30px;
 	font-weight: 600;
 	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .title > .identifier {
+	margin-left: 10px;
+	font-size: 14px;
+	opacity: 0.6;
+	background: rgba(173, 173, 173, 0.51);
+	padding: 0px 4px;
+	border-radius: 4px;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .extension-editor > .header > .details > .subtitle {
