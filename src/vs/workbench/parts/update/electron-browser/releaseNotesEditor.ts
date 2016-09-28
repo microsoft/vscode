@@ -21,7 +21,9 @@ import WebView from 'vs/workbench/parts/html/browser/webview';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { asText } from 'vs/base/node/request';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import product from 'vs/platform/product';
 
 function renderBody(body: string): string {
@@ -49,7 +51,8 @@ export class ReleaseNotesEditor extends BaseEditor {
 		@IThemeService private themeService: IThemeService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IRequestService private requestService: IRequestService,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService);
 		this.disposables = [];
@@ -77,6 +80,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 
 		this.loadContents(() => this.requestService.request({ url })
 			.then(asText)
+			.then(text => this.patchKeybindings(text))
 			.then(marked.parse)
 			.then(renderBody)
 			.then<void>(body => {
@@ -112,6 +116,32 @@ export class ReleaseNotesEditor extends BaseEditor {
 		promise = always(promise, () => removeClass(this.content, 'loading'));
 
 		this.contentDisposables.push(toDisposable(() => promise.cancel()));
+	}
+
+	private patchKeybindings(text: string): string {
+		return text.replace(/kb\(([a-z.\d\-]+)\)/gi, (match, kb) => {
+			const keybinding = this.keybindingService.lookupKeybindings(kb)[0];
+
+			if (!keybinding) {
+				return match;
+			}
+
+			return this.keybindingService.getLabelFor(keybinding);
+		}).replace(/kbstyle\(([^\)]+)\)/gi, (match, kb) => {
+			const code = Keybinding.fromUserSettingsLabel(kb);
+
+			if (!code) {
+				return match;
+			}
+
+			const keybinding = new Keybinding(code);
+
+			if (!keybinding) {
+				return match;
+			}
+
+			return this.keybindingService.getLabelFor(keybinding);
+		});
 	}
 
 	layout(): void {
