@@ -109,11 +109,6 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
 			'default': true
-		},
-		'workbench.panels.showInSidebar': {
-			'type': 'boolean',
-			'description': nls.localize('panelsShowInSidebar', "Controls if panel icons are shown in the sidebar below the viewlet icons."),
-			'default': false
 		}
 	}
 });

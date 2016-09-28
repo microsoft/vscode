@@ -884,9 +884,6 @@ export interface IWorkbenchEditorConfiguration {
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
 			openPositioning: string;
-		},
-		panels: {
-			showInSidebar: boolean
 		}
 	};
 }

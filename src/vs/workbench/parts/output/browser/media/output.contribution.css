@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.output {
-	background: url('output.svg') center center no-repeat;
-	background-position: 50% !important;
-	background-size: 32px;
-}
-
-
 .monaco-workbench .output-action.clear-output {
 	background: url('clear_output.svg') center center no-repeat;
 }
