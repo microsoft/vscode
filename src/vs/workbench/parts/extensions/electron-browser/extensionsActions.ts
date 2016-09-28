@@ -307,7 +307,7 @@ export class EnableAction extends Action {
 
 export class UpdateAllAction extends Action {
 
-	static ID = 'extensions.update-all';
+	static ID = 'workbench.extensions.action.updateAllExtensions';
 	static LABEL = localize('updateAll', "Update All Extensions");
 
 	private disposables: IDisposable[] = [];
