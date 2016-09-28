@@ -16,6 +16,7 @@ const filter = require('gulp-filter');
 const mocha = require('gulp-mocha');
 const es = require('event-stream');
 const watch = require('./build/lib/watch');
+const sass = require('gulp-sass');
 const nls = require('./build/lib/nls');
 const util = require('./build/lib/util');
 const reporter = require('./build/lib/reporter')();
@@ -81,9 +82,13 @@ function compileTask(out, build) {
 			gulp.src('src/**', { base: 'src' }),
 			gulp.src('node_modules/typescript/lib/lib.d.ts')
 		);
+		const scssFilter = filter('**/*.scss', { restore: true });
 
 		return src
 			.pipe(compile())
+			.pipe(scssFilter)
+			.pipe(sass())
+			.pipe(scssFilter.restore)
 			.pipe(gulp.dest(out))
 			.pipe(monacodtsTask(out, false));
 	};
@@ -98,9 +103,13 @@ function watchTask(out, build) {
 			gulp.src('node_modules/typescript/lib/lib.d.ts')
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
+		const scssFilter = filter('**/*.scss', { restore: true });
 
 		return watchSrc
 			.pipe(util.incremental(compile, src, true))
+			.pipe(scssFilter)
+			.pipe(sass())
+			.pipe(scssFilter.restore)
 			.pipe(gulp.dest(out))
 			.pipe(monacodtsTask(out, true));
 	};

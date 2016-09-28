@@ -63,6 +63,7 @@
     "gulp-remote-src": "^0.4.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
+    "gulp-sass": "^2.3.2",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.6.0",
     "gulp-tsb": "^2.0.1",
