@@ -5,13 +5,6 @@
 
 /* Debug repl */
 
-/* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.repl {
-	background: url('repl-panel.svg') center center no-repeat;
-	background-position: 50% !important;
-	background-size: 32px;
-}
-
 .monaco-workbench .repl {
 	height: 100%;
 	position: relative;
