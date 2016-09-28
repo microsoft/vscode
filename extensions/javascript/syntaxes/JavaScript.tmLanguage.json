@@ -498,7 +498,7 @@
 					"include": "#jsx-tag-invalid"
 				},
 				{
-					"begin": "(?<=(?:'|\"|})>)",
+					"begin": "(?<!text/javascript(?:'|\")>)(?<=(?:'|\"|})>)",
 					"end": "(?=</)",
 					"name": "meta.jsx.children.js",
 					"patterns": [
