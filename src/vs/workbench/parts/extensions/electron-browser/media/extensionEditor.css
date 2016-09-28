@@ -55,6 +55,7 @@
 	border-radius: 4px;
 	user-select: text;
 	-webkit-user-select: text;
+	white-space: nowrap;
 }
 
 .extension-editor > .header > .details > .subtitle {
