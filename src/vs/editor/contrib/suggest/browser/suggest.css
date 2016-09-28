@@ -201,6 +201,7 @@
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
+	white-space: pre-wrap;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
