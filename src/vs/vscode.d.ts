@@ -461,7 +461,7 @@ declare namespace vscode {
 		 * @return A range that reflects the given change. Will return `this` range if the change
 		 * is not changing anything.
 		 */
-		with (change: { start ?: Position, end ?: Position }): Range;
+		with(change: { start?: Position, end?: Position }): Range;
 	}
 
 	/**
@@ -962,7 +962,7 @@ declare namespace vscode {
 		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
-		edit(callback: (editBuilder: TextEditorEdit) => void, options?:{ undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -3792,7 +3792,7 @@ declare namespace vscode {
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) will be saved to disk.
 		 *
-		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrety the editor
+		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrity the editor
 		 * might save without firing this event. For instance when shutting down with dirty files.
 		 *
 		 * *Note 2:* Subscribers are called sequentially and they can [delay](#TextDocumentWillSaveEvent.waitUntil) saving
