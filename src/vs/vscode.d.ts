@@ -2661,12 +2661,12 @@ declare namespace vscode {
 	 * from `launch.json`:
 	 *
 	 * ```
-	 *	// launch.json configuration
-	 * 	const config = workspace.getConfiguration('launch');
+	 * // launch.json configuration
+	 * const config = workspace.getConfiguration('launch');
 	 *
 	 * // retrieve values
-	 * 	cont values = config.get('configurations')
-	 *```
+	 * const values = config.get('configurations');
+	 * ```
 	 */
 	export interface WorkspaceConfiguration {
 
