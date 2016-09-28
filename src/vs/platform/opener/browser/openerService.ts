@@ -45,27 +45,22 @@ export class OpenerService implements IOpenerService {
 			promise = this._commandService.executeCommand(path, ...args);
 
 		} else {
-			promise = this._editorService.resolveEditorModel({ resource }).then(model => {
-				if (!model) {
-					return;
-				}
-				let selection: {
-					startLineNumber: number;
-					startColumn: number;
+			let selection: {
+				startLineNumber: number;
+				startColumn: number;
+			};
+			const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
+			if (match) {
+				// support file:///some/file.js#73,84
+				// support file:///some/file.js#L73
+				selection = {
+					startLineNumber: parseInt(match[1]),
+					startColumn: match[2] ? parseInt(match[2]) : 1
 				};
-				const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
-				if (match) {
-					// support file:///some/file.js#73,84
-					// support file:///some/file.js#L73
-					selection = {
-						startLineNumber: parseInt(match[1]),
-						startColumn: match[2] ? parseInt(match[2]) : 1
-					};
-					// remove fragment
-					resource = resource.with({ fragment: '' });
-				}
-				return this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
-			});
+				// remove fragment
+				resource = resource.with({ fragment: '' });
+			}
+			promise = this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
 		}
 
 		return TPromise.as(promise);
