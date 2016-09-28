@@ -700,13 +700,16 @@ suite('Glob', () => {
 	test('expression/pattern basename terms', function () {
 		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/*.foo')), []);
 		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo')), ['foo']);
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo/')), ['foo']);
 		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('{**/baz,**/foo}')), ['baz', 'foo']);
+		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('{**/baz/,**/foo/}')), ['baz', 'foo']);
 
 		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse({
 			'**/foo': true,
 			'{**/bar,**/baz}': true,
+			'{**/bar2/,**/baz2/}': true,
 			'**/bulb': false
-		})), ['foo', 'bar', 'baz']);
+		})), ['foo', 'bar', 'baz', 'bar2', 'baz2']);
 		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse({
 			'**/foo': { when: '$(basename).zip' },
 			'**/bar': true
@@ -754,4 +757,18 @@ suite('Glob', () => {
 			assert.strictEqual(parsed(text, null, siblingsFns[i]), result);
 		});
 	}
+
+	test('trailing slash', function () {
+		// Testing existing (more or less intuitive) behavior
+		assert.strictEqual(glob.parse('**/foo/')('bar/baz', 'baz'), false);
+		assert.strictEqual(glob.parse('**/foo/')('bar/foo', 'foo'), true);
+		assert.strictEqual(glob.parse('**/*.foo/')('bar/file.baz', 'file.baz'), false);
+		assert.strictEqual(glob.parse('**/*.foo/')('bar/file.foo', 'file.foo'), true);
+		assert.strictEqual(glob.parse('{**/foo/,**/abc/}')('bar/baz', 'baz'), false);
+		assert.strictEqual(glob.parse('{**/foo/,**/abc/}')('bar/foo', 'foo'), true);
+		assert.strictEqual(glob.parse('{**/foo/,**/abc/}')('bar/abc', 'abc'), true);
+		assert.strictEqual(glob.parse('{**/foo/,**/abc/}', { trimForExclusions: true })('bar/baz', 'baz'), false);
+		assert.strictEqual(glob.parse('{**/foo/,**/abc/}', { trimForExclusions: true })('bar/foo', 'foo'), true);
+		assert.strictEqual(glob.parse('{**/foo/,**/abc/}', { trimForExclusions: true })('bar/abc', 'abc'), true);
+	});
 });
