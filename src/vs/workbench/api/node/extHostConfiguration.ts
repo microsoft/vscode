@@ -53,7 +53,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 				}
 				return result;
 			},
-			update: (key: string, value: any, global: boolean) => {
+			update: (key: string, value: any, global: boolean = false) => {
 				key = section ? `${section}.${key}` : key;
 				const target = global ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
 				if (value !== void 0) {
