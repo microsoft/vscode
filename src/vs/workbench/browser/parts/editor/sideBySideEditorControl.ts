@@ -1705,7 +1705,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private getFromContainer(position: Position, key: string): any {
-		return this.silos[position].child().getProperty(key);
+		const silo = this.silos[position];
+
+		return silo ? silo.child().getProperty(key) : void 0;
 	}
 
 	public updateTitle(identifier: IEditorIdentifier): void {
@@ -1713,15 +1715,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {
+		const progressbar = this.getProgressBar(position);
+		if (!progressbar) {
+			return;
+		}
+
 		switch (state) {
 			case ProgressState.INFINITE:
-				this.getProgressBar(position).infinite().getContainer().show();
+				progressbar.infinite().getContainer().show();
 				break;
 			case ProgressState.DONE:
-				this.getProgressBar(position).done().getContainer().hide();
+				progressbar.done().getContainer().hide();
 				break;
 			case ProgressState.STOP:
-				this.getProgressBar(position).stop().getContainer().hide();
+				progressbar.stop().getContainer().hide();
 				break;
 		}
 	}
