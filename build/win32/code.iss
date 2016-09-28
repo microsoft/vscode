@@ -44,6 +44,7 @@ Name: "simplifiedChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh
 Name: "traditionalChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh-tw.isl,{#RepoDir}\build\win32\i18n\messages.zh-tw.isl" {#LocalizedLanguageFile("cht")}
 
 [InstallDelete]
+Type: filesandordirs; Name: {app}\resources\app\out
 Type: filesandordirs; Name: {app}\resources\app\plugins
 Type: filesandordirs; Name: {app}\resources\app\extensions
 Type: filesandordirs; Name: {app}\resources\app\node_modules
