@@ -11,7 +11,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISaveParticipant, ITextFileEditorModel } from 'vs/workbench/parts/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
@@ -117,12 +117,26 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 	}
 
 	private _editWithModel(model: IModel, edits: ISingleEditOperation[]): void {
-		model.applyEdits(edits.map(({text, range}) => ({
+
+		const [{range}] = edits;
+		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+
+		model.pushEditOperations([initialSelection], edits.map(FormatOnSaveParticipant._asIdentEdit), undoEdits => {
+			for (const {range} of undoEdits) {
+				if (Range.areIntersectingOrTouching(range, initialSelection)) {
+					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
+				}
+			}
+		});
+	}
+
+	private static _asIdentEdit({text, range}: ISingleEditOperation): IIdentifiedSingleEditOperation {
+		return {
 			text,
 			range: Range.lift(range),
 			identifier: undefined,
 			forceMoveMarkers: true
-		})));
+		};
 	}
 
 	private _findEditor(model: IModel) {
