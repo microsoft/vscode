@@ -440,11 +440,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					let options: electron.IForkOptions = {
 						execArgv: [] // [`--debug-brk=5859`]
 					};
-					try {
-						if (workspace.rootPath) {
-							options.cwd = fs.realpathSync(workspace.rootPath);
-						}
-					} catch (error) {
+					if (workspace.rootPath) {
 						options.cwd = workspace.rootPath;
 					}
 					let value = process.env.TSS_DEBUG;
@@ -585,13 +581,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return null;
 		}
 		// Both \ and / must be escaped in regular expressions
-		result = result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
-		try {
-			result = fs.realpathSync(result);
-		} catch (error) {
-			// Do nothing. Keep original path.
-		}
-		return result;
+		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 	}
 
 	public asUrl(filepath: string): Uri {
