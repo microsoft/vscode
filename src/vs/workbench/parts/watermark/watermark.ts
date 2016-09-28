@@ -46,10 +46,10 @@ export function create(container: Builder, keybindingService: IKeybindingService
 			.element('dl', {
 			}, dl => entries.map(entry => {
 				dl.element('dt', {}, dt => dt.text(entry.text));
-				dl.element('dd', {}, dd => dd.text(
+				dl.element('dd', {}, dd => dd.innerHtml(
 					entry.ids
 						.map(id => keybindingService.lookupKeybindings(id)
-							.map(k => keybindingService.getLabelFor(k))
+							.map(k => `<span class="shortcuts">${keybindingService.getLabelFor(k)}</span>`)
 							.join(' or ') || UNBOUND)
 						.join(' or ')
 				));
