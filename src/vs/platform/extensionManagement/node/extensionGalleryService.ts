@@ -9,6 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage } from 'vs/base/common/errors';
+import { memoize } from 'vs/base/common/decorators';
 import { ArraySet } from 'vs/base/common/set';
 import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
@@ -205,7 +206,7 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 	return (values.length > 0 && values[0].value) || '';
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: { [key: string]: string; }): IGalleryExtension {
+function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string): IGalleryExtension {
 	const [version] = galleryExtension.versions;
 
 	let iconFallback = getAssetSource(version.files, AssetType.Icon);
@@ -248,7 +249,6 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 			dependencies: getDependencies(version),
 			engine: getEngine(version)
 		},
-		downloadHeaders,
 		compatibilityChecked: false,
 		isCompatible: false
 	});
@@ -268,7 +268,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private extensionsGalleryUrl: string;
 
-	private getCommonHeaders(): TPromise<{ [key: string]: string; }> {
+	@memoize
+	private get commonHeaders(): TPromise<{ [key: string]: string; }> {
 		return this.telemetryService.getTelemetryInfo().then(({ machineId }) => {
 			const result: { [key: string]: string; } = {
 				'X-Market-Client-Id': `VSCode ${ pkg.version }`,
@@ -336,23 +337,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
-			return this.getCommonHeaders().then(downloadHeaders => {
-				const extensions = galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl, downloadHeaders));
-				const pageSize = query.pageSize;
-				const getPage = pageIndex => this.queryGallery(query.withPage(pageIndex + 1))
-					.then(({ galleryExtensions }) => galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl, downloadHeaders)));
+			const extensions = galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl));
+			const pageSize = query.pageSize;
+			const getPage = pageIndex => this.queryGallery(query.withPage(pageIndex + 1))
+				.then(({ galleryExtensions }) => galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl)));
 
-				return { firstPage: extensions, total, pageSize, getPage };
-			});
+			return { firstPage: extensions, total, pageSize, getPage };
 		});
 	}
 
 	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
-		return this.getCommonHeaders()
+		return this.commonHeaders
 			.then(headers => {
 				const data = JSON.stringify(query.raw);
 
-				headers = assign(headers, {
+				headers = assign({}, headers, {
 					'Content-Type': 'application/json',
 					'Accept': 'application/json;api-version=3.0-preview.1',
 					'Accept-Encoding': 'gzip',
@@ -385,8 +384,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const startTime = new Date().getTime();
 			const log = duration => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
-			return this.getCommonHeaders()
-				.then(headers => this._getAsset({ url, headers }))
+			return this._getAsset({ url })
 				.then(context => download(zipPath, context))
 				.then(() => log(new Date().getTime() - startTime))
 				.then(() => zipPath);
@@ -441,20 +439,18 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX);
 		query = extensionNames.reduce((query, name) => query.withFilter(FilterType.ExtensionName, name), query);
 
-		return this.queryGallery(query)
-			.then(result => this.getCommonHeaders()
-				.then(downloadHeaders => {
-					const dependencies = [];
-					const ids = [];
-					for (const rawExtension of result.galleryExtensions) {
-						if (ids.indexOf(rawExtension.extensionId) === -1) {
-							dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl, downloadHeaders));
-							ids.push(rawExtension.extensionId);
-						}
-					}
-					return dependencies;
-				})
-		);
+		return this.queryGallery(query).then(result => {
+			const dependencies = [];
+			const ids = [];
+
+			for (const rawExtension of result.galleryExtensions) {
+				if (ids.indexOf(rawExtension.extensionId) === -1) {
+					dependencies.push(toExtension(rawExtension, this.extensionsGalleryUrl));
+					ids.push(rawExtension.extensionId);
+				}
+			}
+			return dependencies;
+		});
 	}
 
 	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
@@ -489,20 +485,25 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		parsedUrl.search = undefined;
 		parsedUrl.query['redirect'] = 'true';
 
-		const cdnUrl = url.format(parsedUrl);
-		const cdnOptions = assign({}, options, { url: cdnUrl });
+		return this.commonHeaders.then(headers => {
+			headers = assign({}, headers, options.headers || {});
+			options = assign({}, options, { headers });
 
-		return this.requestService.request(cdnOptions)
-			.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError('expected 200'))
-			.then(null, err => {
-				this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
-				this.telemetryService.publicLog('galleryService:cdnFallback', { url: cdnUrl });
+			const cdnUrl = url.format(parsedUrl);
+			const cdnOptions = assign({}, options, { url: cdnUrl });
 
-				return this.requestService.request(options).then(null, err => {
-					this.telemetryService.publicLog('galleryService:requestError', { cdn: false, message: getErrorMessage(err) });
-					return TPromise.wrapError(err);
+			return this.requestService.request(cdnOptions)
+				.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError('expected 200'))
+				.then(null, err => {
+					this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
+					this.telemetryService.publicLog('galleryService:cdnFallback', { url: cdnUrl });
+
+					return this.requestService.request(options).then(null, err => {
+						this.telemetryService.publicLog('galleryService:requestError', { cdn: false, message: getErrorMessage(err) });
+						return TPromise.wrapError(err);
+					});
 				});
-			});
+		});
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
@@ -533,10 +534,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		const version = versions[0];
 		const url = getAssetSource(version.files, AssetType.Manifest);
+		const headers = { 'Accept-Encoding': 'gzip' };
 
-		return this.getCommonHeaders()
-			.then(headers => assign(headers, { 'Accept-Encoding': 'gzip' }))
-			.then(headers => this._getAsset({ url, headers }))
+		return this._getAsset({ url, headers })
 			.then(context => asJson<IExtensionManifest>(context))
 			.then(manifest => {
 				const desc = {
