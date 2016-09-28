@@ -44,7 +44,6 @@ export function activate(context: ExtensionContext) {
 		if (isMarkdownFile(event.document)) {
 			const uri = getMarkdownUri(event.document.uri);
 			provider.update(uri);
-
 		}
 	});
 
@@ -159,6 +158,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 	private _onDidChange = new EventEmitter<Uri>();
 	private _waiting: boolean;
 	private _renderer: IRenderer;
+	private _alertedForMissingTheme: string;
 
 	constructor(context: ExtensionContext) {
 		this._context = context;
@@ -225,6 +225,32 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 		return [];
 	}
 
+	private getHighlightStyle(): string {
+		const highlightStyle = vscode.workspace.getConfiguration('markdown')['highlightStyle'];
+		if (typeof highlightStyle === 'string' && highlightStyle.length > 0) {
+			// Normalize the name
+			let highlightStyleFileName = highlightStyle.toLowerCase().trim().replace(/\s/g, '-');
+			if (highlightStyleFileName.indexOf('.css', highlightStyleFileName.length - 4) === -1) {
+				highlightStyleFileName += '.css';
+			}
+
+			if (highlightStyleFileName.match(/^[a-z0-9][a-z0-9\-\.]+$/)) {
+				try {
+					const path = require.resolve(`highlight.js/styles/${highlightStyleFileName}`);
+					this._alertedForMissingTheme = '';
+					return path;
+				} catch (e) {
+					/* noop */
+				}
+			}
+			if (this._alertedForMissingTheme !== highlightStyle) {
+				this._alertedForMissingTheme = highlightStyle;
+				vscode.window.showWarningMessage(`Could not load '${highlightStyle}' highlight.js theme for markdown preview. Using default syntax highlighting.`);
+			}
+		}
+		return this.getMediaPath('tomorrow.css');
+	}
+
 	public provideTextDocumentContent(uri: Uri): Thenable<string> {
 
 		return vscode.workspace.openTextDocument(Uri.parse(uri.query)).then(document => {
@@ -234,7 +260,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				'<head>',
 				'<meta http-equiv="Content-type" content="text/html;charset=UTF-8">',
 				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}" >`,
-				`<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}" >`,
+				`<link rel="stylesheet" type="text/css" href="${this.getHighlightStyle()}" >`,
 				this.computeCustomStyleSheetIncludes(uri),
 				`<base href="${document.uri.toString(true)}">`,
 				'</head>',

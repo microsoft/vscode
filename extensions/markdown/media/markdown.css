@@ -90,6 +90,7 @@ code {
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: 14px;
 	line-height: 19px;
+	background: inherit;
 }
 
 .mac code {
@@ -101,6 +102,10 @@ code > div {
 	padding: 16px;
 	border-radius: 3px;
 	overflow: auto;
+}
+
+pre.hljs {
+	background-color: inherit;
 }
 
 /** Theming */
