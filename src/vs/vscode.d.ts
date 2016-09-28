@@ -782,10 +782,9 @@ declare namespace vscode {
 		letterSpacing?: string;
 
 		/**
-		 * An **absolute path** to an image to be rendered in the gutterIconPath or
-		 * an URI.
+		 * An **absolute path** to an image to be rendered in the gutterIconPath.
 		 */
-		gutterIconPath?: string | Uri;
+		gutterIconPath?: string;
 
 		/**
 		 * Specifies the size of the gutter icon.
@@ -816,9 +815,9 @@ declare namespace vscode {
 		 */
 		contentText?: string;
 		/**
-		 * An **absolute path** to an image to be rendered in the attachment or an URI. Either an icon or a text can be shown, but not both.
+		 * An **absolute path** to an image to be rendered in the attachment. Either an icon or a text can be shown, but not both.
 		 */
-		contentIconPath?: string | Uri;
+		contentIconPath?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
