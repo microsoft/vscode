@@ -21,6 +21,7 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IExtensionManagementService, LocalExtensionType, ILocalExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
@@ -501,6 +502,7 @@ export class ReportIssueAction extends Action {
 		label: string,
 		@IMessageService private messageService: IMessageService,
 		@IIntegrityService private integrityService: IIntegrityService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
@@ -508,20 +510,23 @@ export class ReportIssueAction extends Action {
 
 	public run(): TPromise<boolean> {
 		return this.integrityService.isPure().then(res => {
-			const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure);
+			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, extensions);
 
-			shell.openExternal(issueUrl);
+				shell.openExternal(issueUrl);
 
-			return TPromise.as(true);
+				return TPromise.as(true);
+			});
 		});
 	}
 
-	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean): string {
+	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions:ILocalExtension[]): string {
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
 			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
+- Extensions: ${extensions.map(e => '`' + e.id + '`').join(', ')}
 
 Steps to Reproduce:
 

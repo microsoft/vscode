@@ -324,10 +324,11 @@ export class UpdateAllAction extends Action {
 	}
 
 	private getOutdatedExtensions(): TPromise<IExtension[]> {
-		let extensions = this.extensionsWorkbenchService.local
-							.filter(e => this.extensionsWorkbenchService.canInstall(e)
-											&& e.type === LocalExtensionType.User
-											&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart));
+		let extensions = this.extensionsWorkbenchService.local.filter(
+			e => this.extensionsWorkbenchService.canInstall(e)
+			&& e.type === LocalExtensionType.User
+			&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
+		);
 
 		return filterOutdatedExtensions(extensions);
 	}
