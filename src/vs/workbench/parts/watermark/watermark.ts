@@ -36,15 +36,16 @@ const entries = [
 const UNBOUND = nls.localize('watermark.unboundCommand', "unbound");
 
 export function create(container: Builder, keybindingService: IKeybindingService): IDisposable {
-	const div = $(container)
-		.div({
-			'class': 'watermark',
-		});
+	const watermark = $(container)
+		.addClass('has-watermark')
+		.div({ 'class': 'watermark' });
+	const box = $(watermark)
+		.div({ 'class': 'watermark-box' });
 	function update() {
-		container.addClass('watermark-tips');
-		$(div).clearChildren()
-			.element('dl', {
-			}, dl => entries.map(entry => {
+		const builder = $(box);
+		builder.clearChildren();
+		entries.map(entry => {
+			builder.element('dl', {}, dl => {
 				dl.element('dt', {}, dt => dt.text(entry.text));
 				dl.element('dd', {}, dd => dd.text(
 					entry.ids
@@ -53,7 +54,8 @@ export function create(container: Builder, keybindingService: IKeybindingService
 							.join('') || UNBOUND)
 						.join(' / ')
 				));
-			}));
+			});
+		});
 	}
 	update();
 	return keybindingService.onDidUpdateKeybindings(update);
