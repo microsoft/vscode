@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {mixin} from 'vs/base/common/objects';
-import {illegalState} from 'vs/base/common/errors';
-import Event, {Emitter} from 'vs/base/common/event';
-import {WorkspaceConfiguration} from 'vscode';
-import {ExtHostConfigurationShape, MainThreadConfigurationShape} from './extHost.protocol';
-import {ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
+import { mixin } from 'vs/base/common/objects';
+import { illegalState } from 'vs/base/common/errors';
+import Event, { Emitter } from 'vs/base/common/event';
+import { WorkspaceConfiguration } from 'vscode';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
 
@@ -56,7 +56,11 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 			update: (key: string, value: any, global: boolean) => {
 				key = section ? `${section}.${key}` : key;
 				const target = global ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
-				return this._proxy.$updateConfigurationOption(target, key, value);
+				if (value !== void 0) {
+					return this._proxy.$updateConfigurationOption(target, key, value);
+				} else {
+					return this._proxy.$removeConfigurationOption(target, key);
+				}
 			}
 		};
 

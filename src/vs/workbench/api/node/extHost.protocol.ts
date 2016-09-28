@@ -14,52 +14,52 @@ import * as vscode from 'vscode';
 
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 
-import {IMarkerData} from 'vs/platform/markers/common/markers';
-import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {IMessage, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
-import {ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
+import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 
-import {ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
-import {IPickOpenEntry, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IPickOpenEntry, IPickOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { SaveReason } from 'vs/workbench/parts/files/common/files';
-import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
-import {IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent} from './mainThreadEditorsTracker';
+import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
 
 export interface InstanceSetter<T> {
-	set<R extends T>(instance:T): R;
+	set<R extends T>(instance: T): R;
 }
 
 export class InstanceCollection {
-	private _items: {[id:string]:any;};
+	private _items: { [id: string]: any; };
 
 	constructor() {
 		this._items = Object.create(null);
 	}
 
-	public define<T>(id:ProxyIdentifier<T>): InstanceSetter<T> {
+	public define<T>(id: ProxyIdentifier<T>): InstanceSetter<T> {
 		let that = this;
 		return new class {
-			set(value:T) {
+			set(value: T) {
 				that._set(id, value);
 				return value;
 			}
 		};
 	}
 
-	_set<T>(id:ProxyIdentifier<T>, value:T): void {
+	_set<T>(id: ProxyIdentifier<T>, value: T): void {
 		this._items[id.id] = value;
 	}
 
-	public finish(isMain:boolean, threadService:IThreadService): void {
+	public finish(isMain: boolean, threadService: IThreadService): void {
 		let expected = (isMain ? MainContext : ExtHostContext);
 		Object.keys(expected).forEach((key) => {
 			let id = expected[key];
@@ -86,6 +86,7 @@ export abstract class MainThreadCommandsShape {
 
 export abstract class MainThreadConfigurationShape {
 	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> { throw ni(); }
+	$removeConfigurationOption(target: ConfigurationTarget, key: string): TPromise<void> { throw ni(); }
 }
 
 export abstract class MainThreadDiagnosticsShape {
@@ -95,7 +96,7 @@ export abstract class MainThreadDiagnosticsShape {
 
 export abstract class MainThreadDocumentsShape {
 	$tryOpenDocument(uri: URI): TPromise<any> { throw ni(); }
-	$registerTextContentProvider(handle:number, scheme: string): void { throw ni(); }
+	$registerTextContentProvider(handle: number, scheme: string): void { throw ni(); }
 	$onVirtualDocumentChange(uri: URI, value: string): void { throw ni(); }
 	$unregisterTextContentProvider(handle: number): void { throw ni(); }
 	$trySaveDocument(uri: URI): TPromise<boolean> { throw ni(); }
@@ -111,7 +112,7 @@ export abstract class MainThreadEditorsShape {
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any> { throw ni(); }
 	$tryRevealRange(id: string, range: editorCommon.IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
 	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
-	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts:IApplyEditsOptions): TPromise<boolean> { throw ni(); }
+	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
@@ -135,7 +136,7 @@ export abstract class MainThreadLanguageFeaturesShape {
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> { throw ni(); }
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> { throw ni(); }
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
-	$setLanguageConfiguration(handle: number, languageId:string, configuration: vscode.LanguageConfiguration): TPromise<any> { throw ni(); }
+	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> { throw ni(); }
 }
 
 export abstract class MainThreadLanguagesShape {

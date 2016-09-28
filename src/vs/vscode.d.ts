@@ -2692,9 +2692,11 @@ declare namespace vscode {
 		 * [workspace](#workspace.rootPath) only, or globally for all instances of the
 		 * editor. The updated configuration values are persisted.
 		 *
-		 * *Note:* Setting an installation-wide value (`global: true`) in the presence of
+		 * *Note 1:* Setting an installation-wide value (`global: true`) in the presence of
 		 * a more specific workspace value has no observable effect in that workspace, but
 		 * in others.
+		 *
+		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param value The new value.
