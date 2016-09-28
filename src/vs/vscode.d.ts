@@ -2702,7 +2702,7 @@ declare namespace vscode {
 		 * @param value The new value.
 		 * @param global When `true` changes the configuration value for all instances of the editor.
 		 */
-		update(section: string, value: any, global: boolean): Thenable<void>;
+		update(section: string, value: any, global?: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
