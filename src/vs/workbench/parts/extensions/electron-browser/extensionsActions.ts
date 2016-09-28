@@ -436,7 +436,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@outdated');
+				viewlet.search('@outdated ');
 				viewlet.focus();
 			});
 	}
@@ -463,7 +463,7 @@ export class ShowPopularExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@sort:installs');
+				viewlet.search('@sort:installs ');
 				viewlet.focus();
 			});
 	}
@@ -490,7 +490,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended');
+				viewlet.search('@recommended ');
 				viewlet.focus();
 			});
 	}
@@ -517,7 +517,7 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended:workspace');
+				viewlet.search('@recommended:workspace ');
 				viewlet.focus();
 			});
 	}
