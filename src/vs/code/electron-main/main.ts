@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { app, ipcMain as ipc } from 'electron';
+import { app, ipcMain as ipc, session } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
@@ -43,6 +43,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
+import pkg from 'vs/platform/package';
 
 import * as fs from 'original-fs';
 import * as cp from 'child_process';
@@ -79,6 +80,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const updateService = accessor.get(IUpdateService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
 	const windowEventChannel = new WindowEventChannel(windowEventService);
+
+	// Set user agent
+	session.defaultSession.setUserAgent(`VSCode ${ pkg.version }`);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
