@@ -194,7 +194,7 @@
 	text-align: left;
 }
 
-.extension-editor > .body > .content table code {
+.extension-editor > .body > .content table code:not(:empty) {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);

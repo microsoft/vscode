@@ -21,6 +21,7 @@ export interface ICommand {
 export interface IConfigurationProperty {
 	description: string;
 	type: string | string[];
+	default?: any;
 }
 
 export interface IConfiguration {
