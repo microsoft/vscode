@@ -55,7 +55,8 @@
 	width: 49%;
 	margin: 0 1% 0 0;
 	text-align: right;
-	font-weight: bold;
+	font-weight: normal;
+	letter-spacing: 0.04em
 }
 
 .monaco-workbench > .part.editor > .watermark dd {
@@ -63,6 +64,12 @@
 	width: 49%;
 	margin: 0 0 0 1%;
 	text-align: left;
+}
+
+.monaco-workbench > .part.editor > .watermark dd > .shortcuts {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+	letter-spacing: 0.15em;
 }
 
 .monaco-workbench > .part.editor > .watermark dt,
