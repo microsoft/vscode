@@ -157,7 +157,7 @@ registerSingleton(IDebugService, service.DebugService);
 
 // Register Debug Error Editor #9062
 (<IEditorRegistry>platform.Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(DebugErrorEditor.ID,
-	nls.localize('debugErrorEditor', "Debug Error"),
+	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugErrorEditor' }, "Debug Error"),
 	'vs/workbench/parts/debug/browser/debugErrorEditor',
 	'DebugErrorEditor'),
 	[new SyncDescriptor(DebugErrorEditorInput)]
