@@ -93,14 +93,14 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 
 	protected toDispose: lifecycle.IDisposable[];
 
-	private delayer: Delayer<void>;
+	private delayedFilterUpdate: Delayer<void>;
 
 	constructor(private markersPanel: MarkersPanel, action: IAction,
 			@IContextViewService private contextViewService: IContextViewService,
 			@ITelemetryService private telemetryService: ITelemetryService) {
 		super(markersPanel, action);
 		this.toDispose = [];
-		this.delayer= new Delayer<void>(2000);
+		this.delayedFilterUpdate= new Delayer<void>(500);
 	}
 
 	public render(container: HTMLElement): void {
@@ -110,7 +110,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
 		filterInputBox.value= this.markersPanel.markersModel.filterOptions.completeFilter;
-		this.toDispose.push(filterInputBox.onDidChange((filter: string) => this.updateFilter(filter)));
+		this.toDispose.push(filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.updateFilter(filter))));
 		this.toDispose.push(DOM.addStandardDisposableListener(filterInputBox.inputElement, 'keyup', (keyboardEvent) => this.onInputKeyUp(keyboardEvent, filterInputBox)));
 		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
 		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keyup', this.handleKeyboardEvent));
@@ -118,7 +118,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 
 	private updateFilter(filter: string) {
 		this.markersPanel.updateFilter(filter);
-		this.delayer.trigger(this.reportFilteringUsed.bind(this));
+		this.reportFilteringUsed();
 	}
 
 	private reportFilteringUsed(): void {
