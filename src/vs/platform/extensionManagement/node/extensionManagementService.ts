@@ -166,7 +166,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return this.downloadAndInstall(compatibleVersion);
 					}
 					if (promptToInstallDependencies) {
-						const message = nls.localize('installDependeciesConfirmation', "Installing {0} also installs its dependencies. Would you like to continue?", extension.displayName);
+						const message = nls.localize('installDependeciesConfirmation', "Installing '{0}' also installs its dependencies. Would you like to continue?", extension.displayName);
 						const options = [
 							nls.localize('install', "Yes"),
 							nls.localize('doNotInstall', "No")
