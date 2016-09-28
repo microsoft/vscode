@@ -96,7 +96,9 @@ export class TextFileEditor extends BaseTextEditor {
 		// a user can navigate back to the exact position he left off.
 		if (oldInput) {
 			const selection = this.getControl().getSelection();
-			this.historyService.add(oldInput, { selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn } });
+			if (selection) {
+				this.historyService.add(oldInput, { selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn } });
+			}
 		}
 
 		// Same Input
