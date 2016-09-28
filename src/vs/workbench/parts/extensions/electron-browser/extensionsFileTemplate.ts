@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export const SchemaId = 'vscode://schemas/extensions';
 export const Schema: IJSONSchema = {
@@ -14,10 +15,12 @@ export const Schema: IJSONSchema = {
 	properties: {
 		recommendations: {
 			type: 'array',
-			description: localize('app.extensions.json.recommendations', "List of extensions recommendations. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+			description: localize('app.extensions.json.recommendations', "List of extensions recommendations. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
 			items: {
 				type: 'string',
 				defaultSnippets: [{ label: 'Example', body: 'vscode.csharp' }],
+				pattern: EXTENSION_IDENTIFIER_PATTERN,
+				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
 			},
 		},
 	}
