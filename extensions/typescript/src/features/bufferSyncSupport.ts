@@ -5,6 +5,7 @@
 'use strict';
 
 import * as path from 'path';
+import * as fs from 'fs';
 
 import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
@@ -187,6 +188,9 @@ export default class BufferSyncSupport {
 		this.diagnostics.delete(filepath);
 		delete this.syncedBuffers[filepath];
 		syncedBuffer.close();
+		if (!fs.existsSync(filepath)) {
+			this.requestAllDiagnostics();
+		}
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
