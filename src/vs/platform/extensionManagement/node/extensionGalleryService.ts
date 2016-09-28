@@ -8,6 +8,7 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { ArraySet } from 'vs/base/common/set';
 import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
@@ -489,12 +490,18 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		parsedUrl.query['redirect'] = 'true';
 
 		const cdnUrl = url.format(parsedUrl);
+		const cdnOptions = assign({}, options, { url: cdnUrl });
 
-		return this.requestService.request(assign({}, options, { url: cdnUrl }))
+		return this.requestService.request(cdnOptions)
 			.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError('expected 200'))
-			.then(null, () => {
+			.then(null, err => {
+				this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
 				this.telemetryService.publicLog('galleryService:cdnFallback', { url: cdnUrl });
-				return this.requestService.request(options);
+
+				return this.requestService.request(options).then(null, err => {
+					this.telemetryService.publicLog('galleryService:requestError', { cdn: false, message: getErrorMessage(err) });
+					return TPromise.wrapError(err);
+				});
 			});
 	}
 
