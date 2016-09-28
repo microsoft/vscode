@@ -316,7 +316,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 								id: MessageAction.useLocal
 							},
 							{
-								title: localize('useBundled', 'Use Bundled ({0})', shippedVersion),
+								title: localize({
+									key: 'useBundled',
+									comment: ["Bundled has the meaning of packaged with VS Code itself."]
+								}, 'Use Bundled ({0})', shippedVersion),
 								id: MessageAction.useBundled,
 							},
 							{
