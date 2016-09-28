@@ -6,7 +6,6 @@
 
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import {IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
 	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness} from 'vs/editor/common/editorCommon';
@@ -302,7 +301,7 @@ class DecorationRenderHelper {
 		if (typeof opts !== 'undefined') {
 			DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.parse(opts.contentIconPath).toString()));
+				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, opts.contentIconPath));
 			}
 			if (typeof opts.contentText !== 'undefined') {
 				let escaped = opts.contentText.replace(/\"/g, '\\\"');
@@ -324,7 +323,7 @@ class DecorationRenderHelper {
 		let cssTextArr = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.parse(opts.gutterIconPath).toString()));
+			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, opts.gutterIconPath));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(this._CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}
