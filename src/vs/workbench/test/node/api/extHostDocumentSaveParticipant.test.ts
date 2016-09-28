@@ -6,14 +6,14 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
-import {TextDocumentSaveReason, TextEdit, Position} from 'vs/workbench/api/node/extHostTypes';
-import {MainThreadWorkspaceShape} from 'vs/workbench/api/node/extHost.protocol';
-import {ExtHostDocumentSaveParticipant} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
-import {OneGetThreadService} from './testThreadService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { TextDocumentSaveReason, TextEdit, Position } from 'vs/workbench/api/node/extHostTypes';
+import { MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
+import { OneGetThreadService } from './testThreadService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
+import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 suite('ExtHostDocumentSaveParticipant', () => {
@@ -62,7 +62,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.equal(event.reason, TextDocumentSaveReason.Explicit);
+			assert.equal(event.reason, TextDocumentSaveReason.Manual);
 			assert.equal(typeof event.waitUntil, 'function');
 		});
 	});

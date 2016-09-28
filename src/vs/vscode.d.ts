@@ -3588,14 +3588,15 @@ declare namespace vscode {
 	export enum TextDocumentSaveReason {
 
 		/**
-		 * Explicitly triggered, e.g. by the user pressing save or by an API call.
+		 * Manually triggered, e.g. by the user pressing save, by starting debugging,
+		 * or by an API call.
 		 */
-		Explicit = 1,
+		Manual = 1,
 
 		/**
 		 * Automatic after a delay.
 		 */
-		Auto = 2,
+		AfterDelay = 2,
 
 		/**
 		 * When the editor lost focus.
