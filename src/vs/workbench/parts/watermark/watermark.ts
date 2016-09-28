@@ -48,9 +48,9 @@ export function create(container: Builder, keybindingService: IKeybindingService
 				dl.element('dt', {}, dt => dt.text(entry.text));
 				dl.element('dd', {}, dd => dd.text(
 					entry.ids
-						.map(id => keybindingService.lookupKeybindings(id)
+						.map(id => keybindingService.lookupKeybindings(id).slice(0, 1)
 							.map(k => keybindingService.getLabelFor(k))
-							.join(' or ') || UNBOUND)
+							.join('') || UNBOUND)
 						.join(' or ')
 				));
 			}));
