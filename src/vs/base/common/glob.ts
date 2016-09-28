@@ -210,9 +210,9 @@ function parseRegExp(pattern: string): string {
 
 // regexes to check for trival glob patterns that just check for String#endsWith
 const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   			// **/*.something
-const T2 = /^\*\*\/[\w\.-]+$/; 							   			// **/something
-const T3 = /^{\*\*\/[\*\.]?[\w\.-]+(,\*\*\/[\*\.]?[\w\.-]+)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
-const T3_2 = /^{\*\*\/[\*\.]?[\w\.-]+(\/\*\*)?(,\*\*\/[\*\.]?[\w\.-]+(\/\*\*)?)*}$/; 	// Like T3, with optional trailing /**
+const T2 = /^\*\*\/([\w\.-]+)\/?$/; 							   			// **/something
+const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
+const T3_2 = /^{\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?(,\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?)*}$/; 	// Like T3, with optional trailing /**
 
 export type ParsedPattern = (path: string, basename?: string) => boolean;
 export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[]) => string /* the matching pattern */;
@@ -260,16 +260,16 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 	}
 
 	// Check for Trivias
-	let trimmedPattern;
+	let match: RegExpExecArray;
 	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
 		const base = pattern.substr(4); // '**/*'.length === 4
 		parsedPattern = function (path, basename) {
 			return path && strings.endsWith(path, base) ? pattern : null;
 		};
-	} else if (T2.test(pattern)) { // common pattern: **/some.txt just need basename check
-		parsedPattern = trivia2(pattern, pattern);
-	} else if (options.trimForExclusions && strings.endsWith(pattern, '/**') && T2.test(trimmedPattern = pattern.substr(0, pattern.length - 3))) { // common pattern: **/some/** for exclusions just need basename check
-		parsedPattern = trivia2(trimmedPattern, pattern);
+	} else if (match = T2.exec(pattern)) { // common pattern: **/some.txt just need basename check
+		parsedPattern = trivia2(match[1], pattern);
+	} else if (options.trimForExclusions && strings.endsWith(pattern, '/**') && (match = T2.exec(pattern.substr(0, pattern.length - 2)))) { // common pattern: **/some/** for exclusions just need basename check
+		parsedPattern = trivia2(match[1], pattern);
 	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
 		const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1).split(',')
 			.map(pattern => parsePattern(pattern, options))
@@ -307,8 +307,7 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 }
 
 // common pattern: **/some.txt just need basename check
-function trivia2(pattern, originalPattern): ParsedStringPattern {
-	const base = pattern.substr(3); // '**/'.length === 3
+function trivia2(base: string, originalPattern: string): ParsedStringPattern {
 	const slashBase = `/${base}`;
 	const backslashBase = `\\${base}`;
 	const parsedPattern: ParsedStringPattern = function (path, basename) {
