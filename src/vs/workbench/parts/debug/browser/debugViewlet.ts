@@ -126,7 +126,8 @@ export class DebugViewlet extends Viewlet {
 			this.actions = [
 				this.instantiationService.createInstance(debugactions.StartAction, debugactions.StartAction.ID, debugactions.StartAction.LABEL),
 				this.instantiationService.createInstance(debugactions.SelectConfigAction, debugactions.SelectConfigAction.ID, debugactions.SelectConfigAction.LABEL),
-				this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)
+				this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
+				this.instantiationService.createInstance(debugactions.ToggleReplAction, debugactions.ToggleReplAction.ID, debugactions.ToggleReplAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
