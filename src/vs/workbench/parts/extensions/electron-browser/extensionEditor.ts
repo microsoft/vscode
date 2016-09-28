@@ -343,8 +343,16 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
-				...contrib.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
+				$('tr', null,
+					$('th', null, localize('setting name', "Name")),
+					$('th', null, localize('description', "Description")),
+					$('th', null, localize('default', "Default"))
+				),
+				...contrib.map(key => $('tr', null,
+					$('td', null, $('code', null, key)),
+					$('td', null, properties[key].description),
+					$('td', null, $('code', null, properties[key].default))
+				))
 			)
 		);
 
