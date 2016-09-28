@@ -22,7 +22,7 @@ import { IRequestOptions, IRequestContext, download, asJson } from 'vs/base/node
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
-import { isValidExtensionVersion, validateVersions } from 'vs/platform/extensions/node/extensionValidator';
+import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
 import * as url from 'url';
 
 interface IRawGalleryExtensionFile {
@@ -257,7 +257,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 function setCompatibilityProperties(galleryExtension: IGalleryExtension): IGalleryExtension {
 	if (!galleryExtension.compatibilityChecked) {
 		galleryExtension.compatibilityChecked = !!galleryExtension.properties.engine;
-		galleryExtension.isCompatible = galleryExtension.properties.engine && validateVersions(pkg.version, galleryExtension.properties.engine, []);
+		galleryExtension.isCompatible = galleryExtension.properties.engine && isVersionValid(pkg.version, galleryExtension.properties.engine);
 	}
 	return galleryExtension;
 }
@@ -520,7 +520,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			if (!engine) {
 				return null;
 			}
-			if (validateVersions(pkg.version, engine, [])) {
+			if (isVersionValid(pkg.version, engine, [])) {
 				return TPromise.wrap(version);
 			}
 		}
@@ -539,15 +539,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this._getAsset({ url, headers })
 			.then(context => asJson<IExtensionManifest>(context))
 			.then(manifest => {
-				const desc = {
-					isBuiltin: false,
-					engines: { vscode: manifest.engines.vscode },
-					main: manifest.main
-				};
-
-				if (!isValidExtensionVersion(pkg.version, desc, [])) {
+				if (!isVersionValid(pkg.version, manifest.engines.vscode)) {
 					return this.getLastValidExtensionVersionReccursively(extension, versions.slice(1));
 				}
+
 				version.properties = version.properties || [];
 				version.properties.push({ key: PropertyType.Engine, value: manifest.engines.vscode });
 				return version;
