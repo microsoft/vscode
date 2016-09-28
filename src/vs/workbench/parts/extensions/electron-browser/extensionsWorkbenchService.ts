@@ -273,6 +273,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
 	private syncDelayer: ThrottledDelayer<void>;
+	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
 	private _onChange: Emitter<void> = new Emitter<void>();
@@ -296,6 +297,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extensionService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
+		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
 
 		chain(urlService.onOpenURL)
 			.filter(uri => /^extension/.test(uri.path))
@@ -347,6 +349,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (installed) {
 			installed.gallery = gallery;
 			this._onChange.fire();
+			this.eventuallyAutoUpdateExtensions();
 			return installed;
 		}
 
@@ -371,16 +374,28 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.as(null);
 		}
 
-		return this.queryGallery({ ids, pageSize: ids.length }).then(() => {
-			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
+	}
 
-			if (!config.autoUpdate) {
-				return;
-			}
+	private eventuallyAutoUpdateExtensions(): void {
+		this.autoUpdateDelayer.trigger(() => this.autoUpdateExtensions())
+			.done(null, err => this.onError(err));
+	}
 
-			const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
-			return action.enabled && action.run();
-		});
+	private autoUpdateExtensions(): TPromise<void> {
+		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+
+		if (!config.autoUpdate) {
+			return TPromise.as(null);
+		}
+
+		const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
+
+		if (!action.enabled) {
+			return TPromise.as(null);
+		}
+
+		return action.run();
 	}
 
 	canInstall(extension: IExtension): boolean {
