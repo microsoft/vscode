@@ -159,7 +159,7 @@ export class ExtensionEditor extends BaseEditor {
 		const root = append(container, $('.extension-editor'));
 		const header = append(root, $('.header'));
 
-		this.icon = append(header, $<HTMLImageElement>('img.icon'));
+		this.icon = append(header, $<HTMLImageElement>('img.icon', { draggable: false }));
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
