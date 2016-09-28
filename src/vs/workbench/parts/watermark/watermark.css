@@ -58,11 +58,17 @@
 
 .monaco-workbench > .part.editor > .watermark dt {
 	text-align: right;
-	font-weight: bold;
+	letter-spacing: 0.04em
 }
 
 .monaco-workbench > .part.editor > .watermark dd {
 	text-align: left;
+}
+
+.monaco-workbench > .part.editor > .watermark dd > .shortcuts {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+	letter-spacing: 0.15em;
 }
 
 .monaco-workbench > .part.editor > .watermark dt,
