@@ -3788,7 +3788,7 @@ export interface IThemeDecorationRenderOptions {
 	color?: string;
 	letterSpacing?: string;
 
-	gutterIconPath?: string;
+	gutterIconPath?: string | URI;
 	gutterIconSize?: string;
 
 	overviewRulerColor?: string;
@@ -3802,7 +3802,7 @@ export interface IThemeDecorationRenderOptions {
  */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
-	contentIconPath?: string;
+	contentIconPath?: string | URI;
 
 	border?: string;
 	textDecoration?: string;
