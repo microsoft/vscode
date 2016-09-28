@@ -74,7 +74,8 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 			return false;
 		}
 
-		if (!(typeof this.gitService.getModel().getRepositoryRoot() === 'string')) {
+		const model = this.gitService.getModel();
+		if (!model || !(typeof model.getRepositoryRoot() === 'string')) {
 			return false;
 		}
 
@@ -165,7 +166,8 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 			return false;
 		}
 
-		if (!(typeof this.gitService.getModel().getRepositoryRoot() === 'string')) {
+		const model = this.gitService.getModel();
+		if (!model || !(typeof model.getRepositoryRoot() === 'string')) {
 			return false;
 		}
 
