@@ -146,7 +146,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.callbacks = Object.create(null);
 		const configuration = workspace.getConfiguration();
 		this.tsdk = configuration.get<string>('typescript.tsdk', null);
-		this._experimentalAutoBuild = configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
+		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = APIVersion.v1_x;
 		this.trace = this.readTrace();
 		workspace.onDidChangeConfiguration(() => {
