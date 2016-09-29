@@ -10,8 +10,7 @@
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
-				"999999",
-				"--grep 'Configuration Resolver Service'"
+				"999999"
 			],
 			"cwd": "${workspaceRoot}",
 			"runtimeArgs": [],
