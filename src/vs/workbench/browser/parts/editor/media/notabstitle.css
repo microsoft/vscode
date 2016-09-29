@@ -36,3 +36,12 @@
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action {
 	background: url('close-dirty-inverse.svg') center center no-repeat;
 }
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover {
+	background: url('close.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover {
+	background: url('close-inverse.svg') center center no-repeat;
+}
