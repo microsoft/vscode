@@ -150,15 +150,18 @@ class Query {
 		return new Query(assign({}, this.state, { pageNumber, pageSize }));
 	}
 
-	withFilter(filterType: FilterType, value?: string): Query {
-		const criterium: ICriterium = { filterType };
+	withFilter(filterType: FilterType, values?: string | string[]): Query {
+		const criteria = this.state.criteria.slice();
 
-		if (!isUndefined(value)) {
-			criterium.value = value;
+		if (!isUndefined(values)) {
+			values = Array.isArray(values) ? values : [values];
+			for (const value of values) {
+				criteria.push({ filterType, value });
+			}
+		} else {
+			criteria.push({ filterType });
 		}
 
-		const criteria = this.state.criteria.slice();
-		criteria.push(criterium);
 		return new Query(assign({}, this.state, { criteria }));
 	}
 
@@ -321,9 +324,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		if (text) {
 			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
 		} else if (options.ids) {
-			query = options.ids.reduce((query, id) => query.withFilter(FilterType.ExtensionId, id), query);
+			query = query.withFilter(FilterType.ExtensionId, options.ids);
 		} else if (options.names) {
-			query = options.names.reduce((query, name) => query.withFilter(FilterType.ExtensionName, name), query);
+			query = query.withFilter(FilterType.ExtensionName, options.names);
 		} else {
 			query = query.withSortBy(SortBy.InstallCount);
 		}
@@ -437,7 +440,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withPage(1, extensionNames.length)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX);
-		query = extensionNames.reduce((query, name) => query.withFilter(FilterType.ExtensionName, name), query);
+		query = query.withFilter(FilterType.ExtensionName, extensionNames);
 
 		return this.queryGallery(query).then(result => {
 			const dependencies = [];
