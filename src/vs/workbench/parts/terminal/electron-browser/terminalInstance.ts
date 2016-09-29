@@ -99,9 +99,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', (message) => {
 			if (message.type === 'data') {
 				this._xterm.write(message.content);
-			} else if (message.type === 'pid') {
-				this._processId = message.content;
-				this._onProcessIdReady.fire(this);
 			}
 		});
 		this._xterm.on('data', (data) => {
@@ -267,6 +264,12 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			});
 		}
+		this._process.on('message', (message) => {
+			if (message.type === 'pid') {
+				this._processId = message.content;
+				this._onProcessIdReady.fire(this);
+			}
+		});
 		this._process.on('exit', (exitCode) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this._isExiting) {
