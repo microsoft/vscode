@@ -271,7 +271,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
 		}
-		return this.extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
+		return this.extensionsWorkbenchService.queryGallery({ names })
 				.then(result => new PagedModel(result));
 	}
 
