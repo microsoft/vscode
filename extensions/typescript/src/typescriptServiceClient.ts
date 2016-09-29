@@ -487,27 +487,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private informAboutTS20(modulePath: string): Thenable<string> {
-		const informAboutTS20: string = 'informAboutTS20';
-		if (!this.globalState.get(informAboutTS20, false)) {
-			return window.showInformationMessage(
-				localize(
-					'tsversion20',
-					'VS Code 1.6 ships with TypeScript version 2.0.3. If you want to use a previous version of TypeScript set the \'typescript.tsdk\' option.'
-				),
-				{
-					title: localize('moreInformation', 'More Information'),
-					id: 1
-				}
-			).then((selected) => {
-				this.globalState.update(informAboutTS20, true);
-				if (selected && selected.id === 1) {
-					openUrl('https://go.microsoft.com/fwlink/?LinkID=533483#vscode');
-				}
-				return modulePath;
-			});
-		} else {
-			return Promise.resolve(modulePath);
-		}
+		return Promise.resolve(modulePath);
 	}
 
 	private serviceStarted(resendModels: boolean): void {
