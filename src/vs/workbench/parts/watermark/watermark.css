@@ -13,6 +13,7 @@
 	width: 100%;
 	top: calc(50% + 55px);
 	text-align: center;
+	white-space: nowrap;
 }
 
 .monaco-workbench > .part.editor > .watermark > .watermark-box {
