@@ -337,8 +337,8 @@ export class UpdateAllAction extends Action {
 		this.getOutdatedExtensions().done(outDated => this.enabled = outDated.length > 0);
 	}
 
-	run(): TPromise<any> {
-		return this.getOutdatedExtensions().then(outdated => TPromise.join(outdated.map(e => this.extensionsWorkbenchService.install(e))));
+	run(promptToInstallDependencies: boolean = true,): TPromise<any> {
+		return this.getOutdatedExtensions().then(outdated => TPromise.join(outdated.map(e => this.extensionsWorkbenchService.install(e, promptToInstallDependencies))));
 	}
 
 	dispose(): void {

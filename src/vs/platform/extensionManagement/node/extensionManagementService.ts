@@ -138,7 +138,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies: boolean = true): TPromise<void> {
 		const id = getExtensionId(extension, extension.version);
 
 		return this.isObsolete(id).then(isObsolete => {
@@ -146,8 +146,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
 			}
 			this._onInstallExtension.fire({ id, gallery: extension });
-			return this.getLocalExtension(extension)
-				.then(local => this.installCompatibleVersion(extension, true, !local))
+			return this.installCompatibleVersion(extension, true, promptToInstallDependencies)
 				.then(
 					local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
 					error => {
@@ -183,12 +182,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					}
 				})
 		);
-	}
-
-	private getLocalExtension(extension: IGalleryExtension): TPromise<ILocalExtension> {
-		const extensionName = `${extension.publisher}.${extension.name}`;
-		return this.getInstalled().then(installed => installed.filter(local => `${local.manifest.publisher}.${local.manifest.name}` === extensionName))
-			.then(local => local.length ? local[0] : null);
 	}
 
 	private getDependenciesToInstall(extension: IGalleryExtension, checkDependecies: boolean): TPromise<string[]> {
