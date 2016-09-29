@@ -131,10 +131,10 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private resolveConfigVariable(value: string, originalValue: string): string {
-		let regexp = /\$\{config\.(.+?)\}/g;
-		return value.replace(regexp, (match: string, name: string) => {
+		let regexp = /\$\{config(\.|(?=\[))(.+?)\}/gi;
+		return value.replace(regexp, (match: string, lead: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
-			let newValue: string;
+			let newValue: any;
 			try {
 				const keys: string[] = ObjectPath.parse(name);
 				if (!keys || !keys.length) {
@@ -142,7 +142,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				}
 
 				newValue = keys.reduce(
-					(conf: any, key) => conf && conf[key],
+					(conf: any, key) => conf && conf.hasOwnProperty(key) ? conf[key] : undefined,
 					config);
 			} catch (e) {
 				return '';
