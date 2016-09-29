@@ -143,7 +143,7 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 			return {
 				range: fromRange(r.range),
 				hoverMessage: r.hoverMessage,
-				renderOptions: r.renderOptions
+				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
 	} else {
