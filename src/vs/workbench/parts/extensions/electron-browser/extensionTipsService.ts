@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import {forEach} from 'vs/base/common/collections';
+import { forEach } from 'vs/base/common/collections';
+import {distinct} from 'vs/base/common/arrays';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {match} from 'vs/base/common/glob';
 import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN} from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -51,7 +52,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		const configuration = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
 		if (configuration.recommendations) {
 			const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-			return configuration.recommendations.filter(recommendation => regEx.test(recommendation));
+			return distinct(configuration.recommendations).filter(recommendation => regEx.test(recommendation));
 		}
 		return configuration.recommendations || [];
 	}
