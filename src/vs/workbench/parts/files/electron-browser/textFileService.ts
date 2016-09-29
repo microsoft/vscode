@@ -169,7 +169,7 @@ export class TextFileService extends AbstractTextFileService {
 				return null;
 			}
 
-			const filter: IFilter = { name: languageName, extensions: extensions.map(e => strings.trim(e, '.')) };
+			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => strings.trim(e, '.')) };
 
 			if (ext && extensions.indexOf(ext) >= 0) {
 				matchingFilter = filter;
