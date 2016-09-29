@@ -140,16 +140,18 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	private onModelContentChanged(): void {
 
-		// turn dirty if we were not
-		if (!this.dirty) {
-			this.dirty = true;
-			this._onDidChangeDirty.fire();
+		// mark the untitled editor as non-dirty once its content becomes empty and we do
+		// not have an associated path set. we never want dirty indicator in that case.
+		if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+			if (this.dirty) {
+				this.dirty = false;
+				this._onDidChangeDirty.fire();
+			}
 		}
 
-		// mark the untitled editor as non-dirty once its content becomes empty and we do
-		// not have an associated path set
-		else if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
-			this.dirty = false;
+		// turn dirty if we were not
+		else if (!this.dirty) {
+			this.dirty = true;
 			this._onDidChangeDirty.fire();
 		}
 	}
