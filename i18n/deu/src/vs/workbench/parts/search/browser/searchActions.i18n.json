@@ -10,7 +10,11 @@
 	"RemoveAction.label": "Entfernen",
 	"file.replaceAll.label": "Alle ersetzen",
 	"findInFolder": "In Ordner suchen",
+	"focusNextInputbox": "Fokus im nächsten Eingabefeld",
+	"focusPreviousInputbox": "Fokus im vorherigen Eingabefeld",
 	"match.replace.label": "Ersetzen",
+	"nextSearchTerm": "Nächsten Suchbegriff anzeigen",
+	"previousSearchTerm": "Vorherigen Suchbegriff anzeigen",
 	"replaceInFiles": "In Dateien ersetzen",
 	"showSearchViewlet": "Suche anzeigen"
 }

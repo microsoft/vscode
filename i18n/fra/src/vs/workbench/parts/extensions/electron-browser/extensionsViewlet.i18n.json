@@ -6,6 +6,8 @@
 {
 	"ascending": "Ordre de tri : ↑",
 	"descending": "Ordre de tri : ↓",
+	"extensions": "Extensions",
+	"outdatedExtensions": "{0} extensions obsolètes",
 	"searchExtensions": "Rechercher des extensions dans Marketplace",
 	"sort by installs": "Trier par : nombre d'installations",
 	"sort by rating": "Trier par : évaluation",
