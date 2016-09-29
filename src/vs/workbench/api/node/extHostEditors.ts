@@ -163,7 +163,7 @@ class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 	constructor(proxy: MainThreadEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
-		this._proxy.$registerTextEditorDecorationType(this.key, options);
+		this._proxy.$registerTextEditorDecorationType(this.key, <any>/* URI vs Uri */ options);
 	}
 
 	public dispose(): void {
