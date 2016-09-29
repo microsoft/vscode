@@ -672,7 +672,7 @@ export class VSCodeMenu {
 			}) : null,
 			(this.envService.product.licenseUrl || this.envService.product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
-			platform.isWindows ? showAccessibilityOptions : null
+			platform.isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null
 		]).forEach((item) => helpMenu.append(item));
 
 		if (!platform.isMacintosh) {
