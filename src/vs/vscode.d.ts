@@ -3637,7 +3637,7 @@ declare namespace vscode {
 		/**
 		 * The document that will be saved.
 		 */
-		document: vscode.TextDocument;
+		document: TextDocument;
 
 		/**
 		 * The reason why save was triggered.
@@ -3664,7 +3664,7 @@ declare namespace vscode {
 		 *
 		 * @param thenable A thenable that resolves to [pre-save-edits](#TextEdit).
 		 */
-		waitUntil(thenable: Thenable<vscode.TextEdit[]>): void;
+		waitUntil(thenable: Thenable<TextEdit[]>): void;
 
 		/**
 		 * Allows to pause the event loop until the provided thenable resolved.
