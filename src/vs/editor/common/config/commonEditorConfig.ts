@@ -170,12 +170,41 @@ class InternalEditorOptionsHelper {
 		if (opts.folding) {
 			lineDecorationsWidth += 16;
 		}
+		let renderLineNumbers: boolean;
+		let renderCustomLineNumbers: (lineNumber:number)=>string;
+		let renderRelativeLineNumbers: boolean;
+
+		// Compatibility with old true or false values
+		if (<any>lineNumbers === true) {
+			lineNumbers = 'on';
+		} else if (<any>lineNumbers === false) {
+			lineNumbers = 'off';
+		}
+
+		if (typeof lineNumbers === 'function') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = lineNumbers;
+			renderRelativeLineNumbers = false;
+		} else if (lineNumbers === 'relative') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = true;
+		} else if (lineNumbers === 'on') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = false;
+		} else {
+			renderLineNumbers = false;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = false;
+		}
+
 		let layoutInfo = EditorLayoutProvider.compute({
 			outerWidth: outerWidth,
 			outerHeight: outerHeight,
 			showGlyphMargin: glyphMargin,
 			lineHeight: fontInfo.lineHeight,
-			showLineNumbers: !!lineNumbers,
+			showLineNumbers: renderLineNumbers,
 			lineNumbersMinChars: lineNumbersMinChars,
 			lineDecorationsWidth: lineDecorationsWidth,
 			maxDigitWidth: fontInfo.maxDigitWidth,
@@ -232,34 +261,6 @@ class InternalEditorOptionsHelper {
 			tabFocusMode = true;
 		}
 
-		let renderLineNumbers: boolean;
-		let renderCustomLineNumbers: (lineNumber:number)=>string;
-		let renderRelativeLineNumbers: boolean;
-
-		// Compatibility with old true or false values
-		if (<any>lineNumbers === true) {
-			lineNumbers = 'on';
-		} else if (<any>lineNumbers === false) {
-			lineNumbers = 'off';
-		}
-
-		if (typeof lineNumbers === 'function') {
-			renderLineNumbers = true;
-			renderCustomLineNumbers = lineNumbers;
-			renderRelativeLineNumbers = false;
-		} else if (lineNumbers === 'relative') {
-			renderLineNumbers = true;
-			renderCustomLineNumbers = null;
-			renderRelativeLineNumbers = true;
-		} else if (lineNumbers === 'on') {
-			renderLineNumbers = true;
-			renderCustomLineNumbers = null;
-			renderRelativeLineNumbers = false;
-		} else {
-			renderLineNumbers = false;
-			renderCustomLineNumbers = null;
-			renderRelativeLineNumbers = false;
-		}
 
 		let renderWhitespace = opts.renderWhitespace;
 		// Compatibility with old true or false values
