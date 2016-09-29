@@ -157,6 +157,7 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.ratingCount : null;
 	}
 
+	// TODO: Clean it up. Make it sync
 	isOutdated(): TPromise<boolean> {
 		if (this.type === LocalExtensionType.User) {
 			if (this.gallery && this.gallery.properties.engine) {
@@ -347,13 +348,23 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const installed = installedByGalleryId[id];
 
 		if (installed) {
-			installed.gallery = gallery;
-			this._onChange.fire();
-			this.eventuallyAutoUpdateExtensions();
+			// Loading the compatible version only there is an engine property
+			// Otherwise falling back to old way so that we will not make many roundtrips
+			if (gallery.properties.engine) {
+				this.galleryService.loadCompatibleVersion(gallery).then(compatible => this.syncLocalWithGalleryExtension(installed, compatible));
+			} else {
+				this.syncLocalWithGalleryExtension(installed, gallery);
+			}
 			return installed;
 		}
 
 		return new Extension(this.galleryService, this.stateProvider, null, gallery);
+	}
+
+	private syncLocalWithGalleryExtension(local: Extension, gallery: IGalleryExtension) {
+		local.gallery = gallery;
+		this._onChange.fire();
+		this.eventuallyAutoUpdateExtensions();
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {
