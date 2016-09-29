@@ -12,7 +12,7 @@ import { stringDiff } from 'vs/base/common/diff/diff';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IPosition, ISelection, IRange, IDecorationOptions, IDecorationRenderOptions, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
@@ -153,43 +153,6 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 			};
 		});
 	}
-}
-
-export function fromDecorationRenderOptions(options: vscode.DecorationRenderOptions): IDecorationRenderOptions {
-
-	const {
-		after,
-		backgroundColor, before, border, borderColor, borderRadius, borderSpacing, borderStyle, borderWidth,
-		color, cursor,
-		dark,
-		gutterIconPath, gutterIconSize,
-		isWholeLine,
-		letterSpacing, light,
-		outline, outlineColor, outlineStyle, outlineWidth, overviewRulerColor, overviewRulerLane,
-		textDecoration
-	} = options;
-
-	// properly convert the gutterIconPath to an url
-	let gutterIconUrl: string;
-	if (typeof gutterIconPath === 'string') {
-		gutterIconUrl = URI.file(gutterIconPath).toString();
-	} else if (gutterIconPath) {
-		// don't escape scheme-sensitive and there better don't
-		// escape at all, it would break http/data/etc links
-		gutterIconUrl = gutterIconPath.toString(true);
-	}
-
-	return {
-		after,
-		backgroundColor, before, border, borderColor, borderRadius, borderSpacing, borderStyle, borderWidth,
-		color, cursor,
-		dark,
-		gutterIconUrl, gutterIconSize,
-		isWholeLine,
-		letterSpacing, light,
-		outline, outlineColor, outlineStyle, outlineWidth, overviewRulerColor, overviewRulerLane,
-		textDecoration
-	};
 }
 
 export const TextEdit = {
