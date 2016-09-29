@@ -11,6 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {ipcRenderer as ipc, shell} from 'electron';
 import {IMessageService} from 'vs/platform/message/common/message';
+import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -38,20 +39,49 @@ const NotNowAction = new Action(
 	() => TPromise.as(true)
 );
 
-export class ShowReleaseNotesAction extends Action {
+export abstract class AbstractShowReleaseNotesAction extends Action {
 
 	constructor(
+		id,
+		label,
 		private returnValue: boolean,
 		private version: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
+		super(id, label, null, true);
 	}
 
 	run(): TPromise<boolean> {
 		return this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version))
 			.then(() => this.returnValue);
+	}
+}
+
+export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
+
+	constructor(
+		returnValue: boolean,
+		version: string,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService);
+	}
+}
+
+export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
+
+	static ID = 'update.showCurrentReleaseNotes';
+	static LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
+
+	constructor(
+		id = ShowCurrentReleaseNotesAction.ID,
+		label = ShowCurrentReleaseNotesAction.LABEL,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(id, label, true, pkg.version, editorService, instantiationService);
 	}
 }
 

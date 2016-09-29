@@ -15,7 +15,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } f
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { ShowReleaseNotesAction } from 'vs/workbench/electron-browser/update';
+import { ShowReleaseNotesAction, ShowCurrentReleaseNotesAction } from 'vs/workbench/electron-browser/update';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Action } from 'vs/base/common/actions';
 import { shell } from 'electron';
@@ -25,6 +25,8 @@ import * as semver from 'semver';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
+import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 
 const CloseAction = new Action('close', nls.localize('close', "Close"), '', true, () => null);
 
@@ -114,3 +116,6 @@ const editorDescriptor = new EditorDescriptor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ReleaseNotesInput)]);
+
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
+	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Open Release Notes');
