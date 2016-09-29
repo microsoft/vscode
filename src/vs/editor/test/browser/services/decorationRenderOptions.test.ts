@@ -11,7 +11,7 @@ import {IDecorationRenderOptions} from 'vs/editor/common/editorCommon';
 
 suite('Browser Services - EditorLayoutProvider', () => {
 	var options: IDecorationRenderOptions = {
-		gutterIconUrl: 'https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png',
+		gutterIconPath: 'https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png',
 		gutterIconSize: 'contain',
 		backgroundColor: 'red',
 		borderColor: 'yellow'

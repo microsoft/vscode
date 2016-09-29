@@ -323,9 +323,8 @@ class DecorationRenderHelper {
 	public static getCSSTextForModelDecorationGlyphMarginClassName(opts:IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
 
-		if (typeof opts.gutterIconUrl !== 'undefined') {
-			// escape at least the single quote, see https://www.w3.org/TR/CSS1/#url
-			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, opts.gutterIconUrl.replace(/'/g, '\\\'')));
+		if (typeof opts.gutterIconPath !== 'undefined') {
+			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.parse(opts.gutterIconPath).toString()));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(this._CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}
