@@ -82,7 +82,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 		if (shouldShowInsiderDisclaimer && /-alpha$|-insider$/.test(pkg.version)) {
 			setTimeout(() => {
 				messageService.show(Severity.Info, {
-					message: nls.localize('insiderBuilds', "Insider builds are becoming daily builds!", product.nameLong, pkg.version),
+					message: nls.localize('insiderBuilds', "Insider builds and releases everyday!", product.nameLong, pkg.version),
 					actions: [
 						new Action('update.insiderBuilds', nls.localize('readmore', "Read More"), '', true, () => {
 							shell.openExternal('http://go.microsoft.com/fwlink/?LinkID=798816');
