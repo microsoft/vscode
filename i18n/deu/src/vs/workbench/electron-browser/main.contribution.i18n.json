@@ -15,6 +15,7 @@
 	"reopenFolders": "Steuert, wie Ordner nach einem Neustart erneut geöffnet werden. Wählen Sie \"none\" aus, um Ordner nie erneut zu öffnen, \"one\", um den zuletzt bearbeiteten Ordner erneut zu öffnen, oder \"all\", um alle Ordner der letzten Sitzung erneut zu öffnen.",
 	"restoreFullscreen": "Steuert, ob ein Fenster im Vollbildmodus wiederhergestellt wird, wenn es im Vollbildmodus beendet wurde.",
 	"showEditorTabs": "Steuert, ob geöffnete Editoren auf Registerkarten angezeigt werden sollen.",
+	"showIcons": "Steuert, ob geöffnete Editoren mit einem Symbol angezeigt werden sollen.",
 	"updateChannel": "Konfiguriert, ob automatische Updates aus einem Updatekanal empfangen werden sollen. Erfordert einen Neustart nach der Änderung.",
 	"updateConfigurationTitle": "Update",
 	"view": "Anzeigen",

@@ -6,6 +6,8 @@
 {
 	"ascending": "排序依據: ↑",
 	"descending": "排序依據: ↓",
+	"extensions": "延伸模組",
+	"outdatedExtensions": "{0} 過期的擴充功能",
 	"searchExtensions": "在 Marketplace 中搜尋擴充功能",
 	"sort by installs": "排序依據: 安裝計數",
 	"sort by rating": "排序依據: 評等",
