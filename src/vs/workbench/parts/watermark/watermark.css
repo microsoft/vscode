@@ -68,6 +68,9 @@
 .monaco-workbench > .part.editor > .watermark dd > .shortcuts {
 	padding-left: 0.5em;
 	padding-right: 0.5em;
+}
+
+.monaco-workbench.mac > .part.editor > .watermark dd > .shortcuts {
 	letter-spacing: 0.15em;
 }
 
