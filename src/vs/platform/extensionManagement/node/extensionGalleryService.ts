@@ -542,7 +542,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this._getAsset({ url, headers })
 			.then(context => asJson<IExtensionManifest>(context))
 			.then(manifest => {
-				if (!isVersionValid(pkg.version, manifest.engines.vscode)) {
+				const engine = manifest.engines.vscode;
+
+				// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
+				if (engine !== '*' && !isVersionValid(pkg.version, engine)) {
 					return this.getLastValidExtensionVersionReccursively(extension, versions.slice(1));
 				}
 
