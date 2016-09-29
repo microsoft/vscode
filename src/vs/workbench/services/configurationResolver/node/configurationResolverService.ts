@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as ObjectPath from 'objectpath';
 import nls = require('vs/nls');
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
@@ -133,14 +134,19 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		let regexp = /\$\{config\.(.+?)\}/g;
 		return value.replace(regexp, (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
-			const keys = name.split(/[.\[\]]/g).filter(x => x.length);
-			if (!keys.length) {
+			let newValue: string;
+			try {
+				const keys: string[] = ObjectPath.parse(name);
+				if (!keys || !keys.length) {
+					return '';
+				}
+
+				newValue = keys.reduce(
+					(conf: any, key) => conf && conf[key],
+					config);
+			} catch (e) {
 				return '';
 			}
-
-			let newValue: string = keys.reduce(
-				(conf: any, key) => conf && conf[key],
-				config);
 			if (types.isString(newValue)) {
 				// Prevent infinite recursion and also support nested references (or tokens)
 				return newValue === originalValue ? '' : this.resolveString(newValue);
