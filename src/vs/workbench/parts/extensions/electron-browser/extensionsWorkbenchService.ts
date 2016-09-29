@@ -406,7 +406,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.as(null);
 		}
 
-		return action.run();
+		return action.run(false);
 	}
 
 	canInstall(extension: IExtension): boolean {
@@ -417,7 +417,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return !!(extension as Extension).gallery;
 	}
 
-	install(extension: string | IExtension): TPromise<void> {
+	install(extension: string | IExtension, promptToInstallDependencies: boolean = true): TPromise<void> {
 		if (typeof extension === 'string') {
 			return this.extensionService.install(extension);
 		}
@@ -433,7 +433,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		return this.extensionService.installFromGallery(gallery);
+		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
 	uninstall(extension: IExtension): TPromise<void> {
