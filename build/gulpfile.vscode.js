@@ -219,7 +219,7 @@ function packageTask(platform, arch, opts) {
 
 		const extensions = gulp.src(extensionsList, { base: '.' });
 
-		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+		const marketplaceExtensions = es.merge(builtInExtensions.map(extension => {
 			return ext.src(extension.name, extension.version)
 				.pipe(rename(p => p.dirname = `extensions/${ extension.name }/${ p.dirname }`));
 		}));
