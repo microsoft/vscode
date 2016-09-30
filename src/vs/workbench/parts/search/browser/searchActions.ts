@@ -114,7 +114,7 @@ export class ShowPreviousSearchTermAction extends Action {
 export class FocusNextInputAction extends Action {
 
 	public static ID = 'search.focus.nextInputBox';
-	public static LABEL = nls.localize('focusNextInputbox', "Focus next input box");
+	public static LABEL = nls.localize('focusNextInputBox', "Focus next input box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -128,8 +128,8 @@ export class FocusNextInputAction extends Action {
 
 export class FocusPreviousInputAction extends Action {
 
-	public static ID = 'search.focus.previousInputbox';
-	public static LABEL = nls.localize('focusPreviousInputbox', "Focus previous input box");
+	public static ID = 'search.focus.previousInputBox';
+	public static LABEL = nls.localize('focusPreviousInputBox', "Focus previous input box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
