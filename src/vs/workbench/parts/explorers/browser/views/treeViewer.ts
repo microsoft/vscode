@@ -7,7 +7,8 @@ import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeViewModel'
 import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 
 import { IActionRunner } from 'vs/base/common/actions';
-import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { IActionProvider, ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -39,6 +40,7 @@ export class TreeDataSource implements IDataSource {
 export class TreeRenderer extends ActionsRenderer implements IRenderer {
 
 	constructor(
+		state: TreeExplorerViewletState,
 		actionRunner: IActionRunner,
 		private container: HTMLElement,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -46,7 +48,7 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 		@IModeService private modeService: IModeService
 	) {
 		super({
-			actionProvider: null,
+			actionProvider: state.actionProvider,
 			actionRunner: actionRunner
 		});
 	}
@@ -72,4 +74,28 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 
 export class TreeController extends DefaultController {
 
+}
+
+export interface ITreeExplorerViewletState {
+	actionProvider: IActionProvider;
+}
+
+export class TreeExplorerActionProvider extends ContributableActionProvider {
+	private state: TreeExplorerViewletState;
+
+	constructor(state: TreeExplorerViewletState) {
+		super();
+
+		this.state = state;
+	}
+}
+
+export class TreeExplorerViewletState implements ITreeExplorerViewletState {
+	private _actionProvider: TreeExplorerActionProvider;
+
+	constructor() {
+		this._actionProvider = new TreeExplorerActionProvider(this);
+	}
+
+	get actionProvider() { return this._actionProvider; }
 }

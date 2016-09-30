@@ -8,7 +8,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
 
-import { IActionRunner } from 'vs/base/common/actions';
+import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -20,22 +20,41 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ITree, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
-import { TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeViewer';
+import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeViewer';
 
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 
-import { documentSymbols } from '../../common/goOutline';
+// import { documentSymbols } from '../../common/goOutline';
+import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeViewModel';
+
+function getTree(): TreeViewNode {
+	const root   = new TreeViewNode(1, "foo");
+  const node1  = new TreeViewNode(2, "bar");
+  const node2  = new TreeViewNode(3, "baz");
+  const node11 = new TreeViewNode(4, "qux");
+
+  root.addChild(node1);
+  root.addChild(node2);
+  node1.addChild(node11);
+
+	return root;
+}
 
 export class TreeView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
+	private treeViewer: ITree;
+
+	private viewletState: TreeExplorerViewletState;
 
 	private _treeName: string = "TreeExplorer";
 
 	get treeName(): string { return this._treeName; }
 
 	constructor(
+		viewletState: TreeExplorerViewletState,
 		treeName: string,
 		actionRunner: IActionRunner,
+		headerSize: number,
 		@IMessageService messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -44,20 +63,16 @@ export class TreeView extends CollapsibleViewletView {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
-		super(actionRunner, false, nls.localize('treeExplorerViewletTree', "Tree Explorer Tree Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, false, nls.localize('treeExplorerViewletTree', "Tree Explorer Tree Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.workspace = contextService.getWorkspace();
+
+		this.viewletState = viewletState;
 		this.create();
 	}
 
 	renderHeader(container: HTMLElement): void {
-		const titleDiv = $('div.title').appendTo(container);
-		$('span')
-			.text(this._treeName)
-			.title(this._treeName)
-			.appendTo(titleDiv);
 
-		super.renderHeader(container);
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -65,11 +80,16 @@ export class TreeView extends CollapsibleViewletView {
 		DOM.addClass(this.treeContainer, 'tree-explorer-viewlet-tree-view');
 
 		this.tree = this.createViewer($(this.treeContainer));
+		this.tree.setInput(getTree());
+	}
+
+	getActions(): IAction[] {
+		return [];
 	}
 
 	createViewer(container: Builder): ITree {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource);
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.actionRunner, container.getHTMLElement());
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
 		const controller = null;
 		const sorter = null;
 		const filter = null;
@@ -100,7 +120,11 @@ export class TreeView extends CollapsibleViewletView {
 
 			this.updateOutlineViewlet(fileResource);
 		}
+	}
 
+	refresh(): TPromise<void> {
+		const input = this.tree.getInput();
+		return this.doRefresh();
 	}
 
 	private doRefresh(): TPromise<void> {
@@ -108,12 +132,19 @@ export class TreeView extends CollapsibleViewletView {
 	}
 
 	private updateOutlineViewlet(fileURI: URI): TPromise<void> {
+		this.tree.setInput(getTree());
+		/*
 		documentSymbols(fileURI.path).then(nodes => {
 			const root = nodes[0];
 			this.tree.setInput(root);
 		});
+		*/
 
 		return TPromise.as(null);
+	}
+
+	focus(): void {
+
 	}
 
 	public getOptimalWidth(): number {

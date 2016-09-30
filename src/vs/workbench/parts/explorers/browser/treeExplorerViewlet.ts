@@ -9,41 +9,45 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 import { TreeView } from 'vs/workbench/parts/explorers/browser/views/treeView';
+import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeViewer';
 
 export const CUSTOM_VIEWLET_ID_ROOT = 'workbench.view.treeExplorerViewlet.';
+const ID = 'workbench.view.customViewlet.' + 'pineTree'; // for now
 
 export class TreeExplorerViewlet extends Viewlet {
 	private static _idCounter = 1;
 
 	private viewletContainer: Builder;
-	private splitView: SplitView;
-	private views: IViewletView[];
+	private view: IViewletView;
+
+	private viewletState: TreeExplorerViewletState;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(CUSTOM_VIEWLET_ID_ROOT + TreeExplorerViewlet._idCounter, telemetryService);
-		TreeExplorerViewlet._idCounter++;
+		super(ID, telemetryService);
 
-		this.views = [];
+		this.viewletState = new TreeExplorerViewletState();
+
+		TreeExplorerViewlet._idCounter++;
 	}
 
 	create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
 		this.viewletContainer = parent.div().addClass('custom-viewlet');
-		this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
-		this.addTreeView('Tree ' + (this.views.length + 1));
+		this.addTreeView('Tree1');
+
+		this.setVisible(true).then(() => this.focus());
 
 		const settings = this.configurationService.getConfiguration<ICustomViewletConfiguration>();
-
 		return this.onConfigurationUpdated(settings);
 	}
 
 	layout(dimension: Dimension): void {
-		this.splitView.layout(dimension.height);
+		this.view.layout(dimension.height, Orientation.VERTICAL);
 	}
 
 	private onConfigurationUpdated(config: ICustomViewletConfiguration): TPromise<void> {
@@ -51,16 +55,15 @@ export class TreeExplorerViewlet extends Viewlet {
 	}
 
 	private addTreeView(treeName: string): void {
-		const treeView = this.instantiationService.createInstance(TreeView, treeName, this.getActionRunner());
-		this.views.push(treeView);
-		this.splitView.addView(treeView);
+		// 0 for now, add back header later if needed
+		const headerSize = 0;
+
+		this.view = this.instantiationService.createInstance(TreeView, this.viewletState, treeName, this.getActionRunner(), headerSize);
+		this.view.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 	}
 
 	dispose(): void {
-		this.views.forEach(view => {
-			view.dispose();
-		});
-		this.views = null;
+		this.view = null;
 	}
 }
 

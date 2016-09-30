@@ -29,32 +29,32 @@ export interface GoOutlineDeclaration {
 	comment?: GoOutlineRange;
 }
 
-function documentSymbolToSymbolStat(decl: GoOutlineDeclaration): TreeViewNode {
-	const children = decl.children && decl.children.length > 0
-								 ? decl.children.map(documentSymbolToSymbolStat)
-								 : [];
+// function documentSymbolToSymbolStat(decl: GoOutlineDeclaration): TreeViewNode {
+// 	const children = decl.children && decl.children.length > 0
+// 								 ? decl.children.map(documentSymbolToSymbolStat)
+// 								 : [];
 
-  return new TreeViewNode(decl.label, decl.type, decl.start, decl.end, children);
-}
+//   return new TreeViewNode(decl.label, decl.type, decl.start, decl.end, children);
+// }
 
-export function documentSymbols(filename: string): Promise<TreeViewNode[]> {
-	return new Promise<GoOutlineDeclaration[]>((resolve, reject) => {
-		let gooutline = getBinPath('go-outline');
-		// Spawn `go-outline` process
-		let p = cp.execFile(gooutline, ['-f', filename], {}, (err, stdout, stderr) => {
-			try {
-				if (err && (<any>err).code === 'ENOENT') {
-					console.log('Go-outline not installed');
-					// promptForMissingTool('go-outline');
-				}
-				if (err) return resolve(null);
-				let result = stdout.toString();
-				let decls = <GoOutlineDeclaration[]>JSON.parse(result);
-				let symbols = decls.map(documentSymbolToSymbolStat);
-				return resolve(symbols);
-			} catch (e) {
-				reject(e);
-			}
-		});
-	});
-}
+// export function documentSymbols(filename: string): Promise<TreeViewNode[]> {
+// 	return new Promise<GoOutlineDeclaration[]>((resolve, reject) => {
+// 		let gooutline = getBinPath('go-outline');
+// 		// Spawn `go-outline` process
+// 		let p = cp.execFile(gooutline, ['-f', filename], {}, (err, stdout, stderr) => {
+// 			try {
+// 				if (err && (<any>err).code === 'ENOENT') {
+// 					console.log('Go-outline not installed');
+// 					// promptForMissingTool('go-outline');
+// 				}
+// 				if (err) return resolve(null);
+// 				let result = stdout.toString();
+// 				let decls = <GoOutlineDeclaration[]>JSON.parse(result);
+// 				let symbols = decls.map(documentSymbolToSymbolStat);
+// 				return resolve(symbols);
+// 			} catch (e) {
+// 				reject(e);
+// 			}
+// 		});
+// 	});
+// }
