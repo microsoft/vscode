@@ -137,13 +137,17 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			let newValue: any;
 			try {
 				const keys: string[] = ObjectPath.parse(name);
-				if (!keys || !keys.length) {
+				if (!keys || keys.length <= 0) {
 					return '';
 				}
-
-				newValue = keys.reduce(
-					(conf: any, key) => conf && conf.hasOwnProperty(key) ? conf[key] : undefined,
-					config);
+				while (keys.length > 1) {
+					const key = keys.shift();
+					if (!config || !config.hasOwnProperty(key)) {
+						return '';
+					}
+					config = config[key];
+				}
+				newValue = config ? config[keys[0]] : '';
 			} catch (e) {
 				return '';
 			}

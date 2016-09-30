@@ -236,8 +236,8 @@ suite('Configuration Resolver Service', () => {
 
 		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
 		assert.strictEqual(service.resolve("abc ${config.} xyz"), 'abc ${config.} xyz');
-		assert.strictEqual(service.resolve("abc ${config.editor..fontFamily} xyz"), 'abc undefined xyz');
-		assert.strictEqual(service.resolve("abc ${config.editor.none.none2} xyz"), 'abc undefined xyz');
+		assert.strictEqual(service.resolve("abc ${config.editor..fontFamily} xyz"), 'abc  xyz');
+		assert.strictEqual(service.resolve("abc ${config.editor.none.none2} xyz"), 'abc  xyz');
 	});
 
 	test('configuration should not evaluate Javascript', () => {
