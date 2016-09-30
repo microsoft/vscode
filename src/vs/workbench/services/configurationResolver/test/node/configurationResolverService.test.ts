@@ -244,12 +244,36 @@ suite('Configuration Resolver Service', () => {
 		let configurationService: IConfigurationService;
 		configurationService = new MockConfigurationService({
 			editor: {
-				a: 'foo'
+				abc: 'foo'
 			}
 		});
 
 		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
-		assert.strictEqual(service.resolve("abc ${config.editor['abc'.substr(0)]} xyz"), 'abc undefined xyz');
+		assert.strictEqual(service.resolve("abc ${config.editor['abc'.substr(0)]} xyz"), 'abc  xyz');
+	});
+
+	test('uses empty string as fallback', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve("abc ${config.editor.abc} xyz"), 'abc  xyz');
+		assert.strictEqual(service.resolve("abc ${config.editor.abc.def} xyz"), 'abc  xyz');
+		assert.strictEqual(service.resolve("abc ${config.panel} xyz"), 'abc  xyz');
+		assert.strictEqual(service.resolve("abc ${config.panel.abc} xyz"), 'abc  xyz');
+	});
+
+	test('is restricted to own properties', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve("abc ${config.editor.__proto__} xyz"), 'abc  xyz');
+		assert.strictEqual(service.resolve("abc ${config.editor.toString} xyz"), 'abc  xyz');
 	});
 
 	test('interactive variable simple', () => {

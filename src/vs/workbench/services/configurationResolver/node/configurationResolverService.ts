@@ -147,7 +147,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 					}
 					config = config[key];
 				}
-				newValue = config ? config[keys[0]] : '';
+				newValue = config && config.hasOwnProperty(keys[0]) ? config[keys[0]] : '';
 			} catch (e) {
 				return '';
 			}
