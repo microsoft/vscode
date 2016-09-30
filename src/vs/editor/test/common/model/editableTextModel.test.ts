@@ -527,7 +527,78 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		};
 	}
 
-
+	test('high-low surrogates 1', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'📚some',
+				'very nice',
+				'text'
+			],
+			[
+				editOp(1, 2, 1, 2, ['a'])
+			],
+			[
+				'a📚some',
+				'very nice',
+				'text'
+			],
+			/*inputEditsAreInvalid*/true
+		);
+	});
+	test('high-low surrogates 2', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'📚some',
+				'very nice',
+				'text'
+			],
+			[
+				editOp(1, 2, 1, 3, ['a'])
+			],
+			[
+				'asome',
+				'very nice',
+				'text'
+			],
+			/*inputEditsAreInvalid*/true
+		);
+	});
+	test('high-low surrogates 3', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'📚some',
+				'very nice',
+				'text'
+			],
+			[
+				editOp(1, 1, 1, 2, ['a'])
+			],
+			[
+				'asome',
+				'very nice',
+				'text'
+			],
+			/*inputEditsAreInvalid*/true
+		);
+	});
+	test('high-low surrogates 4', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'📚some',
+				'very nice',
+				'text'
+			],
+			[
+				editOp(1, 1, 1, 3, ['a'])
+			],
+			[
+				'asome',
+				'very nice',
+				'text'
+			],
+			/*inputEditsAreInvalid*/true
+		);
+	});
 
 	test('Bug 19872: Undo is funky', () => {
 		testApplyEditsWithSyncedModels(

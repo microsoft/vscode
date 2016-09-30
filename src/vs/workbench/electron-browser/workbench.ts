@@ -53,24 +53,26 @@ import {IActivityService} from 'vs/workbench/services/activity/common/activitySe
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {IFileService} from 'vs/platform/files/common/files';
+import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import {ConfigurationResolverService} from 'vs/workbench/services/configurationResolver/node/configurationResolverService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import * as watermark from 'vs/workbench/parts/watermark/watermark';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -146,12 +148,11 @@ export class Workbench implements IPartService {
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IThreadService private threadService: IThreadService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.container = container;
@@ -168,7 +169,7 @@ export class Workbench implements IPartService {
 		this.toShutdown = [];
 		this.editorBackgroundDelayer = new Delayer<void>(50);
 
-		this.creationPromise = new TPromise<boolean>((c, e, p) => {
+		this.creationPromise = new TPromise<boolean>(c => {
 			this.creationPromiseComplete = c;
 		});
 	}
@@ -237,7 +238,7 @@ export class Workbench implements IPartService {
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
 				let editorOpenPromise: TPromise<BaseEditor[]>;
 				if (inputsWithOptions.length) {
-					const editors = inputsWithOptions.map((inputWithOptions, index) => {
+					const editors = inputsWithOptions.map(inputWithOptions => {
 						return {
 							input: inputWithOptions.input,
 							options: inputWithOptions.options,
@@ -318,7 +319,7 @@ export class Workbench implements IPartService {
 		}
 
 		// Empty workbench
-		else if (!this.workbenchParams.workspace) {
+		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
 			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
 		}
 
@@ -388,6 +389,11 @@ export class Workbench implements IPartService {
 		// Configuration Editing
 		serviceCollection.set(IConfigurationEditingService, this.instantiationService.createInstance(ConfigurationEditingService));
 
+		// Configuration Resolver
+		const workspace = this.contextService.getWorkspace();
+		const configurationResolverService = this.instantiationService.createInstance(ConfigurationResolverService, workspace ? workspace.resource : null, process.env);
+		serviceCollection.set(IConfigurationResolverService, configurationResolverService);
+
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		this.toDispose.push(this.quickOpen);
@@ -411,7 +417,7 @@ export class Workbench implements IPartService {
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
 		if (!this.contextService.getWorkspace()) {
-			this.sideBarHidden = true; // we hide sidebar in single-file-mode
+			this.sideBarHidden = !this.telemetryService.getExperiments().showDefaultViewlet;
 		}
 
 		const viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
@@ -770,6 +776,10 @@ export class Workbench implements IPartService {
 				id: Identifiers.EDITOR_PART,
 				role: 'main'
 			});
+
+		if (this.telemetryService.getExperiments().showCommandsWatermark) {
+			this.toDispose.push(watermark.create(editorContainer, this.keybindingService));
+		}
 
 		this.editorPart.create(editorContainer);
 	}

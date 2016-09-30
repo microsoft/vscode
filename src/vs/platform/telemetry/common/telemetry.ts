@@ -5,7 +5,9 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -13,6 +15,12 @@ export interface ITelemetryInfo {
 	sessionId: string;
 	machineId: string;
 	instanceId: string;
+}
+
+export interface ITelemetryExperiments {
+	showDefaultViewlet: boolean;
+	showCommandsWatermark: boolean;
+	openUntitledFile: boolean;
 }
 
 export interface ITelemetryService {
@@ -28,10 +36,19 @@ export interface ITelemetryService {
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
 	isOptedIn: boolean;
+
+	getExperiments(): ITelemetryExperiments;
 }
 
-export const NullTelemetryService: ITelemetryService = {
+export const defaultExperiments: ITelemetryExperiments = {
+	showDefaultViewlet: false,
+	showCommandsWatermark: false,
+	openUntitledFile: true
+};
+
+export const NullTelemetryService = {
 	_serviceBrand: undefined,
+	_experiments: defaultExperiments,
 	publicLog(eventName: string, data?: any) {
 		return TPromise.as<void>(null);
 	},
@@ -42,8 +59,46 @@ export const NullTelemetryService: ITelemetryService = {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
+	},
+	getExperiments(): ITelemetryExperiments {
+		return this._experiments;
 	}
 };
+
+export function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): ITelemetryExperiments {
+	const key = 'experiments.randomness';
+	let valueString = storageService.get(key);
+	if (!valueString) {
+		valueString = Math.random().toString();
+		storageService.store(key, valueString);
+	}
+	const random0 = parseFloat(valueString);
+	const [random1, showDefaultViewlet] = splitRandom(random0);
+	const [random2, showCommandsWatermark] = splitRandom(random1);
+	const [, openUntitledFile] = splitRandom(random2);
+	return applyOverrides(configurationService, {
+		showDefaultViewlet,
+		showCommandsWatermark,
+		openUntitledFile
+	});
+}
+
+export function applyOverrides(configurationService: IConfigurationService, experiments: ITelemetryExperiments): ITelemetryExperiments {
+	const config: any = configurationService.getConfiguration('telemetry');
+	const experimentsConfig = config && config.experiments || {};
+	Object.keys(experiments).forEach(key => {
+		if (key in experimentsConfig) {
+			experiments[key] = experimentsConfig[key];
+		}
+	});
+	return experiments;
+}
+
+function splitRandom(random: number): [number, boolean] {
+	const scaled = random * 2;
+	const i = Math.floor(scaled);
+	return [scaled - i, i === 1];
+}
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;

@@ -17,6 +17,7 @@
 	"debugAddToWatch": "调试: 添加到监视",
 	"debugConsoleAction": "调试控制台",
 	"debugEvaluate": "调试: 评估",
+	"debugFocusConsole": "焦点调试控制台",
 	"disableAllBreakpoints": "禁用所有断点",
 	"disconnectDebug": "断开连接",
 	"editConditionalBreakpoint": "编辑断点",

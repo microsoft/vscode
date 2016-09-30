@@ -22,7 +22,7 @@ import {ContextViewService} from 'vs/platform/contextview/browser/contextViewSer
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/electron-browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, NullTelemetryService, loadExperiments} from 'vs/platform/telemetry/common/telemetry';
 import {ITelemetryAppenderChannel, TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
 import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
 import {IdleMonitor, UserStatus} from  'vs/platform/telemetry/browser/idleMonitor';
@@ -46,6 +46,8 @@ import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerServic
 import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {IntegrityServiceImpl} from 'vs/platform/integrity/node/integrityServiceImpl';
+import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {MainProcessExtensionService} from 'vs/workbench/api/node/mainThreadExtensionService';
@@ -58,7 +60,8 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IMessageService, IChoiceService, Severity} from 'vs/platform/message/common/message';
+import {ChoiceChannel} from 'vs/platform/message/common/messageIpc';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -80,6 +83,7 @@ import {IExtensionManagementService} from 'vs/platform/extensionManagement/commo
 import {URLChannelClient} from 'vs/platform/url/common/urlIpc';
 import {IURLService} from 'vs/platform/url/common/url';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
+import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -197,7 +201,8 @@ export class WorkbenchShell {
 				emptyWorkbench: !this.contextService.getWorkspace(),
 				customKeybindingsCount,
 				theme: this.themeService.getColorTheme(),
-				language: platform.language
+				language: platform.language,
+				experiments: this.telemetryService.getExperiments()
 			});
 
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
@@ -210,16 +215,6 @@ export class WorkbenchShell {
 
 	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
 		const disposables = new Disposables();
-
-		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle);
-		sharedProcess.done(service => {
-			service.onClose(() => {
-				this.messageService.show(Severity.Error, {
-					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
-					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
-				});
-			});
-		}, errors.onUnexpectedError);
 
 		const mainProcessClient = new ElectronIPCClient(ipcRenderer);
 		disposables.add(mainProcessClient);
@@ -235,6 +230,19 @@ export class WorkbenchShell {
 		this.windowService = instantiationService.createInstance(WindowService);
 		serviceCollection.set(IWindowService, this.windowService);
 
+		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle, `window:${ this.windowService.getWindowId() }`);
+		sharedProcess.done(client => {
+
+			client.registerChannel('choice', new ChoiceChannel(this.messageService));
+
+			client.onClose(() => {
+				this.messageService.show(Severity.Error, {
+					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
+					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
+				});
+			});
+		}, errors.onUnexpectedError);
+
 		// Storage
 		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
@@ -249,7 +257,8 @@ export class WorkbenchShell {
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
-				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
+				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
+				experiments: loadExperiments(this.storageService, this.configurationService)
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -266,13 +275,18 @@ export class WorkbenchShell {
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
+			NullTelemetryService._experiments = loadExperiments(this.storageService, this.configurationService);
 			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
+		if (this.configurationService instanceof WorkspaceConfigurationService) {
+			this.configurationService.telemetryService = this.telemetryService;
+		}
 
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
+		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
@@ -318,6 +332,9 @@ export class WorkbenchShell {
 
 		const codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
 		serviceCollection.set(ICodeEditorService, codeEditorService);
+
+		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
+		serviceCollection.set(IIntegrityService, integrityService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);

@@ -9,8 +9,9 @@ import {parse} from 'vs/base/common/marshalling';
 import {Schemas} from 'vs/base/common/network';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
+import {normalize} from 'vs/base/common/paths';
 import {ICommandService, CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {IOpenerService} from '../common/opener';
+import {IOpenerService} from 'vs/platform/opener/common/opener';
 
 export class OpenerService implements IOpenerService {
 
@@ -45,27 +46,24 @@ export class OpenerService implements IOpenerService {
 			promise = this._commandService.executeCommand(path, ...args);
 
 		} else {
-			promise = this._editorService.resolveEditorModel({ resource }).then(model => {
-				if (!model) {
-					return;
-				}
-				let selection: {
-					startLineNumber: number;
-					startColumn: number;
+			let selection: {
+				startLineNumber: number;
+				startColumn: number;
+			};
+			const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
+			if (match) {
+				// support file:///some/file.js#73,84
+				// support file:///some/file.js#L73
+				selection = {
+					startLineNumber: parseInt(match[1]),
+					startColumn: match[2] ? parseInt(match[2]) : 1
 				};
-				const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
-				if (match) {
-					// support file:///some/file.js#73,84
-					// support file:///some/file.js#L73
-					selection = {
-						startLineNumber: parseInt(match[1]),
-						startColumn: match[2] ? parseInt(match[2]) : 1
-					};
-					// remove fragment
-					resource = resource.with({ fragment: '' });
-				}
-				return this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
-			});
+				// remove fragment
+				resource = resource.with({ fragment: '' });
+			} else if (resource.scheme === Schemas.file) {
+				resource = URI.file(normalize(resource.fsPath)); // TODO@Ben workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+			}
+			promise = this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
 		}
 
 		return TPromise.as(promise);

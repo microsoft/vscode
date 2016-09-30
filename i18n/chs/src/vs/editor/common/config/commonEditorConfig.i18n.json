@@ -14,7 +14,7 @@
 	"folding": "控制编辑器是否启用代码折叠功能",
 	"fontFamily": "控制字体系列。",
 	"fontLigatures": "启用字体连字",
-	"fontSize": "控制字体大小。",
+	"fontSize": "以像素为单位控制字号。",
 	"fontWeight": "控制字体粗细。",
 	"formatOnType": "控制编辑器是否应在键入后自动设置行的格式",
 	"glyphMargin": "控制字形边距的可见性",
@@ -32,6 +32,7 @@
 	"quickSuggestionsDelay": "控制延迟多少毫秒后将显示快速建议",
 	"renderControlCharacters": "控制编辑器是否应呈现控制字符",
 	"renderIndentGuides": "控制编辑器是否应呈现缩进参考线",
+	"renderLineHighlight": "控制编辑器是否应呈现当前行突出显示",
 	"renderWhitespace": "控制编辑器是否应呈现空白字符",
 	"roundedSelection": "控制选取范围是否有圆角",
 	"rulers": "显示垂直标尺的列",
@@ -49,6 +50,7 @@
 	"useTabStops": "在制表位后插入和删除空格",
 	"wordBasedSuggestions": "启用基于字的建议。",
 	"wordSeparators": "执行文字相关的导航或操作时将用作文字分隔符的字符",
+	"wordWrap": "控制是否应换行。换行依据为 min(editor.wrappingColumn, viewportWidthInColumns)。",
 	"wrappingColumn": "控制在多少个字符后编辑器会自动换到下一行。将其设置为 0 则将打开视区宽度换行(自动换行)。将其设置为 -1 则将强制编辑器始终不换行。",
 	"wrappingIndent": "控制换行的行的缩进。可以是\"none\"、 \"same\" 或 \"indent\"。"
 }

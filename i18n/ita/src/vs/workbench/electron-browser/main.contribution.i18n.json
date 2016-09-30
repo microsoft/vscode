@@ -15,6 +15,7 @@
 	"reopenFolders": "Controlla la modalità di riapertura delle cartelle dopo un riavvio. Selezionare 'none' per non riaprire mai una cartella, 'one' per riaprire l'ultima cartella usata oppure 'all' per riaprire tutte le cartelle dell'ultima sessione.",
 	"restoreFullscreen": "Controlla se una finestra deve essere ripristinata a schermo intero se è stata chiusa in questa modalità.",
 	"showEditorTabs": "Controlla se visualizzare o meno gli editor aperti in schede.",
+	"showIcons": "Controlla se visualizzare o meno un'icona per gli editor aperti.",
 	"updateChannel": "Consente di configurare la ricezione degli aggiornamenti automatici da un canale di aggiornamento. Richiede un riavvio dopo la modifica.",
 	"updateConfigurationTitle": "Aggiorna",
 	"view": "Visualizza",

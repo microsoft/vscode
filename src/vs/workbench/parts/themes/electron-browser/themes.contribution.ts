@@ -42,7 +42,7 @@ class SelectColorThemeAction extends Action {
 			const currentThemeId = this.themeService.getColorTheme();
 			const currentTheme = themes.filter(theme => theme.id === currentThemeId)[0];
 
-const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
+			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes');
 
 			const picks: IPickOpenEntry[] = themes
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
@@ -64,12 +64,12 @@ const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:t
 				picks.push(pickInMarketPlace);
 			}
 
-			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }})
+			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
 				.then(
-					theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
-					null,
-					theme => delayer.trigger(() => selectTheme(theme, false))
-				);
+				theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
+				null,
+				theme => delayer.trigger(() => selectTheme(theme, false))
+			);
 		});
 	}
 }
@@ -121,11 +121,11 @@ class SelectIconThemeAction extends Action {
 				picks.push(pickInMarketPlace);
 			}
 
-			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex }})
+			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
 				.then(
-					theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
-					null,
-					theme => delayer.trigger(() => selectTheme(theme, false))
+				theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
+				null,
+				theme => delayer.trigger(() => selectTheme(theme, false))
 				);
 		});
 	}

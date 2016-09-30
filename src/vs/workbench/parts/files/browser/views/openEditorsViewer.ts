@@ -8,7 +8,7 @@ import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
-import {EditorLabel} from 'vs/workbench/browser/parts/editor/editorLabel';
+import {EditorLabel} from 'vs/workbench/browser/labels';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import {IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer} from 'vs/base/parts/tree/browser/tree';
 import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
@@ -123,10 +123,7 @@ export class Renderer implements IRenderer {
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
-	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
-		@ITextFileService private textFileService: ITextFileService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+	constructor(private actionProvider: ActionProvider, @IInstantiationService private instantiationService: IInstantiationService,
 	) {
 		// noop
 	}
@@ -158,7 +155,7 @@ export class Renderer implements IRenderer {
 		editorTemplate.container = container;
 		editorTemplate.actionBar = new ActionBar(container);
 		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false });
-		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container);
+		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container, void 0);
 
 		return editorTemplate;
 	}
@@ -178,7 +175,7 @@ export class Renderer implements IRenderer {
 
 	private renderOpenEditor(tree: ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
-		templateData.root.setInput(editor.editorInput, { italic: editor.isPreview(), extraClasses: ['open-editor'] });
+		templateData.root.setEditor(editor.editorInput, { italic: editor.isPreview(), extraClasses: ['open-editor'] });
 		templateData.actionBar.context = { group: editor.editorGroup, editor: editor.editorInput };
 	}
 
@@ -198,7 +195,6 @@ export class Controller extends treedefaults.DefaultController {
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService
@@ -485,6 +481,14 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		const resource = element.getResource();
 		// Some open editors do not have a resource so use the name as drag identifier instead #7021
 		return resource ? resource.toString() : element.editorInput.getName();
+	}
+
+	public getDragLabel(tree: ITree, elements: OpenEditor[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		return elements[0].editorInput.getName();
 	}
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: OpenEditor | EditorGroup, originalEvent: DragMouseEvent): IDragOverReaction {

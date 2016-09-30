@@ -118,9 +118,9 @@
       "resolved": "https://registry.npmjs.org/extract-opts/-/extract-opts-2.2.0.tgz"
     },
     "fast-plist": {
-      "version": "0.1.1",
-      "from": "fast-plist@0.1.1",
-      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.1.tgz"
+      "version": "0.1.2",
+      "from": "fast-plist@0.1.2",
+      "resolved": "https://registry.npmjs.org/fast-plist/-/fast-plist-0.1.2.tgz"
     },
     "fd-slicer": {
       "version": "1.0.1",
@@ -288,9 +288,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "0.1.2",
-      "from": "native-keymap@0.1.2",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.1.2.tgz"
+      "version": "0.2.0",
+      "from": "native-keymap@0.2.0",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.2.0.tgz"
     },
     "normalize-path": {
       "version": "2.0.1",
@@ -302,10 +302,15 @@
       "from": "object.omit@>=2.0.0 <3.0.0",
       "resolved": "https://registry.npmjs.org/object.omit/-/object.omit-2.0.0.tgz"
     },
+    "objectpath": {
+      "version": "1.2.1",
+      "from": "objectpath@>=1.2.1 <2.0.0",
+      "resolved": "https://registry.npmjs.org/objectpath/-/objectpath-1.2.1.tgz"
+    },
     "oniguruma": {
-      "version": "6.1.0",
+      "version": "6.1.1",
       "from": "oniguruma@>=6.0.1 <7.0.0",
-      "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.1.0.tgz"
+      "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.1.1.tgz"
     },
     "parse-glob": {
       "version": "3.0.4",
@@ -405,16 +410,16 @@
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.13.0-pre.3",
+      "version": "1.13.0",
       "from": "vscode-debugprotocol@1.13.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.13.0-pre.3.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.13.0.tgz"
     },
     "vscode-textmate": {
-      "version": "2.1.1",
-      "from": "vscode-textmate@2.1.1",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.1.1.tgz"
+      "version": "2.2.0",
+      "from": "vscode-textmate@2.2.0",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.2.0.tgz"
     },
-        "windows-mutex": {
+    "windows-mutex": {
       "version": "0.2.0",
       "from": "windows-mutex@>=0.2.0 <0.3.0",
       "resolved": "https://registry.npmjs.org/windows-mutex/-/windows-mutex-0.2.0.tgz"
@@ -427,7 +432,7 @@
     "xterm": {
       "version": "1.1.3",
       "from": "git+https://github.com/Tyriar/xterm.js.git#vscode-release/1.6",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#b04f8c06bf9720d37cec703632dcb889a7a16b2c"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#e214e3f78b0c27adcc0637a362c62ee0f242e712"
     },
     "yauzl": {
       "version": "2.3.1",

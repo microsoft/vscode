@@ -228,6 +228,7 @@ class SuggestionDetails {
 			this.widget.toggleDetails();
 		};
 
+		this.body.scrollTop = 0;
 		this.scrollbar.scanDomNode();
 
 		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.detail || '', item.suggestion.documentation || '');
@@ -464,7 +465,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.state = state;
 
 		toggleClass(this.element, 'frozen', state === State.Frozen);
-		toggleClass(this.element, 'loading', state === State.Loading);
 
 		switch (state) {
 			case State.Hidden:
@@ -478,6 +478,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Loading:
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
 				hide(this.listElement, this.details.element);
+				show(this.messageElement);
 				this.show();
 				break;
 			case State.Empty:

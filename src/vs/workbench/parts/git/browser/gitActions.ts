@@ -29,7 +29,6 @@ import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBr
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -166,7 +165,7 @@ export class OpenFileAction extends GitAction {
 		}
 
 		if (OpenFileAction.DELETED_STATES.indexOf(status.getStatus()) > -1) {
-			return Promise.wrapError(new Error('Can\'t open file which is has been deleted.'));
+			return Promise.wrapError(new Error('Can\'t open file which has been deleted.'));
 		}
 
 		const resource = URI.file(paths.join(this.gitService.getModel().getRepositoryRoot(), this.getPath(status)));
@@ -1146,10 +1145,24 @@ export class UndoLastCommitAction extends GitAction {
 	constructor(
 		id = UndoLastCommitAction.ID,
 		label = UndoLastCommitAction.LABEL,
-		@IGitService gitService: IGitService,
-		@IStorageService private storageService: IStorageService
+		@IGitService gitService: IGitService
 	) {
 		super(UndoLastCommitAction.ID, UndoLastCommitAction.LABEL, 'git-action undo-last-commit', gitService);
+	}
+
+	protected isEnabled():boolean {
+		if (!this.gitService) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		var status = this.gitService.getModel().getStatus();
+
+		return status.getIndexStatus().all().length === 0
+			&& status.getWorkingTreeStatus().all().length === 0;
 	}
 
 	public run():Promise {

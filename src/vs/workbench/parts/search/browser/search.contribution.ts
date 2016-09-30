@@ -93,7 +93,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 }
 
 const ACTION_ID = 'workbench.action.showAllSymbols';
-const ACTION_LABEL = nls.localize('showTriggerActions', "Show All Symbols");
+const ACTION_LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
 const ALL_SYMBOLS_PREFIX = '#';
 
 class ShowAllSymbolsAction extends QuickOpenAction {
@@ -141,7 +141,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 		'vs/workbench/parts/search/browser/openAnythingHandler',
 		'OpenAnythingHandler',
 		'',
-		nls.localize('openAnythingHandlerDescription', "Open Files by Name")
+		nls.localize('openAnythingHandlerDescription', "Go to File")
 	)
 );
 
@@ -154,7 +154,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 			{
 				prefix: ALL_SYMBOLS_PREFIX,
 				needsEditor: false,
-				description: nls.localize('openSymbolDescriptionNormal', "Open Any Symbol By Name")
+				description: nls.localize('openSymbolDescriptionNormal', "Go to Symbol in Workspace")
 			}
 		]
 	)
@@ -164,7 +164,7 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActio
 const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ACTION_ID, ACTION_LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_T
-}), 'Show All Symbols');
+}), 'Go to Symbol in Workspace...');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowNextSearchTermAction, searchActions.ShowNextSearchTermAction.ID, searchActions.ShowNextSearchTermAction.LABEL, ShowNextFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');
 

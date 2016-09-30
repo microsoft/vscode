@@ -238,14 +238,6 @@ suite('WorkspaceConfigurationService - Node', () => {
 	});
 
 	test('lookup', (done: () => void) => {
-		interface ILookupTestSetting {
-			workspaceLookup: {
-				service: {
-					testSetting: string;
-				}
-			};
-		}
-
 		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',

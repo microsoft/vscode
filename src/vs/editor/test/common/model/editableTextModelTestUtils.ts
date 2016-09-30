@@ -12,7 +12,7 @@ import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Position} from 'vs/editor/common/core/position';
 
-export function testApplyEditsWithSyncedModels(original:string[], edits:editorCommon.IIdentifiedSingleEditOperation[], expected:string[]): void {
+export function testApplyEditsWithSyncedModels(original:string[], edits:editorCommon.IIdentifiedSingleEditOperation[], expected:string[], inputEditsAreInvalid:boolean = false): void {
 	var originalStr = original.join('\n');
 	var expectedStr = expected.join('\n');
 
@@ -31,8 +31,10 @@ export function testApplyEditsWithSyncedModels(original:string[], edits:editorCo
 		// Assert the inverse edits brought back model to original state
 		assert.deepEqual(model.getValue(editorCommon.EndOfLinePreference.LF), originalStr);
 
-		// Assert the inverse of the inverse edits are the original edits
-		assert.deepEqual(inverseInverseEdits, edits);
+		if (!inputEditsAreInvalid) {
+			// Assert the inverse of the inverse edits are the original edits
+			assert.deepEqual(inverseInverseEdits, edits);
+		}
 
 		assertMirrorModels();
 	});

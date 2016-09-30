@@ -170,13 +170,40 @@ export interface IModeDescriptor {
  * @internal
  */
 export interface ILineContext {
+	/**
+	 * Get the content of the line.
+	 */
 	getLineContent(): string;
 
+	/**
+	 * The mode transitions on this line.
+	 */
 	modeTransitions: ModeTransition[];
 
+	/**
+	 * Get the number of tokens on this line.
+	 */
 	getTokenCount(): number;
-	getTokenStartIndex(tokenIndex:number): number;
+
+	/**
+	 * Get the start offset of the token at `tokenIndex`.
+	 */
+	getTokenStartOffset(tokenIndex:number): number;
+
+	/**
+	 * Get the type of the token at `tokenIndex`.
+	 */
 	getTokenType(tokenIndex:number): string;
+
+	/**
+	 * Find the token containing offset `offset`.
+	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
+	 *    Searching for 0, 1, 2, 3 or 4 will return 0.
+	 *    Searching for 5, 6, 7 or 8 will return 1.
+	 *    Searching for 9, 10, 11, ... will return 2.
+	 * @param offset The search offset
+	 * @return The index of the token containing the offset.
+	 */
 	findIndexOfOffset(offset:number): number;
 }
 
@@ -546,27 +573,27 @@ export interface DefinitionProvider {
  * A symbol kind.
  */
 export enum SymbolKind {
-	File,
-	Module,
-	Namespace,
-	Package,
-	Class,
-	Method,
-	Property,
-	Field,
-	Constructor,
-	Enum,
-	Interface,
-	Function,
-	Variable,
-	Constant,
-	String,
-	Number,
-	Boolean,
-	Array,
-	Object,
-	Key,
-	Null
+	File = 0,
+	Module = 1,
+	Namespace = 2,
+	Package = 3,
+	Class = 4,
+	Method = 5,
+	Property = 6,
+	Field = 7,
+	Constructor = 8,
+	Enum = 9,
+	Interface = 10,
+	Function = 11,
+	Variable = 12,
+	Constant = 13,
+	String = 14,
+	Number = 15,
+	Boolean = 16,
+	Array = 17,
+	Object = 18,
+	Key = 19,
+	Null = 20
 }
 /**
  * @internal
@@ -842,21 +869,21 @@ export enum IndentAction {
 	/**
 	 * Insert new line and copy the previous line's indentation.
 	 */
-	None,
+	None = 0,
 	/**
 	 * Insert new line and indent once (relative to the previous line's indentation).
 	 */
-	Indent,
+	Indent = 1,
 	/**
 	 * Insert two new lines:
 	 *  - the first one indented which will hold the cursor
 	 *  - the second one at the same indentation level
 	 */
-	IndentOutdent,
+	IndentOutdent = 2,
 	/**
 	 * Insert new line and outdent once (relative to the previous line's indentation).
 	 */
-	Outdent
+	Outdent = 3
 }
 
 /**

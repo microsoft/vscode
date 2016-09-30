@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.panel.expanded {
+	transform: rotate(180deg);
+}
+
 .monaco-workbench > .part.activitybar {
 	z-index: 20;
 	min-width: 50px;
@@ -26,15 +30,13 @@
 	background-color: inherit;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom .action-item {
-	padding-bottom: 0;
+.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom {
+	position: absolute;
+	bottom: 0;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom:before {
-	content: '';
-	border-top: 1px solid #777;
-	display: block;
-	margin: 10px 10px;
+.monaco-workbench > .activitybar > .content .monaco-action-bar.position-bottom .action-item {
+	padding-bottom: 0;
 }
 
 .vs .monaco-workbench > .activitybar > .content {

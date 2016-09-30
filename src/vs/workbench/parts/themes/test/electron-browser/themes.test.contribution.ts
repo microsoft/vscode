@@ -125,7 +125,7 @@ class Snapper {
 					let content = model.getValueInRange({ startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: tokenInfo.startColumn, endColumn: tokenInfo.endColumn});
 					result.push({
 						c: content,
-						t: this.normalizeType(tokenInfo.token.type),
+						t: this.normalizeType(tokenInfo.type),
 						r: {}
 					});
 				}

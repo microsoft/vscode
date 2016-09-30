@@ -12,7 +12,6 @@ import dom = require('vs/base/browser/dom');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -25,7 +24,6 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
-import {IEventService} from 'vs/platform/event/common/event';
 
 const $ = dom.$;
 
@@ -47,18 +45,16 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private fullRefreshNeeded: boolean;
 
 	constructor(actionRunner: IActionRunner, settings: any,
-		@IMessageService messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IViewletService private viewletService: IViewletService,
-		@IEventService private eventService: IEventService
+		@IViewletService private viewletService: IViewletService
 	) {
-		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
@@ -92,7 +88,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		const dataSource = this.instantiationService.createInstance(DataSource);
 		const actionProvider = this.instantiationService.createInstance(ActionProvider, this.model);
-		const renderer = this.instantiationService.createInstance(Renderer, actionProvider, this.model);
+		const renderer = this.instantiationService.createInstance(Renderer, actionProvider);
 		const controller = this.instantiationService.createInstance(Controller, actionProvider, this.model);
 		const accessibilityProvider = this.instantiationService.createInstance(AccessibilityProvider);
 		const dnd = this.instantiationService.createInstance(DragAndDrop);
@@ -265,7 +261,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	public getOptimalWidth():number {
 		let parentNode = this.tree.getHTMLElement();
-		let childNodes = [].slice.call(parentNode.querySelectorAll('.monaco-file-label > .file-name'));
+		let childNodes = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}
 

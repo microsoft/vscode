@@ -8,6 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ISharedProcessInitData {
 	args: ParsedArgs;
@@ -36,15 +37,14 @@ function _spawnSharedProcess(initData: ISharedProcessInitData, options: ISharedP
 
 	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], { env, execArgv });
 
-	// handshake
-	result.once('message', () => result.send(initData));
-
 	return result;
 }
 
-export function spawnSharedProcess(initData: ISharedProcessInitData, options: ISharedProcessOptions = {}): IDisposable {
+export function spawnSharedProcess(initData: ISharedProcessInitData, options: ISharedProcessOptions = {}): TPromise<IDisposable> {
 	let spawnCount = 0;
 	let child: cp.ChildProcess;
+
+	let promise: TPromise<IDisposable>;
 
 	const spawn = () => {
 		if (++spawnCount > 10) {
@@ -52,18 +52,25 @@ export function spawnSharedProcess(initData: ISharedProcessInitData, options: IS
 		}
 
 		child = _spawnSharedProcess(initData, options);
+		promise = new TPromise<IDisposable>((c, e) => {
+			// handshake
+			child.once('message', () => {
+				child.send(initData);
+				c({
+					dispose: () => {
+						if (child) {
+							child.removeListener('exit', spawn);
+							child.kill();
+							child = null;
+						}
+					}
+				});
+			});
+		});
 		child.on('exit', spawn);
 	};
 
 	spawn();
 
-	return {
-		dispose: () => {
-			if (child) {
-				child.removeListener('exit', spawn);
-				child.kill();
-				child = null;
-			}
-		}
-	};
+	return promise;
 }

@@ -11,7 +11,7 @@ import {WorkspaceContextService, IWorkspaceContextService} from 'vs/platform/wor
 import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {ISearchService} from 'vs/platform/search/common/search';
-import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryInfo, ITelemetryExperiments, defaultExperiments} from 'vs/platform/telemetry/common/telemetry';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
@@ -155,5 +155,9 @@ class TestTelemetryService implements ITelemetryService {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
+	}
+
+	public getExperiments(): ITelemetryExperiments {
+		return defaultExperiments;
 	}
 };

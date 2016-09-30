@@ -29,7 +29,6 @@ import {CopyValueAction} from 'vs/workbench/parts/debug/electron-browser/electro
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
@@ -120,7 +119,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.Variable) {
 				(<model.Variable>element).errorMessage = null;
-				if (renamed) {
+				if (renamed && element.value !== inputBox.value) {
 					debugService.setVariable(element, inputBox.value)
 						// if everything went fine we need to refresh that tree element since his value updated
 						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
@@ -738,7 +737,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Expression && element.name;
+		return element instanceof model.Expression && !!element.name;
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -833,7 +832,6 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	constructor(
 		actionProvider: renderer.IActionProvider,
 		private actionRunner: actions.IActionRunner,
-		@IMessageService private messageService: IMessageService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService
 	) {
@@ -1079,7 +1077,6 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	constructor(
 		private actionProvider: BreakpointsActionProvider,
 		private actionRunner: actions.IActionRunner,
-		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService

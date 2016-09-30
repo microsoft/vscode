@@ -186,14 +186,6 @@ suite('ConfigurationService - Node', () => {
 	});
 
 	test('lookup', (done: () => void) => {
-		interface ILookupTestSetting {
-			lookup: {
-				service: {
-					testSetting: string;
-				}
-			};
-		}
-
 		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',

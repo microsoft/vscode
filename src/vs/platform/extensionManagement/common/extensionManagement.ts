@@ -12,6 +12,8 @@ import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestContext } from 'vs/base/node/request';
 
+export const EXTENSION_IDENTIFIER_PATTERN = '^[a-z0-9A-Z][a-z0-9\-A-Z]*\\.[a-z0-9A-Z][a-z0-9\-A-Z]*$';
+
 export interface ICommand {
 	command: string;
 	title: string;
@@ -21,6 +23,7 @@ export interface ICommand {
 export interface IConfigurationProperty {
 	description: string;
 	type: string | string[];
+	default?: any;
 }
 
 export interface IConfiguration {
@@ -103,9 +106,15 @@ export interface IExtensionIdentity {
 	publisher: string;
 }
 
+export interface IGalleryExtensionProperties {
+	dependencies?: string[];
+	engine?: string;
+}
+
 export interface IGalleryExtensionAssets {
 	manifest: string;
 	readme: string;
+	changelog: string;
 	download: string;
 	icon: string;
 	iconFallback: string;
@@ -126,7 +135,10 @@ export interface IGalleryExtension {
 	rating: number;
 	ratingCount: number;
 	assets: IGalleryExtensionAssets;
-	downloadHeaders: { [key: string]: string; };
+	properties: IGalleryExtensionProperties;
+	/** We need this check until all extension in the market place contain engine property */
+	compatibilityChecked: boolean;
+	isCompatible: boolean;
 }
 
 export interface IGalleryMetadata {
@@ -184,6 +196,8 @@ export interface IExtensionGalleryService {
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
 	getAsset(url: string): TPromise<IRequestContext>;
+	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
+	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]>;
 }
 
 export interface InstallExtensionEvent {
@@ -209,7 +223,7 @@ export interface IExtensionManagementService {
 	onDidUninstallExtension: Event<string>;
 
 	install(zipPath: string): TPromise<void>;
-	installFromGallery(extension: IGalleryExtension): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: ILocalExtension): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 }

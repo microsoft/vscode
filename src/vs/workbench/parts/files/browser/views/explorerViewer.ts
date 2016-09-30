@@ -14,7 +14,6 @@ import {MIME_BINARY} from 'vs/base/common/mime';
 import async = require('vs/base/common/async');
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
-import {getFileIconClasses} from 'vs/base/browser/ui/fileLabel/fileLabel';
 import {isString} from 'vs/base/common/types';
 import {IAction, ActionRunner as BaseActionRunner, IActionRunner} from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
@@ -22,6 +21,7 @@ import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {$, Builder} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
+import {FileLabel, IFileLabelOptions} from 'vs/workbench/browser/labels';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
@@ -33,7 +33,6 @@ import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeD
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {DragMouseEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -42,7 +41,6 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
@@ -52,7 +50,6 @@ import {Keybinding} from 'vs/base/common/keybinding';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
 import {fillInActions} from 'vs/platform/actions/browser/menuItemActionItem';
-
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -174,12 +171,12 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getSecondaryActions(tree, stat);
 	}
 
-	public runAction(tree: ITree, stat: FileStat, action: IAction, context?: any): TPromise<any>;
+	public runAction(tree: ITree, stat: FileStat, action: IAction, ontext?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): TPromise<any> {
 		context = objects.mixin({
 			viewletState: this.state,
-			stat: stat
+			stat
 		}, context);
 
 		if (!isString(arg)) {
@@ -260,19 +257,13 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 
 // Explorer Renderer
 export class FileRenderer extends ActionsRenderer implements IRenderer {
-
-	private static RESOURCE_PATH_KEY = '__resourcePath';
-
 	private state: FileViewletState;
-	private extensionsReady: boolean;
 
 	constructor(
 		state: FileViewletState,
 		actionRunner: IActionRunner,
-		private container: HTMLElement,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IModeService private modeService: IModeService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super({
 			actionProvider: state.actionProvider,
@@ -280,27 +271,6 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		});
 
 		this.state = state;
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// once the extension host is up we need to reapply our CSS classes for
-		// icons because additional language associations might be present then
-		this.extensionService.onReady().then(() => {
-			this.extensionsReady = true;
-
-			const fileItems = this.container.getElementsByClassName('explorer-item file-icon');
-
-			for (let i = 0; i < fileItems.length; i++) {
-				const fileItem = $(<HTMLElement>fileItems.item(i));
-				const resourcePath = fileItem.getProperty(FileRenderer.RESOURCE_PATH_KEY);
-				if (resourcePath) {
-					fileItem.setClass(['explorer-item', ...getFileIconClasses(resourcePath, path => this.modeService.getModeIdByFilenameOrFirstLine(path))].join(' '));
-					fileItem.removeProperty(FileRenderer.RESOURCE_PATH_KEY);
-				}
-			}
-		});
 	}
 
 	public getContentHeight(tree: ITree, element: any): number {
@@ -310,47 +280,45 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		const el = $(domElement).clearChildren();
 
-		// Item Container
-		const item = $('.explorer-item');
-		if (stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder())) {
-			item.addClass(...getFileIconClasses(stat.resource, path => this.modeService.getModeIdByFilenameOrFirstLine(path), true));
-		} else {
-			item.addClass(...getFileIconClasses(stat.resource, path => this.modeService.getModeIdByFilenameOrFirstLine(path)));
-
-			// We need to re-apply the icon CSS classes once the extension host is ready
-			if (!this.extensionsReady) {
-				item.setProperty(FileRenderer.RESOURCE_PATH_KEY, stat.resource.fsPath);
-			}
-		}
-
-		item.appendTo(el);
-
-		// File/Folder label
+		// File Rename/Add Input Field
 		const editableData: IEditableData = this.state.getEditableData(stat);
-		if (!editableData) {
-			return this.renderFileFolderLabel(item, stat);
+		if (editableData) {
+			return this.renderInputBox(el, tree, stat, editableData);
 		}
 
-		// Name Input
-		return this.renderNameInput(item, tree, stat, editableData);
+		// Label
+		return this.renderLabel(el, stat);
 	}
 
-	private renderFileFolderLabel(container: Builder, stat: IFileStat): IElementCallback {
-		const label = $('.explorer-item-label').appendTo(container);
-		$('a.plain').text(stat.name).title(stat.resource.fsPath).appendTo(label);
+	private renderLabel(container: Builder, stat: FileStat): IElementCallback {
+		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
 
-		return null;
+		const extraClasses = ['explorer-item'];
+		label.setFile(stat.resource, { hidePath: true, isFolder: stat.isDirectory, extraClasses });
+
+		return () => label.dispose();
 	}
 
-	private renderNameInput(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
+	private renderInputBox(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
+		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
+
+		const extraClasses = ['explorer-item'];
+		const isFolder = stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder());
+		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, isFolder, extraClasses };
+		label.setFile(stat.resource, labelOptions);
 
 		// Input field (when creating a new file or folder or renaming)
-		const inputBox = new InputBox(container.getHTMLElement(), this.contextViewService, {
+		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
 				validation: editableData.validator,
 				showMessage: true
 			},
 			ariaLabel: nls.localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
+		});
+
+		const parent = paths.dirname(stat.resource.fsPath);
+		inputBox.onDidChange(value => {
+			label.setFile(URI.file(paths.join(parent, value)), labelOptions); // update label icon while typing!
 		});
 
 		const value = stat.name || '';
@@ -386,7 +354,8 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, 'blur', () => {
 				done(inputBox.isInputValid());
-			})
+			}),
+			label
 		];
 
 		return () => done(true);
@@ -412,12 +381,10 @@ export class FileController extends DefaultController {
 
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -443,6 +410,7 @@ export class FileController extends DefaultController {
 		if (platform.isMacintosh) {
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, this.onLeft.bind(this));
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
 			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
 			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
@@ -660,10 +628,9 @@ export class FileController extends DefaultController {
 	}
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const useTrash = !event.shiftKey;
 		const stat: FileStat = tree.getFocus();
 		if (stat) {
-			this.runAction(tree, stat, useTrash ? 'workbench.files.action.moveFileToTrash' : 'workbench.files.action.deleteFile').done();
+			this.runAction(tree, stat, 'workbench.files.action.moveFileToTrash', event).done();
 
 			return true;
 		}
@@ -671,8 +638,8 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private runAction(tree: ITree, stat: FileStat, id: string): TPromise<any> {
-		return this.state.actionProvider.runAction(tree, stat, id);
+	private runAction(tree: ITree, stat: FileStat, id: string, event?: IKeyboardEvent): TPromise<any> {
+		return this.state.actionProvider.runAction(tree, stat, id, { event });
 	}
 }
 
@@ -785,6 +752,15 @@ export class FileDragAndDrop implements IDragAndDrop {
 		}
 
 		return stat.resource.toString();
+	}
+
+	public getDragLabel(tree: ITree, elements: any[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		const stat = elements[0] as FileStat;
+		return paths.basename(stat.resource.fsPath);
 	}
 
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {

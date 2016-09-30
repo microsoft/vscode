@@ -52,7 +52,7 @@ class TestLineContext implements modes.ILineContext {
 		return this._tokens.length;
 	}
 
-	public getTokenStartIndex(tokenIndex:number): number {
+	public getTokenStartOffset(tokenIndex:number): number {
 		return this._tokens[tokenIndex].startIndex;
 	}
 

@@ -93,7 +93,7 @@ export class DebugService implements debug.IDebugService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
@@ -239,7 +239,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.push(this.session);
 		this.toDisposeOnSessionEnd.push(this.session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
-			this.sendAllBreakpoints().then(() => {
+			const sendConfigurationDone = () => {
 				if (this.session && this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
@@ -249,7 +249,9 @@ export class DebugService implements debug.IDebugService {
 						this.messageService.show(severity.Error, e.message);
 					});
 				}
-			});
+			};
+
+			this.sendAllBreakpoints().done(sendConfigurationDone, sendConfigurationDone);
 		}));
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidStop(event => {

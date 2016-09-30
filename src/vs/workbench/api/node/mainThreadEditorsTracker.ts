@@ -14,17 +14,19 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {EndOfLine} from 'vs/workbench/api/node/extHostTypes';
+import {EndOfLine, TextEditorLineNumbersStyle} from 'vs/workbench/api/node/extHostTypes';
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | string;
 	insertSpaces?: boolean | string;
 	cursorStyle?: EditorCommon.TextEditorCursorStyle;
+	lineNumbers?: TextEditorLineNumbersStyle;
 }
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	insertSpaces: boolean;
 	cursorStyle: EditorCommon.TextEditorCursorStyle;
+	lineNumbers: TextEditorLineNumbersStyle;
 }
 
 function configurationsEqual(a:IResolvedTextEditorConfiguration, b:IResolvedTextEditorConfiguration) {
@@ -253,6 +255,29 @@ export class MainThreadTextEditor {
 				cursorStyle: newCursorStyle
 			});
 		}
+
+		if (typeof newConfiguration.lineNumbers !== 'undefined') {
+
+			if (!this._codeEditor) {
+				console.warn('setConfiguration on invisible editor');
+				return;
+			}
+
+			let lineNumbers: 'on' | 'off' | 'relative';
+			switch (newConfiguration.lineNumbers) {
+				case TextEditorLineNumbersStyle.On:
+					lineNumbers = 'on';
+					break;
+				case TextEditorLineNumbersStyle.Relative:
+					lineNumbers = 'relative';
+					break;
+				default:
+					lineNumbers = 'off';
+			}
+			this._codeEditor.updateOptions({
+				lineNumbers: lineNumbers
+			});
+		}
 	}
 
 	public setDecorations(key: string, ranges:EditorCommon.IDecorationOptions[]): void {
@@ -285,16 +310,26 @@ export class MainThreadTextEditor {
 			return this._configuration;
 		}
 		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
+		let lineNumbers: TextEditorLineNumbersStyle = this._configuration ? this._configuration.lineNumbers : TextEditorLineNumbersStyle.On;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();
 			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
+
+			if (codeEditorOpts.viewInfo.renderRelativeLineNumbers) {
+				lineNumbers = TextEditorLineNumbersStyle.Relative;
+			} else if (codeEditorOpts.viewInfo.renderLineNumbers) {
+				lineNumbers = TextEditorLineNumbersStyle.On;
+			} else {
+				lineNumbers = TextEditorLineNumbersStyle.Off;
+			}
 		}
 
 		let indent = model.getOptions();
 		return {
 			insertSpaces: indent.insertSpaces,
 			tabSize: indent.tabSize,
-			cursorStyle: cursorStyle
+			cursorStyle: cursorStyle,
+			lineNumbers: lineNumbers
 		};
 	}
 

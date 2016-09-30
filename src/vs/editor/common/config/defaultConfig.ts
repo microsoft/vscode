@@ -40,7 +40,7 @@ class ConfigClass implements IConfiguration {
 			wordSeparators: USUAL_WORD_SEPARATORS,
 			selectionClipboard: true,
 			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
-			lineNumbers: true,
+			lineNumbers: 'on',
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,
 			glyphMargin: false,

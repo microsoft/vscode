@@ -12,7 +12,7 @@ import paths = require('vs/base/common/paths');
 import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey, filterOutdatedExtensions } from './extensions';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
@@ -234,7 +234,18 @@ export class UpdateAction extends Action {
 		const isInstalled = this.extension.state === ExtensionState.Installed
 			|| this.extension.state === ExtensionState.NeedsRestart;
 
-		this.enabled = canInstall && isInstalled && this.extension.outdated;
+		if (canInstall && isInstalled) {
+			this.extension.isOutdated().then(outDated => {
+				this.enabled = outDated;
+				this.updateClass();
+			});
+		} else {
+			this.enabled = false;
+			this.updateClass();
+		}
+	}
+
+	private updateClass(): void {
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
 	}
 
@@ -296,7 +307,7 @@ export class EnableAction extends Action {
 
 export class UpdateAllAction extends Action {
 
-	static ID = 'extensions.update-all';
+	static ID = 'workbench.extensions.action.updateAllExtensions';
 	static LABEL = localize('updateAll', "Update All Extensions");
 
 	private disposables: IDisposable[] = [];
@@ -312,22 +323,22 @@ export class UpdateAllAction extends Action {
 		this.update();
 	}
 
-	private get outdated(): IExtension[] {
-		return this.extensionsWorkbenchService.local
-			.filter(e =>
-					this.extensionsWorkbenchService.canInstall(e)
-				&& e.type === LocalExtensionType.User
-				&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
-				&& e.outdated
-			);
+	private getOutdatedExtensions(): TPromise<IExtension[]> {
+		let extensions = this.extensionsWorkbenchService.local.filter(
+			e => this.extensionsWorkbenchService.canInstall(e)
+			&& e.type === LocalExtensionType.User
+			&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
+		);
+
+		return filterOutdatedExtensions(extensions);
 	}
 
 	private update(): void {
-		this.enabled = this.outdated.length > 0;
+		this.getOutdatedExtensions().done(outDated => this.enabled = outDated.length > 0);
 	}
 
-	run(): TPromise<any> {
-		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e)));
+	run(promptToInstallDependencies: boolean = true,): TPromise<any> {
+		return this.getOutdatedExtensions().then(outdated => TPromise.join(outdated.map(e => this.extensionsWorkbenchService.install(e, promptToInstallDependencies))));
 	}
 
 	dispose(): void {
@@ -425,7 +436,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@outdated');
+				viewlet.search('@outdated ');
 				viewlet.focus();
 			});
 	}
@@ -452,7 +463,7 @@ export class ShowPopularExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@sort:installs');
+				viewlet.search('@sort:installs ');
 				viewlet.focus();
 			});
 	}
@@ -479,7 +490,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended');
+				viewlet.search('@recommended ');
 				viewlet.focus();
 			});
 	}
@@ -506,7 +517,7 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended:workspace');
+				viewlet.search('@recommended:workspace ');
 				viewlet.focus();
 			});
 	}

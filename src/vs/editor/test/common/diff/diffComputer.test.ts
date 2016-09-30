@@ -394,4 +394,13 @@ suite('Editor Diff - DiffComputer', () => {
 		];
 		assertDiff(original, modified, expected, false, true);
 	});
+
+	test('issue #12122 r.hasOwnProperty is not a function', () => {
+		var original = [ 'hasOwnProperty' ];
+		var modified = [ 'hasOwnProperty', 'and another line' ];
+		var expected = [
+			createLineInsertion(2, 2, 1)
+		];
+		assertDiff(original, modified, expected);
+	});
 });

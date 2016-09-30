@@ -11,14 +11,13 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode} from 'vs/editor/common/modes';
-import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 import {ScrollbarVisibility} from 'vs/base/common/scrollable';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
 import {IndentRange} from 'vs/editor/common/model/indentRanges';
 import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
 import {ContextKeyExpr, RawContextKey} from 'vs/platform/contextkey/common/contextkey';
@@ -172,6 +171,8 @@ export enum WrappingIndent {
 	Indent = 2
 }
 
+export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber:number)=>string);
+
 /**
  * Configuration options for the editor.
  */
@@ -207,7 +208,7 @@ export interface IEditorOptions {
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to true.
 	 */
-	lineNumbers?:any;
+	lineNumbers?:LineNumbersOption;
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -631,7 +632,9 @@ export class InternalEditorViewOptions {
 	experimentalScreenReader: boolean;
 	rulers: number[];
 	ariaLabel: string;
-	lineNumbers:any;
+	renderLineNumbers:boolean;
+	renderCustomLineNumbers: (lineNumber:number)=>string;
+	renderRelativeLineNumbers: boolean;
 	selectOnLineNumbers:boolean;
 	glyphMargin:boolean;
 	revealHorizontalRightPadding:number;
@@ -659,7 +662,9 @@ export class InternalEditorViewOptions {
 		experimentalScreenReader: boolean;
 		rulers: number[];
 		ariaLabel: string;
-		lineNumbers:any;
+		renderLineNumbers:boolean;
+		renderCustomLineNumbers: (lineNumber:number)=>string;
+		renderRelativeLineNumbers: boolean;
 		selectOnLineNumbers:boolean;
 		glyphMargin:boolean;
 		revealHorizontalRightPadding:number;
@@ -683,7 +688,9 @@ export class InternalEditorViewOptions {
 		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
-		this.lineNumbers = source.lineNumbers;
+		this.renderLineNumbers = Boolean(source.renderLineNumbers);
+		this.renderCustomLineNumbers = source.renderCustomLineNumbers;
+		this.renderRelativeLineNumbers = Boolean(source.renderRelativeLineNumbers);
 		this.selectOnLineNumbers = Boolean(source.selectOnLineNumbers);
 		this.glyphMargin = Boolean(source.glyphMargin);
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding|0;
@@ -741,7 +748,9 @@ export class InternalEditorViewOptions {
 			&& this.experimentalScreenReader === other.experimentalScreenReader
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
-			&& this.lineNumbers === other.lineNumbers
+			&& this.renderLineNumbers === other.renderLineNumbers
+			&& this.renderCustomLineNumbers === other.renderCustomLineNumbers
+			&& this.renderRelativeLineNumbers === other.renderRelativeLineNumbers
 			&& this.selectOnLineNumbers === other.selectOnLineNumbers
 			&& this.glyphMargin === other.glyphMargin
 			&& this.revealHorizontalRightPadding === other.revealHorizontalRightPadding
@@ -772,7 +781,9 @@ export class InternalEditorViewOptions {
 			experimentalScreenReader: this.experimentalScreenReader !== newOpts.experimentalScreenReader,
 			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
 			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
-			lineNumbers: this.lineNumbers !== newOpts.lineNumbers,
+			renderLineNumbers: this.renderLineNumbers !== newOpts.renderLineNumbers,
+			renderCustomLineNumbers: this.renderCustomLineNumbers !== newOpts.renderCustomLineNumbers,
+			renderRelativeLineNumbers: this.renderRelativeLineNumbers !== newOpts.renderRelativeLineNumbers,
 			selectOnLineNumbers: this.selectOnLineNumbers !== newOpts.selectOnLineNumbers,
 			glyphMargin: this.glyphMargin !== newOpts.glyphMargin,
 			revealHorizontalRightPadding: this.revealHorizontalRightPadding !== newOpts.revealHorizontalRightPadding,
@@ -806,8 +817,10 @@ export interface IViewConfigurationChangedEvent {
 	canUseTranslate3d: boolean;
 	experimentalScreenReader: boolean;
 	rulers: boolean;
-	ariaLabel:  boolean;
-	lineNumbers: boolean;
+	ariaLabel: boolean;
+	renderLineNumbers: boolean;
+	renderCustomLineNumbers: boolean;
+	renderRelativeLineNumbers: boolean;
 	selectOnLineNumbers: boolean;
 	glyphMargin: boolean;
 	revealHorizontalRightPadding: boolean;
@@ -818,12 +831,12 @@ export interface IViewConfigurationChangedEvent {
 	cursorStyle: boolean;
 	hideCursorInOverviewRuler: boolean;
 	scrollBeyondLastLine: boolean;
-	editorClassName:  boolean;
-	stopRenderingLineAfter:  boolean;
-	renderWhitespace:  boolean;
+	editorClassName: boolean;
+	stopRenderingLineAfter: boolean;
+	renderWhitespace: boolean;
 	renderControlCharacters: boolean;
-	renderIndentGuides:  boolean;
-	renderLineHighlight:  boolean;
+	renderIndentGuides: boolean;
+	renderLineHighlight: boolean;
 	scrollbar: boolean;
 }
 
@@ -1246,7 +1259,7 @@ export interface IWordRange {
  * @internal
  */
 export interface ITokenInfo {
-	token: Token;
+	type: string;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;
@@ -1445,44 +1458,6 @@ export interface ICursorStateComputer {
 	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
 	 */
 	(inverseEditOperations:IIdentifiedSingleEditOperation[]): Selection[];
-}
-
-/**
- * A list of tokens on a line.
- * @internal
- */
-export interface ILineTokens {
-	getTokenCount(): number;
-	getTokenStartIndex(tokenIndex:number): number;
-	getTokenType(tokenIndex:number): string;
-	getTokenEndIndex(tokenIndex:number, textLength:number): number;
-
-	/**
-	 * Check if tokens have changed. This is called by the view to validate rendered lines
-	 * and decide which lines need re-rendering.
-	 */
-	equals(other:ILineTokens): boolean;
-
-	/**
-	 * Find the token containing offset `offset`.
-	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
-	 *    Searching for 0, 1, 2, 3 or 4 will return 0.
-	 *    Searching for 5, 6, 7 or 8 will return 1.
-	 *    Searching for 9, 10, 11, ... will return 2.
-	 * @param offset The search offset
-	 * @return The index of the token containing the offset.
-	 */
-	findIndexOfOffset(offset:number): number;
-
-	/**
-	 * @internal
-	 */
-	sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[];
-
-	/**
-	 * @internal
-	 */
-	inflate(): ViewLineToken[];
 }
 
 export interface ITextModelResolvedOptions {
@@ -1824,7 +1799,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param inaccurateTokensAcceptable Are inaccurate tokens acceptable? Defaults to false
 	 * @internal
 	 */
-	getLineTokens(lineNumber:number, inaccurateTokensAcceptable?:boolean): ILineTokens;
+	getLineTokens(lineNumber:number, inaccurateTokensAcceptable?:boolean): LineTokens;
 
 	/**
 	 * Tokenize if necessary and get the tokenization result for the line `lineNumber`, as returned by the language mode.
@@ -3813,7 +3788,7 @@ export interface IThemeDecorationRenderOptions {
 	color?: string;
 	letterSpacing?: string;
 
-	gutterIconPath?: string;
+	gutterIconPath?: string | URI;
 	gutterIconSize?: string;
 
 	overviewRulerColor?: string;
@@ -3827,7 +3802,7 @@ export interface IThemeDecorationRenderOptions {
  */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
-	contentIconPath?: string;
+	contentIconPath?: string | URI;
 
 	border?: string;
 	textDecoration?: string;
@@ -4136,7 +4111,7 @@ export function isCommonCodeEditor(thing: any): thing is ICommonCodeEditor {
  */
 export function isCommonDiffEditor(thing: any): thing is ICommonDiffEditor {
 	if (thing && typeof (<ICommonDiffEditor>thing).getEditorType === 'function') {
-		return (<ICommonDiffEditor>thing).getEditorType() === EditorType.ICodeEditor;
+		return (<ICommonDiffEditor>thing).getEditorType() === EditorType.IDiffEditor;
 	} else {
 		return false;
 	}
@@ -4381,18 +4356,19 @@ export var CommandDescription = {
 			{
 				name: 'Cursor move argument object',
 				description: `Property-value pairs that can be passed through this argument:
-					'to': A mandatory logical position value providing where to move the cursor.
-					\`\`\`
-						'left', 'right', 'up', 'down',
-						'wrappedLineStart', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineColumnCenter', 'wrappedLineEnd' ,'wrappedLineLastNonWhitespaceCharacter',
+					* 'to': A mandatory logical position value providing where to move the cursor.
+						\`\`\`
+						'left', 'right', 'up', 'down'
+						'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'
+						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter',
 						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
-					\`\`\`
-					'by': Unit to move. Default is computed based on 'to' value.
-					\`\`\`
+						\`\`\`
+					* 'by': Unit to move. Default is computed based on 'to' value.
+						\`\`\`
 						'line', 'wrappedLine', 'character', 'halfLine'
-					\`\`\`
-					'value': Number of units to move. Default is '1'.
-					'select': If 'true' makes the selection. Default is 'false'.
+						\`\`\`
+					* 'value': Number of units to move. Default is '1'.
+					* 'select': If 'true' makes the selection. Default is 'false'.
 				`,
 				constraint: isCursorMoveArgs
 			}
@@ -4404,16 +4380,16 @@ export var CommandDescription = {
 			{
 				name: 'Editor scroll argument object',
 				description: `Property-value pairs that can be passed through this argument:
-					'to': A mandatory direction value.
-					\`\`\`
+					* 'to': A mandatory direction value.
+						\`\`\`
 						'up', 'down'
-					\`\`\`
-					'by': Unit to move. Default is computed based on 'to' value.
-					\`\`\`
+						\`\`\`
+					* 'by': Unit to move. Default is computed based on 'to' value.
+						\`\`\`
 						'line', 'wrappedLine', 'page', 'halfPage'
-					\`\`\`
-					'value': Number of units to move. Default is '1'.
-					'revealCursor': If 'true' reveals the cursor if it is outside view port.
+						\`\`\`
+					* 'value': Number of units to move. Default is '1'.
+					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
 				`,
 				constraint: isEditorScrollArgs
 			}
@@ -4425,11 +4401,11 @@ export var CommandDescription = {
 			{
 				name: 'Reveal line argument object',
 				description: `Property-value pairs that can be passed through this argument:
-					'lineNumber': A mandatory line number value.
-					'at': Logical position at which line has to be revealed .
-					\`\`\`
+					* 'lineNumber': A mandatory line number value.
+					* 'at': Logical position at which line has to be revealed .
+						\`\`\`
 						'top', 'center', 'bottom'
-					\`\`\`
+						\`\`\`
 				`,
 				constraint: isRevealLineArgs
 			}

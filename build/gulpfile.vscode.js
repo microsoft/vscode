@@ -15,9 +15,11 @@ const vfs = require('vinyl-fs');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
+const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
+const ext = require('./lib/extensions');
 const buildfile = require('../src/buildfile');
 const common = require('./gulpfile.common');
 const nlsDev = require('vscode-nls-dev');
@@ -26,6 +28,7 @@ const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
+const crypto = require('crypto');
 
 const dependencies = Object.keys(shrinkwrap.dependencies);
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
@@ -34,6 +37,11 @@ const nodeModules = ['electron', 'original-fs']
 	.concat(baseModules);
 
 // Build
+
+const builtInExtensions = [
+	{ name: 'ms-vscode.node-debug', version: '1.6.8' },
+	{ name: 'ms-vscode.node-debug2', version: '0.0.7' }
+];
 
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
@@ -62,7 +70,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/parts/git/**/*.html',
 	'out-build/vs/workbench/parts/git/**/*.sh',
 	'out-build/vs/workbench/parts/html/browser/webview.html',
-	'out-build/vs/workbench/parts/extensions/electron-browser/media/markdown.css',
+	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',
@@ -136,6 +144,40 @@ gulp.task('electron', ['clean-electron'], () => {
 
 const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 
+/**
+ * Compute checksums for some files.
+ *
+ * @param {string} out The out folder to read the file from.
+ * @param {string[]} filenames The paths to compute a checksum for.
+ * @return {Object} A map of paths to checksums.
+ */
+function computeChecksums(out, filenames) {
+	var result = {};
+	filenames.forEach(function(filename) {
+		var fullPath = path.join(process.cwd(), out, filename);
+		result[filename] = computeChecksum(fullPath);
+	});
+	return result;
+}
+
+/**
+ * Compute checksum for a file.
+ *
+ * @param {string} filename The absolute path to a filename.
+ * @return {string} The checksum for `filename`.
+ */
+function computeChecksum(filename) {
+	var contents = fs.readFileSync(filename);
+
+	var hash = crypto
+		.createHash('md5')
+		.update(contents)
+		.digest('base64')
+		.replace(/=+$/, '');
+
+	return hash;
+}
+
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
 
@@ -146,12 +188,19 @@ function packageTask(platform, arch, opts) {
 	return () => {
 		const out = opts.minified ? 'out-vscode-min' : 'out-vscode';
 
+		const checksums = computeChecksums(out, [
+			'vs/workbench/workbench.main.js',
+			'vs/workbench/workbench.main.css',
+			'vs/workbench/electron-browser/bootstrap/index.html',
+			'vs/workbench/electron-browser/bootstrap/index.js'
+		]);
+
 		const src = gulp.src(out + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const extensions = gulp.src([
-			'extensions/**',
+		const extensionsList = [
+			'extensions/*/**',
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
 			'!extensions/*/test/**',
@@ -164,11 +213,30 @@ function packageTask(platform, arch, opts) {
 			'!extensions/**/tsconfig.json',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
-			'!extensions/vscode-colorize-tests/**'
-		], { base: '.' });
+			'!extensions/vscode-colorize-tests/**',
+			...builtInExtensions.map(e => `!extensions/${ e.name }/**`)
+		];
 
-		const sources = es.merge(src, extensions)
+		const extensions = gulp.src(extensionsList, { base: '.' });
+
+		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+			return ext.src(extension.name, extension.version)
+				.pipe(rename(p => p.dirname = `extensions/${ extension.name }/${ p.dirname }`));
+		}));
+
+		const allExtensions = es.merge(
+			extensions,
+			marketplaceExtensions
+		);
+
+		const nlsFilter = filter('**/*.nls.json', { restore: true });
+
+		const sources = es.merge(src, allExtensions)
+			// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
+			.pipe(nlsFilter)
+			.pipe(buffer())
 			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
+			.pipe(nlsFilter.restore)
 			.pipe(filter(['**', '!**/*.js.map']))
 			.pipe(util.handleAzureJson({ platform }));
 
@@ -185,7 +253,7 @@ function packageTask(platform, arch, opts) {
 
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date }));
+			.pipe(json({ commit, date, checksums }));
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 
@@ -200,6 +268,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
 
 		let all = es.merge(

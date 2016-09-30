@@ -461,7 +461,7 @@ declare namespace vscode {
 		 * @return A range that reflects the given change. Will return `this` range if the change
 		 * is not changing anything.
 		 */
-		with (change: { start ?: Position, end ?: Position }): Range;
+		with(change: { start?: Position, end?: Position }): Range;
 	}
 
 	/**
@@ -589,6 +589,24 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Rendering style of the line numbers.
+	 */
+	export enum TextEditorLineNumbersStyle {
+		/**
+		 * Do not render the line numbers.
+		 */
+		Off = 0,
+		/**
+		 * Render the line numbers.
+		 */
+		On = 1,
+		/**
+		 * Render the line numbers with values relative to the primary cursor location.
+		 */
+		Relative = 2
+	}
+
+	/**
 	 * Represents a [text editor](#TextEditor)'s [options](#TextEditor.options).
 	 */
 	export interface TextEditorOptions {
@@ -616,6 +634,13 @@ declare namespace vscode {
 		 * When setting a text editor's options, this property is optional.
 		 */
 		cursorStyle?: TextEditorCursorStyle;
+
+		/**
+		 * Render relative line numbers w.r.t. the current line number.
+		 * When getting a text editor's options, this property will always be present.
+		 * When setting a text editor's options, this property is optional.
+		 */
+		lineNumbers?: TextEditorLineNumbersStyle;
 	}
 
 	/**
@@ -646,16 +671,16 @@ declare namespace vscode {
 		/**
 		 * The range will be revealed with as little scrolling as possible.
 		 */
-		Default,
+		Default = 0,
 		/**
 		 * The range will always be revealed in the center of the viewport.
 		 */
-		InCenter,
+		InCenter = 1,
 		/**
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
-		InCenterIfOutsideViewport
+		InCenterIfOutsideViewport = 2
 	}
 
 	/**
@@ -757,9 +782,9 @@ declare namespace vscode {
 		letterSpacing?: string;
 
 		/**
-		 * An **absolute path** to an image to be rendered in the gutterIconPath.
+		 * An **absolute path** or an URI to an image to be rendered in the gutter.
 		 */
-		gutterIconPath?: string;
+		gutterIconPath?: string | Uri;
 
 		/**
 		 * Specifies the size of the gutter icon.
@@ -790,9 +815,10 @@ declare namespace vscode {
 		 */
 		contentText?: string;
 		/**
-		 * An **absolute path** to an image to be rendered in the attachment. Either an icon or a text can be shown, but not both.
+		 * An **absolute path** or an URI to an image to be rendered in the attachment. Either an icon
+		 * or a text can be shown, but not both.
 		 */
-		contentIconPath?: string;
+		contentIconPath?: string | Uri;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
@@ -937,7 +963,7 @@ declare namespace vscode {
 		 * @param options The undo/redo behaviour around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
-		edit(callback: (editBuilder: TextEditorEdit) => void, options?:{ undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -1660,17 +1686,17 @@ declare namespace vscode {
 		/**
 		 * A textual occurrence.
 		 */
-		Text,
+		Text = 0,
 
 		/**
 		 * Read-access of a symbol, like reading a variable.
 		 */
-		Read,
+		Read = 1,
 
 		/**
 		 * Write-access of a symbol, like writing to a variable.
 		 */
-		Write
+		Write = 2
 	}
 
 	/**
@@ -1722,27 +1748,27 @@ declare namespace vscode {
 	 * A symbol kind.
 	 */
 	export enum SymbolKind {
-		File,
-		Module,
-		Namespace,
-		Package,
-		Class,
-		Method,
-		Property,
-		Field,
-		Constructor,
-		Enum,
-		Interface,
-		Function,
-		Variable,
-		Constant,
-		String,
-		Number,
-		Boolean,
-		Array,
-		Object,
-		Key,
-		Null
+		File = 0,
+		Module = 1,
+		Namespace = 2,
+		Package = 3,
+		Class = 4,
+		Method = 5,
+		Property = 6,
+		Field = 7,
+		Constructor = 8,
+		Enum = 9,
+		Interface = 10,
+		Function = 11,
+		Variable = 12,
+		Constant = 13,
+		String = 14,
+		Number = 15,
+		Boolean = 16,
+		Array = 17,
+		Object = 18,
+		Key = 19,
+		Null = 20
 	}
 
 	/**
@@ -2208,24 +2234,24 @@ declare namespace vscode {
 	 * Completion item kinds.
 	 */
 	export enum CompletionItemKind {
-		Text,
-		Method,
-		Function,
-		Constructor,
-		Field,
-		Variable,
-		Class,
-		Interface,
-		Module,
-		Property,
-		Unit,
-		Value,
-		Enum,
-		Keyword,
-		Snippet,
-		Color,
-		File,
-		Reference
+		Text = 0,
+		Method = 1,
+		Function = 2,
+		Constructor = 3,
+		Field = 4,
+		Variable = 5,
+		Class = 6,
+		Interface = 7,
+		Module = 8,
+		Property = 9,
+		Unit = 10,
+		Value = 11,
+		Enum = 12,
+		Keyword = 13,
+		Snippet = 14,
+		Color = 15,
+		File = 16,
+		Reference = 17
 	}
 
 	/**
@@ -2499,21 +2525,21 @@ declare namespace vscode {
 		/**
 		 * Insert new line and copy the previous line's indentation.
 		 */
-		None,
+		None = 0,
 		/**
 		 * Insert new line and indent once (relative to the previous line's indentation).
 		 */
-		Indent,
+		Indent = 1,
 		/**
 		 * Insert two new lines:
 		 *  - the first one indented which will hold the cursor
 		 *  - the second one at the same indentation level
 		 */
-		IndentOutdent,
+		IndentOutdent = 2,
 		/**
 		 * Insert new line and outdent once (relative to the previous line's indentation).
 		 */
-		Outdent
+		Outdent = 3
 	}
 
 	/**
@@ -2624,9 +2650,24 @@ declare namespace vscode {
 	}
 
 	/**
-	 * Represents the workspace configuration. The workspace configuration
-	 * is always a merged view of the configuration of the current [workspace](#workspace.rootPath)
-	 * and the installation-wide configuration.
+	 * Represents the workspace configuration.
+	 *
+	 * The workspace configuration is a merged view: Configurations of the current [workspace](#workspace.rootPath)
+	 * (if available), files like `launch.json`, and the installation-wide configuration. Workspace specific values
+	 * shadow installation-wide values.
+	 *
+	 * *Note:* The merged configuration of the current [workspace](#workspace.rootPath)
+	 * also contains settings from files like `launch.json` and `tasks.json`. Their basename will be
+	 * part of the section identifier. The following snippets shows how to retrieve all configurations
+	 * from `launch.json`:
+	 *
+	 * ```
+	 * // launch.json configuration
+	 * const config = workspace.getConfiguration('launch');
+	 *
+	 * // retrieve values
+	 * const values = config.get('configurations');
+	 * ```
 	 */
 	export interface WorkspaceConfiguration {
 
@@ -2649,14 +2690,20 @@ declare namespace vscode {
 
 		/**
 		 * Update a configuration value. A value can be changed for the current
-		 * [workspace](#workspace.rootPath) only or globally for all instances of the
+		 * [workspace](#workspace.rootPath) only, or globally for all instances of the
 		 * editor. The updated configuration values are persisted.
+		 *
+		 * *Note 1:* Setting an installation-wide value (`global: true`) in the presence of
+		 * a more specific workspace value has no observable effect in that workspace, but
+		 * in others.
+		 *
+		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param value The new value.
 		 * @param global When `true` changes the configuration value for all instances of the editor.
 		 */
-		update(section: string, value: any, global: boolean): Thenable<void>;
+		update(section: string, value: any, global?: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -2928,12 +2975,12 @@ declare namespace vscode {
 		/**
 		 * Aligned to the left side.
 		 */
-		Left,
+		Left = 1,
 
 		/**
 		 * Aligned to the right side.
 		 */
-		Right
+		Right = 2
 	}
 
 	/**
@@ -3558,6 +3605,79 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Represents reasons why a text document is saved.
+	 */
+	export enum TextDocumentSaveReason {
+
+		/**
+		 * Manually triggered, e.g. by the user pressing save, by starting debugging,
+		 * or by an API call.
+		 */
+		Manual = 1,
+
+		/**
+		 * Automatic after a delay.
+		 */
+		AfterDelay = 2,
+
+		/**
+		 * When the editor lost focus.
+		 */
+		FocusOut = 3
+	}
+
+	/**
+	 * An event that is fired when a [document](#TextDocument) will be saved.
+	 *
+	 * To make modifications to the document before it is being saved, call the
+	 * [`waitUntil`](#TextDocumentWillSaveEvent.waitUntil)-function with a thenable
+	 * that resolves to an array of [text edits](#TextEdit).
+	 */
+	export interface TextDocumentWillSaveEvent {
+
+		/**
+		 * The document that will be saved.
+		 */
+		document: TextDocument;
+
+		/**
+		 * The reason why save was triggered.
+		 */
+		reason: TextDocumentSaveReason;
+
+		/**
+		 * Allows to pause the event loop and to apply [pre-save-edits](#TextEdit).
+		 * Edits of subsequent calls to this function will be applied in order. The
+		 * edits will be *ignored* if concurrent modifications of the document happened.
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillSaveTextDocument(event => {
+			// async, will *throw* an error
+		 	setTimeout(() => event.waitUntil(promise));
+
+		 	// sync, OK
+		 *	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that resolves to [pre-save-edits](#TextEdit).
+		 */
+		waitUntil(thenable: Thenable<TextEdit[]>): void;
+
+		/**
+		 * Allows to pause the event loop until the provided thenable resolved.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
 	 * Namespace for dealing with the current workspace. A workspace is the representation
 	 * of the folder that has been opened. There is no workspace when just a file but not a
 	 * folder has been opened.
@@ -3691,6 +3811,21 @@ declare namespace vscode {
 		 * An event that is emitted when a [text document](#TextDocument) is changed.
 		 */
 		export const onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
+
+		/**
+		 * An event that is emitted when a [text document](#TextDocument) will be saved to disk.
+		 *
+		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrity the editor
+		 * might save without firing this event. For instance when shutting down with dirty files.
+		 *
+		 * *Note 2:* Subscribers are called sequentially and they can [delay](#TextDocumentWillSaveEvent.waitUntil) saving
+		 * by registering asynchronous work. Protection against misbehaving listeners is implemented as such:
+		 *  * there is an overall time budget that all listeners share and if that is exhausted no further listener is called
+		 *  * listeners that take a long time or produce errors frequently will not be called anymore
+		 *
+		 * The current thresholds are 1.5 seconds as overall time budget and a listener can misbehave 3 times before being ignored.
+		 */
+		export const onWillSaveTextDocument: Event<TextDocumentWillSaveEvent>;
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is saved to disk.

@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
+import { FileLabel } from 'vs/workbench/browser/labels';
 import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
@@ -140,9 +140,10 @@ export class SearchRenderer extends ActionsRenderer {
 			let widget: LeftRightWidget;
 
 			leftRenderer = (left: HTMLElement): any => {
-				new FileLabel(left, fileMatch.resource(), this.contextService);
+				const label = this.instantiationService.createInstance(FileLabel, left, void 0);
+				label.setFile(fileMatch.resource());
 
-				return null;
+				return () => label.dispose();
 			};
 
 			rightRenderer = (right: HTMLElement) => {

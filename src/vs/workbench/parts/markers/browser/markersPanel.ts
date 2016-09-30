@@ -34,7 +34,7 @@ import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersAction
 import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
-import { RangeHighlightDecorations, IRangeHighlightDecoration } from 'vs/workbench/common/editor/rangeDecorations';
+import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 
 export class MarkersPanel extends Panel {
 
@@ -168,6 +168,7 @@ export class MarkersPanel extends Panel {
 
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
+		dom.addClass(this.treeContainer, 'show-file-icons');
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
 		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations);
@@ -175,6 +176,7 @@ export class MarkersPanel extends Panel {
 			dataSource: new Viewer.DataSource(),
 			renderer,
 			controller,
+			sorter: new Viewer.Sorter(),
 			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider()
 		}, {
 				indentPixels: 0,
@@ -229,17 +231,20 @@ export class MarkersPanel extends Panel {
 	}
 
 	private updateResources(resources: URI[]) {
-		resources.forEach((resource) => {
-			let markers = this.markerService.read({ resource: resource }).slice(0);
-			this.markersModel.update(resource, markers);
+		const bulkUpdater = this.markersModel.getBulkUpdater();
+		for (const resource of resources) {
+			bulkUpdater.add(resource, this.markerService.read({ resource }));
+		}
+		bulkUpdater.done();
+		for (const resource of resources) {
 			if (!this.markersModel.hasResource(resource)) {
 				this.autoExpanded.unset(resource.toString());
 			}
-		});
+		}
 	}
 
 	private render(): void {
-		let allMarkers = this.markerService.read().slice(0);
+		let allMarkers = this.markerService.read();
 		this.markersModel.update(allMarkers);
 		this.tree.setInput(this.markersModel).then(this.autoExpand.bind(this));
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
@@ -253,13 +258,13 @@ export class MarkersPanel extends Panel {
 	}
 
 	private autoExpand(): void {
-		this.markersModel.filteredResources.forEach((resource) => {
-			if (this.autoExpanded.contains(resource.uri.toString())) {
-				return;
+		for (const resource of this.markersModel.filteredResources) {
+			const resourceUri = resource.uri.toString();
+			if (!this.autoExpanded.contains(resourceUri)) {
+				this.tree.expand(resource).done(null, errors.onUnexpectedError);
+				this.autoExpanded.set(resourceUri);
 			}
-			this.tree.expand(resource).done(null, errors.onUnexpectedError);
-			this.autoExpanded.set(resource.uri.toString());
-		});
+		}
 	}
 
 	private autoReveal(focus: boolean = false): void {
@@ -322,7 +327,8 @@ export class MarkersPanel extends Panel {
 	private highlightCurrentSelectedMarkerRange() {
 		let selections = this.tree.getSelection();
 		if (selections && selections.length === 1 && selections[0] instanceof Marker) {
-			this.rangeHighlightDecorations.highlightRange(<IRangeHighlightDecoration>selections[0]);
+			const marker: Marker = selections[0];
+			this.rangeHighlightDecorations.highlightRange(marker);
 		}
 	}
 

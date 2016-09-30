@@ -127,16 +127,6 @@ function findGit(hint: string): TPromise<IGit> {
 	});
 }
 
-class UnavailableRawGitService extends RawGitService {
-	constructor() {
-		super(null);
-	}
-
-	serviceState(): TPromise<RawServiceState> {
-		return TPromise.as(RawServiceState.GitNotFound);
-	}
-}
-
 class DisabledRawGitService extends RawGitService {
 	constructor() {
 		super(null);

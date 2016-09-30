@@ -906,6 +906,7 @@ var AMDLoader;
             this._queuedDefineCalls = [];
             this._loadingScriptsCount = 0;
             this._resolvedScriptPaths = {};
+            this._checksums = {};
         }
         ModuleManager._findRelevantLocationInStack = function (needle, stack) {
             var normalize = function (str) { return str.replace(/\\/g, '/'); };
@@ -966,6 +967,12 @@ var AMDLoader;
         };
         ModuleManager.prototype.getLoaderEvents = function () {
             return this.getRecorder().getEvents();
+        };
+        ModuleManager.prototype.recordChecksum = function (scriptSrc, checksum) {
+            this._checksums[scriptSrc] = checksum;
+        };
+        ModuleManager.prototype.getChecksums = function () {
+            return this._checksums;
         };
         /**
          * Defines a module.
@@ -1289,6 +1296,9 @@ var AMDLoader;
             };
             result.getStats = function () {
                 return _this.getLoaderEvents();
+            };
+            result.getChecksums = function () {
+                return _this.getChecksums();
             };
             result.__$__nodeRequire = global.nodeRequire;
             return result;
@@ -1703,10 +1713,12 @@ var AMDLoader;
             this._fs = nodeRequire('fs');
             this._vm = nodeRequire('vm');
             this._path = nodeRequire('path');
+            this._crypto = nodeRequire('crypto');
         };
         NodeScriptLoader.prototype.load = function (scriptSrc, callback, errorback, recorder) {
             var _this = this;
             var opts = this._moduleManager.getConfigurationOptions();
+            var checksum = opts.checksum || false;
             var nodeRequire = (opts.nodeRequire || global.nodeRequire);
             var nodeInstrumenter = (opts.nodeInstrumenter || function (c) { return c; });
             this._init(nodeRequire);
@@ -1733,11 +1745,19 @@ var AMDLoader;
                         errorback(err);
                         return;
                     }
+                    if (checksum) {
+                        var hash = _this._crypto
+                            .createHash('md5')
+                            .update(data, 'utf8')
+                            .digest('base64')
+                            .replace(/=+$/, '');
+                        _this._moduleManager.recordChecksum(scriptSrc, hash);
+                    }
                     recorder.record(LoaderEventType.NodeBeginEvaluatingScript, scriptSrc);
                     var vmScriptSrc = _this._path.normalize(scriptSrc);
                     // Make the script src friendly towards electron
                     if (isElectronRenderer) {
-                        var driveLetterMatch = vmScriptSrc.match(/^([a-z])\:(.*)/);
+                        var driveLetterMatch = vmScriptSrc.match(/^([a-z])\:(.*)/i);
                         if (driveLetterMatch) {
                             vmScriptSrc = driveLetterMatch[1].toUpperCase() + ':' + driveLetterMatch[2];
                         }
@@ -1841,6 +1861,12 @@ var AMDLoader;
          */
         RequireFunc.getStats = function () {
             return moduleManager.getLoaderEvents();
+        };
+        /**
+         * Non standard extension to fetch checksums
+         */
+        RequireFunc.getChecksums = function () {
+            return moduleManager.getChecksums();
         };
         return RequireFunc;
     }());
