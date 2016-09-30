@@ -13,7 +13,6 @@ import { memoize } from 'vs/base/common/decorators';
 import { ArraySet } from 'vs/base/common/set';
 import { IGalleryExtension, IExtensionGalleryService, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
-import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -150,17 +149,11 @@ class Query {
 		return new Query(assign({}, this.state, { pageNumber, pageSize }));
 	}
 
-	withFilter(filterType: FilterType, values?: string | string[]): Query {
-		const criteria = this.state.criteria.slice();
-
-		if (!isUndefined(values)) {
-			values = Array.isArray(values) ? values : [values];
-			for (const value of values) {
-				criteria.push({ filterType, value });
-			}
-		} else {
-			criteria.push({ filterType });
-		}
+	withFilter(filterType: FilterType, ...values: string[]): Query {
+		const criteria = [
+			...this.state.criteria,
+			...values.map(value => ({ filterType, value }))
+		];
 
 		return new Query(assign({}, this.state, { criteria }));
 	}
@@ -324,9 +317,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		if (text) {
 			query = query.withFilter(FilterType.SearchText, text).withSortBy(SortBy.NoneOrRelevance);
 		} else if (options.ids) {
-			query = query.withFilter(FilterType.ExtensionId, options.ids);
+			query = query.withFilter(FilterType.ExtensionId, ...options.ids);
 		} else if (options.names) {
-			query = query.withFilter(FilterType.ExtensionName, options.names);
+			query = query.withFilter(FilterType.ExtensionName, ...options.names);
 		} else {
 			query = query.withSortBy(SortBy.InstallCount);
 		}
@@ -439,8 +432,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, extensionNames.length)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX);
-		query = query.withFilter(FilterType.ExtensionName, extensionNames);
+			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX)
+			.withFilter(FilterType.ExtensionName, ...extensionNames);
 
 		return this.queryGallery(query).then(result => {
 			const dependencies = [];
