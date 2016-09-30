@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ObjectPath from 'objectpath';
 import nls = require('vs/nls');
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
@@ -136,7 +135,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			let config = this.configurationService.getConfiguration();
 			let newValue: any;
 			try {
-				const keys: string[] = ObjectPath.parse(name);
+				const keys: string[] = name.split('.');
 				if (!keys || keys.length <= 0) {
 					return '';
 				}
