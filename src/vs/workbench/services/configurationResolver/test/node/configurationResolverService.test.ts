@@ -221,7 +221,7 @@ suite('Configuration Resolver Service', () => {
 		});
 
 		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
-		assert.strictEqual(service.resolve("abc ${config.editor.['fontFamily']} xyz"), 'abc foo xyz');
+		assert.strictEqual(service.resolve("abc ${config.editor['fontFamily']} xyz"), 'abc foo xyz');
 		assert.strictEqual(service.resolve('abc ${config["editor"].fontFamily} xyz'), 'abc foo xyz');
 		assert.strictEqual(service.resolve('abc ${config["editor"]["fontFamily"]} xyz'), 'abc foo xyz');
 	});
