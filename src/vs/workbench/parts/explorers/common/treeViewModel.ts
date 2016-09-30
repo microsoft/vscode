@@ -1,17 +1,16 @@
-
 export class TreeViewNode implements vscode.ITreeNode {
   id: number;
   label: string;
   isExpanded: boolean;
-  parent: vscode.ITreeNode;
-  children: vscode.ITreeNode[];
+  parent: TreeViewNode
+  children: TreeViewNode[];
 
   constructor(
     id: number,
     label: string,
     isExpanded: boolean = true,
-    parent: vscode.ITreeNode = null,
-    children: vscode.ITreeNode[] = []) {
+    parent: TreeViewNode = null,
+    children: TreeViewNode[] = []) {
     this.id = id;
     this.label = label;
     this.isExpanded = isExpanded;
@@ -19,7 +18,7 @@ export class TreeViewNode implements vscode.ITreeNode {
     this.children = children;
   }
 
-  addChild(child: vscode.ITreeNode) {
+  addChild(child: TreeViewNode) {
     this.children.push(child);
     child.parent = this;
   }

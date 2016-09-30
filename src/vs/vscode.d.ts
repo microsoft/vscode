@@ -1349,18 +1349,12 @@ declare module 'vscode' {
 	}
 
 	export interface TreeContentProvider {
-		id: string;
-		provideTreeContent(): ITree;
-	}
-
-	export interface ITree {
-		root: ITreeNode;
+		provideTreeContent(): Thenable<ITreeNode>;
 	}
 
 	export interface ITreeNode {
 		label: string;
 		isExpanded: boolean;
-		parent: ITreeNode;
 		children: ITreeNode[]
 	}
 
@@ -3819,7 +3813,7 @@ declare module 'vscode' {
 		 */
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
-		export function registerTreeContentProvider(provider: TreeContentProvider): Disposable;
+		export function registerTreeContentProvider(providerId: string, provider: TreeContentProvider): Disposable;
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is opened.

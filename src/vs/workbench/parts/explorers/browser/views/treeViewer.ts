@@ -5,6 +5,7 @@ import { ITree, IDataSource, IRenderer, IElementCallback } from 'vs/base/parts/t
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeViewModel';
 import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 import { IActionRunner } from 'vs/base/common/actions';
 import { IActionProvider, ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -25,7 +26,7 @@ export class TreeDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, node: TreeViewNode): boolean {
-		return node.children.length > 0;
+		return node.children && node.children.length > 0;
 	}
 
 	public getChildren(tree: ITree, node: TreeViewNode): TPromise<TreeViewNode[]> {
@@ -74,6 +75,11 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 
 export class TreeController extends DefaultController {
 
+	/* protected */ public onLeftClick(tree: ITree, node: TreeViewNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
+		super.onLeftClick(tree, node, event, origin);
+		console.log(node.label);
+		return true;
+	}
 }
 
 export interface ITreeExplorerViewletState {

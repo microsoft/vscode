@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
 
 import { ITree, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -61,7 +62,8 @@ export class TreeView extends CollapsibleViewletView {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewletTree', "Tree Explorer Tree Section"), messageService, keybindingService, contextMenuService, headerSize);
 
@@ -80,7 +82,9 @@ export class TreeView extends CollapsibleViewletView {
 		DOM.addClass(this.treeContainer, 'tree-explorer-viewlet-tree-view');
 
 		this.tree = this.createViewer($(this.treeContainer));
-		this.tree.setInput(getTree());
+		this.treeExplorerViewletService.provideTreeContent('pineTree').then(tree => {
+			this.tree.setInput(tree);
+		});
 	}
 
 	getActions(): IAction[] {
@@ -90,7 +94,7 @@ export class TreeView extends CollapsibleViewletView {
 	createViewer(container: Builder): ITree {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
-		const controller = null;
+		const controller = this.instantiationService.createInstance(TreeController);
 		const sorter = null;
 		const filter = null;
 		const dnd = null;
@@ -108,43 +112,19 @@ export class TreeView extends CollapsibleViewletView {
 	}
 
 	create(): TPromise<void> {
-		this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()))
-		return TPromise.as(null);
+		return this.setVisible(true);
 	}
 
-	private onEditorsChanged() {
-		const activeInput = this.editorService.getActiveEditorInput();
-
-		if (activeInput instanceof FileEditorInput) {
-			const fileResource = activeInput.getResource();
-
-			this.updateOutlineViewlet(fileResource);
-		}
-	}
-
-	refresh(): TPromise<void> {
-		const input = this.tree.getInput();
-		return this.doRefresh();
-	}
-
-	private doRefresh(): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	private updateOutlineViewlet(fileURI: URI): TPromise<void> {
-		this.tree.setInput(getTree());
-		/*
-		documentSymbols(fileURI.path).then(nodes => {
-			const root = nodes[0];
-			this.tree.setInput(root);
+	setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => {
+			this.updateInput().done();
 		});
-		*/
-
-		return TPromise.as(null);
 	}
 
-	focus(): void {
-
+	private updateInput(): TPromise<void> {
+		return this.treeExplorerViewletService.provideTreeContent('pineTree').then(tree => {
+			this.tree.setInput(tree);
+		})
 	}
 
 	public getOptimalWidth(): number {

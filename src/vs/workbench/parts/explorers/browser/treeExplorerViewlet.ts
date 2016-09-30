@@ -50,6 +50,12 @@ export class TreeExplorerViewlet extends Viewlet {
 		this.view.layout(dimension.height, Orientation.VERTICAL);
 	}
 
+	setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => {
+			this.view.setVisible(visible).done();
+		})
+	}
+
 	private onConfigurationUpdated(config: ICustomViewletConfiguration): TPromise<void> {
 		return TPromise.as(null);
 	}
