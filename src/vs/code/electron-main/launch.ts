@@ -12,7 +12,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IURLService } from 'vs/platform/url/common/url';
-import { app } from 'electron';
 
 export interface IStartArguments {
 	args: ICommandLineArguments;
@@ -65,7 +64,6 @@ export class LaunchService implements ILaunchService {
 		const openUrl = typeof openUrlArg === 'string' ? [openUrlArg] : openUrlArg;
 
 		if (openUrl.length > 0) {
-			app.focus();
 			openUrl.forEach(url => this.urlService.open(url));
 			return TPromise.as(null);
 		}
