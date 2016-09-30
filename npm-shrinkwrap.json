@@ -302,11 +302,6 @@
       "from": "object.omit@>=2.0.0 <3.0.0",
       "resolved": "https://registry.npmjs.org/object.omit/-/object.omit-2.0.0.tgz"
     },
-    "objectpath": {
-      "version": "1.2.1",
-      "from": "objectpath@>=1.2.1 <2.0.0",
-      "resolved": "https://registry.npmjs.org/objectpath/-/objectpath-1.2.1.tgz"
-    },
     "oniguruma": {
       "version": "6.1.1",
       "from": "oniguruma@>=6.0.1 <7.0.0",
