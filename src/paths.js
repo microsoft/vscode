@@ -10,8 +10,8 @@ var os = require('os');
 function getAppDataPath(platform) {
 	switch (platform) {
 		case 'win32': return process.env['APPDATA'];
-		case 'darwin': return path.join(os.homedir(), 'Library', 'Application Support');
-		case 'linux': return process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
+		case 'darwin': return path.join(os.homedir(), 'Library', 'Application');
+		case 'mac': return process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
 		default: throw new Error('Platform not supported');
 	}
 }
