@@ -212,6 +212,46 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} ${config.editor.lineNumbers} ${config.editor.insertSpaces} ${config.json.schemas[0].fileMatch[1]} xyz'), 'abc foo 123 false {{/myOtherfile}} xyz');
 	});
 
+	test('configuration variables using bracket accessor', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {
+				fontFamily: 'foo'
+			}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve("abc ${config.editor['fontFamily']} xyz"), 'abc foo xyz');
+		assert.strictEqual(service.resolve('abc ${config["editor"].fontFamily} xyz'), 'abc foo xyz');
+		assert.strictEqual(service.resolve('abc ${config["editor"]["fontFamily"]} xyz'), 'abc foo xyz');
+	});
+
+	test('configuration variables with invalid accessor', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {
+				fontFamily: 'foo'
+			}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve("abc ${config.} xyz"), 'abc ${config.} xyz');
+		assert.strictEqual(service.resolve("abc ${config.editor..fontFamily} xyz"), 'abc  xyz');
+		assert.strictEqual(service.resolve("abc ${config.editor.none.none2} xyz"), 'abc  xyz');
+	});
+
+	test('configuration should not evaluate Javascript', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {
+				a: 'foo'
+			}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve("abc ${config.editor['abc'.substr(0)]} xyz"), 'abc undefined xyz');
+	});
+
 	test('interactive variable simple', () => {
 		const configuration = {
 			'name': 'Attach to Process',
