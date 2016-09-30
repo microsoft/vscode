@@ -488,16 +488,16 @@ export class SearchViewlet extends Viewlet {
 
 	public focusNextInputBox(): void {
 		if (this.searchWidget.searchInputHasFocus()) {
-			this.searchWidget.focus(true, true);
+			if (this.searchWidget.isReplaceShown()) {
+				this.searchWidget.focus(true, true);
+			} else {
+				this.moveFocusFromSearchOrReplace();
+			}
 			return;
 		}
 
 		if (this.searchWidget.replaceInputHasFocus()) {
-			if (this.showsFileTypes()) {
-				this.toggleFileTypes(true, this.showsFileTypes());
-			} else {
-				this.selectTreeIfNotSelected();
-			}
+			this.moveFocusFromSearchOrReplace();
 			return;
 		}
 
@@ -510,6 +510,14 @@ export class SearchViewlet extends Viewlet {
 		if (this.inputPatternExclusions.inputHasFocus()) {
 			this.selectTreeIfNotSelected();
 			return;
+		}
+	}
+
+	private moveFocusFromSearchOrReplace() {
+		if (this.showsFileTypes()) {
+			this.toggleFileTypes(true, this.showsFileTypes());
+		} else {
+			this.selectTreeIfNotSelected();
 		}
 	}
 
