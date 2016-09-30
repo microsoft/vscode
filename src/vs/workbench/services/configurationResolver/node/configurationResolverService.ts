@@ -130,8 +130,8 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private resolveConfigVariable(value: string, originalValue: string): string {
-		let regexp = /\$\{config(\.|(?=\[))(.+?)\}/g;
-		return value.replace(regexp, (match: string, lead: string, name: string) => {
+		let regexp = /\$\{config\.(.+?)\}/g;
+		return value.replace(regexp, (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
 			let newValue: any;
 			try {
