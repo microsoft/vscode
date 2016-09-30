@@ -25,6 +25,8 @@ import { Keybinding } from 'vs/base/common/keybinding';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import product from 'vs/platform/product';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -52,7 +54,8 @@ export class ReleaseNotesEditor extends BaseEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IRequestService private requestService: IRequestService,
 		@IOpenerService private openerService: IOpenerService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IModeService private modeService: IModeService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService);
 		this.disposables = [];
@@ -81,7 +84,29 @@ export class ReleaseNotesEditor extends BaseEditor {
 		this.loadContents(() => this.requestService.request({ url })
 			.then(asText)
 			.then(text => this.patchKeybindings(text))
-			.then(marked.parse)
+			.then(text => {
+				// we first need to load the modes...
+				const result = [];
+				const renderer = new marked.Renderer();
+				renderer.code = (code, lang) => {
+					const modeId = this.modeService.getModeIdForLanguageName(lang);
+					result.push(this.modeService.getOrCreateMode(modeId));
+					return '';
+				};
+
+				marked(text, { renderer });
+				return TPromise.join(result).then(() => text);
+			})
+			.then(text => {
+				// then we can render
+				const renderer = new marked.Renderer();
+				renderer.code = (code, lang) => {
+					const modeId = this.modeService.getModeIdForLanguageName(lang);
+					return `<code>${ tokenizeToString(code, modeId) }</code>`;
+				};
+
+				return marked(text, { renderer });
+			})
 			.then(renderBody)
 			.then<void>(body => {
 				const webview = new WebView(
