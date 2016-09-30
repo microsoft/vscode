@@ -335,6 +335,9 @@ export function createApiFactory(threadService: IThreadService, extensionService
 			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocumentSaveParticipant.onWillSaveTextDocumentEvent(listener, thisArgs, disposables);
 			},
+			registerTreeContentProvider(providerId: string, provider: vscode.TreeContentProvider) {
+				return extHostExplorers.registerTreeContentProvider(providerId, provider);
+			},
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},

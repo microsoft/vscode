@@ -15,7 +15,9 @@ export class ExtHostExplorers extends ExtHostExplorersShape {
 
 	private _treeContentProviders: { [treeContentProviderId: string]: vscode.TreeContentProvider; };
 
-	constructor(threadService: IThreadService) {
+	constructor(
+		threadService: IThreadService
+	) {
 		super();
 
 		this._proxy = threadService.get(MainContext.MainThreadExplorers);
@@ -23,29 +25,25 @@ export class ExtHostExplorers extends ExtHostExplorersShape {
 		this._treeContentProviders = Object.create(null);
 	}
 
-	public registerTreeContentProvider(provider: vscode.TreeContentProvider): vscode.Disposable {
-		const treeContentProviderId = provider.id;
-
-		if (this._treeContentProviders[treeContentProviderId]) {
-			throw new Error(`TreeContentProvider with id '${provider.id} already registered`);
-		}
-
-		this._treeContentProviders[treeContentProviderId] = provider;
-		this._proxy.$registerTreeContentProvider(treeContentProviderId);
+	public registerTreeContentProvider(providerId: string, provider: vscode.TreeContentProvider): vscode.Disposable {
+		this._proxy.$registerTreeContentProvider(providerId);
+		this._treeContentProviders[providerId] = provider;
 
 		return new Disposable(() => {
-			if (delete this._treeContentProviders[treeContentProviderId]) {
-				this._proxy.$unregisterTreeContentProvider(treeContentProviderId);
+			if (delete this._treeContentProviders[providerId]) {
+				this._proxy.$unregisterTreeContentProvider(providerId);
 			}
 		});
 	}
 
-	$provideTextDocumentContent(treeContentProviderId: string): vscode.ITree {
+	$provideTreeContent(treeContentProviderId: string): TPromise<string> {
 		const provider = this._treeContentProviders[treeContentProviderId];
 		if (!provider) {
 			throw new Error(`no TreeContentProvider registered with id '${treeContentProviderId}'`);
 		}
 
-		return provider.provideTreeContent();
+		return TPromise.wrap(provider.provideTreeContent().then(treeContent => {
+			return JSON.stringify(treeContent);
+		}));
 	}
 }
