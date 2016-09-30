@@ -81,7 +81,12 @@ enum Flags {
 	IncludeInstallationTargets = 0x40,
 	IncludeAssetUri = 0x80,
 	IncludeStatistics = 0x100,
-	IncludeLatestVersionOnly = 0x200
+	IncludeLatestVersionOnly = 0x200,
+	Unpublished = 0x1000
+}
+
+function flagsToString(...flags: Flags[]): string {
+	return String(flags.reduce((r, f) => r | f, 0));
 }
 
 enum FilterType {
@@ -91,7 +96,8 @@ enum FilterType {
 	ExtensionName = 7,
 	Target = 8,
 	Featured = 9,
-	SearchText = 10
+	SearchText = 10,
+	ExcludeWithFlags = 12
 }
 
 const AssetType = {
@@ -312,6 +318,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, pageSize)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
 			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX);
 
 		if (text) {
@@ -406,6 +413,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
 			.withAssetTypes(AssetType.Manifest, AssetType.VSIX)
 			.withFilter(FilterType.ExtensionId, extension.id);
 
@@ -432,6 +440,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, extensionNames.length)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
 			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX)
 			.withFilter(FilterType.ExtensionName, ...extensionNames);
 
