@@ -34,6 +34,23 @@ interface ThemeGlobalSettings {
 	referenceHighlight?: string;
 
 	activeLinkForeground?: string;
+
+	terminalBlack?: string;
+	terminalRed?: string;
+	terminalGreen?: string;
+	terminalYellow?: string;
+	terminalBlue?: string;
+	terminalMagenta?: string;
+	terminalCyan?: string;
+	terminalWhite?: string;
+	terminalBrightBlack?: string;
+	terminalBrightRed?: string;
+	terminalBrightGreen?: string;
+	terminalBrightYellow?: string;
+	terminalBrightBlue?: string;
+	terminalBrightMagenta?: string;
+	terminalBrightCyan?: string;
+	terminalBrightWhite?: string;
 }
 
 class Theme {
@@ -169,6 +186,43 @@ export class SearchViewStylesContribution {
 		}
 	}
 }
+
+export class TerminalStylesContribution {
+
+	private static ansiColorMap = {
+		terminalBlack: 0,
+		terminalRed: 1,
+		terminalGreen: 2,
+		terminalYellow: 3,
+		terminalBlue: 4,
+		terminalMagenta: 5,
+		terminalCyan: 6,
+		terminalWhite: 7,
+		terminalBrightBlack: 8,
+		terminalBrightRed: 9,
+		terminalBrightGreen: 10,
+		terminalBrightYellow: 11,
+		terminalBrightBlue: 12,
+		terminalBrightMagenta: 13,
+		terminalBrightCyan: 14,
+		terminalBrightWhite: 15
+	};
+
+	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]): void {
+		let theme = new Theme(themeId, themeDocument);
+		if (theme.hasGlobalSettings()) {
+			let keys = Object.keys(theme.getGlobalSettings());
+			keys.filter(key => key.indexOf('terminal') === 0).forEach(key => {
+				if (key in TerminalStylesContribution.ansiColorMap) {
+					let color = theme.getGlobalSettings()[key];
+					let index = TerminalStylesContribution.ansiColorMap[key];
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }`);
+				}
+			});
+		}
+	}
+}
+
 
 abstract class EditorStyleRules extends StyleRules {
 

@@ -206,6 +206,7 @@ export class TerminalPanel extends Panel {
 
 		let theme = this._terminalService.configHelper.getTheme(baseThemeId);
 
+		// TODO: Move the default styles to terminal.css and rely on the TerminalStylesContribution for custom themes
 		let css = '';
 		theme.forEach((color: string, index: number) => {
 			let rgba = this._convertHexCssColorToRgba(color, 0.996);
