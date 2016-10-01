@@ -521,12 +521,13 @@ export class ReportIssueAction extends Action {
 	}
 
 	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions:ILocalExtension[]): string {
+		// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
 			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
-- Extensions: ${extensions.map(e => '`' + e.id + '`').join(', ')}
+- Extensions: ${extensions.map(e => e.id).join(', ')}
 
 Steps to Reproduce:
 
