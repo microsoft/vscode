@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import Severity from 'vs/base/common/severity';
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {stringDiff} from 'vs/base/common/diff/diff';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { stringDiff } from 'vs/base/common/diff/diff';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
-import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation} from 'vs/editor/common/editorCommon';
-import {IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
+import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 export interface PositionLike {
 	line: number;
@@ -68,8 +69,8 @@ export function toPosition(position: IPosition): types.Position {
 	return new types.Position(position.lineNumber - 1, position.column - 1);
 }
 
-export function fromPosition(position: types.Position):IPosition {
-	return { lineNumber: position.line + 1, column: position.character + 1};
+export function fromPosition(position: types.Position): IPosition {
+	return { lineNumber: position.line + 1, column: position.character + 1 };
 }
 
 export function fromDiagnosticSeverity(value: number): Severity {
@@ -117,11 +118,11 @@ export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
 		return;
 	}
 	if (position === EditorPosition.LEFT) {
-		return <number> types.ViewColumn.One;
+		return <number>types.ViewColumn.One;
 	} else if (position === EditorPosition.CENTER) {
-		return <number> types.ViewColumn.Two;
+		return <number>types.ViewColumn.Two;
 	} else if (position === EditorPosition.RIGHT) {
-		return <number> types.ViewColumn.Three;
+		return <number>types.ViewColumn.Three;
 	}
 }
 
@@ -129,14 +130,14 @@ function isDecorationOptions(something: any): something is vscode.DecorationOpti
 	return (typeof something.range !== 'undefined');
 }
 
-function isDecorationOptionsArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
+function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
 	if (something.length === 0) {
 		return true;
 	}
 	return isDecorationOptions(something[0]) ? true : false;
 }
 
-export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IDecorationOptions[] {
+export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
 	if (isDecorationOptionsArr(ranges)) {
 		return ranges.map((r): IDecorationOptions => {
 			return {
@@ -177,10 +178,12 @@ export const TextEdit = {
 				continue;
 			}
 
+			const editOffset = document.offsetAt(edit.range.start);
+
 			for (let j = 0; j < changes.length; j++) {
 				const {originalStart, originalLength, modifiedStart, modifiedLength} = changes[j];
-				const start = fromPosition(<types.Position> document.positionAt(originalStart));
-				const end = fromPosition(<types.Position> document.positionAt(originalStart + originalLength));
+				const start = fromPosition(<types.Position>document.positionAt(editOffset + originalStart));
+				const end = fromPosition(<types.Position>document.positionAt(editOffset + originalStart + originalLength));
 
 				result.push({
 					text: modified.substr(modifiedStart, modifiedLength),
@@ -192,7 +195,7 @@ export const TextEdit = {
 		return result;
 	},
 
-	from(edit: vscode.TextEdit): ISingleEditOperation{
+	from(edit: vscode.TextEdit): ISingleEditOperation {
 		return <ISingleEditOperation>{
 			text: edit.newText,
 			range: fromRange(edit.range)
@@ -313,7 +316,7 @@ export const Suggest = {
 
 	from(item: vscode.CompletionItem, disposables: IDisposable[]): modes.ISuggestion {
 		const suggestion: modes.ISuggestion = {
-			label: item.label,
+			label: item.label || '<missing label>',
 			insertText: item.insertText || item.label,
 			type: CompletionItemKind.from(item.kind),
 			detail: item.detail,
@@ -432,5 +435,20 @@ export namespace Command {
 			};
 		}
 		return result;
+	}
+}
+
+export namespace TextDocumentSaveReason {
+
+	export function to(reason: SaveReason): vscode.TextDocumentSaveReason {
+		switch (reason) {
+			case SaveReason.AUTO:
+				return types.TextDocumentSaveReason.AfterDelay;
+			case SaveReason.EXPLICIT:
+				return types.TextDocumentSaveReason.Manual;
+			case SaveReason.FOCUS_CHANGE:
+			case SaveReason.WINDOW_CHANGE:
+				return types.TextDocumentSaveReason.FocusOut;
+		}
 	}
 }

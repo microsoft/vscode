@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import {Action} from 'vs/base/common/actions';
 import lifecycle = require('vs/base/common/lifecycle');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
 import {Range} from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
@@ -22,6 +22,7 @@ import {BreakpointWidget} from 'vs/workbench/parts/debug/browser/breakpointWidge
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {TogglePanelAction} from 'vs/workbench/browser/panel';
 import IDebugService = debug.IDebugService;
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -147,7 +148,7 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	private setLabel(config: debug.IConfig): void {
-		this.updateLabel(config.request === 'attach' ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
+		this.updateLabel(config && config.request === 'attach' ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
 	public run(): TPromise<any> {
@@ -730,7 +731,7 @@ class ShowDebugHoverAction extends EditorAction {
 			precondition: debug.CONTEXT_IN_DEBUG_MODE,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});
 	}
@@ -827,28 +828,19 @@ export class ClearReplAction extends AbstractDebugAction {
 	}
 }
 
-export class ToggleReplAction extends AbstractDebugAction {
+export class ToggleReplAction extends TogglePanelAction {
 	static ID = 'workbench.debug.action.toggleRepl';
 	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
+	private toDispose: lifecycle.IDisposable[];
 
 	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IPartService private partService: IPartService,
-		@IPanelService private panelService: IPanelService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IDebugService private debugService: IDebugService,
+		@IPartService partService: IPartService,
+		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, 'debug-action toggle-repl', debugService, keybindingService);
-		this.enabled = this.debugService.state !== debug.State.Disabled;
+		super(id, label, debug.REPL_ID, panelService, partService, 'debug-action toggle-repl');
+		this.toDispose = [];
 		this.registerListeners();
-	}
-
-	public run(): TPromise<any> {
-		if (this.isReplVisible()) {
-			this.partService.setPanelHidden(true);
-			return TPromise.as(null);
-		}
-
-		return this.panelService.openPanel(debug.REPL_ID, true);
 	}
 
 	private registerListeners(): void {
@@ -869,6 +861,11 @@ export class ToggleReplAction extends AbstractDebugAction {
 	private isReplVisible(): boolean {
 		const panel = this.panelService.getActivePanel();
 		return panel && panel.getId() === debug.REPL_ID;
+	}
+
+	public dispose(): void {
+		super.dispose();
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 

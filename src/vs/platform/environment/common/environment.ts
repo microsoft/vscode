@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import {ParsedArgs} from 'vs/platform/environment/node/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
 export interface IEnvironmentService {
 	_serviceBrand: any;
+
+	args: ParsedArgs;
 
 	execPath: string;
 	appRoot: string;

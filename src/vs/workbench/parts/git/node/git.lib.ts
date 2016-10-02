@@ -728,7 +728,7 @@ export class Repository {
 				templatePath = path.join(this.repository, templatePath);
 			}
 
-			return pfs.readFile(templatePath, 'utf8').then(null, () => '');
+			return pfs.readFile(templatePath, 'utf8').then(raw => raw.replace(/^\s*#.*$\n?/gm, '').trim());
 		}, () => '');
 	}
 

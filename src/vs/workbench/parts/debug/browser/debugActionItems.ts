@@ -8,7 +8,7 @@ import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IDebugService} from 'vs/workbench/parts/debug/common/debug';
+import {IDebugService, State} from 'vs/workbench/parts/debug/common/debug';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 export class DebugSelectActionItem extends SelectActionItem {
@@ -20,15 +20,14 @@ export class DebugSelectActionItem extends SelectActionItem {
 	) {
 		super(null, action, [], -1);
 
-		this.registerConfigurationListeners(configurationService);
-	}
-
-	private registerConfigurationListeners(configurationService: IConfigurationService): void {
 		this.toDispose.push(configurationService.onDidUpdateConfiguration(e => {
 			this.updateOptions(true).done(null, errors.onUnexpectedError);
 		}));
 		this.toDispose.push(this.debugService.getConfigurationManager().onDidConfigurationChange(name => {
 			this.updateOptions(false).done(null, errors.onUnexpectedError);
+		}));
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			this.enabled = state === State.Inactive;
 		}));
 	}
 

@@ -12,7 +12,7 @@ import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
 import {IAction, Action} from 'vs/base/common/actions';
-import {toErrorMessage} from 'vs/base/common/errors';
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {Mode, IEntryRunContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {SyncActionDescriptor, ExecuteCommandAction, IMenuService} from 'vs/platform/actions/common/actions';
@@ -141,7 +141,6 @@ class CommandEntry extends BaseCommandEntry {
 		labelHighlights: IHighlight[],
 		aliasHighlights: IHighlight[],
 		actionDescriptor: SyncActionDescriptor,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
@@ -174,7 +173,6 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		labelHighlights: IHighlight[],
 		aliasHighlights: IHighlight[],
 		action: IEditorAction,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
@@ -242,7 +240,6 @@ export class CommandsHandler extends QuickOpenHandler {
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService
 	) {

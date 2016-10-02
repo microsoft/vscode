@@ -12,7 +12,6 @@ import dom = require('vs/base/browser/dom');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -20,12 +19,11 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
-import {IEventService} from 'vs/platform/event/common/event';
 
 const $ = dom.$;
 
@@ -47,18 +45,16 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private fullRefreshNeeded: boolean;
 
 	constructor(actionRunner: IActionRunner, settings: any,
-		@IMessageService messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IViewletService private viewletService: IViewletService,
-		@IEventService private eventService: IEventService
+		@IViewletService private viewletService: IViewletService
 	) {
-		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
@@ -70,7 +66,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = dom.append(container, $('.title'));
 		const titleSpan = dom.append(titleDiv, $('span'));
-		titleSpan.textContent = nls.localize('openEditors', "Open Editors");
+		titleSpan.textContent = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 		this.dirtyCountElement = dom.append(titleDiv, $('.monaco-count-badge'));
 		this.updateDirtyIndicator();
@@ -88,10 +84,11 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		dom.addClass(this.treeContainer, 'explorer-open-editors');
+		dom.addClass(this.treeContainer, 'show-file-icons');
 
 		const dataSource = this.instantiationService.createInstance(DataSource);
 		const actionProvider = this.instantiationService.createInstance(ActionProvider, this.model);
-		const renderer = this.instantiationService.createInstance(Renderer, actionProvider, this.model);
+		const renderer = this.instantiationService.createInstance(Renderer, actionProvider);
 		const controller = this.instantiationService.createInstance(Controller, actionProvider, this.model);
 		const accessibilityProvider = this.instantiationService.createInstance(AccessibilityProvider);
 		const dnd = this.instantiationService.createInstance(DragAndDrop);
@@ -105,7 +102,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}, {
 			indentPixels: 0,
 			twistiePixels: 20,
-			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
+			ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors")
 		});
 
 		this.fullRefreshNeeded = true;
@@ -133,7 +130,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 
 		// Also handle dirty count indicator #10556
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e) => this.updateDirtyIndicator()));
+		this.toDispose.push(this.textFileService.models.onModelDirty(e => this.updateDirtyIndicator()));
 
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
 		this.toDispose.push(this.viewletService.onDidViewletOpen(viewlet => {
@@ -264,7 +261,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	public getOptimalWidth():number {
 		let parentNode = this.tree.getHTMLElement();
-		let childNodes = [].slice.call(parentNode.querySelectorAll('.monaco-file-label > .file-name'));
+		let childNodes = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+
 		return dom.getLargestChildWidth(parentNode, childNodes);
 	}
 

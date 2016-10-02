@@ -31,7 +31,7 @@ export function main(argv: string[]): TPromise<void> {
 	if (args.help) {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
 	} else if (args.version) {
-		console.log(`${ pkg.version } (${ product.commit })`);
+		console.log(`${ pkg.version }\n${ product.commit }`);
 	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
@@ -41,12 +41,18 @@ export function main(argv: string[]): TPromise<void> {
 			'VSCODE_CLI': '1',
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		});
-		delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 
-		let options = {
+		delete env['ELECTRON_RUN_AS_NODE'];
+
+		if (args.verbose) {
+			env['ELECTRON_ENABLE_LOGGING'] = '1';
+		}
+
+		const options = {
 			detached: true,
 			env,
 		};
+
 		if (!args.verbose) {
 			options['stdio'] = 'ignore';
 		}

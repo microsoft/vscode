@@ -15,7 +15,7 @@ export class Source {
 	private static INTERNAL_URI_PREFIX = `${DEBUG_SCHEME}://internal/`;
 
 	constructor(public raw: DebugProtocol.Source, available = true) {
-		this.uri = raw.path ? uri.file(paths.normalize(raw.path)) : uri.parse(Source.INTERNAL_URI_PREFIX + raw.name);
+		this.uri = raw.path ? uri.file(paths.normalize(raw.path)) : uri.parse(Source.INTERNAL_URI_PREFIX + raw.sourceReference + '/' + raw.name);
 		this.available = available;
 	}
 

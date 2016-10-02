@@ -17,6 +17,7 @@
 	"debugAddToWatch": "Debuggen: Zur Überwachung hinzufügen",
 	"debugConsoleAction": "Debugkonsole",
 	"debugEvaluate": "Debuggen: Auswerten",
+	"debugFocusConsole": "Focus-Debugkonsole",
 	"disableAllBreakpoints": "Alle Haltepunkte deaktivieren",
 	"disconnectDebug": "Trennen",
 	"editConditionalBreakpoint": "Haltepunkt bearbeiten",

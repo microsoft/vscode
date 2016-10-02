@@ -174,9 +174,16 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 	}
 
 	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		editor.updateOptions({
-			renderWhitespace: !editor.getConfiguration().viewInfo.renderWhitespace
-		});
+		let renderWhitespace = editor.getConfiguration().viewInfo.renderWhitespace;
+		if (renderWhitespace === 'none') {
+			editor.updateOptions({
+				renderWhitespace: 'all'
+			});
+		} else {
+			editor.updateOptions({
+				renderWhitespace: 'none'
+			});
+		}
 	}
 }
 

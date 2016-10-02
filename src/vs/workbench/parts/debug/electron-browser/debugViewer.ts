@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
@@ -18,7 +18,7 @@ import labels = require('vs/base/common/labels');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import tree = require('vs/base/parts/tree/browser/tree');
-import inputbox = require('vs/base/browser/ui/inputbox/inputBox');
+import {InputBox, IInputValidationOptions} from 'vs/base/browser/ui/inputbox/inputBox';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -29,7 +29,6 @@ import {CopyValueAction} from 'vs/workbench/parts/debug/electron-browser/electro
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {Source} from 'vs/workbench/parts/debug/common/debugSource';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
@@ -89,12 +88,12 @@ interface IRenameBoxOptions {
 	initialValue: string;
 	ariaLabel: string;
 	placeholder?: string;
-	validationOptions?: inputbox.IInputValidationOptions;
+	validationOptions?: IInputValidationOptions;
 }
 
 function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: tree.ITree, element: any, container: HTMLElement, options: IRenameBoxOptions): void {
 	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
-	let inputBox = new inputbox.InputBox(inputBoxContainer, contextViewService, {
+	let inputBox = new InputBox(inputBoxContainer, contextViewService, {
 		validationOptions: options.validationOptions,
 		placeholder: options.placeholder,
 		ariaLabel: options.ariaLabel
@@ -102,6 +101,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
+	inputBox.select();
 
 	let disposed = false;
 	const toDispose: [lifecycle.IDisposable] = [inputBox];
@@ -137,8 +137,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	});
 
 	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
-		const isEscape = e.equals(CommonKeybindings.ESCAPE);
-		const isEnter = e.equals(CommonKeybindings.ENTER);
+		const isEscape = e.equals(KeyCode.Escape);
+		const isEnter = e.equals(KeyCode.Enter);
 		if (isEscape || isEnter) {
 			wrapUp(isEnter);
 		}
@@ -167,10 +167,10 @@ export class BaseDebugController extends treedefaults.DefaultController {
 		super();
 
 		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DELETE, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
 		}
 	}
 
@@ -582,7 +582,7 @@ export class VariablesDataSource implements tree.IDataSource {
 		}
 
 		let variable = <model.Variable>element;
-		return variable.reference !== 0 && variable.value && !strings.equalsIgnoreCase(variable.value, 'null');
+		return variable.reference !== 0 && !strings.equalsIgnoreCase(variable.value, 'null');
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
@@ -699,7 +699,7 @@ export class VariablesController extends BaseDebugController {
 
 	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: renderer.IActionProvider) {
 		super(debugService, contextMenuService, actionProvider);
-		this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.setSelectedExpression.bind(this));
+		this.downKeyBindingDispatcher.set(KeyCode.Enter, this.setSelectedExpression.bind(this));
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
@@ -737,7 +737,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Expression && element.name;
+		return element instanceof model.Expression && !!element.name;
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -832,7 +832,6 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	constructor(
 		actionProvider: renderer.IActionProvider,
 		private actionRunner: actions.IActionRunner,
-		@IMessageService private messageService: IMessageService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService
 	) {
@@ -924,9 +923,9 @@ export class WatchExpressionsController extends BaseDebugController {
 		super(debugService, contextMenuService, actionProvider);
 
 		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onRename.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.F2, this.onRename.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
 		}
 	}
 
@@ -1078,7 +1077,6 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	constructor(
 		private actionProvider: BreakpointsActionProvider,
 		private actionRunner: actions.IActionRunner,
-		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService
@@ -1230,9 +1228,9 @@ export class BreakpointsController extends BaseDebugController {
 	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: renderer.IActionProvider) {
 		super(debugService, contextMenuService, actionProvider);
 		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onRename.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
 		} else {
-			this.downKeyBindingDispatcher.set(CommonKeybindings.F2, this.onRename.bind(this));
+			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
 		}
 	}
 

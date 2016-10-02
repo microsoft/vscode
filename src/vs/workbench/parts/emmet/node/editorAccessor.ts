@@ -145,9 +145,6 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 
-		if (/\b(razor|handlebars)\b/.test(syntax)) { // treat like html
-			return 'html';
-		}
 		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
 			return 'jsx';
 		}
@@ -172,8 +169,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 		let languages = languageGrammar.split('.');
-		let thisLanguage = languages[languages.length - 1];
-		if (syntax !== thisLanguage || languages.length < 2) {
+		if (languages.length < 2) {
 			return syntax;
 		}
 		for (let i = 1; i < languages.length; i++) {

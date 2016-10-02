@@ -7,7 +7,7 @@
 
 import 'vs/css!./hover';
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IOpenerService} from 'vs/platform/opener/common/opener';
@@ -60,7 +60,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 			}));
 
 			this._contentWidget = new ModesContentHoverWidget(editor, openerService, modeService);
-			this._glyphWidget = new ModesGlyphHoverWidget(editor);
+			this._glyphWidget = new ModesGlyphHoverWidget(editor, openerService, modeService);
 		}
 	}
 
@@ -155,7 +155,7 @@ class ShowHoverAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
-				primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});
 	}

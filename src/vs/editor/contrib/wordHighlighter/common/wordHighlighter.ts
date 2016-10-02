@@ -265,7 +265,7 @@ class WordHighlighter {
 		this._decorationIds = this.editor.deltaDecorations(this._decorationIds, decorations);
 	}
 
-	public destroy(): void {
+	public dispose(): void {
 		this._stopAll();
 		this.toUnhook = dispose(this.toUnhook);
 	}
@@ -287,6 +287,6 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.wordHighligher.destroy();
+		this.wordHighligher.dispose();
 	}
 }

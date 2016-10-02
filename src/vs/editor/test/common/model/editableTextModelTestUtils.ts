@@ -7,12 +7,12 @@
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
+import {ICompatMirrorModelEvents, CompatMirrorModel} from 'vs/editor/common/model/compatMirrorModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Position} from 'vs/editor/common/core/position';
 
-export function testApplyEditsWithSyncedModels(original:string[], edits:editorCommon.IIdentifiedSingleEditOperation[], expected:string[]): void {
+export function testApplyEditsWithSyncedModels(original:string[], edits:editorCommon.IIdentifiedSingleEditOperation[], expected:string[], inputEditsAreInvalid:boolean = false): void {
 	var originalStr = original.join('\n');
 	var expectedStr = expected.join('\n');
 
@@ -31,14 +31,16 @@ export function testApplyEditsWithSyncedModels(original:string[], edits:editorCo
 		// Assert the inverse edits brought back model to original state
 		assert.deepEqual(model.getValue(editorCommon.EndOfLinePreference.LF), originalStr);
 
-		// Assert the inverse of the inverse edits are the original edits
-		assert.deepEqual(inverseInverseEdits, edits);
+		if (!inputEditsAreInvalid) {
+			// Assert the inverse of the inverse edits are the original edits
+			assert.deepEqual(inverseInverseEdits, edits);
+		}
 
 		assertMirrorModels();
 	});
 }
 
-enum AssertDocumentLineMappingDirection {
+const enum AssertDocumentLineMappingDirection {
 	OffsetToPosition,
 	PositionToOffset
 }
@@ -88,7 +90,7 @@ export function assertSyncedModels(text:string, callback:(model:EditableTextMode
 		assertLineMapping(model, 'model');
 	}
 
-	var mirrorModel1 = new MirrorModel(model.getVersionId(), model.toRawText(), null);
+	var mirrorModel1 = new CompatMirrorModel(model.getVersionId(), model.toRawText(), null);
 	assertLineMapping(mirrorModel1, 'mirrorModel1');
 	var mirrorModel1PrevVersionId = model.getVersionId();
 
@@ -101,7 +103,7 @@ export function assertSyncedModels(text:string, callback:(model:EditableTextMode
 			console.warn('Model version id did not advance between edits (1)');
 		}
 		mirrorModel1PrevVersionId = versionId;
-		let mirrorModelEvents:IMirrorModelEvents = {
+		let mirrorModelEvents:ICompatMirrorModelEvents = {
 			contentChanged: [e]
 		};
 		mirrorModel1.onEvents(mirrorModelEvents);

@@ -9,18 +9,18 @@ import 'vs/css!./media/xterm';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
 import nls = require('vs/nls');
-import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
-import {ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ScrollDownTerminalAction, ScrollUpTerminalAction, TerminalPasteAction, ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
-import {Registry} from 'vs/platform/platform';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {GlobalQuickOpenAction} from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
-import {ShowAllCommandsAction} from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, RunSelectedTextInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { Registry } from 'vs/platform/platform';
+import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminalService';
+import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -109,7 +109,10 @@ configurationRegistry.registerConfiguration({
 				RunSelectedTextInTerminalAction.ID,
 				ToggleTerminalAction.ID,
 				ScrollDownTerminalAction.ID,
-				ScrollUpTerminalAction.ID
+				ScrollDownPageTerminalAction.ID,
+				ScrollUpTerminalAction.ID,
+				ScrollUpPageTerminalAction.ID,
+				ClearTerminalAction.ID
 			].sort()
 		}
 	}
@@ -122,7 +125,8 @@ registerSingleton(ITerminalService, TerminalService);
 	'TerminalPanel',
 	TERMINAL_PANEL_ID,
 	nls.localize('terminal', "Terminal"),
-	'terminal'
+	'terminal',
+	40
 ));
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
@@ -154,8 +158,15 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAc
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownTerminalAction, ScrollDownTerminalAction.ID, ScrollDownTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Down', category);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Down (Line)', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownPageTerminalAction, ScrollDownPageTerminalAction.ID, ScrollDownPageTerminalAction.LABEL, {
+	primary: KeyMod.Shift | KeyCode.PageDown
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Down (Page)', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpTerminalAction, ScrollUpTerminalAction.ID, ScrollUpTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up', category);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up (Line)', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpPageTerminalAction, ScrollUpPageTerminalAction.ID, ScrollUpPageTerminalAction.LABEL, {
+	primary: KeyMod.Shift | KeyCode.PageUp
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up (Page)', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL), 'Terminal: Clear', category);

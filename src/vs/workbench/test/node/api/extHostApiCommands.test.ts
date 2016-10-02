@@ -23,6 +23,7 @@ import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeat
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/mainThreadLanguageFeatures';
 import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
 import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -70,6 +71,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			_serviceBrand: IModelService,
 			getModel(): any { return model; },
 			createModel(): any { throw new Error(); },
+			setMode(): any { throw new Error(); },
 			destroyModel(): any { throw new Error(); },
 			getModels(): any { throw new Error(); },
 			onModelAdded: undefined,
@@ -108,7 +110,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, diagnostics);
+		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, new ExtHostHeapService(), diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));

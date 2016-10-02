@@ -45,6 +45,7 @@ export interface IToolbarActions {
 
 export interface ITitleAreaControl {
 	setContext(group: IEditorGroup): void;
+	hasContext(): boolean;
 	allowDragging(element: HTMLElement): boolean;
 	setDragged(dragged: boolean): void;
 	create(parent: HTMLElement): void;
@@ -145,8 +146,8 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		this.previewEditors = config.workbench.editor.enablePreview;
-		this.showTabs = config.workbench.editor.showTabs;
+		this.previewEditors = config.workbench && config.workbench.editor && config.workbench.editor.enablePreview;
+		this.showTabs = config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 	}
 
 	private updateSplitActionEnablement(): void {
@@ -172,6 +173,10 @@ export abstract class TitleControl implements ITitleAreaControl {
 
 	public setContext(group: IEditorGroup): void {
 		this.context = group;
+	}
+
+	public hasContext(): boolean {
+		return !!this.context;
 	}
 
 	public update(instant?: boolean): void {

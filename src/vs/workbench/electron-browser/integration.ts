@@ -6,34 +6,37 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
+import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import Severity from 'vs/base/common/severity';
-import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IAction, Action} from 'vs/base/common/actions';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IWorkspaceContextService}from 'vs/platform/workspace/common/workspace';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ElectronWindow} from 'vs/workbench/electron-browser/window';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, Action } from 'vs/base/common/actions';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
-import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {Position} from 'vs/platform/editor/common/editor';
-import {EditorInput} from 'vs/workbench/common/editor';
-import {IPath, IOpenFileRequest, IWindowConfiguration} from 'vs/workbench/electron-browser/common';
-import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
+import { Position } from 'vs/platform/editor/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
+import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/electron-browser/common';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import URI from 'vs/base/common/uri';
 
-import {ipcRenderer as ipc, webFrame, remote} from 'electron';
+import { ipcRenderer as ipc, webFrame, remote } from 'electron';
 
 const currentWindow = remote.getCurrentWindow();
 
@@ -50,14 +53,17 @@ const TextInputActions: IAction[] = [
 
 export class ElectronIntegration {
 
+	private static AUTO_SAVE_SETTING = 'files.autoSave';
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowService private windowService: IWindowService,
 		@IPartService private partService: IPartService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ICommandService private commandService: ICommandService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -117,6 +123,24 @@ export class ElectronIntegration {
 		// Message support
 		ipc.on('vscode:showInfoMessage', (event, message: string) => {
 			this.messageService.show(Severity.Info, message);
+		});
+
+		// Support toggling auto save
+		ipc.on('vscode.toggleAutoSave', (event) => {
+			this.toggleAutoSave();
+		});
+
+		// Fullscreen Events
+		ipc.on('vscode:enterFullScreen', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.partService.addClass('fullscreen');
+			});
+		});
+
+		ipc.on('vscode:leaveFullScreen', (event) => {
+			this.partService.joinCreation().then(() => {
+				this.partService.removeClass('fullscreen');
+			});
 		});
 
 		// Ensure others can listen to zoom level changes
@@ -257,5 +281,22 @@ export class ElectronIntegration {
 
 			return input;
 		});
+	}
+
+	private toggleAutoSave(): void {
+		const setting = this.configurationService.lookup(ElectronIntegration.AUTO_SAVE_SETTING);
+		let userAutoSaveConfig = setting.user;
+		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
+			userAutoSaveConfig = setting.default; // use default if setting not defined
+		}
+
+		let newAutoSaveValue: string;
+		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === userAutoSaveConfig)) {
+			newAutoSaveValue = AutoSaveConfiguration.OFF;
+		} else {
+			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
+		}
+
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronIntegration.AUTO_SAVE_SETTING, value: newAutoSaveValue }).done(null, (error) => this.messageService.show(Severity.Error, error));
 	}
 }

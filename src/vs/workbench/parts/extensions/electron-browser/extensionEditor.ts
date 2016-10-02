@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import Event, { Emitter, once, fromEventEmitter, filterEvent, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter, once, fromEventEmitter, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -35,13 +35,13 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { shell } from 'electron';
 import product from 'vs/platform/product';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction } from './extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, BuiltinStatusLabelAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -97,7 +97,8 @@ class NavBar {
 
 const NavbarSection = {
 	Readme: 'readme',
-	Contributions: 'contributions'
+	Contributions: 'contributions',
+	Changelog: 'changelog'
 };
 
 interface ILayoutParticipant {
@@ -123,6 +124,7 @@ export class ExtensionEditor extends BaseEditor {
 	private highlightDisposable: IDisposable;
 
 	private extensionReadme: Cache<string>;
+	private extensionChangelog: Cache<string>;
 	private extensionManifest: Cache<IExtensionManifest>;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
@@ -138,15 +140,16 @@ export class ExtensionEditor extends BaseEditor {
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService private themeService: IThemeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IOpenerService private openerService: IOpenerService
 	) {
 		super(ExtensionEditor.ID, telemetryService);
 		this._highlight = null;
 		this.highlightDisposable = empty;
 		this.disposables = [];
 		this.extensionReadme = null;
+		this.extensionChangelog = null;
 		this.extensionManifest = null;
 	}
 
@@ -156,7 +159,7 @@ export class ExtensionEditor extends BaseEditor {
 		const root = append(container, $('.extension-editor'));
 		const header = append(root, $('.header'));
 
-		this.icon = append(header, $<HTMLImageElement>('img.icon'));
+		this.icon = append(header, $<HTMLImageElement>('img.icon', { draggable: false }));
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
@@ -179,10 +182,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionActionBar = new ActionBar(extensionActions, { animated: false });
 		this.disposables.push(this.extensionActionBar);
 
-		let onActionError = fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run');
-		onActionError = mapEvent(onActionError, ({ error }) => error);
-		onActionError = filterEvent(onActionError, error => !!error);
-		onActionError(this.onError, this, this.disposables);
+		chain(fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run'))
+			.map(({ error }) => error)
+			.filter(error => !!error)
+			.on(this.onError, this, this.disposables);
 
 		const body = append(root, $('.body'));
 		this.navbar = new NavBar(body);
@@ -198,6 +201,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
 
 		this.extensionReadme = new Cache(() => extension.getReadme());
+		this.extensionChangelog = new Cache(() => extension.getChangelog());
 		this.extensionManifest = new Cache(() => extension.getManifest());
 
 		const onError = once(domEvent(this.icon, 'error'));
@@ -234,22 +238,28 @@ export class ExtensionEditor extends BaseEditor {
 		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
 		this.transientDisposables.push(ratings);
 
+		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 
 		installAction.extension = extension;
+		builtinStatusAction.extension = extension;
 		updateAction.extension = extension;
 		enableAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([enableAction, updateAction, installAction], { icon: true, label: true });
-		this.transientDisposables.push(enableAction, updateAction, installAction);
+		this.extensionActionBar.push([enableAction, updateAction, installAction, builtinStatusAction], { icon: true, label: true });
+		this.transientDisposables.push(enableAction, updateAction, installAction, builtinStatusAction);
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
 		this.navbar.push(NavbarSection.Readme, localize('details', "Details"));
 		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
+
+		if (extension.hasChangelog) {
+			this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
+		}
 
 		this.content.innerHTML = '';
 
@@ -258,13 +268,14 @@ export class ExtensionEditor extends BaseEditor {
 
 	private onNavbarChange(extension: IExtension, id: string): void {
 		switch (id) {
-			case NavbarSection.Readme: return this.openReadme(extension);
-			case NavbarSection.Contributions: return this.openContributions(extension);
+			case NavbarSection.Readme: return this.openReadme();
+			case NavbarSection.Contributions: return this.openContributions();
+			case NavbarSection.Changelog: return this.openChangelog();
 		}
 	}
 
-	private openReadme(extension: IExtension) {
-		return this.loadContents(() => this.extensionReadme.get()
+	private openMarkdown(content: TPromise<string>, noContentCopy: string) {
+		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
 			.then<void>(body => {
@@ -276,17 +287,25 @@ export class ExtensionEditor extends BaseEditor {
 				webview.style(this.themeService.getColorTheme());
 				webview.contents = [body];
 
-				const linkListener = webview.onDidClickLink(link => shell.openExternal(link.toString(true)));
-				const themeListener = this.themeService.onDidColorThemeChange(themeId => webview.style(themeId));
-				this.contentDisposables.push(webview, linkListener, themeListener);
+				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+				this.themeService.onDidColorThemeChange(themeId => webview.style(themeId), null, this.contentDisposables);
+				this.contentDisposables.push(webview);
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p'));
-				p.textContent = localize('noReadme', "No README available.");
+				p.textContent = noContentCopy;
 			}));
 	}
 
-	private openContributions(extension: IExtension) {
+	private openReadme() {
+		return this.openMarkdown(this.extensionReadme.get(), localize('noReadme', "No README available."));
+	}
+
+	private openChangelog() {
+		return this.openMarkdown(this.extensionChangelog.get(), localize('noChangelog', "No CHANGELOG available."));
+	}
+
+	private openContributions() {
 		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
 				this.content.innerHTML = '';
@@ -324,8 +343,16 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
-				...contrib.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
+				$('tr', null,
+					$('th', null, localize('setting name', "Name")),
+					$('th', null, localize('description', "Description")),
+					$('th', null, localize('default', "Default"))
+				),
+				...contrib.map(key => $('tr', null,
+					$('td', null, $('code', null, key)),
+					$('td', null, properties[key].description),
+					$('td', null, $('code', null, properties[key].default))
+				))
 			)
 		);
 

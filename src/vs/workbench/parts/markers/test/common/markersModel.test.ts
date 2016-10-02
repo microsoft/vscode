@@ -8,7 +8,7 @@
 import assert = require('assert');
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
+import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/common/markersModel';
 
 suite('MarkersModel Test', () => {
@@ -45,26 +45,7 @@ suite('MarkersModel Test', () => {
 		assert.ok(hasMarker(actuals[3].markers, marker5));
 	});
 
-	test('getFilteredResource return markers grouped by resource sorted by file path', function() {
-		let marker1= aMarker('a/res1');
-		let marker2= aMarker('a/res2');
-		let marker3= aMarker('res4');
-		let marker4= aMarker('b/res3');
-		let marker5= aMarker('res4');
-		let marker6= aMarker('c/res2');
-		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
-
-		let actuals= testObject.filteredResources;
-
-		assert.equal(5, actuals.length);
-		assert.ok(compareResource(actuals[0], 'a/res1'));
-		assert.ok(compareResource(actuals[1], 'a/res2'));
-		assert.ok(compareResource(actuals[2], 'b/res3'));
-		assert.ok(compareResource(actuals[3], 'c/res2'));
-		assert.ok(compareResource(actuals[4], 'res4'));
-	});
-
-	test('getFilteredResource return resources with no errors at the end', function() {
+	test('sort palces resources with no errors at the end', function() {
 		let marker1= aMarker('a/res1', Severity.Warning);
 		let marker2= aMarker('a/res2');
 		let marker3= aMarker('res4');
@@ -73,7 +54,7 @@ suite('MarkersModel Test', () => {
 		let marker6= aMarker('c/res2', Severity.Info);
 		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals= testObject.filteredResources;
+		let actuals= testObject.filteredResources.sort(MarkersModel.compare);
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res2'));
@@ -83,7 +64,26 @@ suite('MarkersModel Test', () => {
 		assert.ok(compareResource(actuals[4], 'c/res2'));
 	});
 
-	test('getFilteredResource return markers sorted by line and column', function() {
+	test('sort resources by file path', function() {
+		let marker1= aMarker('a/res1');
+		let marker2= aMarker('a/res2');
+		let marker3= aMarker('res4');
+		let marker4= aMarker('b/res3');
+		let marker5= aMarker('res4');
+		let marker6= aMarker('c/res2');
+		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+
+		let actuals= testObject.filteredResources.sort(MarkersModel.compare);
+
+		assert.equal(5, actuals.length);
+		assert.ok(compareResource(actuals[0], 'a/res1'));
+		assert.ok(compareResource(actuals[1], 'a/res2'));
+		assert.ok(compareResource(actuals[2], 'b/res3'));
+		assert.ok(compareResource(actuals[3], 'c/res2'));
+		assert.ok(compareResource(actuals[4], 'res4'));
+	});
+
+	test('sort markers by line and column', function() {
 		let marker1= aMarkerWithRange(8, 1, 9, 3);
 		let marker2= aMarkerWithRange(3);
 		let marker3= aMarkerWithRange(5);
@@ -94,26 +94,17 @@ suite('MarkersModel Test', () => {
 		let marker8= aMarkerWithRange(8, 2, 8, 4);
 		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8]);
 
-		let actuals= testObject.filteredResources;
+		let actuals= testObject.filteredResources[0].markers.sort(MarkersModel.compare);
 
-		assert.equal(8, actuals[0].markers.length);
-		assert.equal(actuals[0].markers[0].marker, marker2);
-		assert.equal(actuals[0].markers[1].marker, marker7);
-		assert.equal(actuals[0].markers[2].marker, marker3);
-
-		assert.equal(actuals[0].markers[3].marker, marker4);
-		assert.equal(actuals[0].markers[4].marker, marker6);
-		assert.equal(actuals[0].markers[5].marker, marker1);
-		assert.equal(actuals[0].markers[6].marker, marker8);
-
-		assert.equal(actuals[0].markers[7].marker, marker5);
+		assert.equal(actuals[0].marker, marker2);
+		assert.equal(actuals[1].marker, marker7);
+		assert.equal(actuals[2].marker, marker3);
+		assert.equal(actuals[3].marker, marker4);
+		assert.equal(actuals[4].marker, marker6);
+		assert.equal(actuals[5].marker, marker1);
+		assert.equal(actuals[6].marker, marker8);
+		assert.equal(actuals[7].marker, marker5);
 	});
-
-	function hasResource(resources:Resource[], resource:string):boolean {
-		return resources.filter((r):boolean => {
-			return r.uri.toString() === URI.file(resource).toString();
-		}).length === 1;
-	}
 
 	function hasMarker(markers:Marker[], marker:IMarker):boolean {
 		return markers.filter((m):boolean => {
@@ -151,6 +142,6 @@ suite('MarkersModel Test', () => {
 			startColumn: startColumn,
 			endLineNumber: endLineNumber,
 			endColumn: endColumn
-		}
+		};
 	}
 });

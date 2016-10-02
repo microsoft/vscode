@@ -46,9 +46,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public onDidChangeModelOptions(listener: (e:editorCommon.IModelOptionsChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
 	}
-	public onDidChangeModelModeSupport(listener: (e:editorCommon.IModeSupportChangedEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelModeSupportChanged, listener);
-	}
 	public onDidChangeModelDecorations(listener: (e:editorCommon.IModelDecorationsChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelDecorationsChanged, listener);
 	}
@@ -84,8 +81,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	protected id:number;
 
-	_lifetimeDispose: IDisposable[];
-	_configuration:CommonEditorConfiguration;
+	protected _lifetimeDispose: IDisposable[];
+	protected _configuration:CommonEditorConfiguration;
 
 	protected _contributions:{ [key:string]:editorCommon.IEditorContribution; };
 	protected _actions:{ [key:string]:editorCommon.IEditorAction; };
@@ -705,7 +702,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this._configuration.editor.layoutInfo;
 	}
 
-	_attachModel(model:editorCommon.IModel): void {
+	protected _attachModel(model:editorCommon.IModel): void {
 		this.model = model ? model : null;
 		this.listenersToRemove = [];
 		this.viewModel = null;
@@ -856,10 +853,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							this.emit(editorCommon.EventType.ModelModeChanged, e);
 							break;
 
-						case editorCommon.EventType.ModelModeSupportChanged:
-							this.emit(editorCommon.EventType.ModelModeSupportChanged, e);
-							break;
-
 						case editorCommon.EventType.ModelRawContentChanged:
 							this.emit(editorCommon.EventType.ModelRawContentChanged, e);
 							break;
@@ -913,7 +906,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	protected abstract _getViewInternalEventBus(): IEventEmitter;
 
-	_postDetachModelCleanup(detachedModel:editorCommon.IModel): void {
+	protected _postDetachModelCleanup(detachedModel:editorCommon.IModel): void {
 		if (detachedModel) {
 			this._decorationTypeKeysToIds = {};
 			if (this._decorationTypeSubtypes) {

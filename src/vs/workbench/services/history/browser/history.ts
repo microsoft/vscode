@@ -9,7 +9,6 @@ import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
-import {EventType} from 'vs/base/common/events';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {EditorInput, IGroupEvent, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -17,15 +16,16 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IRecentlyClosedEditor, IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {Registry} from 'vs/platform/platform';
+import {once} from 'vs/base/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -73,30 +73,35 @@ interface ISerializedEditorInput {
 	value: string;
 }
 
-interface IInputWithPath {
-	getPath?: () => string;
-}
-
 export abstract class BaseHistoryService {
 	protected toUnbind: IDisposable[];
 
 	private activeEditorListeners: IDisposable[];
+	private _isPure: boolean;
 
 	constructor(
-		private eventService: IEventService,
 		protected editorGroupService: IEditorGroupService,
 		protected editorService: IWorkbenchEditorService,
 		protected contextService: IWorkspaceContextService,
-		private environmentService: IEnvironmentService
+		private environmentService: IEnvironmentService,
+		integrityService: IIntegrityService
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
+		this._isPure = true;
 
 		// Window Title
 		window.document.title = this.getWindowTitle(null);
 
 		// Editor Input Changes
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		integrityService.isPure().then((r) => {
+			if (!r.isPure) {
+				this._isPure = false;
+				window.document.title = this.getWindowTitle(null);
+			}
+		});
 	}
 
 	private onEditorsChanged(): void {
@@ -111,10 +116,14 @@ export abstract class BaseHistoryService {
 		// Propagate to history
 		this.onEditorEvent(activeEditor);
 
-		// Apply listener for dirty changes
+		// Apply listener for dirty and label changes
 		if (activeInput instanceof EditorInput) {
 			this.activeEditorListeners.push(activeInput.onDidChangeDirty(() => {
 				this.updateWindowTitle(activeInput); // Calculate New Window Title when dirty state changes
+			}));
+
+			this.activeEditorListeners.push(activeInput.onDidChangeLabel(() => {
+				this.updateWindowTitle(activeInput); // Calculate New Window Title when label changes
 			}));
 		}
 
@@ -153,7 +162,10 @@ export abstract class BaseHistoryService {
 	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
 
 	protected getWindowTitle(input?: IEditorInput): string {
-		const title = this.doGetWindowTitle(input);
+		let title = this.doGetWindowTitle(input);
+		if (!this._isPure) {
+			title += nls.localize('patchedWindowTitle', " [Unsupported]");
+		}
 
 		// Extension Development Host gets a special title to identify itself
 		if (this.environmentService.extensionDevelopmentPath) {
@@ -233,16 +245,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private registry: IEditorRegistry;
 
 	constructor(
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IIntegrityService integrityService: IIntegrityService
 	) {
-		super(eventService, editorGroupService, editorService, contextService, environmentService);
+		super(editorGroupService, editorService, contextService, environmentService, integrityService);
 
 		this.index = -1;
 		this.stack = [];
@@ -276,7 +288,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				}
 
 				// Restore on dispose
-				editor.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+				const onceDispose = once(editor.onDispose);
+				onceDispose(() => {
 					this.restoreInRecentlyClosed(editor);
 				});
 			}
@@ -360,7 +373,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		// Restore on dispose
-		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+		const onceDispose = once(input.onDispose);
+		onceDispose(() => {
 			this.restoreInHistory(input);
 		});
 	}
@@ -443,7 +457,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				};
 			}
 
-			this.addToStack(editor.input, options);
+			this.add(editor.input, options);
 		}
 	}
 
@@ -453,24 +467,31 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			return; // do not push same editor input again
 		}
 
-		this.addToStack(editor.input);
+		this.add(editor.input);
+	}
+
+	public add(input: IEditorInput, options?: ITextEditorOptions): void {
+		if (!this.blockStackChanges) {
+			this.addToStack(input, options);
+		}
 	}
 
 	private addToStack(input: IEditorInput, options?: ITextEditorOptions): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
-		// with editor options to indicate that this entry is more specific.
+		// with editor options to indicate that this entry is more specific. Also
+		// prevent entries that have the exact same options.
 		let replace = false;
 		if (this.stack[this.index]) {
 			const currentEntry = this.stack[this.index];
-			if (currentEntry.input.matches(input) && !currentEntry.options) {
+			if (currentEntry.input.matches(input) && this.sameOptions(currentEntry.options, options)) {
 				replace = true;
 			}
 		}
 
 		const entry = {
-			input: input,
-			options: options
+			input,
+			options
 		};
 
 		// If we are not at the end of history, we remove anything after
@@ -498,9 +519,33 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		// Restore on dispose
-		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
+		const onceDispose = once(input.onDispose);
+		onceDispose(() => {
 			this.restoreInStack(input);
 		});
+	}
+
+	private sameOptions(optionsA?: ITextEditorOptions, optionsB?: ITextEditorOptions): boolean {
+		if (!optionsA && !optionsB) {
+			return true;
+		}
+
+		if ((!optionsA && optionsB) || (optionsA && !optionsB)) {
+			return false;
+		}
+
+		const s1 = optionsA.selection;
+		const s2 = optionsB.selection;
+
+		if (!s1 && !s2) {
+			return true;
+		}
+
+		if ((!s1 && s2) || (s1 && !s2)) {
+			return false;
+		}
+
+		return s1.startLineNumber === s2.startLineNumber; // we consider the history entry same if we are on the same line
 	}
 
 	private restoreInStack(input: IEditorInput): void {

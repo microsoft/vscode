@@ -12,7 +12,8 @@ import paths = require('vs/base/common/paths');
 import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey, filterOutdatedExtensions } from './extensions';
+import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -20,12 +21,22 @@ import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Query } from '../common/extensionQuery';
-import { shell } from 'electron';
+import { shell, remote } from 'electron';
+import { InitialContent } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
+
+const dialog = remote.dialog;
 
 export class InstallAction extends Action {
 
 	private static InstallLabel = localize('installAction', "Install");
 	private static InstallingLabel = localize('installing', "Installing");
+
+	private static Class = 'extension-action install';
+	private static InstallingClass = 'extension-action install installing';
+
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -34,21 +45,29 @@ export class InstallAction extends Action {
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.install', InstallAction.InstallLabel, 'extension-action install', false);
+		super('extensions.install', InstallAction.InstallLabel, InstallAction.Class, false);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
 	private update(): void {
-		if (!this.extension) {
+		if (!this.extension || this.extension.type === LocalExtensionType.System) {
 			this.enabled = false;
+			this.class = InstallAction.Class;
 			this.label = InstallAction.InstallLabel;
 			return;
 		}
 
 		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
-		this.label = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingLabel : InstallAction.InstallLabel;
+
+		if (this.extension.state === ExtensionState.Installing) {
+			this.label = InstallAction.InstallingLabel;
+			this.class = InstallAction.InstallingClass;
+		} else {
+			this.label = InstallAction.InstallLabel;
+			this.class = InstallAction.Class;
+		}
 	}
 
 	run(): TPromise<any> {
@@ -85,8 +104,12 @@ export class UninstallAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed
-			|| this.extension.state === ExtensionState.NeedsRestart;
+		if (this.extension.type !== LocalExtensionType.User) {
+			this.enabled = false;
+			return;
+		}
+
+		this.enabled = this.extension.state === ExtensionState.Installed || this.extension.state === ExtensionState.NeedsRestart;
 	}
 
 	run(): TPromise<any> {
@@ -137,7 +160,7 @@ export class CombinedInstallAction extends Action {
 	}
 
 	private update(): void {
-		if (!this.extension) {
+		if (!this.extension || this.extension.type === LocalExtensionType.System) {
 			this.enabled = false;
 			this.class = CombinedInstallAction.NoExtensionClass;
 		} else if (this.installAction.enabled) {
@@ -201,11 +224,28 @@ export class UpdateAction extends Action {
 			return;
 		}
 
+		if (this.extension.type !== LocalExtensionType.User) {
+			this.enabled = false;
+			this.class = UpdateAction.DisabledClass;
+			return;
+		}
+
 		const canInstall = this.extensionsWorkbenchService.canInstall(this.extension);
 		const isInstalled = this.extension.state === ExtensionState.Installed
 			|| this.extension.state === ExtensionState.NeedsRestart;
 
-		this.enabled = canInstall && isInstalled && this.extension.outdated;
+		if (canInstall && isInstalled) {
+			this.extension.isOutdated().then(outDated => {
+				this.enabled = outDated;
+				this.updateClass();
+			});
+		} else {
+			this.enabled = false;
+			this.updateClass();
+		}
+	}
+
+	private updateClass(): void {
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
 	}
 
@@ -283,19 +323,22 @@ export class UpdateAllAction extends Action {
 		this.update();
 	}
 
-	private get outdated(): IExtension[] {
-		return this.extensionsWorkbenchService.local
-			.filter(e => this.extensionsWorkbenchService.canInstall(e)
-				&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
-				&& e.outdated);
+	private getOutdatedExtensions(): TPromise<IExtension[]> {
+		let extensions = this.extensionsWorkbenchService.local.filter(
+			e => this.extensionsWorkbenchService.canInstall(e)
+			&& e.type === LocalExtensionType.User
+			&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
+		);
+
+		return filterOutdatedExtensions(extensions);
 	}
 
 	private update(): void {
-		this.enabled = this.outdated.length > 0;
+		this.getOutdatedExtensions().done(outDated => this.enabled = outDated.length > 0);
 	}
 
 	run(): TPromise<any> {
-		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e)));
+		return this.getOutdatedExtensions().then(outdated => TPromise.join(outdated.map(e => this.extensionsWorkbenchService.install(e))));
 	}
 
 	dispose(): void {
@@ -390,7 +433,6 @@ export class ShowOutdatedExtensionsAction extends Action {
 	}
 
 	run(): TPromise<void> {
-
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -449,6 +491,33 @@ export class ShowRecommendedExtensionsAction extends Action {
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
 				viewlet.search('@recommended');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class ShowWorkspaceRecommendedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showWorkspaceRecommendedExtensions';
+	static LABEL = localize('showWorkspaceRecommendedExtensions', "Show Workspace Recommended Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended:workspace');
 				viewlet.focus();
 			});
 	}
@@ -524,5 +593,108 @@ export class OpenExtensionsFolderAction extends Action {
 
 	protected isEnabled(): boolean {
 		return true;
+	}
+}
+
+export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
+	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Workspace Recommended Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IFileService private fileService: IFileService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private extensionsService: IExtensionsWorkbenchService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label, null, true);
+	}
+
+	public run(event: any): TPromise<any> {
+		return this.openExtensionsFile();
+	}
+
+	private openExtensionsFile(): TPromise<any> {
+		if (!this.contextService.getWorkspace()) {
+			this.messageService.show(severity.Info, localize('ConfigureWorkspaceRecommendations.noWorkspace', 'Recommendations are only available on a workspace folder.'));
+			return TPromise.as(undefined);
+		}
+
+		return this.getOrCreateExtensionsFile().then(value => {
+			return this.editorService.openEditor({
+				resource: value.extensionsFileResource,
+				options: {
+					forceOpen: true,
+					pinned: value.created
+				},
+			});
+		}, (error) => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+	}
+
+	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', `${ ConfigurationKey }.json`));
+
+		return this.fileService.resolveContent(extensionsFileResource).then(content => {
+			return { created: false, extensionsFileResource };
+		}, err => {
+			return this.fileService.updateContent(extensionsFileResource, InitialContent).then(() => {
+				return { created: true, extensionsFileResource };
+			});
+		});
+	}
+}
+
+export class InstallVSIXAction extends Action {
+
+	static ID = 'workbench.extensions.action.installVSIX';
+	static LABEL = localize('installVSIX', "Install from VSIX...");
+
+	constructor(
+		id = InstallVSIXAction.ID,
+		label = InstallVSIXAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, 'extension-action install-vsix', true);
+	}
+
+	run(): TPromise<any> {
+		const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
+			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
+			properties: ['openFile']
+		});
+
+		if (!result) {
+			return TPromise.as(null);
+		}
+
+		return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix)));
+	}
+}
+
+export class BuiltinStatusLabelAction extends Action {
+
+	private static Class = 'extension-action built-in-status';
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor() {
+		super('extensions.install', localize('builtin', "Built-in"), '', false);
+	}
+
+	private update(): void {
+		if (this.extension && this.extension.type === LocalExtensionType.System) {
+			this.class = `${ BuiltinStatusLabelAction.Class } system`;
+		} else {
+			this.class = `${ BuiltinStatusLabelAction.Class } user`;
+		}
+	}
+
+	run(): TPromise<any> {
+		return TPromise.as(null);
 	}
 }

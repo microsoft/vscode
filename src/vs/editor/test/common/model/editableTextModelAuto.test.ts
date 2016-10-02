@@ -8,6 +8,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
 import {testApplyEditsWithSyncedModels} from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import {CharCode} from 'vs/base/common/charCode';
 
 const GENERATE_TESTS = false;
 
@@ -142,7 +143,7 @@ function getRandomString(minLength: number, maxLength: number): string {
 	let length = getRandomInt(minLength, maxLength);
 	let r = '';
 	for (let i = 0; i < length; i++) {
-		r += String.fromCharCode(getRandomInt('a'.charCodeAt(0), 'z'.charCodeAt(0)));
+		r += String.fromCharCode(getRandomInt(CharCode.a, CharCode.z));
 	}
 	return r;
 }

@@ -16,14 +16,16 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
-import {OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
+import {OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT} from 'vs/workbench/parts/output/common/output';
 import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
 import {SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 export class OutputPanel extends StringEditor {
 
@@ -40,10 +42,12 @@ export class OutputPanel extends StringEditor {
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super(telemetryService, instantiationService, contextService, storageService,
-			messageService, configurationService, eventService, editorService, themeService);
+			messageService, configurationService, eventService, editorService, themeService, untitledEditorService);
 		this.toDispose = [];
 	}
 
@@ -77,7 +81,7 @@ export class OutputPanel extends StringEditor {
 	protected getCodeEditorOptions(): IEditorOptions {
 		const options = super.getCodeEditorOptions();
 		options.wrappingColumn = 0;				// all output editors wrap
-		options.lineNumbers = false;			// all output editors hide line numbers
+		options.lineNumbers = 'off';			// all output editors hide line numbers
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
 		options.rulers = [];
@@ -96,6 +100,9 @@ export class OutputPanel extends StringEditor {
 
 	public createEditor(parent: Builder): void {
 		super.createEditor(parent);
+		const scopedContextKeyService = this.contextKeyService.createScoped(this.getContainer().getHTMLElement());
+		this.toDispose.push(scopedContextKeyService);
+		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
 
 		this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
 	}

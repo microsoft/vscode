@@ -56,7 +56,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 					const idx = unhandledPromises.indexOf(promise);
 					if (idx >= 0) {
 						unhandledPromises.splice(idx, 1);
-						console.warn('rejected promise not handled with 1 second');
+						console.warn('rejected promise not handled within 1 second');
 						onUnexpectedError(reason);
 					}
 				}, 1000);
@@ -104,7 +104,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 }
 
 function connectToSharedProcess(): TPromise<Client> {
-	return connect(process.env['VSCODE_SHARED_IPC_HOOK']);
+	return connect(process.env['VSCODE_SHARED_IPC_HOOK'], `extensionHost:${ process.env['VSCODE_WINDOW_ID'] }`);
 }
 
 TPromise.join<any>([connectToRenderer(), connectToSharedProcess()])

@@ -80,8 +80,22 @@
 	background-color: #4294CC
 }
 
-.monaco-action-bar .action-item.disabled .action-label.extension-action.install.no-extension,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.enable {
+.monaco-action-bar .action-item.disabled .action-label.extension-action.enable,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.built-in-status.user {
 	display: none;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.built-in-status {
+	border-radius: 4px;
+	border-color: #c1c1c1;
+	color: inherit;
+	background-color: transparent;
+	opacity: 0.9;
+	font-style: italic;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar .action-item .action-label.extension-action.built-in-status {
+	font-weight: normal;
 }

@@ -18,7 +18,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -31,16 +31,16 @@ class FilesViewerActionContributor extends ActionBarContributor {
 	}
 
 	public hasSecondaryActions(context: any): boolean {
-		let element = context.element;
+		const element = context.element;
 
 		// Contribute only on Stat Objects (File Explorer)
 		return element instanceof FileStat;
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
-		let stat = (<FileStat>context.element);
-		let tree = context.viewer;
-		let actions: IAction[] = [];
+		const stat = (<FileStat>context.element);
+		const tree = context.viewer;
+		const actions: IAction[] = [];
 		let separateOpen = false;
 
 		// Open side by side
@@ -69,7 +69,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		else if (!stat.isDirectory) {
 
 			// Run Compare
-			let runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, stat.resource, tree);
+			const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, stat.resource, tree);
 			if (runCompareAction._isEnabled()) {
 				actions.push(runCompareAction);
 			}
@@ -80,8 +80,8 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			actions.push(new Separator(null, 100));
 		}
 
-		let workspace = this.contextService.getWorkspace();
-		let isRoot = workspace && stat.resource.toString() === workspace.resource.toString();
+		const workspace = this.contextService.getWorkspace();
+		const isRoot = workspace && stat.resource.toString() === workspace.resource.toString();
 
 		// Copy File/Folder
 		if (!isRoot) {
@@ -107,7 +107,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		// Set Order
 		let curOrder = 10;
 		for (let i = 0; i < actions.length; i++) {
-			let action = <any>actions[i];
+			const action = <any>actions[i];
 			if (!action.order) {
 				curOrder += 10;
 				action.order = curOrder;
@@ -123,7 +123,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		if (context && context.element instanceof FileStat) {
 
 			// Any other item with keybinding
-			let keybinding = keybindingForAction(action.id);
+			const keybinding = keybindingForAction(action.id);
 			if (keybinding) {
 				return new ActionItem(context, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
 			}
@@ -169,7 +169,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RevertFileAction, Reve
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewFileAction, GlobalNewFileAction.ID, GlobalNewFileAction.LABEL), 'Files: New File', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewFolderAction, GlobalNewFolderAction.ID, GlobalNewFolderAction.LABEL), 'Files: New Folder', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalCompareResourcesAction, GlobalCompareResourcesAction.ID, GlobalCompareResourcesAction.LABEL), 'Files: Compare Active File With...', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusOpenEditorsView, FocusOpenEditorsView.ID, FocusOpenEditorsView.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }), 'Files: Focus on Open Editors View', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusOpenEditorsView, FocusOpenEditorsView.ID, FocusOpenEditorsView.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }), 'Files: Focus on Open Editors View', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFilesExplorer, FocusFilesExplorer.ID, FocusFilesExplorer.LABEL), 'Files: Focus on Files Explorer', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowActiveFileInExplorer, ShowActiveFileInExplorer.ID, ShowActiveFileInExplorer.LABEL), 'Files: Show Active File in Explorer', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL), 'Files: Collapse Folders in Explorer', category);

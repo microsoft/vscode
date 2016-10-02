@@ -13,10 +13,12 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
 import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
+import {ExtHostDocumentSaveParticipant} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {ExtHostWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
 import {ExtHostQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
+import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
 import {ExtHostStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostOutputService} from 'vs/workbench/api/node/extHostOutputService';
@@ -82,7 +84,9 @@ export class ExtHostAPIImplementation {
 	OverviewRulerLane: typeof vscode.OverviewRulerLane;
 	TextEditorRevealType: typeof vscode.TextEditorRevealType;
 	EndOfLine: typeof vscode.EndOfLine;
+	TextDocumentSaveReason: typeof vscode.TextDocumentSaveReason;
 	TextEditorCursorStyle: typeof vscode.TextEditorCursorStyle;
+	TextEditorLineNumbersStyle: typeof vscode.TextEditorLineNumbersStyle;
 	TextEditorSelectionChangeKind: typeof vscode.TextEditorSelectionChangeKind;
 	commands: typeof vscode.commands;
 	window: typeof vscode.window;
@@ -99,14 +103,17 @@ export class ExtHostAPIImplementation {
 		// Addressable instances
 		const col = new InstanceCollection();
 
+		const extHostHeapMonitor = col.define(ExtHostContext.ExtHostHeapService).set<ExtHostHeapService>(new ExtHostHeapService());
 		const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set<ExtHostDocuments>(new ExtHostDocuments(threadService));
+		const estHostDocumentSaveParticipant = col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 		const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocuments));
 		const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostEditors));
 		const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration)));
 		const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
-		const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostDiagnostics));
+		const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapMonitor, extHostDiagnostics));
 		const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
 		const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
+		const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
 		col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 
 		col.finish(false, threadService);
@@ -120,7 +127,6 @@ export class ExtHostAPIImplementation {
 		const extHostMessageService = new ExtHostMessageService(threadService);
 		const extHostStatusBar = new ExtHostStatusBar(threadService);
 		const extHostOutputService = new ExtHostOutputService(threadService);
-		const extHostTerminalService = new ExtHostTerminalService(threadService);
 		const workspacePath = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : undefined;
 		const extHostWorkspace = new ExtHostWorkspace(threadService, workspacePath);
 		const languages = new ExtHostLanguages(threadService);
@@ -164,7 +170,9 @@ export class ExtHostAPIImplementation {
 		this.TextEditorRevealType = extHostTypes.TextEditorRevealType;
 		this.EndOfLine = extHostTypes.EndOfLine;
 		this.TextEditorCursorStyle = EditorCommon.TextEditorCursorStyle;
+		this.TextEditorLineNumbersStyle = extHostTypes.TextEditorLineNumbersStyle;
 		this.TextEditorSelectionChangeKind = extHostTypes.TextEditorSelectionChangeKind;
+		this.TextDocumentSaveReason = extHostTypes.TextDocumentSaveReason;
 
 		// env namespace
 		let telemetryInfo: ITelemetryInfo;
@@ -233,6 +241,7 @@ export class ExtHostAPIImplementation {
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return extHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
 			},
+			onDidCloseTerminal: extHostTerminalService.onDidCloseTerminal.bind(extHostTerminalService),
 			showInformationMessage: (message, ...items) => {
 				return extHostMessageService.showMessage(Severity.Info, message, items);
 			},
@@ -258,8 +267,8 @@ export class ExtHostAPIImplementation {
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
 			},
-			createTerminal(name?: string): vscode.Terminal {
-				return extHostTerminalService.createTerminal(name);
+			createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+				return extHostTerminalService.createTerminal(name, shellPath, shellArgs);
 			}
 		};
 
@@ -319,6 +328,9 @@ export class ExtHostAPIImplementation {
 			},
 			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocuments.onDidSaveDocument(listener, thisArgs, disposables);
+			},
+			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
+				return estHostDocumentSaveParticipant.onWillSaveTextDocumentEvent(listener, thisArgs, disposables);
 			},
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);

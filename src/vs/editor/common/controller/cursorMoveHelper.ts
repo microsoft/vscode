@@ -6,6 +6,7 @@
 
 import {IPosition} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
+import * as strings from 'vs/base/common/strings';
 
 export interface IMoveResult {
 	lineNumber:number;
@@ -50,14 +51,12 @@ export interface IConfiguration {
 	getIndentationOptions(): IInternalIndentationOptions;
 }
 
-function isHighSurrogate(model, lineNumber, column) {
-	var code = model.getLineContent(lineNumber).charCodeAt(column - 1);
-	return 0xD800 <= code && code <= 0xDBFF;
+function isHighSurrogate(model:ICursorMoveHelperModel, lineNumber:number, column:number) {
+	return strings.isHighSurrogate(model.getLineContent(lineNumber).charCodeAt(column - 1));
 }
 
-function isLowSurrogate(model, lineNumber, column) {
-	var code = model.getLineContent(lineNumber).charCodeAt(column - 1);
-	return 0xDC00 <= code && code <= 0xDFFF;
+function isLowSurrogate(model:ICursorMoveHelperModel, lineNumber:number, column:number) {
+	return strings.isLowSurrogate(model.getLineContent(lineNumber).charCodeAt(column - 1));
 }
 
 export class CursorMoveHelper {

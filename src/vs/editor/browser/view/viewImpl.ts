@@ -193,7 +193,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
 			this.textAreaCover.className = 'monaco-editor-background ' + editorBrowser.ClassNames.GLYPH_MARGIN + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER;
 		} else {
-			if (this._context.configuration.editor.viewInfo.lineNumbers) {
+			if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
 				this.textAreaCover.className = 'monaco-editor-background ' + editorBrowser.ClassNames.LINE_NUMBERS + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER;
 			} else {
 				this.textAreaCover.className = 'monaco-editor-background ' + editorBrowser.ClassNames.TEXTAREA_COVER;

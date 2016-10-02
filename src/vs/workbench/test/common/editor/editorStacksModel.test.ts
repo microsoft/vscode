@@ -111,6 +111,10 @@ class TestEditorInput extends EditorInput {
 	public setDirty(): void {
 		this._onDidChangeDirty.fire();
 	}
+
+	public setLabel(): void {
+		this._onDidChangeLabel.fire();
+	}
 }
 
 class NonSerializableTestEditorInput extends EditorInput {
@@ -1181,7 +1185,6 @@ suite('Editor Stacks Model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
@@ -1484,13 +1487,16 @@ suite('Editor Stacks Model', () => {
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(group1.contains(input1Resource));
 		assert.equal(model.count(input1Resource), 1);
+		assert.equal(group1.getEditor(input1Resource), input1);
 
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(!group1.contains(input1Resource));
+		assert.ok(!group1.getEditor(input1Resource));
 		assert.ok(group2.contains(input1Resource));
+		assert.equal(group2.getEditor(input1Resource), input1);
 		assert.equal(model.count(input1Resource), 1);
 
 		const input1ResourceClone = URI.file('/hello/world.txt');
@@ -1503,6 +1509,7 @@ suite('Editor Stacks Model', () => {
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(group1.contains(input1Resource));
+		assert.equal(group1.getEditor(input1Resource), input1Clone);
 		assert.ok(!group2.contains(input1Resource));
 
 		group1.closeEditor(input1Clone);
@@ -1638,7 +1645,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(input1.isDisposed(), false);
 	});
 
-	test('Stack - Multiple Editors - Editor Emits Dirty', function () {
+	test('Stack - Multiple Editors - Editor Emits Dirty and Label Changed', function () {
 		const model = create();
 
 		const group1 = model.openGroup('group1');
@@ -1655,25 +1662,38 @@ suite('Editor Stacks Model', () => {
 			dirtyCounter++;
 		});
 
+		let labelChangeCounter = 0;
+		model.onEditorLabelChange(() => {
+			labelChangeCounter++;
+		});
+
 		(<TestEditorInput>input1).setDirty();
+		(<TestEditorInput>input1).setLabel();
 
 		assert.equal(dirtyCounter, 1);
+		assert.equal(labelChangeCounter, 1);
 
 		(<TestEditorInput>input2).setDirty();
+		(<TestEditorInput>input2).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 
 		group2.closeAllEditors();
 
 		(<TestEditorInput>input2).setDirty();
+		(<TestEditorInput>input2).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 
 		model.closeGroups();
 
 		(<TestEditorInput>input1).setDirty();
+		(<TestEditorInput>input1).setLabel();
 
 		assert.equal(dirtyCounter, 2);
+		assert.equal(labelChangeCounter, 2);
 	});
 
 	test('Groups - Model change events (structural vs state)', function () {

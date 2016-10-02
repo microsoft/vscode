@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {toErrorMessage, onUnexpectedError} from 'vs/base/common/errors';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -13,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {TextFileModelChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -60,17 +61,17 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		modelService.onModelRemoved(this._onModelRemoved, this, this._toDispose);
 		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
 
-		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => {
+		this._toDispose.push(textFileService.models.onModelSaved(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptModelSaved(e.resource.toString());
 			}
 		}));
-		this._toDispose.push(eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => {
+		this._toDispose.push(textFileService.models.onModelReverted(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptModelReverted(e.resource.toString());
 			}
 		}));
-		this._toDispose.push(eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => {
+		this._toDispose.push(textFileService.models.onModelDirty(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptModelDirty(e.resource.toString());
 			}
@@ -92,7 +93,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	private _shouldHandleFileEvent(e: TextFileChangeEvent): boolean {
+	private _shouldHandleFileEvent(e: TextFileModelChangeEvent): boolean {
 		const model = this._modelService.getModel(e.resource);
 		return model && !model.isTooLargeForHavingARichMode();
 	}
@@ -194,7 +195,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			// don't create a new file ontop of an existing file
 			return TPromise.wrapError<boolean>('file already exists on disk');
 		}, err => {
-			let input = this._untitledEditorService.createOrGet(asFileUri); // using file-uri makes it show in 'Working Files' section
+			let input = this._untitledEditorService.createOrGet(asFileUri);
 			return input.resolve(true).then(model => {
 				if (input.getResource().toString() !== uri.toString()) {
 					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);

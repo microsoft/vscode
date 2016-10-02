@@ -7,7 +7,6 @@
 
 import {EditorAccessor, IGrammarContributions} from 'vs/workbench/parts/emmet/node/editorAccessor';
 import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
-import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import assert = require('assert');
 
 //
@@ -50,7 +49,7 @@ suite('Emmet', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
 			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
-				editor.getModel().setMode(new MockMode(mode));
+				editor.getModel().setMode(mode);
 				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
 			}
@@ -61,20 +60,20 @@ suite('Emmet', () => {
 				testIsEnabled(each, null);
 			});
 
-			// syntaxes mapped to html, hard coded
-			let html = ['razor', 'handlebars'];
-			html.forEach(each => {
-				testIsEnabled(each, null);
-			});
-
+			// mapped syntaxes
 			testIsEnabled('typescriptreact', null);
 			testIsEnabled('javascriptreact', null);
 			testIsEnabled('sass-indented', null);
 
 			// syntaxes mapped using the scope name of the grammar
 			testIsEnabled('markdown', 'text.html.markdown');
+			testIsEnabled('handlebars', 'text.html.handlebars');
 			testIsEnabled('nunjucks', 'text.html.nunjucks');
 			testIsEnabled('laravel-blade', 'text.html.php.laravel-blade');
+
+			// languages that have different Language Id and scopeName
+			testIsEnabled('razor', 'text.html.cshtml');
+			testIsEnabled('HTML (Eex)', 'text.html.elixir');
 
 			// not enabled syntaxes
 			testIsEnabled('java', 'source.java', false);
@@ -84,6 +83,18 @@ suite('Emmet', () => {
 			testIsEnabled('java', 'source.java', true, {
 				'java': 'html'
 			});
+		});
+
+		withMockCodeEditor([
+			'<?'
+		], {}, (editor) => {
+
+			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
+				editor.getModel().setMode(mode);
+				editor.setPosition({ lineNumber: 1, column: 3});
+				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
+				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
+			}
 
 			// emmet enabled language that is disabled
 			testIsEnabled('php', 'text.html.php', false, {}, ['php']);
@@ -94,7 +105,7 @@ suite('Emmet', () => {
 		withMockCodeEditor([], {}, (editor) => {
 
 			function testSyntax(mode: string, scopeName: string, expectedSyntax: string, profile = {}, excluded = []) {
-				editor.getModel().setMode(new MockMode(mode));
+				editor.getModel().setMode(mode);
 				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.getSyntax(), expectedSyntax);
 			}
@@ -105,21 +116,20 @@ suite('Emmet', () => {
 				testSyntax(each, null, each);
 			});
 
-			// syntaxes mapped to html, hard coded
-			let html = ['razor', 'handlebars'];
-			html.forEach(each => {
-				testSyntax(each, null, 'html');
-			});
-
+			// mapped syntaxes
 			testSyntax('typescriptreact', null, 'jsx');
 			testSyntax('javascriptreact', null, 'jsx');
-
 			testSyntax('sass-indented', null, 'sass');
 
 			// syntaxes mapped using the scope name of the grammar
 			testSyntax('markdown', 'text.html.markdown', 'html');
+			testSyntax('handlebars', 'text.html.handlebars', 'html');
 			testSyntax('nunjucks', 'text.html.nunjucks', 'html');
 			testSyntax('laravel-blade', 'text.html.php.laravel-blade', 'html');
+
+			// languages that have different Language Id and scopeName
+			testSyntax('razor', 'text.html.cshtml', 'html');
+			testSyntax('HTML (Eex)', 'text.html.elixir', 'html');
 
 			// user define mapping
 			testSyntax('java', 'source.java', 'html', {

@@ -16,9 +16,15 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { ShowReleaseNotesAction } from 'vs/workbench/electron-browser/update';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Action } from 'vs/base/common/actions';
 import { shell } from 'electron';
+import { ReleaseNotesEditor } from './releaseNotesEditor';
+import { ReleaseNotesInput } from './releaseNotesInput';
 import * as semver from 'semver';
+import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 const CloseAction = new Action('close', nls.localize('close', "Close"), '', true, () => null);
 
@@ -35,6 +41,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService
 	) {
 		const lastVersion = storageService.get(UpdateContribution.KEY, StorageScope.GLOBAL, '');
@@ -42,10 +49,12 @@ export class UpdateContribution implements IWorkbenchContribution {
 		// was there an update?
 		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			setTimeout(() => {
+				const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, true, pkg.version);
+
 				messageService.show(Severity.Info, {
-					message: nls.localize('releaseNotes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
+					message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
 					actions: [
-						ShowReleaseNotesAction(product.releaseNotesUrl, true),
+						releaseNotesAction,
 						CloseAction
 					]
 				});
@@ -94,3 +103,14 @@ export class UpdateContribution implements IWorkbenchContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(UpdateContribution);
+
+// Editor
+const editorDescriptor = new EditorDescriptor(
+	ReleaseNotesEditor.ID,
+	nls.localize('release notes', "Release notes"),
+	'vs/workbench/parts/update/electron-browser/releaseNotesEditor',
+	'ReleaseNotesEditor'
+);
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors)
+	.registerEditor(editorDescriptor, [new SyncDescriptor(ReleaseNotesInput)]);

@@ -12,6 +12,9 @@ import {Action} from 'vs/base/common/actions';
 import {ipcRenderer as ipc, shell} from 'electron';
 import {IMessageService} from 'vs/platform/message/common/message';
 import product from 'vs/platform/product';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
 
 interface IUpdate {
 	releaseNotes: string;
@@ -35,13 +38,22 @@ const NotNowAction = new Action(
 	() => TPromise.as(true)
 );
 
-export const ShowReleaseNotesAction = (releaseNotesUrl: string, returnValue = false) => new Action(
-	'update.showReleaseNotes',
-	nls.localize('releaseNotes', "Release Notes"),
-	null,
-	true,
-	() => { shell.openExternal(releaseNotesUrl); return TPromise.as(returnValue); }
-);
+export class ShowReleaseNotesAction extends Action {
+
+	constructor(
+		private returnValue: boolean,
+		private version: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
+	}
+
+	run(): TPromise<boolean> {
+		return this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version))
+			.then(() => this.returnValue);
+	}
+}
 
 export const DownloadAction = (url: string) => new Action(
 	'update.download',
@@ -54,19 +66,24 @@ export const DownloadAction = (url: string) => new Action(
 export class Update {
 
 	constructor(
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
+			const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
+
 			this.messageService.show(severity.Info, {
 				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
-				actions: [ApplyUpdateAction, NotNowAction, ShowReleaseNotesAction(product.releaseNotesUrl)]
+				actions: [ApplyUpdateAction, NotNowAction, releaseNotesAction]
 			});
 		});
 
-		ipc.on('vscode:update-available', (event, url: string) => {
+		ipc.on('vscode:update-available', (event, url: string, version: string) => {
+			const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, false, version);
+
 			this.messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
-				actions: [DownloadAction(url), NotNowAction, ShowReleaseNotesAction(product.releaseNotesUrl)]
+				actions: [DownloadAction(url), NotNowAction, releaseNotesAction]
 			});
 		});
 

@@ -520,7 +520,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 		for (let symbol of symbols) {
 			let line = symbol.symbol.range.startLineNumber;
-			if (line < 1 || line >= maxLineNumber) {
+			if (line < 1 || line > maxLineNumber) {
 				// invalid code lens
 				continue;
 			} else if (lastGroup && lastGroup[lastGroup.length - 1].symbol.range.startLineNumber === line) {

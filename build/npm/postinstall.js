@@ -16,7 +16,8 @@ const extensions = [
 	'typescript',
 	'php',
 	'javascript',
-	'css'
+	'css',
+	'html'
 ];
 
 extensions.forEach(extension => {

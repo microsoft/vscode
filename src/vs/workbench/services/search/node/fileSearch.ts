@@ -7,7 +7,7 @@
 
 import * as childProcess from 'child_process';
 import {StringDecoder} from 'string_decoder';
-import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import fs = require('fs');
 import paths = require('path');
 import {Readable} from "stream";
@@ -67,7 +67,7 @@ export class FileWalker {
 	constructor(config: IRawSearch) {
 		this.config = config;
 		this.filePattern = config.filePattern;
-		this.excludePattern = glob.parse(config.excludePattern);
+		this.excludePattern = glob.parse(config.excludePattern, { trimForExclusions: true });
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
 		this.maxFilesize = config.maxFilesize || null;
@@ -131,10 +131,11 @@ export class FileWalker {
 					this.traversal = Traversal.MacFind;
 					traverse = this.macFindTraversal;
 				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
-				} else if (false && platform.isWindows) {
+				// TS (2.0.2) warns about unreachable code. Using comments.
+				} /* else if (false && platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
-				} else if (platform.isLinux) {
+				} */ else if (platform.isLinux) {
 					this.traversal = Traversal.LinuxFind;
 					traverse = this.linuxFindTraversal;
 				}
@@ -153,7 +154,7 @@ export class FileWalker {
 							rootFolderDone(err);
 						} else {
 							// fallback
-							const errorMessage = errors.toErrorMessage(err);
+							const errorMessage = toErrorMessage(err);
 							console.error(errorMessage);
 							this.errors.push(errorMessage);
 							this.nodeJSTraversal(rootFolder, onResult, rootFolderDone);
@@ -169,7 +170,7 @@ export class FileWalker {
 	}
 
 	private macFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
+		const cmd = this.spawnFindCmd(rootFolder, this.excludePattern);
 		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
@@ -196,7 +197,7 @@ export class FileWalker {
 		});
 	}
 
-	private windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+	protected windowsDirTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
 		const cmd = childProcess.spawn('cmd', ['/U', '/c', 'dir', '/s', '/b', '/a-d', rootFolder]);
 		this.readStdout(cmd, 'ucs2', (err: Error, stdout?: string) => {
 			if (err) {
@@ -224,7 +225,7 @@ export class FileWalker {
 	}
 
 	private linuxFindTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
-		const cmd = childProcess.spawn('find', ['-L', '.', '-type', 'f'], { cwd: rootFolder });
+		const cmd = this.spawnFindCmd(rootFolder, this.excludePattern);
 		this.readStdout(cmd, 'utf8', (err: Error, stdout?: string) => {
 			if (err) {
 				done(err);
@@ -250,7 +251,36 @@ export class FileWalker {
 		});
 	}
 
-	private readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
+	/**
+	 * Public for testing.
+	 */
+	public spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
+		const basenames = glob.getBasenameTerms(excludePattern);
+		let args = ['-L', '.'];
+		if (basenames.length) {
+			args.push('-not', '(', '(');
+			for (let i = 0, n = basenames.length; i < n; i++) {
+				if (i) {
+					args.push('-o');
+				}
+				args.push('-name', FileWalker.escapeGlobSpecials(basenames[i]));
+			}
+			args.push(')', '-prune', ')');
+		}
+		args.push('-type', 'f');
+		return childProcess.spawn('find', args, { cwd: rootFolder });
+	}
+
+	private static GLOB_SPECIALS = /[*?\[\]\\]/g;
+	private static ESCAPE_CHAR = '\\$&';
+	private static escapeGlobSpecials(string) {
+		return string.replace(this.GLOB_SPECIALS, this.ESCAPE_CHAR);
+	}
+
+	/**
+	 * Public for testing.
+	 */
+	public readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string) => void): void {
 		let done = (err: Error, stdout?: string) => {
 			done = () => {};
 			this.cmdForkResultTime = Date.now();

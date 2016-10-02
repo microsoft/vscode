@@ -27,7 +27,7 @@ import gitactions = require('vs/workbench/parts/git/browser/gitActions');
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 
@@ -218,6 +218,10 @@ interface IStatusGroupTemplateData {
 	actionBar: actionbar.ActionBar;
 }
 
+const STAGED_CHANGES = nls.localize('stagedChanges', "Staged Changes");
+const CHANGES = nls.localize('allChanges', "Changes");
+const MERGE_CHANGES = nls.localize('mergeChanges', "Merge Changes");
+
 export class Renderer implements tree.IRenderer {
 
 	constructor(
@@ -268,9 +272,9 @@ export class Renderer implements tree.IRenderer {
 		data.root = dom.append(container, $('.status-group'));
 
 		switch (statusType) {
-			case git.StatusType.INDEX:			data.root.textContent = nls.localize('stagedChanges', "Staged Changes"); break;
-			case git.StatusType.WORKING_TREE:	data.root.textContent = nls.localize('allChanges', "Changes"); break;
-			case git.StatusType.MERGE:			data.root.textContent = nls.localize('mergeChanges', "Merge Changes"); break;
+			case git.StatusType.INDEX:			data.root.textContent = STAGED_CHANGES; break;
+			case git.StatusType.WORKING_TREE:	data.root.textContent = CHANGES; break;
+			case git.StatusType.MERGE:			data.root.textContent = MERGE_CHANGES; break;
 		}
 
 		const wrapper = dom.append(container, $('.count-badge-wrapper'));
@@ -536,6 +540,27 @@ export class DragAndDrop extends ActionContainer implements tree.IDragAndDrop {
 		return null;
 	}
 
+	getDragLabel(tree: tree.ITree, elements: any[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		const element = elements[0];
+
+		if (element instanceof gitmodel.StatusGroup) {
+			const group = element as gitmodel.StatusGroup;
+
+			switch (group.getType()) {
+				case git.StatusType.INDEX: return STAGED_CHANGES;
+				case git.StatusType.WORKING_TREE: return CHANGES;
+				case git.StatusType.MERGE: return MERGE_CHANGES;
+			}
+		}
+
+		const status = element as gitmodel.FileStatus;
+		return paths.basename(status.getPath());
+	}
+
 	public onDragStart(tree: tree.ITree, data: tree.IDragAndDropData, originalEvent:mouse.DragMouseEvent):void {
 		// no-op
 	}
@@ -680,10 +705,10 @@ export class Controller extends treedefaults.DefaultController {
 		this.actionProvider = actionProvider;
 		this.contextMenuService = contextMenuService;
 
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_UP_ARROW, this.onUp.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DOWN_ARROW, this.onDown.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_UP, this.onPageUp.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_DOWN, this.onPageDown.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.UpArrow, this.onUp.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.DownArrow, this.onDown.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.PageUp, this.onPageUp.bind(this));
+		this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.PageDown, this.onPageDown.bind(this));
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {

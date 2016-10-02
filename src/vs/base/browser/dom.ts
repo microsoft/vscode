@@ -13,6 +13,7 @@ import {isObject} from 'vs/base/common/types';
 import {isChrome, isWebKit} from 'vs/base/browser/browser';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {CharCode} from 'vs/base/common/charCode';
 
 export function clearNode(node: HTMLElement) {
 	while (node.firstChild) {
@@ -55,7 +56,6 @@ export function isInDOM(node: Node): boolean {
 	return false;
 }
 
-const _blank = ' '.charCodeAt(0);
 let lastStart: number, lastEnd: number;
 
 function _findClassName(node: HTMLElement, className: string): void {
@@ -95,14 +95,14 @@ function _findClassName(node: HTMLElement, className: string): void {
 		idxEnd = idx + classLen;
 
 		// a class that is followed by another class
-		if ((idx === 0 || classes.charCodeAt(idx - 1) === _blank) && classes.charCodeAt(idxEnd) === _blank) {
+		if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
 			lastStart = idx;
 			lastEnd = idxEnd + 1;
 			return;
 		}
 
 		// last class
-		if (idx > 0 && classes.charCodeAt(idx - 1) === _blank && idxEnd === classesLen) {
+		if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
 			lastStart = idx - 1;
 			lastEnd = idxEnd;
 			return;
@@ -650,6 +650,11 @@ export function getTotalWidth(element: HTMLElement): number {
 	return element.offsetWidth + margin;
 }
 
+export function getTotalScrollWidth(element: HTMLElement): number {
+	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	return element.scrollWidth + margin;
+}
+
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element: HTMLElement): number {
@@ -678,7 +683,7 @@ function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
 
 export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
 	let childWidths = children.map((child) => {
-		return getTotalWidth(child) + getRelativeLeft(child, parent) || 0;
+		return Math.max(getTotalScrollWidth(child), getTotalWidth(child)) + getRelativeLeft(child, parent) || 0;
 	});
 	let maxWidth = Math.max(...childWidths);
 	return maxWidth;

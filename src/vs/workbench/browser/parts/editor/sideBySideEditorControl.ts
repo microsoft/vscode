@@ -20,12 +20,9 @@ import errors = require('vs/base/common/errors');
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {isMacintosh} from 'vs/base/common/platform';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {IEventService} from 'vs/platform/event/common/event';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -131,10 +128,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		parent: Builder,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
@@ -168,31 +162,41 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
-	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		const useTabs = configuration.workbench.editor.showTabs;
+	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
+		const {showTabs, showIcons} = this.getConfig();
 
 		POSITIONS.forEach(position => {
 			const titleControl = this.getTitleAreaControl(position);
 
 			// TItle Container
 			const titleContainer = $(titleControl.getContainer());
-			if (useTabs) {
+			if (showTabs) {
 				titleContainer.addClass('tabs');
 			} else {
 				titleContainer.removeClass('tabs');
 			}
 
+			const showingIcons = titleContainer.hasClass('show-file-icons');
+			if (showIcons) {
+				titleContainer.addClass('show-file-icons');
+			} else {
+				titleContainer.removeClass('show-file-icons');
+			}
+
 			// Title Control
 			if (titleControl) {
 				const usingTabs = (titleControl instanceof TabsTitleControl);
-				if (usingTabs !== useTabs) {
 
-					// Dispose old
+				// Recreate title when tabs change
+				if (usingTabs !== showTabs) {
 					titleControl.dispose();
 					titleContainer.empty();
-
-					// Create new
 					this.createTitleControl(this.stacks.groupAt(position), this.silos[position], titleContainer, this.getInstantiationService(position));
+				}
+
+				// Refresh title when icons change
+				else if (showingIcons !== showIcons) {
+					titleControl.refresh(true);
 				}
 			}
 		});
@@ -220,8 +224,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const titleAreaControl = this.getTitleAreaControl(position);
 			const context = this.stacks.groupAt(position);
 			titleAreaControl.setContext(context);
-			if (!context) {
-				titleAreaControl.refresh(); // clear out the control if the context is no longer present
+			if (!context && titleAreaControl.hasContext()) {
+				titleAreaControl.refresh(); // clear out the control if the context is no longer present and there was a context
 			}
 		});
 
@@ -765,7 +769,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.silos[Position.RIGHT] = $(parent).div({ class: 'one-editor-silo editor-right monaco-editor-background' });
 
 		// For each position
-		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
+		const {showTabs, showIcons} = this.getConfig();
 		POSITIONS.forEach(position => {
 			const silo = this.silos[position];
 
@@ -780,8 +784,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Title containers
 			const titleContainer = $(container).div({ 'class': 'title' });
-			if (useTabs) {
+			if (showTabs) {
 				titleContainer.addClass('tabs');
+			}
+			if (showIcons)  {
+				titleContainer.addClass('show-file-icons');
 			}
 			this.hookTitleDragListener(titleContainer);
 
@@ -979,14 +986,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		function createOverlay(target: HTMLElement): void {
 			if (!overlay) {
+				const {showTabs} = $this.getConfig();
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
-						const useTabs = !!$this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
-
 						overlay = $('div').style({
-							top: useTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
-							height: useTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%'
+							top: showTabs ? SideBySideEditorControl.EDITOR_TITLE_HEIGHT + 'px' : 0,
+							height: showTabs ? `calc(100% - ${SideBySideEditorControl.EDITOR_TITLE_HEIGHT}px` : '100%'
 						}).id(overlayId);
 
 						overlay.appendTo(container);
@@ -1075,14 +1081,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
-		const useTabs = !!this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.showTabs;
+		const {showTabs} = this.getConfig();
 
-		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(useTabs ? TabsTitleControl : NoTabsTitleControl);
+		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(showTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
 		titleAreaControl.refresh(true /* instant */);
 
 		silo.child().setProperty(SideBySideEditorControl.TITLE_AREA_CONTROL_KEY, titleAreaControl); // associate with container
+	}
+
+	private getConfig(config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>()): { showTabs?: boolean; showIcons?: boolean } {
+		if (config.workbench && config.workbench.editor) {
+			return { showTabs: config.workbench.editor.showTabs, showIcons: config.workbench.editor.showIcons };
+		}
+
+		return Object.create(null);
 	}
 
 	private findPosition(element: HTMLElement): Position {
@@ -1691,7 +1705,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private getFromContainer(position: Position, key: string): any {
-		return this.silos[position].child().getProperty(key);
+		const silo = this.silos[position];
+
+		return silo ? silo.child().getProperty(key) : void 0;
 	}
 
 	public updateTitle(identifier: IEditorIdentifier): void {
@@ -1699,15 +1715,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {
+		const progressbar = this.getProgressBar(position);
+		if (!progressbar) {
+			return;
+		}
+
 		switch (state) {
 			case ProgressState.INFINITE:
-				this.getProgressBar(position).infinite().getContainer().show();
+				progressbar.infinite().getContainer().show();
 				break;
 			case ProgressState.DONE:
-				this.getProgressBar(position).done().getContainer().hide();
+				progressbar.done().getContainer().hide();
 				break;
 			case ProgressState.STOP:
-				this.getProgressBar(position).stop().getContainer().hide();
+				progressbar.stop().getContainer().hide();
 				break;
 		}
 	}

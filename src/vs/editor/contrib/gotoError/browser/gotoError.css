@@ -20,6 +20,11 @@
 	background-color: #0C141F;
 }
 
+.monaco-editor .marker-widget > .stale {
+	opacity: 0.6;
+	font-style: italic;
+}
+
 .monaco-editor .marker-widget div.block {
 	display: inline-block;
 	vertical-align: top;

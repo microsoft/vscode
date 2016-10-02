@@ -18,6 +18,8 @@ export interface IModelService {
 
 	createModel(value:string | IRawText, modeOrPromise:TPromise<IMode>|IMode, resource: URI): IModel;
 
+	setMode(model:IModel, modeOrPromise:TPromise<IMode>|IMode): void;
+
 	destroyModel(resource: URI): void;
 
 	getModels(): IModel[];

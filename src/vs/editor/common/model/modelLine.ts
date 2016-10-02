@@ -4,18 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import {ILineTokens, IReadOnlyLineMarker} from 'vs/editor/common/editorCommon';
+import {IReadOnlyLineMarker} from 'vs/editor/common/editorCommon';
 import {IState} from 'vs/editor/common/modes';
-import {TokensBinaryEncoding, TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
+import {TokensBinaryEncoding, DEFLATED_TOKENS_EMPTY_TEXT, DEFLATED_TOKENS_NON_EMPTY_TEXT, TokensBinaryEncodingValues, TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {Token} from 'vs/editor/common/core/token';
-import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
-
-const START_INDEX_MASK = TokensBinaryEncoding.START_INDEX_MASK;
-const TYPE_MASK = TokensBinaryEncoding.TYPE_MASK;
-const START_INDEX_OFFSET = TokensBinaryEncoding.START_INDEX_OFFSET;
-const TYPE_OFFSET = TokensBinaryEncoding.TYPE_OFFSET;
+import {CharCode} from 'vs/base/common/charCode';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -65,7 +60,7 @@ var NO_OP_MARKERS_ADJUSTER: IMarkersAdjuster = {
 	finish: () => {}
 };
 
-enum MarkerMoveSemantics {
+const enum MarkerMoveSemantics {
 	MarkerDefined = 0,
 	ForceMove = 1,
 	ForceStay = 2
@@ -83,9 +78,9 @@ function computePlusOneIndentLevel(line: string, tabSize: number): number {
 
 	while (i < len) {
 		let chCode = line.charCodeAt(i);
-		if (chCode === 32 /*space*/) {
+		if (chCode === CharCode.Space) {
 			indent++;
-		} else if (chCode === 9 /*\t*/) {
+		} else if (chCode === CharCode.Tab) {
 			indent = indent - indent % tabSize + tabSize;
 		} else {
 			break;
@@ -190,23 +185,28 @@ export class ModelLine {
 
 	// --- BEGIN TOKENS
 
-	public setTokens(map: TokensInflatorMap, tokens: Token[], topLevelModeId:string, modeTransitions:ModeTransition[]): void {
+	public setTokens(map: TokensInflatorMap, tokens: Token[], modeTransitions:ModeTransition[]): void {
 		this._lineTokens = toLineTokensFromInflated(map, tokens, this._text.length);
-		this._modeTransitions = toModeTransitions(topLevelModeId, modeTransitions);
+		this._modeTransitions = toModeTransitions(map.topLevelModeId, modeTransitions);
 	}
 
 	private _setLineTokensFromDeflated(tokens:number[]): void {
 		this._lineTokens = toLineTokensFromDeflated(tokens, this._text.length);
 	}
 
-	public getTokens(map:TokensInflatorMap): ILineTokens {
-		if (this._lineTokens) {
-			return new LineTokens(map, this._lineTokens);
+	public getTokens(map:TokensInflatorMap): LineTokens {
+		const textLength = this._text.length;
+
+		let lineTokens = this._lineTokens;
+		if (!lineTokens) {
+			if (this._text.length === 0) {
+				lineTokens = DEFLATED_TOKENS_EMPTY_TEXT;
+			} else {
+				lineTokens = DEFLATED_TOKENS_NON_EMPTY_TEXT;
+			}
 		}
-		if (this._text.length === 0) {
-			return EmptyLineTokens.INSTANCE;
-		}
-		return DefaultLineTokens.INSTANCE;
+
+		return new LineTokens(map, lineTokens, this.getModeTransitions(map.topLevelModeId), textLength);
 	}
 
 	// --- END TOKENS
@@ -232,14 +232,14 @@ export class ModelLine {
 
 				if (currentTokenStartIndex > 0 && delta !== 0) {
 					// adjust token's `startIndex` by `delta`
-					let deflatedType = (tokens[tokensIndex] / TYPE_OFFSET) & TYPE_MASK;
+					let deflatedType = (tokens[tokensIndex] / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 					let newStartIndex = Math.max(minimumAllowedIndex, currentTokenStartIndex + delta);
-					let newToken = deflatedType * TYPE_OFFSET + newStartIndex * START_INDEX_OFFSET;
+					let newToken = deflatedType * TokensBinaryEncodingValues.TYPE_OFFSET + newStartIndex * TokensBinaryEncodingValues.START_INDEX_OFFSET;
 
 					if (delta < 0) {
 						// pop all previous tokens that have become `collapsed`
 						while (tokensIndex > 0) {
-							let prevTokenStartIndex = (tokens[tokensIndex - 1] / START_INDEX_OFFSET) & START_INDEX_MASK;
+							let prevTokenStartIndex = (tokens[tokensIndex - 1] / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 							if (prevTokenStartIndex >= newStartIndex) {
 								// Token at `tokensIndex` - 1 is now `collapsed` => pop it
 								tokens.splice(tokensIndex - 1, 1);
@@ -256,7 +256,7 @@ export class ModelLine {
 				tokensIndex++;
 
 				if (tokensIndex < tokensLength) {
-					currentTokenStartIndex = (tokens[tokensIndex] / START_INDEX_OFFSET) & START_INDEX_MASK;
+					currentTokenStartIndex = (tokens[tokensIndex] / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 				}
 			}
 			// console.log('after call: tokensIndex: ' + tokensIndex + ': ' + String(this.getTokens()));
@@ -287,7 +287,7 @@ export class ModelLine {
 
 			// Remove overflowing tokens
 			while (tokens.length > 0) {
-				let lastTokenStartIndex = (tokens[tokens.length - 1] / START_INDEX_OFFSET) & START_INDEX_MASK;
+				let lastTokenStartIndex = (tokens[tokens.length - 1] / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 				if (lastTokenStartIndex < lineTextLength) {
 					// Valid token
 					break;
@@ -533,10 +533,10 @@ export class ModelLine {
 				for (let i = 0, len = otherTokens.length; i < len; i++) {
 					let token = otherTokens[i];
 
-					let deflatedStartIndex = (token / START_INDEX_OFFSET) & START_INDEX_MASK;
-					let deflatedType = (token / TYPE_OFFSET) & TYPE_MASK;
+					let deflatedStartIndex = (token / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
+					let deflatedType = (token / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 					let newStartIndex = deflatedStartIndex + thisTextLength;
-					let newToken = deflatedType * TYPE_OFFSET + newStartIndex * START_INDEX_OFFSET;
+					let newToken = deflatedType * TokensBinaryEncodingValues.TYPE_OFFSET + newStartIndex * TokensBinaryEncodingValues.START_INDEX_OFFSET;
 
 					otherTokens[i] = newToken;
 				}
@@ -726,152 +726,6 @@ function toLineTokensFromDeflated(tokens:number[], textLength:number): number[] 
 		}
 	}
 	return tokens;
-}
-
-export class LineTokens implements ILineTokens {
-
-	private map:TokensInflatorMap;
-	private _tokens:number[];
-
-	constructor(map:TokensInflatorMap, tokens:number[]) {
-		this.map = map;
-		this._tokens = tokens;
-	}
-
-	public getBinaryEncodedTokensMap(): TokensInflatorMap {
-		return this.map;
-	}
-
-	public getBinaryEncodedTokens(): number[] {
-		return this._tokens;
-	}
-
-	public getTokenCount(): number {
-		return this._tokens.length;
-	}
-
-	public getTokenStartIndex(tokenIndex:number): number {
-		return TokensBinaryEncoding.getStartIndex(this._tokens[tokenIndex]);
-	}
-
-	public getTokenType(tokenIndex:number): string {
-		return TokensBinaryEncoding.getType(this.map, this._tokens[tokenIndex]);
-	}
-
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
-		if (tokenIndex + 1 < this._tokens.length) {
-			return TokensBinaryEncoding.getStartIndex(this._tokens[tokenIndex + 1]);
-		}
-		return textLength;
-	}
-
-	public equals(other:ILineTokens): boolean {
-		if (other instanceof LineTokens) {
-			if (this.map !== other.map) {
-				return false;
-			}
-			if (this._tokens.length !== other._tokens.length) {
-				return false;
-			}
-			for (let i = 0, len = this._tokens.length; i < len; i++) {
-				if (this._tokens[i] !== other._tokens[i]) {
-					return false;
-				}
-			}
-			return true;
-		}
-		if (!(other instanceof LineTokens)) {
-			return false;
-		}
-	}
-
-	public findIndexOfOffset(offset:number): number {
-		return TokensBinaryEncoding.findIndexOfOffset(this._tokens, offset);
-	}
-
-	public inflate(): ViewLineToken[] {
-		return TokensBinaryEncoding.inflateArr(this.map, this._tokens);
-	}
-
-	public sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[] {
-		return TokensBinaryEncoding.sliceAndInflate(this.map, this._tokens, startOffset, endOffset, deltaStartIndex);
-	}
-
-}
-
-class EmptyLineTokens implements ILineTokens {
-
-	public static INSTANCE = new EmptyLineTokens();
-
-	public getTokenCount(): number {
-		return 0;
-	}
-
-	public getTokenStartIndex(tokenIndex:number): number {
-		return 0;
-	}
-
-	public getTokenType(tokenIndex:number): string {
-		return strings.empty;
-	}
-
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
-		return 0;
-	}
-
-	public equals(other:ILineTokens): boolean {
-		return other === this;
-	}
-
-	public findIndexOfOffset(offset:number): number {
-		return 0;
-	}
-
-	public inflate(): ViewLineToken[] {
-		return [];
-	}
-
-	public sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[] {
-		return [];
-	}
-}
-
-export class DefaultLineTokens implements ILineTokens {
-
-	public static INSTANCE = new DefaultLineTokens();
-
-	public getTokenCount(): number {
-		return 1;
-	}
-
-	public getTokenStartIndex(tokenIndex:number): number {
-		return 0;
-	}
-
-	public getTokenType(tokenIndex:number): string {
-		return strings.empty;
-	}
-
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
-		return textLength;
-	}
-
-	public equals(other:ILineTokens): boolean {
-		return this === other;
-	}
-
-	public findIndexOfOffset(offset:number): number {
-		return 0;
-	}
-
-	public inflate(): ViewLineToken[] {
-		return [new ViewLineToken(0, '')];
-	}
-
-	public sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[] {
-		return [new ViewLineToken(0, '')];
-	}
-
 }
 
 function toModeTransitions(topLevelModeId:string, modeTransitions:ModeTransition[]): ModeTransition[] {

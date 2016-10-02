@@ -8,6 +8,14 @@ import {IModelDecoration, IRange} from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {GlyphHoverWidget} from './hoverWidgets';
+import {$} from 'vs/base/browser/dom';
+import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
+import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
+import URI from 'vs/base/common/uri';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 
 export interface IHoverMessage {
 	value?: string;
@@ -77,8 +85,10 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _computer: MarginComputer;
 	private _hoverOperation: HoverOperation<IHoverMessage[]>;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: ICodeEditor, private openerService: IOpenerService, private modeService: IModeService) {
 		super(ModesGlyphHoverWidget.ID, editor);
+
+		this.openerService = openerService || NullOpenerService;
 
 		this._lastLineNumber = -1;
 
@@ -99,7 +109,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	}
 
 	public onModelDecorationsChanged(): void {
-		if (this._isVisible) {
+		if (this.isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
@@ -141,29 +151,24 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 	private _renderMessages(lineNumber: number, messages: IHoverMessage[]): void {
 
-		var fragment = document.createDocumentFragment();
+		const fragment = document.createDocumentFragment();
 
 		messages.forEach((msg) => {
+			const renderedContents = renderMarkedString(msg.value, {
+				actionCallback: content => this.openerService.open(URI.parse(content)).then(undefined, onUnexpectedError),
+				codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
+					const modeId = this.modeService.getModeIdForLanguageName(languageAlias);
+					return this.modeService.getOrCreateMode(modeId).then(_ => {
+						return `<div class="code">${ tokenizeToString(value, modeId) }</div>`;
+					});
+				}
+			});
 
-			var row:HTMLElement = document.createElement('div');
-			var span:HTMLElement = null;
-
-			if (msg.className) {
-				span = document.createElement('span');
-				span.textContent = msg.value;
-				span.className = msg.className;
-				row.appendChild(span);
-			} else {
-				row.textContent = msg.value;
-			}
-
-			fragment.appendChild(row);
+			fragment.appendChild($('div.hover-row', null, renderedContents));
 		});
 
-		this._domNode.textContent = '';
-		this._domNode.appendChild(fragment);
-
-		// show
+		this.updateContents(fragment);
 		this.showAt(lineNumber);
 	}
 }

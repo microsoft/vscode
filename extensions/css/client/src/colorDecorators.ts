@@ -6,6 +6,8 @@
 
 import {window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, TextEditor} from 'vscode';
 
+const MAX_DECORATORS = 500;
+
 let decorationType: DecorationRenderOptions = {
 	before: {
 		contentText: ' ',
@@ -76,7 +78,7 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 		let document = editor.document;
 		if (supportedLanguages[document.languageId]) {
 			decoratorProvider(document.uri.toString()).then(ranges => {
-				let decorations = ranges.map(range => {
+				let decorations = ranges.slice(0, MAX_DECORATORS).map(range => {
 					let color = document.getText(range);
 					return <DecorationOptions>{
 						range: range,

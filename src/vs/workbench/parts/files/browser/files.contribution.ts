@@ -8,28 +8,28 @@
 import 'vs/css!./media/files.contribution';
 
 import URI from 'vs/base/common/uri';
-import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {Registry} from 'vs/platform/platform';
-import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
-import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
-import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {AutoSaveConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
-import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
-import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
-import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Registry } from 'vs/platform/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
+import { FileEditorDescriptor } from 'vs/workbench/parts/files/browser/files';
+import { AutoSaveConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
+import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
+import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { TextFileEditor } from 'vs/workbench/parts/files/browser/editors/textFileEditor';
+import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 
 // Viewlet Action
@@ -48,7 +48,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 }
 
 // Register Viewlet
-(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 	'vs/workbench/parts/files/browser/explorerViewlet',
 	'ExplorerViewlet',
 	VIEWLET_ID,
@@ -57,14 +57,14 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 	0
 ));
 
-(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).setDefaultViewletId(VIEWLET_ID);
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).setDefaultViewletId(VIEWLET_ID);
 
-let openViewletKb: IKeybindings = {
+const openViewletKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E
 };
 
 // Register Action to Open Viewlet
-const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
 	'View: Show Explorer',
@@ -72,7 +72,7 @@ registry.registerWorkbenchAction(
 );
 
 // Register file editors
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new FileEditorDescriptor(
 		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('textFileEditor', "Text File Editor"),
@@ -92,7 +92,7 @@ registry.registerWorkbenchAction(
 	]
 );
 
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new FileEditorDescriptor(
 		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('binaryFileEditor', "Binary File Editor"),
@@ -115,8 +115,8 @@ registry.registerWorkbenchAction(
 // Note: because of service injection, the descriptor needs to have the exact count
 // of arguments as the FileEditorInput constructor. Otherwise when creating an
 // instance through the instantiation service he will inject the services wrong!
-let descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerDefaultFileInput(descriptor);
+const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(descriptor);
 
 interface ISerializedFileInput {
 	resource: string;
@@ -128,8 +128,8 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	constructor() { }
 
 	public serialize(editorInput: EditorInput): string {
-		let fileEditorInput = <FileEditorInput>editorInput;
-		let fileInput: ISerializedFileInput = {
+		const fileEditorInput = <FileEditorInput>editorInput;
+		const fileInput: ISerializedFileInput = {
 			resource: fileEditorInput.getResource().toString()
 		};
 
@@ -137,26 +137,26 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		let fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
+		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 
 		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), void 0, void 0);
 	}
 }
 
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
 
-// Register File Tracker
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
-	FileTracker
+// Register File Editor Tracker
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	FileEditorTracker
 );
 
-// Register Save Participant
-(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
-	SaveParticipant
+// Register Save Error Handler
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	SaveErrorHandler
 );
 
 // Configuration
-let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 configurationRegistry.registerConfiguration({
 	'id': 'files',
@@ -227,6 +227,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'default': (platform.isLinux || platform.isMacintosh) ? { '**/.git/objects/**': true, '**/node_modules/**': true } : { '**/.git/objects/**': true },
 			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
+		},
+		'editor.formatOnSave': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be auto-saved, and editor must not be shutting down.")
 		}
 	}
 });
@@ -239,12 +244,12 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize('openEditorsVisible', "Number of editors shown in the Open Editors pane. Set it to 0 to hide the pane."),
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Set it to 0 to hide the pane."),
 			'default': 9
 		},
 		'explorer.openEditors.dynamicHeight': {
 			'type': 'boolean',
-			'description': nls.localize('dynamicHeight', "Controls if the height of the open editors section should adapt dynamically to the number of elements or not."),
+			'description': nls.localize({ key: 'dynamicHeight', comment: ['Open is an adjective'] }, "Controls if the height of the open editors section should adapt dynamically to the number of elements or not."),
 			'default': true
 		},
 		'explorer.autoReveal': {

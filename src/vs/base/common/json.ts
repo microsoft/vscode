@@ -443,7 +443,7 @@ function isDigit(ch: number): boolean {
 	return ch >= CharacterCodes._0 && ch <= CharacterCodes._9;
 }
 
-enum CharacterCodes {
+const enum CharacterCodes {
 	nullCharacter = 0,
 	maxAsciiCharacter = 0x7F,
 
@@ -647,7 +647,7 @@ export function getParseErrorMessage(errorCode: ParseErrorCode) : string {
 	}
 }
 
-export type NodeType = "object" | "array" | "property" | "string" | "number" | "boolean" | "null";
+export type NodeType = 'object' | 'array' | 'property' | 'string' | 'number' | 'boolean' | 'null';
 
 function getLiteralNodeType(value: any) : NodeType {
 	switch (typeof value) {

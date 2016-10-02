@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import {Action} from 'vs/base/common/actions';
-import {toErrorMessage} from 'vs/base/common/errors';
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {stringify} from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
@@ -48,7 +48,7 @@ export class MainThreadService extends AbstractThreadService implements IThreadS
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMessageService messageService: IMessageService,
 		@IWindowService windowService: IWindowService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super(true);
@@ -107,7 +107,7 @@ class ExtensionHostProcessManager {
 		private contextService: IWorkspaceContextService,
 		private messageService: IMessageService,
 		private windowService: IWindowService,
-		private lifecycleService: ILifecycleService,
+		lifecycleService: ILifecycleService,
 		private environmentService: IEnvironmentService
 	) {
 
@@ -123,7 +123,12 @@ class ExtensionHostProcessManager {
 
 	public startExtensionHostProcess(onExtensionHostMessage: (msg: any) => void): void {
 		let opts: any = {
-			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
+			env: objects.mixin(objects.clone(process.env), {
+				AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
+				PIPE_LOGGING: 'true',
+				VERBOSE_LOGGING: true,
+				VSCODE_WINDOW_ID: String(this.windowService.getWindowId())
+			})
 		};
 
 		// Help in case we fail to start it

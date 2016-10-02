@@ -9,13 +9,12 @@ import 'vs/css!./gotoError';
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {Emitter} from 'vs/base/common/event';
-import {CommonKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {ICommandService} from 'vs/platform/commands/common/commands';
 import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
@@ -200,6 +199,7 @@ class FixesWidget {
 
 	constructor(
 		container: HTMLElement,
+		private _markerWidget: MarkerNavigationWidget,
 		@ICommandService private _commandService: ICommandService
 	) {
 		this.domNode = document.createElement('div');
@@ -207,15 +207,13 @@ class FixesWidget {
 
 		this._listener = dom.addStandardDisposableListener(container, 'keydown', (e) => {
 			switch (e.asKeybinding()) {
-				case CommonKeybindings.LEFT_ARROW:
+				case KeyCode.LeftArrow:
 					this._move(true);
-					// this._goLeft();
 					e.preventDefault();
 					e.stopPropagation();
 					break;
-				case CommonKeybindings.RIGHT_ARROW:
+				case KeyCode.RightArrow:
 					this._move(false);
-					// this._goRight();
 					e.preventDefault();
 					e.stopPropagation();
 					break;
@@ -228,10 +226,13 @@ class FixesWidget {
 		this._listener = dispose(this._listener);
 	}
 
-	update(fixes: TPromise<IQuickFix2[]>): TPromise<any> {
+	update(marker: IMarker): TPromise<any> {
 		this._disposeOnUpdate = dispose(this._disposeOnUpdate);
 		this.domNode.style.display = 'none';
-		return fixes.then(fixes => this._doUpdate(fixes), onUnexpectedError);
+		if (marker) {
+			const fixes = getCodeActions(this._markerWidget.editor.getModel(), Range.lift(marker));
+			return fixes.then(fixes => this._doUpdate(fixes), onUnexpectedError);
+		}
 	}
 
 	private _doUpdate(fixes: IQuickFix2[]): void {
@@ -269,15 +270,17 @@ class FixesWidget {
 			entry.dataset['next'] = String(idx < arr.length - 1 ? idx + 1 : 0);
 			entry.dataset['prev'] = String(idx > 0 ? idx - 1 : arr.length - 1);
 			entry.appendChild(document.createTextNode(fix.command.title));
-			this._disposeOnUpdate.push(dom.addDisposableListener(entry, dom.EventType.CLICK, () => {
+			this._disposeOnUpdate.push(dom.addDisposableListener(entry, dom.EventType.CLICK, (e) => {
 				this._commandService.executeCommand(fix.command.id, ...fix.command.arguments);
-				return true;
+				this._markerWidget.focus();
+				e.preventDefault();
 			}));
 			this._disposeOnUpdate.push(dom.addStandardDisposableListener(entry, 'keydown', (e) => {
 				switch (e.asKeybinding()) {
-					case CommonKeybindings.ENTER:
-					case CommonKeybindings.SPACE:
+					case KeyCode.Enter:
+					case KeyCode.Space:
 						this._commandService.executeCommand(fix.command.id, ...fix.command.arguments);
+						this._markerWidget.focus();
 						e.preventDefault();
 						e.stopPropagation();
 				}
@@ -302,12 +305,35 @@ class FixesWidget {
 	}
 }
 
+class MessageWidget {
+
+	domNode: HTMLDivElement;
+
+	constructor(container: HTMLElement) {
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'block descriptioncontainer';
+		this.domNode.setAttribute('aria-live', 'assertive');
+		this.domNode.setAttribute('role', 'alert');
+		container.appendChild(this.domNode);
+	}
+
+	update({source, message}: IMarker): void {
+		if (source) {
+			const indent = new Array(source.length + 3 + 1).join(' ');
+			message = `[${source}] ` + message.replace(/\r\n|\r|\n/g, function () {
+				return '\n' + indent;
+			});
+		}
+		this.domNode.innerText = message;
+	}
+}
+
 class MarkerNavigationWidget extends ZoneWidget {
 
 	private _parentContainer: HTMLElement;
 	private _container: HTMLElement;
 	private _title: HTMLElement;
-	private _messages: HTMLElement;
+	private _message: MessageWidget;
 	private _fixesWidget: FixesWidget;
 	private _callOnDispose: IDisposable[] = [];
 
@@ -315,6 +341,15 @@ class MarkerNavigationWidget extends ZoneWidget {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this.create();
 		this._wireModelAndView();
+	}
+
+	dispose(): void {
+		this._callOnDispose = dispose(this._callOnDispose);
+		super.dispose();
+	}
+
+	focus(): void {
+		this._parentContainer.focus();
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -330,21 +365,17 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._title.className = 'block title';
 		this._container.appendChild(this._title);
 
-		this._messages = document.createElement('div');
-		this.editor.applyFontInfo(this._messages);
-		this._messages.className = 'block descriptioncontainer';
-		this._messages.setAttribute('aria-live', 'assertive');
-		this._messages.setAttribute('role', 'alert');
-		this._container.appendChild(this._messages);
+		this._message = new MessageWidget(this._container);
+		this.editor.applyFontInfo(this._message.domNode);
 
-		this._fixesWidget = new FixesWidget(this._container, this._commandService);
+		this._fixesWidget = new FixesWidget(this._container, this, this._commandService);
 		this._fixesWidget.domNode.classList.add('fixes');
 		this._callOnDispose.push(this._fixesWidget);
 	}
 
 	public show(where: editorCommon.IPosition, heightInLines: number): void {
 		super.show(where, heightInLines);
-		this._parentContainer.focus();
+		this.focus();
 	}
 
 	private _wireModelAndView(): void {
@@ -359,70 +390,60 @@ class MarkerNavigationWidget extends ZoneWidget {
 			return;
 		}
 
-		// update frame color
-		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
+		// update:
+		// * title
+		// * message
+		// * quick fixes
+		this._container.classList.remove('stale');
+		this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", this._model.indexOf(marker), this._model.total);
+		this._message.update(marker);
+		this._fixesWidget.update(marker).then(() => this._relayout());
 
-		// update meta title
-		if (marker.source) {
-			this._title.innerHTML = nls.localize('title.w_source', "({0}/{1}) [{2}]", this._model.indexOf(marker), this._model.total, marker.source);
-		} else {
-			this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", this._model.indexOf(marker), this._model.total);
-		}
+		this._model.withoutWatchingEditorPosition(() => {
 
-		// update label and show
-		dom.clearNode(this._messages);
+			// update frame color (only applied on 'show')
+			switch (marker.severity) {
+				case Severity.Error:
+					this.options.frameColor = '#ff5a5a';
+					break;
+				case Severity.Warning:
+				case Severity.Info:
+					this.options.frameColor = '#5aac5a';
+					break;
+			}
 
-		this._messages.appendChild(renderHtml(marker.message));
-
-		const range = Range.lift(marker);
-		this._model.withoutWatchingEditorPosition(() => this.show(range.getStartPosition(), this.computeRequiredHeight()));
-
-		// check for fixes and update widget
-		this._fixesWidget
-			.update(getCodeActions(this.editor.getModel(), range))
-			.then(() => this.show(range.getStartPosition(), this.computeRequiredHeight()));
+			this.show({
+				lineNumber: marker.startLineNumber,
+				column: marker.startColumn
+			}, this.computeRequiredHeight());
+		});
 	}
 
 	private _onMarkersChanged(): void {
 
 		const marker = this._model.findMarkerAtPosition(this.position);
-		this.options.frameColor = MarkerNavigationWidget._getFrameColorFromMarker(marker);
-		const newQuickFixes = marker
-			? getCodeActions(this.editor.getModel(), Range.lift(marker))
-			: TPromise.as([]);
 
-		this._fixesWidget
-			.update(newQuickFixes)
-			.then(() => {
-				const selections = this.editor.getSelections();
-				super.show(this.position, this.computeRequiredHeight());
-				this.editor.setSelections(selections);
-				this.editor.focus();
-			});
+		if (marker) {
+			this._container.classList.remove('stale');
+			this._message.update(marker);
+			this._relayout();
+			this._fixesWidget.update(marker).then(() => this._relayout());
+
+		} else {
+			this._container.classList.add('stale');
+			this._fixesWidget.update(marker);
+			this._relayout();
+		}
+	}
+
+	protected _relayout(): void {
+		super._relayout(this.computeRequiredHeight());
 	}
 
 	private computeRequiredHeight() {
 		// minimum one line content, add one line for zone widget decorations
-		let lineHeight = this.editor.getConfiguration().lineHeight || 12;
+		const lineHeight = this.editor.getConfiguration().lineHeight || 12;
 		return Math.max(1, Math.ceil(this._container.clientHeight / lineHeight)) + 1;
-	}
-
-	private static _getFrameColorFromMarker(marker: IMarker): string {
-		if (marker) {
-			switch (marker.severity) {
-				case Severity.Error:
-					return '#ff5a5a';
-				case Severity.Warning:
-				case Severity.Info:
-					return '#5aac5a';
-			}
-		}
-		return '#ccc';
-	}
-
-	public dispose(): void {
-		this._callOnDispose = dispose(this._callOnDispose);
-		super.dispose();
 	}
 }
 

@@ -194,9 +194,14 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 		return true;
 	}
 
-	let desiredVersion = normalizeVersion(parseVersion(extensionDesc.engines.vscode));
+	return validateVersions(version, extensionDesc.engines.vscode, notices);
+}
+
+export function validateVersions(currentVersion: string, requestedVersion: string, notices: string[]): boolean {
+
+	let desiredVersion = normalizeVersion(parseVersion(requestedVersion));
 	if (!desiredVersion) {
-		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^0.10.0, ^1.2.3, ^0.11.0, ^0.10.x, etc.", extensionDesc.engines.vscode));
+		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^0.10.0, ^1.2.3, ^0.11.0, ^0.10.x, etc.", requestedVersion));
 		return false;
 	}
 
@@ -206,19 +211,19 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 	if (desiredVersion.majorBase === 0) {
 		// force that major and minor must be specific
 		if (!desiredVersion.majorMustEqual || !desiredVersion.minorMustEqual) {
-			notices.push(nls.localize('versionSpecificity1', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions before 1.0.0, please define at a minimum the major and minor desired version. E.g. ^0.10.0, 0.10.x, 0.11.0, etc.", extensionDesc.engines.vscode));
+			notices.push(nls.localize('versionSpecificity1', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions before 1.0.0, please define at a minimum the major and minor desired version. E.g. ^0.10.0, 0.10.x, 0.11.0, etc.", requestedVersion));
 			return false;
 		}
 	} else {
 		// force that major must be specific
 		if (!desiredVersion.majorMustEqual) {
-			notices.push(nls.localize('versionSpecificity2', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions after 1.0.0, please define at a minimum the major desired version. E.g. ^1.10.0, 1.10.x, 1.x.x, 2.x.x, etc.", extensionDesc.engines.vscode));
+			notices.push(nls.localize('versionSpecificity2', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions after 1.0.0, please define at a minimum the major desired version. E.g. ^1.10.0, 1.10.x, 1.x.x, 2.x.x, etc.", requestedVersion));
 			return false;
 		}
 	}
 
-	if (!isValidVersion(version, desiredVersion)) {
-		notices.push(nls.localize('versionMismatch', "Extension is not compatible with Code {0}. Extension requires: {1}.", version, extensionDesc.engines.vscode));
+	if (!isValidVersion(currentVersion, desiredVersion)) {
+		notices.push(nls.localize('versionMismatch', "Extension is not compatible with Code {0}. Extension requires: {1}.", currentVersion, requestedVersion));
 		return false;
 	}
 

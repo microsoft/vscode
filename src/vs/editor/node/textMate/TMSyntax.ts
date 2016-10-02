@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ILineTokens, IMode, ITokenizationSupport} from 'vs/editor/common/modes';
+import {ILineTokens, ITokenizationSupport, TokenizationRegistry} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
 import {LineTokens} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -23,7 +23,8 @@ export interface ITMSyntaxExtensionPoint {
 	injectTo: string[];
 }
 
-let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', {
+// @martin TS(2.0.2) - Type IJsonSchema has no defined property require. Keeping semantic using any cast
+let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', <any>{
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
 	defaultSnippets: [ { body: [{ language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'}] }],
@@ -141,17 +142,15 @@ export class MainProcessTextMateSyntax {
 				return;
 			}
 
-			this._modeService.registerTokenizationSupport(modeId, (mode: IMode) => {
-				return createTokenizationSupport(mode, grammar);
-			});
+			TokenizationRegistry.register(modeId, createTokenizationSupport(modeId, grammar));
 		});
 	}
 }
 
-function createTokenizationSupport(mode: IMode, grammar: IGrammar): ITokenizationSupport {
-	var tokenizer = new Tokenizer(mode.getId(), grammar);
+function createTokenizationSupport(modeId: string, grammar: IGrammar): ITokenizationSupport {
+	var tokenizer = new Tokenizer(modeId, grammar);
 	return {
-		getInitialState: () => new TMState(mode, null, null),
+		getInitialState: () => new TMState(modeId, null, null),
 		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState> state, offsetDelta, stopAtOffset)
 	};
 }
@@ -252,7 +251,7 @@ class Tokenizer {
 		if (line.length >= 20000 || depth(state.getRuleStack()) > 100) {
 			return new LineTokens(
 				[new Token(offsetDelta, '')],
-				[new ModeTransition(offsetDelta, state.getMode().getId())],
+				[new ModeTransition(offsetDelta, state.getModeId())],
 				offsetDelta,
 				state
 			);
@@ -279,7 +278,7 @@ class Tokenizer {
 
 		return new LineTokens(
 			tokens,
-			[new ModeTransition(offsetDelta, freshState.getMode().getId())],
+			[new ModeTransition(offsetDelta, freshState.getModeId())],
 			offsetDelta + line.length,
 			freshState
 		);

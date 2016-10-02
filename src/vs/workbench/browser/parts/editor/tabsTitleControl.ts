@@ -12,9 +12,10 @@ import DOM = require('vs/base/browser/dom');
 import {isMacintosh} from 'vs/base/common/platform';
 import {MIME_BINARY} from 'vs/base/common/mime';
 import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
-import {IEditorGroup, IEditorIdentifier, asFileEditorInput} from 'vs/workbench/common/editor';
+import {IEditorGroup, IEditorIdentifier, asFileEditorInput, getResource} from 'vs/workbench/common/editor';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {CommonKeybindings as Kb, KeyCode} from 'vs/base/common/keyCodes';
+import {KeyCode} from 'vs/base/common/keyCodes';
+import {EditorLabel} from 'vs/workbench/browser/labels';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -48,6 +49,7 @@ export class TabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private activeTab: HTMLElement;
+	private editorLabels: EditorLabel[];
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[] = [];
 
@@ -68,6 +70,7 @@ export class TabsTitleControl extends TitleControl {
 		super(contextMenuService, instantiationService, configurationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService);
 
 		this.tabDisposeables = [];
+		this.editorLabels = [];
 	}
 
 	public setContext(group: IEditorGroup): void {
@@ -198,10 +201,6 @@ export class TabsTitleControl extends TitleControl {
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index];
 			if (tabContainer instanceof HTMLElement) {
-				const tabLabelsContainer = <HTMLElement>tabContainer.children[0];
-				const tabLabel = <HTMLAnchorElement>tabLabelsContainer.children[0];
-				const tabDescription = <HTMLSpanElement>tabLabelsContainer.children[1];
-
 				const isPinned = group.isPinned(editor);
 				const isActive = group.isActive(editor);
 				const isDirty = editor.isDirty();
@@ -211,23 +210,13 @@ export class TabsTitleControl extends TitleControl {
 				const description = label.hasAmbiguousName && label.description ? label.description : '';
 				const verboseDescription = label.verboseDescription || '';
 
-				// Label & Description
+				// Container
 				tabContainer.setAttribute('aria-label', `tab, ${name}`);
 				tabContainer.title = verboseDescription;
-				tabLabel.innerText = name;
-				tabDescription.innerText = description;
-				if (description) {
-					DOM.show(tabDescription);
-				} else {
-					DOM.hide(tabDescription);
-				}
 
-				// Pinned state
-				if (isPinned) {
-					DOM.addClass(tabContainer, 'pinned');
-				} else {
-					DOM.removeClass(tabContainer, 'pinned');
-				}
+				// Label
+				const tabLabel = this.editorLabels[index];
+				tabLabel.setLabel({ name, description, resource: getResource(editor) }, { extraClasses: ['tab-label'], italic: !isPinned });
 
 				// Active state
 				if (isActive) {
@@ -325,8 +314,9 @@ export class TabsTitleControl extends TitleControl {
 
 	private clearTabs(): void {
 		DOM.clearNode(this.tabsContainer);
-		dispose(this.tabDisposeables);
-		this.tabDisposeables = [];
+
+		this.tabDisposeables = dispose(this.tabDisposeables);
+		this.editorLabels = dispose(this.editorLabels);
 	}
 
 	private refreshTabs(group: IEditorGroup): void {
@@ -347,18 +337,9 @@ export class TabsTitleControl extends TitleControl {
 			DOM.addClass(tabContainer, 'tab monaco-editor-background');
 			tabContainers.push(tabContainer);
 
-			// Tab Label Container
-			const tabLabelContainer = document.createElement('div');
-			tabContainer.appendChild(tabLabelContainer);
-			DOM.addClass(tabLabelContainer, 'tab-label');
-
-			// Tab Label
-			const tabLabel = document.createElement('a');
-			tabLabelContainer.appendChild(tabLabel);
-
-			// Tab Description
-			const tabDescription = document.createElement('span');
-			tabLabelContainer.appendChild(tabDescription);
+			// Tab Editor Label
+			const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
+			this.editorLabels.push(editorLabel);
 
 			// Tab Close
 			const tabCloseContainer = document.createElement('div');
@@ -453,21 +434,21 @@ export class TabsTitleControl extends TitleControl {
 			let handled = false;
 
 			// Run action on Enter/Space
-			if (event.equals(Kb.ENTER) || event.equals(Kb.SPACE)) {
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				handled = true;
 				this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError);
 			}
 
 			// Navigate in editors
-			else if ([Kb.LEFT_ARROW, Kb.RIGHT_ARROW, Kb.UP_ARROW, Kb.DOWN_ARROW, Kb.HOME, Kb.END].some(kb => event.equals(kb))) {
+			else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End].some(kb => event.equals(kb))) {
 				const index = group.indexOf(editor);
 
 				let targetIndex: number;
-				if (event.equals(Kb.LEFT_ARROW) || event.equals(Kb.UP_ARROW)) {
+				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.UpArrow)) {
 					targetIndex = index - 1;
-				} else if (event.equals(Kb.RIGHT_ARROW) || event.equals(Kb.DOWN_ARROW)) {
+				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.DownArrow)) {
 					targetIndex = index + 1;
-				} else if (event.equals(Kb.HOME)) {
+				} else if (event.equals(KeyCode.Home)) {
 					targetIndex = 0;
 				} else {
 					targetIndex = group.count - 1;

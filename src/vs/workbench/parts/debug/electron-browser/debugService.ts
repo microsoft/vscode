@@ -5,7 +5,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import {guessMimeTypes, MIME_TEXT} from 'vs/base/common/mime';
+import {guessMimeTypes} from 'vs/base/common/mime';
 import Event, {Emitter} from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
 import {RunOnceScheduler} from 'vs/base/common/async';
@@ -32,11 +32,11 @@ import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
 import {TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import wbeditorcommon = require('vs/workbench/common/editor');
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {RawDebugSession} from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import {DebugStringEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
+import {DebugStringEditorInput, DebugErrorEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import {ConfigurationManager} from 'vs/workbench/parts/debug/node/debugConfigurationManager';
@@ -93,7 +93,7 @@ export class DebugService implements debug.IDebugService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
@@ -240,7 +240,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.push(this.session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
-				if (this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
+				if (this.session && this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (this.session) {
@@ -330,7 +330,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidExitAdapter(event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
+			if (this.session && this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (this.session && this.session.getId() === event.body.sessionId) {
@@ -346,7 +346,9 @@ export class DebugService implements debug.IDebugService {
 
 	private getThreadData(): TPromise<void> {
 		return this.session.threads().then(response => {
-			response.body.threads.forEach(thread => this.model.rawUpdate({ threadId: thread.id, thread }));
+			if (response && response.body && response.body.threads) {
+				response.body.threads.forEach(thread => this.model.rawUpdate({ threadId: thread.id, thread }));
+			}
 		});
 	}
 
@@ -508,7 +510,9 @@ export class DebugService implements debug.IDebugService {
 			value,
 			variablesReference: (<model.Variable>variable).parent.reference
 		}).then(response => {
-			variable.value = response.body.value;
+			if (response && response.body) {
+				variable.value = response.body.value;
+			}
 			// Evaluate all watch expressions again since changing variable value might have changed some #8118.
 			return this.setFocusedStackFrameAndEvaluate(this.viewModel.getFocusedStackFrame());
 		}, err => {
@@ -607,7 +611,7 @@ export class DebugService implements debug.IDebugService {
 						timeout: 1000 * 60 * 5,
 						args: [`${ publisher }.${ type }`, JSON.stringify(data), aiKey],
 						env: {
-							ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+							ELECTRON_RUN_AS_NODE: 1,
 							PIPE_LOGGING: 'true',
 							AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
 						}
@@ -816,7 +820,7 @@ export class DebugService implements debug.IDebugService {
 	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		const visibleEditors = this.editorService.getVisibleEditors();
 		for (let i = 0; i < visibleEditors.length; i++) {
-			const fileInput = wbeditorcommon.asFileEditorInput(visibleEditors[i].input);
+			const fileInput = asFileEditorInput(visibleEditors[i].input);
 			if ((fileInput && fileInput.getResource().toString() === source.uri.toString()) ||
 				(visibleEditors[i].input instanceof DebugStringEditorInput && (<DebugStringEditorInput>visibleEditors[i].input).getResource().toString() === source.uri.toString())) {
 
@@ -838,11 +842,12 @@ export class DebugService implements debug.IDebugService {
 			// internal module
 			if (source.reference !== 0 && this.session && source.available) {
 				return this.session.source({ sourceReference: source.reference }).then(response => {
-					const mime = response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
-					return this.getDebugStringEditorInput(source, response.body.content, mime);
+					const mime = response && response.body && response.body.mimeType ? response.body.mimeType : guessMimeTypes(source.name)[0];
+					const inputValue = response && response.body ? response.body.content : '';
+					return this.getDebugStringEditorInput(source, inputValue, mime);
 				}, (err: DebugProtocol.ErrorResponse) => {
 					// Display the error from debug adapter using a temporary editor #8836
-					return this.getDebugStringEditorInput(source, err.message, MIME_TEXT);
+					return this.getDebugErrorEditorInput(source, err.message);
 				}).then(editorInput => {
 					return this.editorService.openEditor(editorInput, { preserveFocus, selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 } }, sideBySide);
 				});
@@ -869,7 +874,7 @@ export class DebugService implements debug.IDebugService {
 
 	private sourceIsUnavailable(source: Source, sideBySide: boolean): TPromise<any> {
 		this.model.sourceIsUnavailable(source);
-		const editorInput = this.getDebugStringEditorInput(source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.uri.fsPath), 'text/plain');
+		const editorInput = this.getDebugErrorEditorInput(source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.name));
 
 		return this.editorService.openEditor(editorInput, { preserveFocus: true }, sideBySide);
 	}
@@ -924,7 +929,7 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.session.continue({ threadId }).then(response => {
-			const allThreadsContinued = response.body ? response.body.allThreadsContinued !== false : true;
+			const allThreadsContinued = response && response.body ? response.body.allThreadsContinued !== false : true;
 			this.lazyTransitionToRunningState(allThreadsContinued ? undefined : threadId);
 		});
 	}
@@ -946,7 +951,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public completions(text: string, position: Position): TPromise<ISuggestion[]> {
-		if (!this.session) {
+		if (!this.session || !this.session.configuration.capabilities.supportsCompletionsRequest) {
 			return TPromise.as([]);
 		}
 		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
@@ -957,11 +962,11 @@ export class DebugService implements debug.IDebugService {
 			column: position.column,
 			line: position.lineNumber
 		}).then(response => {
-			return !response ? [] : response.body.targets.map(item => ({
+			return response && response.body && response.body.targets ? response.body.targets.map(item => ({
 				label: item.label,
 				insertText: item.text || item.label,
 				type: item.type
-			}));
+			})) : [];
 		}, err => []);
 	}
 
@@ -1001,6 +1006,14 @@ export class DebugService implements debug.IDebugService {
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {
 		const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
 		this.toDisposeOnSessionEnd.push(result);
+
+		return result;
+	}
+
+	private getDebugErrorEditorInput(source: Source, value: string): DebugErrorEditorInput {
+		const result = this.instantiationService.createInstance(DebugErrorEditorInput, source.name, value);
+		this.toDisposeOnSessionEnd.push(result);
+
 		return result;
 	}
 
@@ -1033,6 +1046,10 @@ export class DebugService implements debug.IDebugService {
 			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })),
 			sourceModified
 		}).then(response => {
+			if (!response || !response.body) {
+				return;
+			}
+
 			const data: { [id: string]: { line?: number, verified: boolean } } = {};
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
@@ -1049,6 +1066,10 @@ export class DebugService implements debug.IDebugService {
 
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 		return this.session.setFunctionBreakpoints({ breakpoints: breakpointsToSend }).then(response => {
+			if (!response || !response.body) {
+				return;
+			}
+
 			const data: { [id: string]: { name?: string, verified?: boolean } } = {};
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];

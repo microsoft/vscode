@@ -36,9 +36,13 @@ export class PathLabelProvider implements ILabelProvider {
 	}
 }
 
-export function getPathLabel(arg1: URI | string, arg2?: URI | string | IWorkspaceProvider): string {
-	let basepath = arg2 && getPath(arg2);
-	let absolutePath = getPath(arg1);
+export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider): string {
+	const absolutePath = getPath(resource);
+	if (!absolutePath) {
+		return null;
+	}
+
+	const basepath = basePathProvider && getPath(basePathProvider);
 
 	if (basepath && paths.isEqualOrParent(absolutePath, basepath)) {
 		if (basepath === absolutePath) {
@@ -48,8 +52,8 @@ export function getPathLabel(arg1: URI | string, arg2?: URI | string | IWorkspac
 		return paths.normalize(strings.ltrim(absolutePath.substr(basepath.length), paths.nativeSep), true);
 	}
 
-	if (platform.isWindows && absolutePath[1] === ':') {
-		return paths.normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true);
+	if (platform.isWindows && absolutePath && absolutePath[1] === ':') {
+		return paths.normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true); // convert c:\something => C:\something
 	}
 
 	return paths.normalize(absolutePath, true);
@@ -65,7 +69,7 @@ function getPath(arg1: URI | string | IWorkspaceProvider): string {
 	}
 
 	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
-		let ws = (<IWorkspaceProvider>arg1).getWorkspace();
+		const ws = (<IWorkspaceProvider>arg1).getWorkspace();
 		return ws ? ws.resource.fsPath : void 0;
 	}
 

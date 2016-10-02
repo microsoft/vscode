@@ -218,8 +218,6 @@ export class TextEditorEdit {
 			range = new Range(location, location);
 		} else if (location instanceof Range) {
 			range = location;
-		} else if (location instanceof Selection) {
-			range = new Range(location.start, location.end);
 		} else {
 			throw new Error('Unrecognized location');
 		}
@@ -244,8 +242,6 @@ export class TextEditorEdit {
 
 		if (location instanceof Range) {
 			range = location;
-		} else if (location instanceof Selection) {
-			range = new Range(location.start, location.end);
 		} else {
 			throw new Error('Unrecognized location');
 		}
@@ -393,7 +389,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			() => this._proxy.$tryRevealRange(
 				this._id,
 				TypeConverters.fromRange(range),
-				revealType || TextEditorRevealType.Default
+				(revealType || TextEditorRevealType.Default)
 			),
 			true
 		);

@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
-import {ITokenizationSupport} from 'vs/editor/common/modes';
+import {TokenizationRegistry, CharacterPair} from 'vs/editor/common/modes';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {Token} from 'vs/editor/common/core/token';
 import {Range} from 'vs/editor/common/core/range';
@@ -19,7 +19,7 @@ import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConf
 
 suite('TextModelWithTokens', () => {
 
-	function testBrackets(contents: string[], brackets:string[][]): void {
+	function testBrackets(contents: string[], brackets:CharacterPair[]): void {
 		function toRelaxedFoundBracket(a:IFoundBracket) {
 			if (!a) {
 				return null;
@@ -67,7 +67,16 @@ suite('TextModelWithTokens', () => {
 			}
 		}
 
-		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), null);
+		class Mode extends MockMode {
+			constructor() {
+				super();
+				LanguageConfigurationRegistry.register(this.getId(), {
+					brackets: brackets
+				});
+			}
+		}
+
+		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), new Mode().getId());
 
 		// findPrevBracket
 		{
@@ -144,50 +153,44 @@ suite('TextModelWithTokens - bracket matching', () => {
 		assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
 	}
 
-	function isBracket(model:Model, lineNumber1:number, column11:number, column12:number, lineNumber2:number, column21:number, column22:number) {
-		let match = model.matchBracket(new Position(lineNumber1, column11));
-		assert.deepEqual(match, [
-			new Range(lineNumber1, column11, lineNumber1, column12),
-			new Range(lineNumber2, column21, lineNumber2, column22)
-		], 'is matching brackets at ' + lineNumber1 + ', ' + column11);
+	function isBracket2(model:Model, testPosition:Position, expected:[Range,Range]): void {
+		let actual = model.matchBracket(testPosition);
+		assert.deepEqual(actual, expected, 'matches brackets at ' + testPosition);
 	}
 
-	class BracketMode extends MockMode {
-		constructor() {
-			super();
-			LanguageConfigurationRegistry.register(this.getId(), {
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')'],
-				]
-			});
-		}
-	}
+	const LANGUAGE_ID = 'bracketMode1';
+
+	LanguageConfigurationRegistry.register(LANGUAGE_ID, {
+		brackets: [
+			['{', '}'],
+			['[', ']'],
+			['(', ')'],
+		]
+	});
 
 	test('bracket matching 1', () => {
 		let text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		let model = Model.createFromString(text, undefined, new BracketMode());
+		let model = Model.createFromString(text, undefined, LANGUAGE_ID);
 
 		isNotABracket(model, 1, 1);
 		isNotABracket(model, 1, 2);
 		isNotABracket(model, 1, 3);
-		isBracket(model, 1, 4, 5, 2, 3, 4);
-		isBracket(model, 1, 5, 4, 2, 3, 4);
-		isBracket(model, 1, 6, 5, 2, 2, 3);
-		isBracket(model, 1, 7, 6, 2, 1, 2);
+		isBracket2(model, new Position(1,4), [new Range(1,4,1,5), new Range(2,3,2,4)]);
+		isBracket2(model, new Position(1,5), [new Range(1,5,1,6), new Range(2,2,2,3)]);
+		isBracket2(model, new Position(1,6), [new Range(1,6,1,7), new Range(2,1,2,2)]);
+		isBracket2(model, new Position(1,7), [new Range(1,6,1,7), new Range(2,1,2,2)]);
 
-		isBracket(model, 2, 1, 2, 1, 6, 7);
-		isBracket(model, 2, 2, 1, 1, 6, 7);
-		isBracket(model, 2, 3, 2, 1, 5, 6);
-		isBracket(model, 2, 4, 3, 1, 4, 5);
+		isBracket2(model, new Position(2,1), [new Range(2,1,2,2), new Range(1,6,1,7)]);
+		isBracket2(model, new Position(2,2), [new Range(2,2,2,3), new Range(1,5,1,6)]);
+		isBracket2(model, new Position(2,3), [new Range(2,3,2,4), new Range(1,4,1,5)]);
+		isBracket2(model, new Position(2,4), [new Range(2,3,2,4), new Range(1,4,1,5)]);
 		isNotABracket(model, 2, 5);
 		isNotABracket(model, 2, 6);
 		isNotABracket(model, 2, 7);
 
-		model.destroy();
+		model.dispose();
 	});
 
 	test('bracket matching 2', () => {
@@ -197,53 +200,52 @@ suite('TextModelWithTokens - bracket matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		let model = Model.createFromString(text, undefined, new BracketMode());
+		let model = Model.createFromString(text, undefined, LANGUAGE_ID);
 
-		let brackets = [
-			[1, 11, 12, 5, 4, 5],
-			[1, 12, 11, 5, 4, 5],
-			[5, 5, 4, 1, 11, 12],
+		let brackets:[Position,Range,Range][] = [
+			[new Position(1,11), new Range(1,11,1,12), new Range(5,4,5,5)],
+			[new Position(1,12), new Range(1,11,1,12), new Range(5,4,5,5)],
 
-			[2, 6, 7, 3, 1, 2],
-			[2, 7, 6, 3, 1, 2],
-			[3, 1, 2, 2, 6, 7],
-			[3, 2, 1, 2, 6, 7],
+			[new Position(2,6), new Range(2,6,2,7), new Range(3,1,3,2)],
+			[new Position(2,7), new Range(2,6,2,7), new Range(3,1,3,2)],
 
-			[3, 9, 10, 5, 3, 4],
-			[3, 10, 9, 5, 3, 4],
-			[5, 4, 3, 3, 9, 10],
+			[new Position(3,1), new Range(3,1,3,2), new Range(2,6,2,7)],
+			[new Position(3,2), new Range(3,1,3,2), new Range(2,6,2,7)],
+			[new Position(3,9), new Range(3,9,3,10), new Range(5,3,5,4)],
+			[new Position(3,10), new Range(3,9,3,10), new Range(5,3,5,4)],
+			[new Position(3,17), new Range(3,17,3,18), new Range(5,2,5,3)],
+			[new Position(3,18), new Range(3,18,3,19), new Range(4,1,4,2)],
+			[new Position(3,19), new Range(3,18,3,19), new Range(4,1,4,2)],
 
-			[3, 17, 18, 5, 2, 3],
-			[3, 18, 17, 5, 2, 3],
-			[5, 3, 2, 3, 17, 18],
+			[new Position(4,1), new Range(4,1,4,2), new Range(3,18,3,19)],
+			[new Position(4,2), new Range(4,1,4,2), new Range(3,18,3,19)],
+			[new Position(4,4), new Range(4,4,4,5), new Range(5,1,5,2)],
+			[new Position(4,5), new Range(4,4,4,5), new Range(5,1,5,2)],
 
-			[3, 19, 18, 4, 1, 2],
-			[4, 2, 1, 3, 18, 19],
-			[4, 1, 2, 3, 18, 19],
-
-			[4, 4, 5, 5, 1, 2],
-			[4, 5, 4, 5, 1, 2],
-			[5, 2, 1, 4, 4, 5],
-			[5, 1, 2, 4, 4, 5]
+			[new Position(5,1), new Range(5,1,5,2), new Range(4,4,4,5)],
+			[new Position(5,2), new Range(5,2,5,3), new Range(3,17,3,18)],
+			[new Position(5,3), new Range(5,3,5,4), new Range(3,9,3,10)],
+			[new Position(5,4), new Range(5,4,5,5), new Range(1,11,1,12)],
+			[new Position(5,5), new Range(5,4,5,5), new Range(1,11,1,12)],
 		];
-		let i, len, b, isABracket = {1:{}, 2:{}, 3:{}, 4:{}, 5:{}};
 
-		for (i = 0, len = brackets.length; i < len; i++) {
-			b = brackets[i];
-			isBracket(model, b[0], b[1], b[2], b[3], b[4], b[5]);
-			isABracket[b[0]][b[1]] = true;
+		let isABracket = {1:{}, 2:{}, 3:{}, 4:{}, 5:{}};
+		for (let i = 0, len = brackets.length; i < len; i++) {
+			let [testPos, b1, b2] = brackets[i];
+			isBracket2(model, testPos, [b1,b2]);
+			isABracket[testPos.lineNumber][testPos.column] = true;
 		}
 
-		for (i = 1, len = model.getLineCount(); i <= len; i++) {
-			let line = model.getLineContent(i), j, lenJ;
-			for (j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
+		for (let i = 1, len = model.getLineCount(); i <= len; i++) {
+			let line = model.getLineContent(i);
+			for (let j = 1, lenJ = line.length + 1; j <= lenJ; j++) {
 				if (!isABracket[i].hasOwnProperty(j)) {
 					isNotABracket(model, i, j);
 				}
 			}
 		}
 
-		model.destroy();
+		model.dispose();
 	});
 });
 
@@ -258,11 +260,9 @@ suite('TextModelWithTokens regression tests', () => {
 
 		let _tokenId = 0;
 		class IndicisiveMode extends MockMode {
-			public tokenizationSupport:ITokenizationSupport;
-
 			constructor() {
 				super();
-				this.tokenizationSupport = {
+				TokenizationRegistry.register(this.getId(), {
 					getInitialState: () => {
 						return null;
 					},
@@ -276,7 +276,7 @@ suite('TextModelWithTokens regression tests', () => {
 							retokenize: null
 						};
 					}
-				};
+				});
 			}
 		}
 		let model = Model.createFromString('A model with\ntwo lines');
@@ -284,12 +284,12 @@ suite('TextModelWithTokens regression tests', () => {
 		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, '')]);
 		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, '')]);
 
-		model.setMode(new IndicisiveMode());
+		model.setMode(new IndicisiveMode().getId());
 
 		assertViewLineTokens(model, 1, true, [new ViewLineToken(0, 'custom.1')]);
 		assertViewLineTokens(model, 2, true, [new ViewLineToken(0, 'custom.2')]);
 
-		model.setMode(new IndicisiveMode());
+		model.setMode(new IndicisiveMode().getId());
 
 		assertViewLineTokens(model, 1, false, [new ViewLineToken(0, '')]);
 		assertViewLineTokens(model, 2, false, [new ViewLineToken(0, '')]);
@@ -298,17 +298,15 @@ suite('TextModelWithTokens regression tests', () => {
 	});
 
 	test('Microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
-		class BracketMode extends MockMode {
-			constructor() {
-				super();
-				LanguageConfigurationRegistry.register(this.getId(), {
-					brackets: [
-						['module','end module'],
-						['sub','end sub']
-					]
-				});
-			}
-		}
+
+		const LANGUAGE_ID = 'bracketMode2';
+
+		LanguageConfigurationRegistry.register(LANGUAGE_ID, {
+			brackets: [
+				['module','end module'],
+				['sub','end sub']
+			]
+		});
 
 		let model = Model.createFromString([
 			'Imports System',
@@ -320,7 +318,7 @@ suite('TextModelWithTokens regression tests', () => {
 			'\tEnd Sub',
 			'',
 			'End Module',
-		].join('\n'), undefined, new BracketMode());
+		].join('\n'), undefined, LANGUAGE_ID);
 
 		let actual = model.matchBracket(new Position(4,1));
 		assert.deepEqual(actual, [new Range(4,1,4,7), new Range(9,1,9,11)]);

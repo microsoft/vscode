@@ -16,6 +16,7 @@ import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegis
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
+import Event, {Emitter} from 'vs/base/common/event';
 
 /**
  * @internal
@@ -32,7 +33,7 @@ export interface ITokenizationResult {
 export interface IState {
 	clone():IState;
 	equals(other:IState):boolean;
-	getMode():IMode;
+	getModeId():string;
 	tokenize(stream:IStream):ITokenizationResult;
 	getStateData(): IState;
 	setStateData(state:IState):void;
@@ -169,13 +170,40 @@ export interface IModeDescriptor {
  * @internal
  */
 export interface ILineContext {
+	/**
+	 * Get the content of the line.
+	 */
 	getLineContent(): string;
 
+	/**
+	 * The mode transitions on this line.
+	 */
 	modeTransitions: ModeTransition[];
 
+	/**
+	 * Get the number of tokens on this line.
+	 */
 	getTokenCount(): number;
-	getTokenStartIndex(tokenIndex:number): number;
+
+	/**
+	 * Get the start offset of the token at `tokenIndex`.
+	 */
+	getTokenStartOffset(tokenIndex:number): number;
+
+	/**
+	 * Get the type of the token at `tokenIndex`.
+	 */
 	getTokenType(tokenIndex:number): string;
+
+	/**
+	 * Find the token containing offset `offset`.
+	 *    For example, with the following tokens [0, 5), [5, 9), [9, infinity)
+	 *    Searching for 0, 1, 2, 3 or 4 will return 0.
+	 *    Searching for 5, 6, 7 or 8 will return 1.
+	 *    Searching for 9, 10, 11, ... will return 2.
+	 * @param offset The search offset
+	 * @return The index of the token containing the offset.
+	 */
 	findIndexOfOffset(offset:number): number;
 }
 
@@ -186,28 +214,6 @@ export interface IMode {
 
 	getId(): string;
 
-	/**
-	 * Return a mode "similar" to this one that strips any "smart" supports.
-	 * @internal
-	 */
-	toSimplifiedMode(): IMode;
-
-	/**
-	 * @internal
-	 */
-	addSupportChangedListener?(callback: (e: editorCommon.IModeSupportChangedEvent) => void): IDisposable;
-
-	/**
-	 * Register a support by name. Only optional.
-	 * @internal
-	 */
-	setTokenizationSupport?<T>(callback:(mode:IMode)=>T): IDisposable;
-
-	/**
-	 * Optional adapter to support tokenization.
-	 * @internal
-	 */
-	tokenizationSupport?: ITokenizationSupport;
 }
 
 /**
@@ -218,7 +224,6 @@ export interface ILineTokens {
 	actualStopOffset: number;
 	endState: IState;
 	modeTransitions: ModeTransition[];
-	retokenize?:TPromise<void>;
 }
 
 /**
@@ -568,27 +573,27 @@ export interface DefinitionProvider {
  * A symbol kind.
  */
 export enum SymbolKind {
-	File,
-	Module,
-	Namespace,
-	Package,
-	Class,
-	Method,
-	Property,
-	Field,
-	Constructor,
-	Enum,
-	Interface,
-	Function,
-	Variable,
-	Constant,
-	String,
-	Number,
-	Boolean,
-	Array,
-	Object,
-	Key,
-	Null
+	File = 0,
+	Module = 1,
+	Namespace = 2,
+	Package = 3,
+	Class = 4,
+	Method = 5,
+	Property = 6,
+	Field = 7,
+	Constructor = 8,
+	Enum = 9,
+	Interface = 10,
+	Function = 11,
+	Variable = 12,
+	Constant = 13,
+	String = 14,
+	Number = 15,
+	Boolean = 16,
+	Array = 17,
+	Object = 18,
+	Key = 19,
+	Null = 20
 }
 /**
  * @internal
@@ -864,21 +869,21 @@ export enum IndentAction {
 	/**
 	 * Insert new line and copy the previous line's indentation.
 	 */
-	None,
+	None = 0,
 	/**
 	 * Insert new line and indent once (relative to the previous line's indentation).
 	 */
-	Indent,
+	Indent = 1,
 	/**
 	 * Insert two new lines:
 	 *  - the first one indented which will hold the cursor
 	 *  - the second one at the same indentation level
 	 */
-	IndentOutdent,
+	IndentOutdent = 2,
 	/**
 	 * Insert new line and outdent once (relative to the previous line's indentation).
 	 */
-	Outdent
+	Outdent = 3
 }
 
 /**
@@ -1022,3 +1027,56 @@ export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<
  * @internal
  */
 export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
+
+/**
+ * @internal
+ */
+export interface ITokenizationSupportChangedEvent {
+	languageId: string;
+}
+
+/**
+ * @internal
+ */
+export class TokenizationRegistryImpl {
+
+	private _map: {[languageId:string]:ITokenizationSupport};
+
+	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
+	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
+
+	constructor() {
+		this._map = Object.create(null);
+	}
+
+	/**
+	 * Fire a change event for a language.
+	 * This is useful for languages that embed other languages.
+	 */
+	public fire(languageId:string): void {
+		this._onDidChange.fire({ languageId: languageId });
+	}
+
+	public register(languageId:string, support:ITokenizationSupport): IDisposable {
+		this._map[languageId] = support;
+		this.fire(languageId);
+		return {
+			dispose: () => {
+				if (this._map[languageId] !== support) {
+					return;
+				}
+				delete this._map[languageId];
+				this.fire(languageId);
+			}
+		};
+	}
+
+	public get(languageId:string): ITokenizationSupport {
+		return (this._map[languageId] || null);
+	}
+}
+
+/**
+ * @internal
+ */
+export const TokenizationRegistry = new TokenizationRegistryImpl();

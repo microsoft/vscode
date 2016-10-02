@@ -77,7 +77,7 @@ export class OutputEditorInput extends StringEditorInput {
 		this.bufferedOutput = '';
 
 		const panel = this.panelService.getActivePanel();
-		(<OutputPanel>panel).revealLastLine();
+		(<OutputPanel>panel).revealLastLine(true);
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {
@@ -86,6 +86,7 @@ export class OutputEditorInput extends StringEditorInput {
 				this.bufferedOutput = strings.appendWithLimit(this.bufferedOutput, e.output, MAX_OUTPUT_LENGTH);
 				this.scheduleOutputAppend();
 			} else if (e.output === null) {
+				this.bufferedOutput = '';
 				this.clearValue(); // special output indicates we should clear
 			}
 		}

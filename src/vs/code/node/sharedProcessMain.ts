@@ -14,7 +14,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
@@ -30,6 +29,11 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { ISharedProcessInitData } from './sharedProcess';
+import {IChoiceService} from 'vs/platform/message/common/message';
+import {ChoiceChannelClient} from 'vs/platform/message/common/messageIpc';
+import { WindowEventChannelClient } from 'vs/code/common/windowsIpc';
+import { IWindowEventService, ActiveWindowManager } from 'vs/code/common/windows';
 
 function quit(err?: Error) {
 	if (err) {
@@ -54,13 +58,25 @@ function setupPlanB(parentPid: number): void {
 
 const eventPrefix = 'monacoworkbench';
 
-function main(server: Server): void {
+function main(server: Server, initData: ISharedProcessInitData): void {
 	const services = new ServiceCollection();
 
 	services.set(IEventService, new SyncDescriptor(EventService));
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, parseArgs(process.argv), process.execPath));
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, initData.args, process.execPath));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
+
+	const windowEventService:IWindowEventService = new WindowEventChannelClient(server.getChannel('windowEvent', {
+		routeCall: (command: any, arg: any) => {
+			return 'main';
+		}
+	}));
+	services.set(IWindowEventService, windowEventService);
+
+	const activeWindowManager = new ActiveWindowManager(windowEventService);
+	services.set(IChoiceService, new ChoiceChannelClient(server.getChannel('choice', {
+		routeCall: () => activeWindowManager.activeClientId
+	})));
 
 	const instantiationService = new InstantiationService(services);
 
@@ -107,8 +123,8 @@ function main(server: Server): void {
 			const channel = new ExtensionManagementChannel(extensionManagementService);
 			server.registerChannel('extensions', channel);
 
-			// eventually clean up old extensions
-			setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 100);
+			// clean up deprecated extensions
+			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
 		});
 	});
 }
@@ -122,7 +138,7 @@ function setupIPC(hook: string): TPromise<Server> {
 
 			// should retry, not windows and eaddrinuse
 
-			return connect(hook).then(
+			return connect(hook, '').then(
 				client => {
 					// we could connect to a running instance. this is not good, abort
 					client.dispose();
@@ -147,15 +163,16 @@ function setupIPC(hook: string): TPromise<Server> {
 	return setup(true);
 }
 
-function handshake(): TPromise<void> {
-	return new TPromise<void>((c, e) => {
+function handshake(): TPromise<ISharedProcessInitData> {
+	return new TPromise<ISharedProcessInitData>((c, e) => {
 		process.once('message', c);
 		process.once('error', e);
 		process.send('hello');
 	});
 }
 
-TPromise.join<any>([setupIPC(process.env['VSCODE_SHARED_IPC_HOOK']), handshake()])
-	.then(r => main(r[0]))
-	.then(() => setupPlanB(process.env['VSCODE_PID']))
-	.done(null, quit);
+setupIPC(process.env['VSCODE_SHARED_IPC_HOOK'])
+	.then(server => handshake()
+		.then(data => main(server, data))
+		.then(() => setupPlanB(process.env['VSCODE_PID']))
+		.done(null, quit));

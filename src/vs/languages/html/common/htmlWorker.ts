@@ -12,13 +12,14 @@ import network = require('vs/base/common/network');
 import editorCommon = require('vs/editor/common/editorCommon');
 import modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
-import {IResourceService} from 'vs/editor/common/services/resourceService';
+import {IResourceService, ICompatMirrorModel} from 'vs/editor/common/services/resourceService';
 import {getScanner, IHTMLScanner} from 'vs/languages/html/common/htmlScanner';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
 import {IHTMLConfiguration, IHTMLFormatConfiguration} from 'vs/languages/html/common/html.contribution';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -419,7 +420,6 @@ export class HTMLWorker {
 	public provideDocumentHighlights(resource:URI, position:editorCommon.IPosition, strict:boolean = false): winjs.TPromise<modes.DocumentHighlight[]> {
 		let model = this.resourceService.get(resource),
 			wordAtPosition = model.getWordAtPosition(position),
-			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
 			result:modes.DocumentHighlight[] = [];
 
 
@@ -438,14 +438,12 @@ export class HTMLWorker {
 				});
 			}
 		} else {
-			let words = model.getAllWordsWithRange(),
-				upperBound = Math.min(1000, words.length); // Limit find occurences to 1000 occurences
-
-			for(let i = 0; i < upperBound; i++) {
-				if(words[i].text === currentWord) {
+			if (wordAtPosition) {
+				let results = model.findMatches(wordAtPosition.word, false, false, true, true);
+				for (let i = 0, len = results.length; i < len; i++) {
 					result.push({
-						range: words[i].range,
-					kind: modes.DocumentHighlightKind.Read
+						range: results[i],
+						kind: modes.DocumentHighlightKind.Read
 					});
 				}
 			}
@@ -523,15 +521,14 @@ export class HTMLWorker {
 		};
 	}
 
-	private _computeHTMLLinks(model: editorCommon.IMirrorModel, workspaceResource:URI): modes.ILink[] {
+	private _computeHTMLLinks(model: ICompatMirrorModel, modelAbsoluteUrl:URI, workspaceResource:URI): modes.ILink[] {
 		let lineCount = model.getLineCount(),
 			newLinks: modes.ILink[] = [],
 			state: LinkDetectionState = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC,
-			modelAbsoluteUrl = model.uri,
 			lineNumber: number,
 			lineContent: string,
 			lineContentLength: number,
-			tokens: editorCommon.ILineTokens,
+			tokens: LineTokens,
 			tokenType: string,
 			tokensLength: number,
 			i: number,
@@ -565,8 +562,8 @@ export class HTMLWorker {
 						break;
 
 					case ATTRIB_NAME:
-						nextTokenEndIndex = tokens.getTokenEndIndex(i, lineContentLength);
-						tokenContent = lineContent.substring(tokens.getTokenStartIndex(i), nextTokenEndIndex).toLowerCase();
+						nextTokenEndIndex = tokens.getTokenEndOffset(i);
+						tokenContent = lineContent.substring(tokens.getTokenStartOffset(i), nextTokenEndIndex).toLowerCase();
 
 						if (tokenContent === 'src' || tokenContent === 'href') {
 							state = LinkDetectionState.AFTER_HREF_OR_SRC;
@@ -577,10 +574,10 @@ export class HTMLWorker {
 
 					case ATTRIB_VALUE:
 						if (state === LinkDetectionState.AFTER_HREF_OR_SRC) {
-							nextTokenEndIndex = tokens.getTokenEndIndex(i, lineContentLength);
-							tokenContent = lineContent.substring(tokens.getTokenStartIndex(i), nextTokenEndIndex);
+							nextTokenEndIndex = tokens.getTokenEndOffset(i);
+							tokenContent = lineContent.substring(tokens.getTokenStartOffset(i), nextTokenEndIndex);
 
-							link = this.createLink(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent, lineNumber, tokens.getTokenStartIndex(i) + 2, nextTokenEndIndex);
+							link = this.createLink(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent, lineNumber, tokens.getTokenStartOffset(i) + 2, nextTokenEndIndex);
 							if (link) {
 								newLinks.push(link);
 							}
@@ -603,7 +600,7 @@ export class HTMLWorker {
 
 	public provideLinks(resource: URI, workspaceResource:URI): winjs.TPromise<modes.ILink[]> {
 		let model = this.resourceService.get(resource);
-		return winjs.TPromise.as(this._computeHTMLLinks(model, workspaceResource));
+		return winjs.TPromise.as(this._computeHTMLLinks(model, resource, workspaceResource));
 	}
 }
 

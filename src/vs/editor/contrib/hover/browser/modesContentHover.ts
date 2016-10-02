@@ -7,6 +7,7 @@
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {$} from 'vs/base/browser/dom';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
@@ -21,7 +22,7 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {getHover} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
-import {textAsCodeBlock, MarkedString} from 'vs/base/common/htmlContent';
+import {textToMarkedString, MarkedString} from 'vs/base/common/htmlContent';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -113,7 +114,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 	private _getLoadingMessage(): Hover {
 		return {
 			range: this._range,
-			contents: [textAsCodeBlock(nls.localize('modesContentHover.loading', "Loading..."))]
+			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
 }
@@ -244,15 +245,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				.forEach(contents => {
 					const renderedContents = renderMarkedString(contents, {
 						actionCallback: (content) => {
-							this._openerService.open(URI.parse(content));
+							this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 						},
-						codeBlockRenderer: (modeId, value): string | TPromise<string> => {
-							const mode = this._modeService.getMode(modeId || this._editor.getModel().getModeId());
-							const getMode = mode => mode ? TPromise.as(mode) : this._modeService.getOrCreateMode(modeId);
-
-							return getMode(mode)
-								.then(null, err => null)
-								.then(mode => `<div class="code">${ tokenizeToString(value, mode) }</div>`);
+						codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+							// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
+							const modeId = this._modeService.getModeIdForLanguageName(languageAlias);
+							return this._modeService.getOrCreateMode(modeId).then(_ => {
+								return `<div class="code">${ tokenizeToString(value, modeId) }</div>`;
+							});
 						}
 					});
 

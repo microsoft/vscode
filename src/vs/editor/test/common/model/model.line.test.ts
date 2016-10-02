@@ -5,13 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ILineTokens} from 'vs/editor/common/editorCommon';
+import {LineTokens} from 'vs/editor/common/core/lineTokens';
 import {ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
 import {LineMarker} from 'vs/editor/common/model/textModelWithMarkers';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Token} from 'vs/editor/common/core/token';
 
-function assertLineTokens(actual:ILineTokens, expected:Token[]): void {
+function assertLineTokens(actual:LineTokens, expected:Token[]): void {
 	var inflatedActual = actual.inflate();
 	assert.deepEqual(inflatedActual, expected, 'Line tokens are equal');
 }
@@ -264,8 +264,8 @@ suite('Editor Model - modelLine.append text', () => {
 suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 	function testLineEditTokens(initialText:string, initialTokens: Token[], edits:ILineEdit[], expectedText:string, expectedTokens: Token[]): void {
 		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
-		let map = new TokensInflatorMap();
-		line.setTokens(map, initialTokens, null, []);
+		let map = new TokensInflatorMap(null);
+		line.setTokens(map, initialTokens, []);
 
 		line.applyEdits({}, edits, NO_TAB_SIZE);
 
@@ -275,11 +275,11 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 
 	test('insertion on empty line', () => {
 		let line = new ModelLine(1, 'some text', NO_TAB_SIZE);
-		let map = new TokensInflatorMap();
-		line.setTokens(map, [new Token(0, 'bar')], null, []);
+		let map = new TokensInflatorMap(null);
+		line.setTokens(map, [new Token(0, 'bar')], []);
 
 		line.applyEdits({}, [{startColumn:1, endColumn:10, text:'', forceMoveMarkers: false}], NO_TAB_SIZE);
-		line.setTokens(map, [], null, []);
+		line.setTokens(map, [], []);
 
 		line.applyEdits({}, [{startColumn:1, endColumn:1, text:'a', forceMoveMarkers: false}], NO_TAB_SIZE);
 		assertLineTokens(line.getTokens(map), [new Token(0, '')]);
@@ -836,8 +836,8 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 suite('Editor Model - modelLine.split text & tokens', () => {
 	function testLineSplitTokens(initialText:string, initialTokens: Token[], splitColumn:number, expectedText1:string, expectedText2:string, expectedTokens: Token[]): void {
 		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
-		let map = new TokensInflatorMap();
-		line.setTokens(map, initialTokens, null, []);
+		let map = new TokensInflatorMap(null);
+		line.setTokens(map, initialTokens, []);
 
 		let other = line.split({}, splitColumn, false, NO_TAB_SIZE);
 
@@ -918,13 +918,13 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 
 suite('Editor Model - modelLine.append text & tokens', () => {
 	function testLineAppendTokens(aText:string, aTokens: Token[], bText:string, bTokens:Token[], expectedText:string, expectedTokens:Token[]): void {
-		let inflator = new TokensInflatorMap();
+		let inflator = new TokensInflatorMap(null);
 
 		let a = new ModelLine(1, aText, NO_TAB_SIZE);
-		a.setTokens(inflator, aTokens, null, []);
+		a.setTokens(inflator, aTokens, []);
 
 		let b = new ModelLine(2, bText, NO_TAB_SIZE);
-		b.setTokens(inflator, bTokens, null, []);
+		b.setTokens(inflator, bTokens, []);
 
 		a.append({}, b, NO_TAB_SIZE);
 

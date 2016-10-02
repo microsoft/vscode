@@ -16,8 +16,8 @@ import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
+import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
-import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
 import {BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions} from 'vs/workbench/common/editor';
@@ -29,7 +29,6 @@ import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, POSITIONS, Direction} from 'vs/platform/editor/common/editor';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IEventService} from 'vs/platform/event/common/event';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -102,7 +101,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		id: string,
 		restoreFromStorage: boolean,
 		@IMessageService private messageService: IMessageService,
-		@IEventService private eventService: IEventService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService,
 		@IPartService private partService: IPartService,
@@ -240,10 +238,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const pinned = !this.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
 		const active = (group.count === 0) || !options || !options.inactive;
 		group.openEditor(input, { active, pinned, index: options && options.index });
-
-		// indicate to the UI that an editor is about to open. we need to update the title because it could be that
-		// the input is already opened but the title has changed and the UI should reflect that
-		this.sideBySideControl.updateTitle({ group, editor: input });
 
 		// Return early if the editor is to be open inactive and there are other editors in this group to show
 		if (!active) {
@@ -439,7 +433,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Report error only if this was not us restoring previous error state
 		if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
-			const errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), errors.toErrorMessage(e));
+			const errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(e));
 
 			let error: any;
 			if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {
@@ -595,7 +589,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Check for dirty and veto
 		let editorsToClose: EditorInput[];
-		if (!direction) {
+		if (types.isUndefinedOrNull(direction)) {
 			editorsToClose = group.getEditors().filter(e => !except || !e.matches(except));
 		} else {
 			editorsToClose = (direction === Direction.LEFT) ? group.getEditors().slice(0, group.indexOf(except)) : group.getEditors().slice(group.indexOf(except) + 1);

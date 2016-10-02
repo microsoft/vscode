@@ -6,14 +6,15 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as fs from 'original-fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
-import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
+import { IWindowsService, WindowsManager, WindowEventService } from 'vs/code/electron-main/windows';
+import { IWindowEventService } from 'vs/code/common/windows';
+import { WindowEventChannel } from 'vs/code/common/windowsIpc';
 import { ILifecycleService, LifecycleService } from 'vs/code/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
@@ -22,7 +23,7 @@ import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
-import { spawnSharedProcess } from 'vs/code/electron-main/sharedProcess';
+import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,10 +38,15 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import * as cp from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
+import { getPathLabel } from 'vs/base/common/labels';
+import { IURLService } from 'vs/platform/url/common/url';
 import { URLChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
+
+import * as fs from 'original-fs';
+import * as cp from 'child_process';
+import * as path from 'path';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -66,10 +72,13 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const envService = accessor.get(IEnvService);
+	const environmentService = accessor.get(IEnvironmentService);
 	const windowsService = accessor.get(IWindowsService);
+	const windowEventService = accessor.get(IWindowEventService);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateService = accessor.get(IUpdateService);
 	const configurationService = accessor.get(IConfigurationService) as ConfigurationService<any>;
+	const windowEventChannel = new WindowEventChannel(windowEventService);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -91,8 +100,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 		}
 	});
 
-	logService.log('### VSCode main.js ###');
-	logService.log(envService.appRoot, envService.cliArgs);
+	logService.log('Starting VS Code in verbose mode');
+	logService.log(`from: ${envService.appRoot}`);
+	logService.log('args:', envService.cliArgs);
 
 	// Setup Windows mutex
 	let windowsMutex: Mutex = null;
@@ -116,14 +126,24 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const electronIpcServer = new ElectronIPCServer(ipc);
 
 	// Register Electron IPC services
-	const urlService = instantiationService.createInstance(URLService);
+	const urlService = accessor.get(IURLService);
 	const urlChannel = instantiationService.createInstance(URLChannel, urlService);
 	electronIpcServer.registerChannel('url', urlChannel);
 
 	// Spawn shared process
-	const sharedProcess = spawnSharedProcess({
+	const initData = { args: environmentService.args };
+	const options = {
 		allowOutput: !envService.isBuilt || envService.cliArgs.verbose,
 		debugPort: envService.isBuilt ? null : 5871
+	};
+
+	let sharedProcessDisposable;
+	spawnSharedProcess(initData, options).done(disposable => {
+		sharedProcessDisposable = disposable;
+		const sharedProcessConnect = connect(environmentService.sharedIPCHandle, 'main');
+		sharedProcessConnect.done(client => {
+			client.registerChannel('windowEvent', windowEventChannel);
+		});
 	});
 
 	// Make sure we associate the program with the app user model id
@@ -140,7 +160,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 			mainIpcServer = null;
 		}
 
-		sharedProcess.dispose();
+		if (sharedProcessDisposable) {
+			sharedProcessDisposable.dispose();
+		}
 
 		if (windowsMutex) {
 			windowsMutex.release();
@@ -174,17 +196,56 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	const menu = instantiationService.createInstance(VSCodeMenu);
 	menu.ready();
 
-	// Install Tasks
-	if (platform.isWindows && envService.isBuilt) {
-		app.setUserTasks([
-			{
-				title: nls.localize('newWindow', "New Window"),
-				program: process.execPath,
-				arguments: '-n', // force new window
-				iconPath: process.execPath,
-				iconIndex: 0
-			}
-		]);
+	// Install JumpList on Windows
+	if (platform.isWindows) {
+		const jumpList: Electron.JumpListCategory[] = [];
+
+		// Tasks
+		jumpList.push({
+			type: 'tasks',
+			items: [
+				{
+					type: 'task',
+					title: nls.localize('newWindow', "New Window"),
+					description: nls.localize('newWindowDesc', "Opens a new window"),
+					program: process.execPath,
+					args: '-n', // force new window
+					iconPath: process.execPath,
+					iconIndex: 0
+				}
+			]
+		});
+
+		// Recent Folders
+		const folders = windowsService.getRecentPathsList().folders;
+		if (folders.length > 0) {
+			jumpList.push({
+				type: 'custom',
+				name: 'Recent Folders',
+				items: windowsService.getRecentPathsList().folders.slice(0, 7 /* limit number of entries here */).map(folder => {
+					return <Electron.JumpListItem>{
+						type: 'task',
+						title: getPathLabel(folder),
+						description: nls.localize('folderDesc', "{0} {1}", path.basename(folder), getPathLabel(path.dirname(folder))),
+						program: process.execPath,
+						args: folder, // open folder,
+						iconPath: process.execPath,
+						iconIndex: 0
+					};
+				})
+			});
+		}
+
+		// Recent
+		jumpList.push({
+			type: 'recent' // this enables to show files in the "recent" category
+		});
+
+		try {
+			app.setJumpList(jumpList);
+		} catch (error) {
+			logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
+		}
 	}
 
 	// Setup auto update
@@ -223,7 +284,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			}
 
 			// there's a running instance, let's connect to it
-			return connect(environmentService.mainIPCHandle).then(
+			return connect(environmentService.mainIPCHandle, 'main').then(
 				client => {
 
 					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
@@ -273,17 +334,17 @@ interface IEnv {
 
 function getUnixShellEnvironment(): TPromise<IEnv> {
 	const promise = new TPromise((c, e) => {
-		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
 		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
 		const regex = new RegExp(mark + '(.*)' + mark);
 
 		const env = assign({}, process.env, {
-			ATOM_SHELL_INTERNAL_RUN_AS_NODE: '1',
+			ELECTRON_RUN_AS_NODE: '1',
 			ELECTRON_NO_ATTACH_CONSOLE: '1'
 		});
 
-		const command = `'${process.execPath}' -p '"${ mark }" + JSON.stringify(process.env) + "${ mark }"'`;
+		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
@@ -307,9 +368,9 @@ function getUnixShellEnvironment(): TPromise<IEnv> {
 				const env = JSON.parse(rawStripped);
 
 				if (runAsNode) {
-					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;
+					env['ELECTRON_RUN_AS_NODE'] = runAsNode;
 				} else {
-					delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+					delete env['ELECTRON_RUN_AS_NODE'];
 				}
 
 				if (noAttach) {
@@ -389,11 +450,13 @@ function start(): void {
 	services.set(IEnvService, new SyncDescriptor(EnvService));
 	services.set(ILogService, new SyncDescriptor(MainLogService));
 	services.set(IWindowsService, new SyncDescriptor(WindowsManager));
+	services.set(IWindowEventService, new SyncDescriptor(WindowEventService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IUpdateService, new SyncDescriptor(UpdateManager));
+	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
 
 	const instantiationService = new InstantiationService(services);
 
@@ -408,7 +471,7 @@ function start(): void {
 				.then(mainIpcServer => instantiationService.invokeFunction(main, mainIpcServer, env));
 		});
 	})
-	.done(null, err => instantiationService.invokeFunction(quit, err));
+		.done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
 start();

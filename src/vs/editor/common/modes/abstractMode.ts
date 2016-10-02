@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import * as wordHelper from 'vs/editor/common/model/wordHelper';
 import {ICompatWorkerService, ICompatMode} from 'vs/editor/common/services/compatWorkerService';
+import {CharCode} from 'vs/base/common/charCode';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return wordHelper.createWordRegExp(allowInWords);
@@ -80,43 +78,13 @@ export class ModeWorkerManager<W> {
 export abstract class AbstractMode implements modes.IMode {
 
 	private _modeId: string;
-	private _eventEmitter: EventEmitter;
-	private _simplifiedMode: modes.IMode;
 
 	constructor(modeId:string) {
 		this._modeId = modeId;
-		this._eventEmitter = new EventEmitter();
-		this._simplifiedMode = null;
 	}
 
 	public getId(): string {
 		return this._modeId;
-	}
-
-	public toSimplifiedMode(): modes.IMode {
-		if (!this._simplifiedMode) {
-			this._simplifiedMode = new SimplifiedMode(this);
-		}
-		return this._simplifiedMode;
-	}
-
-	public addSupportChangedListener(callback: (e: IModeSupportChangedEvent) => void) : IDisposable {
-		return this._eventEmitter.addListener2('modeSupportChanged', callback);
-	}
-
-	public setTokenizationSupport<T>(callback:(mode:modes.IMode) => T) : IDisposable {
-		var supportImpl = callback(this);
-		this['tokenizationSupport'] = supportImpl;
-		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
-
-		return {
-			dispose: () => {
-				if (this['tokenizationSupport'] === supportImpl) {
-					delete this['tokenizationSupport'];
-					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
-				}
-			}
-		};
 	}
 }
 
@@ -135,104 +103,43 @@ export abstract class CompatMode extends AbstractMode implements ICompatMode {
 
 }
 
-class SimplifiedMode implements modes.IMode {
-
-	tokenizationSupport: modes.ITokenizationSupport;
-
-	private _sourceMode: modes.IMode;
-	private _eventEmitter: EventEmitter;
-	private _id: string;
-
-	constructor(sourceMode: modes.IMode) {
-		this._sourceMode = sourceMode;
-		this._eventEmitter = new EventEmitter();
-		this._id = 'vs.editor.modes.simplifiedMode:' + sourceMode.getId();
-		this._assignSupports();
-
-		if (this._sourceMode.addSupportChangedListener) {
-			this._sourceMode.addSupportChangedListener((e) => {
-				this._assignSupports();
-				this._eventEmitter.emit('modeSupportChanged', e);
-			});
-		}
-	}
-
-	public getId(): string {
-		return this._id;
-	}
-
-	public toSimplifiedMode(): modes.IMode {
-		return this;
-	}
-
-	private _assignSupports(): void {
-		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
+export function isDigit(character:string, base:number): boolean {
+	let c = character.charCodeAt(0);
+	switch (base) {
+		case 1:
+			return c === CharCode.Digit0;
+		case 2:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit1;
+		case 3:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit2;
+		case 4:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit3;
+		case 5:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit4;
+		case 6:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit5;
+		case 7:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit6;
+		case 8:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit7;
+		case 9:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit8;
+		case 10:
+			return c >= CharCode.Digit0 && c <= CharCode.Digit9;
+		case 11:
+			return (c >= CharCode.Digit0 && c <= CharCode.Digit9) || (c === CharCode.a) || (c === CharCode.A);
+		case 12:
+			return (c >= CharCode.Digit0 && c <= CharCode.Digit9) || (c >= CharCode.a && c <= CharCode.b) || (c >= CharCode.A && c <= CharCode.B);
+		case 13:
+			return (c >= CharCode.Digit0 && c <= CharCode.Digit9) || (c >= CharCode.a && c <= CharCode.c) || (c >= CharCode.A && c <= CharCode.C);
+		case 14:
+			return (c >= CharCode.Digit0 && c <= CharCode.Digit9) || (c >= CharCode.a && c <= CharCode.d) || (c >= CharCode.A && c <= CharCode.D);
+		case 15:
+			return (c >= CharCode.Digit0 && c <= CharCode.Digit9) || (c >= CharCode.a && c <= CharCode.e) || (c >= CharCode.A && c <= CharCode.E);
+		default:
+			return (c >= CharCode.Digit0 && c <= CharCode.Digit9) || (c >= CharCode.a && c <= CharCode.f) || (c >= CharCode.A && c <= CharCode.F);
 	}
 }
-
-export var isDigit:(character:string, base:number)=>boolean = (function () {
-
-	var _0 = '0'.charCodeAt(0),
-		_1 = '1'.charCodeAt(0),
-		_2 = '2'.charCodeAt(0),
-		_3 = '3'.charCodeAt(0),
-		_4 = '4'.charCodeAt(0),
-		_5 = '5'.charCodeAt(0),
-		_6 = '6'.charCodeAt(0),
-		_7 = '7'.charCodeAt(0),
-		_8 = '8'.charCodeAt(0),
-		_9 = '9'.charCodeAt(0),
-		_a = 'a'.charCodeAt(0),
-		_b = 'b'.charCodeAt(0),
-		_c = 'c'.charCodeAt(0),
-		_d = 'd'.charCodeAt(0),
-		_e = 'e'.charCodeAt(0),
-		_f = 'f'.charCodeAt(0),
-		_A = 'A'.charCodeAt(0),
-		_B = 'B'.charCodeAt(0),
-		_C = 'C'.charCodeAt(0),
-		_D = 'D'.charCodeAt(0),
-		_E = 'E'.charCodeAt(0),
-		_F = 'F'.charCodeAt(0);
-
-	return function isDigit(character:string, base:number):boolean {
-		var c = character.charCodeAt(0);
-		switch (base) {
-			case 1:
-				return c === _0;
-			case 2:
-				return c >= _0 && c <= _1;
-			case 3:
-				return c >= _0 && c <= _2;
-			case 4:
-				return c >= _0 && c <= _3;
-			case 5:
-				return c >= _0 && c <= _4;
-			case 6:
-				return c >= _0 && c <= _5;
-			case 7:
-				return c >= _0 && c <= _6;
-			case 8:
-				return c >= _0 && c <= _7;
-			case 9:
-				return c >= _0 && c <= _8;
-			case 10:
-				return c >= _0 && c <= _9;
-			case 11:
-				return (c >= _0 && c <= _9) || (c === _a) || (c === _A);
-			case 12:
-				return (c >= _0 && c <= _9) || (c >= _a && c <= _b) || (c >= _A && c <= _B);
-			case 13:
-				return (c >= _0 && c <= _9) || (c >= _a && c <= _c) || (c >= _A && c <= _C);
-			case 14:
-				return (c >= _0 && c <= _9) || (c >= _a && c <= _d) || (c >= _A && c <= _D);
-			case 15:
-				return (c >= _0 && c <= _9) || (c >= _a && c <= _e) || (c >= _A && c <= _E);
-			default:
-				return (c >= _0 && c <= _9) || (c >= _a && c <= _f) || (c >= _A && c <= _F);
-		}
-	};
-})();
 
 export class FrankensteinMode extends AbstractMode {
 
@@ -247,10 +154,4 @@ export class FrankensteinMode extends AbstractMode {
 			modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(editorWorkerService, configurationService), true);
 		}
 	}
-}
-
-function _createModeSupportChangedEvent(): IModeSupportChangedEvent {
-	return {
-		tokenizationSupport: true
-	};
 }

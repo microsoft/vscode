@@ -8,6 +8,7 @@ import { IRawGitService, RawServiceState, IGitConfiguration } from 'vs/workbench
 import { NoOpGitService } from 'vs/workbench/parts/git/common/noopGitService';
 import { GitService } from 'vs/workbench/parts/git/browser/gitServices';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -126,16 +127,6 @@ function findGit(hint: string): TPromise<IGit> {
 	});
 }
 
-class UnavailableRawGitService extends RawGitService {
-	constructor() {
-		super(null);
-	}
-
-	serviceState(): TPromise<RawServiceState> {
-		return TPromise.as(RawServiceState.GitNotFound);
-	}
-}
-
 class DisabledRawGitService extends RawGitService {
 	constructor() {
 		super(null);
@@ -157,7 +148,7 @@ function createRemoteRawGitService(gitPath: string, execPath: string, workspaceR
 					timeout: 1000 * 60,
 					args: [path, workspaceRoot, encoding, execPath, version],
 					env: {
-						ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+						ELECTRON_RUN_AS_NODE: 1,
 						PIPE_LOGGING: 'true',
 						AMD_ENTRYPOINT: 'vs/workbench/parts/git/node/gitApp',
 						VERBOSE_LOGGING: String(verbose)
@@ -199,6 +190,7 @@ export class ElectronGitService extends GitService {
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
+		@ITextFileService textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService storageService: IStorageService,
@@ -228,6 +220,6 @@ export class ElectronGitService extends GitService {
 			}
 		}
 
-		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService, storageService, configurationService);
+		super(raw, instantiationService, eventService, messageService, editorService, outputService, textFileService, contextService, lifecycleService, storageService, configurationService);
 	}
 }

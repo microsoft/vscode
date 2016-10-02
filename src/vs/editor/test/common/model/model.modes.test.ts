@@ -9,37 +9,11 @@ import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Model} from 'vs/editor/common/model/model';
-import {ModelMode1, ModelMode2, NMode} from 'vs/editor/test/common/testModes';
+import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import * as modes from 'vs/editor/common/modes';
+import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 // --------- utils
-
-function checkAndClear(highlighter, arr) {
-	assert.deepEqual(highlighter.calledFor, arr);
-	highlighter.calledFor = [];
-}
-
-function invalidEqual(model, indexArray) {
-	var i, len, asHash = {};
-	for (i = 0, len = indexArray.length; i < len; i++) {
-		asHash[indexArray[i]] = true;
-	}
-	for (i = 0, len = model.getLineCount(); i < len; i++) {
-		assert.equal(model._lines[i].isInvalid, asHash.hasOwnProperty(i));
-	}
-}
-
-function stateEqual(state, content) {
-	assert.equal(state.prevLineContent, content);
-}
-
-function statesEqual(model:Model, states:string[]) {
-	var i, len = states.length - 1;
-	for (i = 0; i < len; i++) {
-		stateEqual(model._lines[i].getState(), states[i]);
-	}
-	stateEqual((<any>model)._lastState, states[len]);
-}
-
 
 var LINE1 = '1';
 var LINE2 = '2';
@@ -50,18 +24,45 @@ var LINE5 = '5';
 
 suite('Editor Model - Model Modes 1', () => {
 
-	var thisHighlighter: ModelMode1;
-	var thisModel: Model;
+	const LANGUAGE_ID = 'modelModeTest1';
+
+	let calledState = {
+		calledFor: <string[]>[]
+	};
+	let thisModel: Model;
+
+	class ModelState1 extends AbstractState {
+		public makeClone():ModelState1 {
+			return this;
+		}
+		public equals(other: modes.IState): boolean {
+			return this === other;
+		}
+		public tokenize(stream:modes.IStream): modes.ITokenizationResult {
+			calledState.calledFor.push(stream.next());
+			stream.advanceToEOS();
+			return { type: '' };
+		}
+	}
+
+	function checkAndClear(calledState: { calledFor: string[] }, arr:string[]) {
+		assert.deepEqual(calledState.calledFor, arr);
+		calledState.calledFor = [];
+	}
+
+	modes.TokenizationRegistry.register(LANGUAGE_ID, new TokenizationSupport(null, LANGUAGE_ID, {
+		getInitialState: () => new ModelState1(LANGUAGE_ID)
+	}, false));
 
 	setup(() => {
-		thisHighlighter = new ModelMode1();
+		calledState.calledFor = [];
 		var text =
 			LINE1 + '\r\n' +
 			LINE2 + '\n' +
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = Model.createFromString(text, undefined, thisHighlighter);
+		thisModel = Model.createFromString(text, undefined, LANGUAGE_ID);
 	});
 
 	teardown(() => {
@@ -69,98 +70,98 @@ suite('Editor Model - Model Modes 1', () => {
 	});
 	test('model calls syntax highlighter 1', () => {
 		thisModel.getLineTokens(1);
-		checkAndClear(thisHighlighter, ['1']);
+		checkAndClear(calledState, ['1']);
 	});
 
 	test('model calls syntax highlighter 2', () => {
 		thisModel.getLineTokens(2);
-		checkAndClear(thisHighlighter, ['1', '2']);
+		checkAndClear(calledState, ['1', '2']);
 
 		thisModel.getLineTokens(2);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear(calledState, []);
 	});
 
 	test('model caches states', () => {
 		thisModel.getLineTokens(1);
-		checkAndClear(thisHighlighter, ['1']);
+		checkAndClear(calledState, ['1']);
 
 		thisModel.getLineTokens(2);
-		checkAndClear(thisHighlighter, ['2']);
+		checkAndClear(calledState, ['2']);
 
 		thisModel.getLineTokens(3);
-		checkAndClear(thisHighlighter, ['3']);
+		checkAndClear(calledState, ['3']);
 
 		thisModel.getLineTokens(4);
-		checkAndClear(thisHighlighter, ['4']);
+		checkAndClear(calledState, ['4']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['5']);
+		checkAndClear(calledState, ['5']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear(calledState, []);
 	});
 
 	test('model invalidates states for one line insert', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '-')]);
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['-']);
+		checkAndClear(calledState, ['-']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear(calledState, []);
 	});
 
 	test('model invalidates states for many lines insert', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '0\n-\n+')]);
 		assert.equal(thisModel.getLineCount(), 7);
 		thisModel.getLineTokens(7);
-		checkAndClear(thisHighlighter, ['0', '-', '+']);
+		checkAndClear(calledState, ['0', '-', '+']);
 
 		thisModel.getLineTokens(7);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear(calledState, []);
 	});
 
 	test('model invalidates states for one new line', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '\n')]);
 		thisModel.applyEdits([EditOperation.insert(new Position(2, 1), 'a')]);
 		thisModel.getLineTokens(6);
-		checkAndClear(thisHighlighter, ['1', 'a']);
+		checkAndClear(calledState, ['1', 'a']);
 	});
 
 	test('model invalidates states for one line delete', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 2), '-')]);
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1']);
+		checkAndClear(calledState, ['1']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['-']);
+		checkAndClear(calledState, ['-']);
 
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear(calledState, []);
 	});
 
 	test('model invalidates states for many lines delete', () => {
 		thisModel.getLineTokens(5);
-		checkAndClear(thisHighlighter, ['1', '2', '3', '4', '5']);
+		checkAndClear(calledState, ['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 3, 1))]);
 		thisModel.getLineTokens(3);
-		checkAndClear(thisHighlighter, ['3']);
+		checkAndClear(calledState, ['3']);
 
 		thisModel.getLineTokens(3);
-		checkAndClear(thisHighlighter, []);
+		checkAndClear(calledState, []);
 	});
 });
 
@@ -168,18 +169,70 @@ suite('Editor Model - Model Modes 1', () => {
 
 suite('Editor Model - Model Modes 2', () => {
 
-	var thisHighlighter: ModelMode1;
+	const LANGUAGE_ID = 'modelModeTest2';
+
+	class ModelState2 extends AbstractState {
+
+		private prevLineContent:string;
+
+		constructor(modeId:string, prevLineContent:string) {
+			super(modeId);
+			this.prevLineContent = prevLineContent;
+		}
+
+		public makeClone():ModelState2 {
+			return new ModelState2(this.getModeId(), this.prevLineContent);
+		}
+
+		public equals(other: modes.IState):boolean {
+			return (other instanceof ModelState2) && (this.prevLineContent === (<ModelState2>other).prevLineContent);
+		}
+
+		public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+			var line= '';
+			while (!stream.eos()) {
+				line+= stream.next();
+			}
+			this.prevLineContent= line;
+			return { type: '' };
+		}
+	}
+	modes.TokenizationRegistry.register(LANGUAGE_ID, new TokenizationSupport(null, LANGUAGE_ID, {
+		getInitialState: () => new ModelState2(LANGUAGE_ID, '')
+	}, false));
+
+	function invalidEqual(model, indexArray) {
+		var i, len, asHash = {};
+		for (i = 0, len = indexArray.length; i < len; i++) {
+			asHash[indexArray[i]] = true;
+		}
+		for (i = 0, len = model.getLineCount(); i < len; i++) {
+			assert.equal(model._lines[i].isInvalid, asHash.hasOwnProperty(i));
+		}
+	}
+
+	function stateEqual(state, content) {
+		assert.equal(state.prevLineContent, content);
+	}
+
+	function statesEqual(model:Model, states:string[]) {
+		var i, len = states.length - 1;
+		for (i = 0; i < len; i++) {
+			stateEqual(model._lines[i].getState(), states[i]);
+		}
+		stateEqual((<any>model)._lastState, states[len]);
+	}
+
 	var thisModel: Model;
 
 	setup(() => {
-		thisHighlighter = new ModelMode2();
 		var text =
 			'Line1' + '\r\n' +
 			'Line2' + '\n' +
 			'Line3' + '\n' +
 			'Line4' + '\r\n' +
 			'Line5';
-		thisModel = Model.createFromString(text, undefined, thisHighlighter);
+		thisModel = Model.createFromString(text, undefined, LANGUAGE_ID);
 	});
 
 	teardown(() => {
@@ -251,15 +304,48 @@ suite('Editor Model - Model Modes 2', () => {
 
 suite('Editor Model - Token Iterator', () => {
 
+	const LANGUAGE_ID = 'modelModeTestTokenIterator';
+
+	class NState extends AbstractState {
+
+		private n:number;
+		private allResults:modes.ITokenizationResult[];
+
+		constructor(modeId:string, n:number) {
+			super(modeId);
+			this.n = n;
+			this.allResults = null;
+		}
+
+		public makeClone():NState {
+			return this;
+		}
+
+		public equals(other: modes.IState):boolean {
+			return true;
+		}
+
+		public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+			var ndash = this.n, value = '';
+			while(!stream.eos() && ndash > 0) {
+				value += stream.next();
+				ndash--;
+			}
+			return { type: 'n-' + (this.n - ndash) + '-' + value };
+		}
+	}
+	modes.TokenizationRegistry.register(LANGUAGE_ID, new TokenizationSupport(null, LANGUAGE_ID, {
+		getInitialState: () => new NState(LANGUAGE_ID, 3)
+	}, false));
+
 	var thisModel: Model;
 
 	setup(() => {
-		var nmode = new NMode(3);
 		var text =
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n';
-		thisModel = Model.createFromString(text, undefined, nmode);
+		thisModel = Model.createFromString(text, undefined, LANGUAGE_ID);
 	});
 
 	teardown(() => {

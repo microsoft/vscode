@@ -6,59 +6,63 @@
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
-var gulp = require('gulp');
-var path = require('path');
-var tsb = require('gulp-tsb');
-var es = require('event-stream');
-var filter = require('gulp-filter');
-var rimraf = require('rimraf');
-var util = require('./lib/util');
-var watcher = require('./lib/watch');
-var createReporter = require('./lib/reporter');
-var glob = require('glob');
-var sourcemaps = require('gulp-sourcemaps');
-var nlsDev = require('vscode-nls-dev');
+const gulp = require('gulp');
+const path = require('path');
+const tsb = require('gulp-tsb');
+const es = require('event-stream');
+const filter = require('gulp-filter');
+const rimraf = require('rimraf');
+const util = require('./lib/util');
+const watcher = require('./lib/watch');
+const createReporter = require('./lib/reporter');
+const glob = require('glob');
+const sourcemaps = require('gulp-sourcemaps');
+const nlsDev = require('vscode-nls-dev');
+const root = path.dirname(__dirname);
+const commit = util.getVersion(root);
 
-var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
+const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
-var compilations = glob.sync('**/tsconfig.json', {
+const compilations = glob.sync('**/tsconfig.json', {
 	cwd: extensionsPath,
 	ignore: ['**/out/**', '**/node_modules/**']
 });
 
-var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
+const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${ commit }/${ out }`;
+const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 
-var tasks = compilations.map(function(tsconfigFile) {
-	var absolutePath = path.join(extensionsPath, tsconfigFile);
-	var relativeDirname = path.dirname(tsconfigFile);
+const tasks = compilations.map(function(tsconfigFile) {
+	const absolutePath = path.join(extensionsPath, tsconfigFile);
+	const relativeDirname = path.dirname(tsconfigFile);
 
-	var tsOptions = require(absolutePath).compilerOptions;
+	const tsOptions = require(absolutePath).compilerOptions;
 	tsOptions.verbose = false;
 	tsOptions.sourceMap = true;
 
-	var name = relativeDirname.replace(/\//g, '-');
+	const name = relativeDirname.replace(/\//g, '-');
 
 	// Tasks
-	var clean = 'clean-extension:' + name;
-	var compile = 'compile-extension:' + name;
-	var watch = 'watch-extension:' + name;
+	const clean = 'clean-extension:' + name;
+	const compile = 'compile-extension:' + name;
+	const watch = 'watch-extension:' + name;
 
 	// Build Tasks
-	var cleanBuild = 'clean-extension-build:' + name;
-	var compileBuild = 'compile-extension-build:' + name;
-	var watchBuild = 'watch-extension-build:' + name;
+	const cleanBuild = 'clean-extension-build:' + name;
+	const compileBuild = 'compile-extension-build:' + name;
+	const watchBuild = 'watch-extension-build:' + name;
 
-	var root = path.join('extensions', relativeDirname);
-	var srcBase = path.join(root, 'src');
-	var src = path.join(srcBase, '**');
-	var out = path.join(root, 'out');
-	var i18n = path.join(__dirname, '..', 'i18n');
+	const root = path.join('extensions', relativeDirname);
+	const srcBase = path.join(root, 'src');
+	const src = path.join(srcBase, '**');
+	const out = path.join(root, 'out');
+	const i18n = path.join(__dirname, '..', 'i18n');
+	const baseUrl = getBaseUrl(out);
 
 	function createPipeline(build) {
-		var reporter = createReporter();
+		const reporter = createReporter();
 
 		tsOptions.inlineSources = !!build;
-		var compilation = tsb.create(tsOptions, null, null, err => reporter(err.toString()));
+		const compilation = tsb.create(tsOptions, null, null, err => reporter(err.toString()));
 
 		return function () {
 			const input = es.through();
@@ -68,13 +72,12 @@ var tasks = compilations.map(function(tsconfigFile) {
 				.pipe(util.loadSourcemaps())
 				.pipe(compilation())
 				.pipe(build ? nlsDev.rewriteLocalizeCalls() : es.through())
+				.pipe(build ? util.stripSourceMappingURL() : es.through())
 				.pipe(sourcemaps.write('.', {
-					addComment: false,
+					sourceMappingURL: !build ? null : f => `${ baseUrl }/${ f.relative }.map`,
+					addComment: !!build,
 					includeContent: !!build,
-					sourceRoot: function(file) {
-						const levels = file.relative.split(path.sep).length;
-						return '../'.repeat(levels) + 'src';
-					}
+					sourceRoot: file => '../'.repeat(file.relative.split(path.sep).length) + 'src'
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18n, out) : es.through())
@@ -86,11 +89,9 @@ var tasks = compilations.map(function(tsconfigFile) {
 
 	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
 
-	gulp.task(clean, function (cb) {
-		rimraf(out, cb);
-	});
+	gulp.task(clean, cb => rimraf(out, cb));
 
-	gulp.task(compile, [clean], function () {
+	gulp.task(compile, [clean], () => {
 		const pipeline = createPipeline(false);
 		const input = gulp.src(src, srcOpts);
 
@@ -99,7 +100,7 @@ var tasks = compilations.map(function(tsconfigFile) {
 			.pipe(gulp.dest(out));
 	});
 
-	gulp.task(watch, [clean], function () {
+	gulp.task(watch, [clean], () => {
 		const pipeline = createPipeline(false);
 		const input = gulp.src(src, srcOpts);
 		const watchInput = watcher(src, srcOpts);
@@ -109,11 +110,9 @@ var tasks = compilations.map(function(tsconfigFile) {
 			.pipe(gulp.dest(out));
 	});
 
-	gulp.task(cleanBuild, function (cb) {
-		rimraf(out, cb);
-	});
+	gulp.task(cleanBuild, cb => rimraf(out, cb));
 
-	gulp.task(compileBuild, [clean], function () {
+	gulp.task(compileBuild, [clean], () => {
 		const pipeline = createPipeline(true);
 		const input = gulp.src(src, srcOpts);
 
@@ -122,13 +121,13 @@ var tasks = compilations.map(function(tsconfigFile) {
 			.pipe(gulp.dest(out));
 	});
 
-	gulp.task(watchBuild, [clean], function () {
+	gulp.task(watchBuild, [clean], () => {
 		const pipeline = createPipeline(true);
 		const input = gulp.src(src, srcOpts);
 		const watchInput = watcher(src, srcOpts);
 
 		return watchInput
-			.pipe(util.incremental(function () { return pipeline(true); }, input))
+			.pipe(util.incremental(() => pipeline(true), input))
 			.pipe(gulp.dest(out));
 	});
 
@@ -142,10 +141,10 @@ var tasks = compilations.map(function(tsconfigFile) {
 	};
 });
 
-gulp.task('clean-extensions', tasks.map(function (t) { return t.clean; }));
-gulp.task('compile-extensions', tasks.map(function (t) { return t.compile; }));
-gulp.task('watch-extensions', tasks.map(function (t) { return t.watch; }));
+gulp.task('clean-extensions', tasks.map(t => t.clean));
+gulp.task('compile-extensions', tasks.map(t => t.compile));
+gulp.task('watch-extensions', tasks.map(t => t.watch));
 
-gulp.task('clean-extensions-build', tasks.map(function (t) { return t.cleanBuild; }));
-gulp.task('compile-extensions-build', tasks.map(function (t) { return t.compileBuild; }));
-gulp.task('watch-extensions-build', tasks.map(function (t) { return t.watchBuild; }));
+gulp.task('clean-extensions-build', tasks.map(t => t.cleanBuild));
+gulp.task('compile-extensions-build', tasks.map(t => t.compileBuild));
+gulp.task('watch-extensions-build', tasks.map(t => t.watchBuild));

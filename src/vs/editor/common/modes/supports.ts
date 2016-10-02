@@ -42,13 +42,13 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 	let nextTokenAfterMode = -1;
 	if (modeIndex + 1 < modeTransitions.length) {
 		nextTokenAfterMode = context.findIndexOfOffset(modeTransitions[modeIndex + 1].startIndex);
-		nextCharacterAfterModeIndex = context.getTokenStartIndex(nextTokenAfterMode);
+		nextCharacterAfterModeIndex = context.getTokenStartOffset(nextTokenAfterMode);
 	} else {
 		nextTokenAfterMode = context.getTokenCount();
 		nextCharacterAfterModeIndex = context.getLineContent().length;
 	}
 
-	let firstTokenCharacterOffset = context.getTokenStartIndex(firstTokenInModeIndex);
+	let firstTokenCharacterOffset = context.getTokenStartOffset(firstTokenInModeIndex);
 	let newCtx = new FilteredLineContext(context, nestedModeId, firstTokenInModeIndex, nextTokenAfterMode, firstTokenCharacterOffset, nextCharacterAfterModeIndex);
 	return runner(nestedModeId, newCtx, offset - firstTokenCharacterOffset);
 }
@@ -88,8 +88,8 @@ export class FilteredLineContext implements modes.ILineContext {
 		return this._actual.findIndexOfOffset(offset + this._firstTokenCharacterOffset) - this._firstTokenInModeIndex;
 	}
 
-	public getTokenStartIndex(tokenIndex:number): number {
-		return this._actual.getTokenStartIndex(tokenIndex + this._firstTokenInModeIndex) - this._firstTokenCharacterOffset;
+	public getTokenStartOffset(tokenIndex:number): number {
+		return this._actual.getTokenStartOffset(tokenIndex + this._firstTokenInModeIndex) - this._firstTokenCharacterOffset;
 	}
 
 	public getTokenType(tokenIndex:number): string {

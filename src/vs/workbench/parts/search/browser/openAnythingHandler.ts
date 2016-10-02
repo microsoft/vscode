@@ -26,7 +26,6 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ISearchStats, ICachedSearchStats, IUncachedSearchStats} from 'vs/platform/search/common/search';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkbenchSearchConfiguration} from 'vs/workbench/parts/search/common/search';
 
@@ -102,7 +101,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService
@@ -129,7 +127,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Files
 		this.openFileHandler.setOptions({
-			useIcons: this.includeSymbols // only need icons for file results if we mix with symbol results
+			forceUseIcons: this.includeSymbols // only need icons for file results if we mix with symbol results
 		});
 
 		// Symbols
@@ -141,8 +139,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		const timerEvent = this.telemetryService.timedPublicLog('openAnything');
-		const startTime = timerEvent.startTime ? timerEvent.startTime.getTime() : Date.now(); // startTime is undefined when telemetry is disabled
+		const startTime = Date.now();
 
 		this.cancelPendingSearch();
 		this.isClosed = false; // Treat this call as the handler being in use
@@ -212,7 +209,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					fileSearchStats = (<FileQuickOpenModel>results[1]).stats;
 				}
 
-				timerEvent.data = this.createTimerEventData(startTime, {
+				const duration = new Date().getTime() - startTime;
+				const data = this.createTimerEventData(startTime, {
 					searchLength: searchValue.length,
 					unsortedResultTime,
 					sortedResultTime,
@@ -220,7 +218,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					symbols: { fromCache: false },
 					files: fileSearchStats
 				});
-				timerEvent.stop();
+
+				this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {

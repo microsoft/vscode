@@ -5,7 +5,8 @@
 'use strict';
 
 import * as nativeKeymap from 'native-keymap';
-import {KeyCode, IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyCodeUtils} from 'vs/base/common/keyCodes';
+import {IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider} from 'vs/base/common/keybinding';
 import {lookupKeyCode, setExtractKeyCode} from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
 
@@ -282,7 +283,7 @@ let _b24_getActualKeyCodeMap = (function() {
 				if (nativeMapping.value && _b24_interestingChars[nativeMapping.value]) {
 					// console.log(nativeMapping.value + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
-					if (keyCode && keyCode !== KeyCode.Unknown) {
+					if (keyCode) {
 						if (!result[nativeMapping.value] || result[nativeMapping.value] > keyCode) {
 							result[nativeMapping.value] = keyCode;
 						}
@@ -292,7 +293,7 @@ let _b24_getActualKeyCodeMap = (function() {
 				if (nativeMapping.withShift && _b24_interestingChars[nativeMapping.withShift]) {
 					// console.log(nativeMapping.withShift + " is made by " + nativeMapping.key_code);
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code];
-					if (keyCode && keyCode !== KeyCode.Unknown) {
+					if (keyCode) {
 						if (!result[nativeMapping.withShift] || result[nativeMapping.withShift] > keyCode) {
 							result[nativeMapping.withShift] = keyCode;
 						}
@@ -308,7 +309,7 @@ setExtractKeyCode((e:KeyboardEvent) => {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
-		return KeyCode.fromString(char);
+		return KeyCodeUtils.fromString(char);
 	}
 
 	if (Platform.isMacintosh && _b24_interestingVirtualKeyCodes[e.keyCode] && typeof (<any>e).keyIdentifier === 'string') {

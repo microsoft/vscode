@@ -27,7 +27,7 @@ export class MainThreadCompatWorkerService implements ICompatWorkerService {
 	constructor(
 		@IModelService modelService: IModelService
 	) {
-		this._workerFactory = new DefaultWorkerFactory(true);
+		this._workerFactory = new DefaultWorkerFactory('compatWorker', true);
 		this._worker = null;
 		this._workerCreatedPromise = new TPromise<void>((c, e, p) => {
 			this._triggerWorkersCreatedPromise = c;

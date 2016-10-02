@@ -15,8 +15,9 @@ import {wireCancellationToken} from 'vs/base/common/async';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position as EditorPosition} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
-import {ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape} from './extHost.protocol';
+import {ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier} from './extHost.protocol';
 import {LanguageConfigurationRegistry, LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {trackGarbageCollection} from 'gc-signals';
 
 export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
 
@@ -154,7 +155,14 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$registerNavigateTypeSupport(handle: number): TPromise<any> {
 		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
 			provideWorkspaceSymbols: (search: string): TPromise<IWorkspaceSymbol[]> => {
-				return this._proxy.$provideWorkspaceSymbols(handle, search);
+				return this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
+					if (result) {
+						for (const item of result) {
+							trackGarbageCollection(item, ObjectIdentifier.get(item));
+						}
+					}
+					return result;
+				});
 			},
 			resolveWorkspaceSymbol: (item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> => {
 				return this._proxy.$resolveWorkspaceSymbol(handle, item);
@@ -180,7 +188,14 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			triggerCharacters: triggerCharacters,
 			provideCompletionItems: (model:IReadOnlyModel, position:EditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult> => {
-				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position));
+				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position)).then(result => {
+					if (result && result.suggestions) {
+						for (const suggestion of result.suggestions) {
+							trackGarbageCollection(suggestion, ObjectIdentifier.get(suggestion));
+						}
+					}
+					return result;
+				});
 			},
 			resolveCompletionItem: (model:IReadOnlyModel, position:EditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
 				return wireCancellationToken(token, this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion));
@@ -223,10 +238,10 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> {
 
 		if (configuration.__characterPairSupport) {
-			(<LanguageConfiguration> configuration).autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
+			(<LanguageConfiguration>configuration).autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
 		}
 
-		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, configuration);
+		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, <LanguageConfiguration>configuration);
 		return undefined;
 	}
 

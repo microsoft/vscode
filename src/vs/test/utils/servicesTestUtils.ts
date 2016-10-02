@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
@@ -19,7 +20,7 @@ import {IConfigurationService, getConfigurationValue, IConfigurationValue} from 
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorOptions, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
@@ -29,8 +30,8 @@ import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {TextFileService} from 'vs/workbench/parts/files/common/textFileServices';
-import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
+import {TextFileService} from 'vs/workbench/parts/files/common/textFileService';
+import {IFileService, IResolveContentOptions, IFileOperationResult} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
@@ -41,11 +42,12 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
 	name: 'Test Workspace',
-	uid: new Date().getTime()
+	uid: Date.now()
 };
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
@@ -93,6 +95,7 @@ export class TestContextService implements IWorkspaceContextService {
 export class TestTextFileService extends TextFileService {
 	private promptPath: string;
 	private confirmResult: ConfirmResult;
+	private resolveTextContentError: IFileOperationResult;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -102,9 +105,10 @@ export class TestTextFileService extends TextFileService {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService);
+		super(lifecycleService, contextService, configurationService, telemetryService, editorGroupService, editorService, fileService, untitledEditorService, instantiationService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -115,7 +119,18 @@ export class TestTextFileService extends TextFileService {
 		this.confirmResult = result;
 	}
 
+	public setResolveTextContentErrorOnce(error: IFileOperationResult): void {
+		this.resolveTextContentError = error;
+	}
+
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+		if (this.resolveTextContentError) {
+			const error = this.resolveTextContentError;
+			this.resolveTextContentError = null;
+
+			return TPromise.wrapError(error);
+		}
+
 		return this.fileService.resolveContent(resource, options).then((content) => {
 			const raw = RawText.fromString(content.value, { defaultEOL: 1, detectIndentation: false, insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
 
@@ -141,7 +156,7 @@ export class TestTextFileService extends TextFileService {
 	}
 }
 
-export function textFileServiceInstantiationService(): TestInstantiationService {
+export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IEventService, new TestEventService());
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
@@ -157,6 +172,7 @@ export function textFileServiceInstantiationService(): TestInstantiationService 
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IMessageService, new TestMessageService());
+	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 
 	return instantiationService;
@@ -280,38 +296,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 	}
 }
 
-export class TestUntitledEditorService implements IUntitledEditorService {
-	public _serviceBrand: any;
-
-	public get(resource: URI) {
-		return null;
-	}
-
-	public getAll() {
-		return [];
-	}
-
-	public getDirty() {
-		return [];
-	}
-
-	public revertAll(resources?: URI[]): URI[] {
-		return [];
-	}
-
-	public isDirty() {
-		return false;
-	}
-
-	public createOrGet(resource?: URI) {
-		return null;
-	}
-
-	public hasAssociatedFilePath(resource: URI) {
-		return false;
-	}
-}
-
 export class TestEditorGroupService implements IEditorGroupService {
 	public _serviceBrand: any;
 
@@ -331,6 +315,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
+		services.set(IConfigurationService, new TestConfigurationService());
 		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
@@ -405,9 +390,9 @@ export class TestEditorGroupService implements IEditorGroupService {
 export class TestEditorService implements IWorkbenchEditorService {
 	public _serviceBrand: any;
 
-	public activeEditorInput;
-	public activeEditorOptions;
-	public activeEditorPosition;
+	public activeEditorInput: IEditorInput;
+	public activeEditorOptions: IEditorOptions;
+	public activeEditorPosition: Position;
 
 	private callback: (method: string) => void;
 
@@ -536,7 +521,18 @@ export const TestFileService = {
 			etag: 'index.txt',
 			mime: 'text/plain',
 			encoding: 'utf8',
-			mtime: new Date().getTime(),
+			mtime: Date.now(),
+			name: paths.basename(resource.fsPath)
+		});
+	},
+
+	resolveFile: function (resource) {
+		return TPromise.as({
+			resource: resource,
+			etag: Date.now(),
+			mime: 'text/plain',
+			encoding: 'utf8',
+			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
 	},
@@ -557,7 +553,7 @@ export const TestFileService = {
 			etag: 'index.txt',
 			mime: 'text/plain',
 			encoding: 'utf8',
-			mtime: new Date().getTime(),
+			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
 	},
@@ -569,7 +565,7 @@ export const TestFileService = {
 				etag: 'index.txt',
 				mime: 'text/plain',
 				encoding: 'utf8',
-				mtime: new Date().getTime(),
+				mtime: Date.now(),
 				name: paths.basename(res.fsPath)
 			};
 		});
@@ -611,6 +607,8 @@ export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: any;
 
+	public willShutdown: boolean;
+	
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
 	private _onShutdown = new Emitter<void>();
 

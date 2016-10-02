@@ -1,0 +1,25 @@
+{
+  "name": "razor",
+  "version": "0.1.0",
+  "publisher": "vscode",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "scripts": {
+    "update-grammar": "node ../../build/npm/update-grammar.js demyte/language-cshtml grammars/cshtml.cson ./syntaxes/cshtml.json"
+  },
+	"contributes": {
+		"languages": [{
+			"id": "razor",
+			"extensions": [ ".cshtml"],
+			"aliases": [ "Razor", "razor" ],
+			"mimetypes": ["text/x-cshtml"],
+			"configuration": "./language-configuration.json"
+		}],
+		"grammars": [{
+      "language": "razor",
+			"scopeName": "text.html.cshtml",
+			"path": "./syntaxes/cshtml.json"
+		}]
+  }
+}
