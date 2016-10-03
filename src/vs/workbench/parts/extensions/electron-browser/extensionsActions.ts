@@ -12,7 +12,7 @@ import paths = require('vs/base/common/paths');
 import Event from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey, filterOutdatedExtensions } from './extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, ConfigurationKey } from './extensions';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, LaterAction } from 'vs/platform/message/common/message';
@@ -234,18 +234,7 @@ export class UpdateAction extends Action {
 		const isInstalled = this.extension.state === ExtensionState.Installed
 			|| this.extension.state === ExtensionState.NeedsRestart;
 
-		if (canInstall && isInstalled) {
-			this.extension.isOutdated().then(outDated => {
-				this.enabled = outDated;
-				this.updateClass();
-			});
-		} else {
-			this.enabled = false;
-			this.updateClass();
-		}
-	}
-
-	private updateClass(): void {
+		this.enabled = canInstall && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
 	}
 
@@ -323,22 +312,21 @@ export class UpdateAllAction extends Action {
 		this.update();
 	}
 
-	private getOutdatedExtensions(): TPromise<IExtension[]> {
-		let extensions = this.extensionsWorkbenchService.local.filter(
+	private get outdated(): IExtension[] {
+		return this.extensionsWorkbenchService.local.filter(
 			e => this.extensionsWorkbenchService.canInstall(e)
-			&& e.type === LocalExtensionType.User
-			&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
+				&& e.type === LocalExtensionType.User
+				&& (e.state === ExtensionState.Installed || e.state === ExtensionState.NeedsRestart)
+				&& e.outdated
 		);
-
-		return filterOutdatedExtensions(extensions);
 	}
 
 	private update(): void {
-		this.getOutdatedExtensions().done(outDated => this.enabled = outDated.length > 0);
+		this.enabled = this.outdated.length > 0;
 	}
 
 	run(promptToInstallDependencies: boolean = true,): TPromise<any> {
-		return this.getOutdatedExtensions().then(outdated => TPromise.join(outdated.map(e => this.extensionsWorkbenchService.install(e, promptToInstallDependencies))));
+		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e, promptToInstallDependencies)));
 	}
 
 	dispose(): void {

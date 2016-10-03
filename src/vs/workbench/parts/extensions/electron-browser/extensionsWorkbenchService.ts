@@ -11,7 +11,6 @@ import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { isUUID } from 'vs/base/common/uuid';
-import { memoize } from 'vs/base/common/decorators';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -157,27 +156,8 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.ratingCount : null;
 	}
 
-	// TODO: Clean it up. Make it sync
-	isOutdated(): TPromise<boolean> {
-		if (this.type === LocalExtensionType.User) {
-			if (this.gallery && this.gallery.properties.engine) {
-				return this._loadCompatibleGalleryVersion().then(() => this.checkVersion(), () => this.checkVersion());
-			}
-			return TPromise.wrap(this.checkVersion());
-		}
-		return TPromise.wrap(false);
-	}
-
-	@memoize
-	private _loadCompatibleGalleryVersion(): TPromise<void> {
-		return this.galleryService.loadCompatibleVersion(this.gallery).then((compatible) => {
-			this.gallery = compatible;
-			return null;
-		}, error => this.checkVersion());
-	}
-
-	private checkVersion(): boolean {
-		return semver.gt(this.latestVersion, this.version);
+	get outdated(): boolean {
+		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
