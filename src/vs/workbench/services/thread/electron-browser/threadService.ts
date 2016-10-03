@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {stringify} from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
@@ -24,6 +23,8 @@ import {ChildProcess, fork} from 'child_process';
 import {ipcRenderer as ipc} from 'electron';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -49,11 +50,12 @@ export class MainThreadService extends AbstractThreadService implements IThreadS
 		@IMessageService messageService: IMessageService,
 		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(true);
 
-		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService, environmentService);
+		this.extensionHostProcessManager = instantiationService.createInstance(ExtensionHostProcessManager);
 
 		let logCommunication = logExtensionHostCommunication || environmentService.logExtensionHostCommunication;
 
@@ -104,11 +106,12 @@ class ExtensionHostProcessManager {
 	private isExtensionDevelopmentDebugging: boolean;
 
 	constructor(
-		private contextService: IWorkspaceContextService,
-		private messageService: IMessageService,
-		private windowService: IWindowService,
-		lifecycleService: ILifecycleService,
-		private environmentService: IEnvironmentService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IMessageService private messageService: IMessageService,
+		@IWindowService private windowService: IWindowService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
@@ -266,7 +269,7 @@ class ExtensionHostProcessManager {
 						if (!this.isExtensionDevelopmentHost) {
 							this.messageService.show(Severity.Error, {
 								message: nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover."),
-								actions: [new Action('reloadWindow', nls.localize('reloadWindow', "Reload Window"), null, true, () => { this.windowService.getWindow().reload(); return TPromise.as(null); })]
+								actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
 							});
 							console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 						}

@@ -20,6 +20,7 @@ import errors = require('vs/base/common/errors');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IExtensionManagementService, LocalExtensionType, ILocalExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -396,11 +397,17 @@ export class ReloadWindowAction extends Action {
 	public static ID = 'workbench.action.reloadWindow';
 	public static LABEL = nls.localize('reloadWindow', "Reload Window");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IPartService private partService: IPartService
+	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
+		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
 		this.windowService.getWindow().reload();
 
 		return TPromise.as(true);
