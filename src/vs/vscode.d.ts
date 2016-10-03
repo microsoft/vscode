@@ -1350,12 +1350,14 @@ declare module 'vscode' {
 
 	export interface TreeContentProvider {
 		provideTreeContent(): Thenable<ITreeNode>;
+		resolveChildren(node: ITreeNode): Thenable<ITreeNode[]>;
 	}
 
 	export interface ITreeNode {
 		label: string;
 		isExpanded: boolean;
-		children: ITreeNode[]
+		children: ITreeNode[];
+		isChildrenResolved: boolean;
 	}
 
 	/**
