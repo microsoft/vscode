@@ -17,6 +17,7 @@ import {QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup} from 'vs/base/parts
 import scorer = require('vs/base/common/scorer');
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {getIconClasses} from 'vs/workbench/browser/labels';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {Position} from 'vs/platform/editor/common/editor';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
@@ -33,6 +34,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		private _group: IEditorGroup,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
 		super();
@@ -42,7 +44,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: getIconClasses(this.modeService, this.getResource()),
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
 			italic: this._group.isPreview(this.editor)
 		};
 	}

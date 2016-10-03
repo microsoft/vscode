@@ -27,6 +27,7 @@ import paths = require('vs/base/common/paths');
 import {Registry} from 'vs/platform/platform';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {getIconClasses} from 'vs/workbench/browser/labels';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -948,7 +949,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	constructor(
 		item: IPickOpenEntry,
 		private onPreview: () => void,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService
 	) {
 		super(item.label);
 
@@ -965,7 +967,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: this.resource ? getIconClasses(this.modeService, this.resource, this.isFolder) : []
+			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.isFolder) : []
 		};
 	}
 
@@ -1020,6 +1022,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		input: EditorInput,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(editorService);
@@ -1038,7 +1041,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: getIconClasses(this.modeService, this.resource)
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
 	}
 

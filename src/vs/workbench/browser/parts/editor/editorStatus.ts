@@ -774,7 +774,7 @@ export class ChangeModeAction extends Action {
 					}
 
 					// Change mode
-					models.forEach((textModel) => {
+					models.forEach(textModel => {
 						this.modelService.setMode(textModel, mode);
 					});
 				}
