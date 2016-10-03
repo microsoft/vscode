@@ -15,7 +15,8 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } f
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { ShowReleaseNotesAction, ShowCurrentReleaseNotesAction } from 'vs/workbench/electron-browser/update';
+import { loadReleaseNotes, OpenLatestReleaseNotesInBrowserAction, ShowCurrentReleaseNotesAction } from 'vs/workbench/electron-browser/update';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Action } from 'vs/base/common/actions';
 import { shell } from 'electron';
@@ -42,22 +43,26 @@ export class UpdateContribution implements IWorkbenchContribution {
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService messageService: IMessageService
+		@IMessageService messageService: IMessageService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		const lastVersion = storageService.get(UpdateContribution.KEY, StorageScope.GLOBAL, '');
 
 		// was there an update?
 		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			setTimeout(() => {
-				const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, true, pkg.version);
-
-				messageService.show(Severity.Info, {
-					message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
-					actions: [
-						releaseNotesAction,
-						CloseAction
-					]
-				});
+				this.instantiationService.invokeFunction(loadReleaseNotes, pkg.version)
+					.then(
+						text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, pkg.version, text)),
+						() => {
+							messageService.show(Severity.Info, {
+								message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
+								actions: [
+									this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction),
+									CloseAction
+								]
+							});
+					});
 			}, 0);
 		}
 
