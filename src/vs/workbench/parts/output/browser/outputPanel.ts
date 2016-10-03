@@ -107,11 +107,6 @@ export class OutputPanel extends StringEditor {
 		this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
 	}
 
-	public focus(): void {
-		super.focus();
-		this.revealLastLine();
-	}
-
 	public dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();

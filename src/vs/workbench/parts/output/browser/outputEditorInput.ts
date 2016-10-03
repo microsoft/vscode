@@ -69,6 +69,10 @@ export class OutputEditorInput extends StringEditorInput {
 	}
 
 	private appendOutput(): void {
+		if (this.bufferedOutput.length === 0) {
+			return;
+		}
+
 		if (this.value.length + this.bufferedOutput.length > MAX_OUTPUT_LENGTH) {
 			this.setValue(this.outputChannel.output);
 		} else {
