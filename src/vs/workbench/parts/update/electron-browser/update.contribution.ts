@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { ShowReleaseNotesAction, ShowCurrentReleaseNotesAction } from 'vs/workbench/electron-browser/update';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,8 +27,6 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/co
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-
-const CloseAction = new Action('close', nls.localize('close', "Close"), '', true, () => null);
 
 const LinkAction = (id: string, message: string, licenseUrl: string) => new Action(
 	id, message, null, true,
@@ -89,11 +87,11 @@ export class UpdateContribution implements IWorkbenchContribution {
 							storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
 							return TPromise.as(null);
 						}),
-						new Action('update.neverAgain', nls.localize('neverShowAgain', "Never Show Again"), '', true, () => {
+						new Action('update.neverAgain', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
 							storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
 							return TPromise.as(null);
 						}),
-						CloseAction,
+						CloseAction
 					]
 				});
 			}, 0);
