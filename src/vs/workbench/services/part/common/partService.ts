@@ -105,4 +105,9 @@ export interface IPartService {
 	 * Returns the identifier of the element that contains the workbench.
 	 */
 	getWorkbenchElementId(): string;
+
+	/**
+	 * Enables to restore the contents of the sidebar after a restart.
+	 */
+	setRestoreSidebar(): void;
 }
