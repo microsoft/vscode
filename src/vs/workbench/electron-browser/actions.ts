@@ -91,11 +91,13 @@ export class SwitchWindow extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		ipc.send('vscode:switchWindow', this.windowService.getWindowId());
+		const id = this.windowService.getWindowId();
+		ipc.send('vscode:switchWindow', id);
 		ipc.once('vscode:switchWindow', (event, workspaces) => {
 			const picks: IPickOpenEntry[] = workspaces.map(w => {
 				return {
 					label: w.title,
+					description: (id === w.id) ? nls.localize('current', "Current Window") : void 0,
 					run: () => {
 						ipc.send('vscode:showWindow', w.id);
 					}
