@@ -159,7 +159,6 @@ export class ExplorerView extends CollapsibleViewletView {
 	private onEditorsChanged(): void {
 		const activeInput = this.editorService.getActiveEditorInput();
 		let clearSelection = true;
-		let clearFocus = false;
 
 		// Handle File Input
 		if (activeInput instanceof FileEditorInput) {
@@ -182,16 +181,11 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
 		if (activeInput instanceof UntitledEditorInput || !activeInput) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
-			clearFocus = true;
 		}
 
 		// Otherwise clear
 		if (clearSelection) {
 			this.explorerViewer.clearSelection();
-		}
-
-		if (clearFocus) {
-			this.explorerViewer.clearFocus();
 		}
 	}
 
