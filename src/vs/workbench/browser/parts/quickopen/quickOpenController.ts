@@ -487,7 +487,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
 
 		// Trigger onOpen
-		this.resolveHandler(handlerDescriptor);
+		this.resolveHandler(handlerDescriptor)
+			.done(null, errors.onUnexpectedError);
 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
@@ -633,14 +634,16 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Reset Extra Class
 		this.quickOpenWidget.setExtraClass(null);
 
-		// Trigger onOpen
-		this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor);
-
 		// Remove leading and trailing whitespace
 		const trimmedValue = strings.trim(value);
 
 		// If no value provided, default to editor history
 		if (!trimmedValue) {
+
+			// Trigger onOpen
+			this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor)
+				.done(null, errors.onUnexpectedError);
+
 			this.quickOpenWidget.setInput(this.getEditorHistoryWithGroupLabel(), { autoFocusFirstEntry: true });
 			return;
 		}
