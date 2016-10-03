@@ -233,7 +233,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		license: getAssetSource(version.files, AssetType.License)
 	};
 
-	return setCompatibilityProperties({
+	return {
 		id: galleryExtension.extensionId,
 		name: galleryExtension.extensionName,
 		version: version.version,
@@ -250,18 +250,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		properties: {
 			dependencies: getDependencies(version),
 			engine: getEngine(version)
-		},
-		compatibilityChecked: false,
-		isCompatible: false
-	});
-}
-
-function setCompatibilityProperties(galleryExtension: IGalleryExtension): IGalleryExtension {
-	if (!galleryExtension.compatibilityChecked) {
-		galleryExtension.compatibilityChecked = !!galleryExtension.properties.engine;
-		galleryExtension.isCompatible = galleryExtension.properties.engine && isVersionValid(pkg.version, galleryExtension.properties.engine);
-	}
-	return galleryExtension;
+		}
+	};
 }
 
 export class ExtensionGalleryService implements IExtensionGalleryService {
@@ -405,8 +395,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
-		extension = setCompatibilityProperties(extension);
-		if (extension.compatibilityChecked && extension.isCompatible) {
+		if (extension.properties.engine && this.isEngineValid(extension.properties.engine)) {
 			return TPromise.wrap(extension);
 		}
 		const query = new Query()
@@ -427,8 +416,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					extension.properties.dependencies = getDependencies(rawVersion);
 					extension.properties.engine = getEngine(rawVersion);
 					extension.assets.download = `${getAssetSource(rawVersion.files, AssetType.VSIX)}?install=true`;
-					extension.compatibilityChecked = true;
-					extension.isCompatible = true;
 					extension.version = rawVersion.version;
 					return extension;
 				});
@@ -525,7 +512,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			if (!engine) {
 				return null;
 			}
-			if (isVersionValid(pkg.version, engine, [])) {
+			if (this.isEngineValid(engine)) {
 				return TPromise.wrap(version);
 			}
 		}
@@ -546,8 +533,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.then(manifest => {
 				const engine = manifest.engines.vscode;
 
-				// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
-				if (engine !== '*' && !isVersionValid(pkg.version, engine)) {
+				if (!this.isEngineValid(engine)) {
 					return this.getLastValidExtensionVersionReccursively(extension, versions.slice(1));
 				}
 
@@ -555,6 +541,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				version.properties.push({ key: PropertyType.Engine, value: manifest.engines.vscode });
 				return version;
 			});
+	}
+
+	private isEngineValid(engine: string): boolean {
+		// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
+		return engine === '*' || isVersionValid(pkg.version, engine);
 	}
 
 	private static hasExtensionByName(extensions: IGalleryExtension[], name: string): boolean {
