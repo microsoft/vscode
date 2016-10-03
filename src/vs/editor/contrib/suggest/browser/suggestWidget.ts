@@ -83,8 +83,12 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 		const configureFont = () => {
 			const fontInfo = this.editor.getConfiguration().fontInfo;
+
 			data.root.style.fontSize = `${ fontInfo.fontSize }px`;
 			main.style.fontFamily = fontInfo.fontFamily;
+			main.style.lineHeight = `${ fontInfo.lineHeight }px`;
+			data.icon.style.height = `${ fontInfo.lineHeight }px`;
+			data.icon.style.width = `${ fontInfo.lineHeight }px`;
 		};
 
 		configureFont();
