@@ -34,7 +34,7 @@ import {BaseBinaryResourceEditor} from 'vs/workbench/browser/parts/editor/binary
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -716,8 +716,21 @@ export class ChangeModeAction extends Action {
 				description = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 			}
 
-			return <IPickOpenEntry>{
+			// construct a fake resource to be able to show nice icons if any
+			let fakeResource: uri;
+			const extensions = this.modeService.getExtensions(lang);
+			if (extensions && extensions.length) {
+				fakeResource = uri.file(extensions[0]);
+			} else {
+				const filenames = this.modeService.getFilenames(lang);
+				if (filenames && filenames.length) {
+					fakeResource = uri.file(filenames[0]);
+				}
+			}
+
+			return <IFilePickOpenEntry>{
 				label: lang,
+				resource: fakeResource,
 				description
 			};
 		});
