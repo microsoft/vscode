@@ -27,6 +27,11 @@
 	height: calc(100% - 38px);
 }
 
+.extensions-viewlet > .message {
+	padding: 5px 9px 5px 16px;
+	cursor: default;
+}
+
 .extensions-viewlet > .extensions .extension {
 	box-sizing: border-box;
 	width: 100%;
