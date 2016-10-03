@@ -75,9 +75,11 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 
 export class TreeController extends DefaultController {
 
-	/* protected */ public onLeftClick(tree: ITree, node: TreeViewNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: ITree, node: TreeViewNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		super.onLeftClick(tree, node, event, origin);
+
 		console.log(node.label);
+	
 		return true;
 	}
 }

@@ -25,21 +25,7 @@ import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController 
 
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 
-// import { documentSymbols } from '../../common/goOutline';
 import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeViewModel';
-
-function getTree(): TreeViewNode {
-	const root   = new TreeViewNode(1, "foo");
-  const node1  = new TreeViewNode(2, "bar");
-  const node2  = new TreeViewNode(3, "baz");
-  const node11 = new TreeViewNode(4, "qux");
-
-  root.addChild(node1);
-  root.addChild(node2);
-  node1.addChild(node11);
-
-	return root;
-}
 
 export class TreeView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
