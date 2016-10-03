@@ -20,6 +20,7 @@
 
 .monaco-workbench.mac .monaco-editor .breakpoint-widget .input {
 	font-size: 11px;
+	padding: 8px;
 }
 
 .monaco-workbench.windows .monaco-editor .breakpoint-widget .input,
