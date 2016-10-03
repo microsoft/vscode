@@ -28,6 +28,11 @@ export class MainThreadExplorers extends MainThreadExplorersShape {
 				return this._proxy.$provideTreeContent(providerId).then(jsonTree => {
 					return <ITreeNode>JSON.parse(jsonTree);
 				})
+			},
+			resolveChildren: (node: ITreeNode): TPromise<ITreeNode[]> => {
+				return this._proxy.$resolveChildren(providerId, node).then(jsonChildren => {
+					return <ITreeNode[]>JSON.parse(jsonChildren);
+				})
 			}
 		});
 	}

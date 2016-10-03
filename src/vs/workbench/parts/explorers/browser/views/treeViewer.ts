@@ -14,23 +14,41 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegis
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
+
+const providerId = 'pineTree';
 
 export class TreeDataSource implements IDataSource {
-
-	constructor() {
+	constructor(
+		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
+	) {
 
 	}
 
-	public getId(tree: ITree, node: TreeViewNode): string {
+	public getId(tree: ITree, node: vscode.ITreeNode): string {
 		return node.label;
 	}
 
-	public hasChildren(tree: ITree, node: TreeViewNode): boolean {
-		return node.children && node.children.length > 0;
+	public hasChildren(tree: ITree, node: vscode.ITreeNode): boolean {
+		if (node.isChildrenResolved) {
+			return node.children && node.children.length > 0;
+		} else {
+			return true;
+		}
 	}
 
-	public getChildren(tree: ITree, node: TreeViewNode): TPromise<TreeViewNode[]> {
-		return TPromise.as(node.children);
+	public getChildren(tree: ITree, node: vscode.ITreeNode): TPromise<vscode.ITreeNode[]> {
+		if (node.isChildrenResolved) {
+			return TPromise.as(node.children);
+		} else {
+			return this.treeExplorerViewletService.resolveChildren(providerId, node).then(children => {
+				children.forEach(child => {
+					node.children.push(child);
+				});
+				node.isChildrenResolved = true;
+				return node.children;
+			});
+		}
 	}
 
 	public getParent(tree: ITree, node: TreeViewNode): TPromise<TreeViewNode> {
@@ -79,7 +97,7 @@ export class TreeController extends DefaultController {
 		super.onLeftClick(tree, node, event, origin);
 
 		console.log(node.label);
-	
+
 		return true;
 	}
 }

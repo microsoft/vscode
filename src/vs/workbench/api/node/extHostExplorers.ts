@@ -46,4 +46,15 @@ export class ExtHostExplorers extends ExtHostExplorersShape {
 			return JSON.stringify(treeContent);
 		}));
 	}
+
+	$resolveChildren(treeContentProviderId: string, node: vscode.ITreeNode): TPromise<string> {
+		const provider = this._treeContentProviders[treeContentProviderId];
+		if (!provider) {
+			throw new Error(`no TreeContentProvider registered with id '${treeContentProviderId}'`);
+		}
+
+		return TPromise.wrap(provider.resolveChildren(node).then(children => {
+			return JSON.stringify(children);
+		}));
+	}
 }
