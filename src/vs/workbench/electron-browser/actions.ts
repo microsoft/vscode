@@ -96,7 +96,8 @@ export class SwitchWindow extends Action {
 		ipc.once('vscode:switchWindow', (event, workspaces) => {
 			const picks: IPickOpenEntry[] = workspaces.map(w => {
 				return {
-					label: (id === w.id) && `${w.title} ✓` || w.title,
+					label: w.title,
+					description: (id === w.id) ? nls.localize('current', "Current Window") : void 0,
 					run: () => {
 						ipc.send('vscode:showWindow', w.id);
 					}
