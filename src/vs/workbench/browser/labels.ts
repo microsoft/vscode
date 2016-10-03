@@ -13,9 +13,11 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {getResource} from 'vs/workbench/common/editor';
 import {getPathLabel} from 'vs/base/common/labels';
+import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 export interface IEditorLabel {
 	name: string;
@@ -38,7 +40,8 @@ export class ResourceLabel extends IconLabel {
 		@IExtensionService private extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService
 	) {
 		super(container, options);
 
@@ -80,7 +83,7 @@ export class ResourceLabel extends IconLabel {
 			title = getPathLabel(resource.fsPath);
 		}
 
-		const extraClasses = getIconClasses(this.modeService, resource, this.options && this.options.isFolder);
+		const extraClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.isFolder);
 		if (this.options && this.options.extraClasses) {
 			extraClasses.push(...this.options.extraClasses);
 		}
@@ -127,12 +130,18 @@ export class FileLabel extends ResourceLabel {
 	}
 }
 
-export function getIconClasses(modeService: IModeService, arg1?: uri | string, isFolder?: boolean): string[] {
+export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, isFolder?: boolean): string[] {
 	let path: string;
-	if (typeof arg1 === 'string') {
-		path = arg1;
-	} else if (arg1) {
-		path = arg1.fsPath;
+	let configuredLangId: string;
+	if (resource) {
+		path = resource.fsPath;
+		const model = modelService.getModel(resource);
+		if (model) {
+			const modeId = model.getModeId();
+			if (modeId && modeId !== PLAINTEXT_MODE_ID) {
+				configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
+			}
+		}
 	}
 
 	// we always set these base classes even if we do not have a path
@@ -151,11 +160,14 @@ export function getIconClasses(modeService: IModeService, arg1?: uri | string, i
 
 		// Files
 		else {
+
+			// Name
 			const name = dotSegments[0]; // file.txt => "file", .dockerfile => "", file.some.txt => "file"
 			if (name) {
 				classes.push(`${cssEscape(name.toLowerCase())}-name-file-icon`);
 			}
 
+			// Extension(s)
 			const extensions = dotSegments.splice(1);
 			if (extensions.length > 0) {
 				for (let i = 0; i < extensions.length; i++) {
@@ -163,9 +175,10 @@ export function getIconClasses(modeService: IModeService, arg1?: uri | string, i
 				}
 			}
 
-			const langId = modeService.getModeIdByFilenameOrFirstLine(path);
-			if (langId) {
-				classes.push(`${cssEscape(langId)}-lang-file-icon`);
+			// Configured Language
+			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(path);
+			if (configuredLangId) {
+				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
 			}
 		}
 	}

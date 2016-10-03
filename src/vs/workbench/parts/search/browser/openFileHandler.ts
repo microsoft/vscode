@@ -16,6 +16,7 @@ import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
 import {IRange} from 'vs/editor/common/editorCommon';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {getIconClasses} from 'vs/workbench/browser/labels';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -47,6 +48,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private icon: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
@@ -59,7 +61,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: getIconClasses(this.modeService, this.resource)
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
 	}
 

@@ -183,6 +183,10 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getExtensions(alias);
 	}
 
+	public getFilenames(alias: string): string[] {
+		return this._registry.getFilenames(alias);
+	}
+
 	public getMimeForMode(modeId: string): string {
 		return this._registry.getMimeForMode(modeId);
 	}

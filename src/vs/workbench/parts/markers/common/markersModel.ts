@@ -344,8 +344,11 @@ export class MarkersModel {
 		return a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
 	}
 
-	private static compareMarkers(a: Marker, b:Marker): number {
-		return Range.compareRangesUsingStarts(a.marker, b.marker);
+	private static compareMarkers(a: Marker, b: Marker): number {
+		if (a.marker.severity === b.marker.severity) {
+			return Range.compareRangesUsingStarts(a.marker, b.marker);
+		}
+		return a.marker.severity > b.marker.severity ? -1 : 1;
 	}
 }
 

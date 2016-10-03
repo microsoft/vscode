@@ -670,11 +670,16 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public searchInFolder(resource: URI): void {
+		if (this.contextService.getWorkspace().resource.toString() === resource.toString()) {
+			this.inputPatternIncludes.setValue('');
+			this.searchWidget.focus();
+			return;
+		}
+
 		if (!this.showsFileTypes()) {
 			this.toggleFileTypes(true, true);
 		}
-
-		let workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
+		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 		if (workspaceRelativePath) {
 			this.inputPatternIncludes.setIsGlobPattern(false);
 			this.inputPatternIncludes.setValue(workspaceRelativePath);
