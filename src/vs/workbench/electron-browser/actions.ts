@@ -20,6 +20,7 @@ import errors = require('vs/base/common/errors');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IExtensionManagementService, LocalExtensionType, ILocalExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -91,11 +92,13 @@ export class SwitchWindow extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		ipc.send('vscode:switchWindow', this.windowService.getWindowId());
+		const id = this.windowService.getWindowId();
+		ipc.send('vscode:switchWindow', id);
 		ipc.once('vscode:switchWindow', (event, workspaces) => {
 			const picks: IPickOpenEntry[] = workspaces.map(w => {
 				return {
 					label: w.title,
+					description: (id === w.id) ? nls.localize('current', "Current Window") : void 0,
 					run: () => {
 						ipc.send('vscode:showWindow', w.id);
 					}
@@ -394,11 +397,17 @@ export class ReloadWindowAction extends Action {
 	public static ID = 'workbench.action.reloadWindow';
 	public static LABEL = nls.localize('reloadWindow', "Reload Window");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IPartService private partService: IPartService
+	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
+		this.partService.setRestoreSidebar(); // we want the same sidebar after a reload restored
 		this.windowService.getWindow().reload();
 
 		return TPromise.as(true);
@@ -521,12 +530,13 @@ export class ReportIssueAction extends Action {
 	}
 
 	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions:ILocalExtension[]): string {
+		// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
 			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
-- Extensions: ${extensions.map(e => '`' + e.id + '`').join(', ')}
+- Extensions: ${extensions.map(e => e.id).join(', ')}
 
 Steps to Reproduce:
 

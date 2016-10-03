@@ -106,6 +106,7 @@ export class Workbench implements IPartService {
 	private static sidebarPositionSettingKey = 'workbench.sidebar.position';
 	private static statusbarHiddenSettingKey = 'workbench.statusbar.hidden';
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
+	private static sidebarRestoreSettingKey = 'workbench.sidebar.restore';
 	private static panelHiddenSettingKey = 'workbench.panel.hidden';
 
 	public _serviceBrand: any;
@@ -217,7 +218,7 @@ export class Workbench implements IPartService {
 			// Load Viewlet
 			const viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletId = viewletRegistry.getDefaultViewletId();
-			if (!this.environmentService.isBuilt) {
+			if (this.shouldRestoreSidebar()) {
 				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
 			}
 
@@ -832,5 +833,22 @@ export class Workbench implements IPartService {
 
 	public getWorkbenchElementId(): string {
 		return Identifiers.WORKBENCH_CONTAINER;
+	}
+
+	public setRestoreSidebar(): void {
+		this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
+	}
+
+	private shouldRestoreSidebar(): boolean {
+		if (!this.environmentService.isBuilt) {
+			return true; // always restore sidebar when we are in development mode
+		}
+
+		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreSettingKey, StorageScope.WORKSPACE);
+		if (restore) {
+			this.storageService.remove(Workbench.sidebarRestoreSettingKey, StorageScope.WORKSPACE); // only support once
+		}
+
+		return restore;
 	}
 }

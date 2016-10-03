@@ -253,6 +253,10 @@ export class TestPartService implements IPartService {
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
+
+	public setRestoreSidebar(): void {
+		
+	}
 }
 
 export class TestEventService extends EventEmitter implements IEventService {
@@ -608,7 +612,7 @@ export class TestLifecycleService implements ILifecycleService {
 	public _serviceBrand: any;
 
 	public willShutdown: boolean;
-	
+
 	private _onWillShutdown = new Emitter<ShutdownEvent>();
 	private _onShutdown = new Emitter<void>();
 

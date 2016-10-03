@@ -136,9 +136,6 @@ export interface IGalleryExtension {
 	ratingCount: number;
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
-	/** We need this check until all extension in the market place contain engine property */
-	compatibilityChecked: boolean;
-	isCompatible: boolean;
 }
 
 export interface IGalleryMetadata {

@@ -27,6 +27,7 @@ import paths = require('vs/base/common/paths');
 import {Registry} from 'vs/platform/platform';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {getIconClasses} from 'vs/workbench/browser/labels';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorInput, getUntitledOrFileResource, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -486,7 +487,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
 
 		// Trigger onOpen
-		this.resolveHandler(handlerDescriptor);
+		this.resolveHandler(handlerDescriptor)
+			.done(null, errors.onUnexpectedError);
 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
@@ -632,14 +634,16 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Reset Extra Class
 		this.quickOpenWidget.setExtraClass(null);
 
-		// Trigger onOpen
-		this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor);
-
 		// Remove leading and trailing whitespace
 		const trimmedValue = strings.trim(value);
 
 		// If no value provided, default to editor history
 		if (!trimmedValue) {
+
+			// Trigger onOpen
+			this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor)
+				.done(null, errors.onUnexpectedError);
+
 			this.quickOpenWidget.setInput(this.getEditorHistoryWithGroupLabel(), { autoFocusFirstEntry: true });
 			return;
 		}
@@ -948,7 +952,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	constructor(
 		item: IPickOpenEntry,
 		private onPreview: () => void,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService
 	) {
 		super(item.label);
 
@@ -965,7 +970,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: this.resource ? getIconClasses(this.modeService, this.resource, this.isFolder) : []
+			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.isFolder) : []
 		};
 	}
 
@@ -1020,6 +1025,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		input: EditorInput,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(editorService);
@@ -1038,7 +1044,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: getIconClasses(this.modeService, this.resource)
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
 	}
 

@@ -494,7 +494,7 @@ export class RenameFunctionBreakpointAction extends AbstractDebugAction {
 
 export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
-	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
+	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint...");
 
 	constructor(id: string, label: string,
 		private editor: editorbrowser.ICodeEditor,
@@ -514,7 +514,7 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 
 export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
-	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint");
+	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint...");
 
 	constructor(id: string, label: string,
 		private editor: editorbrowser.ICodeEditor,
@@ -568,8 +568,8 @@ class EditorConditionalBreakpointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.conditionalBreakpoint',
-			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint"),
-			alias: 'Debug: Conditional Breakpoint',
+			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
+			alias: 'Debug: Add Conditional Breakpoint...',
 			precondition: null
 		});
 	}

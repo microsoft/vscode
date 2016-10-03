@@ -26,6 +26,7 @@ export class LanguagesRegistry {
 	private name2LanguageId: { [name: string]: string; };
 	private id2Name: { [id: string]: string; };
 	private id2Extensions: { [id: string]: string[]; };
+	private id2Filenames: { [id: string]: string[]; };
 	private compatModes: { [id: string]: ICompatModeDescriptor; };
 	private lowerName2Id: { [name: string]: string; };
 	private id2ConfigurationFiles: { [id:string]: string[]; };
@@ -39,6 +40,7 @@ export class LanguagesRegistry {
 		this.name2LanguageId = {};
 		this.id2Name = {};
 		this.id2Extensions = {};
+		this.id2Filenames = {};
 		this.compatModes = {};
 		this.lowerName2Id = {};
 		this.id2ConfigurationFiles = {};
@@ -127,8 +129,10 @@ export class LanguagesRegistry {
 		}
 
 		if (Array.isArray(lang.filenames)) {
+			this.id2Filenames[lang.id] = this.id2Filenames[lang.id] || [];
 			for (let filename of lang.filenames) {
 				mime.registerTextMime({ mime: primaryMime, filename: filename });
+				this.id2Filenames[lang.id].push(filename);
 			}
 		}
 
@@ -269,5 +273,13 @@ export class LanguagesRegistry {
 			return [];
 		}
 		return this.id2Extensions[languageId];
+	}
+
+	public getFilenames(languageName: string): string[] {
+		let languageId = this.name2LanguageId[languageName];
+		if (!languageId) {
+			return [];
+		}
+		return this.id2Filenames[languageId];
 	}
 }
