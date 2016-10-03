@@ -231,28 +231,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		}
 
 		if (/@recommended:workspace/i.test(query.value)) {
-			return this.queryWorkspaceRecommendedExtensions();
-		}
-
-		if (/@recommended/i.test(query.value)) {
-			const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
-
-			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.filter(e => e.type === LocalExtensionType.User))
-				.then(local => {
-					const names = this.tipsService.getRecommendations()
-						.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
-						.filter(name => name.toLowerCase().indexOf(value) > -1);
-
-					this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
-
-					if (!names.length) {
-						return new PagedModel([]);
-					}
-
-					return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-						.then(result => new PagedModel(result));
-				});
+			return this.getWorkspaceRecommendationsModel(query, options);
+		} else if (/@recommended/i.test(query.value)) {
+			return this.getRecommendationsModel(query, options);
 		}
 
 		if (query.value) {
@@ -263,16 +244,40 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.then(result => new PagedModel(result));
 	}
 
-	private queryWorkspaceRecommendedExtensions(): TPromise<PagedModel<IExtension>> {
-		let names = this.tipsService.getWorkspaceRecommendations();
+	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<PagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
+
+		return this.extensionsWorkbenchService.queryLocal()
+			.then(result => result.filter(e => e.type === LocalExtensionType.User))
+			.then(local => {
+				const names = this.tipsService.getRecommendations()
+					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
+					.filter(name => name.toLowerCase().indexOf(value) > -1);
+
+				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
+
+				if (!names.length) {
+					return new PagedModel([]);
+				}
+
+				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+					.then(result => new PagedModel(result));
+			});
+	}
+
+	private getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions): TPromise<PagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended:workspace/g, '').trim().toLowerCase();
+		const names = this.tipsService.getWorkspaceRecommendations()
+			.filter(name => name.toLowerCase().indexOf(value) > -1);
 
 		this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
 		}
-		return this.extensionsWorkbenchService.queryGallery({ names })
-				.then(result => new PagedModel(result));
+
+		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+			.then(result => new PagedModel(result));
 	}
 
 	private openExtension(extension: IExtension): void {
