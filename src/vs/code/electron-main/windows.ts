@@ -715,7 +715,7 @@ export class WindowsManager implements IWindowsService {
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!openConfig.cli.extensionDevelopmentPath && !openConfig.cli.diff) {
+		if (!usedWindows.some(w => w.isPluginDevelopmentHost) && !openConfig.cli.diff) {
 			iPathsToOpen.forEach(iPath => {
 				if (iPath.filePath || iPath.workspacePath) {
 					app.addRecentDocument(iPath.filePath || iPath.workspacePath);
