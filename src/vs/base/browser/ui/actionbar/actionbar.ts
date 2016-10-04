@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import {Promise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
+import {SelectBox} from 'vs/base/browser/ui/selectBox/selectBox';
 import platform = require('vs/base/common/platform');
 import {IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner} from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
@@ -661,39 +662,25 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 }
 
 export class SelectActionItem extends BaseActionItem {
-	private select: HTMLSelectElement;
-	private options: string[];
-	private selected: number;
+	private selectBox: SelectBox;
 	protected toDispose: lifecycle.IDisposable[];
 
 	constructor(ctx: any, action: IAction, options: string[], selected: number) {
 		super(ctx, action);
-
-		this.select = document.createElement('select');
-		this.select.className = 'action-bar-select';
-
-		this.options = options;
-		this.selected = selected;
+		this.selectBox = new SelectBox(options, selected);
 
 		this.toDispose = [];
-
+		this.toDispose.push(this.selectBox);
 		this.registerListeners();
 	}
 
 	public setOptions(options: string[], selected: number): void {
-		this.options = options;
-		if (selected >= 0) {
-			this.selected = selected;
-		} else if (this.selected < 0 || this.selected > this.options.length) {
-			this.selected = 0;
-		}
-
-		this.doSetOptions();
+		this.selectBox.setOptions(options, selected);
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(DOM.addStandardDisposableListener(this.select, 'change', (e) => {
-			this.actionRunner.run(this._action, this.getActionContext(e.target.value)).done();
+		this.toDispose.push(this.selectBox.onDidSelect(selected => {
+			this.actionRunner.run(this._action, this.getActionContext(selected)).done();
 		}));
 	}
 
@@ -702,50 +689,27 @@ export class SelectActionItem extends BaseActionItem {
 	}
 
 	public focus(): void {
-		if (this.select) {
-			this.select.focus();
+		if (this.selectBox) {
+			this.selectBox.focus();
 		}
 	}
 
 	public set enabled(value: boolean) {
-		this.select.disabled = !value;
+		this.selectBox.enabled = value;
 	}
 
 	public blur(): void {
-		if (this.select) {
-			this.select.blur();
+		if (this.selectBox) {
+			this.selectBox.blur();
 		}
 	}
 
 	public render(container: HTMLElement): void {
-		DOM.addClass(container, 'select-container');
-		container.appendChild(this.select);
-		this.doSetOptions();
+		this.selectBox.render(container);
 	}
 
 	protected getSelected(): string {
-		return this.options && this.selected >= 0 && this.selected < this.options.length ? this.options[this.selected] : null;
-	}
-
-	private doSetOptions(): void {
-		this.select.options.length = 0;
-
-		this.options.forEach((option) => {
-			this.select.add(this.createOption(option));
-		});
-
-		if (this.selected >= 0) {
-			this.select.selectedIndex = this.selected;
-			this.select.title = this.options[this.selected];
-		}
-	}
-
-	private createOption(value: string): HTMLOptionElement {
-		let option = document.createElement('option');
-		option.value = value;
-		option.text = value;
-
-		return option;
+		return this.selectBox.getSelected();
 	}
 
 	public dispose(): void {
