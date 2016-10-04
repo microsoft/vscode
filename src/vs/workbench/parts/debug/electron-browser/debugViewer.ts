@@ -1190,8 +1190,8 @@ export class BreakpointsRenderer implements tree.IRenderer {
 			if (breakpoint.message) {
 				data.breakpoint.title = breakpoint.message;
 			}
-		} else if (breakpoint.condition) {
-			data.breakpoint.title = breakpoint.condition;
+		} else if (breakpoint.condition || breakpoint.hitCondition) {
+			data.breakpoint.title = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
 		}
 	}
 

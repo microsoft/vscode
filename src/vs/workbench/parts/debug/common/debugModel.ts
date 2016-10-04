@@ -410,7 +410,8 @@ export class Breakpoint implements debug.IBreakpoint {
 		public source: Source,
 		public desiredLineNumber: number,
 		public enabled: boolean,
-		public condition: string
+		public condition: string,
+		public hitCondition: string
 	) {
 		if (enabled === undefined) {
 			this.enabled = true;
@@ -431,7 +432,7 @@ export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 	public verified: boolean;
 	public idFromAdapter: number;
 
-	constructor(public name: string, public enabled: boolean) {
+	constructor(public name: string, public enabled: boolean, public hitCondition: string) {
 		this.verified = false;
 		this.id = uuid.generateUuid();
 	}
@@ -563,7 +564,7 @@ export class Model implements debug.IModel {
 
 	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
+			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}
@@ -612,17 +613,18 @@ export class Model implements debug.IModel {
 	}
 
 	public addFunctionBreakpoint(functionName: string): void {
-		this.functionBreakpoints.push(new FunctionBreakpoint(functionName, true));
+		this.functionBreakpoints.push(new FunctionBreakpoint(functionName, true, null));
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number } }): void {
+	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number; hitCondition?: string } }): void {
 		this.functionBreakpoints.forEach(fbp => {
 			const fbpData = data[fbp.getId()];
 			if (fbpData) {
 				fbp.name = fbpData.name || fbp.name;
 				fbp.verified = fbpData.verified;
 				fbp.idFromAdapter = fbpData.id;
+				fbp.hitCondition = fbpData.hitCondition;
 			}
 		});
 
