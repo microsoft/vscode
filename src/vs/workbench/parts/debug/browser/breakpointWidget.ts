@@ -9,6 +9,7 @@ import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
+import {SelectBox} from 'vs/base/browser/ui/selectBox/selectBox';
 import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
@@ -33,15 +34,25 @@ export class BreakpointWidget extends ZoneWidget {
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
 	private breakpointWidgetVisible: IContextKey<boolean>;
+	private expressionPlaceholder: string;
+	private expressionAriaLabel: string;
+	private hitCountPlaceholder: string;
+	private hitCountAriaLabel: string;
+	private hitCountContext: boolean;
 
 	constructor(editor: editorbrowser.ICodeEditor, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editor, { showFrame: true, showArrow: false });
+		super(editor, { showFrame: true, showArrow: false, frameColor: '#007ACC', frameWidth: 1 });
 
 		this.toDispose = [];
+		this.expressionPlaceholder = nls.localize('breakpointWidgetExpressionPlaceholder', "Breakpoint on line {0} will only stop if this expression is true.", this.lineNumber);
+		this.expressionAriaLabel = nls.localize('breakpointWidgetAriaLabel', "Type the breakpoint condition for line {0}. The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.", this.lineNumber);
+		this.hitCountPlaceholder = nls.localize('breakpointWidgetHitCountPlaceholder', "Breakpoint on line {0} will only stop if the hit count condition is true.", this.lineNumber);
+		this.hitCountAriaLabel = nls.localize('breakpointWidgetHitCountAriaLabel', "Type the breakpoint hit count condition for line {0}. The program will only stop here if the hit count is met. Press Enter to accept or Escape to cancel.", this.lineNumber);
+
 		this.create();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.breakpointWidgetVisible.set(true);
@@ -63,10 +74,19 @@ export class BreakpointWidget extends ZoneWidget {
 		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 
+		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], 0);
+		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
+		selectBox.onDidSelect(e => {
+			this.hitCountContext = e === 'Hit Count';
+			this.inputBox.setAriaLabel(this.hitCountContext ? this.hitCountAriaLabel : this.expressionAriaLabel);
+			this.inputBox.setPlaceHolder(this.hitCountContext ? this.hitCountPlaceholder : this.expressionPlaceholder);
+			this.inputBox.value = (this.hitCountContext && breakpoint && breakpoint.hitCondition) ? breakpoint.hitCondition : breakpoint && breakpoint.condition ? breakpoint.condition : '';
+		});
+
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 		this.inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-			placeholder: nls.localize('breakpointWidgetPlaceholder', "Breakpoint on line {0} will only stop if this condition is true.", this.lineNumber),
-			ariaLabel: nls.localize('breakpointWidgetAriaLabel', "Type the breakpoint condition for line {0}. The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.")
+			placeholder: this.expressionPlaceholder,
+			ariaLabel: this.expressionAriaLabel
 		});
 		this.toDispose.push(this.inputBox);
 
@@ -80,12 +100,16 @@ export class BreakpointWidget extends ZoneWidget {
 			if (!disposed) {
 				disposed = true;
 				if (success) {
-					const raw = {
+					const raw: debug.IRawBreakpoint = {
 						uri,
 						lineNumber: this.lineNumber,
-						enabled: true,
-						condition: this.inputBox.value
+						enabled: true
 					};
+					if (this.hitCountContext) {
+						raw.hitCondition = this.inputBox.value;
+					} else {
+						raw.condition = this.inputBox.value;
+					}
 
 					// if there is already a breakpoint on this location - remove it.
 					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
