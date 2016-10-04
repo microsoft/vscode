@@ -670,7 +670,12 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public searchInFolder(resource: URI): void {
-		if (this.contextService.getWorkspace().resource.toString() === resource.toString()) {
+		const workspace = this.contextService.getWorkspace();
+		if (!workspace) {
+			return;
+		}
+
+		if (workspace.resource.toString() === resource.toString()) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
 			return;
