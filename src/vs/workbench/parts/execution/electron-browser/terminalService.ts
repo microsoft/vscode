@@ -149,7 +149,7 @@ export class MacTerminalService implements ITerminalService {
 							const lines = stderr.split('\n', 1);
 							e(new Error(lines[0]));
 						} else {
-							e(new Error(nls.localize('mac.terminal.script.failed', "script '{0}' failed with exit code {1}", script, code)));
+							e(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
 						}
 					}
 				});
