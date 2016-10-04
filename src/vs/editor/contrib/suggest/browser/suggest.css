@@ -18,7 +18,7 @@
 	transition: left .05s ease-in-out;
 }
 
-.monaco-editor.mac .suggest-widget .text {
+.monaco-editor.mac .suggest-widget .contents {
 	line-height: 1.3em;
 }
 
@@ -42,14 +42,14 @@
 	white-space: nowrap;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents {
 	flex: 1;
 	height: 100%;
 	overflow: hidden;
 	padding-left: 2px;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main {
 	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -92,7 +92,7 @@
 	color: #186B9E;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main > .type-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label {
 	display: none;
 	margin-left: 0.8em;
 	flex: 1;
@@ -102,11 +102,11 @@
 	opacity: 0.7;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main > .type-label > .monaco-tokenized-source {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label > .monaco-tokenized-source {
 	display: inline;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .text > .main > .type-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
 	display: inline;
 }
 
