@@ -307,12 +307,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: ILocalExtension): TPromise<void> {
-		return this.scanUserExtensions().then<void>(installed => {
-			const promises = installed
-				.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-				.map(({ id }) => this.uninstallExtension(id));
+		return this.removeOutdatedExtensions().then(() => {
+			return this.scanUserExtensions().then<void>(installed => {
+				const promises = installed
+					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
+					.map(({ id }) => this.uninstallExtension(id));
 
-			return TPromise.join(promises);
+				return TPromise.join(promises);
+			});
 		});
 	}
 
@@ -379,21 +381,30 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			});
 	}
 
-	removeDeprecatedExtensions(): TPromise<void> {
-		const outdated = this.getOutdatedExtensionIds()
-			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)));
+	removeDeprecatedExtensions(): TPromise<any> {
+		return TPromise.join([
+			this.removeOutdatedExtensions(),
+			this.removeObsoleteExtensions()
+		]);
+	}
 
-		const obsolete = this.getObsoleteExtensions()
-			.then(obsolete => Object.keys(obsolete));
+	private removeOutdatedExtensions(): TPromise<any> {
+		return this.getOutdatedExtensionIds()
+			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)))
+			.then(extensionIds => this.removeExtensions(extensionIds));
+	}
 
-		return TPromise.join([outdated, obsolete])
-			.then(result => flatten(result))
-			.then<void>(extensionsIds => {
-				return TPromise.join(extensionsIds.map(id => {
-					return pfs.rimraf(path.join(this.extensionsPath, id))
-						.then(() => this.withObsoleteExtensions(obsolete => delete obsolete[id]));
-				}));
-			});
+	private removeObsoleteExtensions(): TPromise<any> {
+		return this.getObsoleteExtensions()
+			.then(obsolete => Object.keys(obsolete))
+			.then(extensionIds => this.removeExtensions(extensionIds));
+	}
+
+	private removeExtensions(extensionsIds: string[]): TPromise<any> {
+		return TPromise.join(extensionsIds.map(id => {
+			return pfs.rimraf(path.join(this.extensionsPath, id))
+				.then(() => this.withObsoleteExtensions(obsolete => delete obsolete[id]));
+		}));
 	}
 
 	private getOutdatedExtensionIds(): TPromise<ILocalExtension[]> {
