@@ -411,6 +411,16 @@ export interface IEditorOptions {
 	 */
 	wordBasedSuggestions?: boolean;
 	/**
+	 * The font size for the suggest widget.
+	 * Defaults to the editor font size.
+	 */
+	suggestFontSize?: number;
+	/**
+	 * The line height for the suggest widget.
+	 * Defaults to the editor line height.
+	 */
+	suggestLineHeight?: number;
+	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
 	 */
@@ -854,6 +864,8 @@ export class EditorContribOptions {
 	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	tabCompletion: boolean;
 	wordBasedSuggestions: boolean;
+	suggestFontSize: number;
+	suggestLineHeight: number;
 	selectionHighlight:boolean;
 	codeLens: boolean;
 	folding: boolean;
@@ -875,6 +887,8 @@ export class EditorContribOptions {
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
+		suggestFontSize: number;
+		suggestLineHeight: number;
 		selectionHighlight:boolean;
 		codeLens: boolean;
 		folding: boolean;
@@ -892,6 +906,8 @@ export class EditorContribOptions {
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
+		this.suggestFontSize = source.suggestFontSize;
+		this.suggestLineHeight = source.suggestLineHeight;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
@@ -915,6 +931,8 @@ export class EditorContribOptions {
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
+			&& this.suggestFontSize === other.suggestFontSize
+			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
