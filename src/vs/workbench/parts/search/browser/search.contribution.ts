@@ -181,6 +181,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusPre
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleCaseSensitiveAction, Constants.ToggleCaseSensitiveActionId, '', ToggleCaseSensitiveKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleWholeWordAction, Constants.ToggleWholeWordActionId, '', ToggleWholeWordKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleRegexAction, Constants.ToggleRegexActionId, '', ToggleRegexKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');
+registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.CloseReplaceAction, Constants.CloseReplaceWidgetActionId, '', { primary: KeyCode.Escape }, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceInputBoxFocussedKey)), '');
 
 // Configuration
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);

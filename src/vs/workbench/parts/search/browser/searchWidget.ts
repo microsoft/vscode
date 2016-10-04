@@ -76,6 +76,7 @@ export class SearchWidget extends Widget {
 	public domNode: HTMLElement;
 	public searchInput: FindInput;
 	private searchInputBoxFocussed: IContextKey<boolean>;
+	private replaceInputBoxFocussed: IContextKey<boolean>;
 	private replaceInput: InputBox;
 
 	public searchInputFocusTracker: dom.IFocusTracker;
@@ -113,6 +114,7 @@ export class SearchWidget extends Widget {
 		this.searchHistory = new HistoryNavigator<string>();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
 		this.searchInputBoxFocussed = Constants.SearchInputBoxFocussedKey.bindTo(this.keyBindingService);
+		this.replaceInputBoxFocussed = Constants.ReplaceInputBoxFocussedKey.bindTo(this.keyBindingService);
 		this.render(container, options);
 	}
 
@@ -218,7 +220,7 @@ export class SearchWidget extends Widget {
 			this.searchHistory.add(this.searchInput.getValue());
 		}));
 
-		this.searchInputFocusTracker = dom.trackFocus(this.searchInput.inputBox.inputElement);
+		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
 		this._register(this.searchInputFocusTracker.addFocusListener(() => {
 			this.searchInputBoxFocussed.set(true);
 		}));
@@ -244,7 +246,13 @@ export class SearchWidget extends Widget {
 		this.replaceActionBar = this._register(new ActionBar(this.replaceContainer));
 		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
 
-		this.replaceInputFocusTracker = dom.trackFocus(this.replaceInput.inputElement);
+		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputElement));
+		this._register(this.replaceInputFocusTracker.addFocusListener(() => {
+			this.replaceInputBoxFocussed.set(true);
+		}));
+		this._register(this.replaceInputFocusTracker.addBlurListener(() => {
+			this.replaceInputBoxFocussed.set(false);
+		}));
 	}
 
 	triggerReplaceAll(): TPromise<any> {
@@ -321,10 +329,6 @@ export class SearchWidget extends Widget {
 			case KeyCode.Enter:
 				this.submitSearch();
 				return;
-			case KeyCode.Escape:
-				this.onToggleReplaceButton();
-				this.searchInput.focus();
-				return;
 			default:
 				return;
 		}
@@ -340,12 +344,6 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 		this.replaceAllAction.searchWidget= null;
 		this.replaceActionBar = null;
-		if (this.searchInputFocusTracker) {
-			this.searchInputFocusTracker.dispose();
-		}
-		if (this.replaceInputFocusTracker) {
-			this.replaceInputFocusTracker.dispose();
-		}
 		super.dispose();
 	}
 }
