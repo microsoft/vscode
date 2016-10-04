@@ -18,19 +18,20 @@ export interface IOptions {
 	showFrame?: boolean;
 	showArrow?: boolean;
 	frameColor?: string;
+	frameWidth?: number;
 	className?: string;
 	isAccessible?: boolean;
 	isResizeable?: boolean;
 }
 
-var defaultOptions: IOptions = {
+const defaultOptions: IOptions = {
 	showArrow: true,
 	showFrame: true,
 	frameColor: '',
 	className: ''
 };
 
-var WIDGET_ID = 'vs.editor.contrib.zoneWidget';
+const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
 export class ViewZoneDelegate implements IViewZone {
 
@@ -112,7 +113,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 
 		this._disposables.add(this.editor.onDidLayoutChange((info: EditorLayoutInfo) => {
-			var width = this._getWidth(info);
+			const width = this._getWidth(info);
 			this.domNode.style.width = width + 'px';
 			this._onWidth(width);
 		}));
@@ -263,10 +264,11 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 
 		if (this.options.showFrame) {
+			const width = this.options.frameWidth ? this.options.frameWidth : frameThickness;
 			this.container.style.borderTopColor = this.options.frameColor;
 			this.container.style.borderBottomColor = this.options.frameColor;
-			this.container.style.borderTopWidth = frameThickness + 'px';
-			this.container.style.borderBottomWidth = frameThickness + 'px';
+			this.container.style.borderTopWidth = width + 'px';
+			this.container.style.borderBottomWidth = width + 'px';
 		}
 
 		let containerHeight = heightInLines * lineHeight - this._decoratingElementsHeight();
@@ -280,7 +282,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this.editor.setSelection(where);
 
 		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
-		var revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
+		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
 		this.editor.revealLine(revealLineNumber);
 	}
 
@@ -352,4 +354,3 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return this.editor.getLayoutInfo().width;
 	}
 }
-
