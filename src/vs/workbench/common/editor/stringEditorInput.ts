@@ -5,14 +5,14 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {MIME_TEXT} from 'vs/base/common/mime';
+import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 /**
- * A read-only text editor input whos contents are made of the provided value and mime type.
+ * A read-only text editor input whos contents are made of the provided value and mode ID.
  */
 export class StringEditorInput extends EditorInput {
 
@@ -20,17 +20,18 @@ export class StringEditorInput extends EditorInput {
 
 	protected cachedModel: StringEditorModel;
 
+	protected value: string;
+
 	private name: string;
 	private description: string;
-	protected value: string;
-	protected mime: string;
+	private modeId: string;
 	private singleton: boolean;
 
 	constructor(
 		name: string,
 		description: string,
 		value: string,
-		mime: string,
+		modeId: string,
 		singleton: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -39,7 +40,7 @@ export class StringEditorInput extends EditorInput {
 		this.name = name;
 		this.description = description;
 		this.value = value;
-		this.mime = mime || MIME_TEXT;
+		this.modeId = modeId || PLAINTEXT_MODE_ID;
 		this.singleton = singleton;
 	}
 
@@ -119,7 +120,7 @@ export class StringEditorInput extends EditorInput {
 		}
 
 		//Otherwise Create Model and Load
-		let model = this.instantiationService.createInstance(StringEditorModel, this.value, this.mime, this.getResource());
+		let model = this.instantiationService.createInstance(StringEditorModel, this.value, this.modeId, this.getResource());
 		return model.load().then((resolvedModel: StringEditorModel) => {
 			this.cachedModel = resolvedModel;
 
@@ -135,8 +136,8 @@ export class StringEditorInput extends EditorInput {
 		if (otherInput instanceof StringEditorInput) {
 			let otherStringEditorInput = <StringEditorInput>otherInput;
 
-			// If both inputs are singletons, check on the mime for equalness
-			if (otherStringEditorInput.singleton && this.singleton && otherStringEditorInput.mime === this.mime) {
+			// If both inputs are singletons, check on the modeId for equalness
+			if (otherStringEditorInput.singleton && this.singleton && otherStringEditorInput.modeId === this.modeId) {
 				return true;
 			}
 
@@ -149,7 +150,7 @@ export class StringEditorInput extends EditorInput {
 
 			// Otherwise compare by properties
 			return otherStringEditorInput.value === this.value &&
-				otherStringEditorInput.mime === this.mime &&
+				otherStringEditorInput.modeId === this.modeId &&
 				otherStringEditorInput.description === this.description &&
 				otherStringEditorInput.name === this.name;
 		}
