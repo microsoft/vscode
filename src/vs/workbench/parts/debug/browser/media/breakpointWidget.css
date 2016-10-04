@@ -6,7 +6,6 @@
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
 	height: 30px !important;
 	display: flex;
-	background-color: var(--input-bgcolor);
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container {
@@ -17,7 +16,6 @@
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container .select-box {
-	margin-top: 0px;
 	border-color: rgba(128, 128, 128, 0.35);
 }
 
@@ -32,6 +30,7 @@
 .monaco-editor .breakpoint-widget .input {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	line-height: 22px;
+	background-color: transparent;
 }
 
 .monaco-workbench.mac .monaco-editor .breakpoint-widget .input {
