@@ -760,6 +760,14 @@ export class ChangeModeAction extends Action {
 
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(language => {
 			if (language) {
+
+				// User decided to permanently configure associations, return right after
+				if (language === configureModeAssociations) {
+					this.configureFileAssociation(fileinput.getResource());
+					return;
+				}
+
+				// Change mode for active editor
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
 					const editorWidget = activeEditor.getControl();
@@ -780,8 +788,6 @@ export class ChangeModeAction extends Action {
 					let mode: TPromise<IMode>;
 					if (language === autoDetectMode) {
 						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
-					} else if (language === configureModeAssociations) {
-						this.configureFileAssociation(fileinput.getResource());
 					} else {
 						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
 					}
