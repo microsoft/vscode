@@ -243,26 +243,24 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private rollback(localExtension: ILocalExtension, dependecies: IGalleryExtension[]): TPromise<void> {
 		return this.uninstall(localExtension)
-					.then(() => this.filterOutUnInstalled(dependecies))
-					.then(installed => TPromise.join(installed.map((i) => this.uninstall(i))))
-					.then(() => null);
+			.then(() => this.filterOutUninstalled(dependecies))
+			.then(installed => TPromise.join(installed.map((i) => this.uninstall(i))))
+			.then(() => null);
 	}
 
 	private filterOutInstalled(extensions: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
-		return this.getInstalled().then(local => {
-			return extensions.filter(extension => {
-				const extensionId = getExtensionId(extension, extension.version);
-				return local.every(local => local.id !== extensionId);
+		return this.getInstalled()
+			.then(local => {
+				return extensions.filter(extension => {
+					const extensionId = getExtensionId(extension, extension.version);
+					return local.every(local => local.id !== extensionId);
+				});
 			});
-		});
 	}
 
-	private filterOutUnInstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
-		return this.getInstalled().then(installed => {
-			return installed.filter(local => {
-				return !!this.getGalleryExtensionForLocalExtension(extensions, local);
-			});
-		});
+	private filterOutUninstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
+		return this.getInstalled()
+			.then(installed => installed.filter(local => !!this.getGalleryExtensionForLocalExtension(extensions, local)));
 	}
 
 	private getGalleryExtensionForLocalExtension(galleryExtensions: IGalleryExtension[], localExtension: ILocalExtension): IGalleryExtension {
@@ -273,10 +271,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private downloadAndInstall(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		const id = getExtensionId(extension, extension.version);
 		const metadata = {
-				id: extension.id,
-				publisherId: extension.publisherId,
-				publisherDisplayName: extension.publisherDisplayName,
-			};
+			id: extension.id,
+			publisherId: extension.publisherId,
+			publisherDisplayName: extension.publisherDisplayName,
+		};
+
 		return this.galleryService.download(extension)
 			.then(zipPath => validate(zipPath).then(() => zipPath))
 			.then(zipPath => this.installExtension(zipPath, id, metadata));
