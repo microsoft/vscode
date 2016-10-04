@@ -30,6 +30,7 @@ namespace schema {
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
+			case 'editortab/context': return MenuId.EditorTabContext;
 		}
 	}
 
@@ -94,6 +95,11 @@ namespace schema {
 			},
 			'editor/context': {
 				description: localize('menus.editorContext', "The editor context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'editortab/context': {
+				description: localize('menus.editorTabContext', "The editor tabs context menu"),
 				type: 'array',
 				items: menuItem
 			},
