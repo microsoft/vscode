@@ -26,6 +26,10 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 const $ = dom.$;
 const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 const CLOSE_BREAKPOINT_WIDGET_COMMAND_ID = 'closeBreakpointWidget';
+const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true");
+const EXPRESSION_ARIA_LABEL = nls.localize('breakpointWidgetAriaLabel', "The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.");
+const HIT_COUNT_PLACEHOLDER = nls.localize('breakpointWidgetHitCountPlaceholder', "Break when expression equals the hit count");
+const HIT_COUNT_ARIA_LABEL = nls.localize('breakpointWidgetHitCountAriaLabel', "The program will only stop here if the hit count is met. Press Enter to accept or Escape to cancel.");
 
 export class BreakpointWidget extends ZoneWidget {
 
@@ -34,10 +38,6 @@ export class BreakpointWidget extends ZoneWidget {
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
 	private breakpointWidgetVisible: IContextKey<boolean>;
-	private expressionPlaceholder: string;
-	private expressionAriaLabel: string;
-	private hitCountPlaceholder: string;
-	private hitCountAriaLabel: string;
 	private hitCountContext: boolean;
 
 	constructor(editor: editorbrowser.ICodeEditor, private lineNumber: number,
@@ -48,10 +48,6 @@ export class BreakpointWidget extends ZoneWidget {
 		super(editor, { showFrame: true, showArrow: false, frameColor: '#007ACC', frameWidth: 1 });
 
 		this.toDispose = [];
-		this.expressionPlaceholder = nls.localize('breakpointWidgetExpressionPlaceholder', "Breakpoint on line {0} will only stop if this expression is true.", this.lineNumber);
-		this.expressionAriaLabel = nls.localize('breakpointWidgetAriaLabel', "Type the breakpoint condition for line {0}. The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.", this.lineNumber);
-		this.hitCountPlaceholder = nls.localize('breakpointWidgetHitCountPlaceholder', "Breakpoint on line {0} will only stop if the hit count condition is true.", this.lineNumber);
-		this.hitCountAriaLabel = nls.localize('breakpointWidgetHitCountAriaLabel', "Type the breakpoint hit count condition for line {0}. The program will only stop here if the hit count is met. Press Enter to accept or Escape to cancel.", this.lineNumber);
 
 		this.create();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
@@ -70,7 +66,7 @@ export class BreakpointWidget extends ZoneWidget {
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
-		dom.addClass(container, 'breakpoint-widget');
+		dom.addClass(container, 'breakpoint-widget monaco-editor-background');
 		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 
@@ -78,15 +74,15 @@ export class BreakpointWidget extends ZoneWidget {
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
 			this.hitCountContext = e === 'Hit Count';
-			this.inputBox.setAriaLabel(this.hitCountContext ? this.hitCountAriaLabel : this.expressionAriaLabel);
-			this.inputBox.setPlaceHolder(this.hitCountContext ? this.hitCountPlaceholder : this.expressionPlaceholder);
+			this.inputBox.setAriaLabel(this.hitCountContext ? HIT_COUNT_ARIA_LABEL : EXPRESSION_ARIA_LABEL);
+			this.inputBox.setPlaceHolder(this.hitCountContext ? HIT_COUNT_PLACEHOLDER : EXPRESSION_PLACEHOLDER);
 			this.inputBox.value = (this.hitCountContext && breakpoint && breakpoint.hitCondition) ? breakpoint.hitCondition : breakpoint && breakpoint.condition ? breakpoint.condition : '';
 		});
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 		this.inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-			placeholder: this.expressionPlaceholder,
-			ariaLabel: this.expressionAriaLabel
+			placeholder: EXPRESSION_PLACEHOLDER,
+			ariaLabel: EXPRESSION_ARIA_LABEL
 		});
 		this.toDispose.push(this.inputBox);
 
