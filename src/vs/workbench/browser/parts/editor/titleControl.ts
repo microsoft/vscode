@@ -417,6 +417,12 @@ export abstract class TitleControl implements ITitleAreaControl {
 	}
 
 	protected onContextMenu(identifier: IEditorIdentifier, e: Event, node: HTMLElement): void {
+
+		// Update the resource context
+		const currentContext = this.resourceContext.get();
+		this.resourceContext.set(identifier.editor && getResource(identifier.editor));
+
+		// Find target anchor
 		let anchor: HTMLElement | { x: number, y: number } = node;
 		if (e instanceof MouseEvent) {
 			const event = new StandardMouseEvent(e);
@@ -434,6 +440,9 @@ export abstract class TitleControl implements ITitleAreaControl {
 				}
 
 				return null;
+			},
+			onHide: (cancel) => {
+				this.resourceContext.set(currentContext); // restore previous context
 			}
 		});
 	}
@@ -461,6 +470,10 @@ export abstract class TitleControl implements ITitleAreaControl {
 		if (this.previewEditors) {
 			actions.push(new Separator(), this.pinEditorAction);
 		}
+
+		const titleBarMenu = this.menuService.createMenu(MenuId.EditorTab, this.contextKeyService);
+		fillInActions(titleBarMenu, actions);
+		titleBarMenu.dispose(); // not needed anymore
 
 		return actions;
 	}
