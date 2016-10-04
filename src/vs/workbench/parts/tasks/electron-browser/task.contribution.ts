@@ -440,6 +440,7 @@ class StatusBarItem implements IStatusbarItem {
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
+		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(error, 'task-statusbar-item-label-error');
 		error.innerHTML = '0';
