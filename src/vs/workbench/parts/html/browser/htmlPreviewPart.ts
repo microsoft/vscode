@@ -149,7 +149,8 @@ export class HtmlPreviewPart extends BaseEditor {
 		}
 
 		return super.setInput(input, options).then(() => {
-			return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
+			let resourceUri = (<HtmlInput>input).getResource();
+			return this._editorService.resolveEditorModel({ resource: resourceUri }).then(model => {
 				if (model instanceof BaseTextEditorModel) {
 					this._model = model.textEditorModel;
 				}
@@ -157,6 +158,7 @@ export class HtmlPreviewPart extends BaseEditor {
 					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 				}
 				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
+				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this._model.getLinesContent();
 			});
 		});
