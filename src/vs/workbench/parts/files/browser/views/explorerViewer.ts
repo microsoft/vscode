@@ -611,7 +611,7 @@ export class FileController extends DefaultController {
 		if (stat && !stat.isDirectory) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			this.editorService.openEditor({ resource: stat.resource, mime: stat.mime, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 

@@ -10,7 +10,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
 import {sequence, ITask} from 'vs/base/common/async';
-import {MIME_TEXT, isUnspecific, isBinaryMime, guessMimeTypes} from 'vs/base/common/mime';
+import {isBinaryMime, guessMimeTypes} from 'vs/base/common/mime';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
@@ -1422,14 +1422,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 			// Save As (or Save untitled with associated path)
 			if (this.isSaveAs() || source.scheme === 'untitled') {
-				let mimeOfSource: string;
-				if (source.scheme === 'untitled') {
-					const selectedMime = this.untitledEditorService.get(source).getMime();
-					if (!isUnspecific(selectedMime)) {
-						mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
-					}
-				}
-
 				let encodingOfSource: string;
 				if (source.scheme === 'untitled') {
 					encodingOfSource = this.untitledEditorService.get(source).getEncoding();
@@ -1471,7 +1463,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 					const replaceWith: IResourceInput = {
 						resource: target,
-						mime: mimeOfSource,
 						encoding: encodingOfSource,
 						options: {
 							pinned: true,
@@ -1563,14 +1554,13 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		const stacks = this.editorGroupService.getStacksModel();
 
 		// Store some properties per untitled file to restore later after save is completed
-		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
+		const mapUntitledToProperties: { [resource: string]: { encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
 		this.textFileService.getDirty()
 			.filter(r => r.scheme === 'untitled')			// All untitled resources
 			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
 			.filter(input => !!input)								// If possible :)
 			.forEach(input => {
 				mapUntitledToProperties[input.getResource().toString()] = {
-					mime: input.getMime(),
 					encoding: input.getEncoding(),
 					indexInGroups: stacks.groups.map(g => g.indexOf(input)),
 					activeInGroups: stacks.groups.map(g => g.isActive(input))
@@ -1593,18 +1583,12 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 					return;
 				}
 
-				let mimeOfSource: string;
-				if (!isUnspecific(untitledProps.mime)) {
-					mimeOfSource = [untitledProps.mime, MIME_TEXT].join(', ');
-				}
-
 				// For each position where the untitled file was opened
 				untitledProps.indexInGroups.forEach((indexInGroup, index) => {
 					if (indexInGroup >= 0) {
 						untitledToReopen.push({
 							input: {
 								resource: result.target,
-								mime: mimeOfSource,
 								encoding: untitledProps.encoding,
 								options: {
 									pinned: true,

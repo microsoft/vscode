@@ -299,13 +299,12 @@ suite('Workbench UI Services', () => {
 		});
 
 		// Open Untyped Input
-		service.openEditor({ resource: toResource('/index.html'), mime: 'text/html', options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
+		service.openEditor({ resource: toResource('/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
 			assert.strictEqual(editor, activeEditor);
 
 			assert(openedEditorInput instanceof FileEditorInput);
 			let contentInput = <FileEditorInput>openedEditorInput;
 			assert.strictEqual(contentInput.getResource().fsPath, toResource('/index.html').fsPath);
-			assert.strictEqual(contentInput.getMime(), 'text/html');
 
 			assert(openedEditorOptions instanceof TextEditorOptions);
 			let textEditorOptions = <TextEditorOptions>openedEditorOptions;
@@ -327,7 +326,7 @@ suite('Workbench UI Services', () => {
 		});
 
 		// Resolve Editor Model (Untyped Input)
-		service.resolveEditorModel({ resource: toResource('/index.html'), mime: 'text/html' }, true).then((model) => {
+		service.resolveEditorModel({ resource: toResource('/index.html') }, true).then((model) => {
 			assert(model instanceof TextFileEditorModel);
 		});
 	});

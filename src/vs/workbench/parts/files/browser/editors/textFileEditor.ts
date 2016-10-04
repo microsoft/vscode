@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {toErrorMessage} from 'vs/base/common/errorMessage';
-import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
+import {MIME_BINARY} from 'vs/base/common/mime';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
@@ -182,7 +182,6 @@ export class TextFileEditor extends BaseTextEditor {
 								// Open
 								return this.editorService.openEditor({
 									resource: input.getResource(),
-									mime: MIME_TEXT,
 									options: {
 										pinned: true // new file gets pinned by default
 									}

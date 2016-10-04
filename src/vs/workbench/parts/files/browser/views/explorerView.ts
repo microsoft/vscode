@@ -282,7 +282,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	private openFocusedElement(preserveFocus?: boolean): void {
 		const stat: FileStat = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
-			this.editorService.openEditor({ resource: stat.resource, mime: stat.mime, options: { preserveFocus, revealIfVisible: true } }).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } }).done(null, errors.onUnexpectedError);
 		}
 	}
 
