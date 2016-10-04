@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ITreeNode } from 'vscode';
+import {ITreeNode} from 'vscode';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ExtHostContext, MainThreadExplorersShape, ExtHostExplorersShape} from './extHost.protocol';
 import {ITreeExplorerViewletService} from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
+import {TreeViewNode} from 'vs/workbench/parts/explorers/common/treeViewModel';
 
 export class MainThreadExplorers extends MainThreadExplorersShape {
 	private _proxy: ExtHostExplorersShape;

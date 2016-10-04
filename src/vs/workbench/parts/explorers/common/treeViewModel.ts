@@ -1,15 +1,22 @@
-export class TreeViewNode implements vscode.ITreeNode {
+import { ITreeNode } from 'vscode';
+
+export class TreeViewNode implements ITreeNode {
+  static idCounter = 1;
+
+  id: number;
+  hasChildren: boolean = true;
+  isChildrenResolved: boolean = false;
+
   constructor(
-    public id: number,
     public label: string,
     public isExpanded: boolean = true,
-    public parent: TreeViewNode = null,
-    public children: TreeViewNode[] = [],
-    public isChildrenResolved: boolean = true) {
+    public children: TreeViewNode[] = []
+  ) {
+    this.id = TreeViewNode.idCounter++;
   }
 
-  addChild(child: TreeViewNode) {
-    this.children.push(child);
-    child.parent = this;
+  public static create(node: ITreeNode): TreeViewNode {
+    const children = node.children.map(TreeViewNode.create);
+    return new TreeViewNode(node.label, node.isExpanded, children)
   }
 }

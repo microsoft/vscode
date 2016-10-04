@@ -26,25 +26,21 @@ export class TreeDataSource implements IDataSource {
 
 	}
 
-	public getId(tree: ITree, node: vscode.ITreeNode): string {
-		return node.label;
+	getId(tree: ITree, node: TreeViewNode): string {
+		return node.id.toString();
 	}
 
-	public hasChildren(tree: ITree, node: vscode.ITreeNode): boolean {
-		if (node.isChildrenResolved) {
-			return node.children && node.children.length > 0;
-		} else {
-			return true;
-		}
+	hasChildren(tree: ITree, node: TreeViewNode): boolean {
+		return node.hasChildren;
 	}
 
-	public getChildren(tree: ITree, node: vscode.ITreeNode): TPromise<vscode.ITreeNode[]> {
+	getChildren(tree: ITree, node: TreeViewNode): TPromise<TreeViewNode[]> {
 		if (node.isChildrenResolved) {
 			return TPromise.as(node.children);
 		} else {
 			return this.treeExplorerViewletService.resolveChildren(providerId, node).then(children => {
 				children.forEach(child => {
-					node.children.push(child);
+					node.children.push(TreeViewNode.create(child));
 				});
 				node.isChildrenResolved = true;
 				return node.children;
@@ -52,7 +48,7 @@ export class TreeDataSource implements IDataSource {
 		}
 	}
 
-	public getParent(tree: ITree, node: TreeViewNode): TPromise<TreeViewNode> {
+	getParent(tree: ITree, node: TreeViewNode): TPromise<TreeViewNode> {
 		return TPromise.as(null);
 	}
 }
@@ -73,11 +69,11 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 		});
 	}
 
-	public getContentHeight(tree: ITree, element: any): number {
+	getContentHeight(tree: ITree, element: any): number {
 		return 22;
 	}
 
-	public renderContents(tree: ITree, node: TreeViewNode, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
+	renderContents(tree: ITree, node: TreeViewNode, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		const el = $(domElement).clearChildren();
 		const item = $('.custom-viewlet-tree-node-item');
 		item.appendTo(el);
@@ -100,7 +96,7 @@ export class TreeController extends DefaultController {
 		// super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 	}
 
-	public onLeftClick(tree: ITree, node: TreeViewNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	onLeftClick(tree: ITree, node: TreeViewNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		super.onLeftClick(tree, node, event, origin);
 
 		return true;

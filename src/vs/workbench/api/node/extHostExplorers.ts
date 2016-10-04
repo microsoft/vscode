@@ -25,7 +25,7 @@ export class ExtHostExplorers extends ExtHostExplorersShape {
 		this._treeContentProviders = Object.create(null);
 	}
 
-	public registerTreeContentProvider(providerId: string, provider: vscode.TreeContentProvider): vscode.Disposable {
+	registerTreeContentProvider(providerId: string, provider: vscode.TreeContentProvider): vscode.Disposable {
 		this._proxy.$registerTreeContentProvider(providerId);
 		this._treeContentProviders[providerId] = provider;
 

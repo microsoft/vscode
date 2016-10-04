@@ -68,9 +68,7 @@ export class TreeView extends CollapsibleViewletView {
 		DOM.addClass(this.treeContainer, 'tree-explorer-viewlet-tree-view');
 
 		this.tree = this.createViewer($(this.treeContainer));
-		this.treeExplorerViewletService.provideTreeContent('pineTree').then(tree => {
-			this.tree.setInput(tree);
-		});
+		this.updateInput();
 	}
 
 	getActions(): IAction[] {
@@ -109,7 +107,7 @@ export class TreeView extends CollapsibleViewletView {
 
 	private updateInput(): TPromise<void> {
 		return this.treeExplorerViewletService.provideTreeContent('pineTree').then(tree => {
-			this.tree.setInput(tree);
+			this.tree.setInput(TreeViewNode.create(tree));
 		})
 	}
 

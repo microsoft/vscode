@@ -1357,7 +1357,6 @@ declare module 'vscode' {
 		label: string;
 		isExpanded: boolean;
 		children: ITreeNode[];
-		isChildrenResolved: boolean;
 	}
 
 	/**
