@@ -120,8 +120,8 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 				return true;
 			}
 
-			let resource = e.getResource();
-			let targetToMatch = resource ? labels.getPathLabel(e.getResource(), this.contextService) : e.getLabel();
+			const resource = e.getResource();
+			const targetToMatch = resource ? labels.getPathLabel(e.getResource(), this.contextService) : e.getLabel();
 			if (!scorer.matches(targetToMatch, normalizedSearchValueLowercase)) {
 				return false;
 			}
