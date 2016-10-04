@@ -7,30 +7,30 @@
 
 import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
-import {Throttler} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {MarkedString, textToMarkedString} from 'vs/base/common/htmlContent';
-import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
+import { Throttler } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { MarkedString, textToMarkedString } from 'vs/base/common/htmlContent';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as browser from 'vs/base/browser/browser';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {Range} from 'vs/editor/common/core/range';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, IActionOptions, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
-import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referencesController';
-import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {PeekContext} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { getDeclarationsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
+import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -50,12 +50,12 @@ export class DefinitionAction extends EditorAction {
 
 	private _configuration: DefinitionActionConfig;
 
-	constructor(configuration: DefinitionActionConfig, opts:IActionOptions) {
+	constructor(configuration: DefinitionActionConfig, opts: IActionOptions) {
 		super(opts);
 		this._configuration = configuration;
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const messageService = accessor.get(IMessageService);
 		const editorService = accessor.get(IEditorService);
 
@@ -102,7 +102,7 @@ export class DefinitionAction extends EditorAction {
 		});
 	}
 
-	private _onResult(editorService:IEditorService, editor:editorCommon.ICommonCodeEditor, model: ReferencesModel) {
+	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
 		} else {
@@ -115,7 +115,7 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editorService:IEditorService, reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor>{
+	private _openReference(editorService: IEditorService, reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor> {
 		let {uri, range} = reference;
 		return editorService.openEditor({
 			resource: uri,
@@ -124,11 +124,11 @@ export class DefinitionAction extends EditorAction {
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
-			return <editorCommon.IEditor> editor.getControl();
+			return <editorCommon.IEditor>editor.getControl();
 		});
 	}
 
-	private _openInPeek(editorService:IEditorService, target: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
+	private _openInPeek(editorService: IEditorService, target: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
 		if (controller) {
 			controller.toggleWidget(target.getSelection(), TPromise.as(model), {
@@ -392,7 +392,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			}
 		}
 
-		let newDecorations : editorCommon.IModelDeltaDecoration = {
+		let newDecorations: editorCommon.IModelDeltaDecoration = {
 			range: range,
 			options: {
 				inlineClassName: 'goto-definition-link',
