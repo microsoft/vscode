@@ -15,7 +15,7 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, BINARY_DIFF_EDITOR_ID} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -27,7 +27,7 @@ import {ScrollbarVisibility} from 'vs/base/common/scrollable';
  */
 export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSashLayoutProvider {
 
-	public static ID = 'workbench.editors.binaryResourceDiffEditor';
+	public static ID = BINARY_DIFF_EDITOR_ID;
 
 	private static MIN_CONTAINER_WIDTH = 100;
 

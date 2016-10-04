@@ -272,7 +272,7 @@ suite('Workbench UI Services', () => {
 	test('WorkbenchEditorService', function () {
 		let instantiationService = workbenchInstantiationService();
 
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
@@ -333,7 +333,7 @@ suite('Workbench UI Services', () => {
 
 	test('DelegatingWorkbenchEditorService', function () {
 		let instantiationService = workbenchInstantiationService();
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource('/something.js'), void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);

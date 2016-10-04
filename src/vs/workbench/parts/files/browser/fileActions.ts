@@ -1355,8 +1355,8 @@ export class CompareResourcesAction extends Action {
 			this.tree.clearHighlight();
 		}
 
-		const leftInput = this.instantiationService.createInstance(FileEditorInput, globalResourceToCompare, void 0, void 0);
-		const rightInput = this.instantiationService.createInstance(FileEditorInput, this.resource, void 0, void 0);
+		const leftInput = this.instantiationService.createInstance(FileEditorInput, globalResourceToCompare, void 0);
+		const rightInput = this.instantiationService.createInstance(FileEditorInput, this.resource, void 0);
 
 		return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(globalResourceToCompare, this.resource, this.contextService), null, leftInput, rightInput));
 	}

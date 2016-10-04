@@ -50,10 +50,6 @@ export abstract class FileEditorInput extends EditorInput implements IFileEditor
 
 	public abstract getResource(): URI;
 
-	public abstract setMime(mime: string): void;
-
-	public abstract getMime(): string;
-
 	public abstract setPreferredEncoding(encoding: string): void;
 
 	public abstract setEncoding(encoding: string, mode: EncodingMode): void;

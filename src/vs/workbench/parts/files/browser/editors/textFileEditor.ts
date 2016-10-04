@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {toErrorMessage} from 'vs/base/common/errorMessage';
-import {MIME_BINARY} from 'vs/base/common/mime';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
@@ -199,7 +198,9 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
-		const fileInputBinary = this.instantiationService.createInstance(FileEditorInput, input.getResource(), MIME_BINARY, void 0);
+		const fileInputBinary = this.instantiationService.createInstance(FileEditorInput, input.getResource(), void 0);
+		fileInputBinary.setForceOpenAsBinary();
+
 		this.editorService.openEditor(fileInputBinary, options, this.position).done(null, errors.onUnexpectedError);
 	}
 

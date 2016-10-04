@@ -144,9 +144,6 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	public setResource(r: URI): void {
 	}
 
-	public setMime(mime: string) {
-	}
-
 	public setEncoding(encoding: string) {
 	}
 
@@ -159,10 +156,6 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
-	}
-
-	public getMime(): string {
-		return null;
 	}
 }
 

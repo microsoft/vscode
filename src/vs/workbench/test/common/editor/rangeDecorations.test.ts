@@ -149,7 +149,7 @@ suite('Editor - Range decorations', () => {
 	function mockEditorService(editorInput: IEditorInput)
 	function mockEditorService(resource: URI)
 	function mockEditorService(arg: any) {
-		let editorInput: IEditorInput = arg instanceof URI ? instantiationService.createInstance(FileEditorInput, arg, '', '') : arg;
+		let editorInput: IEditorInput = arg instanceof URI ? instantiationService.createInstance(FileEditorInput, arg, void 0) : arg;
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditorInput',  editorInput);
 	}
 

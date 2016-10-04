@@ -10,10 +10,6 @@ import {EditorInput} from 'vs/workbench/common/editor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 
 class MyEditorInput extends EditorInput {
-	getMime() {
-		return 'text/css';
-	}
-
 	public getTypeId(): string {
 		return '';
 	}
