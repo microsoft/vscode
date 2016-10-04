@@ -227,6 +227,10 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
+	public getContainer(part): HTMLElement {
+		return null;
+	}
+
 	public isStatusBarHidden(): boolean {
 		return false;
 	}
@@ -255,7 +259,7 @@ export class TestPartService implements IPartService {
 	public getWorkbenchElementId(): string { return ''; }
 
 	public setRestoreSidebar(): void {
-		
+
 	}
 }
 
