@@ -7,22 +7,22 @@
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {$} from 'vs/base/browser/dom';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
-import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {IRange} from 'vs/editor/common/editorCommon';
-import {HoverProviderRegistry, Hover} from 'vs/editor/common/modes';
-import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {getHover} from '../common/hover';
-import {HoverOperation, IHoverComputer} from './hoverOperation';
-import {ContentHoverWidget} from './hoverWidgets';
-import {textToMarkedString, MarkedString} from 'vs/base/common/htmlContent';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { $ } from 'vs/base/browser/dom';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/editorCommon';
+import { HoverProviderRegistry, Hover } from 'vs/editor/common/modes';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getHover } from '../common/hover';
+import { HoverOperation, IHoverComputer } from './hoverOperation';
+import { ContentHoverWidget } from './hoverWidgets';
+import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -58,7 +58,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 	}
 
 	public computeSync(): Hover[] {
-		var result:Hover[] = [];
+		var result: Hover[] = [];
 		var lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
@@ -67,7 +67,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		}
 
 		var hasHoverContent = (contents: MarkedString | MarkedString[]) => {
-			return contents && (!Array.isArray(contents) || (<MarkedString[]> contents).length > 0);
+			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
 		};
 
 		var lineDecorations = this._editor.getLineDecorations(lineNumber);
@@ -77,15 +77,15 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			var endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
 			if (startColumn <= this._range.startColumn && this._range.endColumn <= endColumn && hasHoverContent(d.options.hoverMessage)) {
-				var obj:Hover = {
+				var obj: Hover = {
 					contents: [],
 					range: new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn)
 				};
 				if (d.options.hoverMessage) {
 					if (Array.isArray(d.options.hoverMessage)) {
-						obj.contents = obj.contents.concat(<MarkedString[]> d.options.hoverMessage);
+						obj.contents = obj.contents.concat(<MarkedString[]>d.options.hoverMessage);
 					} else {
-						obj.contents.push(<MarkedString> d.options.hoverMessage);
+						obj.contents.push(<MarkedString>d.options.hoverMessage);
 					}
 				}
 				result.push(obj);
@@ -126,7 +126,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _lastRange: Range;
 	private _computer: ModesContentComputer;
 	private _hoverOperation: HoverOperation<Hover[]>;
-	private _highlightDecorations:string[];
+	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
 	private _openerService: IOpenerService;
 	private _modeService: IModeService;
@@ -143,9 +143,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
-			(result:Hover[]) => this._withResult(result, true),
+			(result: Hover[]) => this._withResult(result, true),
 			null,
-			(result:any) => this._withResult(result, false)
+			(result: any) => this._withResult(result, false)
 		);
 	}
 
@@ -215,12 +215,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = false;
 	}
 
-	public _withResult(result: Hover[], complete:boolean): void {
+	public _withResult(result: Hover[], complete: boolean): void {
 		this._messages = result;
 
 		if (this._lastRange && this._messages.length > 0) {
 			this._renderMessages(this._lastRange, this._messages);
-		} else if(complete) {
+		} else if (complete) {
 			this.hide();
 		}
 	}
@@ -248,10 +248,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 						},
 						codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
-							// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
-							const modeId = this._modeService.getModeIdForLanguageName(languageAlias);
+							// In markdown,
+							// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
+							// it is possible no alias is given in which case we fall back to the current editor lang
+							const modeId = languageAlias
+								? this._modeService.getModeIdForLanguageName(languageAlias)
+								: this._editor.getModel().getModeId();
+
 							return this._modeService.getOrCreateMode(modeId).then(_ => {
-								return `<div class="code">${ tokenizeToString(value, modeId) }</div>`;
+								return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
 							});
 						}
 					});
