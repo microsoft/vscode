@@ -84,11 +84,11 @@ export class TextDiffEditor extends BaseTextEditor {
 		this.previousDiffAction = new NavigateAction(this, false);
 
 		// Support navigation within the diff editor by overriding the editor service within
-		let delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
+		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
 
 			// Check if arg4 is a position argument that differs from this editors position
 			if (types.isUndefinedOrNull(arg3) || arg3 === false || arg3 === this.position) {
-				let activeDiffInput = <DiffEditorInput>this.getInput();
+				const activeDiffInput = <DiffEditorInput>this.getInput();
 				if (input && options && activeDiffInput) {
 
 					// Input matches modified side of the diff editor: perform the action on modified side
@@ -98,7 +98,7 @@ export class TextDiffEditor extends BaseTextEditor {
 
 					// Input matches original side of the diff editor: perform the action on original side
 					else if (input.matches(activeDiffInput.originalInput)) {
-						let originalEditor = this.getControl().getOriginalEditor();
+						const originalEditor = this.getControl().getOriginalEditor();
 						if (options instanceof TextEditorOptions) {
 							(<TextEditorOptions>options).apply(originalEditor);
 
@@ -112,23 +112,23 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		let diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
+		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 
 		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		let oldInput = this.getInput();
+		const oldInput = this.getInput();
 		super.setInput(input, options);
 
 		// Detect options
-		let forceOpen = options && options.forceOpen;
+		const forceOpen = options && options.forceOpen;
 
 		// Same Input
 		if (!forceOpen && input.matches(oldInput)) {
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			let textOptions = <TextEditorOptions>options;
+			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
 				textOptions.apply(<IDiffEditor>this.getControl());
 			}
@@ -155,13 +155,13 @@ export class TextDiffEditor extends BaseTextEditor {
 			}
 
 			// Editor
-			let diffEditor = <IDiffEditor>this.getControl();
+			const diffEditor = <IDiffEditor>this.getControl();
 			diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
 
 			// Respect text diff editor options
 			let autoRevealFirstChange = true;
 			if (options instanceof TextDiffEditorOptions) {
-				let textDiffOptions = (<TextDiffEditorOptions>options);
+				const textDiffOptions = (<TextDiffEditorOptions>options);
 				autoRevealFirstChange = !types.isUndefinedOrNull(textDiffOptions.autoRevealFirstChange) ? textDiffOptions.autoRevealFirstChange : autoRevealFirstChange;
 			}
 
@@ -195,10 +195,10 @@ export class TextDiffEditor extends BaseTextEditor {
 
 	private openAsBinary(input: EditorInput, options: EditorOptions): boolean {
 		if (input instanceof DiffEditorInput) {
-			let originalInput = input.originalInput;
-			let modifiedInput = input.modifiedInput;
+			const originalInput = input.originalInput;
+			const modifiedInput = input.modifiedInput;
 
-			let binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
+			const binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
 
 			this.editorService.openEditor(binaryDiffInput, options, this.position).done(null, onUnexpectedError);
 
@@ -209,17 +209,17 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
-		let options: IDiffEditorOptions = super.getCodeEditorOptions();
+		const options: IDiffEditorOptions = super.getCodeEditorOptions();
 
-		let input = this.input;
+		const input = this.input;
 		if (input instanceof DiffEditorInput) {
-			let modifiedInput = input.modifiedInput;
-			let readOnly = modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
+			const modifiedInput = input.modifiedInput;
+			const readOnly = modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
 
 			options.readOnly = readOnly;
 
 			let ariaLabel: string;
-			let inputName = input && input.getName();
+			const inputName = input && input.getName();
 			if (readOnly) {
 				ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
 			} else {
@@ -236,7 +236,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	private isFileBinaryError(error: Error): boolean;
 	private isFileBinaryError(error: any): boolean {
 		if (types.isArray(error)) {
-			let errors = <Error[]>error;
+			const errors = <Error[]>error;
 			return errors.some((e) => this.isFileBinaryError(e));
 		}
 
@@ -275,16 +275,16 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	public getSecondaryActions(): IAction[] {
-		let actions = super.getSecondaryActions();
+		const actions = super.getSecondaryActions();
 
 		const control = this.getControl();
 
 		let inlineModeActive = control && !control.renderSideBySide;
-		let inlineLabel = nls.localize('inlineDiffLabel', "Switch to Inline View");
-		let sideBySideLabel = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
+		const inlineLabel = nls.localize('inlineDiffLabel', "Switch to Inline View");
+		const sideBySideLabel = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
 
 		// Action to toggle editor mode from inline to side by side
-		let toggleEditorModeAction = new Action('toggle.diff.editorMode', inlineModeActive ? sideBySideLabel : inlineLabel, null, true, () => {
+		const toggleEditorModeAction = new Action('toggle.diff.editorMode', inlineModeActive ? sideBySideLabel : inlineLabel, null, true, () => {
 			this.getControl().updateOptions(<IDiffEditorOptions>{
 				renderSideBySide: inlineModeActive
 			});

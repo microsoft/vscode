@@ -64,7 +64,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 	public createEditor(parent: Builder): void {
 
 		// Left Container for Binary
-		let leftBinaryContainerElement = document.createElement('div');
+		const leftBinaryContainerElement = document.createElement('div');
 		leftBinaryContainerElement.className = 'binary-container';
 		this.leftBinaryContainer = $(leftBinaryContainerElement);
 		this.leftBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
@@ -82,7 +82,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		this.sash.addListener2('reset', () => this.onSashReset());
 
 		// Right Container for Binary
-		let rightBinaryContainerElement = document.createElement('div');
+		const rightBinaryContainerElement = document.createElement('div');
 		rightBinaryContainerElement.className = 'binary-container';
 		this.rightBinaryContainer = $(rightBinaryContainerElement);
 		this.rightBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
@@ -94,11 +94,11 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		let oldInput = this.getInput();
+		const oldInput = this.getInput();
 		super.setInput(input, options);
 
 		// Detect options
-		let forceOpen = options && options.forceOpen;
+		const forceOpen = options && options.forceOpen;
 
 		// Same Input
 		if (!forceOpen && input.matches(oldInput)) {
@@ -119,11 +119,11 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 			}
 
 			// Render original
-			let original = <BinaryEditorModel>resolvedModel.originalModel;
+			const original = <BinaryEditorModel>resolvedModel.originalModel;
 			this.renderInput(original.getName(), original.getResource(), original.getSize(), original.getETag(), true);
 
 			// Render modified
-			let modified = <BinaryEditorModel>resolvedModel.modifiedModel;
+			const modified = <BinaryEditorModel>resolvedModel.modifiedModel;
 			this.renderInput(modified.getName(), modified.getResource(), modified.getSize(), modified.getETag(), false);
 		});
 	}
@@ -138,8 +138,8 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		}
 
 		// Pass to ResourceViewer
-		let container = isOriginal ? this.leftBinaryContainer : this.rightBinaryContainer;
-		let scrollbar = isOriginal ? this.leftScrollbar : this.rightScrollbar;
+		const container = isOriginal ? this.leftBinaryContainer : this.rightBinaryContainer;
+		const scrollbar = isOriginal ? this.leftScrollbar : this.rightScrollbar;
 
 		ResourceViewer.show({ name, resource, size, etag }, container, scrollbar, (meta) => this.handleMetadataChanged(meta, isOriginal));
 	}
@@ -172,14 +172,14 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 	}
 
 	public layout(dimension: Dimension): void {
-		let oldDimension = this.dimension;
+		const oldDimension = this.dimension;
 		this.dimension = dimension;
 
 		// Calculate left hand container width based on sash move or fallback to 50% by default
 		if (!this.leftContainerWidth || !oldDimension) {
 			this.leftContainerWidth = this.dimension.width / 2;
 		} else {
-			let sashRatio = this.leftContainerWidth / oldDimension.width;
+			const sashRatio = this.leftContainerWidth / oldDimension.width;
 			this.leftContainerWidth = this.dimension.width * sashRatio;
 		}
 
@@ -208,7 +208,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 	private onSashDrag(e: ISashEvent): void {
 
 		// Update Widths and keep in bounds of MIN_CONTAINER_WIDTH for both sides
-		let newLeftContainerWidth = this.startLeftContainerWidth + e.currentX - e.startX;
+		const newLeftContainerWidth = this.startLeftContainerWidth + e.currentX - e.startX;
 		this.leftContainerWidth = Math.max(BinaryResourceDiffEditor.MIN_CONTAINER_WIDTH, newLeftContainerWidth);
 		if (this.dimension.width - this.leftContainerWidth < BinaryResourceDiffEditor.MIN_CONTAINER_WIDTH) {
 			this.leftContainerWidth = this.dimension.width - BinaryResourceDiffEditor.MIN_CONTAINER_WIDTH;
