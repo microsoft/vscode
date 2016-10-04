@@ -4,9 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
-	border-top-color: #E89208;
-	border-bottom-color: #E89208;
 	height: 30px !important;
+	display: flex;
+	background-color: var(--input-bgcolor);
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container {
+	display: flex;
+	justify-content: center;
+	flex-direction: column;
+	padding: 0 10px;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container .select-box {
+	margin-top: 0px;
+	border-color: rgba(128, 128, 128, 0.35);
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputBoxContainer {
+	flex: 1;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .monaco-inputbox {
