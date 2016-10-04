@@ -189,7 +189,6 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		return this.fileService.resolveFile(resource).then(stat => {
 			return this.editorService.openEditor({
 				resource: stat.resource,
-				mime: stat.mime,
 				options: {
 					forceOpen: true
 				}

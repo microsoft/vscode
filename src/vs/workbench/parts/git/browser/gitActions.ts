@@ -173,7 +173,6 @@ export class OpenFileAction extends GitAction {
 		return this.fileService.resolveFile(resource)
 			.then(stat => this.editorService.openEditor({
 				resource: stat.resource,
-				mime: stat.mime,
 				options: { forceOpen: true }
 			}));
 	}
@@ -395,7 +394,6 @@ export abstract class BaseUndoAction extends GitAction {
 			return this.fileService.resolveFile(this.contextService.toResource(path)).then((stat: IFileStat) => {
 				return this.editorService.openEditor({
 					resource: stat.resource,
-					mime: stat.mime,
 					options: {
 						forceOpen: true
 					}

@@ -6,7 +6,6 @@
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
-import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -71,11 +70,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			const before = e.getBefore();
 			const after = e.getAfter();
 
-			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
+			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null);
 		}
 	}
 
-	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
+	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
 		const stacks = this.editorGroupService.getStacksModel();
 		stacks.groups.forEach(group => {
 			group.getEditors().forEach(input => {
@@ -93,7 +92,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						}
 
 						// Reopen
-						this.editorService.openEditor({ resource: reopenFileResource, mime: mimeHint || MIME_UNKNOWN, options: { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) } }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor({ resource: reopenFileResource, options: { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) } }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
 				}
 			});
