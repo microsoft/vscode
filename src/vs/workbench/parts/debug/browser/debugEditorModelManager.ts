@@ -200,11 +200,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		const data: IRawBreakpoint[] = [];
 
-		const enabledAndConditions: { [key: number]: { enabled: boolean, condition: string } } = {};
+		const lineToBreakpointDataMap: { [key: number]: { enabled: boolean, condition: string, hitCondition: string } } = {};
 		this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr).forEach(bp => {
-			enabledAndConditions[bp.lineNumber] = {
+			lineToBreakpointDataMap[bp.lineNumber] = {
 				enabled: bp.enabled,
-				condition: bp.condition
+				condition: bp.condition,
+				hitCondition: bp.hitCondition
 			};
 		});
 
@@ -217,8 +218,9 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				data.push({
 					uri: modelUrl,
 					lineNumber: decorationRange.startLineNumber,
-					enabled: enabledAndConditions[modelData.breakpointLines[i]].enabled,
-					condition: enabledAndConditions[modelData.breakpointLines[i]].condition
+					enabled: lineToBreakpointDataMap[modelData.breakpointLines[i]].enabled,
+					condition: lineToBreakpointDataMap[modelData.breakpointLines[i]].condition,
+					hitCondition: lineToBreakpointDataMap[modelData.breakpointLines[i]].hitCondition
 				});
 			}
 		}
@@ -280,7 +282,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		let result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
 			debugActive && modelData && modelData.dirty && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :
 			debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
-			!breakpoint.condition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
+			!breakpoint.condition && !breakpoint.hitCondition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
 
 		if (result && breakpoint.message) {
 			result = objects.clone(result);
@@ -291,19 +293,20 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return result;
 		}
 
-		if (!session || session.configuration.capabilities.supportsConditionalBreakpoints) {
-			const mode = modelData ? modelData.model.getMode() : null;
-			const modeId = mode ? mode.getId() : '';
-			const glyphMarginHoverMessage = `\`\`\`${modeId}\n${ breakpoint.condition }\`\`\``;
-
-			return {
-				glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
-				glyphMarginHoverMessage,
-				stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-			};
+		if (session && !session.configuration.capabilities.supportsConditionalBreakpoints) {
+			return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 		}
+		
+		const mode = modelData ? modelData.model.getMode() : null;
+		const modeId = mode ? mode.getId() : '';
+		const condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
+		const glyphMarginHoverMessage = `\`\`\`${modeId}\n${ condition }\`\`\``;
 
-		return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
+		return {
+			glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
+			glyphMarginHoverMessage,
+			stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		};
 	}
 
 	// editor decorations
