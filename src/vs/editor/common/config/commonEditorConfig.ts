@@ -312,6 +312,8 @@ class InternalEditorOptionsHelper {
 			snippetSuggestions: opts.snippetSuggestions,
 			tabCompletion: opts.tabCompletion,
 			wordBasedSuggestions: opts.wordBasedSuggestions,
+			suggestFontSize: opts.suggestFontSize,
+			suggestLineHeight: opts.suggestLineHeight,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			codeLens: opts.referenceInfos && opts.codeLens,
 			folding: toBoolean(opts.folding),
@@ -764,6 +766,18 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
+		},
+		'editor.suggestFontSize' : {
+			'type': 'integer',
+			'default': 0,
+			'minimum': 0,
+			'description': nls.localize('suggestFontSize', "Font size for the suggest widget")
+		},
+		'editor.suggestLineHeight' : {
+			'type': 'integer',
+			'default': 0,
+			'minimum': 0,
+			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget")
 		},
 		'editor.tabCompletion': {
 			'type': 'boolean',

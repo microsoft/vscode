@@ -1274,6 +1274,16 @@ declare module monaco.editor {
          */
         wordBasedSuggestions?: boolean;
         /**
+         * The font size for the suggest widget.
+         * Defaults to the editor font size.
+         */
+        suggestFontSize?: number;
+        /**
+         * The line height for the suggest widget.
+         * Defaults to the editor line height.
+         */
+        suggestLineHeight?: number;
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
@@ -1453,6 +1463,8 @@ declare module monaco.editor {
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         tabCompletion: boolean;
         wordBasedSuggestions: boolean;
+        suggestFontSize: number;
+        suggestLineHeight: number;
         selectionHighlight: boolean;
         codeLens: boolean;
         folding: boolean;
