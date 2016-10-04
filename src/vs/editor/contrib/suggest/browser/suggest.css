@@ -18,10 +18,6 @@
 	transition: left .05s ease-in-out;
 }
 
-.monaco-editor.mac .suggest-widget .contents {
-	line-height: 1.3em;
-}
-
 .monaco-editor .suggest-widget > .message {
 	padding-left: 22px;
 	opacity: 0.7;
