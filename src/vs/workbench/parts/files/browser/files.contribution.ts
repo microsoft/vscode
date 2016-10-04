@@ -115,7 +115,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 // Note: because of service injection, the descriptor needs to have the exact count
 // of arguments as the FileEditorInput constructor. Otherwise when creating an
 // instance through the instantiation service he will inject the services wrong!
-const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
+const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(descriptor);
 
 interface ISerializedFileInput {
@@ -139,7 +139,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 
-		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), void 0, void 0);
+		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), void 0);
 	}
 }
 

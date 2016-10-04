@@ -63,10 +63,6 @@ export class StringEditorInput extends EditorInput {
 		return this.value;
 	}
 
-	public getMime(): string {
-		return this.mime;
-	}
-
 	/**
 	 * Sets the textual value of this input and will also update the underlying model if this input is resolved.
 	 */

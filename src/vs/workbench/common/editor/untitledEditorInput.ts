@@ -16,6 +16,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
+import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 
 import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
 
@@ -98,21 +99,15 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public suggestFileName(): string {
 		if (!this.hasAssociatedFilePath) {
-			const mime = this.getMime();
-			if (mime && mime !== MIME_TEXT /* do not suggest when the mime type is simple plain text */) {
-				return suggestFilename(mime, this.getName());
+			if (this.cachedModel) {
+				const modeId = this.cachedModel.getModeId();
+				if (modeId !== PLAINTEXT_MODE_ID) { // do not suggest when the mime type is simple plain text
+					return suggestFilename(modeId, this.getName());
+				}
 			}
 		}
 
 		return this.getName();
-	}
-
-	public getMime(): string {
-		if (this.cachedModel) {
-			return this.modeService.getMimeForMode(this.cachedModel.getModeId());
-		}
-
-		return null;
 	}
 
 	public getEncoding(): string {

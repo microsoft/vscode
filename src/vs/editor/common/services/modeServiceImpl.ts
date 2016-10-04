@@ -513,7 +513,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 				const langId = configuration.files.associations[pattern];
 				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
 
-				mime.registerTextMime({ mime: mimetype, filepattern: pattern, userConfigured: true });
+				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}
 	}

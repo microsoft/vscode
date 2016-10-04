@@ -123,7 +123,7 @@ export class LanguagesRegistry {
 		if (Array.isArray(lang.extensions)) {
 			this.id2Extensions[lang.id] = this.id2Extensions[lang.id] || [];
 			for (let extension of lang.extensions) {
-				mime.registerTextMime({ mime: primaryMime, extension: extension });
+				mime.registerTextMime({ id: lang.id, mime: primaryMime, extension: extension });
 				this.id2Extensions[lang.id].push(extension);
 			}
 		}
@@ -131,14 +131,14 @@ export class LanguagesRegistry {
 		if (Array.isArray(lang.filenames)) {
 			this.id2Filenames[lang.id] = this.id2Filenames[lang.id] || [];
 			for (let filename of lang.filenames) {
-				mime.registerTextMime({ mime: primaryMime, filename: filename });
+				mime.registerTextMime({ id: lang.id, mime: primaryMime, filename: filename });
 				this.id2Filenames[lang.id].push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
 			for (let filenamePattern of lang.filenamePatterns) {
-				mime.registerTextMime({ mime: primaryMime, filepattern: filenamePattern });
+				mime.registerTextMime({ id: lang.id, mime: primaryMime, filepattern: filenamePattern });
 			}
 		}
 
@@ -150,7 +150,7 @@ export class LanguagesRegistry {
 			try {
 				var firstLineRegex = new RegExp(firstLineRegexStr);
 				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					mime.registerTextMime({ mime: primaryMime, firstline: firstLineRegex });
+					mime.registerTextMime({ id: lang.id, mime: primaryMime, firstline: firstLineRegex });
 				}
 			} catch (err) {
 				// Most likely, the regex was bad

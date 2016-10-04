@@ -99,10 +99,6 @@ export class StringEditorModel extends BaseTextEditorModel {
 		return null;
 	}
 
-	public getMime(): string {
-		return this.mime;
-	}
-
 	public load(): TPromise<EditorModel> {
 
 		// Create text editor model if not yet done

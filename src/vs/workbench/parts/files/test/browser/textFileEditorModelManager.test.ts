@@ -146,7 +146,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
 		manager.add(resource, model);
 
-		const input = instantiationService.createInstance(FileEditorInput, resource, 'text/plain', void 0);
+		const input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 
 		const stacks = accessor.editorGroupService.getStacksModel();
 		const group = stacks.openGroup('group', true);

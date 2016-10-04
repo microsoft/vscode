@@ -263,7 +263,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 				if (!this.model.isDisposed()) {
 					const mime = guessMimeTypes(resource.fsPath).join(', ');
 					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, mime, paths.basename(resource.fsPath), resource.fsPath);
-					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, mime, void 0);
+					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, void 0);
 					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), product.nameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
 
 					return this.editorService.openEditor(conflictInput).then(() => {

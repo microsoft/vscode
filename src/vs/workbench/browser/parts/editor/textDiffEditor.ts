@@ -16,7 +16,7 @@ import {Position} from 'vs/platform/editor/common/editor';
 import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {IDiffEditorOptions, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {TextEditorOptions, TextDiffEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {TextEditorOptions, TextDiffEditorOptions, EditorModel, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -44,7 +44,7 @@ export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareE
  */
 export class TextDiffEditor extends BaseTextEditor {
 
-	public static ID = 'workbench.editors.textDiffEditor';
+	public static ID = TEXT_DIFF_EDITOR_ID;
 
 	private diffNavigator: DiffNavigator;
 	private nextDiffAction: NavigateAction;

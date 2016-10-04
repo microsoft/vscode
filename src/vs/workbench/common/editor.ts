@@ -36,6 +36,16 @@ export const Extensions = {
 	Editors: 'workbench.contributions.editors'
 };
 
+/**
+ * Text diff editor id.
+ */
+export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
+
+/**
+ * Binary diff editor id.
+ */
+export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
+
 export interface IEditorRegistry {
 
 	/**
@@ -324,16 +334,6 @@ export interface IEncodingSupport {
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 
 	/**
-	 * Gets the mime type of the file this input is about.
-	 */
-	getMime(): string;
-
-	/**
-	 * Sets the mime type of the file this input is about.
-	 */
-	setMime(mime: string): void;
-
-	/**
 	 * Gets the absolute file resource URI this input is about.
 	 */
 	getResource(): URI;
@@ -359,8 +359,6 @@ export abstract class UntitledEditorInput extends EditorInput implements IEncodi
 	abstract isDirty(): boolean;
 
 	abstract suggestFileName(): string;
-
-	abstract getMime(): string;
 
 	abstract getEncoding(): string;
 
@@ -799,7 +797,7 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 
 	let i = <IFileEditorInput>obj;
 
-	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
+	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setEncoding, i.getEncoding, i.getResource) ? i : null;
 }
 
 export interface IStacksModelChangeEvent {

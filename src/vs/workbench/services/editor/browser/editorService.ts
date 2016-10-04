@@ -6,7 +6,6 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {guessMimeTypes} from 'vs/base/common/mime';
 import network = require('vs/base/common/network');
 import {Registry} from 'vs/platform/platform';
 import {basename, dirname} from 'vs/base/common/paths';
@@ -280,7 +279,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	private createFileInput(resource: URI, encoding?: string): TPromise<IFileEditorInput> {
 		return this.instantiationService.createInstance(this.fileInputDescriptor).then((typedFileInput) => {
 			typedFileInput.setResource(resource);
-			typedFileInput.setMime(guessMimeTypes(resource.fsPath).join(', '));
 			typedFileInput.setPreferredEncoding(encoding);
 
 			return typedFileInput;
