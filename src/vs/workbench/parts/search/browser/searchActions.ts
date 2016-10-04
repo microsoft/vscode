@@ -170,6 +170,20 @@ export class ReplaceInFilesAction extends Action {
 	}
 }
 
+export class CloseReplaceAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchAndReplaceWidget;
+		searchAndReplaceWidget.toggleReplace(false);
+		searchAndReplaceWidget.focus();
+		return TPromise.as(null);
+	}
+}
+
 export class FindInFolderAction extends Action {
 
 	private resource: URI;
