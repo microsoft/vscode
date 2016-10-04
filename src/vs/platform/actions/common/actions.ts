@@ -40,7 +40,7 @@ export enum MenuId {
 	EditorTitle = 1,
 	EditorContext = 2,
 	ExplorerContext = 3,
-	EditorTab = 4
+	EditorTabContext = 4
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
