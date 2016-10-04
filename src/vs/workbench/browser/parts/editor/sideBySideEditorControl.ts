@@ -223,8 +223,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		POSITIONS.forEach(position => {
 			const titleAreaControl = this.getTitleAreaControl(position);
 			const context = this.stacks.groupAt(position);
+			const hasContext = titleAreaControl.hasContext();
 			titleAreaControl.setContext(context);
-			if (!context && titleAreaControl.hasContext()) {
+			if (!context && hasContext) {
 				titleAreaControl.refresh(); // clear out the control if the context is no longer present and there was a context
 			}
 		});
