@@ -230,6 +230,10 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
+	public getContainer(part): HTMLElement {
+		return null;
+	}
+
 	public isStatusBarHidden(): boolean {
 		return false;
 	}
