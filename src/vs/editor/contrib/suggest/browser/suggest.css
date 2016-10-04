@@ -164,6 +164,7 @@
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
+	cursor: default;
 }
 
 .monaco-editor .suggest-widget .details > .header {
