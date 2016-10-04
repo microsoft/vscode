@@ -16,8 +16,8 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
-import { FileEditorDescriptor } from 'vs/workbench/parts/files/browser/files';
 import { AutoSaveConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
+import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
@@ -73,19 +73,11 @@ registry.registerWorkbenchAction(
 
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new FileEditorDescriptor(
+	new EditorDescriptor(
 		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('textFileEditor', "Text File Editor"),
 		'vs/workbench/parts/files/browser/editors/textFileEditor',
-		'TextFileEditor',
-		[
-			'text/*',
-
-			// In case the mime type is unknown, we prefer the text file editor over the binary editor to leave a chance
-			// of opening a potential text file properly. The resolution of the file in the text file editor will fail
-			// early on in case the file is actually binary, to prevent downloading a potential large binary file.
-			'application/unknown'
-		]
+		'TextFileEditor'
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)
@@ -93,18 +85,11 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new FileEditorDescriptor(
+	new EditorDescriptor(
 		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('binaryFileEditor', "Binary File Editor"),
 		'vs/workbench/parts/files/browser/editors/binaryFileEditor',
-		'BinaryFileEditor',
-		[
-			'image/*',
-			'application/pdf',
-			'audio/*',
-			'video/*',
-			'application/octet-stream'
-		]
+		'BinaryFileEditor'
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)

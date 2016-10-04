@@ -10,7 +10,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
 import {sequence, ITask} from 'vs/base/common/async';
-import {isBinaryMime, guessMimeTypes} from 'vs/base/common/mime';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
@@ -1325,23 +1324,6 @@ export class CompareResourcesAction extends Action {
 
 		// Check if target is identical to source
 		if (this.resource.toString() === globalResourceToCompare.toString()) {
-			return false;
-		}
-
-		const mimeA = guessMimeTypes(this.resource.fsPath).join(', ');
-		const mimeB = guessMimeTypes(globalResourceToCompare.fsPath).join(', ');
-
-		// Check if target has same mime
-		if (mimeA === mimeB) {
-			return true;
-		}
-
-		// Ensure the mode is equal if this is text (limitation of current diff infrastructure)
-		const isBinaryA = isBinaryMime(mimeA);
-		const isBinaryB = isBinaryMime(mimeB);
-
-		// Ensure we are not comparing binary with text
-		if (isBinaryA !== isBinaryB) {
 			return false;
 		}
 
