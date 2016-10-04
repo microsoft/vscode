@@ -6,8 +6,9 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {isUnspecific, guessMimeTypes, MIME_TEXT, suggestFilename} from 'vs/base/common/mime';
+import {suggestFilename} from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
+import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
 import {UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
@@ -16,7 +17,6 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
-import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 
 import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
 
@@ -101,7 +101,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		if (!this.hasAssociatedFilePath) {
 			if (this.cachedModel) {
 				const modeId = this.cachedModel.getModeId();
-				if (modeId !== PLAINTEXT_MODE_ID) { // do not suggest when the mime type is simple plain text
+				if (modeId !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
 					return suggestFilename(modeId, this.getName());
 				}
 			}
@@ -142,15 +142,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	private createModel(): UntitledEditorModel {
 		const content = '';
-		let mime = this.modeId;
-		if (!mime && this.hasAssociatedFilePath) {
-			const mimeFromPath = guessMimeTypes(this.resource.fsPath)[0];
-			if (!isUnspecific(mimeFromPath)) {
-				mime = mimeFromPath; // take most specific mime type if file path is associated and mime is specific
-			}
-		}
-
-		const model = this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
+		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model
 		this.toUnbind.push(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
