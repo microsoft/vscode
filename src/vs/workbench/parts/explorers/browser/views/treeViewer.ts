@@ -15,6 +15,7 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 
 const providerId = 'pineTree';
 
@@ -93,10 +94,14 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 
 export class TreeController extends DefaultController {
 
+	constructor() {
+		super();
+		// todo: pine: figure out if I need this
+		// super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
+	}
+
 	public onLeftClick(tree: ITree, node: TreeViewNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		super.onLeftClick(tree, node, event, origin);
-
-		console.log(node.label);
 
 		return true;
 	}
