@@ -46,6 +46,11 @@ export interface IPartService {
 	hasFocus(part: Parts): boolean;
 
 	/**
+	 * Returns the parts HTML element, if there is one.
+	 */
+	getContainer(part: Parts): HTMLElement;
+
+	/**
 	 * Returns iff the part is visible.
 	 */
 	isVisible(part: Parts): boolean;

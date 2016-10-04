@@ -74,7 +74,6 @@ import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import * as watermark from 'vs/workbench/parts/watermark/watermark';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -470,6 +469,11 @@ export class Workbench implements IPartService {
 			return false;
 		}
 
+		const container = this.getContainer(part);
+		return DOM.isAncestor(activeElement, container);
+	}
+
+	public getContainer(part: Parts): HTMLElement {
 		let container: Builder = null;
 		switch (part) {
 			case Parts.ACTIVITYBAR_PART:
@@ -488,8 +492,7 @@ export class Workbench implements IPartService {
 				container = this.statusbarPart.getContainer();
 				break;
 		}
-
-		return DOM.isAncestor(activeElement, container.getHTMLElement());
+		return container && container.getHTMLElement();
 	}
 
 	public isVisible(part: Parts): boolean {
@@ -782,10 +785,6 @@ export class Workbench implements IPartService {
 				id: Identifiers.EDITOR_PART,
 				role: 'main'
 			});
-
-		if (this.telemetryService.getExperiments().showCommandsWatermark) {
-			this.toDispose.push(watermark.create(editorContainer, this.keybindingService));
-		}
 
 		this.editorPart.create(editorContainer);
 	}
