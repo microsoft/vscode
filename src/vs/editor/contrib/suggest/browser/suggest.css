@@ -64,14 +64,17 @@
 	opacity: 0.85;
 }
 
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text.no-docs {
+	opacity: 0.5;
+	font-style: italic;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details {
 	opacity: 0.6;
-	width: 14px;
-	height: 14px;
 	background-image: url('./info.svg');
-	background-size: 14px;
 	background-position: center center;
 	background-repeat: no-repeat;
+	background-size: 70%;
 }
 
 .monaco-editor .suggest-widget .details > .header > .go-back,
@@ -177,10 +180,8 @@
 .monaco-editor .suggest-widget .details > .header > .go-back {
 	cursor: pointer;
 	opacity: 0.6;
-	width: 14px;
-	height: 14px;
 	background-image: url('./back.svg');
-	background-size: 14px;
+	background-size: 70%;
 	background-position: center center;
 	background-repeat: no-repeat;
 }

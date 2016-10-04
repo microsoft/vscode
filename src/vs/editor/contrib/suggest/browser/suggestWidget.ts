@@ -83,12 +83,15 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
 		const configureFont = () => {
 			const fontInfo = this.editor.getConfiguration().fontInfo;
+			const lineHeight = `${ fontInfo.lineHeight }px`;
 
 			data.root.style.fontSize = `${ fontInfo.fontSize }px`;
 			main.style.fontFamily = fontInfo.fontFamily;
-			main.style.lineHeight = `${ fontInfo.lineHeight }px`;
-			data.icon.style.height = `${ fontInfo.lineHeight }px`;
-			data.icon.style.width = `${ fontInfo.lineHeight }px`;
+			main.style.lineHeight = lineHeight;
+			data.icon.style.height = lineHeight;
+			data.icon.style.width = lineHeight;
+			data.documentationDetails.style.height = lineHeight;
+			data.documentationDetails.style.width = lineHeight;
 		};
 
 		configureFont();
@@ -261,10 +264,13 @@ class SuggestionDetails {
 	private configureFont() {
 		const fontInfo = this.editor.getConfiguration().fontInfo;
 		const fontSize = `${ fontInfo.fontSize }px`;
+		const lineHeight = `${ fontInfo.lineHeight }px`;
 
 		this.el.style.fontSize = fontSize;
 		this.title.style.fontFamily = fontInfo.fontFamily;
 		this.type.style.fontFamily = fontInfo.fontFamily;
+		this.back.style.height = lineHeight;
+		this.back.style.width = lineHeight;
 	}
 
 	dispose(): void {
