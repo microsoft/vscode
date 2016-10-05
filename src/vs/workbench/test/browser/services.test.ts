@@ -16,7 +16,7 @@ import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {IPanel} from 'vs/workbench/common/panel';

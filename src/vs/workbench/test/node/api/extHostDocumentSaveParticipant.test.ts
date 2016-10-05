@@ -14,7 +14,7 @@ import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDoc
 import { OneGetThreadService } from './testThreadService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
-import { SaveReason } from 'vs/workbench/parts/files/common/files';
+import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 

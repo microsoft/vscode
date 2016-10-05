@@ -44,8 +44,7 @@ import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
-
-import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
+import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {

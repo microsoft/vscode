@@ -63,6 +63,8 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {TextFileService} from 'vs/workbench/services/textfile/electron-browser/textFileService';
+import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -400,6 +402,9 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.quickOpen);
 		this.toShutdown.push(this.quickOpen);
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
+
+		// Text File Service
+		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
 
 		// Contributed services
 		const contributedServices = getServices();

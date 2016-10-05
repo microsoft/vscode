@@ -9,7 +9,7 @@ import {ISearchService, QueryType} from 'vs/platform/search/common/search';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {bulkEdit, IResourceEdit} from 'vs/editor/common/services/bulkEdit';
 import {TPromise} from 'vs/base/common/winjs.base';

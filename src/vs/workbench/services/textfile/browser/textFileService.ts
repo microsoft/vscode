@@ -11,7 +11,7 @@ import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import Event, {Emitter} from 'vs/base/common/event';
-import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions} from 'vs/workbench/services/textfile/common/textfiles';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -24,7 +24,7 @@ import {IEditorGroupService} from 'vs/workbench/services/group/common/groupServi
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
-import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
+import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 /**

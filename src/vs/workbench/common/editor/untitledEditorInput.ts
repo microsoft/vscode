@@ -17,8 +17,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
-
-import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
+import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 
 /**
  * An editor input to be used for untitled text buffers.

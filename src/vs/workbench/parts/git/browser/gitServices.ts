@@ -20,7 +20,7 @@ import { IFileStatus, IGitServiceError, GitErrorCodes, Status, StatusType, AutoF
 import { Model } from 'vs/workbench/parts/git/common/gitModel';
 import { NativeGitIndexStringEditorInput, GitIndexDiffEditorInput, GitWorkingTreeDiffEditorInput, GitDiffEditorInput } from 'vs/workbench/parts/git/browser/gitEditorInputs';
 import { GitOperation } from 'vs/workbench/parts/git/browser/gitOperations';
-import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/parts/files/common/files';
+import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, EventType as FileEventType, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer, PeriodThrottledDelayer } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
