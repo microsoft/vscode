@@ -11,8 +11,12 @@ import {ExtHostContext, MainThreadExplorersShape, ExtHostExplorersShape} from '.
 import {ITreeExplorerViewletService} from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
 import {TreeViewNode} from 'vs/workbench/parts/explorers/common/treeViewModel';
 
+import { ExtHostTreeNode } from 'vs/workbench/api/node/extHostExplorers';
+
 export class MainThreadExplorers extends MainThreadExplorersShape {
 	private _proxy: ExtHostExplorersShape;
+
+	private _treeContents: { [treeContentProviderId: string]: ExtHostTreeNode };
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -21,14 +25,18 @@ export class MainThreadExplorers extends MainThreadExplorersShape {
 		super();
 
 		this._proxy = threadService.get(ExtHostContext.ExtHostExplorers);
+		this._treeContents = Object.create(null);
 	}
 
 	$registerTreeContentProvider(providerId: string): void {
 		this.treeExplorerViewletService.registerTreeContentProvider(providerId, {
-			provideTreeContent: (): TPromise<ITreeNode> => {
-				return this._proxy.$provideTreeContent(providerId);
+			provideTreeContent: (): TPromise<ExtHostTreeNode> => {
+				return this._proxy.$provideTreeContent(providerId).then(treeContent => {
+					this._treeContents[providerId] = treeContent;
+					return treeContent;
+				})
 			},
-			resolveChildren: (node: ITreeNode): TPromise<ITreeNode[]> => {
+			resolveChildren: (node: ExtHostTreeNode): TPromise<ExtHostTreeNode[]> => {
 				return this._proxy.$resolveChildren(providerId, node);
 			}
 		});

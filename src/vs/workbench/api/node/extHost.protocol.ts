@@ -34,6 +34,8 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
 
+import { ExtHostTreeNode } from 'vs/workbench/api/node/extHostExplorers';
+
 export interface InstanceSetter<T> {
 	set<R extends T>(instance: T): R;
 }
@@ -263,8 +265,8 @@ export abstract class ExtHostEditorsShape {
 }
 
 export abstract class ExtHostExplorersShape {
-	$provideTreeContent(treeContentProviderId: string): TPromise<vscode.ITreeNode> { throw ni(); };
-	$resolveChildren(treeContentProviderId: string, node: vscode.ITreeNode): TPromise<vscode.ITreeNode[]> { throw ni(); }
+	$provideTreeContent(treeContentProviderId: string): TPromise<ExtHostTreeNode> { throw ni(); };
+	$resolveChildren(treeContentProviderId: string, node: ExtHostTreeNode): TPromise<ExtHostTreeNode[]> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {
