@@ -263,8 +263,8 @@ export abstract class ExtHostEditorsShape {
 }
 
 export abstract class ExtHostExplorersShape {
-	$provideTreeContent(treeContentProviderId: string): TPromise<string> { throw ni(); };
-	$resolveChildren(treeContentProviderId: string, node: vscode.ITreeNode): TPromise<string> { throw ni(); }
+	$provideTreeContent(treeContentProviderId: string): TPromise<vscode.ITreeNode> { throw ni(); };
+	$resolveChildren(treeContentProviderId: string, node: vscode.ITreeNode): TPromise<vscode.ITreeNode[]> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {

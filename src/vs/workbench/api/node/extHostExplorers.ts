@@ -13,7 +13,7 @@ import {MainContext, ExtHostExplorersShape, MainThreadExplorersShape} from './ex
 export class ExtHostExplorers extends ExtHostExplorersShape {
 	private _proxy: MainThreadExplorersShape;
 
-	private _treeContentProviders: { [treeContentProviderId: string]: vscode.TreeContentProvider; };
+	private _treeContentProviders: { [treeContentProviderId: string]: vscode.TreeContentProvider };
 
 	constructor(
 		threadService: IThreadService
@@ -36,25 +36,25 @@ export class ExtHostExplorers extends ExtHostExplorersShape {
 		});
 	}
 
-	$provideTreeContent(treeContentProviderId: string): TPromise<string> {
+	$provideTreeContent(treeContentProviderId: string): TPromise<vscode.ITreeNode> {
 		const provider = this._treeContentProviders[treeContentProviderId];
 		if (!provider) {
 			throw new Error(`no TreeContentProvider registered with id '${treeContentProviderId}'`);
 		}
 
 		return TPromise.wrap(provider.provideTreeContent().then(treeContent => {
-			return JSON.stringify(treeContent);
+			return treeContent;
 		}));
 	}
 
-	$resolveChildren(treeContentProviderId: string, node: vscode.ITreeNode): TPromise<string> {
+	$resolveChildren(treeContentProviderId: string, node: vscode.ITreeNode): TPromise<vscode.ITreeNode[]> {
 		const provider = this._treeContentProviders[treeContentProviderId];
 		if (!provider) {
 			throw new Error(`no TreeContentProvider registered with id '${treeContentProviderId}'`);
 		}
 
 		return TPromise.wrap(provider.resolveChildren(node).then(children => {
-			return JSON.stringify(children);
+			return children;
 		}));
 	}
 }
