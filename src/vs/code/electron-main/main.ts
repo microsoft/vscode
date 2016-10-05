@@ -25,6 +25,7 @@ import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
+import { allowSetForegroundWindow } from 'windows-foreground-love';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -299,7 +300,17 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
 
-					return service.start(environmentService.args, process.env)
+					let promise = TPromise.as(null);
+					if (platform.isWindows) {
+						promise = service.getMainProcessId()
+							.then(processId => {
+								logService.log('Sending some foreground love to the running instance:', processId);
+								allowSetForegroundWindow(processId);
+							});
+					}
+
+					return promise
+						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
 						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
 				},
