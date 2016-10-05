@@ -1477,7 +1477,7 @@ export class OneCursorOp {
 		let lineText = cursor.model.getLineContent(position.lineNumber);
 		let beforeCharacter = lineText[position.column - 1];
 
-		// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
+		// Only consider auto closing the pair if a space follows or if another autoclosed pair follows or a '<' follows
 		if (beforeCharacter) {
 			let isBeforeCloseBrace = false;
 			for (let closeBrace in cursor.modeConfiguration.autoClosingPairsClose) {
@@ -1486,7 +1486,7 @@ export class OneCursorOp {
 					break;
 				}
 			}
-			if ( !isBeforeCloseBrace && !/\s/.test(beforeCharacter)) {
+			if ( !isBeforeCloseBrace && !/\s|</.test(beforeCharacter)) {
 				return false;
 			}
 		}
