@@ -252,6 +252,10 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 				if (!this._editorService.isVisible(input, true)) {
 					toBeDisposed.push(resource);
 				}
+
+				if (input) {
+					input.dispose();
+				}
 			});
 		})).then(() => {
 			for (let resource of toBeDisposed) {

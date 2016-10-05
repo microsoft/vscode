@@ -69,7 +69,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return false;
 		}
 
-		return this.getVisibleEditors().some((editor) => {
+		return this.getVisibleEditors().some(editor => {
 			if (!editor.input) {
 				return false;
 			}
@@ -107,6 +107,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			const schema = resourceInput.resource.scheme;
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
+				
 				return TPromise.as<IEditor>(null);
 			}
 		}
