@@ -91,9 +91,7 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 export class TreeController extends DefaultController {
 
 	constructor() {
-		super();
-		// todo: pine: figure out if I need this
-		// super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 	}
 
 	onLeftClick(tree: ITree, node: TreeViewNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
