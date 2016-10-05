@@ -26,7 +26,7 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.13",
     "minimist": "1.2.0",
-    "native-keymap": "0.2.0",
+    "native-keymap": "0.3.0",
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
     "semver": "4.3.6",
     "vscode-debugprotocol": "1.13.0",

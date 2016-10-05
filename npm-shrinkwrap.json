@@ -288,9 +288,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "0.2.0",
-      "from": "native-keymap@0.2.0",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.2.0.tgz"
+      "version": "0.3.0",
+      "from": "native-keymap@0.3.0",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.3.0.tgz"
     },
     "normalize-path": {
       "version": "2.0.1",
