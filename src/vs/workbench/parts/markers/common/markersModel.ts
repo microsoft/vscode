@@ -57,6 +57,15 @@ export class Marker {
 	public get range(): IRange {
 		return this.marker;
 	}
+
+	public toString(): string {
+	return [`file: '${this.marker.resource}'`,
+			`severity: '${Severity.toString(this.marker.severity)}'`,
+			`message: '${this.marker.message}'`,
+			`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
+			`source: '${this.marker.source ? this.marker.source : ''}'`].join('\n');
+	}
+
 }
 
 export class FilterOptions {
