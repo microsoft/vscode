@@ -199,10 +199,8 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
-		const fileInputBinary = this.instantiationService.createInstance(FileEditorInput, input.getResource(), void 0);
-		fileInputBinary.setForceOpenAsBinary();
-
-		this.editorService.openEditor(fileInputBinary, options, this.position).done(null, errors.onUnexpectedError);
+		input.setForceOpenAsBinary();
+		this.editorService.openEditor(input, options, this.position).done(null, errors.onUnexpectedError);
 	}
 
 	private openAsFolder(input: FileEditorInput): boolean {
