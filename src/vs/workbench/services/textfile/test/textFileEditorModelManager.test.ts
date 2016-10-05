@@ -11,9 +11,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {join, basename} from 'vs/base/common/paths';
-import {workbenchInstantiationService, TestEditorGroupService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService, TestEditorGroupService, createFileInput} from 'vs/test/utils/servicesTestUtils';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
 import {LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
@@ -145,7 +144,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8');
 		manager.add(resource, model);
 
-		const input = instantiationService.createInstance(FileEditorInput, resource, void 0);
+		const input = createFileInput(instantiationService, resource);
 
 		const stacks = accessor.editorGroupService.getStacksModel();
 		const group = stacks.openGroup('group', true);
