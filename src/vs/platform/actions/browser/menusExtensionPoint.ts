@@ -98,7 +98,7 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
-			'editortab/context': {
+			'editor/title/context': {
 				description: localize('menus.editorTabContext', "The editor tabs context menu"),
 				type: 'array',
 				items: menuItem
