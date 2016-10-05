@@ -85,7 +85,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 6);
+			assert.equal(count, 7);
 			done();
 		});
 	});
@@ -121,7 +121,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 13);
+			assert.equal(count, 14);
 			done();
 		});
 	});
@@ -237,7 +237,7 @@ suite('Search', () => {
 			}
 		}, () => { }, (error) => {
 			assert.ok(!error);
-			assert.equal(count, 12);
+			assert.equal(count, 13);
 			done();
 		});
 	});
@@ -475,6 +475,93 @@ suite('Search', () => {
 				assert.strictEqual(stdout2.split('\n').indexOf(file2), -1, stdout2);
 				done();
 			});
+		});
+	});
+
+	test('Find: exclude folder path', function (done: () => void) {
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
+		const walker = new FileWalker({ rootFolders: rootfolders() });
+		const file0 = './examples/company.js';
+		const file1 = './examples/subfolder/subfile.txt';
+
+		const cmd1 = walker.spawnFindCmd(rootfolders()[0], glob.parse({ '**/examples/something': true }));
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
+			assert.equal(err1, null);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+
+			const cmd2 = walker.spawnFindCmd(rootfolders()[0], glob.parse({ '**/examples/subfolder': true }));
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
+				assert.equal(err2, null);
+				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				done();
+			});
+		});
+	});
+
+	test('Find: exclude subfolder path', function (done: () => void) {
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
+		const walker = new FileWalker({ rootFolders: rootfolders() });
+		const file0 = './examples/subfolder/subfile.txt';
+		const file1 = './examples/subfolder/anotherfolder/anotherfile.txt';
+
+		const cmd1 = walker.spawnFindCmd(rootfolders()[0], glob.parse({ '**/subfolder/something': true }));
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
+			assert.equal(err1, null);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
+			assert.notStrictEqual(stdout1.split('\n').indexOf(file1), -1, stdout1);
+
+			const cmd2 = walker.spawnFindCmd(rootfolders()[0], glob.parse({ '**/subfolder/anotherfolder': true }));
+			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
+				assert.equal(err2, null);
+				assert.notStrictEqual(stdout1.split('\n').indexOf(file0), -1, stdout1);
+				assert.strictEqual(stdout2.split('\n').indexOf(file1), -1, stdout2);
+				done();
+			});
+		});
+	});
+
+	test('Find: exclude combination of paths', function (done: () => void) {
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
+		const walker = new FileWalker({ rootFolders: rootfolders() });
+		const filesIn = [
+			'./examples/subfolder/subfile.txt',
+			'./examples/company.js',
+			'./index.html'
+		];
+		const filesOut = [
+			'./examples/subfolder/anotherfolder/anotherfile.txt',
+			'./more/file.txt'
+		];
+
+		const cmd1 = walker.spawnFindCmd(rootfolders()[0], glob.parse({
+			'**/subfolder/anotherfolder': true,
+			'**/something/else': true,
+			'**/more': true,
+			'**/andmore': true
+		}));
+		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
+			assert.equal(err1, null);
+			for (const fileIn of filesIn) {
+				assert.notStrictEqual(stdout1.split('\n').indexOf(fileIn), -1, stdout1);
+			}
+			for (const fileOut of filesOut) {
+				assert.strictEqual(stdout1.split('\n').indexOf(fileOut), -1, stdout1);
+			}
+			done();
 		});
 	});
 
