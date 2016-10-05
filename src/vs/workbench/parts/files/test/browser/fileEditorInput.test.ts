@@ -69,7 +69,7 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(toResource('/foo/bar/file.js').fsPath, input.getResource().fsPath);
 		assert(input.getResource() instanceof URI);
 
-		input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar.html'), 'text/html', void 0);
+		input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar.html'), void 0);
 
 		const inputToResolve: any = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), void 0);
 		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), void 0);
