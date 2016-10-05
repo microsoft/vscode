@@ -26,7 +26,7 @@ import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, UntitledEditorInput, IEditorIdentifier} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -1633,8 +1633,9 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		const editorGroup = editorIdentifier.group;
 		const resourcesToSave = [];
 		editorGroup.getEditors().forEach(editor => {
-			if (editor instanceof FileEditorInput || editor instanceof UntitledEditorInput) {
-				resourcesToSave.push(editor.getResource());
+			const resource = getUntitledOrFileResource(editor, true);
+			if (resource) {
+				resourcesToSave.push(resource);
 			}
 		});
 
