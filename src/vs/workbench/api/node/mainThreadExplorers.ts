@@ -26,14 +26,10 @@ export class MainThreadExplorers extends MainThreadExplorersShape {
 	$registerTreeContentProvider(providerId: string): void {
 		this.treeExplorerViewletService.registerTreeContentProvider(providerId, {
 			provideTreeContent: (): TPromise<ITreeNode> => {
-				return this._proxy.$provideTreeContent(providerId).then(jsonTree => {
-					return <ITreeNode>JSON.parse(jsonTree);
-				})
+				return this._proxy.$provideTreeContent(providerId);
 			},
 			resolveChildren: (node: ITreeNode): TPromise<ITreeNode[]> => {
-				return this._proxy.$resolveChildren(providerId, node).then(jsonChildren => {
-					return <ITreeNode[]>JSON.parse(jsonChildren);
-				})
+				return this._proxy.$resolveChildren(providerId, node);
 			}
 		});
 	}

@@ -4,7 +4,7 @@ import { $, Builder } from 'vs/base/browser/builder';
 import { ITree, IDataSource, IRenderer, IElementCallback } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeViewModel';
-import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 import { IActionRunner } from 'vs/base/common/actions';
@@ -15,7 +15,6 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 
 const providerId = 'pineTree';
 
