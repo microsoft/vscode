@@ -13,7 +13,6 @@ import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
 import {EditorModel} from 'vs/workbench/common/editor';
-import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -174,12 +173,10 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 export class FileOnDiskEditorInput extends ResourceEditorInput {
 	private fileResource: URI;
 	private lastModified: number;
-	private mime: string;
 	private createdEditorModel: boolean;
 
 	constructor(
 		fileResource: URI,
-		mime: string,
 		name: string,
 		description: string,
 		@IModelService modelService: IModelService,
@@ -193,7 +190,6 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 		super(name, description, URI.from({ scheme: 'disk', path: fileResource.fsPath }), modelService, instantiationService);
 
 		this.fileResource = fileResource;
-		this.mime = mime;
 	}
 
 	public getLastModified(): number {
@@ -208,7 +204,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 
 			const codeEditorModel = this.modelService.getModel(this.resource);
 			if (!codeEditorModel) {
-				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), this.resource);
+				this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath), this.resource);
 				this.createdEditorModel = true;
 			} else {
 				codeEditorModel.setValueFromRawText(content.value);
@@ -261,8 +257,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		this.actions = [
 			new Action('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"), null, true, () => {
 				if (!this.model.isDisposed()) {
-					const mime = guessMimeTypes(resource.fsPath).join(', ');
-					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, mime, paths.basename(resource.fsPath), resource.fsPath);
+					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, paths.basename(resource.fsPath), resource.fsPath);
 					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, void 0);
 					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), product.nameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
 

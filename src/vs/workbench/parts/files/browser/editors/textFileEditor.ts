@@ -119,8 +119,8 @@ export class TextFileEditor extends BaseTextEditor {
 		// Different Input (Reload)
 		return this.editorService.resolveEditorModel(input, true /* Reload */).then(resolvedModel => {
 
-			// There is a special case where the text editor has to handle binary file editor input: if a file with application/unknown
-			// mime has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
+			// There is a special case where the text editor has to handle binary file editor input: if a binary file
+			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
 			// editor has to open this model using the binary editor. We return early in this case.
 			if (resolvedModel instanceof BinaryEditorModel) {
 				return this.openAsBinary(input, options);
@@ -161,7 +161,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// In case we tried to open a file inside the text editor and the response
 			// indicates that this is not a text file, reopen the file through the binary
-			// editor by using application/octet-stream as mime.
+			// editor.
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY) {
 				return this.openAsBinary(input, options);
 			}
