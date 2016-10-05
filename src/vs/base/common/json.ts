@@ -647,7 +647,7 @@ export function getParseErrorMessage(errorCode: ParseErrorCode) : string {
 	}
 }
 
-export type NodeType = "object" | "array" | "property" | "string" | "number" | "boolean" | "null";
+export type NodeType = 'object' | 'array' | 'property' | 'string' | 'number' | 'boolean' | 'null';
 
 function getLiteralNodeType(value: any) : NodeType {
 	switch (typeof value) {

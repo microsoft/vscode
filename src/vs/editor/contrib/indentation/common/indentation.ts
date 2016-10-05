@@ -162,6 +162,32 @@ export class DetectIndentation extends EditorAction {
 }
 
 @editorAction
+export class ToggleRenderWhitespaceAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.toggleRenderWhitespace',
+			label: nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"),
+			alias: 'Toggle Render Whitespace',
+			precondition: null
+		});
+	}
+
+	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+		let renderWhitespace = editor.getConfiguration().viewInfo.renderWhitespace;
+		if (renderWhitespace === 'none') {
+			editor.updateOptions({
+				renderWhitespace: 'all'
+			});
+		} else {
+			editor.updateOptions({
+				renderWhitespace: 'none'
+			});
+		}
+	}
+}
+
+@editorAction
 export class ToggleRenderControlCharacterAction extends EditorAction {
 
 	constructor() {

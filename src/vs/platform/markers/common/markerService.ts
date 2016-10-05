@@ -214,12 +214,12 @@ export class MarkerService implements IMarkerService {
 			delete this._byOwner[owner];
 			for (const resource in map) {
 				// remeber what we remove
-				const [first] = this._byResource[resource][owner];
+				const [first] = MapMap.get(this._byResource, resource, owner);
 				if (first) {
 					changes.push(first.resource);
 				}
 				// actual remove
-				delete this._byResource[resource];
+				MapMap.remove(this._byResource, resource, owner);
 			}
 		}
 

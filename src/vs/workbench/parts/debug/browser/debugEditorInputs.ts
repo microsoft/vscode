@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import mime = require('vs/base/common/mime');
+import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 import strinput = require('vs/workbench/common/editor/stringEditorInput');
 import {EditorInput, EditorModel} from 'vs/workbench/common/editor';
 import uri from 'vs/base/common/uri';
@@ -17,11 +17,11 @@ export class DebugStringEditorInput extends strinput.StringEditorInput {
 		private resourceUrl: uri,
 		description: string,
 		value: string,
-		mimeType: string,
+		modeId: string,
 		singleton: boolean,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(name, description, value, mimeType || mime.MIME_TEXT, singleton, instantiationService);
+		super(name, description, value, modeId || PLAINTEXT_MODE_ID, singleton, instantiationService);
 	}
 
 	public getResource(): uri {

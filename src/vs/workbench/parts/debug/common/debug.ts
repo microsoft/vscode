@@ -130,6 +130,7 @@ export interface IRawBreakpoint {
 	lineNumber: number;
 	enabled?: boolean;
 	condition?: string;
+	hitCondition?: string;
 }
 
 export interface IBreakpoint extends IEnablement {
@@ -137,6 +138,7 @@ export interface IBreakpoint extends IEnablement {
 	lineNumber: number;
 	desiredLineNumber: number;
 	condition: string;
+	hitCondition: string;
 	verified: boolean;
 	idFromAdapter: number;
 	message: string;
@@ -146,6 +148,7 @@ export interface IFunctionBreakpoint extends IEnablement {
 	name: string;
 	verified: boolean;
 	idFromAdapter: number;
+	hitCondition: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {

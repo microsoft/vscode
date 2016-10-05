@@ -10,7 +10,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
 import {sequence, ITask} from 'vs/base/common/async';
-import {MIME_TEXT, isUnspecific, isBinaryMime, guessMimeTypes} from 'vs/base/common/mime';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
@@ -24,10 +23,11 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, UntitledEditorInput, IEditorIdentifier} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -39,7 +39,6 @@ import {CollapseAction} from 'vs/workbench/browser/viewlet';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Position, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
@@ -183,7 +182,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewconst state provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
 		}
 
 		const stat = <IFileStat>context.stat;
@@ -395,7 +394,7 @@ export class BaseNewAction extends BaseFileAction {
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError('Invalid viewconst state provided to BaseNewAction.');
+			return TPromise.wrapError('Invalid viewlet state provided to BaseNewAction.');
 		}
 
 		let folder: FileStat = this.presetFolder;
@@ -554,9 +553,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(id, label);
@@ -806,24 +803,6 @@ export class MoveFileToTrashAction extends BaseDeleteFileAction {
 		@IEventService eventService: IEventService
 	) {
 		super(MoveFileToTrashAction.ID, nls.localize('delete', "Delete"), tree, element, true, contextService, editorService, fileService, messageService, textFileService, eventService);
-	}
-}
-
-/* Delete File/Folder */
-export class DeleteFileAction extends BaseDeleteFileAction {
-	public static ID = 'workbench.files.action.deleteFile';
-
-	constructor(
-		tree: ITree,
-		element: FileStat,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEventService eventService: IEventService
-	) {
-		super(DeleteFileAction.ID, nls.localize('delete', "Delete"), tree, element, false, contextService, editorService, fileService, messageService, textFileService, eventService);
 	}
 }
 
@@ -1253,8 +1232,7 @@ export class GlobalCompareResourcesAction extends Action {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IMessageService private messageService: IMessageService,
-		@IEventService private eventService: IEventService
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}
@@ -1350,23 +1328,6 @@ export class CompareResourcesAction extends Action {
 			return false;
 		}
 
-		const mimeA = guessMimeTypes(this.resource.fsPath).join(', ');
-		const mimeB = guessMimeTypes(globalResourceToCompare.fsPath).join(', ');
-
-		// Check if target has same mime
-		if (mimeA === mimeB) {
-			return true;
-		}
-
-		// Ensure the mode is equal if this is text (limitation of current diff infrastructure)
-		const isBinaryA = isBinaryMime(mimeA);
-		const isBinaryB = isBinaryMime(mimeB);
-
-		// Ensure we are not comparing binary with text
-		if (isBinaryA !== isBinaryB) {
-			return false;
-		}
-
 		return true;
 	}
 
@@ -1377,8 +1338,8 @@ export class CompareResourcesAction extends Action {
 			this.tree.clearHighlight();
 		}
 
-		const leftInput = this.instantiationService.createInstance(FileEditorInput, globalResourceToCompare, void 0, void 0);
-		const rightInput = this.instantiationService.createInstance(FileEditorInput, this.resource, void 0, void 0);
+		const leftInput = this.instantiationService.createInstance(FileEditorInput, globalResourceToCompare, void 0);
+		const rightInput = this.instantiationService.createInstance(FileEditorInput, this.resource, void 0);
 
 		return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(globalResourceToCompare, this.resource, this.contextService), null, leftInput, rightInput));
 	}
@@ -1419,7 +1380,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService
 	) {
 		super(id, label, messageService);
@@ -1445,14 +1405,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 			// Save As (or Save untitled with associated path)
 			if (this.isSaveAs() || source.scheme === 'untitled') {
-				let mimeOfSource: string;
-				if (source.scheme === 'untitled') {
-					const selectedMime = this.untitledEditorService.get(source).getMime();
-					if (!isUnspecific(selectedMime)) {
-						mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
-					}
-				}
-
 				let encodingOfSource: string;
 				if (source.scheme === 'untitled') {
 					encodingOfSource = this.untitledEditorService.get(source).getEncoding();
@@ -1494,7 +1446,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 					const replaceWith: IResourceInput = {
 						resource: target,
-						mime: mimeOfSource,
 						encoding: encodingOfSource,
 						options: {
 							pinned: true,
@@ -1548,8 +1499,6 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService,
 		@IMessageService messageService: IMessageService
 	) {
 		super(id, label, messageService);
@@ -1588,14 +1537,13 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		const stacks = this.editorGroupService.getStacksModel();
 
 		// Store some properties per untitled file to restore later after save is completed
-		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
+		const mapUntitledToProperties: { [resource: string]: { encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
 		this.textFileService.getDirty()
 			.filter(r => r.scheme === 'untitled')			// All untitled resources
 			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
 			.filter(input => !!input)								// If possible :)
 			.forEach(input => {
 				mapUntitledToProperties[input.getResource().toString()] = {
-					mime: input.getMime(),
 					encoding: input.getEncoding(),
 					indexInGroups: stacks.groups.map(g => g.indexOf(input)),
 					activeInGroups: stacks.groups.map(g => g.isActive(input))
@@ -1618,18 +1566,12 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 					return;
 				}
 
-				let mimeOfSource: string;
-				if (!isUnspecific(untitledProps.mime)) {
-					mimeOfSource = [untitledProps.mime, MIME_TEXT].join(', ');
-				}
-
 				// For each position where the untitled file was opened
 				untitledProps.indexInGroups.forEach((indexInGroup, index) => {
 					if (indexInGroup >= 0) {
 						untitledToReopen.push({
 							input: {
 								resource: result.target,
-								mime: mimeOfSource,
 								encoding: untitledProps.encoding,
 								options: {
 									pinned: true,
@@ -1692,8 +1634,9 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		const editorGroup = editorIdentifier.group;
 		const resourcesToSave = [];
 		editorGroup.getEditors().forEach(editor => {
-			if (editor instanceof FileEditorInput || editor instanceof UntitledEditorInput) {
-				resourcesToSave.push(editor.getResource());
+			const resource = getUntitledOrFileResource(editor, true);
+			if (resource) {
+				resourcesToSave.push(resource);
 			}
 		});
 
@@ -1909,7 +1852,6 @@ export function keybindingForAction(id: string): Keybinding {
 			return new Keybinding(isMacintosh ? KeyCode.Enter : KeyCode.F2);
 		case SaveFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
-		case DeleteFileAction.ID:
 		case MoveFileToTrashAction.ID:
 			return new Keybinding(isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete);
 		case CopyFileAction.ID:

@@ -21,6 +21,7 @@ import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export abstract class KeybindingService implements IKeybindingService {
 	public _serviceBrand: any;
@@ -31,6 +32,7 @@ export abstract class KeybindingService implements IKeybindingService {
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
+	private _onDidUpdateKeybindings: Emitter<void>;
 
 	private _contextKeyService: IContextKeyService;
 	protected _commandService: ICommandService;
@@ -52,6 +54,8 @@ export abstract class KeybindingService implements IKeybindingService {
 		this._firstTimeComputingResolver = true;
 		this._currentChord = 0;
 		this._currentChordStatusMessage = null;
+		this._onDidUpdateKeybindings = new Emitter<void>();
+		this.toDispose.push(this._onDidUpdateKeybindings);
 	}
 
 	public dispose(): void {
@@ -73,6 +77,10 @@ export abstract class KeybindingService implements IKeybindingService {
 		return this._cachedResolver;
 	}
 
+	get onDidUpdateKeybindings(): Event<void> {
+		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
+	}
+
 	public getLabelFor(keybinding: Keybinding): string {
 		return keybinding._toUSLabel();
 	}
@@ -89,8 +97,9 @@ export abstract class KeybindingService implements IKeybindingService {
 		return keybinding._toElectronAccelerator();
 	}
 
-		protected updateResolver(): void {
+	protected updateResolver(): void {
 		this._cachedResolver = null;
+		this._onDidUpdateKeybindings.fire();
 	}
 
 	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {

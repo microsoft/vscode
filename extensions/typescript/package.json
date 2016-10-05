@@ -12,7 +12,7 @@
 	},
 	"dependencies": {
 		"vscode-extension-telemetry": "^0.0.5",
-		"vscode-nls": "^1.0.4"
+		"vscode-nls": "^2.0.1"
 	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
@@ -75,16 +75,21 @@
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
+				"typescript.check.workspaceVersion" :{
+					"type": "boolean",
+					"default": true,
+					"description": "%typescript.check.workspaceVersion%"
+				},
+				"typescript.check.tscVersion" :{
+					"type": "boolean",
+					"default": true,
+					"description": "%typescript.check.tscVersion%"
+				},
 				"typescript.tsserver.trace": {
 					"type": "string",
 					"enum": ["off", "messages", "verbose"],
 					"default": "off",
 					"description": "%typescript.tsserver.trace%"
-				},
-				"typescript.tsserver.experimentalAutoBuild": {
-					"type": "boolean",
-					"default": false,
-					"description": "%typescript.tsserver.experimentalAutoBuild%"
 				},
 				"typescript.useCodeSnippetsOnMethodSuggest": {
 					"type": "boolean",

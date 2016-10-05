@@ -22,6 +22,7 @@ import {BreakpointWidget} from 'vs/workbench/parts/debug/browser/breakpointWidge
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {TogglePanelAction} from 'vs/workbench/browser/panel';
 import IDebugService = debug.IDebugService;
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -493,7 +494,7 @@ export class RenameFunctionBreakpointAction extends AbstractDebugAction {
 
 export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
-	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
+	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint...");
 
 	constructor(id: string, label: string,
 		private editor: editorbrowser.ICodeEditor,
@@ -513,7 +514,7 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 
 export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
-	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint");
+	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint...");
 
 	constructor(id: string, label: string,
 		private editor: editorbrowser.ICodeEditor,
@@ -567,8 +568,8 @@ class EditorConditionalBreakpointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.conditionalBreakpoint',
-			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint"),
-			alias: 'Debug: Conditional Breakpoint',
+			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
+			alias: 'Debug: Add Conditional Breakpoint...',
 			precondition: null
 		});
 	}
@@ -827,28 +828,19 @@ export class ClearReplAction extends AbstractDebugAction {
 	}
 }
 
-export class ToggleReplAction extends AbstractDebugAction {
+export class ToggleReplAction extends TogglePanelAction {
 	static ID = 'workbench.debug.action.toggleRepl';
 	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
+	private toDispose: lifecycle.IDisposable[];
 
 	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IPartService private partService: IPartService,
-		@IPanelService private panelService: IPanelService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IDebugService private debugService: IDebugService,
+		@IPartService partService: IPartService,
+		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, 'debug-action toggle-repl', debugService, keybindingService);
-		this.enabled = this.debugService.state !== debug.State.Disabled;
+		super(id, label, debug.REPL_ID, panelService, partService, 'debug-action toggle-repl');
+		this.toDispose = [];
 		this.registerListeners();
-	}
-
-	public run(): TPromise<any> {
-		if (this.isReplVisible()) {
-			this.partService.setPanelHidden(true);
-			return TPromise.as(null);
-		}
-
-		return this.panelService.openPanel(debug.REPL_ID, true);
 	}
 
 	private registerListeners(): void {
@@ -869,6 +861,11 @@ export class ToggleReplAction extends AbstractDebugAction {
 	private isReplVisible(): boolean {
 		const panel = this.panelService.getActivePanel();
 		return panel && panel.getId() === debug.REPL_ID;
+	}
+
+	public dispose(): void {
+		super.dispose();
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 

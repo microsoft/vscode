@@ -48,12 +48,6 @@
 			"settings": {
 				"foreground": "#001080"
 			}
-		},
-		{
-			"scope": ["markup.quote", "markup.list"],
-			"settings": {
-				"foreground": "#0451a5"
-			}
 		}
 	]
 }

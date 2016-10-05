@@ -61,13 +61,13 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {TextFileService} from 'vs/workbench/services/textfile/electron-browser/textFileService';
+import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMenuService} from 'vs/platform/actions/common/actions';
 import {MenuService} from 'vs/platform/actions/common/menuService';
@@ -107,6 +107,7 @@ export class Workbench implements IPartService {
 	private static sidebarPositionSettingKey = 'workbench.sidebar.position';
 	private static statusbarHiddenSettingKey = 'workbench.statusbar.hidden';
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
+	private static sidebarRestoreSettingKey = 'workbench.sidebar.restore';
 	private static panelHiddenSettingKey = 'workbench.panel.hidden';
 
 	public _serviceBrand: any;
@@ -149,12 +150,10 @@ export class Workbench implements IPartService {
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEventService private eventService: IEventService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IThreadService private threadService: IThreadService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
@@ -172,7 +171,7 @@ export class Workbench implements IPartService {
 		this.toShutdown = [];
 		this.editorBackgroundDelayer = new Delayer<void>(50);
 
-		this.creationPromise = new TPromise<boolean>((c, e, p) => {
+		this.creationPromise = new TPromise<boolean>(c => {
 			this.creationPromiseComplete = c;
 		});
 	}
@@ -220,7 +219,7 @@ export class Workbench implements IPartService {
 			// Load Viewlet
 			const viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletId = viewletRegistry.getDefaultViewletId();
-			if (!this.environmentService.isBuilt) {
+			if (this.shouldRestoreSidebar()) {
 				viewletId = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, viewletRegistry.getDefaultViewletId()); // help developers and restore last view
 			}
 
@@ -241,7 +240,7 @@ export class Workbench implements IPartService {
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
 				let editorOpenPromise: TPromise<BaseEditor[]>;
 				if (inputsWithOptions.length) {
-					const editors = inputsWithOptions.map((inputWithOptions, index) => {
+					const editors = inputsWithOptions.map(inputWithOptions => {
 						return {
 							input: inputWithOptions.input,
 							options: inputWithOptions.options,
@@ -322,7 +321,7 @@ export class Workbench implements IPartService {
 		}
 
 		// Empty workbench
-		else if (!this.workbenchParams.workspace) {
+		else if (!this.workbenchParams.workspace && this.telemetryService.getExperiments().openUntitledFile) {
 			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
 		}
 
@@ -388,6 +387,9 @@ export class Workbench implements IPartService {
 
 		// History
 		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
+
+		// Text File Service
+		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
 
 		// Configuration Editing
 		serviceCollection.set(IConfigurationEditingService, this.instantiationService.createInstance(ConfigurationEditingService));
@@ -467,6 +469,11 @@ export class Workbench implements IPartService {
 			return false;
 		}
 
+		const container = this.getContainer(part);
+		return DOM.isAncestor(activeElement, container);
+	}
+
+	public getContainer(part: Parts): HTMLElement {
 		let container: Builder = null;
 		switch (part) {
 			case Parts.ACTIVITYBAR_PART:
@@ -485,8 +492,7 @@ export class Workbench implements IPartService {
 				container = this.statusbarPart.getContainer();
 				break;
 		}
-
-		return DOM.isAncestor(activeElement, container.getHTMLElement());
+		return container && container.getHTMLElement();
 	}
 
 	public isVisible(part: Parts): boolean {
@@ -831,5 +837,22 @@ export class Workbench implements IPartService {
 
 	public getWorkbenchElementId(): string {
 		return Identifiers.WORKBENCH_CONTAINER;
+	}
+
+	public setRestoreSidebar(): void {
+		this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
+	}
+
+	private shouldRestoreSidebar(): boolean {
+		if (!this.environmentService.isBuilt) {
+			return true; // always restore sidebar when we are in development mode
+		}
+
+		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreSettingKey, StorageScope.WORKSPACE);
+		if (restore) {
+			this.storageService.remove(Workbench.sidebarRestoreSettingKey, StorageScope.WORKSPACE); // only support once
+		}
+
+		return restore;
 	}
 }

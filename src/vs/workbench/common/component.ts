@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
 import {Scope, Memento} from 'vs/workbench/common/memento';
-import {IStorageService} from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 /**
  * Base class of any core/ui component in the workbench. Examples include services, extensions, parts, viewlets and quick open.
@@ -54,12 +54,13 @@ export interface IWorkbenchComponent extends IDisposable {
 	dispose(): void;
 }
 
-export class WorkbenchComponent implements IWorkbenchComponent {
+export class WorkbenchComponent extends Disposable implements IWorkbenchComponent {
 	private _toUnbind: IDisposable[];
 	private id: string;
 	private componentMemento: Memento;
 
 	constructor(id: string) {
+		super();
 		this._toUnbind = [];
 		this.id = id;
 		this.componentMemento = new Memento(this.id);
@@ -89,5 +90,6 @@ export class WorkbenchComponent implements IWorkbenchComponent {
 
 	public dispose(): void {
 		this._toUnbind = dispose(this._toUnbind);
+		super.dispose();
 	}
 }

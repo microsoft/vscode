@@ -323,6 +323,15 @@ export class VSCodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
+		// Window Fullscreen
+		this._win.on('enter-full-screen', () => {
+			this.sendWhenReady('vscode:enterFullScreen');
+		});
+
+		this._win.on('leave-full-screen', () => {
+			this.sendWhenReady('vscode:leaveFullScreen');
+		});
+
 		// Window Failed to load
 		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
 			console.warn('[electron event]: fail to load, ', errorDescription);

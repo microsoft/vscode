@@ -121,6 +121,7 @@ export class EnvService implements IEnvService {
 			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
 			extensionTestsPath: normalizePath(argv.extensionTestsPath),
 			'disable-extensions': argv['disable-extensions'],
+			'open-url': argv['open-url'],
 			locale: argv.locale,
 			wait: argv.wait
 		});

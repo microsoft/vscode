@@ -6,24 +6,21 @@
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
-import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IEditor} from 'vs/editor/common/editorCommon';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {EditorInput, IEditorStacksModel} from 'vs/workbench/common/editor';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {LocalFileChangeEvent, BINARY_FILE_EDITOR_ID, ITextFileService, ModelState} from 'vs/workbench/parts/files/common/files';
-import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType, IFileService} from 'vs/platform/files/common/files';
+import {BINARY_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, ITextFileService, ModelState} from 'vs/workbench/services/textfile/common/textfiles';
+import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -35,15 +32,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private toUnbind: IDisposable[];
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IHistoryService private historyService: IHistoryService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
@@ -78,11 +71,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			const before = e.getBefore();
 			const after = e.getAfter();
 
-			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null, after ? after.mime : null);
+			this.handleMovedFileInOpenedEditors(before ? before.resource : null, after ? after.resource : null);
 		}
 	}
 
-	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
+	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
 		const stacks = this.editorGroupService.getStacksModel();
 		stacks.groups.forEach(group => {
 			group.getEditors().forEach(input => {
@@ -100,7 +93,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						}
 
 						// Reopen
-						this.editorService.openEditor({ resource: reopenFileResource, mime: mimeHint || MIME_UNKNOWN, options: { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) } }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
+						this.editorService.openEditor({ resource: reopenFileResource, options: { preserveFocus: true, pinned: group.isPinned(input), index: group.indexOf(input), inactive: !group.isActive(input) } }, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
 					}
 				}
 			});

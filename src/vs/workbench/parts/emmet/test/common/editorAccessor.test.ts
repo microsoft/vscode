@@ -60,20 +60,20 @@ suite('Emmet', () => {
 				testIsEnabled(each, null);
 			});
 
-			// syntaxes mapped to html, hard coded
-			let html = ['razor', 'handlebars'];
-			html.forEach(each => {
-				testIsEnabled(each, null);
-			});
-
+			// mapped syntaxes
 			testIsEnabled('typescriptreact', null);
 			testIsEnabled('javascriptreact', null);
 			testIsEnabled('sass-indented', null);
 
 			// syntaxes mapped using the scope name of the grammar
 			testIsEnabled('markdown', 'text.html.markdown');
+			testIsEnabled('handlebars', 'text.html.handlebars');
 			testIsEnabled('nunjucks', 'text.html.nunjucks');
 			testIsEnabled('laravel-blade', 'text.html.php.laravel-blade');
+
+			// languages that have different Language Id and scopeName
+			testIsEnabled('razor', 'text.html.cshtml');
+			testIsEnabled('HTML (Eex)', 'text.html.elixir');
 
 			// not enabled syntaxes
 			testIsEnabled('java', 'source.java', false);
@@ -116,21 +116,20 @@ suite('Emmet', () => {
 				testSyntax(each, null, each);
 			});
 
-			// syntaxes mapped to html, hard coded
-			let html = ['razor', 'handlebars'];
-			html.forEach(each => {
-				testSyntax(each, null, 'html');
-			});
-
+			// mapped syntaxes
 			testSyntax('typescriptreact', null, 'jsx');
 			testSyntax('javascriptreact', null, 'jsx');
-
 			testSyntax('sass-indented', null, 'sass');
 
 			// syntaxes mapped using the scope name of the grammar
 			testSyntax('markdown', 'text.html.markdown', 'html');
+			testSyntax('handlebars', 'text.html.handlebars', 'html');
 			testSyntax('nunjucks', 'text.html.nunjucks', 'html');
 			testSyntax('laravel-blade', 'text.html.php.laravel-blade', 'html');
+
+			// languages that have different Language Id and scopeName
+			testSyntax('razor', 'text.html.cshtml', 'html');
+			testSyntax('HTML (Eex)', 'text.html.elixir', 'html');
 
 			// user define mapping
 			testSyntax('java', 'source.java', 'html', {

@@ -7,17 +7,8 @@
 
 // import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import {AbstractGettingStarted} from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-
-class TestGettingStarted extends AbstractGettingStarted {
-	public lastUrl: string;
-
-	protected openExternal(url: string) {
-		this.lastUrl = url;
-	}
-}
 
 suite('Workbench - GettingStarted', () => {
 	let instantiation: TestInstantiationService = null;

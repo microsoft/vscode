@@ -1,56 +1,56 @@
 {
-  "name": "typescript",
+  "_args": [
+    [
+      {
+        "raw": "typescript",
+        "scope": null,
+        "escapedName": "typescript",
+        "name": "typescript",
+        "rawSpec": "",
+        "spec": "latest",
+        "type": "tag"
+      },
+      "P:\\tmp"
+    ]
+  ],
+  "_from": "typescript@latest",
+  "_id": "typescript@2.0.3",
+  "_inCache": true,
+  "_location": "/typescript",
+  "_nodeVersion": "5.11.1",
+  "_npmOperationalInternal": {
+    "host": "packages-12-west.internal.npmjs.com",
+    "tmp": "tmp/typescript-2.0.3.tgz_1474560003144_0.4724818258546293"
+  },
+  "_npmUser": {
+    "name": "typescript",
+    "email": "typescript@microsoft.com"
+  },
+  "_npmVersion": "3.8.6",
+  "_phantomChildren": {},
+  "_requested": {
+    "raw": "typescript",
+    "scope": null,
+    "escapedName": "typescript",
+    "name": "typescript",
+    "rawSpec": "",
+    "spec": "latest",
+    "type": "tag"
+  },
+  "_requiredBy": [
+    "#USER"
+  ],
+  "_resolved": "https://registry.npmjs.org/typescript/-/typescript-2.0.3.tgz",
+  "_shasum": "33dec9eae86b8eee327dd419ca050c853cabd514",
+  "_shrinkwrap": null,
+  "_spec": "typescript",
+  "_where": "P:\\tmp",
   "author": {
     "name": "Microsoft Corp."
   },
-  "homepage": "http://typescriptlang.org/",
-  "version": "1.8.10",
-  "license": "Apache-2.0",
-  "description": "TypeScript is a language for application scale JavaScript development",
-  "keywords": [
-    "TypeScript",
-    "Microsoft",
-    "compiler",
-    "language",
-    "javascript"
-  ],
-  "bugs": {
-    "url": "https://github.com/Microsoft/TypeScript/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Microsoft/TypeScript.git"
-  },
-  "main": "./lib/typescript.js",
-  "typings": "./lib/typescript.d.ts",
   "bin": {
     "tsc": "./bin/tsc",
     "tsserver": "./bin/tsserver"
-  },
-  "engines": {
-    "node": ">=0.8.0"
-  },
-  "devDependencies": {
-    "jake": "latest",
-    "mocha": "2.3.4",
-    "chai": "latest",
-    "browserify": "latest",
-    "istanbul": "latest",
-    "mocha-fivemat-progress-reporter": "latest",
-    "tslint": "next",
-    "typescript": "next",
-    "tsd": "latest"
-  },
-  "scripts": {
-    "pretest": "jake tests",
-    "test": "jake runtests",
-    "build": "npm run build:compiler && npm run build:tests",
-    "build:compiler": "jake local",
-    "build:tests": "jake tests",
-    "clean": "jake clean",
-    "jake": "jake",
-    "lint": "jake lint",
-    "setup-hooks": "node scripts/link-hooks.js"
   },
   "browser": {
     "buffer": false,
@@ -58,31 +58,106 @@
     "os": false,
     "path": false
   },
-  "gitHead": "794c57478ec2a44ee15fb3e245a4c5d2d1612375",
-  "_id": "typescript@1.8.10",
-  "_shasum": "b475d6e0dff0bf50f296e5ca6ef9fbb5c7320f1e",
-  "_from": "typescript@latest",
-  "_npmVersion": "2.14.2",
-  "_nodeVersion": "5.9.0",
-  "_npmUser": {
-    "name": "typescript",
-    "email": "typescript@microsoft.com"
+  "bugs": {
+    "url": "https://github.com/Microsoft/TypeScript/issues"
   },
+  "dependencies": {},
+  "description": "TypeScript is a language for application scale JavaScript development",
+  "devDependencies": {
+    "@types/browserify": "latest",
+    "@types/chai": "latest",
+    "@types/convert-source-map": "latest",
+    "@types/del": "latest",
+    "@types/glob": "latest",
+    "@types/gulp": "latest",
+    "@types/gulp-concat": "latest",
+    "@types/gulp-help": "latest",
+    "@types/gulp-newer": "latest",
+    "@types/gulp-sourcemaps": "latest",
+    "@types/gulp-typescript": "latest",
+    "@types/merge2": "latest",
+    "@types/minimatch": "latest",
+    "@types/minimist": "latest",
+    "@types/mkdirp": "latest",
+    "@types/mocha": "latest",
+    "@types/node": "latest",
+    "@types/q": "latest",
+    "@types/run-sequence": "latest",
+    "@types/through2": "latest",
+    "browserify": "latest",
+    "chai": "latest",
+    "convert-source-map": "latest",
+    "del": "latest",
+    "gulp": "latest",
+    "gulp-clone": "latest",
+    "gulp-concat": "latest",
+    "gulp-help": "latest",
+    "gulp-insert": "latest",
+    "gulp-newer": "latest",
+    "gulp-sourcemaps": "latest",
+    "gulp-typescript": "latest",
+    "into-stream": "latest",
+    "istanbul": "latest",
+    "jake": "latest",
+    "merge2": "latest",
+    "minimist": "latest",
+    "mkdirp": "latest",
+    "mocha": "latest",
+    "mocha-fivemat-progress-reporter": "latest",
+    "q": "latest",
+    "run-sequence": "latest",
+    "sorcery": "latest",
+    "through2": "latest",
+    "travis-fold": "latest",
+    "ts-node": "latest",
+    "tslint": "3.15.1",
+    "typescript": "2.0.*"
+  },
+  "directories": {},
+  "dist": {
+    "shasum": "33dec9eae86b8eee327dd419ca050c853cabd514",
+    "tarball": "https://registry.npmjs.org/typescript/-/typescript-2.0.3.tgz"
+  },
+  "engines": {
+    "node": ">=0.8.0"
+  },
+  "gitHead": "4f65a2885e000c27e5f079171d440797d7307b97",
+  "homepage": "http://typescriptlang.org/",
+  "keywords": [
+    "TypeScript",
+    "Microsoft",
+    "compiler",
+    "language",
+    "javascript"
+  ],
+  "license": "Apache-2.0",
+  "main": "./lib/typescript.js",
   "maintainers": [
     {
       "name": "typescript",
       "email": "typescript@microsoft.com"
     }
   ],
-  "dist": {
-    "shasum": "b475d6e0dff0bf50f296e5ca6ef9fbb5c7320f1e",
-    "tarball": "https://registry.npmjs.org/typescript/-/typescript-1.8.10.tgz"
+  "name": "typescript",
+  "optionalDependencies": {},
+  "readme": "ERROR: No README data found!",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Microsoft/TypeScript.git"
   },
-  "_npmOperationalInternal": {
-    "host": "packages-12-west.internal.npmjs.com",
-    "tmp": "tmp/typescript-1.8.10.tgz_1460493736776_0.9304528103675693"
+  "scripts": {
+    "build": "npm run build:compiler && npm run build:tests",
+    "build:compiler": "jake local",
+    "build:tests": "jake tests",
+    "clean": "jake clean",
+    "gulp": "gulp",
+    "jake": "jake",
+    "lint": "jake lint",
+    "pretest": "jake tests",
+    "setup-hooks": "node scripts/link-hooks.js",
+    "start": "node lib/tsc",
+    "test": "jake runtests-parallel"
   },
-  "directories": {},
-  "_resolved": "https://registry.npmjs.org/typescript/-/typescript-1.8.10.tgz",
-  "readme": "ERROR: No README data found!"
+  "typings": "./lib/typescript.d.ts",
+  "version": "2.0.3"
 }

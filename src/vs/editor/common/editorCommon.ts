@@ -171,6 +171,8 @@ export enum WrappingIndent {
 	Indent = 2
 }
 
+export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber:number)=>string);
+
 /**
  * Configuration options for the editor.
  */
@@ -206,7 +208,7 @@ export interface IEditorOptions {
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to true.
 	 */
-	lineNumbers?:any;
+	lineNumbers?:LineNumbersOption;
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -408,6 +410,16 @@ export interface IEditorOptions {
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
 	wordBasedSuggestions?: boolean;
+	/**
+	 * The font size for the suggest widget.
+	 * Defaults to the editor font size.
+	 */
+	suggestFontSize?: number;
+	/**
+	 * The line height for the suggest widget.
+	 * Defaults to the editor line height.
+	 */
+	suggestLineHeight?: number;
 	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
@@ -630,7 +642,9 @@ export class InternalEditorViewOptions {
 	experimentalScreenReader: boolean;
 	rulers: number[];
 	ariaLabel: string;
-	lineNumbers:any;
+	renderLineNumbers:boolean;
+	renderCustomLineNumbers: (lineNumber:number)=>string;
+	renderRelativeLineNumbers: boolean;
 	selectOnLineNumbers:boolean;
 	glyphMargin:boolean;
 	revealHorizontalRightPadding:number;
@@ -658,7 +672,9 @@ export class InternalEditorViewOptions {
 		experimentalScreenReader: boolean;
 		rulers: number[];
 		ariaLabel: string;
-		lineNumbers:any;
+		renderLineNumbers:boolean;
+		renderCustomLineNumbers: (lineNumber:number)=>string;
+		renderRelativeLineNumbers: boolean;
 		selectOnLineNumbers:boolean;
 		glyphMargin:boolean;
 		revealHorizontalRightPadding:number;
@@ -682,7 +698,9 @@ export class InternalEditorViewOptions {
 		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
-		this.lineNumbers = source.lineNumbers;
+		this.renderLineNumbers = Boolean(source.renderLineNumbers);
+		this.renderCustomLineNumbers = source.renderCustomLineNumbers;
+		this.renderRelativeLineNumbers = Boolean(source.renderRelativeLineNumbers);
 		this.selectOnLineNumbers = Boolean(source.selectOnLineNumbers);
 		this.glyphMargin = Boolean(source.glyphMargin);
 		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding|0;
@@ -740,7 +758,9 @@ export class InternalEditorViewOptions {
 			&& this.experimentalScreenReader === other.experimentalScreenReader
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
-			&& this.lineNumbers === other.lineNumbers
+			&& this.renderLineNumbers === other.renderLineNumbers
+			&& this.renderCustomLineNumbers === other.renderCustomLineNumbers
+			&& this.renderRelativeLineNumbers === other.renderRelativeLineNumbers
 			&& this.selectOnLineNumbers === other.selectOnLineNumbers
 			&& this.glyphMargin === other.glyphMargin
 			&& this.revealHorizontalRightPadding === other.revealHorizontalRightPadding
@@ -771,7 +791,9 @@ export class InternalEditorViewOptions {
 			experimentalScreenReader: this.experimentalScreenReader !== newOpts.experimentalScreenReader,
 			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
 			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
-			lineNumbers: this.lineNumbers !== newOpts.lineNumbers,
+			renderLineNumbers: this.renderLineNumbers !== newOpts.renderLineNumbers,
+			renderCustomLineNumbers: this.renderCustomLineNumbers !== newOpts.renderCustomLineNumbers,
+			renderRelativeLineNumbers: this.renderRelativeLineNumbers !== newOpts.renderRelativeLineNumbers,
 			selectOnLineNumbers: this.selectOnLineNumbers !== newOpts.selectOnLineNumbers,
 			glyphMargin: this.glyphMargin !== newOpts.glyphMargin,
 			revealHorizontalRightPadding: this.revealHorizontalRightPadding !== newOpts.revealHorizontalRightPadding,
@@ -805,8 +827,10 @@ export interface IViewConfigurationChangedEvent {
 	canUseTranslate3d: boolean;
 	experimentalScreenReader: boolean;
 	rulers: boolean;
-	ariaLabel:  boolean;
-	lineNumbers: boolean;
+	ariaLabel: boolean;
+	renderLineNumbers: boolean;
+	renderCustomLineNumbers: boolean;
+	renderRelativeLineNumbers: boolean;
 	selectOnLineNumbers: boolean;
 	glyphMargin: boolean;
 	revealHorizontalRightPadding: boolean;
@@ -817,12 +841,12 @@ export interface IViewConfigurationChangedEvent {
 	cursorStyle: boolean;
 	hideCursorInOverviewRuler: boolean;
 	scrollBeyondLastLine: boolean;
-	editorClassName:  boolean;
-	stopRenderingLineAfter:  boolean;
-	renderWhitespace:  boolean;
+	editorClassName: boolean;
+	stopRenderingLineAfter: boolean;
+	renderWhitespace: boolean;
 	renderControlCharacters: boolean;
-	renderIndentGuides:  boolean;
-	renderLineHighlight:  boolean;
+	renderIndentGuides: boolean;
+	renderLineHighlight: boolean;
 	scrollbar: boolean;
 }
 
@@ -840,6 +864,8 @@ export class EditorContribOptions {
 	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	tabCompletion: boolean;
 	wordBasedSuggestions: boolean;
+	suggestFontSize: number;
+	suggestLineHeight: number;
 	selectionHighlight:boolean;
 	codeLens: boolean;
 	folding: boolean;
@@ -861,6 +887,8 @@ export class EditorContribOptions {
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
+		suggestFontSize: number;
+		suggestLineHeight: number;
 		selectionHighlight:boolean;
 		codeLens: boolean;
 		folding: boolean;
@@ -878,6 +906,8 @@ export class EditorContribOptions {
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
+		this.suggestFontSize = source.suggestFontSize;
+		this.suggestLineHeight = source.suggestLineHeight;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
@@ -901,6 +931,8 @@ export class EditorContribOptions {
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
+			&& this.suggestFontSize === other.suggestFontSize
+			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
@@ -3774,7 +3806,7 @@ export interface IThemeDecorationRenderOptions {
 	color?: string;
 	letterSpacing?: string;
 
-	gutterIconPath?: string;
+	gutterIconPath?: string | URI;
 	gutterIconSize?: string;
 
 	overviewRulerColor?: string;
@@ -3788,7 +3820,7 @@ export interface IThemeDecorationRenderOptions {
  */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
-	contentIconPath?: string;
+	contentIconPath?: string | URI;
 
 	border?: string;
 	textDecoration?: string;
@@ -4342,18 +4374,19 @@ export var CommandDescription = {
 			{
 				name: 'Cursor move argument object',
 				description: `Property-value pairs that can be passed through this argument:
-					'to': A mandatory logical position value providing where to move the cursor.
-					\`\`\`
-						'left', 'right', 'up', 'down',
-						'wrappedLineStart', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineColumnCenter', 'wrappedLineEnd' ,'wrappedLineLastNonWhitespaceCharacter',
+					* 'to': A mandatory logical position value providing where to move the cursor.
+						\`\`\`
+						'left', 'right', 'up', 'down'
+						'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'
+						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter',
 						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
-					\`\`\`
-					'by': Unit to move. Default is computed based on 'to' value.
-					\`\`\`
+						\`\`\`
+					* 'by': Unit to move. Default is computed based on 'to' value.
+						\`\`\`
 						'line', 'wrappedLine', 'character', 'halfLine'
-					\`\`\`
-					'value': Number of units to move. Default is '1'.
-					'select': If 'true' makes the selection. Default is 'false'.
+						\`\`\`
+					* 'value': Number of units to move. Default is '1'.
+					* 'select': If 'true' makes the selection. Default is 'false'.
 				`,
 				constraint: isCursorMoveArgs
 			}
@@ -4365,16 +4398,16 @@ export var CommandDescription = {
 			{
 				name: 'Editor scroll argument object',
 				description: `Property-value pairs that can be passed through this argument:
-					'to': A mandatory direction value.
-					\`\`\`
+					* 'to': A mandatory direction value.
+						\`\`\`
 						'up', 'down'
-					\`\`\`
-					'by': Unit to move. Default is computed based on 'to' value.
-					\`\`\`
+						\`\`\`
+					* 'by': Unit to move. Default is computed based on 'to' value.
+						\`\`\`
 						'line', 'wrappedLine', 'page', 'halfPage'
-					\`\`\`
-					'value': Number of units to move. Default is '1'.
-					'revealCursor': If 'true' reveals the cursor if it is outside view port.
+						\`\`\`
+					* 'value': Number of units to move. Default is '1'.
+					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
 				`,
 				constraint: isEditorScrollArgs
 			}
@@ -4386,11 +4419,11 @@ export var CommandDescription = {
 			{
 				name: 'Reveal line argument object',
 				description: `Property-value pairs that can be passed through this argument:
-					'lineNumber': A mandatory line number value.
-					'at': Logical position at which line has to be revealed .
-					\`\`\`
+					* 'lineNumber': A mandatory line number value.
+					* 'at': Logical position at which line has to be revealed .
+						\`\`\`
 						'top', 'center', 'bottom'
-					\`\`\`
+						\`\`\`
 				`,
 				constraint: isRevealLineArgs
 			}

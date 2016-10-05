@@ -55,7 +55,7 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 				if (!update || !update.url || !update.version) {
 					this.emit('update-not-available');
 				} else {
-					this.emit('update-available', null, this.envService.product.downloadUrl);
+					this.emit('update-available', null, this.envService.product.downloadUrl, update.version);
 				}
 			})
 			.then(null, e => {

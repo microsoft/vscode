@@ -47,6 +47,8 @@ import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerServic
 import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {IntegrityServiceImpl} from 'vs/platform/integrity/node/integrityServiceImpl';
+import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {MainProcessExtensionService} from 'vs/workbench/api/node/mainThreadExtensionService';
@@ -83,6 +85,7 @@ import {IExtensionManagementService} from 'vs/platform/extensionManagement/commo
 import {URLChannelClient} from 'vs/platform/url/common/urlIpc';
 import {IURLService} from 'vs/platform/url/common/url';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
+import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -261,7 +264,7 @@ export class WorkbenchShell {
 				appender: new TelemetryAppenderClient(channel),
 				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath],
-				experiments: loadExperiments(this.storageService)
+				experiments: loadExperiments(this.storageService, this.configurationService)
 			};
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
@@ -278,11 +281,14 @@ export class WorkbenchShell {
 
 			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
-			NullTelemetryService._experiments = loadExperiments(this.storageService);
+			NullTelemetryService._experiments = loadExperiments(this.storageService, this.configurationService);
 			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
+		if (this.configurationService instanceof WorkspaceConfigurationService) {
+			this.configurationService.telemetryService = this.telemetryService;
+		}
 
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
@@ -332,6 +338,9 @@ export class WorkbenchShell {
 
 		const codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
 		serviceCollection.set(ICodeEditorService, codeEditorService);
+
+		const integrityService = instantiationService.createInstance(IntegrityServiceImpl);
+		serviceCollection.set(IIntegrityService, integrityService);
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);

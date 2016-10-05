@@ -148,11 +148,6 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	}
 })();
 
-interface INormalizedKeyCode {
-	keyCode: KeyCode;
-	key: string;
-}
-
 export function lookupKeyCode(e:KeyboardEvent): KeyCode {
 	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
 }

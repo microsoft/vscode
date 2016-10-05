@@ -22,9 +22,10 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
+import {UntitledEditorInput, IEditorGroup, IEditorStacksModel, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
+import {asFileResource} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, AutoSaveMode} from 'vs/workbench/services/textfile/common/textfiles';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
@@ -64,13 +65,7 @@ export class OpenEditor {
 	}
 
 	public getResource(): uri {
-		if (this.editor instanceof FileEditorInput) {
-			return (<FileEditorInput>this.editor).getResource();
-		} else if (this.editor instanceof UntitledEditorInput) {
-			return (<UntitledEditorInput>this.editor).getResource();
-		}
-
-		return null;
+		return getUntitledOrFileResource(this.editor, true);
 	}
 }
 
@@ -123,10 +118,7 @@ export class Renderer implements IRenderer {
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
-	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
-		@ITextFileService private textFileService: ITextFileService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+	constructor(private actionProvider: ActionProvider, @IInstantiationService private instantiationService: IInstantiationService,
 	) {
 		// noop
 	}
@@ -198,7 +190,6 @@ export class Controller extends treedefaults.DefaultController {
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService

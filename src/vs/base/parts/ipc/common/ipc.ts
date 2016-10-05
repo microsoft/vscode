@@ -59,7 +59,7 @@ enum State {
 }
 
 export interface IChannel {
-	call(command: string, arg: any): TPromise<any>;
+	call(command: string, arg?: any): TPromise<any>;
 }
 
 export interface IChannelServer {
@@ -311,7 +311,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 }
 
-export function getDelayedChannel<T extends IChannel>(promise: TPromise<IChannel>): T {
+export function getDelayedChannel<T extends IChannel>(promise: TPromise<T>): T {
 	const call = (command, arg) => promise.then(c => c.call(command, arg));
 	return { call } as T;
 }

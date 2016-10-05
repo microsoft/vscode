@@ -128,15 +128,9 @@
 			}
 		},
 		{
-			"scope": ["markup.punctuation.quote", "markup.punctuation.list"],
+			"scope": ["markup.punctuation.quote.beginning", "markup.punctuation.list.beginning"],
 			"settings": {
 				"foreground": "#0451a5"
-			}
-		},
-		{
-			"scope": ["markup.quote", "markup.list"],
-			"settings": {
-				"foreground": "#000000"
 			}
 		},
 		{

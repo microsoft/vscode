@@ -79,7 +79,7 @@ class NPSContribution implements IWorkbenchContribution {
 			return TPromise.as(null);
 		});
 
-		const neverAgainAction = new Action('nps.never', nls.localize('neverAgain', "Never Show Again"), '', true, () => {
+		const neverAgainAction = new Action('nps.never', nls.localize('neverAgain', "Don't Show Again"), '', true, () => {
 			storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 			return TPromise.as(null);

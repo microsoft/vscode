@@ -13,7 +13,7 @@
       "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.5.tgz"
     },
     "vscode-nls": {
-      "version": "1.0.7",
+      "version": "2.0.1",
       "from": "vscode-nls@>=1.0.4 <2.0.0",
       "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
     },

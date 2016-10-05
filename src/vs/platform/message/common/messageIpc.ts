@@ -11,7 +11,7 @@ import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 
 export interface IChoiceChannel extends IChannel {
 	call(command: 'choose'): TPromise<number>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: string, arg?: any): TPromise<any>;
 }
 
 export class ChoiceChannel implements IChoiceChannel {
@@ -19,7 +19,7 @@ export class ChoiceChannel implements IChoiceChannel {
 	constructor(private service: IChoiceService) {
 	}
 
-	call(command: string, args: any): TPromise<any> {
+	call(command: string, args?: any): TPromise<any> {
 		switch (command) {
 			case 'choose': return this.service.choose(<Severity>args[0], <string>args[1], <string[]>args[2]);
 		}

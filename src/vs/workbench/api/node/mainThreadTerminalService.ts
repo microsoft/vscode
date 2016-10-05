@@ -5,8 +5,6 @@
 'use strict';
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITerminalService, ITerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -18,9 +16,7 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 	private _toDispose: IDisposable[];
 
 	constructor(
-		@IPanelService private panelService: IPanelService,
-		@IPartService private partService: IPartService,
-		@IThreadService private threadService: IThreadService,
+		@IThreadService threadService: IThreadService,
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		super();

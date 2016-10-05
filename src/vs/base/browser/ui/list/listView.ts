@@ -15,12 +15,6 @@ import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
 
-interface IItemRange<T> {
-	item: IItem<T>;
-	index: number;
-	range: IRange;
-}
-
 interface IItem<T> {
 	id: string;
 	element: T;

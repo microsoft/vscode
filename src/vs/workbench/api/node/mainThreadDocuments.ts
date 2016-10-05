@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {TextFileModelChangeEvent, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {TextFileModelChangeEvent, ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -251,6 +251,10 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			return this._editorService.createInput({ resource }).then(input => {
 				if (!this._editorService.isVisible(input, true)) {
 					toBeDisposed.push(resource);
+				}
+
+				if (input) {
+					input.dispose();
 				}
 			});
 		})).then(() => {

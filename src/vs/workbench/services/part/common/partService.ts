@@ -46,6 +46,11 @@ export interface IPartService {
 	hasFocus(part: Parts): boolean;
 
 	/**
+	 * Returns the parts HTML element, if there is one.
+	 */
+	getContainer(part: Parts): HTMLElement;
+
+	/**
 	 * Returns iff the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
@@ -105,4 +110,9 @@ export interface IPartService {
 	 * Returns the identifier of the element that contains the workbench.
 	 */
 	getWorkbenchElementId(): string;
+
+	/**
+	 * Enables to restore the contents of the sidebar after a restart.
+	 */
+	setRestoreSidebar(): void;
 }

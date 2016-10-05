@@ -5,10 +5,10 @@
 
 'use strict';
 
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {ISuggestSupport} from 'vs/editor/common/modes';
-import {ISuggestionItem} from './suggest';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { IMatch, fuzzyContiguousFilter } from 'vs/base/common/filters';
+import { ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestionItem } from './suggest';
 
 export interface ICompletionItem extends ISuggestionItem {
 	highlights?: IMatch[];
@@ -43,7 +43,7 @@ export class CompletionModel {
 		this._lineContext = lineContext;
 	}
 
-	replaceIncomplete(newItems: ISuggestionItem[], compareFn:(a:ISuggestionItem, b:ISuggestionItem) => number): void {
+	replaceIncomplete(newItems: ISuggestionItem[], compareFn: (a: ISuggestionItem, b: ISuggestionItem) => number): void {
 		let newItemsIdx = 0;
 		for (let i = 0; i < this._items.length; i++) {
 			if (this._incomplete.indexOf(this._items[i].support) >= 0) {
@@ -137,7 +137,7 @@ export class CompletionModel {
 			match = item.highlights !== null;
 
 			// no match on label nor codeSnippet -> check on filterText
-			if(!match && typeof suggestion.filterText === 'string') {
+			if (!match && typeof suggestion.filterText === 'string') {
 				if (!isFalsyOrEmpty(filter(word, suggestion.filterText))) {
 					match = true;
 
@@ -155,7 +155,7 @@ export class CompletionModel {
 
 			// compute score against word
 			const wordLowerCase = word.toLowerCase();
-			const score = CompletionModel._score(suggestion.insertText, word, wordLowerCase);
+			const score = CompletionModel._scoreByHighlight(item, word, wordLowerCase);
 			if (score > topScore) {
 				topScore = score;
 				this._topScoreIdx = this._filteredItems.length - 1;
@@ -176,20 +176,22 @@ export class CompletionModel {
 		}
 	}
 
-	private static _score(suggestion: string, currentWord: string, currentWordLowerCase: string): number {
-		const suggestionLowerCase = suggestion.toLowerCase();
+	private static _scoreByHighlight(item: ICompletionItem, currentWord: string, currentWordLowerCase: string): number {
+		const {highlights, suggestion} = item;
 		let score = 0;
+		if (!isFalsyOrEmpty(highlights)) {
+			for (const {start, end} of highlights) {
+				// find the highlight in the current word and
+				// score it based on case-match and start index
+				const part = suggestion.label.substring(start, end);
+				if (currentWord.indexOf(part) >= 0) {
+					score += (2 * part.length) / (start + 1);
 
-		for (let i = 0, len = Math.min(currentWord.length, suggestion.length); i < len; i++) {
-			if (currentWord[i] === suggestion[i]) {
-				score += 2;
-			} else if (currentWordLowerCase[i] === suggestionLowerCase[i]) {
-				score += 1;
-			} else {
-				break;
+				} else if (currentWordLowerCase.indexOf(part) >= 0) {
+					score += part.length / (start + 1);
+				}
 			}
 		}
-
 		return score;
 	}
 }

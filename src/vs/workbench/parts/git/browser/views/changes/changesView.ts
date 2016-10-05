@@ -26,7 +26,6 @@ import GitActions = require('vs/workbench/parts/git/browser/gitActions');
 import GitModel = require('vs/workbench/parts/git/common/gitModel');
 import Viewer = require('vs/workbench/parts/git/browser/views/changes/changesViewer');
 import GitEditorInputs = require('vs/workbench/parts/git/browser/gitEditorInputs');
-import Files = require('vs/workbench/parts/files/common/files');
 import {IOutputService} from 'vs/workbench/parts/output/common/output';
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
@@ -450,8 +449,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return (<GitEditorInputs.NativeGitIndexStringEditorInput> input).getFileStatus() || null;
 		}
 
-		if (input instanceof Files.FileEditorInput) {
-			const fileInput = <Files.FileEditorInput> input;
+		const fileInput = WorkbenchEditorCommon.asFileEditorInput(input);
+		if (fileInput) {
 			const resource = fileInput.getResource();
 
 			const workspaceRoot = this.contextService.getWorkspace().resource.fsPath;

@@ -12,14 +12,12 @@ import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarC
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import env = require('vs/base/common/platform');
-import {ITextFileService, asFileResource} from 'vs/workbench/parts/files/common/files';
+import {asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {GlobalNewUntitledFileAction, SaveFileAsAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {DirtyFilesTracker} from 'vs/workbench/parts/files/electron-browser/dirtyFilesTracker';
-import {TextFileService} from 'vs/workbench/parts/files/electron-browser/textFileService';
 import {OpenFolderAction, OpenFileAction, OpenFileFolderAction, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
 
 class FileViewerActionContributor extends ActionBarContributor {
@@ -79,6 +77,3 @@ actionsRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionContr
 (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
 	DirtyFilesTracker
 );
-
-// Register Service
-registerSingleton(ITextFileService, TextFileService);

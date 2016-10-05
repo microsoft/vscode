@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
@@ -31,17 +32,16 @@ import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {TextFileService} from 'vs/workbench/parts/files/common/textFileService';
+import {TextFileService} from 'vs/workbench/services/textfile/browser/textFileService';
 import {IFileService, IResolveContentOptions, IFileOperationResult} from 'vs/platform/files/common/files';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
-import {IRawTextContent} from 'vs/workbench/parts/files/common/files';
+import {IRawTextContent, ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {RawText} from 'vs/editor/common/model/textModel';
 import {parseArgs} from 'vs/platform/environment/node/argv';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -50,6 +50,10 @@ export const TestWorkspace: IWorkspace = {
 	name: 'Test Workspace',
 	uid: Date.now()
 };
+
+export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
+	return instantiationService.createInstance(FileEditorInput, resource, void 0);
+}
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
@@ -141,7 +145,6 @@ export class TestTextFileService extends TextFileService {
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
-				mime: content.mime,
 				encoding: content.encoding,
 				value: raw,
 				valueLogicalHash: null
@@ -229,6 +232,10 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
+	public getContainer(part): HTMLElement {
+		return null;
+	}
+
 	public isStatusBarHidden(): boolean {
 		return false;
 	}
@@ -255,6 +262,10 @@ export class TestPartService implements IPartService {
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
+
+	public setRestoreSidebar(): void {
+
+	}
 }
 
 export class TestEventService extends EventEmitter implements IEventService {
@@ -521,7 +532,6 @@ export const TestFileService = {
 			resource: resource,
 			value: 'Hello Html',
 			etag: 'index.txt',
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -532,7 +542,6 @@ export const TestFileService = {
 		return TPromise.as({
 			resource: resource,
 			etag: Date.now(),
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -553,7 +562,6 @@ export const TestFileService = {
 				}
 			},
 			etag: 'index.txt',
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -565,7 +573,6 @@ export const TestFileService = {
 			return {
 				resource: res,
 				etag: 'index.txt',
-				mime: 'text/plain',
 				encoding: 'utf8',
 				mtime: Date.now(),
 				name: paths.basename(res.fsPath)

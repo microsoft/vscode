@@ -16,7 +16,6 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IRecentlyClosedEditor, IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -26,6 +25,7 @@ import {once} from 'vs/base/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -73,30 +73,35 @@ interface ISerializedEditorInput {
 	value: string;
 }
 
-interface IInputWithPath {
-	getPath?: () => string;
-}
-
 export abstract class BaseHistoryService {
 	protected toUnbind: IDisposable[];
 
 	private activeEditorListeners: IDisposable[];
+	private _isPure: boolean;
 
 	constructor(
-		private eventService: IEventService,
 		protected editorGroupService: IEditorGroupService,
 		protected editorService: IWorkbenchEditorService,
 		protected contextService: IWorkspaceContextService,
-		private environmentService: IEnvironmentService
+		private environmentService: IEnvironmentService,
+		integrityService: IIntegrityService
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
+		this._isPure = true;
 
 		// Window Title
 		window.document.title = this.getWindowTitle(null);
 
 		// Editor Input Changes
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+
+		integrityService.isPure().then((r) => {
+			if (!r.isPure) {
+				this._isPure = false;
+				window.document.title = this.getWindowTitle(null);
+			}
+		});
 	}
 
 	private onEditorsChanged(): void {
@@ -157,7 +162,10 @@ export abstract class BaseHistoryService {
 	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
 
 	protected getWindowTitle(input?: IEditorInput): string {
-		const title = this.doGetWindowTitle(input);
+		let title = this.doGetWindowTitle(input);
+		if (!this._isPure) {
+			title += nls.localize('patchedWindowTitle', " [Unsupported]");
+		}
 
 		// Extension Development Host gets a special title to identify itself
 		if (this.environmentService.extensionDevelopmentPath) {
@@ -237,16 +245,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private registry: IEditorRegistry;
 
 	constructor(
-		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IIntegrityService integrityService: IIntegrityService
 	) {
-		super(eventService, editorGroupService, editorService, contextService, environmentService);
+		super(editorGroupService, editorService, contextService, environmentService, integrityService);
 
 		this.index = -1;
 		this.stack = [];
