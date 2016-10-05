@@ -26,9 +26,8 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
 import {ReplEditor} from 'vs/workbench/parts/debug/electron-browser/replEditor';
@@ -81,10 +80,8 @@ export class Repl extends Panel implements IPrivateReplService {
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
 		@IStorageService private storageService: IStorageService,
 		@IPanelService private panelService: IPanelService,
 		@IThemeService private themeService: IThemeService,
@@ -101,14 +98,6 @@ export class Repl extends Panel implements IPrivateReplService {
 	private registerListeners(): void {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.onReplElementsUpdated();
-		}));
-		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
-			if (panel.getId() === debug.REPL_ID) {
-				const elements = this.debugService.getModel().getReplElements();
-				if (elements.length > 0) {
-					return this.tree.reveal(elements[elements.length - 1]);
-				}
-			}
 		}));
 		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
 	}
@@ -278,7 +267,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			wrappingColumn: 0,
 			overviewRulerLanes: 0,
 			glyphMargin: false,
-			lineNumbers: false,
+			lineNumbers: 'off',
 			folding: false,
 			selectOnLineNumbers: false,
 			selectionHighlight: false,

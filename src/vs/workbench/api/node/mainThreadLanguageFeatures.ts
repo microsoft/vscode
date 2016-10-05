@@ -238,10 +238,10 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> {
 
 		if (configuration.__characterPairSupport) {
-			(<LanguageConfiguration> configuration).autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
+			(<LanguageConfiguration>configuration).autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
 		}
 
-		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, configuration);
+		this._registrations[handle] = LanguageConfigurationRegistry.register(languageId, <LanguageConfiguration>configuration);
 		return undefined;
 	}
 

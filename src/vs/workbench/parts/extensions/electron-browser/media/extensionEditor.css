@@ -39,10 +39,22 @@
 }
 
 .extension-editor > .header > .details > .title > .name {
-	flex: 1;
+	flex: 0;
 	font-size: 26px;
 	line-height: 30px;
 	font-weight: 600;
+	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .title > .identifier {
+	margin-left: 10px;
+	font-size: 14px;
+	opacity: 0.6;
+	background: rgba(173, 173, 173, 0.31);
+	padding: 0px 4px;
+	border-radius: 4px;
+	user-select: text;
+	-webkit-user-select: text;
 	white-space: nowrap;
 }
 
@@ -194,7 +206,7 @@
 	text-align: left;
 }
 
-.extension-editor > .body > .content table code {
+.extension-editor > .body > .content table code:not(:empty) {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);

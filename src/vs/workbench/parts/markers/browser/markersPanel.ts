@@ -30,11 +30,12 @@ import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import * as Viewer from 'vs/workbench/parts/markers/browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
+import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class MarkersPanel extends Panel {
 
@@ -59,6 +60,8 @@ export class MarkersPanel extends Panel {
 	private messageBoxContainer: HTMLElement;
 	private messageBox: HTMLElement;
 
+	private markerFocusContextKey: IContextKey<boolean>;
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMarkerService private markerService: IMarkerService,
@@ -66,12 +69,14 @@ export class MarkersPanel extends Panel {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
 		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set.ArraySet<string>();
+		this.markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(contextKeyService);
 	}
 
 	public create(parent: builder.Builder): TPromise<void> {
@@ -169,9 +174,9 @@ export class MarkersPanel extends Panel {
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		dom.addClass(this.treeContainer, 'show-file-icons');
-		var actionProvider = this.instantiationService.createInstance(ActionProvider);
+		var actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
-		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations);
+		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations, actionProvider);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,
@@ -183,6 +188,13 @@ export class MarkersPanel extends Panel {
 				twistiePixels: 20,
 				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
 			});
+		this._register(this.tree.addListener2('focus', (e: { focus: any }) => {
+			this.markerFocusContextKey.set(e.focus instanceof Marker);
+		}));
+		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
+		focusTracker.addBlurListener(() => {
+			this.markerFocusContextKey.set(false);
+		});
 	}
 
 	private createActions(): void {
@@ -258,13 +270,13 @@ export class MarkersPanel extends Panel {
 	}
 
 	private autoExpand(): void {
-		this.markersModel.filteredResources.forEach((resource) => {
-			if (this.autoExpanded.contains(resource.uri.toString())) {
-				return;
+		for (const resource of this.markersModel.filteredResources) {
+			const resourceUri = resource.uri.toString();
+			if (!this.autoExpanded.contains(resourceUri)) {
+				this.tree.expand(resource).done(null, errors.onUnexpectedError);
+				this.autoExpanded.set(resourceUri);
 			}
-			this.tree.expand(resource).done(null, errors.onUnexpectedError);
-			this.autoExpanded.set(resource.uri.toString());
-		});
+		}
 	}
 
 	private autoReveal(focus: boolean = false): void {
@@ -337,6 +349,10 @@ export class MarkersPanel extends Panel {
 			return this.instantiationService.createInstance(FilterInputBoxActionItem, this, action);
 		}
 		return super.getActionItem(action);
+	}
+
+	public getFocusElement(): Resource | Marker {
+		return this.tree.getFocus();
 	}
 
 	public dispose(): void {

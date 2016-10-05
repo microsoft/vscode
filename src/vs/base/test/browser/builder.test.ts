@@ -1220,7 +1220,7 @@ suite('Builder', () => {
 
 		var old = DomUtils.addDisposableListener;
 		try {
-			DomUtils.addDisposableListener = function (node, type, handler) {
+			(DomUtils as any).addDisposableListener = function (node, type, handler) {
 				var unbind: IDisposable = old.call(null, node, type, handler);
 
 				return {
@@ -1246,7 +1246,7 @@ suite('Builder', () => {
 			b.empty();
 			assert.strictEqual(unbindCounter, 8);
 		} finally {
-			DomUtils.addDisposableListener = old;
+			(DomUtils as any).addDisposableListener = old;
 		}
 	});
 
@@ -1407,7 +1407,7 @@ suite('Builder', () => {
 
 		var old = DomUtils.addDisposableListener;
 		try {
-			DomUtils.addDisposableListener = function (node, type, handler) {
+			(DomUtils as any).addDisposableListener = function (node, type, handler) {
 				var unbind: IDisposable = old.call(null, node, type, handler);
 
 				return {
@@ -1435,7 +1435,7 @@ suite('Builder', () => {
 			b.destroy();
 			assert.strictEqual(unbindCounter, 16);
 		} finally {
-			DomUtils.addDisposableListener = old;
+			(DomUtils as any).addDisposableListener = old;
 		}
 	});
 

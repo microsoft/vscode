@@ -13,24 +13,22 @@ import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
 import {EditorModel} from 'vs/workbench/common/editor';
-import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
+import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEventService} from 'vs/platform/event/common/event';
-import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/services/textfile/common/textfiles';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
@@ -39,7 +37,6 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
-		@IEventService private eventService: IEventService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -105,7 +102,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 			if (isReadonly) {
 				actions.push(new Action('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"), null, true, () => {
 					if (!model.isDisposed()) {
-						model.save(true /* overwrite readonly */).done(null, errors.onUnexpectedError);
+						model.save({ overwriteReadonly: true }).done(null, errors.onUnexpectedError);
 					}
 
 					return TPromise.as(true);
@@ -176,18 +173,15 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 export class FileOnDiskEditorInput extends ResourceEditorInput {
 	private fileResource: URI;
 	private lastModified: number;
-	private mime: string;
 	private createdEditorModel: boolean;
 
 	constructor(
 		fileResource: URI,
-		mime: string,
 		name: string,
 		description: string,
 		@IModelService modelService: IModelService,
 		@IModeService private modeService: IModeService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		// We create a new resource URI here that is different from the file resource because we represent the state of
@@ -196,7 +190,6 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 		super(name, description, URI.from({ scheme: 'disk', path: fileResource.fsPath }), modelService, instantiationService);
 
 		this.fileResource = fileResource;
-		this.mime = mime;
 	}
 
 	public getLastModified(): number {
@@ -211,7 +204,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 
 			const codeEditorModel = this.modelService.getModel(this.resource);
 			if (!codeEditorModel) {
-				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), this.resource);
+				this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath), this.resource);
 				this.createdEditorModel = true;
 			} else {
 				codeEditorModel.setValueFromRawText(content.value);
@@ -264,9 +257,8 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 		this.actions = [
 			new Action('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"), null, true, () => {
 				if (!this.model.isDisposed()) {
-					const mime = guessMimeTypes(resource.fsPath).join(', ');
-					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, mime, paths.basename(resource.fsPath), resource.fsPath);
-					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, mime, void 0);
+					const originalInput = this.instantiationService.createInstance(FileOnDiskEditorInput, resource, paths.basename(resource.fsPath), resource.fsPath);
+					const modifiedInput = this.instantiationService.createInstance(FileEditorInput, resource, void 0);
 					const conflictInput = this.instantiationService.createInstance(ConflictResolutionDiffEditorInput, this.model, nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2})", modifiedInput.getName(), modifiedInput.getName(), product.nameLong), nls.localize('resolveSaveConflict', "Resolve save conflict"), originalInput, modifiedInput);
 
 					return this.editorService.openEditor(conflictInput).then(() => {
@@ -291,7 +283,6 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use local changes and overwrite disk contents"), 'conflict-editor-action accept-changes');
@@ -360,7 +351,6 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 export class RevertLocalChangesAction extends EditorInputAction {
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super('workbench.action.files.revert', nls.localize('revertLocalChanges', "Discard local changes and revert to content on disk"), 'conflict-editor-action revert-changes');

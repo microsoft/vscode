@@ -32,6 +32,9 @@ export class MockModeService implements IModeService {
 	getExtensions(alias: string): string[] {
 		throw new Error('Not implemented');
 	}
+	getFilenames(alias: string): string[] {
+		throw new Error('Not implemented');
+	}
 	getMimeForMode(modeId: string): string {
 		throw new Error('Not implemented');
 	}

@@ -9,6 +9,7 @@
 	height: 100%;
 	position: relative;
 	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .monaco-workbench .repl .surveyor {

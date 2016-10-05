@@ -328,12 +328,6 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
-
-	/**
-	 * The mime type string. Applicate for files
-	 * only.
-	 */
-	mime: string;
 }
 
 /**
@@ -343,7 +337,7 @@ export interface IFileStat extends IBaseStat {
 
 	/**
 	 * The resource is a directory. Iff {{true}}
-	 * {{mime}} and {{encoding}} have no meaning.
+	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
 

@@ -183,6 +183,10 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getExtensions(alias);
 	}
 
+	public getFilenames(alias: string): string[] {
+		return this._registry.getFilenames(alias);
+	}
+
 	public getMimeForMode(modeId: string): string {
 		return this._registry.getMimeForMode(modeId);
 	}
@@ -509,7 +513,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 				const langId = configuration.files.associations[pattern];
 				const mimetype = this.getMimeForMode(langId) || `text/x-${langId}`;
 
-				mime.registerTextMime({ mime: mimetype, filepattern: pattern, userConfigured: true });
+				mime.registerTextMime({ id: langId, mime: mimetype, filepattern: pattern, userConfigured: true });
 			});
 		}
 	}

@@ -86,7 +86,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	public create(parent: Builder): void; // create is sync for editors
 	public create(parent: Builder): TPromise<void>;
 	public create(parent: Builder): TPromise<void> {
-		let res = super.create(parent);
+		const res = super.create(parent);
 
 		// Create Editor
 		this.createEditor(parent);
@@ -105,7 +105,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	public setVisible(visible: boolean, position?: Position): void; // setVisible is sync for editors
 	public setVisible(visible: boolean, position?: Position): TPromise<void>;
 	public setVisible(visible: boolean, position: Position = null): TPromise<void> {
-		let promise = super.setVisible(visible);
+		const promise = super.setVisible(visible);
 
 		// Propagate to Editor
 		this.setEditorVisible(visible, position);
@@ -185,7 +185,7 @@ class EditorRegistry implements IEditorRegistry {
 		this.instantiationService = service;
 
 		for (let key in this.editorInputFactoryConstructors) {
-			let element = this.editorInputFactoryConstructors[key];
+			const element = this.editorInputFactoryConstructors[key];
 			this.createEditorInputFactory(key, element);
 		}
 
@@ -193,7 +193,7 @@ class EditorRegistry implements IEditorRegistry {
 	}
 
 	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
-		let instance = this.instantiationService.createInstance(ctor);
+		const instance = this.instantiationService.createInstance(ctor);
 		this.editorInputFactoryInstances[editorInputId] = instance;
 	}
 
@@ -215,14 +215,14 @@ class EditorRegistry implements IEditorRegistry {
 	}
 
 	public getEditor(input: EditorInput): EditorDescriptor {
-		let findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[]=> {
-			let matchingDescriptors: EditorDescriptor[] = [];
+		const findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[]=> {
+			const matchingDescriptors: EditorDescriptor[] = [];
 
 			for (let i = 0; i < this.editors.length; i++) {
-				let editor = this.editors[i];
-				let inputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
+				const editor = this.editors[i];
+				const inputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
 				for (let j = 0; j < inputDescriptors.length; j++) {
-					let inputClass = inputDescriptors[j].ctor;
+					const inputClass = inputDescriptors[j].ctor;
 
 					// Direct check on constructor type (ignores prototype chain)
 					if (!byInstanceOf && (<any>input).constructor === inputClass) {
@@ -250,11 +250,11 @@ class EditorRegistry implements IEditorRegistry {
 			return matchingDescriptors;
 		};
 
-		let descriptors = findEditorDescriptors(input);
+		const descriptors = findEditorDescriptors(input);
 		if (descriptors && descriptors.length > 0) {
 
 			// Ask the input for its preferred Editor
-			let preferredEditorId = input.getPreferredEditorId(descriptors.map(d => d.getId()));
+			const preferredEditorId = input.getPreferredEditorId(descriptors.map(d => d.getId()));
 			if (preferredEditorId) {
 				return this.getEditorById(preferredEditorId);
 			}
@@ -268,7 +268,7 @@ class EditorRegistry implements IEditorRegistry {
 
 	public getEditorById(editorId: string): EditorDescriptor {
 		for (let i = 0; i < this.editors.length; i++) {
-			let editor = this.editors[i];
+			const editor = this.editors[i];
 			if (editor.getId() === editorId) {
 				return editor;
 			}
@@ -286,10 +286,10 @@ class EditorRegistry implements IEditorRegistry {
 	}
 
 	public getEditorInputs(): any[] {
-		let inputClasses: any[] = [];
+		const inputClasses: any[] = [];
 		for (let i = 0; i < this.editors.length; i++) {
-			let editor = this.editors[i];
-			let editorInputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
+			const editor = this.editors[i];
+			const editorInputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
 			inputClasses.push(...editorInputDescriptors.map(descriptor=> descriptor.ctor));
 		}
 
@@ -346,7 +346,7 @@ export class EditorInputActionContributor extends ActionBarContributor {
 	}
 
 	private createPositionArray(): any[] {
-		let array: any[] = [];
+		const array: any[] = [];
 
 		for (let i = 0; i < POSITIONS.length; i++) {
 			array[i] = {};
@@ -371,7 +371,7 @@ export class EditorInputActionContributor extends ActionBarContributor {
 	private doClearInputsFromCache(cache: { [id: string]: IEditorInputAction[] }): void {
 		for (let key in cache) {
 			if (cache.hasOwnProperty(key)) {
-				let cachedActions = cache[key];
+				const cachedActions = cache[key];
 				cachedActions.forEach((action) => {
 					action.input = null;
 					action.position = null;
@@ -412,9 +412,9 @@ export class EditorInputActionContributor extends ActionBarContributor {
 		this.clearInputsFromCache(context.position, true /* primary actions */);
 
 		// First consult cache
-		let editorInput = context.input;
-		let editorPosition = context.position;
-		let cachedActions = this.mapEditorInputActionContextToPrimaryActions[context.position][this.toId(context)];
+		const editorInput = context.input;
+		const editorPosition = context.position;
+		const cachedActions = this.mapEditorInputActionContextToPrimaryActions[context.position][this.toId(context)];
 		if (cachedActions) {
 
 			// Update the input field and position in all actions to indicate this change and return
@@ -427,7 +427,7 @@ export class EditorInputActionContributor extends ActionBarContributor {
 		}
 
 		// Otherwise collect and keep in cache
-		let actions = this.getActionsForEditorInput(context);
+		const actions = this.getActionsForEditorInput(context);
 		actions.forEach((action) => {
 			action.input = editorInput;
 			action.position = editorPosition;
@@ -470,9 +470,9 @@ export class EditorInputActionContributor extends ActionBarContributor {
 		this.clearInputsFromCache(context.position, false /* secondary actions */);
 
 		// First consult cache
-		let editorInput = context.input;
-		let editorPosition = context.position;
-		let cachedActions = this.mapEditorInputActionContextToSecondaryActions[context.position][this.toId(context)];
+		const editorInput = context.input;
+		const editorPosition = context.position;
+		const cachedActions = this.mapEditorInputActionContextToSecondaryActions[context.position][this.toId(context)];
 		if (cachedActions) {
 
 			// Update the input field and position in all actions to indicate this change and return
@@ -485,7 +485,7 @@ export class EditorInputActionContributor extends ActionBarContributor {
 		}
 
 		// Otherwise collect and keep in cache
-		let actions = this.getSecondaryActionsForEditorInput(context);
+		const actions = this.getSecondaryActionsForEditorInput(context);
 		actions.forEach((action) => {
 			action.input = editorInput;
 			action.position = editorPosition;

@@ -6,12 +6,10 @@
 
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
 import {once} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import {getPathLabel, IWorkspaceProvider} from 'vs/base/common/labels';
-import {isBinaryMime} from 'vs/base/common/mime';
-import {EditorModel, IFileEditorInput, EditorInput, BaseDiffEditorInput} from 'vs/workbench/common/editor';
+import {EditorModel, EditorInput, BaseDiffEditorInput, TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -109,23 +107,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {
-
-		// Find the right diff editor for the given isBinary/isText state
-		const useBinaryEditor = this.forceOpenAsBinary || this.isBinary(this.originalInput) || this.isBinary(this.modifiedInput);
-
-		return !useBinaryEditor ? 'workbench.editors.textDiffEditor' : 'workbench.editors.binaryResourceDiffEditor';
-	}
-
-	private isBinary(input: EditorInput): boolean {
-		let mime: string;
-
-		// Find mime by checking for IFileEditorInput implementors
-		const fileInput = <IFileEditorInput>(<any>input);
-		if (types.isFunction(fileInput.getMime)) {
-			mime = fileInput.getMime();
-		}
-
-		return mime && isBinaryMime(mime);
+		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
 	}
 
 	private createModel(refresh?: boolean): TPromise<DiffEditorModel> {

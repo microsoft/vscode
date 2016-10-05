@@ -17,7 +17,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	private _context:ViewContext;
 	private _lineHeight:number;
-	private _lineNumbers:any;
+	private _renderLineNumbers:boolean;
+	private _renderRelativeLineNumbers:boolean;
 	private _lineNumbersLeft:number;
 	private _lineNumbersWidth:number;
 	private _renderResult:string[];
@@ -26,7 +27,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
+		this._renderLineNumbers = this._context.configuration.editor.viewInfo.renderLineNumbers;
+		this._renderRelativeLineNumbers = this._context.configuration.editor.viewInfo.renderRelativeLineNumbers;
 		this._lineNumbersLeft = 0;
 		this._lineNumbersWidth = 0;
 		this._renderResult = null;
@@ -57,6 +59,9 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		return true;
 	}
 	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
+		if (this._renderRelativeLineNumbers) {
+			return true;
+		}
 		return false;
 	}
 	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
@@ -69,8 +74,11 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.lineNumbers) {
-			this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
+		if (e.viewInfo.renderLineNumbers) {
+			this._renderLineNumbers = this._context.configuration.editor.viewInfo.renderLineNumbers;
+		}
+		if (e.viewInfo.renderRelativeLineNumbers) {
+			this._renderRelativeLineNumbers = this._context.configuration.editor.viewInfo.renderRelativeLineNumbers;
 		}
 		return true;
 	}
@@ -93,7 +101,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			throw new Error('I did not ask to render!');
 		}
 
-		if (!this._lineNumbers) {
+		if (!this._renderLineNumbers) {
 			this._renderResult = null;
 			return;
 		}

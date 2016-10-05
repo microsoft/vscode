@@ -211,6 +211,8 @@ class DiffChangeHelper {
 
 }
 
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+
 /**
  * An implementation of the difference algorithm described in
  * "An O(ND) Difference Algorithm and its letiations" by Eugene W. Myers
@@ -257,7 +259,7 @@ export class LcsDiff {
 		// Fill up the hash table for unique elements
 		for (i = 0; i < originalSequenceLength; i++) {
 			let originalElementHash = this.OriginalSequence.getElementHash(i);
-			if (!hashTable.hasOwnProperty(originalElementHash)) {
+			if (!hasOwnProperty.call(hashTable, originalElementHash)) {
 				// No entry in the hashtable so this is a new unique element.
 				// Assign the element a new unique identifier and add it to the
 				// hash table
@@ -271,7 +273,7 @@ export class LcsDiff {
 		// Now match up modified elements
 		for (i = 0; i < modifiedSequenceLength; i++) {
 			let modifiedElementHash = this.ModifiedSequence.getElementHash(i);
-			if (!hashTable.hasOwnProperty(modifiedElementHash)) {
+			if (!hasOwnProperty.call(hashTable, modifiedElementHash)) {
 				this.m_modifiedIds[i] = currentUniqueId++;
 				hashTable[modifiedElementHash] = this.m_modifiedIds[i];
 			} else {

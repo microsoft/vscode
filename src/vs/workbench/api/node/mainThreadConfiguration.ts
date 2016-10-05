@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
-import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
-import {MainThreadConfigurationShape, ExtHostContext} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { MainThreadConfigurationShape, ExtHostContext } from './extHost.protocol';
 
 export class MainThreadConfiguration extends MainThreadConfigurationShape {
 
@@ -34,5 +34,9 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 
 	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
 		return this._configurationEditingService.writeConfiguration(target, { key, value });
+	}
+
+	$removeConfigurationOption(target: ConfigurationTarget, key: string): TPromise<void> {
+		return this._configurationEditingService.writeConfiguration(target, { key, value: undefined });
 	}
 }

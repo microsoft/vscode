@@ -95,15 +95,15 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 	}
 
 	public hasActions(context: any): boolean {
-		let entry = this.getEntry(context);
+		const entry = this.getEntry(context);
 
 		return !!entry;
 	}
 
 	public getActions(context: any): IAction[] {
-		let actions: Action[] = [];
+		const actions: Action[] = [];
 
-		let entry = this.getEntry(context);
+		const entry = this.getEntry(context);
 		if (entry) {
 			if (!this.openToSideActionInstance) {
 				this.openToSideActionInstance = this.instantiationService.createInstance(OpenToSideAction);

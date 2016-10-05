@@ -73,7 +73,7 @@
 		"menus": {
 			"editor/title": [
 				{
-					"when": "resourceLangId == markdown",
+					"when": "editorLangId == markdown",
 					"command": "markdown.showPreview",
 					"alt": "markdown.showPreviewToSide",
 					"group": "navigation"
@@ -86,7 +86,7 @@
 			],
 			"explorer/context": [
 				{
-					"when": "resourceLangId == markdown",
+					"when": "editorLangId == markdown",
 					"command": "markdown.showPreview",
 					"group": "navigation"
 				}

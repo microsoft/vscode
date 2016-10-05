@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import {IFileService} from 'vs/platform/files/common/files';
 
 /**
- * An editor model that just represents a resource and mime for a resource that can be loaded.
+ * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
 	private name: string;

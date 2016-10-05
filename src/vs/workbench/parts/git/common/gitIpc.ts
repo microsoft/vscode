@@ -89,14 +89,14 @@ export interface IGitChannel extends IChannel {
 	call(command: 'onOutput'): TPromise<void>;
 	call(command: 'getCommitTemplate'): TPromise<string>;
 	call(command: 'getCommit', ref: string): TPromise<ICommit>;
-	call(command: string, args: any): TPromise<any>;
+	call(command: string, args?: any): TPromise<any>;
 }
 
 export class GitChannel implements IGitChannel {
 
 	constructor(private service: TPromise<IRawGitService>) { }
 
-	call(command: string, args: any): TPromise<any> {
+	call(command: string, args?: any): TPromise<any> {
 		switch (command) {
 			case 'getVersion': return this.service.then(s => s.getVersion());
 			case 'serviceState': return this.service.then(s => s.serviceState());

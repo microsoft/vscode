@@ -20,21 +20,19 @@ import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import Tree = require('vs/base/parts/tree/browser/tree');
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
-	public static ID:string = 'workbench.actions.view.problems';
+	public static ID = 'workbench.actions.view.problems';
 
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService, editorService);
+		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
 	}
 
 	public run(): TPromise<any> {
@@ -53,10 +51,9 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService, editorService);
+		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
 	}
 
 	public run(): TPromise<any> {
@@ -96,14 +93,14 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 
 	protected toDispose: lifecycle.IDisposable[];
 
-	private delayer: Delayer<void>;
+	private delayedFilterUpdate: Delayer<void>;
 
 	constructor(private markersPanel: MarkersPanel, action: IAction,
 			@IContextViewService private contextViewService: IContextViewService,
 			@ITelemetryService private telemetryService: ITelemetryService) {
 		super(markersPanel, action);
 		this.toDispose = [];
-		this.delayer= new Delayer<void>(2000);
+		this.delayedFilterUpdate= new Delayer<void>(500);
 	}
 
 	public render(container: HTMLElement): void {
@@ -113,7 +110,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
 		filterInputBox.value= this.markersPanel.markersModel.filterOptions.completeFilter;
-		this.toDispose.push(filterInputBox.onDidChange((filter: string) => this.updateFilter(filter)));
+		this.toDispose.push(filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.updateFilter(filter))));
 		this.toDispose.push(DOM.addStandardDisposableListener(filterInputBox.inputElement, 'keyup', (keyboardEvent) => this.onInputKeyUp(keyboardEvent, filterInputBox)));
 		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
 		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keyup', this.handleKeyboardEvent));
@@ -121,7 +118,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 
 	private updateFilter(filter: string) {
 		this.markersPanel.updateFilter(filter);
-		this.delayer.trigger(this.reportFilteringUsed.bind(this));
+		this.reportFilteringUsed();
 	}
 
 	private reportFilteringUsed(): void {

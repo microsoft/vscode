@@ -103,7 +103,10 @@ export default class Webview {
 		this._onDidClickLink.dispose();
 		this._onDidLoadContent.dispose();
 		this._disposables = dispose(this._disposables);
-		this._webview.parentElement.removeChild(this._webview);
+
+		if (this._webview.parentElement) {
+			this._webview.parentElement.removeChild(this._webview);
+		}
 	}
 
 	get onDidClickLink(): Event<URI> {

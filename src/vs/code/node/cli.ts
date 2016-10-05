@@ -41,12 +41,18 @@ export function main(argv: string[]): TPromise<void> {
 			'VSCODE_CLI': '1',
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		});
+
 		delete env['ELECTRON_RUN_AS_NODE'];
 
-		let options = {
+		if (args.verbose) {
+			env['ELECTRON_ENABLE_LOGGING'] = '1';
+		}
+
+		const options = {
 			detached: true,
 			env,
 		};
+
 		if (!args.verbose) {
 			options['stdio'] = 'ignore';
 		}

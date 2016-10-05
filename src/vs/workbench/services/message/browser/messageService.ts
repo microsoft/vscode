@@ -34,7 +34,7 @@ export class WorkbenchMessageService implements IMessageService, IChoiceService 
 
 	constructor(
 		container: HTMLElement,
-		private telemetryService: ITelemetryService
+		telemetryService: ITelemetryService
 	) {
 		this.handler = new MessageList(container, telemetryService);
 

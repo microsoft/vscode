@@ -5,6 +5,7 @@
 'use strict';
 
 import * as objects from 'vs/base/common/objects';
+import { parse, stringify } from 'vs/base/common/marshalling';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
@@ -301,8 +302,10 @@ class DecorationRenderHelper {
 
 		if (typeof opts !== 'undefined') {
 			DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
-			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.parse(opts.contentIconPath).toString()));
+			if (typeof opts.contentIconPath === 'string') {
+				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString()));
+			} else if (opts.contentIconPath instanceof URI) {
+				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, opts.contentIconPath.toString(true).replace(/'/g, '%27')));
 			}
 			if (typeof opts.contentText !== 'undefined') {
 				let escaped = opts.contentText.replace(/\"/g, '\\\"');
@@ -324,7 +327,11 @@ class DecorationRenderHelper {
 		let cssTextArr = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.parse(opts.gutterIconPath).toString()));
+			if (typeof opts.gutterIconPath === 'string') {
+				cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.file(opts.gutterIconPath).toString()));
+			} else {
+				cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, opts.gutterIconPath.toString(true).replace(/'/g, '%27')));
+			}
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(this._CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}
@@ -435,11 +442,16 @@ interface IResolvedDecorationRenderOptions {
 	light: IThemeDecorationRenderOptions;
 	dark: IThemeDecorationRenderOptions;
 }
-function getThemedRenderOptions<T>(opts:{light?:T, dark?:T}): {light?:T, dark?:T} {
-	var light = <T> objects.deepClone(opts);
+function getThemedRenderOptions<T>(opts: { light?: T, dark?: T }): { light?: T, dark?: T } {
+	// TODO@alex,joh - not really how/what deep clone is being used
+	// for here but it will break the URI
+
+	// var light = <T> objects.deepClone(opts);
+	var light = <T>parse(stringify(opts));
 	objects.mixin(light, opts.light);
 
-	var dark = <T> objects.deepClone(opts);
+	// var dark = <T> objects.deepClone(opts);
+	var dark = <T>parse(stringify(opts));
 	objects.mixin(dark, opts.dark);
 
 	return {

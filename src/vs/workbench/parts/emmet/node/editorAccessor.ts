@@ -80,12 +80,21 @@ export class EditorAccessor implements emmet.Editor {
 		let startPosition = this.getPositionFromOffset(start);
 		let endPosition = this.getPositionFromOffset(end);
 
-		// test if < or </ are located before the replace range. Either replace these too, or block the expansion
+		// test if < or </ are located before or > after the replace range. Either replace these too, or block the expansion
 		var currentLine = this._editor.getModel().getLineContent(startPosition.lineNumber).substr(0, startPosition.column - 1); // content before the replaced range
 		var match = currentLine.match(/<[/]?$/);
 		if (match) {
 			if (strings.startsWith(value, match[0])) {
 				startPosition = { lineNumber: startPosition.lineNumber, column: startPosition.column - match[0].length };
+			} else {
+				return; // ignore
+			}
+		}
+
+		// test if > is located after the replace range. Either replace these too, or block the expansion
+		if (this._editor.getModel().getLineContent(endPosition.lineNumber).substr(endPosition.column-1, endPosition.column) ==='>') {
+			if (strings.endsWith(value, '>')) {
+				endPosition = { lineNumber: endPosition.lineNumber, column: endPosition.column + 1 };
 			} else {
 				return; // ignore
 			}
@@ -145,9 +154,6 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 
-		if (/\b(razor|handlebars)\b/.test(syntax)) { // treat like html
-			return 'html';
-		}
 		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat tsx like jsx
 			return 'jsx';
 		}
@@ -172,8 +178,7 @@ export class EditorAccessor implements emmet.Editor {
 			return syntax;
 		}
 		let languages = languageGrammar.split('.');
-		let thisLanguage = languages[languages.length - 1];
-		if (syntax !== thisLanguage || languages.length < 2) {
+		if (languages.length < 2) {
 			return syntax;
 		}
 		for (let i = 1; i < languages.length; i++) {

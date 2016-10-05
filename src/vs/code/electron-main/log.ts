@@ -26,7 +26,7 @@ export class MainLogService implements ILogService {
 		const { verbose } = this.envService.cliArgs;
 
 		if (verbose) {
-			console.log(`(${new Date().toLocaleTimeString()})`, ...args);
+			console.log(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
 		}
 	}
 }

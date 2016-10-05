@@ -123,6 +123,34 @@ suite('Marker Service', () => {
 		assert.equal(service.read({ owner: 'far' }).length, 2);
 	});
 
+	test('changeAll must not break integrety, issue #12635', () => {
+		let service = new markerService.MarkerService();
+
+		service.changeAll('far', [{
+			resource: URI.parse('scheme:path1'),
+			marker: randomMarkerData()
+		}, {
+			resource: URI.parse('scheme:path2'),
+			marker: randomMarkerData()
+		}]);
+
+		service.changeAll('boo', [{
+			resource: URI.parse('scheme:path1'),
+			marker: randomMarkerData()
+		}]);
+
+		service.changeAll('far', [{
+			resource: URI.parse('scheme:path1'),
+			marker: randomMarkerData()
+		}, {
+			resource: URI.parse('scheme:path2'),
+			marker: randomMarkerData()
+		}]);
+
+		assert.equal(service.read({ owner: 'far' }).length, 2);
+		assert.equal(service.read({ resource: URI.parse('scheme:path1') }).length, 2);
+	});
+
 	test('invalid marker data', () => {
 
 		let data = randomMarkerData();

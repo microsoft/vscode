@@ -23,7 +23,7 @@ suite('Workbench - StringEditorModel', () => {
 
 	test('StringEditorModel', function (done) {
 		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mime', null);
+		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
 		m.load().then(model => {
 			assert(model === m);
 
@@ -45,7 +45,7 @@ suite('Workbench - StringEditorModel', () => {
 
 	test('StringEditorModel - setValue, clearValue, append, trim', function (done) {
 		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mime', null);
+		let m = instantiationService.createInstance(StringEditorModel, 'value', 'mode', null);
 		m.load().then(model => {
 			assert(model === m);
 

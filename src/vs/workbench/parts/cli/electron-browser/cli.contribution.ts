@@ -72,7 +72,7 @@ class InstallAction extends Action {
 					);
 
 					const resource = URI.file(file);
-					const input = { resource, mime: 'text/x-shellscript' };
+					const input = { resource };
 					const actions = [
 						new Action('inlineEdit', nls.localize('editFile', "Edit '{0}'", file), '', true, () => {
 							return this.editorService.openEditor(input).then(() => {

@@ -133,6 +133,9 @@ export class RatingsWidget implements IDisposable {
 
 		if (this.options.small) {
 			append(this.container, $('span.full.star'));
+
+			const count = append(this.container, $('span.count'));
+			count.textContent = String(rating);
 		} else {
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
@@ -144,9 +147,6 @@ export class RatingsWidget implements IDisposable {
 				}
 			}
 		}
-
-		const count = append(this.container, $('span.count'));
-		count.textContent = String(this.options.small ? rating : this.extension.ratingCount);
 	}
 
 	dispose(): void {

@@ -179,5 +179,63 @@ suite('Editor Contrib - Snippets', () => {
 		assert.equal(snippet.placeHolders.length, 0);
 		assert.deepEqual(snippet.lines, ['', '$scope.$broadcast(\'scroll.infiniteScrollComplete\');', '']);
 	});
+
+	test('bind, adjust indentation', () => {
+
+		// don't move placeholder at the beginning of the line
+		let snippet = CodeSnippet.fromTextmate([
+			'afterEach((done) => {',
+			'\t${1}test${2}',
+			'})'
+		].join('\n'));
+
+		// replace tab-stop with two spaces
+		let boundSnippet = snippet.bind('', 0, 0, {
+			normalizeIndentation(str: string): string {
+				return str.replace(/\t/g, '  ');
+			}
+		});
+		let [first, second] = boundSnippet.placeHolders;
+		assert.equal(first.occurences.length, 1);
+		assert.equal(first.occurences[0].startColumn, 3);
+		assert.equal(second.occurences.length, 1);
+		assert.equal(second.occurences[0].startColumn, 7);
+
+		// keep tab-stop, identity
+		boundSnippet = snippet.bind('', 0, 0, {
+			normalizeIndentation(str: string): string {
+				return str;
+			}
+		});
+		[first, second] = boundSnippet.placeHolders;
+		assert.equal(first.occurences.length, 1);
+		assert.equal(first.occurences[0].startColumn, 2);
+		assert.equal(second.occurences.length, 1);
+		assert.equal(second.occurences[0].startColumn, 6);
+	});
+
+
+	test('issue #11890: Bad cursor position', () => {
+
+		let snippet = CodeSnippet.fromTextmate([
+			'afterEach((done) => {',
+			'${1}\ttest${2}',
+			'})'
+		].join('\n'));
+
+		let boundSnippet = snippet.bind('', 0, 0, {
+			normalizeIndentation(str: string): string {
+				return str.replace(/\t/g, '  ');
+			}
+		});
+
+		assert.equal(boundSnippet.lines[1], '  test');
+		assert.equal(boundSnippet.placeHolders.length, 2);
+		let [first, second] = boundSnippet.placeHolders;
+		assert.equal(first.occurences.length, 1);
+		assert.equal(first.occurences[0].startColumn, 1);
+		assert.equal(second.occurences.length, 1);
+		assert.equal(second.occurences[0].startColumn, 7);
+	});
 });
 

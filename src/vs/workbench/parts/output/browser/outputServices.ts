@@ -7,8 +7,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import Event, {Emitter} from 'vs/base/common/event';
 import {IEditor} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {Registry} from 'vs/platform/platform';
@@ -39,8 +37,6 @@ export class OutputService implements IOutputService {
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IPanelService private panelService: IPanelService,
 		@IWorkspaceContextService contextService:IWorkspaceContextService,
 		@IModelService modelService: IModelService

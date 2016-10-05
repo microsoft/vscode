@@ -163,7 +163,7 @@ class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 	constructor(proxy: MainThreadEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
-		this._proxy.$registerTextEditorDecorationType(this.key, <any>options);
+		this._proxy.$registerTextEditorDecorationType(this.key, <any>/* URI vs Uri */ options);
 	}
 
 	public dispose(): void {
@@ -218,8 +218,6 @@ export class TextEditorEdit {
 			range = new Range(location, location);
 		} else if (location instanceof Range) {
 			range = location;
-		} else if (location instanceof Selection) {
-			range = new Range(location.start, location.end);
 		} else {
 			throw new Error('Unrecognized location');
 		}
@@ -244,8 +242,6 @@ export class TextEditorEdit {
 
 		if (location instanceof Range) {
 			range = location;
-		} else if (location instanceof Selection) {
-			range = new Range(location.start, location.end);
 		} else {
 			throw new Error('Unrecognized location');
 		}
@@ -393,7 +389,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			() => this._proxy.$tryRevealRange(
 				this._id,
 				TypeConverters.fromRange(range),
-				revealType || TextEditorRevealType.Default
+				(revealType || TextEditorRevealType.Default)
 			),
 			true
 		);

@@ -95,7 +95,7 @@ class Extension implements IExtension {
 		return this.local ? this.local.manifest.description : this.gallery.description;
 	}
 
-	get readmeUrl(): string {
+	private get readmeUrl(): string {
 		if (this.local && this.local.readmeUrl) {
 			return this.local.readmeUrl;
 		}
@@ -103,12 +103,12 @@ class Extension implements IExtension {
 		return this.gallery && this.gallery.assets.readme;
 	}
 
-	get changelogUrl(): string {
+	private get changelogUrl(): string {
 		if (this.local && this.local.changelogUrl) {
 			return this.local.changelogUrl;
 		}
 
-		return ''; // Hopefully we will change this once the gallery will support that.
+		return this.gallery && this.gallery.assets.changelog;
 	}
 
 	get iconUrl(): string {
@@ -157,7 +157,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return semver.gt(this.latestVersion, this.version);
+		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
@@ -181,7 +181,7 @@ class Extension implements IExtension {
 	}
 
 	getReadme(): TPromise<string> {
-		const readmeUrl = this.local && this.local.readmeUrl ? this.local.readmeUrl : this.gallery && this.gallery.assets.readme;
+		const readmeUrl = this.readmeUrl;
 
 		if (!readmeUrl) {
 			return TPromise.wrapError('not available');
@@ -197,11 +197,11 @@ class Extension implements IExtension {
 	}
 
 	get hasChangelog() : boolean {
-		return !!(this.local && this.local.changelogUrl ? this.local.changelogUrl : '');
+		return !!(this.changelogUrl);
 	}
 
 	getChangelog() : TPromise<string> {
-		const changelogUrl = this.local && this.local.changelogUrl ? this.local.changelogUrl : '';
+		const changelogUrl = this.changelogUrl;
 
 		if (!changelogUrl) {
 			return TPromise.wrapError('not available');
@@ -254,6 +254,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
 	private syncDelayer: ThrottledDelayer<void>;
+	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
 	private _onChange: Emitter<void> = new Emitter<void>();
@@ -277,6 +278,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extensionService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
+		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
 
 		chain(urlService.onOpenURL)
 			.filter(uri => /^extension/.test(uri.path))
@@ -326,12 +328,23 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const installed = installedByGalleryId[id];
 
 		if (installed) {
-			installed.gallery = gallery;
-			this._onChange.fire();
+			// Loading the compatible version only there is an engine property
+			// Otherwise falling back to old way so that we will not make many roundtrips
+			if (gallery.properties.engine) {
+				this.galleryService.loadCompatibleVersion(gallery).then(compatible => this.syncLocalWithGalleryExtension(installed, compatible));
+			} else {
+				this.syncLocalWithGalleryExtension(installed, gallery);
+			}
 			return installed;
 		}
 
 		return new Extension(this.galleryService, this.stateProvider, null, gallery);
+	}
+
+	private syncLocalWithGalleryExtension(local: Extension, gallery: IGalleryExtension) {
+		local.gallery = gallery;
+		this._onChange.fire();
+		this.eventuallyAutoUpdateExtensions();
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {
@@ -352,16 +365,28 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.as(null);
 		}
 
-		return this.queryGallery({ ids, pageSize: ids.length }).then(() => {
-			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
+	}
 
-			if (!config.autoUpdate) {
-				return;
-			}
+	private eventuallyAutoUpdateExtensions(): void {
+		this.autoUpdateDelayer.trigger(() => this.autoUpdateExtensions())
+			.done(null, err => this.onError(err));
+	}
 
-			const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
-			return action.enabled && action.run();
-		});
+	private autoUpdateExtensions(): TPromise<void> {
+		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+
+		if (!config.autoUpdate) {
+			return TPromise.as(null);
+		}
+
+		const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
+
+		if (!action.enabled) {
+			return TPromise.as(null);
+		}
+
+		return action.run(false);
 	}
 
 	canInstall(extension: IExtension): boolean {
@@ -372,7 +397,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return !!(extension as Extension).gallery;
 	}
 
-	install(extension: string | IExtension): TPromise<void> {
+	install(extension: string | IExtension, promptToInstallDependencies: boolean = true): TPromise<void> {
 		if (typeof extension === 'string') {
 			return this.extensionService.install(extension);
 		}
@@ -388,7 +413,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		return this.extensionService.installFromGallery(gallery);
+		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
 	uninstall(extension: IExtension): TPromise<void> {
@@ -448,12 +473,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		const extension = installing.extension;
-		extension.local = local;
-		extension.needsRestart = true;
-
 		this.installing = this.installing.filter(e => e.id !== id);
 
 		if (!error) {
+			extension.local = local;
+			extension.needsRestart = true;
+
 			const galleryId = local.metadata && local.metadata.id;
 			const installed = this.installed.filter(e => (e.local.metadata && e.local.metadata.id) === galleryId)[0];
 

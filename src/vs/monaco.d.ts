@@ -89,7 +89,7 @@ declare module monaco {
     }
 
     export class CancellationTokenSource {
-        token: CancellationToken;
+        readonly token: CancellationToken;
         cancel(): void;
         dispose(): void;
     }
@@ -116,36 +116,36 @@ declare module monaco {
      */
     export class Uri {
         static isUri(thing: any): thing is Uri;
-        constructor();
+        protected constructor();
         /**
          * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
          * The part before the first colon.
          */
-        scheme: string;
+        readonly scheme: string;
         /**
          * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
          * The part between the first double slashes and the next slash.
          */
-        authority: string;
+        readonly authority: string;
         /**
          * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
          */
-        path: string;
+        readonly path: string;
         /**
          * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
          */
-        query: string;
+        readonly query: string;
         /**
          * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
          */
-        fragment: string;
+        readonly fragment: string;
         /**
          * Returns a string representing the corresponding file system path of this Uri.
          * Will handle UNC paths and normalize windows drive letters to lower-case. Also
          * uses the platform specific path separator. Will *not* validate the path for
          * invalid characters and semantics. Will *not* look at the scheme of this Uri.
          */
-        fsPath: string;
+        readonly fsPath: string;
         with(change: {
             scheme?: string;
             authority?: string;
@@ -1035,6 +1035,8 @@ declare module monaco.editor {
         Indent = 2,
     }
 
+    export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
+
     /**
      * Configuration options for the editor.
      */
@@ -1070,7 +1072,7 @@ declare module monaco.editor {
          * Otherwise, line numbers will not be rendered.
          * Defaults to true.
          */
-        lineNumbers?: any;
+        lineNumbers?: LineNumbersOption;
         /**
          * Should the corresponding line be selected when clicking on the line number?
          * Defaults to true.
@@ -1272,6 +1274,16 @@ declare module monaco.editor {
          */
         wordBasedSuggestions?: boolean;
         /**
+         * The font size for the suggest widget.
+         * Defaults to the editor font size.
+         */
+        suggestFontSize?: number;
+        /**
+         * The line height for the suggest widget.
+         * Defaults to the editor line height.
+         */
+        suggestLineHeight?: number;
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
@@ -1387,7 +1399,9 @@ declare module monaco.editor {
         experimentalScreenReader: boolean;
         rulers: number[];
         ariaLabel: string;
-        lineNumbers: any;
+        renderLineNumbers: boolean;
+        renderCustomLineNumbers: (lineNumber: number) => string;
+        renderRelativeLineNumbers: boolean;
         selectOnLineNumbers: boolean;
         glyphMargin: boolean;
         revealHorizontalRightPadding: number;
@@ -1413,7 +1427,9 @@ declare module monaco.editor {
         experimentalScreenReader: boolean;
         rulers: boolean;
         ariaLabel: boolean;
-        lineNumbers: boolean;
+        renderLineNumbers: boolean;
+        renderCustomLineNumbers: boolean;
+        renderRelativeLineNumbers: boolean;
         selectOnLineNumbers: boolean;
         glyphMargin: boolean;
         revealHorizontalRightPadding: boolean;
@@ -1447,6 +1463,8 @@ declare module monaco.editor {
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         tabCompletion: boolean;
         wordBasedSuggestions: boolean;
+        suggestFontSize: number;
+        suggestLineHeight: number;
         selectionHighlight: boolean;
         codeLens: boolean;
         folding: boolean;

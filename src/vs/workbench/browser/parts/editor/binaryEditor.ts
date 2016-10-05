@@ -49,7 +49,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	public createEditor(parent: Builder): void {
 
 		// Container for Binary
-		let binaryContainerElement = document.createElement('div');
+		const binaryContainerElement = document.createElement('div');
 		binaryContainerElement.className = 'binary-container';
 		this.binaryContainer = $(binaryContainerElement);
 		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
@@ -60,11 +60,11 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		let oldInput = this.getInput();
+		const oldInput = this.getInput();
 		super.setInput(input, options);
 
 		// Detect options
-		let forceOpen = options && options.forceOpen;
+		const forceOpen = options && options.forceOpen;
 
 		// Same Input
 		if (!forceOpen && input.matches(oldInput)) {
@@ -85,7 +85,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 			}
 
 			// Render Input
-			let model = <BinaryEditorModel>resolvedModel;
+			const model = <BinaryEditorModel>resolvedModel;
 			ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() }, this.binaryContainer, this.scrollbar, (meta) => this.handleMetadataChanged(meta));
 
 			return TPromise.as<void>(null);

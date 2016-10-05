@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {illegalArgument} from 'vs/base/common/errors';
+import { illegalArgument } from 'vs/base/common/errors';
 
 export class Disposable {
 
@@ -149,7 +149,7 @@ export class Position {
 		}
 	}
 
-	translate(change: { lineDelta?: number; characterDelta?: number;}): Position;
+	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
 	translate(lineDelta?: number, characterDelta?: number): Position;
 	translate(lineDeltaOrChange: number | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
 
@@ -230,7 +230,7 @@ export class Range {
 
 	constructor(start: Position, end: Position);
 	constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);
-	constructor(startLineOrStart: number|Position, startColumnOrEnd: number|Position, endLine?: number, endColumn?: number) {
+	constructor(startLineOrStart: number | Position, startColumnOrEnd: number | Position, endLine?: number, endColumn?: number) {
 		let start: Position;
 		let end: Position;
 
@@ -367,7 +367,7 @@ export class Selection extends Range {
 
 	constructor(anchor: Position, active: Position);
 	constructor(anchorLine: number, anchorColumn: number, activeLine: number, activeColumn: number);
-	constructor(anchorLineOrAnchor: number|Position, anchorColumnOrActive: number|Position, activeLine?: number, activeColumn?: number) {
+	constructor(anchorLineOrAnchor: number | Position, anchorColumnOrActive: number | Position, activeLine?: number, activeColumn?: number) {
 		let anchor: Position;
 		let active: Position;
 
@@ -611,9 +611,9 @@ export class Hover {
 }
 
 export enum DocumentHighlightKind {
-	Text,
-	Read,
-	Write
+	Text = 0,
+	Read = 1,
+	Write = 2
 }
 
 export class DocumentHighlight {
@@ -679,7 +679,7 @@ export class SymbolInformation {
 		if (locationOrUri instanceof Location) {
 			this.location = locationOrUri;
 		} else if (rangeOrContainer instanceof Range) {
-			this.location = new Location(<URI> locationOrUri, rangeOrContainer);
+			this.location = new Location(<URI>locationOrUri, rangeOrContainer);
 		}
 	}
 
@@ -745,24 +745,24 @@ export class SignatureHelp {
 }
 
 export enum CompletionItemKind {
-	Text,
-	Method,
-	Function,
-	Constructor,
-	Field,
-	Variable,
-	Class,
-	Interface,
-	Module,
-	Property,
-	Unit,
-	Value,
-	Enum,
-	Keyword,
-	Snippet,
-	Color,
-	File,
-	Reference
+	Text = 0,
+	Method = 1,
+	Function = 2,
+	Constructor = 3,
+	Field = 4,
+	Variable = 5,
+	Class = 6,
+	Interface = 7,
+	Module = 8,
+	Property = 9,
+	Unit = 10,
+	Value = 11,
+	Enum = 12,
+	Keyword = 13,
+	Snippet = 14,
+	Color = 15,
+	File = 16,
+	Reference = 17
 }
 
 export class CompletionItem {
@@ -823,6 +823,18 @@ export enum StatusBarAlignment {
 export enum EndOfLine {
 	LF = 1,
 	CRLF = 2
+}
+
+export enum TextEditorLineNumbersStyle {
+	Off = 0,
+	On = 1,
+	Relative = 2
+}
+
+export enum TextDocumentSaveReason {
+	Manual = 1,
+	AfterDelay = 2,
+	FocusOut = 3
 }
 
 export enum TextEditorRevealType {

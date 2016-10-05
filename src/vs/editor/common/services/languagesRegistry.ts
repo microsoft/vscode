@@ -26,6 +26,7 @@ export class LanguagesRegistry {
 	private name2LanguageId: { [name: string]: string; };
 	private id2Name: { [id: string]: string; };
 	private id2Extensions: { [id: string]: string[]; };
+	private id2Filenames: { [id: string]: string[]; };
 	private compatModes: { [id: string]: ICompatModeDescriptor; };
 	private lowerName2Id: { [name: string]: string; };
 	private id2ConfigurationFiles: { [id:string]: string[]; };
@@ -39,6 +40,7 @@ export class LanguagesRegistry {
 		this.name2LanguageId = {};
 		this.id2Name = {};
 		this.id2Extensions = {};
+		this.id2Filenames = {};
 		this.compatModes = {};
 		this.lowerName2Id = {};
 		this.id2ConfigurationFiles = {};
@@ -121,20 +123,22 @@ export class LanguagesRegistry {
 		if (Array.isArray(lang.extensions)) {
 			this.id2Extensions[lang.id] = this.id2Extensions[lang.id] || [];
 			for (let extension of lang.extensions) {
-				mime.registerTextMime({ mime: primaryMime, extension: extension });
+				mime.registerTextMime({ id: lang.id, mime: primaryMime, extension: extension });
 				this.id2Extensions[lang.id].push(extension);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
+			this.id2Filenames[lang.id] = this.id2Filenames[lang.id] || [];
 			for (let filename of lang.filenames) {
-				mime.registerTextMime({ mime: primaryMime, filename: filename });
+				mime.registerTextMime({ id: lang.id, mime: primaryMime, filename: filename });
+				this.id2Filenames[lang.id].push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
 			for (let filenamePattern of lang.filenamePatterns) {
-				mime.registerTextMime({ mime: primaryMime, filepattern: filenamePattern });
+				mime.registerTextMime({ id: lang.id, mime: primaryMime, filepattern: filenamePattern });
 			}
 		}
 
@@ -146,7 +150,7 @@ export class LanguagesRegistry {
 			try {
 				var firstLineRegex = new RegExp(firstLineRegexStr);
 				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					mime.registerTextMime({ mime: primaryMime, firstline: firstLineRegex });
+					mime.registerTextMime({ id: lang.id, mime: primaryMime, firstline: firstLineRegex });
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
@@ -269,5 +273,13 @@ export class LanguagesRegistry {
 			return [];
 		}
 		return this.id2Extensions[languageId];
+	}
+
+	public getFilenames(languageName: string): string[] {
+		let languageId = this.name2LanguageId[languageName];
+		if (!languageId) {
+			return [];
+		}
+		return this.id2Filenames[languageId];
 	}
 }

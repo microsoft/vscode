@@ -65,11 +65,11 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	/**
-	 * Creates the text editor model with the provided value, mime (can be comma separated for multiple values) and optional resource URL.
+	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string | IRawText, resource?: URI, mime?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: string | IRawText, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
-		const mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
+		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
 		return TPromise.any<any>([TPromise.timeout(50), mode]).then(() => {
@@ -125,8 +125,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
-		return modeService.getOrCreateMode(mime);
+	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): TPromise<IMode> {
+		return modeService.getOrCreateMode(modeId);
 	}
 
 	/**
@@ -156,13 +156,13 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Updates the text editor model mode based on the settings and configuration.
 	 */
-	protected updateTextEditorModelMode(mime?: string): void {
+	protected updateTextEditorModelMode(modeId?: string): void {
 		if (!this.textEditorModel) {
 			return;
 		}
 
 		const firstLineText = this.getFirstLineText(this.textEditorModel.getValue());
-		const mode = this.getOrCreateMode(this.modeService, mime, firstLineText);
+		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, mode);
 	}

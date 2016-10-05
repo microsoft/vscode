@@ -34,6 +34,7 @@ export class DebugSelectActionItem extends SelectActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 		this.updateOptions(true).done(null, errors.onUnexpectedError);
+		this.enabled = this.debugService.state === State.Inactive;
 	}
 
 	private updateOptions(changeDebugConfiguration: boolean): TPromise<any> {

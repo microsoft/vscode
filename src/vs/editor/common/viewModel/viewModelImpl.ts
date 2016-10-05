@@ -50,6 +50,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private decorations:ViewModelDecorations;
 	private cursors:ViewModelCursors;
 
+	private _renderCustomLineNumbers: (lineNumber:number)=>string;
+	private _renderRelativeLineNumbers: boolean;
+	private _lastCursorPosition: Position;
+
 	private getCurrentCenteredModelRange:()=>Range;
 
 	constructor(lines:ILinesCollection, editorId:number, configuration:editorCommon.IConfiguration, model:editorCommon.IModel, getCurrentCenteredModelRange:()=>Range) {
@@ -59,6 +63,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
+
+		this._lastCursorPosition = new Position(1,1);
+		this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
+		this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
 
 		this.getCurrentCenteredModelRange = getCurrentCenteredModelRange;
 
@@ -239,6 +247,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 					case editorCommon.EventType.CursorPositionChanged:
 						this.onCursorPositionChanged(<editorCommon.ICursorPositionChangedEvent>data);
+						this._lastCursorPosition = (<editorCommon.ICursorPositionChangedEvent>data).position;
 						break;
 
 					case editorCommon.EventType.CursorSelectionChanged:
@@ -256,6 +265,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 					case editorCommon.EventType.ConfigurationChanged:
 						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
+
+						this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
+						this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
+
 						if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
 							// Must read again all decorations due to readOnly filtering
 							this.decorations.reset(this.model);
@@ -412,17 +425,25 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public getLineRenderLineNumber(viewLineNumber:number): string {
-		var modelPosition = this.convertViewPositionToModelPosition(viewLineNumber, 1);
+		let modelPosition = this.convertViewPositionToModelPosition(viewLineNumber, 1);
 		if (modelPosition.column !== 1) {
 			return '';
 		}
-		var modelLineNumber = modelPosition.lineNumber;
+		let modelLineNumber = modelPosition.lineNumber;
 
-		if (typeof this.configuration.editor.viewInfo.lineNumbers === 'function') {
-			return this.configuration.editor.viewInfo.lineNumbers(modelLineNumber);
+		if (this._renderCustomLineNumbers) {
+			return this._renderCustomLineNumbers(modelLineNumber);
 		}
 
-		return modelLineNumber.toString();
+		if (this._renderRelativeLineNumbers) {
+			let diff = Math.abs(this._lastCursorPosition.lineNumber - modelLineNumber);
+			if (diff === 0) {
+				return '<span class="relative-current-line-number">' + modelLineNumber + '</span>';
+			}
+			return String(diff);
+		}
+
+		return String(modelLineNumber);
 	}
 
 	public getMaxLineNumber(): number {

@@ -5,6 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 
@@ -18,6 +19,8 @@ export interface ITelemetryInfo {
 
 export interface ITelemetryExperiments {
 	showDefaultViewlet: boolean;
+	showCommandsWatermark: boolean;
+	openUntitledFile: boolean;
 }
 
 export interface ITelemetryService {
@@ -38,7 +41,9 @@ export interface ITelemetryService {
 }
 
 export const defaultExperiments: ITelemetryExperiments = {
-	showDefaultViewlet: false
+	showDefaultViewlet: false,
+	showCommandsWatermark: false,
+	openUntitledFile: true
 };
 
 export const NullTelemetryService = {
@@ -60,17 +65,39 @@ export const NullTelemetryService = {
 	}
 };
 
-export function loadExperiments(storageService: IStorageService): ITelemetryExperiments {
+export function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): ITelemetryExperiments {
 	const key = 'experiments.randomness';
 	let valueString = storageService.get(key);
 	if (!valueString) {
 		valueString = Math.random().toString();
 		storageService.store(key, valueString);
 	}
-	const value = parseFloat(valueString);
-	return {
-		showDefaultViewlet: value < 0.5
-	};
+	const random0 = parseFloat(valueString);
+	const [random1, showDefaultViewlet] = splitRandom(random0);
+	const [random2, showCommandsWatermark] = splitRandom(random1);
+	const [, openUntitledFile] = splitRandom(random2);
+	return applyOverrides(configurationService, {
+		showDefaultViewlet,
+		showCommandsWatermark,
+		openUntitledFile
+	});
+}
+
+export function applyOverrides(configurationService: IConfigurationService, experiments: ITelemetryExperiments): ITelemetryExperiments {
+	const config: any = configurationService.getConfiguration('telemetry');
+	const experimentsConfig = config && config.experiments || {};
+	Object.keys(experiments).forEach(key => {
+		if (key in experimentsConfig) {
+			experiments[key] = experimentsConfig[key];
+		}
+	});
+	return experiments;
+}
+
+function splitRandom(random: number): [number, boolean] {
+	const scaled = random * 2;
+	const i = Math.floor(scaled);
+	return [scaled - i, i === 1];
 }
 
 export interface ITelemetryAppender {

@@ -12,30 +12,19 @@ import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_PANEL_ID} fro
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import {TogglePanelAction} from 'vs/workbench/browser/panel';
 
-export class ToggleOutputAction extends Action {
+export class ToggleOutputAction extends TogglePanelAction {
 
 	public static ID = 'workbench.action.output.toggleOutput';
 	public static LABEL = nls.localize('toggleOutput', "Toggle Output");
 
 	constructor(
 		id: string, label: string,
-		@IPartService private partService: IPartService,
-		@IPanelService private panelService: IPanelService,
-		@IOutputService private outputService: IOutputService
+		@IPartService partService: IPartService,
+		@IPanelService panelService: IPanelService,
 	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		const panel = this.panelService.getActivePanel();
-		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
-			this.partService.setPanelHidden(true);
-
-			return TPromise.as(null);
-		}
-
-		return this.outputService.getActiveChannel().show();
+		super(id, label, OUTPUT_PANEL_ID, panelService, partService);
 	}
 }
 

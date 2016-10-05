@@ -130,7 +130,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 
 	private updateFont(): void {
-		const codeTags: HTMLPhraseElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
+		const codeTags: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
 
 		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
@@ -234,7 +234,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 	}
 
 	private updateFont(): void {
-		const codeTags: HTMLPhraseElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
+		const codeTags: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
 
 		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));

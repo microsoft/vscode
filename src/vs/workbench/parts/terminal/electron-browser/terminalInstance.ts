@@ -56,7 +56,7 @@ export class TerminalInstance implements ITerminalInstance {
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
-		private _workspace: IWorkspace,
+		workspace: IWorkspace,
 		name: string,
 		shell: IShell,
 		@IKeybindingService private _keybindingService: IKeybindingService,
@@ -72,7 +72,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
-		this._createProcess(_workspace, name, shell);
+		this._createProcess(workspace, name, shell);
 
 		if (_container) {
 			this.attachToElement(_container);
@@ -99,9 +99,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', (message) => {
 			if (message.type === 'data') {
 				this._xterm.write(message.content);
-			} else if (message.type === 'pid') {
-				this._processId = message.content;
-				this._onProcessIdReady.fire(this);
 			}
 		});
 		this._xterm.on('data', (data) => {
@@ -156,7 +153,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._container.appendChild(this._wrapperElement);
 
-		this.layout(new Dimension(this._container.offsetWidth, this._container.offsetHeight));
+		const computedStyle = window.getComputedStyle(this._container);
+		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
 	}
 
@@ -169,6 +169,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public dispose(): void {
+		this._isExiting = true;
 		if (this._wrapperElement) {
 			this._container.removeChild(this._wrapperElement);
 			this._wrapperElement = null;
@@ -179,7 +180,6 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		if (this._process) {
 			if (this._process.connected) {
-				this._process.disconnect();
 				this._process.kill();
 			}
 			this._process = null;
@@ -220,12 +220,20 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public scrollDown(): void {
+	public scrollDownLine(): void {
 		this._xterm.scrollDisp(1);
 	}
 
-	public scrollUp(): void {
+	public scrollDownPage(): void {
+		this._xterm.scrollDisp(this._xterm.rows - 1);
+	}
+
+	public scrollUpLine(): void {
 		this._xterm.scrollDisp(-1);
+	}
+
+	public scrollUpPage(): void {
+		this._xterm.scrollDisp(-(this._xterm.rows - 1));
 	}
 
 	public clear(): void {
@@ -256,10 +264,15 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			});
 		}
+		this._process.on('message', (message) => {
+			if (message.type === 'pid') {
+				this._processId = message.content;
+				this._onProcessIdReady.fire(this);
+			}
+		});
 		this._process.on('exit', (exitCode) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this._isExiting) {
-				this._isExiting = true;
 				this.dispose();
 				if (exitCode) {
 					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));
@@ -310,7 +323,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setCursorBlink(blink: boolean): void {
-		if (this._xterm && this._xterm.cursorBlink !== blink) {
+		if (this._xterm && this._xterm.getOption('cursorBlink') !== blink) {
 			this._xterm.setOption('cursorBlink', blink);
 			this._xterm.refresh(0, this._xterm.rows - 1);
 		}
@@ -331,6 +344,12 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		if (!dimension.height) { // Minimized
 			return;
+		} else {
+			// Trigger scroll event manually so that the viewport's scroll area is synced. This
+			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
+			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
+			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
+			this._xterm.emit('scroll', this._xterm.ydisp);
 		}
 		let leftPadding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
 		let innerWidth = dimension.width - leftPadding;

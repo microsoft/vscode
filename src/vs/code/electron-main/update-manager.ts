@@ -108,8 +108,8 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 			this.setState(State.CheckingForUpdate);
 		});
 
-		this.raw.on('update-available', (event, url: string) => {
-			this.emit('update-available', url);
+		this.raw.on('update-available', (event, url: string, version: string) => {
+			this.emit('update-available', url, version);
 
 			let data: IUpdate = null;
 

@@ -383,7 +383,7 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 	}
 
 	function thenHandler(result: any): Promise {
-		if (result) {
+		if (result !== undefined && result !== null) {
 			results.push(result);
 		}
 

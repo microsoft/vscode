@@ -5,6 +5,7 @@
 
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITerminalService, ITerminalInstance} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {ITerminalService as IExternalTerminalService} from 'vs/workbench/parts/execution/common/execution';
@@ -26,6 +27,7 @@ export interface IIntegratedTerminalConfiguration {
 export class TerminalSupport {
 
 	private static integratedTerminalInstance: ITerminalInstance;
+	private static terminalDisposedListener: IDisposable;
 
 	public static runInTerminal(terminalService: ITerminalService, nativeTerminalService: IExternalTerminalService, configurationService: IConfigurationService, args: DebugProtocol.RunInTerminalRequestArguments, response: DebugProtocol.RunInTerminalResponse): TPromise<void> {
 
@@ -37,6 +39,14 @@ export class TerminalSupport {
 		if (!TerminalSupport.integratedTerminalInstance) {
 			TerminalSupport.integratedTerminalInstance = terminalService.createInstance(args.title || nls.localize('debuggee', "debuggee"));
 			delay = 2000;	// delay sendText so that the newly created terminal is ready.
+		}
+		if (!TerminalSupport.terminalDisposedListener) {
+			// React on terminal disposed and check if that is the debug terminal #12956
+			TerminalSupport.terminalDisposedListener = terminalService.onInstanceDisposed(terminal => {
+				if (TerminalSupport.integratedTerminalInstance && TerminalSupport.integratedTerminalInstance.id === terminal.id) {
+					TerminalSupport.integratedTerminalInstance = null;
+				}
+			});
 		}
 		terminalService.setActiveInstance(TerminalSupport.integratedTerminalInstance);
 		terminalService.showPanel(true);

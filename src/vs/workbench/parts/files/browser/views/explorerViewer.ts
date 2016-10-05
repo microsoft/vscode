@@ -24,7 +24,8 @@ import glob = require('vs/base/common/glob');
 import {FileLabel, IFileLabelOptions} from 'vs/workbench/browser/labels';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from 'vs/platform/files/common/files';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
 import {IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT} from 'vs/base/parts/tree/browser/tree';
@@ -176,7 +177,7 @@ export class FileActionProvider extends ContributableActionProvider {
 	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): TPromise<any> {
 		context = objects.mixin({
 			viewletState: this.state,
-			stat: stat
+			stat
 		}, context);
 
 		if (!isString(arg)) {
@@ -262,7 +263,6 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	constructor(
 		state: FileViewletState,
 		actionRunner: IActionRunner,
-		private container: HTMLElement,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -382,12 +382,10 @@ export class FileController extends DefaultController {
 
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -413,6 +411,7 @@ export class FileController extends DefaultController {
 		if (platform.isMacintosh) {
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.UpArrow, this.onLeft.bind(this));
 			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
+			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace, this.onDelete.bind(this));
 		} else {
 			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
 			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
@@ -613,7 +612,7 @@ export class FileController extends DefaultController {
 		if (stat && !stat.isDirectory) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			this.editorService.openEditor({ resource: stat.resource, mime: stat.mime, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, pinned } }, sideBySide).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -630,10 +629,9 @@ export class FileController extends DefaultController {
 	}
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const useTrash = !event.shiftKey;
 		const stat: FileStat = tree.getFocus();
 		if (stat) {
-			this.runAction(tree, stat, useTrash ? 'workbench.files.action.moveFileToTrash' : 'workbench.files.action.deleteFile').done();
+			this.runAction(tree, stat, 'workbench.files.action.moveFileToTrash', event).done();
 
 			return true;
 		}
@@ -641,8 +639,8 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private runAction(tree: ITree, stat: FileStat, id: string): TPromise<any> {
-		return this.state.actionProvider.runAction(tree, stat, id);
+	private runAction(tree: ITree, stat: FileStat, id: string, event?: IKeyboardEvent): TPromise<any> {
+		return this.state.actionProvider.runAction(tree, stat, id, { event });
 	}
 }
 

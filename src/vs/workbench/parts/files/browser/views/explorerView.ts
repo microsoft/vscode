@@ -16,7 +16,8 @@ import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
+import {IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
 import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -30,7 +31,6 @@ import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
@@ -41,7 +41,6 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
 import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -80,7 +79,6 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService private eventService: IEventService,
-		@IStorageService private storageService: IStorageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -88,7 +86,6 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionService private extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
@@ -163,7 +160,6 @@ export class ExplorerView extends CollapsibleViewletView {
 	private onEditorsChanged(): void {
 		const activeInput = this.editorService.getActiveEditorInput();
 		let clearSelection = true;
-		let clearFocus = false;
 
 		// Handle File Input
 		if (activeInput instanceof FileEditorInput) {
@@ -186,16 +182,11 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
 		if (activeInput instanceof UntitledEditorInput || !activeInput) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
-			clearFocus = true;
 		}
 
 		// Otherwise clear
 		if (clearSelection) {
 			this.explorerViewer.clearSelection();
-		}
-
-		if (clearFocus) {
-			this.explorerViewer.clearFocus();
 		}
 	}
 
@@ -292,7 +283,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	private openFocusedElement(preserveFocus?: boolean): void {
 		const stat: FileStat = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
-			this.editorService.openEditor({ resource: stat.resource, mime: stat.mime, options: { preserveFocus, revealIfVisible: true } }).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } }).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -313,7 +304,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public createViewer(container: Builder): ITree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
 		const sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);
@@ -350,7 +341,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public getOptimalWidth(): number {
 		const parentNode = this.explorerViewer.getHTMLElement();
-		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item-label > a'));
+		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item > a'));
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
@@ -422,9 +413,6 @@ export class ExplorerView extends CollapsibleViewletView {
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
 				modelElement = this.getInput().find(oldElement.resource);
 				if (modelElement) {
-					if (!modelElement.isDirectory && !modelElement.mime) {
-						return;
-					}
 
 					// Rename File (Model)
 					modelElement.rename(newElement);

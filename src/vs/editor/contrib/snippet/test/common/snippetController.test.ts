@@ -408,6 +408,30 @@ suite('SnippetController', () => {
 		}, ['af', '\taf']);
 	});
 
+	test('Final tabstop, #11890 stay at the beginning', () => {
+
+		snippetTest((editor, cursor, codeSnippet, controller) => {
+
+			editor.setSelections([
+				new Selection(1, 5, 1, 5)
+			]);
+
+			codeSnippet = CodeSnippet.fromTextmate([
+				'afterEach((done) => {',
+				'${1}\ttest',
+				'});'
+			].join('\n'));
+
+			controller.run(codeSnippet, 2, 0, true);
+
+			assert.equal(editor.getSelections().length, 1);
+			const [first] = editor.getSelections();
+
+			assert.ok(first.equalsRange({ startLineNumber: 2, startColumn: 3, endLineNumber: 2, endColumn: 3 }), first.toString());
+
+		}, ['  af']);
+	});
+
 	test('Final tabstop, no tabstop', () => {
 
 		snippetTest((editor, cursor, codeSnippet, controller) => {

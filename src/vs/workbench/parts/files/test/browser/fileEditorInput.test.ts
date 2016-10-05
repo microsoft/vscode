@@ -13,8 +13,7 @@ import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {EncodingMode} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
-import {ITextFileService, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {ITextFileEditorModel, ITextFileService, LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
 import {FileOperationResult, IFileOperationResult, FileChangesEvent, FileChangeType, EventType} from 'vs/platform/files/common/files';
 
 function toResource(path) {
@@ -28,8 +27,7 @@ function toStat(resource: URI) {
 		hasChildren: false,
 		name: basename(resource.fsPath),
 		mtime: Date.now(),
-		etag: 'etag',
-		mime: 'text/plain'
+		etag: 'etag'
 	};
 }
 
@@ -53,9 +51,9 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('Basics', function (done) {
-		let input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
-		const otherInput = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/otherfile.js'), 'text/javascript', void 0);
-		const otherInputSame = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/file.js'), 'text/javascript', void 0);
+		let input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), void 0);
+		const otherInput = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/otherfile.js'), void 0);
+		const otherInputSame = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/file.js'), void 0);
 
 		assert(input.matches(input));
 		assert(input.matches(otherInputSame));
@@ -70,10 +68,10 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(toResource('/foo/bar/file.js').fsPath, input.getResource().fsPath);
 		assert(input.getResource() instanceof URI);
 
-		input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar.html'), 'text/html', void 0);
+		input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar.html'), void 0);
 
-		const inputToResolve: any = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
-		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
+		const inputToResolve: any = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), void 0);
+		const sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), void 0);
 
 		return accessor.editorService.resolveEditorModel(inputToResolve, true).then(resolved => {
 			const resolvedModelA = resolved;
@@ -115,8 +113,8 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('matches', function () {
-		const input1 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
-		const input2 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
+		const input1 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), void 0);
+		const input2 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), void 0);
 
 		assert.strictEqual(input1.matches(null), false);
 		assert.strictEqual(input1.matches(input1), true);
@@ -124,7 +122,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('getEncoding/setEncoding', function (done) {
-		const input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
+		const input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), void 0);
 
 		input.setEncoding('utf16', EncodingMode.Encode);
 		assert.equal(input.getEncoding(), 'utf16');
@@ -139,7 +137,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('save', function (done) {
-		const input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
+		const input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), void 0);
 
 		return accessor.editorService.resolveEditorModel(input, true).then((resolved: ITextFileEditorModel) => {
 			resolved.textEditorModel.setValue('changed');
@@ -156,7 +154,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('revert', function (done) {
-		const input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
+		const input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), void 0);
 
 		return accessor.editorService.resolveEditorModel(input, true).then((resolved: ITextFileEditorModel) => {
 			resolved.textEditorModel.setValue('changed');
@@ -173,7 +171,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('resolve handles binary files', function (done) {
-		const input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
+		const input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), void 0);
 
 		accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
 			message: 'error',
@@ -192,14 +190,14 @@ suite('Files - FileEditorInput', () => {
 	test('disposes when resource gets deleted - local file changes', function () {
 		const parent = toResource('/foo/bar');
 		const resource = toResource('/foo/bar/updatefile.js');
-		let input = instantiationService.createInstance(FileEditorInput, resource, 'text/javascript', void 0);
+		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 
 		assert.ok(!input.isDisposed());
 
 		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource)));
 		assert.ok(input.isDisposed());
 
-		input = instantiationService.createInstance(FileEditorInput, resource, 'text/javascript', void 0);
+		input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 
 		const other = toResource('/foo/barfoo');
 
@@ -218,14 +216,14 @@ suite('Files - FileEditorInput', () => {
 	test('disposes when resource gets deleted - remote file changes', function () {
 		const parent = toResource('/foo/bar');
 		const resource = toResource('/foo/bar/updatefile.js');
-		let input = instantiationService.createInstance(FileEditorInput, resource, 'text/javascript', void 0);
+		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 
 		assert.ok(!input.isDisposed());
 
 		accessor.eventService.emit(EventType.FILE_CHANGES, new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
 		assert.ok(input.isDisposed());
 
-		input = instantiationService.createInstance(FileEditorInput, resource, 'text/javascript', void 0);
+		input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 
 		const other = toResource('/foo/barfoo');
 

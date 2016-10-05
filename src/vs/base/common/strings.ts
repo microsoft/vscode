@@ -396,15 +396,13 @@ export function commonSuffixLength(a: string, b: string): number {
 //	}
 //	return chrCode;
 //}
-//export function isLeadSurrogate(chr:string) {
-//	let chrCode = chr.charCodeAt(0);
-//	return ;
-//}
-//
-//export function isTrailSurrogate(chr:string) {
-//	let chrCode = chr.charCodeAt(0);
-//	return 0xDC00 <= chrCode && chrCode <= 0xDFFF;
-//}
+export function isHighSurrogate(charCode:number): boolean {
+	return (0xD800 <= charCode && charCode <= 0xDBFF);
+}
+
+export function isLowSurrogate(charCode:number): boolean {
+	return (0xDC00 <= charCode && charCode <= 0xDFFF);
+}
 
 export function isFullWidthCharacter(charCode:number): boolean {
 	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns

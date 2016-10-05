@@ -62,6 +62,10 @@ export class MockKeybindingService implements IContextKeyService {
 export class MockKeybindingService2 implements IKeybindingService {
 	public _serviceBrand: any;
 
+	public get onDidUpdateKeybindings(): Event<void> {
+		return Event.None;
+	}
+
 	public getLabelFor(keybinding: Keybinding): string {
 		return keybinding._toUSLabel();
 	}

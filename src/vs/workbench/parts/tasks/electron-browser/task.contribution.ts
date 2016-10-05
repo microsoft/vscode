@@ -57,7 +57,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-import { ITextFileService } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
 import { ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
@@ -440,6 +440,7 @@ class StatusBarItem implements IStatusbarItem {
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
+		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(error, 'task-statusbar-item-label-error');
 		error.innerHTML = '0';

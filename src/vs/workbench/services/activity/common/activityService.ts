@@ -62,12 +62,12 @@ export interface IActivityService {
 	_serviceBrand: any;
 
 	/**
-	 * Show activity in the activitybar for the given viewlet.
+	 * Show activity in the activitybar for the given viewlet or panel.
 	 */
-	showActivity(viewletId: string, badge: IBadge, clazz?: string): void;
+	showActivity(compositeId: string, badge: IBadge, clazz?: string): void;
 
 	/**
-	 * Clears activity shown in the activitybar for the given viewlet.
+	 * Clears activity shown in the activitybar for the given viewlet or panel.
 	 */
-	clearActivity(viewletId: string): void;
+	clearActivity(compositeId: string): void;
 }

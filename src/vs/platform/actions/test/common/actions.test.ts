@@ -9,7 +9,6 @@ import WinJS = require('vs/base/common/winjs.base');
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import {DeferredAction} from 'vs/platform/actions/common/actions';
 import Actions = require('vs/base/common/actions');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IEventService} from 'vs/platform/event/common/event';
 
@@ -29,9 +28,6 @@ export class TestAction extends Actions.Action {
 	public run(): WinJS.Promise {
 		return WinJS.TPromise.as((!!this.service && !!this.first && !!this.second) ? true : false);
 	}
-}
-
-class TestEventService extends EventEmitter.EventEmitter {
 }
 
 suite('Platform actions', () => {

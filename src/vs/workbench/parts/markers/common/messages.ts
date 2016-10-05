@@ -16,7 +16,7 @@ export default class Messages {
 	public static PROBLEMS_PANEL_CONFIGURATION_TITLE:string= nls.localize('problems.panel.configuration.title', "Problems View");
 	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL:string= nls.localize('problems.panel.configuration.autoreveal', "Controls if Problems view should automatically reveal files when opening them");
 
-	public static MARKERS_PANEL_TITLE_NO_PROBLEMS:string= nls.localize('markers.panel.title.no.problems', "No problems");
+	public static MARKERS_PANEL_TITLE_PROBLEMS:string= nls.localize('markers.panel.title.problems', "Problems");
 	public static MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE:string= nls.localize('markers.panel.aria.label.problems.tree', "Problems grouped by files");
 
 	public static MARKERS_PANEL_NO_PROBLEMS_BUILT:string= nls.localize('markers.panel.no.problems.build', "No problems have been detected in the workspace so far.");

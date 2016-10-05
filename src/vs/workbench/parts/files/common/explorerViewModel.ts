@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import {isLinux} from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
 import {IFileStat} from 'vs/platform/files/common/files';
-import {guessMimeTypes} from 'vs/base/common/mime';
 
 export enum StatType {
 	FILE,
@@ -23,7 +22,6 @@ export class FileStat implements IFileStat {
 	public name: string;
 	public mtime: number;
 	public etag: string;
-	public mime: string;
 	public isDirectory: boolean;
 	public hasChildren: boolean;
 	public children: FileStat[];
@@ -31,12 +29,11 @@ export class FileStat implements IFileStat {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mime = !isDirectory ? guessMimeTypes(resource.fsPath).join(', ') : void (0), mtime?: number, etag?: string) {
+	constructor(resource: URI, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
 		this.hasChildren = isDirectory && hasChildren;
-		this.mime = mime;
 		this.etag = etag;
 		this.mtime = mtime;
 
@@ -53,7 +50,7 @@ export class FileStat implements IFileStat {
 	}
 
 	public static create(raw: IFileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mime, raw.mtime, raw.etag);
+		const stat = new FileStat(raw.resource, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -99,7 +96,6 @@ export class FileStat implements IFileStat {
 		local.isDirectory = disk.isDirectory;
 		local.hasChildren = disk.isDirectory && disk.hasChildren;
 		local.mtime = disk.mtime;
-		local.mime = disk.mime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 
 		// Merge Children if resolved
@@ -138,7 +134,7 @@ export class FileStat implements IFileStat {
 	 * Returns a deep copy of this model object.
 	 */
 	public clone(): FileStat {
-		const stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mime, this.mtime, this.etag);
+		const stat = new FileStat(URI.parse(this.resource.toString()), this.isDirectory, this.hasChildren, this.name, this.mtime, this.etag);
 		stat.isDirectoryResolved = this.isDirectoryResolved;
 
 		if (this.parent) {
@@ -248,7 +244,6 @@ export class FileStat implements IFileStat {
 
 		// Merge a subset of Properties that can change on rename
 		this.name = renamedStat.name;
-		this.mime = renamedStat.mime;
 		this.mtime = renamedStat.mtime;
 
 		// Update Paths including children
@@ -320,7 +315,6 @@ export class NewStatPlaceholder extends FileStat {
 		this.isDirectory = void 0;
 		this.hasChildren = void 0;
 		this.mtime = void 0;
-		this.mime = void 0;
 	}
 
 	public getId(): string {

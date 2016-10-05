@@ -17,7 +17,7 @@ const URIDeserializer: Deserializer<URI,any> = raw => URI.revive(raw);
 
 export interface IURLChannel extends IChannel {
 	call(command: 'event:onOpenURL'): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: string, arg?: any): TPromise<any>;
 }
 
 export class URLChannel implements IURLChannel {
@@ -27,7 +27,7 @@ export class URLChannel implements IURLChannel {
 		@IWindowsService private windowsService: IWindowsService
 	) { }
 
-	call(command: string, arg: any): TPromise<any> {
+	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'event:onOpenURL': return eventToCall(filterEvent(this.service.onOpenURL, () => this.isWindowFocused(arg)), URISerializer);
 		}
@@ -55,4 +55,8 @@ export class URLChannelClient implements IURLService {
 
 	private _onOpenURL = eventFromCall<URI>(this.channel, 'event:onOpenURL', this.windowID, URIDeserializer);
 	get onOpenURL(): Event<URI> { return this._onOpenURL; }
+
+	open(url: string): void {
+		return; // not implemented
+	}
 }

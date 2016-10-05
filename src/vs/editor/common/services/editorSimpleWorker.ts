@@ -124,7 +124,7 @@ export class MirrorModel extends MirrorModel2 implements ICommonModel {
 
 	public getAllUniqueWords(wordDefinition:RegExp, skipWordOnce?:string) : string[] {
 		var foundSkipWord = false;
-		var uniqueWords = {};
+		var uniqueWords = Object.create(null);
 		return this._getAllWords(wordDefinition).filter((word) => {
 			if (skipWordOnce && !foundSkipWord && skipWordOnce === word) {
 				foundSkipWord = true;
