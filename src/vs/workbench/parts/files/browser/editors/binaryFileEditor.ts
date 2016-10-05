@@ -11,7 +11,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 /**
- * An implementation of editor for binary files like images or videos leveraging the FileEditorInput.
+ * An implementation of editor for binary files like images.
  */
 export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
