@@ -446,24 +446,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// We DO NOT run any save participant if we are in the shutdown phase and files are being
 		// saved as a result of that.
 		let saveParticipantPromise = TPromise.as(versionId);
-
 		if (TextFileEditorModel.saveParticipant && !this.lifecycleService.willShutdown) {
+			const onCompleteOrError = () => {
+				this.blockModelContentChange = false;
+
+				return this.versionId;
+			};
+
 			saveParticipantPromise = TPromise.as(undefined).then(() => {
 				this.blockModelContentChange = true;
+
 				return TextFileEditorModel.saveParticipant.participate(this, { reason });
-			}).then(() => {
-				this.blockModelContentChange = false;
-				return this.versionId;
-			}, err => {
-				// ignore error and proceed as if nothing has happend
-				this.blockModelContentChange = false;
-				return this.versionId;
-			});
+			}).then(onCompleteOrError, onCompleteOrError);
 		}
 
 		this.mapPendingSaveToVersionId[versionId] = saveParticipantPromise.then(newVersionId => {
 
-			// remove save participant promise and update versionId with
+			// remove save participant promise from pending saves and update versionId with
 			// its new value (if pre-save changes happened)
 			delete this.mapPendingSaveToVersionId[versionId];
 			versionId = newVersionId;
@@ -477,8 +476,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
 			this.mapPendingSaveToVersionId[versionId] = this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
-				overwriteReadonly: overwriteReadonly,
-				overwriteEncoding: overwriteEncoding,
+				overwriteReadonly,
+				overwriteEncoding,
 				mtime: this.versionOnDiskStat.mtime,
 				encoding: this.getEncoding(),
 				etag: this.versionOnDiskStat.etag
