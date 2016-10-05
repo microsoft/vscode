@@ -292,7 +292,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
 	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
 
-	allowEditorOverflow: boolean = true; // Editor.IContentWidget.allowEditorOverflow
+	// Editor.IContentWidget.allowEditorOverflow
+	allowEditorOverflow = true;
 
 	private state: State;
 	private isAuto: boolean;
