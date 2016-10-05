@@ -21,10 +21,12 @@ export interface IStartArguments {
 
 export interface ILaunchService {
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void>;
+	getMainProcessId(): TPromise<number>;
 }
 
 export interface ILaunchChannel extends IChannel {
 	call(command: 'start', arg: IStartArguments): TPromise<void>;
+	call(command: 'get-main-process-id', arg: null): TPromise<any>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -33,10 +35,13 @@ export class LaunchChannel implements ILaunchChannel {
 	constructor(private service: ILaunchService) { }
 
 	call(command: string, arg: any): TPromise<any> {
-		const { args, userEnv } = arg as IStartArguments;
-
 		switch (command) {
-			case 'start': return this.service.start(args, userEnv);
+			case 'start':
+				const { args, userEnv } = arg as IStartArguments;
+				return this.service.start(args, userEnv);
+
+			case 'get-main-process-id':
+				return this.service.getMainProcessId();
 		}
 	}
 }
@@ -47,6 +52,10 @@ export class LaunchChannelClient implements ILaunchService {
 
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		return this.channel.call('start', { args, userEnv });
+	}
+
+	getMainProcessId(): TPromise<number> {
+		return this.channel.call('get-main-process-id', null);
 	}
 }
 
@@ -104,5 +113,10 @@ export class LaunchService implements ILaunchService {
 		}
 
 		return TPromise.as(null);
+	}
+
+	getMainProcessId(): TPromise<number> {
+		this.logService.log('Received request for process ID from other instance.');
+		return TPromise.as(process.pid);
 	}
 }
