@@ -569,7 +569,7 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 	return TPromise.join([editorService.createInput({ resource: left }), editorService.createInput({ resource: right })]).then(inputs => {
 		const [left, right] = inputs;
 
-		const diff = new DiffEditorInput(label, undefined, <EditorInput>left, <EditorInput>right);
+		const diff = new DiffEditorInput(label, void 0, <EditorInput>left, <EditorInput>right);
 		return editorService.openEditor(diff);
 	}).then(() => {
 		return void 0;

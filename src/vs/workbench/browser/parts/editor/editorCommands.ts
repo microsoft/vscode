@@ -191,7 +191,6 @@ function registerDiffEditorCommands(): void {
 	});
 }
 
-// TODO@Ben remove eventually
 function handleCommandDeprecations(): void {
 	const mapDeprecatedCommands = {
 		'workbench.action.focusFirstEditor': 'workbench.action.focusFirstEditorGroup',

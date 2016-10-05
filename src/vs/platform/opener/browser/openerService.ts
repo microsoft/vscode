@@ -61,7 +61,7 @@ export class OpenerService implements IOpenerService {
 				// remove fragment
 				resource = resource.with({ fragment: '' });
 			} else if (resource.scheme === Schemas.file) {
-				resource = URI.file(normalize(resource.fsPath)); // TODO@Ben workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+				resource = URI.file(normalize(resource.fsPath)); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 			}
 			promise = this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
 		}
