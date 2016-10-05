@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "dependencies": {
     "agent-base": {
       "version": "1.0.2",
