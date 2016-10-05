@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import Event, {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
+import {guessMimeTypes} from 'vs/base/common/mime';
 import {toErrorMessage} from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
 import * as assert from 'vs/base/common/assert';
@@ -204,7 +205,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			diag('load() - resolved content', this.resource, new Date());
 
 			// Telemetry
-			this.telemetryService.publicLog('fileGet', { mimeType: content.mime, ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
+			this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: anonymize(this.resource.fsPath) });
 
 			// Update our resolved disk stat model
 			const resolvedStat: IFileStat = {
@@ -212,7 +213,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
-				mime: content.mime,
 				isDirectory: false,
 				hasChildren: false,
 				children: void 0,
@@ -489,7 +489,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				delete this.mapPendingSaveToVersionId[versionId];
 
 				// Telemetry
-				this.telemetryService.publicLog('filePUT', { mimeType: stat.mime, ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
+				this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.versionOnDiskStat.resource.fsPath) });
 
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {

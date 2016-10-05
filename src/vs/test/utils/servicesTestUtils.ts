@@ -139,7 +139,6 @@ export class TestTextFileService extends TextFileService {
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
-				mime: content.mime,
 				encoding: content.encoding,
 				value: raw,
 				valueLogicalHash: null
@@ -255,7 +254,7 @@ export class TestPartService implements IPartService {
 	public getWorkbenchElementId(): string { return ''; }
 
 	public setRestoreSidebar(): void {
-		
+
 	}
 }
 
@@ -523,7 +522,6 @@ export const TestFileService = {
 			resource: resource,
 			value: 'Hello Html',
 			etag: 'index.txt',
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -534,7 +532,6 @@ export const TestFileService = {
 		return TPromise.as({
 			resource: resource,
 			etag: Date.now(),
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -555,7 +552,6 @@ export const TestFileService = {
 				}
 			},
 			etag: 'index.txt',
-			mime: 'text/plain',
 			encoding: 'utf8',
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
@@ -567,7 +563,6 @@ export const TestFileService = {
 			return {
 				resource: res,
 				etag: 'index.txt',
-				mime: 'text/plain',
 				encoding: 'utf8',
 				mtime: Date.now(),
 				name: paths.basename(res.fsPath)

@@ -412,9 +412,6 @@ export class ExplorerView extends CollapsibleViewletView {
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
 				modelElement = this.getInput().find(oldElement.resource);
 				if (modelElement) {
-					if (!modelElement.isDirectory && !modelElement.mime) {
-						return;
-					}
 
 					// Rename File (Model)
 					modelElement.rename(newElement);

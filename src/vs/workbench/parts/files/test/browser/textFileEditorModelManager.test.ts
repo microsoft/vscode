@@ -38,8 +38,7 @@ function toStat(resource: URI) {
 		hasChildren: false,
 		name: basename(resource.fsPath),
 		mtime: Date.now(),
-		etag: 'etag',
-		mime: 'text/plain'
+		etag: 'etag'
 	};
 }
 
