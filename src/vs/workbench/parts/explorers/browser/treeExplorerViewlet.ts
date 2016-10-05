@@ -40,8 +40,6 @@ export class TreeExplorerViewlet extends Viewlet {
 		this.viewletContainer = parent.div().addClass('custom-viewlet');
 		this.addTreeView('Tree1');
 
-		this.setVisible(true).then(() => this.focus());
-
 		const settings = this.configurationService.getConfiguration<ICustomViewletConfiguration>();
 		return this.onConfigurationUpdated(settings);
 	}
