@@ -60,7 +60,6 @@ export class TextFileService extends AbstractTextFileService {
 					name: streamContent.name,
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
-					mime: streamContent.mime,
 					encoding: streamContent.encoding,
 					value: res.rawText,
 					valueLogicalHash: res.hash

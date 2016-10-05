@@ -188,13 +188,7 @@ export class FileService implements IFileService {
 			}
 
 			// 2.) get content
-			return contentResolver(resource, options && options.etag, preferredEncoding).then(content => {
-
-				// set our knowledge about the mime on the content obj
-				content.mime = detected.mimes.join(', ');
-
-				return content;
-			});
+			return contentResolver(resource, options && options.etag, preferredEncoding);
 		}, (error) => {
 
 			// bubble up existing file operation results
@@ -678,7 +672,6 @@ export class StatResolver {
 	private isDirectory: boolean;
 	private mtime: number;
 	private name: string;
-	private mime: string;
 	private etag: string;
 	private size: number;
 	private verboseLogging: boolean;
@@ -690,7 +683,6 @@ export class StatResolver {
 		this.isDirectory = isDirectory;
 		this.mtime = mtime;
 		this.name = paths.basename(resource.fsPath);
-		this.mime = !this.isDirectory ? baseMime.guessMimeTypes(resource.fsPath).join(', ') : void 0;
 		this.etag = etag(size, mtime);
 		this.size = size;
 
@@ -707,8 +699,7 @@ export class StatResolver {
 			name: this.name,
 			etag: this.etag,
 			size: this.size,
-			mtime: this.mtime,
-			mime: this.mime
+			mtime: this.mtime
 		};
 
 		// File Specific Data
@@ -791,8 +782,7 @@ export class StatResolver {
 							name: file,
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),
-							size: fileStat.size,
-							mime: !fileStat.isDirectory() ? baseMime.guessMimeTypes(fileResource.fsPath).join(', ') : void 0
+							size: fileStat.size
 						};
 
 						// Return early for files
