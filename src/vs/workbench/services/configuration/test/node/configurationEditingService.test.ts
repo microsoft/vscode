@@ -13,10 +13,10 @@ import * as json from 'vs/base/common/json';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import {ParsedArgs, parseArgs} from 'vs/platform/environment/node/argv';
-import {WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {WorkspaceContextService, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EnvironmentService} from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
-import {TestEventService, TestEditorService} from 'vs/test/utils/servicesTestUtils';
+import {TestEventService, workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
 import uuid = require('vs/base/common/uuid');
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {WorkspaceConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
@@ -25,7 +25,14 @@ import utils = require('vs/workbench/services/files/test/node/utils');
 import {FileService} from 'vs/workbench/services/files/node/fileService';
 import {ConfigurationEditingService, WORKSPACE_STANDALONE_CONFIGURATIONS} from 'vs/workbench/services/configuration/node/configurationEditingService';
 import {ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode} from 'vs/workbench/services/configuration/common/configurationEditing';
-import {IResourceInput} from 'vs/platform/editor/common/editor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import {IFileService} from 'vs/platform/files/common/files';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -36,19 +43,25 @@ class SettingsTestEnvironmentService extends EnvironmentService {
 	get appSettingsPath(): string { return this.customAppSettingsHome; }
 }
 
-class TestWorkbenchEditorService extends TestEditorService {
+class TestDirtyTextFileService extends TestTextFileService {
 
-	constructor(private dirty: boolean) {
-		super();
+	constructor(
+		private dirty: boolean,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IFileService fileService: IFileService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService);
 	}
 
-	public createInput(input: IResourceInput): TPromise<any> {
-		return TPromise.as({
-			getName: () => 'name',
-			getDescription: () => 'description',
-			isDirty: () => this.dirty,
-			matches: () => false
-		});
+	public isDirty(resource?: URI): boolean {
+		return this.dirty;
 	}
 }
 
@@ -70,14 +83,14 @@ suite('WorkspaceConfigurationEditingService - Node', () => {
 		const workspaceContextService = new WorkspaceContextService(noWorkspace ? null : { resource: URI.file(workspaceDir) });
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		const configurationService = new WorkspaceConfigurationService(workspaceContextService, new TestEventService(), environmentService);
-		const editorService = new TestWorkbenchEditorService(dirty);
+		const textFileService = workbenchInstantiationService().createInstance(TestDirtyTextFileService, dirty);
 		const events = new utils.TestEventService();
 		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true }, events);
 
 		return configurationService.initialize().then(() => {
 			return {
-				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, editorService),
-				configurationService: configurationService
+				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, textFileService),
+				configurationService
 			};
 		});
 	}

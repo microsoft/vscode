@@ -12,11 +12,11 @@ import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
 import strings = require('vs/base/common/strings');
 import {getConfigurationKeys} from 'vs/platform/configuration/common/model';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {setProperty} from 'vs/base/common/jsonEdit';
 import {applyEdits} from 'vs/base/common/jsonFormatter';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
 import {IFileService} from 'vs/platform/files/common/files';
@@ -47,7 +47,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IFileService private fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@ITextFileService private textFileService: ITextFileService
 	) {
 	}
 
@@ -160,33 +160,31 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 		// Target cannot be dirty
 		const resource = operation.target;
-		return this.editorService.createInput({ resource }).then(typedInput => {
-			if (typedInput.isDirty()) {
-				return { error: ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY };
+		if (this.textFileService.isDirty(resource)) {
+			return TPromise.as({ error: ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY });
+		}
+
+		return this.fileService.existsFile(resource).then(exists => {
+			if (!exists) {
+				return { exists };
 			}
 
-			return this.fileService.existsFile(resource).then(exists => {
-				if (!exists) {
-					return { exists };
+			return this.fileService.resolveContent(resource, { acceptTextOnly: true, encoding: encoding.UTF8 }).then(content => {
+
+				// If we write to a workspace standalone file and replace the entire contents (no key provided)
+				// we can return here because any parse errors can safely be ignored since all contents are replaced
+				if (operation.isWorkspaceStandalone && !operation.key) {
+					return { exists, contents: content.value };
 				}
 
-				return this.fileService.resolveContent(resource, { acceptTextOnly: true, encoding: encoding.UTF8 }).then(content => {
+				// Target cannot contain JSON errors
+				const parseErrors = [];
+				json.parse(content.value, parseErrors);
+				if (parseErrors.length > 0) {
+					return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
+				}
 
-					// If we write to a workspace standalone file and replace the entire contents (no key provided)
-					// we can return here because any parse errors can safely be ignored since all contents are replaced
-					if (operation.isWorkspaceStandalone && !operation.key) {
-						return { exists, contents: content.value };
-					}
-
-					// Target cannot contain JSON errors
-					const parseErrors = [];
-					json.parse(content.value, parseErrors);
-					if (parseErrors.length > 0) {
-						return { error: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION };
-					}
-
-					return { exists, contents: content.value };
-				});
+				return { exists, contents: content.value };
 			});
 		});
 	}

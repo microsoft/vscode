@@ -389,6 +389,9 @@ export class Workbench implements IPartService {
 		// History
 		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
 
+		// Text File Service
+		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
+
 		// Configuration Editing
 		serviceCollection.set(IConfigurationEditingService, this.instantiationService.createInstance(ConfigurationEditingService));
 
@@ -402,9 +405,6 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.quickOpen);
 		this.toShutdown.push(this.quickOpen);
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
-
-		// Text File Service
-		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
 
 		// Contributed services
 		const contributedServices = getServices();
