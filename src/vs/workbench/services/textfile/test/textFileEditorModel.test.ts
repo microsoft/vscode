@@ -9,13 +9,12 @@ import * as assert from 'assert';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import paths = require('vs/base/common/paths');
 import {EncodingMode} from 'vs/workbench/common/editor';
 import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
 import {ITextFileService, ModelState, StateChange} from 'vs/workbench/services/textfile/common/textfiles';
-import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
+import {workbenchInstantiationService, TestTextFileService, createFileInput} from 'vs/test/utils/servicesTestUtils';
 import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import {FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
 
@@ -238,8 +237,8 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test('save() and isDirty() - proper with check for mtimes', function (done) {
-		const input1 = instantiationService.createInstance(FileEditorInput, toResource('/path/index_async2.txt'), 'utf8');
-		const input2 = instantiationService.createInstance(FileEditorInput, toResource('/path/index_async.txt'), 'utf8');
+		const input1 = createFileInput(instantiationService, toResource('/path/index_async2.txt'));
+		const input2 = createFileInput(instantiationService, toResource('/path/index_async.txt'));
 
 		input1.resolve().then((model1: TextFileEditorModel) => {
 			input2.resolve().then((model2: TextFileEditorModel) => {

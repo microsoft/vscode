@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
+import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
@@ -48,6 +49,10 @@ export const TestWorkspace: IWorkspace = {
 	name: 'Test Workspace',
 	uid: Date.now()
 };
+
+export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
+	return instantiationService.createInstance(FileEditorInput, resource, void 0);
+}
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
 
