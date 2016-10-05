@@ -17,11 +17,13 @@ import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFil
 import {IEventService} from 'vs/platform/event/common/event';
 import {LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
 import {FileChangesEvent, EventType as CommonFileEventType, FileChangeType} from 'vs/platform/files/common/files';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
 	constructor(
 		@IEditorGroupService public editorGroupService: TestEditorGroupService,
-		@IEventService public eventService: IEventService
+		@IEventService public eventService: IEventService,
+		@IModelService public modelService: IModelService
 	) {
 	}
 }
@@ -159,6 +161,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.ok(model.isDisposed());
 
 		model.dispose();
+		assert.ok(!accessor.modelService.getModel(model.getResource()));
+
 		manager.dispose();
 	});
 
@@ -178,6 +182,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.ok(model.isDisposed());
 
 		model.dispose();
+		assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 		manager.dispose();
 	});
@@ -196,6 +201,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		accessor.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(toStat(resource), toStat(toResource('/path/index_moved.txt'))));
 
 		assert.ok(model.isDisposed());
+		assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 		manager.dispose();
 	});
@@ -214,6 +220,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		accessor.eventService.emit(CommonFileEventType.FILE_CHANGES, new FileChangesEvent([{ resource, type: FileChangeType.DELETED }]));
 
 		assert.ok(model.isDisposed());
+		assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 		manager.dispose();
 	});
@@ -232,6 +239,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		accessor.eventService.emit(CommonFileEventType.FILE_CHANGES, new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]));
 
 		assert.ok(model.isDisposed());
+		assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 		manager.dispose();
 	});
@@ -256,6 +264,8 @@ suite('Files - TextFileEditorModelManager', () => {
 				assert.ok(!model.isDisposed());
 
 				model.dispose();
+				assert.ok(!accessor.modelService.getModel(model.getResource()));
+
 				manager.dispose();
 				done();
 			});
@@ -311,6 +321,12 @@ suite('Files - TextFileEditorModelManager', () => {
 							assert.equal(savedCounter, 1);
 							assert.equal(encodingCounter, 2);
 
+							model1.dispose();
+							model2.dispose();
+
+							assert.ok(!accessor.modelService.getModel(resource1));
+							assert.ok(!accessor.modelService.getModel(resource2));
+
 							done();
 						});
 					});
@@ -328,6 +344,8 @@ suite('Files - TextFileEditorModelManager', () => {
 			model.dispose();
 
 			assert.ok(!manager.get(resource));
+			assert.ok(!accessor.modelService.getModel(model.getResource()));
+
 			manager.dispose();
 			done();
 		});

@@ -17,13 +17,14 @@ import {ITextFileService, ModelState, StateChange} from 'vs/workbench/services/t
 import {workbenchInstantiationService, TestTextFileService, createFileInput} from 'vs/test/utils/servicesTestUtils';
 import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import {FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 function toResource(path) {
 	return URI.file(paths.join('C:\\', path));
 }
 
 class ServiceAccessor {
-	constructor( @IEventService public eventService: IEventService, @ITextFileService public textFileService: TestTextFileService) {
+	constructor( @IEventService public eventService: IEventService, @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 
@@ -54,6 +55,7 @@ suite('Files - TextFileEditorModel', () => {
 				assert.ok(!model.isDirty());
 
 				model.dispose();
+				assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 				done();
 			});
@@ -111,6 +113,8 @@ suite('Files - TextFileEditorModel', () => {
 			assert.ok(model.isResolved());
 
 			model.dispose();
+
+			assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 			done();
 		});
@@ -230,6 +234,8 @@ suite('Files - TextFileEditorModel', () => {
 				assert.equal(eventCounter, 2);
 
 				model.dispose();
+
+				assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 				done();
 			});
