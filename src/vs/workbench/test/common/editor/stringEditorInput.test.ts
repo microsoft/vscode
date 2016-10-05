@@ -32,12 +32,12 @@ suite('Workbench - StringEditorInput', () => {
 
 	test('StringEditorInput', function (done) {
 
-		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
-		let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mime', false);
-		let otherInputSame = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
+		let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mode', false);
+		let otherInputSame = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 
-		let inputSingleton = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', true);
-		let otherInputSingleton = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mime', true);
+		let inputSingleton = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', true);
+		let otherInputSingleton = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mode', true);
 		assert(inputSingleton.matches(otherInputSingleton));
 		(<any>otherInputSingleton).singleton = false;
 		assert(!inputSingleton.matches(otherInputSingleton));
@@ -48,15 +48,15 @@ suite('Workbench - StringEditorInput', () => {
 		assert(!input.matches(null));
 		assert(input.getName());
 
-		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 
-		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 		editorService.resolveEditorModel(input, true).then(resolved => {
 			let resolvedModelA = resolved;
 			return editorService.resolveEditorModel(input, true).then(resolved => {
 				assert(resolvedModelA === resolved); // assert: Resolved Model cached per instance
 
-				let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+				let otherInput = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 				return editorService.resolveEditorModel(otherInput, true).then(resolved => {
 					assert(resolvedModelA !== resolved); // NOT assert: Different instance, different model
 
@@ -78,7 +78,7 @@ suite('Workbench - StringEditorInput', () => {
 	});
 
 	test('StringEditorInput - setValue, clearValue, append', function () {
-		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 
 		assert.strictEqual(input.getValue(), 'value');
 		input.setValue('foo');
@@ -94,10 +94,10 @@ suite('Workbench - StringEditorInput', () => {
 	test('Input.matches() - StringEditorInput', function () {
 		let inst = new TestInstantiationService();
 
-		let stringEditorInput = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		let stringEditorInput = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 		let promiseEditorInput = inst.createInstance(ResourceEditorInput, 'name', 'description', URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' }));
 
-		let stringEditorInput2 = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
+		let stringEditorInput2 = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mode', false);
 		let promiseEditorInput2 = inst.createInstance(ResourceEditorInput, 'name', 'description', URI.from({ scheme: 'inMemory', authority: null, path: 'thePath' }));
 
 		assert.strictEqual(stringEditorInput.matches(null), false);

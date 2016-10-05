@@ -72,7 +72,6 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 export interface IFileResource {
 	resource: URI;
 	isDirectory: boolean;
-	mimes: string[];
 }
 
 /**
@@ -84,7 +83,6 @@ export function asFileResource(obj: any): IFileResource {
 
 		return {
 			resource: stat.resource,
-			mimes: stat.mime ? stat.mime.split(', ') : [],
 			isDirectory: stat.isDirectory
 		};
 	}
