@@ -213,6 +213,7 @@ const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   			// **/*.something
 const T2 = /^\*\*\/([\w\.-]+)\/?$/; 							   			// **/something
 const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
 const T3_2 = /^{\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?(,\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?)*}$/; 	// Like T3, with optional trailing /**
+const T4 = /^\*\*((\/[\w\.-]+)+)\/?$/; 						   			// **/something/else
 
 export type ParsedPattern = (path: string, basename?: string) => boolean;
 export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[]) => string /* the matching pattern */;
@@ -226,12 +227,14 @@ interface ParsedStringPattern {
 	basenames?: string[];
 	patterns?: string[];
 	allBasenames?: string[];
+	allPathEnds?: string[];
 }
 type SiblingsPattern = { siblings: string[], name: string };
 interface ParsedExpressionPattern {
 	(path: string, basename: string, siblingsPatternFn: () => SiblingsPattern): string /* the matching pattern */;
 	requiresSiblings?: boolean;
 	allBasenames?: string[];
+	allPathEnds?: string[];
 }
 
 const CACHE = new BoundedLinkedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
@@ -266,33 +269,12 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 		parsedPattern = function (path, basename) {
 			return path && strings.endsWith(path, base) ? pattern : null;
 		};
-	} else if (match = T2.exec(pattern)) { // common pattern: **/some.txt just need basename check
-		parsedPattern = trivia2(match[1], pattern);
-	} else if (options.trimForExclusions && strings.endsWith(pattern, '/**') && (match = T2.exec(pattern.substr(0, pattern.length - 2)))) { // common pattern: **/some/** for exclusions just need basename check
+	} else if (match = T2.exec(trimForExclusions(pattern, options))) { // common pattern: **/some.txt just need basename check
 		parsedPattern = trivia2(match[1], pattern);
 	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
-		const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1).split(',')
-			.map(pattern => parsePattern(pattern, options))
-			.filter(pattern => pattern !== NULL), pattern);
-		const n = parsedPatterns.length;
-		if (!n) {
-			return NULL;
-		}
-		if (n === 1) {
-			return <ParsedStringPattern>parsedPatterns[0];
-		}
-		parsedPattern = function (path: string, basename: string) {
-			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
-				if ((<ParsedStringPattern>parsedPatterns[i])(path, basename)) {
-					return pattern;
-				}
-			}
-			return null;
-		};
-		const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
-		if (withBasenames) {
-			parsedPattern.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
-		}
+		parsedPattern = trivia3(pattern, options);
+	} else if (match = T4.exec(trimForExclusions(pattern, options))) { // common pattern: **/something/else just need endsWith check
+		parsedPattern = trivia4(match[1], pattern);
 	}
 
 	// Otherwise convert to pattern
@@ -304,6 +286,10 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 	CACHE.set(patternKey, parsedPattern);
 
 	return parsedPattern;
+}
+
+function trimForExclusions(pattern: string, options: IGlobOptions): string {
+	return options.trimForExclusions && strings.endsWith(pattern, '/**') ? pattern.substr(0, pattern.length - 2) : pattern; // dropping **, tailing / is dropped later
 }
 
 // common pattern: **/some.txt just need basename check
@@ -323,6 +309,48 @@ function trivia2(base: string, originalPattern: string): ParsedStringPattern {
 	parsedPattern.basenames = basenames;
 	parsedPattern.patterns = [originalPattern];
 	parsedPattern.allBasenames = basenames;
+	return parsedPattern;
+}
+
+// repetition of common patterns (see above) {**/*.txt,**/*.png}
+function trivia3 (pattern: string, options: IGlobOptions): ParsedStringPattern {
+	const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1).split(',')
+		.map(pattern => parsePattern(pattern, options))
+		.filter(pattern => pattern !== NULL), pattern);
+	const n = parsedPatterns.length;
+	if (!n) {
+		return NULL;
+	}
+	if (n === 1) {
+		return <ParsedStringPattern>parsedPatterns[0];
+	}
+	const parsedPattern: ParsedStringPattern = function (path: string, basename: string) {
+		for (let i = 0, n = parsedPatterns.length; i < n; i++) {
+			if ((<ParsedStringPattern>parsedPatterns[i])(path, basename)) {
+				return pattern;
+			}
+		}
+		return null;
+	};
+	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	if (withBasenames) {
+		parsedPattern.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+	}
+	const allPathEnds = parsedPatterns.reduce((all, current) => current.allPathEnds ? all.concat(current.allPathEnds) : all, <string[]>[]);
+	if (allPathEnds.length) {
+		parsedPattern.allPathEnds = allPathEnds;
+	}
+	return parsedPattern;
+}
+
+// common pattern: **/something/else just need endsWith check
+function trivia4(pathEnd: string, pattern: string): ParsedStringPattern {
+	const nativePathEnd = pathEnd.replace(paths.sep, paths.nativeSep);
+	const nativePath = nativePathEnd.substr(1);
+	const parsedPattern: ParsedStringPattern = function (path, basename) {
+		return path && (path === nativePath || strings.endsWith(path, nativePathEnd)) ? pattern : null;
+	};
+	parsedPattern.allPathEnds = [pathEnd];
 	return parsedPattern;
 }
 
@@ -383,6 +411,9 @@ export function parse(arg1: string | IExpression, options: IGlobOptions = {}): a
 		if (parsedPattern.allBasenames) {
 			(<ParsedStringPattern><any>resultPattern).allBasenames = parsedPattern.allBasenames;
 		}
+		if (parsedPattern.allPathEnds) {
+			(<ParsedStringPattern><any>resultPattern).allPathEnds = parsedPattern.allPathEnds;
+		}
 		return resultPattern;
 	}
 
@@ -392,6 +423,10 @@ export function parse(arg1: string | IExpression, options: IGlobOptions = {}): a
 
 export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
 	return (<ParsedStringPattern>patternOrExpression).allBasenames || [];
+}
+
+export function getPathEndTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
+	return (<ParsedStringPattern>patternOrExpression).allPathEnds || [];
 }
 
 function parsedExpression(expression: IExpression, options: IGlobOptions): ParsedExpression {
@@ -424,6 +459,11 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 		if (withBasenames) {
 			resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+		}
+
+		const allPathEnds = parsedPatterns.reduce((all, current) => current.allPathEnds ? all.concat(current.allPathEnds) : all, <string[]>[]);
+		if (allPathEnds.length) {
+			resultExpression.allPathEnds = allPathEnds;
 		}
 
 		return resultExpression;
@@ -463,6 +503,11 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 	if (withBasenames) {
 		resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
+	}
+
+	const allPathEnds = parsedPatterns.reduce((all, current) => current.allPathEnds ? all.concat(current.allPathEnds) : all, <string[]>[]);
+	if (allPathEnds.length) {
+		resultExpression.allPathEnds = allPathEnds;
 	}
 
 	return resultExpression;
