@@ -164,15 +164,15 @@ export class ExtensionEditor extends BaseEditor {
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
-		this.name = append(title, $('span.name.clickable'));
+		this.name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
 		this.identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
 
 		const subtitle = append(details, $('.subtitle'));
-		this.publisher = append(subtitle, $('span.publisher.clickable'));
+		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
 
-		this.installCount = append(subtitle, $('span.install'));
+		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count") }));
 
-		this.rating = append(subtitle, $('span.rating.clickable'));
+		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating") }));
 
 		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
