@@ -25,13 +25,14 @@ export function activate(context: ExtensionContext) {
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	let provider = new MDDocumentContentProvider(context);
-	let registration = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
+	let registration1 = vscode.workspace.registerTextDocumentContentProvider('markdown', provider);
+	let registration2 = vscode.languages.registerDocumentSymbolProvider('markdown', new DocumentHeadingsProvider());
 
 	let d1 = vscode.commands.registerCommand('markdown.showPreview', showPreview);
 	let d2 = vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true));
 	let d3 = vscode.commands.registerCommand('markdown.showSource', showSource);
 
-	context.subscriptions.push(d1, d2, d3, registration);
+	context.subscriptions.push(d1, d2, d3, registration1, registration2);
 
 	vscode.workspace.onDidSaveTextDocument(document => {
 		if (isMarkdownFile(document)) {
@@ -264,5 +265,34 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 				this._onDidChange.fire(uri);
 			}, 300);
 		}
+	}
+}
+
+class DocumentHeadingsProvider implements vscode.DocumentSymbolProvider {
+
+	// http://daringfireball.net/projects/markdown/syntax#header
+	private static _atxPattern = /^(#){1,6}\s+.+(\s+\1)?/;
+	private static _settext = /^\s*[-=]+\s*$/;
+
+	provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.SymbolInformation[] {
+
+		const result: vscode.SymbolInformation[] = [];
+		const lineCount = Math.min(document.lineCount, 10000);
+		for (let line = 0; line < lineCount; line++) {
+			const {text} = document.lineAt(line);
+
+			if (DocumentHeadingsProvider._atxPattern.test(text)) {
+				// atx-style, 1-6 hash characters
+				result.push(new vscode.SymbolInformation(text, vscode.SymbolKind.File, '',
+					new vscode.Location(document.uri, new vscode.Position(line, 0))));
+
+			} else if (line > 0 && DocumentHeadingsProvider._settext.test(text) && document.lineAt(line - 1).text) {
+				// Settext-style - 'underline'
+				result.push(new vscode.SymbolInformation(document.lineAt(line - 1).text, vscode.SymbolKind.File, '',
+					new vscode.Location(document.uri, new vscode.Position(line - 1, 0))));
+			}
+		}
+
+		return result;
 	}
 }
