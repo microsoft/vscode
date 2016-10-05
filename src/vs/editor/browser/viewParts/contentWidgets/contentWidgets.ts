@@ -304,6 +304,12 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
+	private _prepareRenderWidgetAtExactPositionOverflowing(position: Position, ctx: IRenderingContext): IMyWidgetRenderData {
+		let r = this._prepareRenderWidgetAtExactPosition(position, ctx);
+		r.left += this._contentLeft;
+		return r;
+	}
+
 	private _prepareRenderWidget(widgetData:IWidgetData, ctx:IRenderingContext): IMyWidgetRenderData {
 		if (!widgetData.position || !widgetData.preference) {
 			return null;
@@ -362,7 +368,11 @@ export class ViewContentWidgets extends ViewPart {
 						};
 					}
 				} else {
-					return this._prepareRenderWidgetAtExactPosition(position, ctx);
+					if (widgetData.allowEditorOverflow) {
+						return this._prepareRenderWidgetAtExactPositionOverflowing(position, ctx);
+					} else {
+						return this._prepareRenderWidgetAtExactPosition(position, ctx);
+					}
 				}
 			}
 		}
