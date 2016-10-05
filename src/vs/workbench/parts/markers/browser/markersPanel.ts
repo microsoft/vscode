@@ -35,6 +35,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class MarkersPanel extends Panel {
 
@@ -59,6 +60,8 @@ export class MarkersPanel extends Panel {
 	private messageBoxContainer: HTMLElement;
 	private messageBox: HTMLElement;
 
+	private markerFocusContextKey: IContextKey<boolean>;
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMarkerService private markerService: IMarkerService,
@@ -66,12 +69,14 @@ export class MarkersPanel extends Panel {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEventService private eventService: IEventService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
 		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set.ArraySet<string>();
+		this.markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(contextKeyService);
 	}
 
 	public create(parent: builder.Builder): TPromise<void> {
@@ -183,6 +188,13 @@ export class MarkersPanel extends Panel {
 				twistiePixels: 20,
 				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
 			});
+		this._register(this.tree.addListener2('focus', (e: { focus: any }) => {
+			this.markerFocusContextKey.set(e.focus instanceof Marker);
+		}));
+		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
+		focusTracker.addBlurListener(() => {
+			this.markerFocusContextKey.set(false);
+		});
 	}
 
 	private createActions(): void {
@@ -337,6 +349,10 @@ export class MarkersPanel extends Panel {
 			return this.instantiationService.createInstance(FilterInputBoxActionItem, this, action);
 		}
 		return super.getActionItem(action);
+	}
+
+	public getFocusElement(): Resource | Marker {
+		return this.tree.getFocus();
 	}
 
 	public dispose(): void {

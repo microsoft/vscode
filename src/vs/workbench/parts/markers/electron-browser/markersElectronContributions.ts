@@ -3,66 +3,105 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
-import { IAction, Action } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { clipboard } from 'electron';
 import { Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import Constants  from 'vs/workbench/parts/markers/common/constants';
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import Severity from 'vs/base/common/severity';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
-
-class CopyMarker extends Action {
-
-	public static ID = Constants.MARKER_COPY_ACTION_ID;
-
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService,) {
-		super(CopyMarker.ID, localize('copyMarker', "Copy"));
-	}
-
-	public run(context): TPromise<any> {
-		if (context.element) {
-			const marker = <Marker>context.element;
-			clipboard.writeText(`${this.printFormat(marker)}`);
-		}
-		return TPromise.as(true);
-	}
-
-	private printFormat(marker: Marker): string {
-		return [`file: '${marker.marker.resource}'`,
-				`severity: '${Severity.toString(marker.marker.severity)}'`,
-				`message: '${marker.marker.message}'`,
-				`at: '${marker.marker.startLineNumber},${marker.marker.startColumn}'`,
-				`source: '${marker.marker.source ? marker.marker.source : ''}'`].join('\n');
-	}
-}
-
-class MarkersViewerActionContributor extends ActionBarContributor {
-
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
-		super();
-	}
-
-	public hasSecondaryActions(context: any): boolean {
-		const element = context.element;
-		return element instanceof Marker;
-	}
-
-	public getSecondaryActions(context: any): IAction[] {
-		const actions: IAction[] = [];
-		if (this.hasSecondaryActions(context)) {
-			actions.push(this.instantiationService.createInstance(CopyMarker));
-		}
-
-		return actions;
-	}
-}
 
 export function registerContributions(): void {
-	const actionsRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
-	actionsRegistry.registerActionBarContributor(Scope.VIEWER, MarkersViewerActionContributor);
+	registerAction({
+		id: Constants.MARKER_COPY_ACTION_ID,
+		title: localize('copyMarker', "Copy"),
+		handler(accessor) {
+			copyMarker(accessor.get(IPanelService));
+		},
+		menu: {
+			menuId: MenuId.ProblemsPanelContext,
+			when: Constants.MarkerFocusContextKey
+		},
+		keybinding: {
+			keys: {
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_C
+			},
+			when: Constants.MarkerFocusContextKey
+		}
+	});
+}
+
+function copyMarker(panelService: IPanelService) {
+	const activePanel = panelService.getActivePanel();
+	if (activePanel instanceof MarkersPanel) {
+		const element = (<MarkersPanel>activePanel).getFocusElement();
+		if (element instanceof Marker) {
+			clipboard.writeText(`${element}`);
+		}
+	}
+}
+
+interface IActionDescriptor {
+	id: string;
+	handler: ICommandHandler;
+
+	// ICommandUI
+	title: string;
+	category?: string;
+	iconClass?: string;
+	f1?: boolean;
+
+	//
+	menu?: {
+		menuId: MenuId,
+		when?: ContextKeyExpr;
+		group?: string;
+	};
+
+	//
+	keybinding?: {
+		when?: ContextKeyExpr;
+		weight?: number;
+		keys: IKeybindings;
+	};
+}
+
+function registerAction(desc: IActionDescriptor) {
+
+	const {id, handler, title, category, iconClass, menu, keybinding} = desc;
+
+	// 1) register as command
+	CommandsRegistry.registerCommand(id, handler);
+
+	// 2) menus
+	let command = { id, title, iconClass, category };
+	if (menu) {
+		let {menuId, when, group} = menu;
+		MenuRegistry.appendMenuItem(menuId, {
+			command,
+			when,
+			group
+		});
+	}
+
+	// 3) keybindings
+	if (keybinding) {
+		let {when, weight, keys} = keybinding;
+		KeybindingsRegistry.registerKeybindingRule({
+			id,
+			when,
+			weight,
+			primary: keys.primary,
+			secondary: keys.secondary,
+			linux: keys.linux,
+			mac: keys.mac,
+			win: keys.win
+		});
+	}
 }
