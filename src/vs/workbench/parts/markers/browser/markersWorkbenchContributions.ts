@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {localize} from 'vs/nls';
-import lifecycle = require('vs/base/common/lifecycle');
+import { localize } from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';

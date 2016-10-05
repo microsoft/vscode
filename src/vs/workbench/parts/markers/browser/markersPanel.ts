@@ -30,11 +30,11 @@ import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import * as Viewer from 'vs/workbench/parts/markers/browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
+import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 
 export class MarkersPanel extends Panel {
 
@@ -169,9 +169,9 @@ export class MarkersPanel extends Panel {
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		dom.addClass(this.treeContainer, 'show-file-icons');
-		var actionProvider = this.instantiationService.createInstance(ActionProvider);
+		var actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
-		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations);
+		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations, actionProvider);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,
