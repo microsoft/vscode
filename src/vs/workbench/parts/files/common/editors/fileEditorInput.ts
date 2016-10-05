@@ -5,18 +5,13 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Registry} from 'vs/platform/platform';
-import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
-import {guessMimeTypes} from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
-import assert = require('vs/base/common/assert');
-import {IEditorRegistry, Extensions, EditorModel, EncodingMode, ConfirmResult, IEditorDescriptor} from 'vs/workbench/common/editor';
+import {EditorModel, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult, FileChangesEvent, EventType} from 'vs/platform/files/common/files';
-import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, TextFileModelChangeEvent, IFileEditorDescriptor, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, TextFileModelChangeEvent, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -28,8 +23,8 @@ import {IHistoryService} from 'vs/workbench/services/history/common/history';
  */
 export class FileEditorInput extends CommonFileEditorInput {
 	private resource: URI;
-	private mime: string;
 	private preferredEncoding: string;
+	private forceOpenAsBinary: boolean;
 
 	private name: string;
 	private description: string;
@@ -42,7 +37,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 	 */
 	constructor(
 		resource: URI,
-		mime: string,
 		preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -56,7 +50,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 		if (resource) {
 			this.setResource(resource);
-			this.setMime(mime || guessMimeTypes(this.resource.fsPath).join(', '));
 			this.preferredEncoding = preferredEncoding;
 		}
 
@@ -112,16 +105,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 		return this.resource;
 	}
 
-	public getMime(): string {
-		return this.mime;
-	}
-
-	public setMime(mime: string): void {
-		assert.ok(mime, 'Editor input needs mime type');
-
-		this.mime = mime;
-	}
-
 	public setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
 	}
@@ -142,6 +125,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		if (textModel) {
 			textModel.setEncoding(encoding, mode);
 		}
+	}
+
+	public setForceOpenAsBinary(): void {
+		this.forceOpenAsBinary = true;
 	}
 
 	public getTypeId(): string {
@@ -203,38 +190,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {
-		const editorRegistry = (<IEditorRegistry>Registry.as(Extensions.Editors));
-
-		// Lookup Editor by Mime
-		let descriptor: IEditorDescriptor;
-		const mimes = this.mime.split(',');
-		for (let m = 0; m < mimes.length; m++) {
-			const mime = strings.trim(mimes[m]);
-
-			for (let i = 0; i < candidates.length; i++) {
-				descriptor = editorRegistry.getEditorById(candidates[i]);
-
-				if (types.isFunction((<IFileEditorDescriptor>descriptor).getMimeTypes)) {
-					const mimetypes = (<IFileEditorDescriptor>descriptor).getMimeTypes();
-					for (let j = 0; j < mimetypes.length; j++) {
-						const mimetype = mimetypes[j];
-
-						// Check for direct mime match
-						if (mime === mimetype) {
-							return descriptor.getId();
-						}
-
-						// Otherwise check for wildcard mime matches
-						if (strings.endsWith(mimetype, '/*') && strings.startsWith(mime, mimetype.substring(0, mimetype.length - 1))) {
-							return descriptor.getId();
-						}
-					}
-				}
-			}
-		}
-
-		// Otherwise use default editor
-		return BINARY_FILE_EDITOR_ID;
+		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
@@ -283,13 +239,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 
 		if (otherInput) {
-
-			// Note that we can not test for the mime type here because we cache resolved file editor input models by resource. And
-			// these models have a fixed mode association that can not be changed afterwards. As such, we always treat this input
-			// equal if the resource is equal so that there is always just one text editor model (with undo hisotry etc.) around.
-			//
-			// !!! DO NOT CHANGE THIS ASSUMPTION !!!
-			//
 			return otherInput instanceof FileEditorInput && (<FileEditorInput>otherInput).resource.toString() === this.resource.toString();
 		}
 

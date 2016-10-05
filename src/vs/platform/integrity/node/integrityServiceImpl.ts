@@ -65,7 +65,6 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _messageService: IMessageService;
 	private _storage:IntegrityStorage;
-	private _loaderChecksums: ILoaderChecksums;
 	private _isPurePromise: TPromise<IntegrityTestResult>;
 
 	constructor(
@@ -74,16 +73,6 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	) {
 		this._messageService = messageService;
 		this._storage = new IntegrityStorage(storageService);
-
-		// Fetch checksums from loader
-		let loaderChecksums = <ILoaderChecksums>(<any>require).getChecksums();
-
-		// Transform loader checksums to be uri => checksum
-		this._loaderChecksums = Object.create(null);
-		Object.keys(loaderChecksums).forEach((scriptSrc) => {
-			let scriptUri = URI.file(scriptSrc).toString();
-			this._loaderChecksums[scriptUri.toString()] = loaderChecksums[scriptSrc];
-		});
 
 		this._isPurePromise = this._isPure();
 
@@ -146,42 +135,30 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _isPure(): TPromise<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
-		let syncResults: ChecksumPair[] = [];
-		let asyncResults: TPromise<ChecksumPair>[] = [];
-		Object.keys(expectedChecksums).forEach((filename) => {
-			let r = this._resolve(filename, expectedChecksums[filename]);
-			if (TPromise.is(r)) {
-				asyncResults.push(r);
-			} else {
-				syncResults.push(r);
-			}
-		});
 
-		return TPromise.join(asyncResults).then<IntegrityTestResult>((asyncResults) => {
-			let allResults = syncResults.concat(asyncResults);
-			let isPure = true;
-			for (let i = 0, len = allResults.length; isPure && i < len; i++) {
-				if (!allResults[i].isPure) {
-					isPure = false;
+		return TPromise.timeout(10000).then(() => {
+			let asyncResults: TPromise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
+				return this._resolve(filename, expectedChecksums[filename]);
+			});
+
+			return TPromise.join(asyncResults).then<IntegrityTestResult>((allResults) => {
+				let isPure = true;
+				for (let i = 0, len = allResults.length; isPure && i < len; i++) {
+					if (!allResults[i].isPure) {
+						isPure = false;
+					}
 				}
-			}
 
-			return {
-				isPure: isPure,
-				proof: allResults
-			};
+				return {
+					isPure: isPure,
+					proof: allResults
+				};
+			});
 		});
 	}
 
-	private _resolve(filename:string, expected:string): ChecksumPair | TPromise<ChecksumPair> {
+	private _resolve(filename:string, expected:string): TPromise<ChecksumPair> {
 		let fileUri = URI.parse(require.toUrl(filename));
-		let loaderChecksum = this._loaderChecksums[fileUri.toString()];
-		if (loaderChecksum) {
-			return IntegrityServiceImpl._createChecksumPair(fileUri, loaderChecksum, expected);
-		}
-		if (/\.js$/.test(filename)) {
-			console.warn(`Did not find checksum for ${filename} in loader checksums.`);
-		}
 		return new TPromise<ChecksumPair>((c, e, p) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
 				if (err) {

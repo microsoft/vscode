@@ -488,16 +488,16 @@ export class SearchViewlet extends Viewlet {
 
 	public focusNextInputBox(): void {
 		if (this.searchWidget.searchInputHasFocus()) {
-			this.searchWidget.focus(true, true);
+			if (this.searchWidget.isReplaceShown()) {
+				this.searchWidget.focus(true, true);
+			} else {
+				this.moveFocusFromSearchOrReplace();
+			}
 			return;
 		}
 
 		if (this.searchWidget.replaceInputHasFocus()) {
-			if (this.showsFileTypes()) {
-				this.toggleFileTypes(true, this.showsFileTypes());
-			} else {
-				this.selectTreeIfNotSelected();
-			}
+			this.moveFocusFromSearchOrReplace();
 			return;
 		}
 
@@ -510,6 +510,14 @@ export class SearchViewlet extends Viewlet {
 		if (this.inputPatternExclusions.inputHasFocus()) {
 			this.selectTreeIfNotSelected();
 			return;
+		}
+	}
+
+	private moveFocusFromSearchOrReplace() {
+		if (this.showsFileTypes()) {
+			this.toggleFileTypes(true, this.showsFileTypes());
+		} else {
+			this.selectTreeIfNotSelected();
 		}
 	}
 
@@ -662,11 +670,21 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public searchInFolder(resource: URI): void {
+		const workspace = this.contextService.getWorkspace();
+		if (!workspace) {
+			return;
+		}
+
+		if (workspace.resource.toString() === resource.toString()) {
+			this.inputPatternIncludes.setValue('');
+			this.searchWidget.focus();
+			return;
+		}
+
 		if (!this.showsFileTypes()) {
 			this.toggleFileTypes(true, true);
 		}
-
-		let workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
+		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 		if (workspaceRelativePath) {
 			this.inputPatternIncludes.setIsGlobPattern(false);
 			this.inputPatternIncludes.setValue(workspaceRelativePath);

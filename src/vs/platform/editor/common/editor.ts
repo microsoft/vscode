@@ -53,11 +53,6 @@ export interface IResourceInput {
 	resource: URI;
 
 	/**
-	 * The mime type of the text input if known.
-	 */
-	mime?: string;
-
-	/**
 	 * The encoding of the text input if known.
 	 */
 	encoding?: string;

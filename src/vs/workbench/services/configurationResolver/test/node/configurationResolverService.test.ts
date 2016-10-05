@@ -209,7 +209,57 @@ suite('Configuration Resolver Service', () => {
 		});
 
 		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
-		assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} ${config.editor.lineNumbers} ${config.editor.insertSpaces} ${config.json.schemas[0].fileMatch[1]} xyz'), 'abc foo 123 false {{/myOtherfile}} xyz');
+		assert.strictEqual(service.resolve('abc ${config.editor.fontFamily} ${config.editor.lineNumbers} ${config.editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
+	});
+
+	test('configuration should not evaluate Javascript', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {
+				abc: 'foo'
+			}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve('abc ${config.editor[\'abc\'.substr(0)]} xyz'), 'abc  xyz');
+	});
+
+	test('uses empty string as fallback', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve('abc ${config.editor.abc} xyz'), 'abc  xyz');
+		assert.strictEqual(service.resolve('abc ${config.editor.abc.def} xyz'), 'abc  xyz');
+		assert.strictEqual(service.resolve('abc ${config.panel} xyz'), 'abc  xyz');
+		assert.strictEqual(service.resolve('abc ${config.panel.abc} xyz'), 'abc  xyz');
+	});
+
+	test('is restricted to own properties', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve('abc ${config.editor.__proto__} xyz'), 'abc  xyz');
+		assert.strictEqual(service.resolve('abc ${config.editor.toString} xyz'), 'abc  xyz');
+	});
+
+	test('configuration variables with invalid accessor', () => {
+		let configurationService: IConfigurationService;
+		configurationService = new MockConfigurationService({
+			editor: {
+				fontFamily: 'foo'
+			}
+		});
+
+		let service = new ConfigurationResolverService(uri.parse('file:///VSCode/workspaceLocation'), envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
+		assert.strictEqual(service.resolve('abc ${config.} xyz'), 'abc ${config.} xyz');
+		assert.strictEqual(service.resolve('abc ${config.editor..fontFamily} xyz'), 'abc  xyz');
+		assert.strictEqual(service.resolve('abc ${config.editor.none.none2} xyz'), 'abc  xyz');
 	});
 
 	test('interactive variable simple', () => {

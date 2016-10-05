@@ -9,13 +9,13 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
+import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IMode} from 'vs/editor/common/modes';
-import {isUnspecific} from 'vs/base/common/mime';
 import Event, {Emitter} from 'vs/base/common/event';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
@@ -33,14 +33,14 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	constructor(
 		value: string,
-		mime: string,
+		modeId: string,
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(value, mime, resource, modeService, modelService);
+		super(value, modeId, resource, modeService, modelService);
 
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
@@ -59,12 +59,12 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		return this._onDidChangeEncoding.event;
 	}
 
-	protected getOrCreateMode(modeService: IModeService, mime: string, firstLineText?: string): TPromise<IMode> {
-		if (isUnspecific(mime)) {
-			return modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLineText); // lookup mode via resource path if the provided mime is unspecific
+	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): TPromise<IMode> {
+		if (!modeId || modeId === PLAINTEXT_MODE_ID) {
+			return modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLineText); // lookup mode via resource path if the provided modeId is unspecific
 		}
 
-		return super.getOrCreateMode(modeService, mime, firstLineText);
+		return super.getOrCreateMode(modeService, modeId, firstLineText);
 	}
 
 	private registerListeners(): void {
@@ -140,16 +140,18 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	private onModelContentChanged(): void {
 
-		// turn dirty if we were not
-		if (!this.dirty) {
-			this.dirty = true;
-			this._onDidChangeDirty.fire();
+		// mark the untitled editor as non-dirty once its content becomes empty and we do
+		// not have an associated path set. we never want dirty indicator in that case.
+		if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
+			if (this.dirty) {
+				this.dirty = false;
+				this._onDidChangeDirty.fire();
+			}
 		}
 
-		// mark the untitled editor as non-dirty once its content becomes empty and we do
-		// not have an associated path set
-		else if (!this.hasAssociatedFilePath && this.textEditorModel.getLineCount() === 1 && this.textEditorModel.getLineContent(1) === '') {
-			this.dirty = false;
+		// turn dirty if we were not
+		else if (!this.dirty) {
+			this.dirty = true;
 			this._onDidChangeDirty.fire();
 		}
 	}

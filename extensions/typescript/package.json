@@ -91,11 +91,6 @@
 					"default": "off",
 					"description": "%typescript.tsserver.trace%"
 				},
-				"typescript.tsserver.experimentalAutoBuild": {
-					"type": "boolean",
-					"default": false,
-					"description": "%typescript.tsserver.experimentalAutoBuild%"
-				},
 				"typescript.useCodeSnippetsOnMethodSuggest": {
 					"type": "boolean",
 					"default": false,

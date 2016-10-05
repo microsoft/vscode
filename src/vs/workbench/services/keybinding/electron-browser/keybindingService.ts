@@ -147,14 +147,22 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		this._beginListening(domNode);
 	}
 
+	private _safeGetConfig(): IUserFriendlyKeybinding[] {
+		let rawConfig = this.userKeybindings.getConfig();
+		if (Array.isArray(rawConfig)) {
+			return rawConfig;
+		}
+		return [];
+	}
+
 	public customKeybindingsCount(): number {
-		let userKeybindings = this.userKeybindings.getConfig();
+		let userKeybindings = this._safeGetConfig();
 
 		return userKeybindings.length;
 	}
 
 	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
-		let extraUserKeybindings: IUserFriendlyKeybinding[] = this.userKeybindings.getConfig();
+		let extraUserKeybindings: IUserFriendlyKeybinding[] = this._safeGetConfig();
 		if (!isFirstTime) {
 			let cnt = extraUserKeybindings.length;
 

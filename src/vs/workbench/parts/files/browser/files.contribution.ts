@@ -8,28 +8,28 @@
 import 'vs/css!./media/files.contribution';
 
 import URI from 'vs/base/common/uri';
-import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {Registry} from 'vs/platform/platform';
-import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
-import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
-import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {AutoSaveConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
-import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
-import {FileEditorTracker} from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
-import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
-import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Registry } from 'vs/platform/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
+import { AutoSaveConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
+import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
+import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { TextFileEditor } from 'vs/workbench/parts/files/browser/editors/textFileEditor';
+import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 
 // Viewlet Action
@@ -73,19 +73,11 @@ registry.registerWorkbenchAction(
 
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new FileEditorDescriptor(
+	new EditorDescriptor(
 		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('textFileEditor', "Text File Editor"),
 		'vs/workbench/parts/files/browser/editors/textFileEditor',
-		'TextFileEditor',
-		[
-			'text/*',
-
-			// In case the mime type is unknown, we prefer the text file editor over the binary editor to leave a chance
-			// of opening a potential text file properly. The resolution of the file in the text file editor will fail
-			// early on in case the file is actually binary, to prevent downloading a potential large binary file.
-			'application/unknown'
-		]
+		'TextFileEditor'
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)
@@ -93,18 +85,11 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new FileEditorDescriptor(
+	new EditorDescriptor(
 		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
 		nls.localize('binaryFileEditor', "Binary File Editor"),
 		'vs/workbench/parts/files/browser/editors/binaryFileEditor',
-		'BinaryFileEditor',
-		[
-			'image/*',
-			'application/pdf',
-			'audio/*',
-			'video/*',
-			'application/octet-stream'
-		]
+		'BinaryFileEditor'
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)
@@ -115,7 +100,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 // Note: because of service injection, the descriptor needs to have the exact count
 // of arguments as the FileEditorInput constructor. Otherwise when creating an
 // instance through the instantiation service he will inject the services wrong!
-const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
+const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(descriptor);
 
 interface ISerializedFileInput {
@@ -139,7 +124,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 
-		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), void 0, void 0);
+		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), void 0);
 	}
 }
 
@@ -231,7 +216,7 @@ configurationRegistry.registerConfiguration({
 		'editor.formatOnSave': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available and the file must not be auto-saved.")
+			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be auto-saved, and editor must not be shutting down.")
 		}
 	}
 });

@@ -99,9 +99,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process.on('message', (message) => {
 			if (message.type === 'data') {
 				this._xterm.write(message.content);
-			} else if (message.type === 'pid') {
-				this._processId = message.content;
-				this._onProcessIdReady.fire(this);
 			}
 		});
 		this._xterm.on('data', (data) => {
@@ -172,6 +169,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public dispose(): void {
+		this._isExiting = true;
 		if (this._wrapperElement) {
 			this._container.removeChild(this._wrapperElement);
 			this._wrapperElement = null;
@@ -182,7 +180,6 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		if (this._process) {
 			if (this._process.connected) {
-				this._process.disconnect();
 				this._process.kill();
 			}
 			this._process = null;
@@ -267,10 +264,15 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			});
 		}
+		this._process.on('message', (message) => {
+			if (message.type === 'pid') {
+				this._processId = message.content;
+				this._onProcessIdReady.fire(this);
+			}
+		});
 		this._process.on('exit', (exitCode) => {
 			// Prevent dispose functions being triggered multiple times
 			if (!this._isExiting) {
-				this._isExiting = true;
 				this.dispose();
 				if (exitCode) {
 					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode));

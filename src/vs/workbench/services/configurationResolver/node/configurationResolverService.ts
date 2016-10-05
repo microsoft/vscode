@@ -130,10 +130,26 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private resolveConfigVariable(value: string, originalValue: string): string {
-		let regexp = /\$\{config\.(.*?)\}/g;
+		let regexp = /\$\{config\.(.+?)\}/g;
 		return value.replace(regexp, (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
-			let newValue = new Function('_', 'try {return _.' + name + ';} catch (ex) { return "";}')(config);
+			let newValue: any;
+			try {
+				const keys: string[] = name.split('.');
+				if (!keys || keys.length <= 0) {
+					return '';
+				}
+				while (keys.length > 1) {
+					const key = keys.shift();
+					if (!config || !config.hasOwnProperty(key)) {
+						return '';
+					}
+					config = config[key];
+				}
+				newValue = config && config.hasOwnProperty(keys[0]) ? config[keys[0]] : '';
+			} catch (e) {
+				return '';
+			}
 			if (types.isString(newValue)) {
 				// Prevent infinite recursion and also support nested references (or tokens)
 				return newValue === originalValue ? '' : this.resolveString(newValue);

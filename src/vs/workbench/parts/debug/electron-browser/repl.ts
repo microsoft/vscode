@@ -99,14 +99,6 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.onReplElementsUpdated();
 		}));
-		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
-			if (panel.getId() === debug.REPL_ID) {
-				const elements = this.debugService.getModel().getReplElements();
-				if (elements.length > 0) {
-					return this.tree.reveal(elements[elements.length - 1]);
-				}
-			}
-		}));
 		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions())));
 	}
 
@@ -275,7 +267,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			wrappingColumn: 0,
 			overviewRulerLanes: 0,
 			glyphMargin: false,
-			lineNumbers: false,
+			lineNumbers: 'off',
 			folding: false,
 			selectOnLineNumbers: false,
 			selectionHighlight: false,

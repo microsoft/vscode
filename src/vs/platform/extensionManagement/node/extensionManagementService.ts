@@ -138,7 +138,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies: boolean = true): TPromise<void> {
 		const id = getExtensionId(extension, extension.version);
 
 		return this.isObsolete(id).then(isObsolete => {
@@ -146,15 +146,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				return TPromise.wrapError<void>(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.displayName || extension.name)));
 			}
 			this._onInstallExtension.fire({ id, gallery: extension });
-			return this.getLocalExtension(extension)
-					.then(local => this.installCompatibleVersion(extension, local ? local.metadata && local.metadata.dependenciesInstalled : true, !local))
-					.then(
-						local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
-						error => {
-							this._onDidInstallExtension.fire({ id, gallery: extension, error });
-							return TPromise.wrapError(error);
-						}
-					);
+			return this.installCompatibleVersion(extension, true, promptToInstallDependencies)
+				.then(
+					local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
+					error => {
+						this._onDidInstallExtension.fire({ id, gallery: extension, error });
+						return TPromise.wrapError(error);
+					}
+				);
 		});
 	}
 
@@ -163,37 +162,26 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(compatibleVersion => this.getDependenciesToInstall(extension, installDependencies)
 				.then(dependencies => {
 					if (!dependencies.length) {
-						return this.downloadAndInstall(compatibleVersion, installDependencies && !!compatibleVersion.properties.dependencies.length);
+						return this.downloadAndInstall(compatibleVersion);
 					}
 					if (promptToInstallDependencies) {
-						const message = nls.localize('installDependecies', "Would you also like to install dependencies of {0}?", extension.displayName);
+						const message = nls.localize('installDependeciesConfirmation', "Installing '{0}' also installs its dependencies. Would you like to continue?", extension.displayName);
 						const options = [
-							nls.localize('installWithDependenices', "Yes"),
-							nls.localize('installWithoutDependenices', "No"),
-							nls.localize('cancel', "Cancel")
+							nls.localize('install', "Yes"),
+							nls.localize('doNotInstall', "No")
 						];
 						return this.choiceService.choose(Severity.Info, message, options)
 							.then(value => {
-								switch (value) {
-									case 0:
-										return this.installWithDependencies(compatibleVersion);
-									case 1:
-										return this.downloadAndInstall(compatibleVersion, false);
-									default:
-										return TPromise.wrapError(errors.canceled());
+								if (value === 0) {
+									return this.installWithDependencies(compatibleVersion);
 								}
+								return TPromise.wrapError(errors.canceled());
 							}, error => TPromise.wrapError(errors.canceled()));
 					} else {
 						return this.installWithDependencies(compatibleVersion);
 					}
 				})
 		);
-	}
-
-	private getLocalExtension(extension: IGalleryExtension): TPromise<ILocalExtension> {
-		const extensionName = `${extension.publisher}.${extension.name}`;
-		return this.getInstalled().then(installed => installed.filter(local => `${local.manifest.publisher}.${local.manifest.name}` === extensionName))
-			.then(local => local.length ? local[0] : null);
 	}
 
 	private getDependenciesToInstall(extension: IGalleryExtension, checkDependecies: boolean): TPromise<string[]> {
@@ -230,7 +218,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			const id = getExtensionId(dependency, dependency.version);
 			this._onInstallExtension.fire({ id, gallery: dependency });
 		}
-		return this.downloadAndInstall(extension, true)
+		return this.downloadAndInstall(extension)
 			.then(localExtension => {
 				return TPromise.join(dependecies.map((dep) => this.installCompatibleVersion(dep, false, false)))
 					.then(installedLocalExtensions => {
@@ -255,26 +243,24 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private rollback(localExtension: ILocalExtension, dependecies: IGalleryExtension[]): TPromise<void> {
 		return this.uninstall(localExtension)
-					.then(() => this.filterOutUnInstalled(dependecies))
-					.then(installed => TPromise.join(installed.map((i) => this.uninstall(i))))
-					.then(() => null);
+			.then(() => this.filterOutUninstalled(dependecies))
+			.then(installed => TPromise.join(installed.map((i) => this.uninstall(i))))
+			.then(() => null);
 	}
 
 	private filterOutInstalled(extensions: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
-		return this.getInstalled().then(local => {
-			return extensions.filter(extension => {
-				const extensionId = getExtensionId(extension, extension.version);
-				return local.every(local => local.id !== extensionId);
+		return this.getInstalled()
+			.then(local => {
+				return extensions.filter(extension => {
+					const extensionId = getExtensionId(extension, extension.version);
+					return local.every(local => local.id !== extensionId);
+				});
 			});
-		});
 	}
 
-	private filterOutUnInstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
-		return this.getInstalled().then(installed => {
-			return installed.filter(local => {
-				return !!this.getGalleryExtensionForLocalExtension(extensions, local);
-			});
-		});
+	private filterOutUninstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
+		return this.getInstalled()
+			.then(installed => installed.filter(local => !!this.getGalleryExtensionForLocalExtension(extensions, local)));
 	}
 
 	private getGalleryExtensionForLocalExtension(galleryExtensions: IGalleryExtension[], localExtension: ILocalExtension): IGalleryExtension {
@@ -282,14 +268,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return filtered.length ? filtered[0] : null;
 	}
 
-	private downloadAndInstall(extension: IGalleryExtension, dependenciesInstalled: boolean): TPromise<ILocalExtension> {
+	private downloadAndInstall(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		const id = getExtensionId(extension, extension.version);
 		const metadata = {
-				id: extension.id,
-				publisherId: extension.publisherId,
-				publisherDisplayName: extension.publisherDisplayName,
-				dependenciesInstalled: dependenciesInstalled
-			};
+			id: extension.id,
+			publisherId: extension.publisherId,
+			publisherDisplayName: extension.publisherDisplayName,
+		};
+
 		return this.galleryService.download(extension)
 			.then(zipPath => validate(zipPath).then(() => zipPath))
 			.then(zipPath => this.installExtension(zipPath, id, metadata));
@@ -321,12 +307,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: ILocalExtension): TPromise<void> {
-		return this.scanUserExtensions().then<void>(installed => {
-			const promises = installed
-				.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-				.map(({ id }) => this.uninstallExtension(id));
+		return this.removeOutdatedExtensions().then(() => {
+			return this.scanUserExtensions().then<void>(installed => {
+				const promises = installed
+					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
+					.map(({ id }) => this.uninstallExtension(id));
 
-			return TPromise.join(promises);
+				return TPromise.join(promises);
+			});
 		});
 	}
 
@@ -393,25 +381,34 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			});
 	}
 
-	removeDeprecatedExtensions(): TPromise<void> {
-		const outdated = this.getOutdatedExtensionIds()
-			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)));
+	removeDeprecatedExtensions(): TPromise<any> {
+		return TPromise.join([
+			this.removeOutdatedExtensions(),
+			this.removeObsoleteExtensions()
+		]);
+	}
 
-		const obsolete = this.getObsoleteExtensions()
-			.then(obsolete => Object.keys(obsolete));
+	private removeOutdatedExtensions(): TPromise<any> {
+		return this.getOutdatedExtensionIds()
+			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)))
+			.then(extensionIds => this.removeExtensions(extensionIds));
+	}
 
-		return TPromise.join([outdated, obsolete])
-			.then(result => flatten(result))
-			.then<void>(extensionsIds => {
-				return TPromise.join(extensionsIds.map(id => {
-					return pfs.rimraf(path.join(this.extensionsPath, id))
-						.then(() => this.withObsoleteExtensions(obsolete => delete obsolete[id]));
-				}));
-			});
+	private removeObsoleteExtensions(): TPromise<any> {
+		return this.getObsoleteExtensions()
+			.then(obsolete => Object.keys(obsolete))
+			.then(extensionIds => this.removeExtensions(extensionIds));
+	}
+
+	private removeExtensions(extensionsIds: string[]): TPromise<any> {
+		return TPromise.join(extensionsIds.map(id => {
+			return pfs.rimraf(path.join(this.extensionsPath, id))
+				.then(() => this.withObsoleteExtensions(obsolete => delete obsolete[id]));
+		}));
 	}
 
 	private getOutdatedExtensionIds(): TPromise<ILocalExtension[]> {
-		return this.scanUserExtensions()
+		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User)
 			.then(extensions => values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`)))
 			.then(versions => flatten(versions.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
 	}

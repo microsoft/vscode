@@ -138,6 +138,13 @@ suite('Editor Model - MirrorModel', () => {
 		assert.equal(uniqueWords.length, 2);
 		assert.equal(uniqueWords[0], 'foo');
 		assert.equal(uniqueWords[1], 'bar');
+
+		model = new SimpleMirrorModel(null, [ 'toString', 'hasOwnProperty', 'foo' ], '\n', 1);
+		uniqueWords = model.getAllUniqueWords(DEFAULT_WORD_REGEXP);
+		assert.equal(uniqueWords.length, 3);
+		assert.equal(uniqueWords[0], 'toString');
+		assert.equal(uniqueWords[1], 'hasOwnProperty');
+		assert.equal(uniqueWords[2], 'foo');
 	});
 
 	test('word at/until pos', () => {

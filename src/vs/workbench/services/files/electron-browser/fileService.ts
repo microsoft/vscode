@@ -21,19 +21,21 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Action} from 'vs/base/common/actions';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
+import {IMessageService, IMessageWithAction, Severity, CloseAction} from 'vs/platform/message/common/message';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 
 import {shell} from 'electron';
-
-// If we run with .NET framework < 4.5, we need to detect this error to inform the user
-const NET_VERSION_ERROR = 'System.MissingMethodException';
 
 export class FileService implements IFileService {
 
 	public _serviceBrand: any;
+
+	// If we run with .NET framework < 4.5, we need to detect this error to inform the user
+	private static NET_VERSION_ERROR = 'System.MissingMethodException';
+	private static NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
 
 	private raw: IFileService;
 
@@ -48,7 +50,8 @@ export class FileService implements IFileService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IStorageService private storageService: IStorageService
 	) {
 		this.toUnbind = [];
 		this.activeOutOfWorkspaceWatchers = Object.create(null);
@@ -88,7 +91,7 @@ export class FileService implements IFileService {
 		errors.onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5
-		if (msg && msg.indexOf(NET_VERSION_ERROR) >= 0) {
+		if (msg && msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			this.messageService.show(Severity.Warning, <IMessageWithAction>{
 				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
 				actions: [
@@ -96,7 +99,13 @@ export class FileService implements IFileService {
 						shell.openExternal('https://go.microsoft.com/fwlink/?LinkId=786533');
 
 						return TPromise.as(true);
-					})
+					}),
+					new Action('net.error.ignore', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
+						this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE);
+
+						return TPromise.as(null);
+					}),
+					CloseAction
 				]
 			});
 		}

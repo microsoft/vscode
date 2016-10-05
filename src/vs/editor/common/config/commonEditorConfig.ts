@@ -170,12 +170,41 @@ class InternalEditorOptionsHelper {
 		if (opts.folding) {
 			lineDecorationsWidth += 16;
 		}
+		let renderLineNumbers: boolean;
+		let renderCustomLineNumbers: (lineNumber:number)=>string;
+		let renderRelativeLineNumbers: boolean;
+
+		// Compatibility with old true or false values
+		if (<any>lineNumbers === true) {
+			lineNumbers = 'on';
+		} else if (<any>lineNumbers === false) {
+			lineNumbers = 'off';
+		}
+
+		if (typeof lineNumbers === 'function') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = lineNumbers;
+			renderRelativeLineNumbers = false;
+		} else if (lineNumbers === 'relative') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = true;
+		} else if (lineNumbers === 'on') {
+			renderLineNumbers = true;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = false;
+		} else {
+			renderLineNumbers = false;
+			renderCustomLineNumbers = null;
+			renderRelativeLineNumbers = false;
+		}
+
 		let layoutInfo = EditorLayoutProvider.compute({
 			outerWidth: outerWidth,
 			outerHeight: outerHeight,
 			showGlyphMargin: glyphMargin,
 			lineHeight: fontInfo.lineHeight,
-			showLineNumbers: !!lineNumbers,
+			showLineNumbers: renderLineNumbers,
 			lineNumbersMinChars: lineNumbersMinChars,
 			lineDecorationsWidth: lineDecorationsWidth,
 			maxDigitWidth: fontInfo.maxDigitWidth,
@@ -232,21 +261,13 @@ class InternalEditorOptionsHelper {
 			tabFocusMode = true;
 		}
 
-		let renderLineNumbers: boolean;
-		let renderCustomLineNumbers: (lineNumber:number)=>string;
-		let renderRelativeLineNumbers: boolean;
-		if (typeof lineNumbers === 'function') {
-			renderLineNumbers = true;
-			renderCustomLineNumbers = lineNumbers;
-			renderRelativeLineNumbers = false;
-		} else if (lineNumbers === 'relative') {
-			renderLineNumbers = true;
-			renderCustomLineNumbers = null;
-			renderRelativeLineNumbers = true;
-		} else {
-			renderLineNumbers = lineNumbers;
-			renderCustomLineNumbers = null;
-			renderRelativeLineNumbers = false;
+
+		let renderWhitespace = opts.renderWhitespace;
+		// Compatibility with old true or false values
+		if (<any>renderWhitespace === true) {
+			renderWhitespace = 'boundary';
+		} else if (<any>renderWhitespace === false) {
+			renderWhitespace = 'none';
 		}
 
 		let viewInfo = new editorCommon.InternalEditorViewOptions({
@@ -270,7 +291,7 @@ class InternalEditorOptionsHelper {
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
 			editorClassName: editorClassName,
 			stopRenderingLineAfter: stopRenderingLineAfter,
-			renderWhitespace: opts.renderWhitespace,
+			renderWhitespace: renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: toBoolean(opts.renderLineHighlight),
@@ -291,6 +312,8 @@ class InternalEditorOptionsHelper {
 			snippetSuggestions: opts.snippetSuggestions,
 			tabCompletion: opts.tabCompletion,
 			wordBasedSuggestions: opts.wordBasedSuggestions,
+			suggestFontSize: opts.suggestFontSize,
+			suggestLineHeight: opts.suggestLineHeight,
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			codeLens: opts.referenceInfos && opts.codeLens,
 			folding: toBoolean(opts.folding),
@@ -629,12 +652,8 @@ let editorConfiguration:IConfigurationNode = {
 			'description': nls.localize('lineHeight', "Controls the line height. Use 0 to compute the lineHeight from the fontSize.")
 		},
 		'editor.lineNumbers' : {
-			oneOf: [{
-				'type': 'boolean'
-			}, {
-				'type': 'string',
-				'enum': ['relative']
-			}],
+			'type': 'string',
+			'enum': ['off', 'on', 'relative'],
 			'default': DefaultConfig.editor.lineNumbers,
 			'description': nls.localize('lineNumbers', "Controls visibility of line numbers")
 		},
@@ -747,6 +766,18 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
+		},
+		'editor.suggestFontSize' : {
+			'type': 'integer',
+			'default': 0,
+			'minimum': 0,
+			'description': nls.localize('suggestFontSize', "Font size for the suggest widget")
+		},
+		'editor.suggestLineHeight' : {
+			'type': 'integer',
+			'default': 0,
+			'minimum': 0,
+			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget")
 		},
 		'editor.tabCompletion': {
 			'type': 'boolean',

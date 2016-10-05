@@ -119,7 +119,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				debugService.removeFunctionBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.Variable) {
 				(<model.Variable>element).errorMessage = null;
-				if (renamed) {
+				if (renamed && element.value !== inputBox.value) {
 					debugService.setVariable(element, inputBox.value)
 						// if everything went fine we need to refresh that tree element since his value updated
 						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
@@ -1190,8 +1190,8 @@ export class BreakpointsRenderer implements tree.IRenderer {
 			if (breakpoint.message) {
 				data.breakpoint.title = breakpoint.message;
 			}
-		} else if (breakpoint.condition) {
-			data.breakpoint.title = breakpoint.condition;
+		} else if (breakpoint.condition || breakpoint.hitCondition) {
+			data.breakpoint.title = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
 		}
 	}
 

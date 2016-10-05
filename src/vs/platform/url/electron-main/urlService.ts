@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, {chain, mapEvent, buffer} from 'vs/base/common/event';
+import Event, {mapEvent, chain, buffer, Emitter, any} from 'vs/base/common/event';
 import {fromEventEmitter} from 'vs/base/node/event';
 import {IURLService} from 'vs/platform/url/common/url';
 import product from 'vs/platform/product';
@@ -16,23 +16,30 @@ export class URLService implements IURLService {
 
 	_serviceBrand: any;
 
+	private openUrlEmitter: Emitter<string> = new Emitter<string>();
 	onOpenURL: Event<URI>;
 
-	constructor() {
-		app.setAsDefaultProtocolClient(product.urlProtocol);
+	constructor(initial: string | string[] = []) {
+		const globalBuffer = (global.getOpenUrls() || []) as string[];
+		const initialBuffer = [
+			...(typeof initial === 'string' ? [initial] : initial),
+			...globalBuffer
+		];
+
+		app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url']);
 
 		const rawOnOpenUrl = fromEventEmitter(app, 'open-url', (event: Electron.Event, url: string) => ({ event, url }));
 
 		// always prevent default and return the url as string
-		const onOpenUrl = mapEvent(rawOnOpenUrl, ({ event, url }) => {
+		const preventedOnOpenUrl = mapEvent(rawOnOpenUrl, ({ event, url }) => {
 			event.preventDefault();
 			return url;
 		});
 
 		// buffer all `onOpenUrl` events until someone starts listening
-		const bufferedOnOpenUrl = buffer(onOpenUrl, true, global.getOpenUrls());
+		const bufferedOnOpenUrl = buffer(preventedOnOpenUrl, true, initialBuffer);
 
-		this.onOpenURL = chain(bufferedOnOpenUrl)
+		this.onOpenURL = chain(any(bufferedOnOpenUrl, this.openUrlEmitter.event))
 			.map(url => {
 				try {
 					return URI.parse(url);
@@ -42,5 +49,9 @@ export class URLService implements IURLService {
 			})
 			.filter(uri => !!uri)
 			.event;
+	}
+
+	open(url: string): void {
+		this.openUrlEmitter.fire(url);
 	}
 }

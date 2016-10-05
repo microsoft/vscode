@@ -55,4 +55,8 @@ export class URLChannelClient implements IURLService {
 
 	private _onOpenURL = eventFromCall<URI>(this.channel, 'event:onOpenURL', this.windowID, URIDeserializer);
 	get onOpenURL(): Event<URI> { return this._onOpenURL; }
+
+	open(url: string): void {
+		return; // not implemented
+	}
 }

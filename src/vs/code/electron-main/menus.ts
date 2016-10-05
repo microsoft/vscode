@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvService } from 'vs/code/electron-main/env';
@@ -19,23 +18,6 @@ import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/co
 import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
 import { Keybinding } from 'vs/base/common/keybinding';
 import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
-
-export function generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string): string {
-	const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
-	const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
-	const body = encodeURIComponent(
-		`- VSCode Version: ${name} ${version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
-- OS Version: ${osVersion}
-
-Steps to Reproduce:
-
-1.
-2.`
-	);
-
-	return `${baseUrl}${queryStringPrefix}body=${body}`;
-}
 
 interface IResolvedKeybinding {
 	id: string;
@@ -469,7 +451,7 @@ export class VSCodeMenu {
 
 		const find = this.createMenuItem(nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"), 'actions.find');
 		const replace = this.createMenuItem(nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"), 'editor.action.startFindReplaceAction');
-		const findInFiles = this.createMenuItem(nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"), 'workbench.view.search');
+		const findInFiles = this.createMenuItem(nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"), 'workbench.action.findInFiles');
 		const replaceInFiles = this.createMenuItem(nls.localize({ key: 'miReplaceInFiles', comment: ['&& denotes a mnemonic'] }, "Replace &&in Files"), 'workbench.action.replaceInFiles');
 
 		[
@@ -511,6 +493,7 @@ export class VSCodeMenu {
 		const toggleStatusbar = this.createMenuItem(nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar"), 'workbench.action.toggleStatusbarVisibility');
 
 		const toggleWordWrap = this.createMenuItem(nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
+		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
 		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacter');
 
 
@@ -542,6 +525,7 @@ export class VSCodeMenu {
 			toggleStatusbar,
 			__separator__(),
 			toggleWordWrap,
+			toggleRenderWhitespace,
 			toggleRenderControlCharacters,
 			__separator__(),
 			zoomIn,
@@ -647,15 +631,24 @@ export class VSCodeMenu {
 			}
 		});
 
-		const issueUrl = generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date);
+		let reportIssuesItem: Electron.MenuItem = null;
+		if (this.envService.product.reportIssueUrl) {
+			const label = nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues");
+
+			if (this.windowsService.getWindowCount() > 0) {
+				reportIssuesItem = this.createMenuItem(label, 'workbench.action.reportIssues');
+			} else {
+				reportIssuesItem = new MenuItem({ label: mnemonicLabel(label), click: () => this.openUrl(product.reportIssueUrl, 'openReportIssues') });
+			}
+		}
 
 		arrays.coalesce([
 			this.envService.product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => this.openUrl(this.envService.product.documentationUrl, 'openDocumentationUrl') }) : null,
-			this.envService.product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.openUrl(this.envService.product.releaseNotesUrl, 'openReleaseNotesUrl') }) : null,
+			this.envService.product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => this.windowsService.sendToFocused('vscode:runAction', 'update.showCurrentReleaseNotes') }) : null,
 			(this.envService.product.documentationUrl || this.envService.product.releaseNotesUrl) ? __separator__() : null,
 			this.envService.product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(this.envService.product.twitterUrl, 'openTwitterUrl') }) : null,
 			this.envService.product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")), click: () => this.openUrl(this.envService.product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
-			this.envService.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues")), click: () => this.openUrl(issueUrl, 'openReportIssues') }) : null,
+			reportIssuesItem,
 			(this.envService.product.twitterUrl || this.envService.product.requestFeatureUrl || this.envService.product.reportIssueUrl) ? __separator__() : null,
 			this.envService.product.licenseUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "&&View License")), click: () => {
@@ -679,7 +672,7 @@ export class VSCodeMenu {
 			}) : null,
 			(this.envService.product.licenseUrl || this.envService.product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
-			platform.isWindows ? showAccessibilityOptions : null
+			platform.isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null
 		]).forEach((item) => helpMenu.append(item));
 
 		if (!platform.isMacintosh) {
@@ -752,10 +745,10 @@ export class VSCodeMenu {
 		}
 
 		const options: Electron.MenuItemOptions = {
-			label: label,
+			label,
 			accelerator: this.getAccelerator(actionId),
-			click: click,
-			enabled: enabled
+			click,
+			enabled
 		};
 
 		return new MenuItem(options);

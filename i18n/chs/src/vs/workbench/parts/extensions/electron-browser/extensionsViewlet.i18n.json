@@ -6,6 +6,8 @@
 {
 	"ascending": "排序顺序: ↑",
 	"descending": "排序顺序: ↓",
+	"extensions": "扩展",
+	"outdatedExtensions": "{0} 个过时的扩展",
 	"searchExtensions": "在应用商店中搜索扩展",
 	"sort by installs": "排序依据: 安装计数",
 	"sort by rating": "排序依据: 分级",

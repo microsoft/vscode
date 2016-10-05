@@ -11,6 +11,7 @@ import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/code/electron-main/log';
+import { IURLService } from 'vs/platform/url/common/url';
 
 export interface IStartArguments {
 	args: ICommandLineArguments;
@@ -52,11 +53,20 @@ export class LaunchService implements ILaunchService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private windowsService: IWindowsService,
+		@IURLService private urlService: IURLService
 	) {}
 
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
 		this.logService.log('Received data from other instance: ', args, userEnv);
+
+		const openUrlArg = args['open-url'] || [];
+		const openUrl = typeof openUrlArg === 'string' ? [openUrlArg] : openUrlArg;
+
+		if (openUrl.length > 0) {
+			openUrl.forEach(url => this.urlService.open(url));
+			return TPromise.as(null);
+		}
 
 		// Otherwise handle in windows service
 		let usedWindows: VSCodeWindow[];

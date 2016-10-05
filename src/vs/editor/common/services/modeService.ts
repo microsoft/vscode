@@ -50,6 +50,7 @@ export interface IModeService {
 	getRegisteredModes(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
+	getFilenames(alias: string): string[];
 	getMimeForMode(modeId: string): string;
 	getLanguageName(modeId:string): string;
 	getModeIdForLanguageName(alias: string): string;

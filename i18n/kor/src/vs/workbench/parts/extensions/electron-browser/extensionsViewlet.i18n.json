@@ -6,6 +6,8 @@
 {
 	"ascending": "정렬 순서: ↑",
 	"descending": "정렬 순서: ↓",
+	"extensions": "확장",
+	"outdatedExtensions": "{0}개의 만료된 확장",
 	"searchExtensions": "마켓플레이스에서 확장 검색",
 	"sort by installs": "정렬 기준: 설치 수",
 	"sort by rating": "정렬 기준: 등급",

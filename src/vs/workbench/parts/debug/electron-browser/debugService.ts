@@ -239,7 +239,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.push(this.session);
 		this.toDisposeOnSessionEnd.push(this.session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
-			this.sendAllBreakpoints().then(() => {
+			const sendConfigurationDone = () => {
 				if (this.session && this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, e => {
 						// Disconnect the debug session on configuration done error #10596
@@ -249,7 +249,9 @@ export class DebugService implements debug.IDebugService {
 						this.messageService.show(severity.Error, e.message);
 					});
 				}
-			});
+			};
+
+			this.sendAllBreakpoints().done(sendConfigurationDone, sendConfigurationDone);
 		}));
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidStop(event => {
@@ -357,7 +359,7 @@ export class DebugService implements debug.IDebugService {
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
 				return new model.Breakpoint(new Source(breakpoint.source.raw ? breakpoint.source.raw : { path: uri.parse(breakpoint.source.uri).fsPath, name: breakpoint.source.name }),
-					breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition);
+					breakpoint.desiredLineNumber || breakpoint.lineNumber, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition);
 			});
 		} catch (e) { }
 
@@ -368,7 +370,7 @@ export class DebugService implements debug.IDebugService {
 		let result: debug.IFunctionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
-				return new model.FunctionBreakpoint(fb.name, fb.enabled);
+				return new model.FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition);
 			});
 		} catch (e) { }
 
@@ -1043,7 +1045,7 @@ export class DebugService implements debug.IDebugService {
 		return this.session.setBreakpoints({
 			source: rawSource,
 			lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })),
+			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition, hitCondition: bp.hitCondition })),
 			sourceModified
 		}).then(response => {
 			if (!response || !response.body) {

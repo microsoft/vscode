@@ -81,7 +81,7 @@ export class OutputPanel extends StringEditor {
 	protected getCodeEditorOptions(): IEditorOptions {
 		const options = super.getCodeEditorOptions();
 		options.wrappingColumn = 0;				// all output editors wrap
-		options.lineNumbers = false;			// all output editors hide line numbers
+		options.lineNumbers = 'off';			// all output editors hide line numbers
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
 		options.rulers = [];
@@ -105,11 +105,6 @@ export class OutputPanel extends StringEditor {
 		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
 
 		this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
-	}
-
-	public focus(): void {
-		super.focus();
-		this.revealLastLine();
 	}
 
 	public dispose(): void {

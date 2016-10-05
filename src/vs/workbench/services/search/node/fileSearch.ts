@@ -256,15 +256,19 @@ export class FileWalker {
 	 */
 	public spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
 		const basenames = glob.getBasenameTerms(excludePattern);
+		const pathEnds = glob.getPathEndTerms(excludePattern);
 		let args = ['-L', '.'];
-		if (basenames.length) {
+		if (basenames.length || pathEnds.length) {
 			args.push('-not', '(', '(');
-			for (let i = 0, n = basenames.length; i < n; i++) {
-				if (i) {
-					args.push('-o');
-				}
-				args.push('-name', FileWalker.escapeGlobSpecials(basenames[i]));
+			for (const basename of basenames) {
+				args.push('-name', FileWalker.escapeGlobSpecials(basename));
+				args.push('-o');
 			}
+			for (const pathEnd of pathEnds) {
+				args.push('-path', '*' + FileWalker.escapeGlobSpecials(pathEnd));
+				args.push('-o');
+			}
+			args.pop();
 			args.push(')', '-prune', ')');
 		}
 		args.push('-type', 'f');

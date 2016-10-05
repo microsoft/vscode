@@ -5,21 +5,21 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {sequence} from 'vs/base/common/async';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ISaveParticipant, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IPosition, IModel, ICommonCodeEditor, ISingleEditOperation} from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import {getDocumentRangeFormattingEdits} from 'vs/editor/contrib/format/common/format';
-import {EditOperationsCommand} from 'vs/editor/contrib/format/common/formatCommand';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {ExtHostContext, ExtHostDocumentSaveParticipantShape} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { sequence } from 'vs/base/common/async';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ISaveParticipant, ITextFileEditorModel } from 'vs/workbench/parts/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { getDocumentRangeFormattingEdits } from 'vs/editor/contrib/format/common/format';
+import { EditOperationsCommand } from 'vs/editor/contrib/format/common/formatCommand';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TextFileEditorModel } from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from './extHost.protocol';
 import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 class TrimWhitespaceParticipant implements ISaveParticipant {
@@ -94,11 +94,15 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		}
 
 		const model: IModel = editorModel.textEditorModel;
-		const editor = this._findEditor(model);
 		const {tabSize, insertSpaces} = model.getOptions();
 
-		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }).then(edits => {
+		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
+			setTimeout(resolve, 750);
+			getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }).then(resolve, reject);
+
+		}).then(edits => {
 			if (edits) {
+				const editor = this._findEditor(model);
 				if (editor) {
 					this._editsWithEditor(editor, edits);
 				} else {
@@ -113,12 +117,26 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 	}
 
 	private _editWithModel(model: IModel, edits: ISingleEditOperation[]): void {
-		model.applyEdits(edits.map(({text, range}) => ({
+
+		const [{range}] = edits;
+		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+
+		model.pushEditOperations([initialSelection], edits.map(FormatOnSaveParticipant._asIdentEdit), undoEdits => {
+			for (const {range} of undoEdits) {
+				if (Range.areIntersectingOrTouching(range, initialSelection)) {
+					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
+				}
+			}
+		});
+	}
+
+	private static _asIdentEdit({text, range}: ISingleEditOperation): IIdentifiedSingleEditOperation {
+		return {
 			text,
 			range: Range.lift(range),
 			identifier: undefined,
 			forceMoveMarkers: true
-		})));
+		};
 	}
 
 	private _findEditor(model: IModel) {

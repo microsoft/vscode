@@ -258,13 +258,13 @@ export class MarkersPanel extends Panel {
 	}
 
 	private autoExpand(): void {
-		this.markersModel.filteredResources.forEach((resource) => {
-			if (this.autoExpanded.contains(resource.uri.toString())) {
-				return;
+		for (const resource of this.markersModel.filteredResources) {
+			const resourceUri = resource.uri.toString();
+			if (!this.autoExpanded.contains(resourceUri)) {
+				this.tree.expand(resource).done(null, errors.onUnexpectedError);
+				this.autoExpanded.set(resourceUri);
 			}
-			this.tree.expand(resource).done(null, errors.onUnexpectedError);
-			this.autoExpanded.set(resource.uri.toString());
-		});
+		}
 	}
 
 	private autoReveal(focus: boolean = false): void {

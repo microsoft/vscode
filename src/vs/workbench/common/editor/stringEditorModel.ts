@@ -19,12 +19,12 @@ import {EditOperation} from 'vs/editor/common/core/editOperation';
  */
 export class StringEditorModel extends BaseTextEditorModel {
 	protected value: string;
-	protected mime: string;
+	protected modeId: string;
 	protected resource: URI;
 
 	constructor(
 		value: string,
-		mime: string,
+		modeId: string,
 		resource: URI,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService
@@ -32,7 +32,7 @@ export class StringEditorModel extends BaseTextEditorModel {
 		super(modelService, modeService);
 
 		this.value = value;
-		this.mime = mime;
+		this.modeId = modeId;
 		this.resource = resource;
 	}
 
@@ -99,15 +99,11 @@ export class StringEditorModel extends BaseTextEditorModel {
 		return null;
 	}
 
-	public getMime(): string {
-		return this.mime;
-	}
-
 	public load(): TPromise<EditorModel> {
 
 		// Create text editor model if not yet done
 		if (!this.textEditorModel) {
-			return this.createTextEditorModel(this.value, this.resource, this.mime);
+			return this.createTextEditorModel(this.value, this.resource, this.modeId);
 		}
 
 		// Otherwise update

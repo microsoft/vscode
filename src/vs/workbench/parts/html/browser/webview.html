@@ -108,6 +108,9 @@
 			newDocument.body.appendChild(defaultScripts);
 			styleBody(newDocument.body);
 
+			// keep current scrollTop around and use later
+			const {scrollTop} = target.contentDocument.body;
+
 			// write new content onto iframe
 			target.contentDocument.open('text/html', 'replace');
 			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
@@ -115,6 +118,14 @@
 			target.contentDocument.write('<!DOCTYPE html>');
 			target.contentDocument.write(newDocument.documentElement.innerHTML);
 			target.contentDocument.close();
+
+			// workaround for https://github.com/Microsoft/vscode/issues/12865
+			// check new scrollTop and reset if neccessary
+			setTimeout(() => {
+				if(scrollTop !== target.contentDocument.body.scrollTop) {
+					target.contentDocument.body.scrollTop = scrollTop;
+				}
+			}, 0);
 
 			ipcRenderer.sendToHost('did-set-content', stats);
 		});

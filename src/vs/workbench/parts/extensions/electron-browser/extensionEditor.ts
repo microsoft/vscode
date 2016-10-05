@@ -111,6 +111,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	private icon: HTMLImageElement;
 	private name: HTMLElement;
+	private identifier: HTMLElement;
 	private license: HTMLElement;
 	private publisher: HTMLElement;
 	private installCount: HTMLElement;
@@ -159,11 +160,12 @@ export class ExtensionEditor extends BaseEditor {
 		const root = append(container, $('.extension-editor'));
 		const header = append(root, $('.header'));
 
-		this.icon = append(header, $<HTMLImageElement>('img.icon'));
+		this.icon = append(header, $<HTMLImageElement>('img.icon', { draggable: false }));
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		this.name = append(title, $('span.name.clickable'));
+		this.identifier = append(title, $('span.identifier'));
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher.clickable'));
@@ -209,6 +211,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.icon.src = extension.iconUrl;
 
 		this.name.textContent = extension.displayName;
+		this.identifier.textContent = `${extension.publisher}.${extension.name}`;
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
 
@@ -343,8 +346,16 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('settings', "Settings ({0})", contrib.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('setting name', "Name")), $('th', null, localize('description', "Description"))),
-				...contrib.map(key => $('tr', null, $('td', null, $('code', null, key)), $('td', null, properties[key].description)))
+				$('tr', null,
+					$('th', null, localize('setting name', "Name")),
+					$('th', null, localize('description', "Description")),
+					$('th', null, localize('default', "Default"))
+				),
+				...contrib.map(key => $('tr', null,
+					$('td', null, $('code', null, key)),
+					$('td', null, properties[key].description),
+					$('td', null, $('code', null, properties[key].default))
+				))
 			)
 		);
 
@@ -362,8 +373,8 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('debugger name', "Name")), $('th', null, localize('runtime', "Runtime"))),
-				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type), $('td', null, d.runtime)))
+				$('tr', null, $('th', null, localize('debugger name', "Name"))),
+				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type)))
 			)
 		);
 
@@ -519,12 +530,14 @@ export class ExtensionEditor extends BaseEditor {
 			$('summary', null, localize('languages', "Languages ({0})", languages.length)),
 			$('table', null,
 				$('tr', null,
-					$('th', null, localize('command name', "Name")),
+					$('th', null, localize('language id', "ID")),
+					$('th', null, localize('language name', "Name")),
 					$('th', null, localize('file extensions', "File Extensions")),
 					$('th', null, localize('grammar', "Grammar")),
 					$('th', null, localize('snippets', "Snippets"))
 				),
 				...languages.map(l => $('tr', null,
+					$('td', null, l.id),
 					$('td', null, l.name),
 					$('td', null, ...join(l.extensions.map(ext => $('code', null, ext)), ' ')),
 					$('td', null, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),

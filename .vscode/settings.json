@@ -24,5 +24,6 @@
 		"windows": {
 			"command": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file}"
 		}
-	}]
+	}],
+	"typescript.check.workspaceVersion": false
 }

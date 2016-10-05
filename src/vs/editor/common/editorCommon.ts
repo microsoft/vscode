@@ -171,7 +171,7 @@ export enum WrappingIndent {
 	Indent = 2
 }
 
-export type LineNumbersOption = true | false | 'relative' | ((lineNumber:number)=>string);
+export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber:number)=>string);
 
 /**
  * Configuration options for the editor.
@@ -410,6 +410,16 @@ export interface IEditorOptions {
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
 	wordBasedSuggestions?: boolean;
+	/**
+	 * The font size for the suggest widget.
+	 * Defaults to the editor font size.
+	 */
+	suggestFontSize?: number;
+	/**
+	 * The line height for the suggest widget.
+	 * Defaults to the editor line height.
+	 */
+	suggestLineHeight?: number;
 	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
@@ -854,6 +864,8 @@ export class EditorContribOptions {
 	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	tabCompletion: boolean;
 	wordBasedSuggestions: boolean;
+	suggestFontSize: number;
+	suggestLineHeight: number;
 	selectionHighlight:boolean;
 	codeLens: boolean;
 	folding: boolean;
@@ -875,6 +887,8 @@ export class EditorContribOptions {
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
+		suggestFontSize: number;
+		suggestLineHeight: number;
 		selectionHighlight:boolean;
 		codeLens: boolean;
 		folding: boolean;
@@ -892,6 +906,8 @@ export class EditorContribOptions {
 		this.snippetSuggestions = source.snippetSuggestions;
 		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
+		this.suggestFontSize = source.suggestFontSize;
+		this.suggestLineHeight = source.suggestLineHeight;
 		this.selectionHighlight = Boolean(source.selectionHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
@@ -915,6 +931,8 @@ export class EditorContribOptions {
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
+			&& this.suggestFontSize === other.suggestFontSize
+			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
@@ -3788,7 +3806,7 @@ export interface IThemeDecorationRenderOptions {
 	color?: string;
 	letterSpacing?: string;
 
-	gutterIconPath?: string;
+	gutterIconPath?: string | URI;
 	gutterIconSize?: string;
 
 	overviewRulerColor?: string;
@@ -3802,7 +3820,7 @@ export interface IThemeDecorationRenderOptions {
  */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
-	contentIconPath?: string;
+	contentIconPath?: string | URI;
 
 	border?: string;
 	textDecoration?: string;

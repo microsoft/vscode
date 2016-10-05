@@ -238,8 +238,8 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test('save() and isDirty() - proper with check for mtimes', function (done) {
-		const input1 = instantiationService.createInstance(FileEditorInput, toResource('/path/index_async2.txt'), 'text/plain', 'utf8');
-		const input2 = instantiationService.createInstance(FileEditorInput, toResource('/path/index_async.txt'), 'text/plain', 'utf8');
+		const input1 = instantiationService.createInstance(FileEditorInput, toResource('/path/index_async2.txt'), 'utf8');
+		const input2 = instantiationService.createInstance(FileEditorInput, toResource('/path/index_async.txt'), 'utf8');
 
 		input1.resolve().then((model1: TextFileEditorModel) => {
 			input2.resolve().then((model2: TextFileEditorModel) => {

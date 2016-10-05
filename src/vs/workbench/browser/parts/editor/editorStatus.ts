@@ -34,7 +34,7 @@ import {BaseBinaryResourceEditor} from 'vs/workbench/browser/parts/editor/binary
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -716,8 +716,21 @@ export class ChangeModeAction extends Action {
 				description = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 			}
 
-			return <IPickOpenEntry>{
+			// construct a fake resource to be able to show nice icons if any
+			let fakeResource: uri;
+			const extensions = this.modeService.getExtensions(lang);
+			if (extensions && extensions.length) {
+				fakeResource = uri.file(extensions[0]);
+			} else {
+				const filenames = this.modeService.getFilenames(lang);
+				if (filenames && filenames.length) {
+					fakeResource = uri.file(filenames[0]);
+				}
+			}
+
+			return <IFilePickOpenEntry>{
 				label: lang,
+				resource: fakeResource,
 				description
 			};
 		});
@@ -747,6 +760,14 @@ export class ChangeModeAction extends Action {
 
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(language => {
 			if (language) {
+
+				// User decided to permanently configure associations, return right after
+				if (language === configureModeAssociations) {
+					this.configureFileAssociation(fileinput.getResource());
+					return;
+				}
+
+				// Change mode for active editor
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
 					const editorWidget = activeEditor.getControl();
@@ -767,14 +788,12 @@ export class ChangeModeAction extends Action {
 					let mode: TPromise<IMode>;
 					if (language === autoDetectMode) {
 						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
-					} else if (language === configureModeAssociations) {
-						this.configureFileAssociation(fileinput.getResource());
 					} else {
 						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
 					}
 
 					// Change mode
-					models.forEach((textModel) => {
+					models.forEach(textModel => {
 						this.modelService.setMode(textModel, mode);
 					});
 				}

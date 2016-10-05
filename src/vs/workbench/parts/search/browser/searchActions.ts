@@ -114,7 +114,7 @@ export class ShowPreviousSearchTermAction extends Action {
 export class FocusNextInputAction extends Action {
 
 	public static ID = 'search.focus.nextInputBox';
-	public static LABEL = nls.localize('focusNextInputbox', "Focus next input box");
+	public static LABEL = nls.localize('focusNextInputBox', "Focus next input box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -128,8 +128,8 @@ export class FocusNextInputAction extends Action {
 
 export class FocusPreviousInputAction extends Action {
 
-	public static ID = 'search.focus.previousInputbox';
-	public static LABEL = nls.localize('focusPreviousInputbox', "Focus previous input box");
+	public static ID = 'search.focus.previousInputBox';
+	public static LABEL = nls.localize('focusPreviousInputBox', "Focus previous input box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -143,11 +143,36 @@ export class FocusPreviousInputAction extends Action {
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
 
-	public static ID = Constants.VIEWLET_ID;
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
+	}
+
+}
+
+export class FocusActiveEditorAction extends Action {
+
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let editor = this.editorService.getActiveEditor();
+		if (editor) {
+			editor.focus();
+		}
+		return TPromise.as(true);
+	}
+
+}
+
+export class FindInFilesAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true);
 	}
 
 }
@@ -167,6 +192,20 @@ export class ReplaceInFilesAction extends Action {
 			searchAndReplaceWidget.toggleReplace(true);
 			searchAndReplaceWidget.focus(false, true);
 		});
+	}
+}
+
+export class CloseReplaceAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchAndReplaceWidget;
+		searchAndReplaceWidget.toggleReplace(false);
+		searchAndReplaceWidget.focus();
+		return TPromise.as(null);
 	}
 }
 

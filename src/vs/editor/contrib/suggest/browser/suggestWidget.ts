@@ -70,7 +70,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.icon = append(container, $('.icon'));
 		data.colorspan = append(data.icon, $('span.colorspan'));
 
-		const text = append(container, $('.text'));
+		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 		data.highlightedLabel = new HighlightedLabel(main);
 		data.disposables.push(data.highlightedLabel);
@@ -82,15 +82,26 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
-			const fontInfo = this.editor.getConfiguration().fontInfo;
-			data.root.style.fontSize = `${ fontInfo.fontSize }px`;
-			main.style.fontFamily = fontInfo.fontFamily;
+			const configuration = this.editor.getConfiguration();
+			const fontFamily = configuration.fontInfo.fontFamily;
+			const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
+			const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
+			const fontSizePx = `${ fontSize }px`;
+			const lineHeightPx = `${ lineHeight }px`;
+
+			data.root.style.fontSize = fontSizePx;
+			main.style.fontFamily = fontFamily;
+			main.style.lineHeight = lineHeightPx;
+			data.icon.style.height = lineHeightPx;
+			data.icon.style.width = lineHeightPx;
+			data.documentationDetails.style.height = lineHeightPx;
+			data.documentationDetails.style.width = lineHeightPx;
 		};
 
 		configureFont();
 
 		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.fontInfo)
+			.filter(e => e.fontInfo || e.contribInfo)
 			.on(configureFont, null, data.disposables);
 
 		return data;
@@ -255,12 +266,18 @@ class SuggestionDetails {
 	}
 
 	private configureFont() {
-		const fontInfo = this.editor.getConfiguration().fontInfo;
-		const fontSize = `${ fontInfo.fontSize }px`;
+		const configuration = this.editor.getConfiguration();
+		const fontFamily = configuration.fontInfo.fontFamily;
+		const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
+		const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
+		const fontSizePx = `${ fontSize }px`;
+		const lineHeightPx = `${ lineHeight }px`;
 
-		this.el.style.fontSize = fontSize;
-		this.title.style.fontFamily = fontInfo.fontFamily;
-		this.type.style.fontFamily = fontInfo.fontFamily;
+		this.el.style.fontSize = fontSizePx;
+		this.title.style.fontFamily = fontFamily;
+		this.type.style.fontFamily = fontFamily;
+		this.back.style.height = lineHeightPx;
+		this.back.style.width = lineHeightPx;
 	}
 
 	dispose(): void {
@@ -465,7 +482,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.state = state;
 
 		toggleClass(this.element, 'frozen', state === State.Frozen);
-		toggleClass(this.element, 'loading', state === State.Loading);
 
 		switch (state) {
 			case State.Hidden:
@@ -479,6 +495,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Loading:
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
 				hide(this.listElement, this.details.element);
+				show(this.messageElement);
 				this.show();
 				break;
 			case State.Empty:
@@ -744,8 +761,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private get unfocusedHeight(): number {
-		const fontInfo = this.editor.getConfiguration().fontInfo;
-		return fontInfo.lineHeight;
+		const configuration = this.editor.getConfiguration();
+		return configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
 	}
 
 	// IDelegate
