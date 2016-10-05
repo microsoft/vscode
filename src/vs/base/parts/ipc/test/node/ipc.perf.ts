@@ -22,10 +22,6 @@ function createClient(): Client {
 suite('IPC performance', () => {
 
 	test('increasing batch size', () => {
-		if (process.env['VSCODE_PID']) {
-			return; // TODO@Ben find out why test fails when run from within VS Code
-		}
-
 		const client = createClient();
 		const channel = client.getChannel<ITestChannel>('test');
 		const service = new TestServiceClient(channel);
@@ -67,10 +63,6 @@ suite('IPC performance', () => {
 	});
 
 	test('increasing raw data size', () => {
-		if (process.env['VSCODE_PID']) {
-			return; // TODO@Ben find out why test fails when run from within VS Code
-		}
-
 		const client = createClient();
 		const channel = client.getChannel<ITestChannel>('test');
 		const service = new TestServiceClient(channel);
