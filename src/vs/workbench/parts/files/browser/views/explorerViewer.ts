@@ -172,7 +172,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getSecondaryActions(tree, stat);
 	}
 
-	public runAction(tree: ITree, stat: FileStat, action: IAction, ontext?: any): TPromise<any>;
+	public runAction(tree: ITree, stat: FileStat, action: IAction, context?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): TPromise<any> {
 		context = objects.mixin({
