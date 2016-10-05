@@ -95,7 +95,7 @@ export class SearchService implements IRawSearchService {
 
 	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
 		let searchPromise: PPromise<void, IRawProgressItem<IRawFileMatch>>;
-		const allResultsPromise = new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
+		let allResultsPromise = new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
 			let results: IRawFileMatch[] = [];
 			searchPromise = this.doSearch(engine, -1)
 				.then(result => {
@@ -108,9 +108,7 @@ export class SearchService implements IRawSearchService {
 					}
 				});
 		}, () => {
-			if (!config.cacheKey) { // preserve cached promise
-				searchPromise.cancel();
-			}
+			searchPromise.cancel();
 		});
 
 		let cache: Cache;
@@ -120,6 +118,7 @@ export class SearchService implements IRawSearchService {
 			allResultsPromise.then(null, err => {
 				delete cache.resultsToSearchCache[config.filePattern];
 			});
+			allResultsPromise = this.preventCancellation(allResultsPromise);
 		}
 
 		return new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
@@ -227,7 +226,7 @@ export class SearchService implements IRawSearchService {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
-				cached = cache.resultsToSearchCache[previousSearch];
+				cached = this.preventCancellation(cache.resultsToSearchCache[previousSearch]);
 				break;
 			}
 		}
@@ -302,6 +301,17 @@ export class SearchService implements IRawSearchService {
 	public clearCache(cacheKey: string): TPromise<void> {
 		delete this.caches[cacheKey];
 		return TPromise.as(undefined);
+	}
+
+	private preventCancellation<C, P>(promise: PPromise<C, P>): PPromise<C, P> {
+		return new PPromise<C, P>((c, e, p) => {
+			// Allow for piled up cancellations to come through first.
+			process.nextTick(() => {
+				promise.then(c, e, p);
+			});
+		}, () => {
+			// Do not propagate.
+		});
 	}
 }
 
