@@ -6,3 +6,17 @@
 	position: absolute;
 	top: 0;
 }
+
+.monaco-editor .overflowingContentWidgets {
+	position: fixed;
+	width: 100%;
+	height: 100%;
+	top: 0;
+	left: 0;
+	z-index: 100;
+	pointer-events: none;
+}
+
+.monaco-editor .overflowingContentWidgets > * {
+	pointer-events: all;
+}
