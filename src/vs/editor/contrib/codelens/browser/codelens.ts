@@ -10,7 +10,7 @@ import {RunOnceScheduler, asWinJsPromise} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import {format} from 'vs/base/common/strings';
+import {format, escape} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {ICommandService} from 'vs/platform/commands/common/commands';
@@ -114,12 +114,13 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		let html: string[] = [];
 		for (let i = 0; i < symbols.length; i++) {
 			let command = symbols[i].command;
+			let title = escape(command.title);
 			let part: string;
 			if (command.id) {
-				part = format('<a id={0}>{1}</a>', i, command.title);
+				part = format('<a id={0}>{1}</a>', i, title);
 				this._commands[i] = command;
 			} else {
-				part = format('<span>{0}</span>', command.title);
+				part = format('<span>{0}</span>', title);
 			}
 			html.push(part);
 		}
