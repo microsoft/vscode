@@ -42,7 +42,6 @@
 	width: 0;
 	height: 0;
 	z-index: -10;
-	line-height: 0;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helper-textarea:focus {
