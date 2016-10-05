@@ -120,6 +120,13 @@ suite('MarkersModel Test', () => {
 		assert.equal(actuals[14].marker, marker4);
 	});
 
+	test('toString()', function () {
+		assert.equal(`file: 'file:///a/res1'\nseverity: 'Error'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'`, new Marker('', aMarker('a/res1')).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: 'Warning'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'`, new Marker('', aMarker('a/res2', Severity.Warning)).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: 'Info'\nmessage: 'Info'\nat: '1,2'\nsource: ''`, new Marker('', aMarker('a/res2', Severity.Info, 1, 2, 1, 8, 'Info', '')).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: ''\nmessage: 'Ignore message'\nat: '1,2'\nsource: 'Ignore'`, new Marker('', aMarker('a/res2', Severity.Ignore, 1, 2, 1, 8, 'Ignore message', 'Ignore')).toString());
+	});
+
 	function hasMarker(markers:Marker[], marker:IMarker):boolean {
 		return markers.filter((m):boolean => {
 			return m.marker === marker;
@@ -172,17 +179,19 @@ suite('MarkersModel Test', () => {
 					startColumn:number=5,
 					endLineNumber:number= startLineNumber + 1,
 					endColumn:number=startColumn + 5,
-					message:string='some message'
+					message: string = 'some message',
+					source: string = 'tslint'
 					):IMarker {
 		return {
 			owner: 'someOwner',
 			resource: URI.file(resource),
-			severity: severity,
-			message: message,
-			startLineNumber: startLineNumber,
-			startColumn: startColumn,
-			endLineNumber: endLineNumber,
-			endColumn: endColumn
+			severity,
+			message,
+			startLineNumber,
+			startColumn,
+			endLineNumber,
+			endColumn,
+			source
 		};
 	}
 });
