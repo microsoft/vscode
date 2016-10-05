@@ -155,7 +155,9 @@ export function setModelLanguage(model:IModel, language:string): void {
  * Set the markers for a model.
  */
 export function setModelMarkers(model:IModel, owner:string, markers: IMarkerData[]): void {
-	StaticServices.markerService.get().changeOne(owner, model.uri, markers);
+	if (model) {
+		StaticServices.markerService.get().changeOne(owner, model.uri, markers);
+	}
 }
 
 /**
