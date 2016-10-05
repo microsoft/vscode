@@ -10,7 +10,7 @@ import {IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter } from 'v
 import { IActionRunner } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
+import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -70,7 +70,7 @@ export class Renderer implements IRenderer {
 	private static MARKER_TEMPLATE_ID= 'marker-template';
 
 	constructor(private actionRunner: IActionRunner,
-				private actionProvider:ActionProvider,
+				private actionProvider: IActionProvider,
 				@IWorkspaceContextService private contextService: IWorkspaceContextService,
 				@IInstantiationService private instantiationService: IInstantiationService
 	) {
