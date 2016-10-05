@@ -349,7 +349,7 @@ export class ExtensionEditor extends BaseEditor {
 				$('tr', null,
 					$('th', null, localize('setting name', "Name")),
 					$('th', null, localize('description', "Description")),
-					$('th', null, localize('default', "Default"))
+					$('th', null, localize('default setting value', "Default"))
 				),
 				...contrib.map(key => $('tr', null,
 					$('td', null, $('code', null, key)),
