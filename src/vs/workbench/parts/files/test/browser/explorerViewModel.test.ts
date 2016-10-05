@@ -11,7 +11,7 @@ import {isLinux, isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {validateFileName} from 'vs/workbench/parts/files/browser/fileActions';
-import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime) {

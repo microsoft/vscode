@@ -46,7 +46,7 @@ import {TaskError, TaskErrors} from 'vs/workbench/parts/tasks/common/taskSystem'
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISaveParticipant, ITextFileEditorModel } from 'vs/workbench/parts/files/common/files';
+import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPosition, IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,9 +18,8 @@ import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWh
 import { getDocumentRangeFormattingEdits } from 'vs/editor/contrib/format/common/format';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/common/formatCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TextFileEditorModel } from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from './extHost.protocol';
-import { SaveReason } from 'vs/workbench/parts/files/common/files';
 
 class TrimWhitespaceParticipant implements ISaveParticipant {
 

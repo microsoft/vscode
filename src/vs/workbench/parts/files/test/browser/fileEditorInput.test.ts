@@ -13,8 +13,7 @@ import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {EncodingMode} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
-import {ITextFileService, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
+import {ITextFileEditorModel, ITextFileService, LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
 import {FileOperationResult, IFileOperationResult, FileChangesEvent, FileChangeType, EventType} from 'vs/platform/files/common/files';
 
 function toResource(path) {

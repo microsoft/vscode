@@ -21,14 +21,14 @@ import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEdito
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/services/textfile/common/textfiles';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {

@@ -7,10 +7,10 @@
 import Event, {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {ModelState, ITextFileEditorModel, LocalFileChangeEvent, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange} from 'vs/workbench/parts/files/common/files';
+import {ModelState, ITextFileEditorModel, LocalFileChangeEvent, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange} from 'vs/workbench/services/textfile/common/textfiles';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

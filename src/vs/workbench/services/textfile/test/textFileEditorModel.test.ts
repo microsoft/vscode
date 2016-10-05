@@ -12,11 +12,11 @@ import URI from 'vs/base/common/uri';
 import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import paths = require('vs/base/common/paths');
 import {EncodingMode} from 'vs/workbench/common/editor';
-import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
-import {ITextFileService, ModelState, StateChange} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, ModelState, StateChange} from 'vs/workbench/services/textfile/common/textfiles';
 import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
-import {TextFileEditorModelManager} from 'vs/workbench/parts/files/common/editors/textFileEditorModelManager';
+import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import {FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
 
 function toResource(path) {
