@@ -25,7 +25,6 @@ import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { spawnSharedProcess } from 'vs/code/node/sharedProcess';
 import { Mutex } from 'windows-mutex';
-import { allowSetForegroundWindow } from 'windows-foreground-love';
 import { LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient } from './launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -305,7 +304,12 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						promise = service.getMainProcessId()
 							.then(processId => {
 								logService.log('Sending some foreground love to the running instance:', processId);
-								allowSetForegroundWindow(processId);
+								try {
+									const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
+									allowSetForegroundWindow(processId);
+								} catch (e) {
+									// noop
+								}
 							});
 					}
 
