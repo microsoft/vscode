@@ -165,7 +165,7 @@ export class ExtensionEditor extends BaseEditor {
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		this.name = append(title, $('span.name.clickable'));
-		this.identifier = append(title, $('span.identifier'));
+		this.identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher.clickable'));
