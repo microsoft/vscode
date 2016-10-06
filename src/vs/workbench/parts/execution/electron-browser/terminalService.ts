@@ -14,6 +14,7 @@ import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX} from 'vs/workbench/parts/execution/electron-browser/terminal';
 import uri from 'vs/base/common/uri';
+import {IProcessEnvironment} from 'vs/base/common/platform';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -34,7 +35,7 @@ export class WinTerminalService implements ITerminalService {
 			.done(null, errors.onUnexpectedError);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
@@ -101,7 +102,7 @@ export class MacTerminalService implements ITerminalService {
 		this.spawnTerminal(cp, configuration, path).done(null, errors.onUnexpectedError);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
@@ -188,7 +189,7 @@ export class LinuxTerminalService implements ITerminalService {
 			.done(null, errors.onUnexpectedError);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;

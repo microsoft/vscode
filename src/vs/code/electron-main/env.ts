@@ -15,10 +15,6 @@ import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 
-export interface IProcessEnvironment {
-	[key: string]: string;
-}
-
 export interface ICommandLineArguments extends ParsedArgs {
 	paths?: string[];
 }

@@ -21,9 +21,13 @@ interface NLSConfig {
 	availableLanguages: { [key: string]: string; };
 }
 
+export interface IProcessEnvironment {
+	[key: string]: string;
+}
+
 interface INodeProcess {
 	platform: string;
-	env: { [key: string]: string; };
+	env: IProcessEnvironment;
 	getuid(): number;
 }
 declare let process: INodeProcess;

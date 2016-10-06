@@ -5,13 +5,14 @@
 
 'use strict';
 
-import { ICommandLineArguments, IProcessEnvironment } from 'vs/code/electron-main/env';
+import { ICommandLineArguments } from 'vs/code/electron-main/env';
 import { IWindowsService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IURLService } from 'vs/platform/url/common/url';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export interface IStartArguments {
 	args: ICommandLineArguments;
