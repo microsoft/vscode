@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ITreeNode, TreeContentProvider } from 'vscode';
+import { TreeContentNode, TreeContentProvider } from 'vscode';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Disposable} from 'vs/workbench/api/node/extHostTypes';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
@@ -72,7 +72,7 @@ export class ExtHostExplorers extends ExtHostExplorersShape {
 	}
 }
 
-export class ExtHostTreeNode implements ITreeNode {
+export class ExtHostTreeNode implements TreeContentNode {
 	static idCounter = 1;
 
 	id: number;
@@ -81,7 +81,7 @@ export class ExtHostTreeNode implements ITreeNode {
 	isExpanded: boolean;
 	children: ExtHostTreeNode[];
 
-	constructor(node: ITreeNode, parent: ExtHostTreeNode, treeNodeMap: { [id: number]: ExtHostTreeNode}) {
+	constructor(node: TreeContentNode, parent: ExtHostTreeNode, treeNodeMap: { [id: number]: ExtHostTreeNode}) {
 		this.id = ExtHostTreeNode.idCounter++;
 
 		this.label = node.label;

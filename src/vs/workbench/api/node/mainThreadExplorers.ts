@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITreeNode} from 'vscode';
+import {TreeContentNode} from 'vscode';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
 import {ExtHostContext, MainThreadExplorersShape, ExtHostExplorersShape} from './extHost.protocol';
