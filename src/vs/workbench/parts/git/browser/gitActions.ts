@@ -1121,7 +1121,7 @@ export class SyncAction extends GitAction {
 
 		const config = this.configurationService.getConfiguration<IGitConfiguration>('git');
 
-		if (config.confirmSync && !window.confirm(nls.localize('sureSync', "Are you sure you want to synchronize your git repository?"))) {
+		if (config.confirmSync && !window.confirm(nls.localize('sureSync', "Synchronize will first pull and then push. Are you sure you want to synchronize your git repository?"))) {
 			return TPromise.as(null);
 		}
 
