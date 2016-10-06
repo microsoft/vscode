@@ -116,7 +116,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		chain(this.list.onSelectionChange)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
-			.on(this.openExtension, this, this.disposables);
+			.on(this.extensionsWorkbenchService.open, this, this.disposables);
 
 		return TPromise.as(null);
 	}
@@ -294,11 +294,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 			.then(result => new PagedModel(result));
-	}
-
-	private openExtension(extension: IExtension): void {
-		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
-			.done(null, err => this.onError(err));
 	}
 
 	private onEnter(): void {
