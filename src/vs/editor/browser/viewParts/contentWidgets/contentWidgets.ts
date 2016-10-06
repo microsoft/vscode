@@ -121,8 +121,14 @@ export class ViewContentWidgets extends ViewPart {
 			// below can read out the adjusted width/height of widgets
 			let keys = Object.keys(this._widgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
-				let widgetId = keys[i];
-				StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
+				const widgetId = keys[i];
+				const widgetData = this._widgets[widgetId];
+				const widget = widgetData.widget;
+				const maxWidth = widgetData.allowEditorOverflow
+					? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+					: this._contentWidth;
+
+				StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
 			}
 		}
 
