@@ -353,7 +353,7 @@ export class ExtensionEditor extends BaseEditor {
 			append(this.content, scrollableContent.getDomNode());
 			this.contentDisposables.push(scrollableContent);
 
-			const tree = ExtensionEditor.renderDependencies(content, extensionDependencies);
+			const tree = ExtensionEditor.renderDependencies(content, extensionDependencies, this.instantiationService);
 			const layout = () => {
 				scrollableContent.scanDomNode();
 				tree.layout(scrollableContent.getHeight());
@@ -366,9 +366,9 @@ export class ExtensionEditor extends BaseEditor {
 		});
 	}
 
-	private static renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
+	private static renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies, instantiationService: IInstantiationService): Tree {
 		const renderer = new Renderer();
-		const controller = new Controller();
+		const controller = instantiationService.createInstance(Controller);
 		const tree = new Tree(container, {
 			dataSource: new DataSource(),
 			renderer,
