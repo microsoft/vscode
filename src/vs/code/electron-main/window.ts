@@ -11,7 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ICommandLineArguments, IProcessEnvironment } from 'vs/code/electron-main/env';
+import { ICommandLineArguments } from 'vs/code/electron-main/env';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -92,7 +92,7 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 	appRoot: string;
 	execPath: string;
 
-	userEnv: IProcessEnvironment;
+	userEnv: platform.IProcessEnvironment;
 
 	zoomLevel?: number;
 

@@ -11,7 +11,7 @@ import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
-import { IProcessEnvironment, IEnvService, EnvService } from 'vs/code/electron-main/env';
+import { IEnvService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager, WindowEventService } from 'vs/code/electron-main/windows';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { WindowEventChannel } from 'vs/code/common/windowsIpc';
@@ -69,7 +69,7 @@ function quit(accessor: ServicesAccessor, arg?: any) {
 	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
-function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProcessEnvironment): void {
+function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platform.IProcessEnvironment): void {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const envService = accessor.get(IEnvService);
@@ -329,11 +329,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-interface IEnv {
-	[key: string]: string;
-}
-
-function getUnixShellEnvironment(): TPromise<IEnv> {
+function getUnixShellEnvironment(): TPromise<platform.IProcessEnvironment> {
 	const promise = new TPromise((c, e) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
@@ -396,7 +392,7 @@ function getUnixShellEnvironment(): TPromise<IEnv> {
  * This should only be done when Code itself is not launched
  * from within a shell.
  */
-function getShellEnvironment(): TPromise<IEnv> {
+function getShellEnvironment(): TPromise<platform.IProcessEnvironment> {
 	if (process.env['VSCODE_CLI'] === '1') {
 		return TPromise.as({});
 	}
@@ -413,7 +409,7 @@ function getShellEnvironment(): TPromise<IEnv> {
  * Such environment needs to be propagated to the renderer/shared
  * processes.
  */
-function getEnvironment(accessor: ServicesAccessor): TPromise<IEnv> {
+function getEnvironment(accessor: ServicesAccessor): TPromise<platform.IProcessEnvironment> {
 	const environmentService = accessor.get(IEnvironmentService);
 
 	return getShellEnvironment().then(shellEnv => {

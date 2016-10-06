@@ -18,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
-import { ICommandLineArguments, IProcessEnvironment, IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
+import { ICommandLineArguments, IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
@@ -41,7 +41,7 @@ enum WindowError {
 
 export interface IOpenConfiguration {
 	cli: ICommandLineArguments;
-	userEnv?: IProcessEnvironment;
+	userEnv?: platform.IProcessEnvironment;
 	pathsToOpen?: string[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
@@ -98,7 +98,7 @@ export interface IWindowsService {
 	onWindowFocus: CommonEvent<number>;
 
 	// methods
-	ready(initialUserEnv: IProcessEnvironment): void;
+	ready(initialUserEnv: platform.IProcessEnvironment): void;
 	reload(win: VSCodeWindow, cli?: ICommandLineArguments): void;
 	open(openConfig: IOpenConfiguration): VSCodeWindow[];
 	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
@@ -149,7 +149,7 @@ export class WindowsManager implements IWindowsService {
 	private static WINDOWS: VSCodeWindow[] = [];
 
 	private eventEmitter = new EventEmitter();
-	private initialUserEnv: IProcessEnvironment;
+	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
 
 	private _onFocus = new Emitter<number>();
@@ -187,7 +187,7 @@ export class WindowsManager implements IWindowsService {
 		return () => this.eventEmitter.removeListener(EventTypes.CLOSE, clb);
 	}
 
-	public ready(initialUserEnv: IProcessEnvironment): void {
+	public ready(initialUserEnv: platform.IProcessEnvironment): void {
 		this.registerListeners();
 
 		this.initialUserEnv = initialUserEnv;
@@ -806,7 +806,7 @@ export class WindowsManager implements IWindowsService {
 		return { files, folders };
 	}
 
-	private getWindowUserEnv(openConfig: IOpenConfiguration): IProcessEnvironment {
+	private getWindowUserEnv(openConfig: IOpenConfiguration): platform.IProcessEnvironment {
 		return assign({}, this.initialUserEnv, openConfig.userEnv || {});
 	}
 
@@ -843,7 +843,7 @@ export class WindowsManager implements IWindowsService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.paths.length === 0 });
 	}
 
-	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
+	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
