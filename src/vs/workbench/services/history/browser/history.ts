@@ -8,12 +8,13 @@
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
+import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
-import {EditorInput, IGroupEvent, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
+import {EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IRecentlyClosedEditor, IHistoryService} from 'vs/workbench/services/history/common/history';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -225,6 +226,11 @@ interface IStackEntry {
 	options?: ITextEditorOptions;
 }
 
+interface IRecentlyClosedFile {
+	resource: URI;
+	index: number;
+}
+
 export class HistoryService extends BaseHistoryService implements IHistoryService {
 
 	public _serviceBrand: any;
@@ -240,7 +246,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private currentFileEditorState: EditorState;
 
 	private history: IEditorInput[];
-	private recentlyClosed: IRecentlyClosedEditor[];
+	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private registry: IEditorRegistry;
 
@@ -258,7 +264,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		this.index = -1;
 		this.stack = [];
-		this.recentlyClosed = [];
+		this.recentlyClosedFiles = [];
 		this.loaded = false;
 		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 
@@ -275,31 +281,34 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {
-			const editor = this.restoreInput(event.editor); // closed editors are always disposed so we need to restore
-			if (editor) {
+			const fileEditor = asFileEditorInput(event.editor); // we only support files to reopen
+			if (fileEditor) {
 
 				// Remove all inputs matching and add as last recently closed
-				this.removeFromRecentlyClosed(editor);
-				this.recentlyClosed.push({ editor, index: event.index });
+				this.removeFromRecentlyClosedFiles(event.editor);
+				this.recentlyClosedFiles.push({ resource: fileEditor.getResource(), index: event.index });
 
 				// Bounding
-				if (this.recentlyClosed.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
-					this.recentlyClosed.shift();
+				if (this.recentlyClosedFiles.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
+					this.recentlyClosedFiles.shift();
 				}
-
-				// Restore on dispose
-				const onceDispose = once(editor.onDispose);
-				onceDispose(() => {
-					this.restoreInRecentlyClosed(editor);
-				});
 			}
 		}
 	}
 
-	public popLastClosedEditor(): IRecentlyClosedEditor {
+	public reopenLastClosedEditor(): void {
 		this.ensureLoaded();
 
-		return this.recentlyClosed.pop();
+		const stacks = this.editorGroupService.getStacksModel();
+
+		let lastClosedFile = this.recentlyClosedFiles.pop();
+		while (lastClosedFile && this.isFileOpened(lastClosedFile.resource, stacks.activeGroup)) {
+			lastClosedFile = this.recentlyClosedFiles.pop(); // pop until we find a file that is not opened
+		}
+
+		if (lastClosedFile) {
+			this.editorService.openEditor({ resource: lastClosedFile.resource, options: { pinned: true, index: lastClosedFile.index } });
+		}
 	}
 
 	public forward(): void {
@@ -322,7 +331,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.index = -1;
 		this.stack.splice(0);
 		this.history = [];
-		this.recentlyClosed = [];
+		this.recentlyClosedFiles = [];
 	}
 
 	private navigate(): void {
@@ -400,7 +409,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	public remove(input: IEditorInput): void {
 		this.removeFromHistory(input);
 		this.removeFromStack(input);
-		setTimeout(() => this.removeFromRecentlyClosed(input)); // race condition with editor close and dispose
+		this.removeFromRecentlyClosedFiles(input);
 	}
 
 	private removeFromHistory(input: IEditorInput, index?: number): void {
@@ -571,26 +580,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		});
 	}
 
-	private restoreInRecentlyClosed(input: IEditorInput): void {
-		let restoredInput: EditorInput;
-		let restored = false;
-
-		this.recentlyClosed.forEach((e, i) => {
-			if (e.editor.matches(input)) {
-				if (!restored) {
-					restoredInput = this.restoreInput(input);
-					restored = true;
-				}
-
-				if (restoredInput) {
-					this.recentlyClosed[i].editor = restoredInput;
-				} else {
-					this.stack.splice(i, 1);
-				}
-			}
-		});
-	}
-
 	private restoreInput(input: IEditorInput): EditorInput {
 		if (input instanceof EditorInput) {
 			const factory = this.registry.getEditorInputFactory(input.getTypeId());
@@ -616,12 +605,30 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		});
 	}
 
-	private removeFromRecentlyClosed(input: IEditorInput): void {
-		this.recentlyClosed.forEach((e, i) => {
-			if (e.editor.matches(input)) {
-				this.recentlyClosed.splice(i, 1);
+	private removeFromRecentlyClosedFiles(input: IEditorInput): void {
+		this.recentlyClosedFiles.forEach((e, i) => {
+			if (this.matchesFile(e.resource, input)) {
+				this.recentlyClosedFiles.splice(i, 1);
 			}
 		});
+	}
+
+	private isFileOpened(resource: URI, group: IEditorGroup): boolean {
+		if (!group) {
+			return false;
+		}
+
+		if (!group.contains(resource)) {
+			return false; // fast check
+		}
+
+		return group.getEditors().some(e => this.matchesFile(resource, e));
+	}
+
+	private matchesFile(resource: URI, input: IEditorInput): boolean {
+		const fileInput = asFileEditorInput(input);
+
+		return fileInput && fileInput.getResource().toString() === resource.toString();
 	}
 
 	public getHistory(): IEditorInput[] {
