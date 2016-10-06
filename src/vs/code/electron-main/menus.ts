@@ -69,11 +69,11 @@ export class VSCodeMenu {
 		});
 
 		// Listen to "open" & "close" event from window service
-		this.windowsService.onOpen((paths) => this.onOpen(paths));
+		this.windowsService.onOpen(paths => this.onOpen(paths));
 		this.windowsService.onClose(_ => this.onClose(this.windowsService.getWindowCount()));
 
 		// Resolve keybindings when any first workbench is loaded
-		this.windowsService.onReady((win) => this.resolveKeybindings(win));
+		this.windowsService.onReady(win => this.resolveKeybindings(win));
 
 		// Listen to resolved keybindings
 		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings) => {
@@ -86,7 +86,7 @@ export class VSCodeMenu {
 
 			// Fill hash map of resolved keybindings
 			let needsMenuUpdate = false;
-			keybindings.forEach((keybinding) => {
+			keybindings.forEach(keybinding => {
 				const accelerator = new Keybinding(keybinding.binding)._toElectronAccelerator();
 				if (accelerator) {
 					this.mapResolvedKeybindingToActionId[keybinding.id] = accelerator;
@@ -328,7 +328,7 @@ export class VSCodeMenu {
 			!platform.isMacintosh ? closeWindow : null,
 			!platform.isMacintosh ? __separator__() : null,
 			!platform.isMacintosh ? exit : null
-		]).forEach((item) => fileMenu.append(item));
+		]).forEach(item => fileMenu.append(item));
 	}
 
 	private getPreferencesMenu(): Electron.MenuItem {
@@ -434,8 +434,8 @@ export class VSCodeMenu {
 		let selectAll: Electron.MenuItem;
 
 		if (platform.isMacintosh) {
-			undo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"), 'undo', (devTools) => devTools.undo());
-			redo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"), 'redo', (devTools) => devTools.redo());
+			undo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"), 'undo', devTools => devTools.undo());
+			redo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"), 'redo', devTools => devTools.redo());
 			cut = this.createRoleMenuItem(nls.localize({ key: 'miCut', comment: ['&& denotes a mnemonic'] }, "&&Cut"), 'editor.action.clipboardCutAction', 'cut');
 			copy = this.createRoleMenuItem(nls.localize({ key: 'miCopy', comment: ['&& denotes a mnemonic'] }, "C&&opy"), 'editor.action.clipboardCopyAction', 'copy');
 			paste = this.createRoleMenuItem(nls.localize({ key: 'miPaste', comment: ['&& denotes a mnemonic'] }, "&&Paste"), 'editor.action.clipboardPasteAction', 'paste');
@@ -531,7 +531,7 @@ export class VSCodeMenu {
 			zoomIn,
 			zoomOut,
 			resetZoom
-		]).forEach((item) => viewMenu.append(item));
+		]).forEach(item => viewMenu.append(item));
 	}
 
 	private setGotoMenu(gotoMenu: Electron.Menu): void {
@@ -673,7 +673,7 @@ export class VSCodeMenu {
 			(product.licenseUrl || product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
 			platform.isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null
-		]).forEach((item) => helpMenu.append(item));
+		]).forEach(item => helpMenu.append(item));
 
 		if (!platform.isMacintosh) {
 			const updateMenuItems = this.getUpdateMenuItems();
@@ -811,7 +811,7 @@ export class VSCodeMenu {
 			),
 			buttons: [nls.localize('okButton', "OK")],
 			noLink: true
-		}, (result) => null);
+		}, result => null);
 
 		this.reportMenuActionTelemetry('showAboutDialog');
 	}
