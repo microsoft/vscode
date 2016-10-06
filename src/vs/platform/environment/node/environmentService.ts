@@ -79,9 +79,12 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get extensionsPath(): string { return path.normalize(this._args.extensionHomePath || path.join(this.userHome, 'extensions')); }
 
-	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath; }
+	@memoize
+	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
 
-	get extensionTestsPath(): string { return this._args.extensionTestsPath; }
+	@memoize
+	get extensionTestsPath(): string { return this._args.extensionTestsPath ? path.normalize(this._args.extensionTestsPath) : this._args.extensionTestsPath; }
+
 	get disableExtensions(): boolean { return this._args['disable-extensions'];  }
 
 	@memoize
@@ -89,6 +92,7 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
+	get wait(): boolean { return this._args.wait; }
 	get performance(): boolean { return this._args.performance; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 

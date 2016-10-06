@@ -38,9 +38,9 @@ export interface IMenuItem {
 
 export enum MenuId {
 	EditorTitle = 1,
-	EditorContext = 2,
-	ExplorerContext = 3,
-	EditorTabContext = 4,
+	EditorTitleContext = 2,
+	EditorContext = 3,
+	ExplorerContext = 4,
 	ProblemsPanelContext = 5
 }
 

@@ -5,6 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
+import * as path from 'path';
 import glob = require('vs/base/common/glob');
 
 suite('Glob', () => {
@@ -460,12 +461,10 @@ suite('Glob', () => {
 		assert(glob.match(p, 'foo.f'));
 	});
 
-	test('backslash agnostic', function () {
+	test('full path', function () {
 		var p = 'testing/this/foo.txt';
 
-		assert(glob.match(p, 'testing/this/foo.txt'));
-		assert(glob.match(p, 'testing\\this\\foo.txt'));
-		assert(glob.match(p, 'testing/this\\foo.txt'));
+		assert(glob.match(p, 'testing/this/foo.txt'.replace('/', path.sep)));
 	});
 
 	test('prefix agnostic', function () {
@@ -772,7 +771,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('{**/foo/,**/abc/}', { trimForExclusions: true })('bar/abc', 'abc'), true);
 	});
 
-	test('expression/pattern path end', function () {
+	test('expression/pattern path', function () {
 		assert.strictEqual(glob.parse('**/foo/bar')('foo/baz', 'baz'), false);
 		assert.strictEqual(glob.parse('**/foo/bar')('foo/bar', 'bar'), true);
 		assert.strictEqual(glob.parse('**/foo/bar')('bar/foo/bar', 'bar'), true);
@@ -780,16 +779,23 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('**/foo/bar/**')('bar/foo/bar/baz', 'baz'), true);
 		assert.strictEqual(glob.parse('**/foo/bar/**', { trimForExclusions: true })('bar/foo/bar', 'bar'), true);
 		assert.strictEqual(glob.parse('**/foo/bar/**', { trimForExclusions: true })('bar/foo/bar/baz', 'baz'), false);
+
+		assert.strictEqual(glob.parse('foo/bar')('foo/baz', 'baz'), false);
+		assert.strictEqual(glob.parse('foo/bar')('foo/bar', 'bar'), true);
+		assert.strictEqual(glob.parse('foo/bar')('bar/foo/bar', 'bar'), false);
+		assert.strictEqual(glob.parse('foo/bar/**')('foo/bar/baz', 'baz'), true);
+		assert.strictEqual(glob.parse('foo/bar/**', { trimForExclusions: true })('foo/bar', 'bar'), true);
+		assert.strictEqual(glob.parse('foo/bar/**', { trimForExclusions: true })('foo/bar/baz', 'baz'), false);
 	});
 
-	test('expression/pattern path ends', function () {
-		assert.deepStrictEqual(glob.getPathEndTerms(glob.parse('**/*.foo')), []);
-		assert.deepStrictEqual(glob.getPathEndTerms(glob.parse('**/foo')), []);
-		assert.deepStrictEqual(glob.getPathEndTerms(glob.parse('**/foo/bar')), ['/foo/bar']);
-		assert.deepStrictEqual(glob.getPathEndTerms(glob.parse('**/foo/bar/')), ['/foo/bar']);
+	test('expression/pattern paths', function () {
+		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/*.foo')), []);
+		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo')), []);
+		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo/bar')), ['*/foo/bar']);
+		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo/bar/')), ['*/foo/bar']);
 		// Not supported
-		// assert.deepStrictEqual(glob.getNativePathEnds(glob.parse('{**/baz/bar,**/foo/bar,**/bar}')), ['/baz/bar', '/foo/bar']);
-		// assert.deepStrictEqual(glob.getNativePathEnds(glob.parse('{**/baz/bar/,**/foo/bar/,**/bar/}')), ['/baz/bar', '/foo/bar']);
+		// assert.deepStrictEqual(glob.getPathTerms(glob.parse('{**/baz/bar,**/foo/bar,**/bar}')), ['*/baz/bar', '*/foo/bar']);
+		// assert.deepStrictEqual(glob.getPathTerms(glob.parse('{**/baz/bar/,**/foo/bar/,**/bar/}')), ['*/baz/bar', '*/foo/bar']);
 
 		const parsed = glob.parse({
 			'**/foo/bar': true,
@@ -801,30 +807,30 @@ suite('Glob', () => {
 			'**/bulb2': true,
 			'**/bulb/foo': false
 		});
-		assert.deepStrictEqual(glob.getPathEndTerms(parsed), ['/foo/bar', '/foo2/bar2']);
+		assert.deepStrictEqual(glob.getPathTerms(parsed), ['*/foo/bar', '*/foo2/bar2']);
 		assert.deepStrictEqual(glob.getBasenameTerms(parsed), ['bulb', 'bulb2']);
-		assert.deepStrictEqual(glob.getPathEndTerms(glob.parse({
+		assert.deepStrictEqual(glob.getPathTerms(glob.parse({
 			'**/foo/bar': { when: '$(basename).zip' },
 			'**/bar/foo': true,
 			'**/bar2/foo2': true
-		})), ['/bar/foo', '/bar2/foo2']);
+		})), ['*/bar/foo', '*/bar2/foo2']);
 	});
 
-	test('expression/pattern optimization for path ends', function () {
-		assert.deepStrictEqual(glob.getPathEndTerms(glob.parse('**/foo/bar/**')), []);
-		assert.deepStrictEqual(glob.getPathEndTerms(glob.parse('**/foo/bar/**', { trimForExclusions: true })), ['/foo/bar']);
+	test('expression/pattern optimization for paths', function () {
+		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo/bar/**')), []);
+		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo/bar/**', { trimForExclusions: true })), ['*/foo/bar']);
 
-		testOptimizationForPathEnds('**/*.foo/bar/**', [], [['baz/bar.foo/bar/baz', true]]);
-		testOptimizationForPathEnds('**/foo/bar/**', ['/foo/bar'], [['bar/foo/bar', true], ['bar/foo/bar/baz', false]]);
+		testOptimizationForPaths('**/*.foo/bar/**', [], [['baz/bar.foo/bar/baz', true]]);
+		testOptimizationForPaths('**/foo/bar/**', ['*/foo/bar'], [['bar/foo/bar', true], ['bar/foo/bar/baz', false]]);
 		// Not supported
-		// testOptimizationForPathEnds('{**/baz/bar/**,**/foo/bar/**}', ['/baz/bar', '/foo/bar'], [['bar/baz/bar', true], ['bar/foo/bar', true]]);
+		// testOptimizationForPaths('{**/baz/bar/**,**/foo/bar/**}', ['*/baz/bar', '*/foo/bar'], [['bar/baz/bar', true], ['bar/foo/bar', true]]);
 
-		testOptimizationForPathEnds({
+		testOptimizationForPaths({
 			'**/foo/bar/**': true,
 			// Not supported
 			// '{**/bar/bar/**,**/baz/bar/**}': true,
 			'**/bulb/bar/**': false
-		}, ['/foo/bar'], [
+		}, ['*/foo/bar'], [
 			['bar/foo/bar', '**/foo/bar/**'],
 			// Not supported
 			// ['foo/bar/bar', '{**/bar/bar/**,**/baz/bar/**}'],
@@ -832,10 +838,10 @@ suite('Glob', () => {
 		]);
 
 		const siblingsFn = () => ['baz', 'baz.zip', 'nope'];
-		testOptimizationForPathEnds({
+		testOptimizationForPaths({
 			'**/foo/123/**': { when: '$(basename).zip' },
 			'**/bar/123/**': true
-		}, ['/bar/123'], [
+		}, ['*/bar/123'], [
 			['bar/foo/123', null],
 			['bar/foo/123/baz', null],
 			['bar/foo/123/nope', null],
@@ -847,9 +853,9 @@ suite('Glob', () => {
 		]);
 	});
 
-	function testOptimizationForPathEnds(pattern: string|glob.IExpression, pathEndTerms: string[], matches: [string, string|boolean][], siblingsFns: (() => string[])[] = []) {
+	function testOptimizationForPaths(pattern: string|glob.IExpression, pathTerms: string[], matches: [string, string|boolean][], siblingsFns: (() => string[])[] = []) {
 		const parsed = glob.parse(<glob.IExpression>pattern, { trimForExclusions: true });
-		assert.deepStrictEqual(glob.getPathEndTerms(parsed), pathEndTerms);
+		assert.deepStrictEqual(glob.getPathTerms(parsed), pathTerms);
 		matches.forEach(([text, result], i) => {
 			assert.strictEqual(parsed(text, null, siblingsFns[i]), result);
 		});

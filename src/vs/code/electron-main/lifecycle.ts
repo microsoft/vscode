@@ -9,7 +9,7 @@ import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
-import { IEnvService } from 'vs/code/electron-main/env';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IStorageService } from 'vs/code/electron-main/storage';
@@ -50,7 +50,7 @@ export class LifecycleService implements ILifecycleService {
 	private _wasUpdated: boolean;
 
 	constructor(
-		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService
 	) {
@@ -109,7 +109,7 @@ export class LifecycleService implements ILifecycleService {
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
 			// --wait: we quit when all windows are closed
-			if (this.quitRequested || process.platform !== 'darwin' || this.envService.cliArgs.wait) {
+			if (this.quitRequested || process.platform !== 'darwin' || this.environmentService.wait) {
 				app.quit();
 			}
 		});

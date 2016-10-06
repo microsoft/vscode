@@ -34,6 +34,7 @@ export interface IEnvironmentService {
 
 	isBuilt: boolean;
 	verbose: boolean;
+	wait: boolean;
 	performance: boolean;
 
 	mainIPCHandle: string;

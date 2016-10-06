@@ -9,7 +9,7 @@ import * as fs from 'original-fs';
 import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IEnvService} from 'vs/code/electron-main/env';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const IBackupService = createDecorator<IBackupService>('backupService');
 
@@ -25,9 +25,9 @@ export class BackupService implements IBackupService {
 	private fileContent: string[];
 
 	constructor(
-		@IEnvService private envService: IEnvService
+		@IEnvironmentService private envService: IEnvironmentService
 	) {
-		this.filePath = path.join(envService.appHome, 'Backups', 'workspaces.json');
+		this.filePath = path.join(envService.userDataPath, 'Backups', 'workspaces.json');
 	}
 
 	public getBackupWorkspaces(): string[] {

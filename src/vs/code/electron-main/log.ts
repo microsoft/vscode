@@ -6,7 +6,7 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvService } from 'vs/code/electron-main/env';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const ILogService = createDecorator<ILogService>('logService');
 
@@ -19,13 +19,11 @@ export class MainLogService implements ILogService {
 
 	_serviceBrand: any;
 
-	constructor(@IEnvService private envService: IEnvService) {
+	constructor(@IEnvironmentService private environmentService: IEnvironmentService) {
 	}
 
 	log(...args: any[]): void {
-		const { verbose } = this.envService.cliArgs;
-
-		if (verbose) {
+		if (this.environmentService.verbose) {
 			console.log(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
 		}
 	}

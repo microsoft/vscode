@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* light bulp */
 
 .monaco-editor .lightbulb-glyph {
 	display: flex;
@@ -25,29 +24,4 @@
 	background: url('lightbulb-dark.svg') center center no-repeat;
 	height: 16px;
 	width: 16px;
-}
-
-
-/* quick fix suggestion dialog */
-
-.monaco-editor .quickfix-widget {
-	background-color: #F3F3F3;
-	border: 1px solid rgb(200, 200, 200);
-	z-index: 40;
-}
-
-.monaco-editor .quickfix-widget .quickfix-entry {
-	padding: 2px 2px 2px 2px;
-}
-
-/* Dark theme */
-.monaco-editor.vs-dark .quickfix-widget {
-	background-color: #2D2D30;
-	border: 1px solid rgb(69, 69, 69);
-}
-
-/* High Contrast Theming */
-.monaco-editor.hc-black .quickfix-widget {
-	background-color: #0C141F;
-	border: 2px solid #6FC3DF;
 }
