@@ -13,7 +13,7 @@ import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -38,23 +38,8 @@ export class EnvService implements IEnvService {
 	get cliArgs(): ICommandLineArguments { return this._cliArgs; }
 
 	constructor() {
-
-		// Remove the Electron executable
-		const [, ...args] = process.argv;
-
-		// If dev, remove the first non-option argument: it's the app location
-		const isBuilt = !process.env['VSCODE_DEV'];
-		if (!isBuilt) {
-			const index = arrays.firstIndex(args, a => !/^-/.test(a));
-
-			if (index > -1) {
-				args.splice(index, 1);
-			}
-		}
-
-		const argv = parseArgs(args);
-		const cwd = process.env['VSCODE_CWD'] || process.cwd();
-		const paths = parsePathArguments(cwd, argv._, argv.goto);
+		const argv = parseMainProcessArgv(process.argv);
+		const paths = parsePathArguments(argv._, argv.goto);
 
 		this._cliArgs = Object.freeze({
 			_: [],
@@ -79,7 +64,8 @@ export class EnvService implements IEnvService {
 	}
 }
 
-function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean): string[] {
+function parsePathArguments(args: string[], gotoLineMode?: boolean): string[] {
+	const cwd = process.env['VSCODE_CWD'] || process.cwd();
 	const result = args.map(arg => {
 		let pathCandidate = String(arg);
 
