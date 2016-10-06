@@ -8,11 +8,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-import { TreeView } from 'vs/workbench/parts/explorers/browser/views/treeView';
-import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeViewer';
+import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
+import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
+
+const TREE_NAME = 'pineTree'; // For now
 
 export const CUSTOM_VIEWLET_ID_ROOT = 'workbench.view.treeExplorerViewlet.';
-const ID = 'workbench.view.customViewlet.' + 'pineTree'; // for now
+const ID = 'workbench.view.customTreeExplorerViewlet.' + TREE_NAME;
 
 export class TreeExplorerViewlet extends Viewlet {
 	private static _idCounter = 1;
@@ -37,8 +39,8 @@ export class TreeExplorerViewlet extends Viewlet {
 	create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
-		this.viewletContainer = parent.div().addClass('custom-viewlet');
-		this.addTreeView('Tree1');
+		this.viewletContainer = parent.div().addClass('custom-tree-explorer-viewlet');
+		this.addTreeView(TREE_NAME);
 
 		const settings = this.configurationService.getConfiguration<ICustomViewletConfiguration>();
 		return this.onConfigurationUpdated(settings);
@@ -62,7 +64,7 @@ export class TreeExplorerViewlet extends Viewlet {
 		// 0 for now, add back header later if needed
 		const headerSize = 0;
 
-		this.view = this.instantiationService.createInstance(TreeView, this.viewletState, treeName, this.getActionRunner(), headerSize);
+		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, treeName, this.getActionRunner(), headerSize);
 		this.view.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 	}
 

@@ -16,7 +16,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
 
-const providerId = 'pineTree';
+const providerId = 'pineTree'; // For now
 
 export class TreeDataSource implements IDataSource {
 	constructor(
