@@ -10,6 +10,7 @@ import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs
 import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/common/indentationCommands';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IConfigurationService, getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 
 @editorAction
 export class IndentationToSpacesAction extends EditorAction {
@@ -176,8 +177,9 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let renderWhitespace = editor.getConfiguration().viewInfo.renderWhitespace;
 		if (renderWhitespace === 'none') {
+			const whitespace = getConfigurationValue<'none' | 'boundary' | 'all'>(accessor.get(IConfigurationService).getConfiguration('editor'), 'renderWhitespace');
 			editor.updateOptions({
-				renderWhitespace: 'all'
+				renderWhitespace: whitespace === 'none' ? 'all' : whitespace
 			});
 		} else {
 			editor.updateOptions({
