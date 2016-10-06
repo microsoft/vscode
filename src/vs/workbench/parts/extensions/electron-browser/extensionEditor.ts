@@ -27,7 +27,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension } from './extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from './extensions';
+import { Renderer, DataSource } from './dependenciesViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
 import { RatingsWidget, InstallWidget } from './extensionsWidgets';
@@ -42,6 +43,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -98,7 +100,8 @@ class NavBar {
 const NavbarSection = {
 	Readme: 'readme',
 	Contributions: 'contributions',
-	Changelog: 'changelog'
+	Changelog: 'changelog',
+	Dependencies: 'dependencies'
 };
 
 interface ILayoutParticipant {
@@ -127,6 +130,7 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionReadme: Cache<string>;
 	private extensionChangelog: Cache<string>;
 	private extensionManifest: Cache<IExtensionManifest>;
+	private extensionDependencies: Cache<IExtensionDependencies>;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
@@ -152,6 +156,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
+		this.extensionDependencies = null;
 	}
 
 	createEditor(parent: Builder): void {
@@ -205,6 +210,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionReadme = new Cache(() => extension.getReadme());
 		this.extensionChangelog = new Cache(() => extension.getChangelog());
 		this.extensionManifest = new Cache(() => extension.getManifest());
+		this.extensionDependencies = new Cache(() => this.extensionsWorkbenchService.loadDependencies(extension));
 
 		const onError = once(domEvent(this.icon, 'error'));
 		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
@@ -263,6 +269,9 @@ export class ExtensionEditor extends BaseEditor {
 		if (extension.hasChangelog) {
 			this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
 		}
+		if (extension.hasDependencies) {
+			this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
+		}
 
 		this.content.innerHTML = '';
 
@@ -270,10 +279,13 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private onNavbarChange(extension: IExtension, id: string): void {
+		this.contentDisposables = dispose(this.contentDisposables);
+		this.content.innerHTML = '';
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme();
 			case NavbarSection.Contributions: return this.openContributions();
 			case NavbarSection.Changelog: return this.openChangelog();
+			case NavbarSection.Dependencies: return this.openDependencies();
 		}
 	}
 
@@ -311,8 +323,6 @@ export class ExtensionEditor extends BaseEditor {
 	private openContributions() {
 		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
-				this.content.innerHTML = '';
-
 				const content = $('div', { class: 'subcontent' });
 				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
 				append(this.content, scrollableContent.getDomNode());
@@ -331,6 +341,38 @@ export class ExtensionEditor extends BaseEditor {
 
 				scrollableContent.scanDomNode();
 			}));
+	}
+
+	private openDependencies() {
+		addClass(this.content, 'loading');
+		this.extensionDependencies.get().then(extensionDependencies => {
+			removeClass(this.content, 'loading');
+
+			const content = $('div', { class: 'subcontent' });
+			const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+			append(this.content, scrollableContent.getDomNode());
+			this.contentDisposables.push(scrollableContent);
+
+			const layout = () => scrollableContent.scanDomNode();
+			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+			this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+			this.contentDisposables.push(ExtensionEditor.renderDependencies(content, extensionDependencies));
+			scrollableContent.scanDomNode();
+		});
+	}
+
+	private static renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
+		var renderer = new Renderer();
+		const tree = new Tree(container, {
+			dataSource: new DataSource(),
+			renderer
+		}, {
+				indentPixels: 40,
+				twistiePixels: 20
+			});
+		tree.setInput(extensionDependencies);
+		return tree;
 	}
 
 	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
@@ -563,9 +605,6 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private loadContents(loadingTask: ()=>TPromise<any>): void {
-		this.contentDisposables = dispose(this.contentDisposables);
-
-		this.content.innerHTML = '';
 		addClass(this.content, 'loading');
 
 		let promise = loadingTask();

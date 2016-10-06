@@ -9,6 +9,7 @@ import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
+import { LinkedMap as Map } from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
 import { isUUID } from 'vs/base/common/uuid';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -29,7 +30,7 @@ import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { readFile } from 'vs/base/node/pfs';
 import { asText } from 'vs/base/node/request';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from './extensions';
+import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from './extensions';
 import { UpdateAllAction } from './extensionsActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
@@ -215,6 +216,35 @@ class Extension implements IExtension {
 
 		return TPromise.wrapError('not available');
 	}
+
+	get hasDependencies(): boolean {
+		const { local, gallery } = this;
+		if (gallery) {
+			return !!gallery.properties.dependencies.length;
+		}
+		return false;
+	}
+}
+
+class ExtensionDependencies implements IExtensionDependencies {
+
+	constructor(private _extension: Extension, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) {}
+
+	get hasDependencies(): boolean {
+		return this._extension.gallery.properties.dependencies.length > 0;
+	}
+
+	get extension(): IExtension {
+		return this._extension;
+	}
+
+	get dependent(): IExtensionDependencies {
+		return this._dependent;
+	}
+
+	get dependencies(): IExtensionDependencies[] {
+		return this._extension.gallery.properties.dependencies.map(d => new ExtensionDependencies(this._map.get(d), this._map, this));
+	}
 }
 
 function stripVersion(id: string): string {
@@ -319,6 +349,23 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				}
 
 				return TPromise.wrapError(err);
+			});
+	}
+
+	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
+		if (!extension.hasDependencies) {
+			return TPromise.wrap(null);
+		}
+
+		return this.galleryService.getAllDependencies((<Extension>extension).gallery)
+			.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension)))
+			.then(extensions => {
+				const map = new Map<string, Extension>();
+				map.set(`${extension.publisher}.${extension.name}`, <Extension>extension);
+				for (const extension of extensions) {
+					map.set(`${extension.publisher}.${extension.name}`, extension);
+				}
+				return new ExtensionDependencies(<Extension>extension, map);
 			});
 	}
 

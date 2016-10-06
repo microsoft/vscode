@@ -40,11 +40,19 @@ export interface IExtension {
 	rating: number;
 	ratingCount: number;
 	outdated: boolean;
+	hasDependencies: boolean;
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
 	hasChangelog : boolean;
 	getChangelog() : TPromise<string>;
+}
+
+export interface IExtensionDependencies {
+	dependencies: IExtensionDependencies[];
+	hasDependencies: boolean;
+	extension: IExtension;
+	dependent: IExtensionDependencies;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -61,6 +69,7 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: string): TPromise<void>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 }
 
 export const ConfigurationKey = 'extensions';
