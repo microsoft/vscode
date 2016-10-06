@@ -368,6 +368,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			});
 	}
 
+	open(extension: IExtension): void {
+		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
+			.done(null, err => this.onError(err));
+	}
+
 	private fromGallery(gallery: IGalleryExtension): Extension {
 		const installedByGalleryId = index(this.installed, e => e.local.metadata ? e.local.metadata.id : '');
 		const id = gallery.id;
@@ -620,13 +625,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				}
 
 				const extension = result.firstPage[0];
-				this.openExtension(extension);
+				this.open(extension);
 			});
-	}
-
-	private openExtension(extension: IExtension): void {
-		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
-			.done(null, err => this.onError(err));
 	}
 
 	dispose(): void {
