@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
-import { IEnvService } from 'vs/code/electron-main/env';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
 import { IWindowsService } from 'vs/code/electron-main/windows';
 import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
@@ -45,7 +45,7 @@ export class VSCodeMenu {
 		@IUpdateService private updateService: IUpdateService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IEnvService private envService: IEnvService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.actionIdKeybindingRequests = [];
 
@@ -405,7 +405,7 @@ export class VSCodeMenu {
 		return new MenuItem({
 			label: unMnemonicLabel(path), click: (menuItem, win, event) => {
 				const openInNewWindow = event && ((!platform.isMacintosh && event.ctrlKey) || (platform.isMacintosh && event.metaKey));
-				const success = !!this.windowsService.open({ cli: this.envService.cliArgs, pathsToOpen: [path], forceNewWindow: openInNewWindow });
+				const success = !!this.windowsService.open({ cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow });
 				if (!success) {
 					this.windowsService.removeFromRecentPathsList(path);
 					this.updateMenu();
