@@ -17,8 +17,10 @@ import { domEvent } from 'vs/base/browser/event';
 import { Keybinding } from 'vs/base/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Position } from 'vs/platform/editor/common/editor';
 
 interface IExtensionTemplateData {
 	icon: HTMLImageElement;
@@ -111,6 +113,8 @@ export class Controller extends DefaultController {
 				@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService,
 				@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
+
+		this.downKeyBindingDispatcher.set(OpenExtensionToSideAction.KEY_BINDING.value, (tree: ITree, event: any) => { this.openExtension(tree.getFocus(), true); });
 	}
 
 	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
@@ -135,7 +139,8 @@ export class Controller extends DefaultController {
 			getAnchor: () => anchor,
 
 			getActions: () => {
-				return TPromise.as([this.instantiationService.createInstance(OpenExtensionAction)]);
+				return TPromise.as([this.instantiationService.createInstance(OpenExtensionAction),
+									this.instantiationService.createInstance(OpenExtensionToSideAction)]);
 			},
 
 			getActionItem: () => null,
@@ -162,20 +167,22 @@ export class Controller extends DefaultController {
 
 	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
 		if (super.onEnter(tree, event)) {
-			return this.openExtension(tree.getFocus());
+			return this.openExtension(tree.getFocus(), event.ctrlKey || event.metaKey);
 		}
 		return false;
 	}
 
 	private openExtension(element: IExtensionDependencies, sideByside: boolean = false): boolean {
-		this.extensionWorkbenchService.open(element.extension);
+		this.extensionWorkbenchService.open(element.extension, sideByside);
 		return true;
 	}
 
 	private keybindingForAction(id: string): Keybinding {
 		switch (id) {
 			case OpenExtensionAction.ID:
-				return new Keybinding(KeyCode.Enter);
+				return OpenExtensionAction.KEY_BINDING;
+			case OpenExtensionToSideAction.ID:
+				return OpenExtensionToSideAction.KEY_BINDING;
 		}
 
 		return null;
@@ -184,14 +191,37 @@ export class Controller extends DefaultController {
 
 class OpenExtensionAction extends Action {
 
-	public static ID = 'extensions.open.extension';
+	public static ID = 'extensions.action.open';
+	public static KEY_BINDING = new Keybinding(KeyCode.Enter);
 
 	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
-		super('extensions.open.extension', localize('extensions.open', "Open"));
+		super(OpenExtensionAction.ID, localize('extensions.open', "Open"));
 	}
 
-	run(context: { extension: IExtension, sideByside?: boolean }): TPromise<any> {
+	run(context: { extension: IExtension }): TPromise<any> {
 		this.extensionsWorkdbenchService.open(context.extension);
+		return TPromise.as(null);
+	}
+}
+
+class OpenExtensionToSideAction extends Action {
+
+	public static ID = 'extensions.action.openSide';
+	public static KEY_BINDING = new Keybinding(KeyMod.WinCtrl | KeyCode.Enter);
+
+	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
+				@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(OpenExtensionToSideAction.ID, localize('extensions.openSide', "Open to the Side"));
+		this.updateEnablement();
+	}
+
+	private updateEnablement(): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
+	}
+
+	run(context: { extension: IExtension }): TPromise<any> {
+		this.extensionsWorkdbenchService.open(context.extension, true);
 		return TPromise.as(null);
 	}
 }
