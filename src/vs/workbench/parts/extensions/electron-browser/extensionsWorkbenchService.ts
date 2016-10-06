@@ -368,8 +368,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			});
 	}
 
-	open(extension: IExtension): void {
-		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
+	open(extension: IExtension, sideByside: boolean = false): void {
+		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside)
 			.done(null, err => this.onError(err));
 	}
 
