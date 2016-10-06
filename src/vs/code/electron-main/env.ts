@@ -7,17 +7,13 @@
 
 import * as fs from 'original-fs';
 import * as path from 'path';
-import * as os from 'os';
-import { app } from 'electron';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
-import product from 'vs/platform/product';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -32,14 +28,6 @@ export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService'
 export interface IEnvService {
 	_serviceBrand: any;
 	cliArgs: ICommandLineArguments;
-	isBuilt: boolean;
-	userHome: string;
-	appRoot: string;
-	currentWorkingDirectory: string;
-	appHome: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
 }
 
 export class EnvService implements IEnvService {
@@ -49,45 +37,14 @@ export class EnvService implements IEnvService {
 	private _cliArgs: ICommandLineArguments;
 	get cliArgs(): ICommandLineArguments { return this._cliArgs; }
 
-	private _userExtensionsHome: string;
-	get userExtensionsHome(): string { return this._userExtensionsHome; }
-
-	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
-
-	private _userHome: string;
-	get userHome(): string { return this._userHome; }
-
-	private _appRoot: string;
-	get appRoot(): string { return this._appRoot; }
-
-	private _currentWorkingDirectory: string;
-	get currentWorkingDirectory(): string { return this._currentWorkingDirectory; }
-
-	private _appHome: string;
-	get appHome(): string { return this._appHome; }
-
-	private _appSettingsHome: string;
-	get appSettingsHome(): string { return this._appSettingsHome; }
-
-	private _appSettingsPath: string;
-	get appSettingsPath(): string { return this._appSettingsPath; }
-
-	private _appKeybindingsPath: string;
-	get appKeybindingsPath(): string { return this._appKeybindingsPath; }
-
 	constructor() {
-		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
-		this._currentWorkingDirectory = process.env['VSCODE_CWD'] || process.cwd();
-		this._appHome = app.getPath('userData');
-		this._appSettingsHome = path.join(this._appHome, 'User');
-		this._appSettingsPath = path.join(this._appSettingsHome, 'settings.json');
-		this._appKeybindingsPath = path.join(this._appSettingsHome, 'keybindings.json');
 
 		// Remove the Electron executable
 		const [, ...args] = process.argv;
 
 		// If dev, remove the first non-option argument: it's the app location
-		if (!this.isBuilt) {
+		const isBuilt = !process.env['VSCODE_DEV'];
+		if (!isBuilt) {
 			const index = arrays.firstIndex(args, a => !/^-/.test(a));
 
 			if (index > -1) {
@@ -96,7 +53,8 @@ export class EnvService implements IEnvService {
 		}
 
 		const argv = parseArgs(args);
-		const paths = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
+		const cwd = process.env['VSCODE_CWD'] || process.cwd();
+		const paths = parsePathArguments(cwd, argv._, argv.goto);
 
 		this._cliArgs = Object.freeze({
 			_: [],
@@ -118,9 +76,6 @@ export class EnvService implements IEnvService {
 			locale: argv.locale,
 			wait: argv.wait
 		});
-
-		this._userHome = path.join(os.homedir(), product.dataFolderName);
-		this._userExtensionsHome = this.cliArgs.extensionHomePath || path.join(this._userHome, 'extensions');
 	}
 }
 

@@ -14,6 +14,7 @@ import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { EventEmitter } from 'events';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
@@ -162,6 +163,7 @@ export class WindowsManager implements IWindowsService {
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
 		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IUpdateService private updateService: IUpdateService,
 		@IConfigurationService private configurationService: IConfigurationService
@@ -843,7 +845,7 @@ export class WindowsManager implements IWindowsService {
 
 	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
-		configuration.appRoot = this.envService.appRoot;
+		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = userEnv;
 		configuration.workspacePath = workspacePath;
