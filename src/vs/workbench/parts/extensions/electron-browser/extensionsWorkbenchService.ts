@@ -368,9 +368,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			});
 	}
 
-	open(extension: IExtension, sideByside: boolean = false): void {
-		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside)
-			.done(null, err => this.onError(err));
+	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
+		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
 
 	private fromGallery(gallery: IGalleryExtension): Extension {
@@ -625,7 +624,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				}
 
 				const extension = result.firstPage[0];
-				this.open(extension);
+				this.open(extension).done(null, error => this.onError(error));
 			});
 	}
 
