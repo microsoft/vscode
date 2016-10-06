@@ -214,6 +214,7 @@ const T2 = /^\*\*\/([\w\.-]+)\/?$/; 							   			// **/something
 const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
 const T3_2 = /^{\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?(,\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?)*}$/; 	// Like T3, with optional trailing /**
 const T4 = /^\*\*((\/[\w\.-]+)+)\/?$/; 						   			// **/something/else
+const T5 = /^([\w\.-]+(\/[\w\.-]+)*)\/?$/; 						   		// something/else
 
 export type ParsedPattern = (path: string, basename?: string) => boolean;
 export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[]) => string /* the matching pattern */;
@@ -227,14 +228,14 @@ interface ParsedStringPattern {
 	basenames?: string[];
 	patterns?: string[];
 	allBasenames?: string[];
-	allPathEnds?: string[];
+	allPaths?: string[];
 }
 type SiblingsPattern = { siblings: string[], name: string };
 interface ParsedExpressionPattern {
 	(path: string, basename: string, siblingsPatternFn: () => SiblingsPattern): string /* the matching pattern */;
 	requiresSiblings?: boolean;
 	allBasenames?: string[];
-	allPathEnds?: string[];
+	allPaths?: string[];
 }
 
 const CACHE = new BoundedLinkedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
@@ -274,7 +275,9 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
 		parsedPattern = trivia3(pattern, options);
 	} else if (match = T4.exec(trimForExclusions(pattern, options))) { // common pattern: **/something/else just need endsWith check
-		parsedPattern = trivia4(match[1], pattern);
+		parsedPattern = trivia4and5(match[1].substr(1), pattern, true);
+	} else if (match = T5.exec(trimForExclusions(pattern, options))) { // common pattern: something/else just need equals check
+		parsedPattern = trivia4and5(match[1], pattern, false);
 	}
 
 	// Otherwise convert to pattern
@@ -336,21 +339,23 @@ function trivia3 (pattern: string, options: IGlobOptions): ParsedStringPattern {
 	if (withBasenames) {
 		parsedPattern.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 	}
-	const allPathEnds = parsedPatterns.reduce((all, current) => current.allPathEnds ? all.concat(current.allPathEnds) : all, <string[]>[]);
-	if (allPathEnds.length) {
-		parsedPattern.allPathEnds = allPathEnds;
+	const allPaths = parsedPatterns.reduce((all, current) => current.allPaths ? all.concat(current.allPaths) : all, <string[]>[]);
+	if (allPaths.length) {
+		parsedPattern.allPaths = allPaths;
 	}
 	return parsedPattern;
 }
 
-// common pattern: **/something/else just need endsWith check
-function trivia4(pathEnd: string, pattern: string): ParsedStringPattern {
-	const nativePathEnd = pathEnd.replace(paths.sep, paths.nativeSep);
-	const nativePath = nativePathEnd.substr(1);
-	const parsedPattern: ParsedStringPattern = function (path, basename) {
+// common patterns: **/something/else just need endsWith check, something/else just needs and equals check
+function trivia4and5(path: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
+	const nativePath = path.replace(paths.sep, paths.nativeSep);
+	const nativePathEnd = paths.nativeSep + nativePath;
+	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (path, basename) {
 		return path && (path === nativePath || strings.endsWith(path, nativePathEnd)) ? pattern : null;
+	} : function (path, basename) {
+		return path && path === nativePath ? pattern : null;
 	};
-	parsedPattern.allPathEnds = [pathEnd];
+	parsedPattern.allPaths = [(matchPathEnds ? '*/' : './') + path];
 	return parsedPattern;
 }
 
@@ -411,8 +416,8 @@ export function parse(arg1: string | IExpression, options: IGlobOptions = {}): a
 		if (parsedPattern.allBasenames) {
 			(<ParsedStringPattern><any>resultPattern).allBasenames = parsedPattern.allBasenames;
 		}
-		if (parsedPattern.allPathEnds) {
-			(<ParsedStringPattern><any>resultPattern).allPathEnds = parsedPattern.allPathEnds;
+		if (parsedPattern.allPaths) {
+			(<ParsedStringPattern><any>resultPattern).allPaths = parsedPattern.allPaths;
 		}
 		return resultPattern;
 	}
@@ -425,8 +430,8 @@ export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpr
 	return (<ParsedStringPattern>patternOrExpression).allBasenames || [];
 }
 
-export function getPathEndTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
-	return (<ParsedStringPattern>patternOrExpression).allPathEnds || [];
+export function getPathTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
+	return (<ParsedStringPattern>patternOrExpression).allPaths || [];
 }
 
 function parsedExpression(expression: IExpression, options: IGlobOptions): ParsedExpression {
@@ -461,9 +466,9 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 			resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 		}
 
-		const allPathEnds = parsedPatterns.reduce((all, current) => current.allPathEnds ? all.concat(current.allPathEnds) : all, <string[]>[]);
-		if (allPathEnds.length) {
-			resultExpression.allPathEnds = allPathEnds;
+		const allPaths = parsedPatterns.reduce((all, current) => current.allPaths ? all.concat(current.allPaths) : all, <string[]>[]);
+		if (allPaths.length) {
+			resultExpression.allPaths = allPaths;
 		}
 
 		return resultExpression;
@@ -505,9 +510,9 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 	}
 
-	const allPathEnds = parsedPatterns.reduce((all, current) => current.allPathEnds ? all.concat(current.allPathEnds) : all, <string[]>[]);
-	if (allPathEnds.length) {
-		resultExpression.allPathEnds = allPathEnds;
+	const allPaths = parsedPatterns.reduce((all, current) => current.allPaths ? all.concat(current.allPaths) : all, <string[]>[]);
+	if (allPaths.length) {
+		resultExpression.allPaths = allPaths;
 	}
 
 	return resultExpression;
