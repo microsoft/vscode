@@ -12,55 +12,26 @@ import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
-export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService');
+export function validatePaths(args: ParsedArgs): ParsedArgs {
 
-export interface IEnvService {
-	_serviceBrand: any;
-	cliArgs: ParsedArgs;
+	// Realpath/normalize paths and watch out for goto line mode
+	const paths = doValidatePaths(args._, args.goto);
+
+	// Update environment
+	args._ = paths;
+	args.diff = args.diff && paths.length === 2;
+
+	return args;
 }
 
-export class EnvService implements IEnvService {
-
-	_serviceBrand: any;
-
-	private _cliArgs: ParsedArgs;
-	get cliArgs(): ParsedArgs { return this._cliArgs; }
-
-	constructor() {
-		const argv = parseMainProcessArgv(process.argv);
-		const paths = parsePathArguments(argv._, argv.goto);
-
-		this._cliArgs = Object.freeze({
-			_: paths,
-			performance: argv.performance,
-			verbose: argv.verbose,
-			debugPluginHost: argv.debugPluginHost,
-			debugBrkPluginHost: argv.debugBrkPluginHost,
-			logExtensionHostCommunication: argv.logExtensionHostCommunication,
-			'new-window': argv['new-window'],
-			'reuse-window': argv['reuse-window'],
-			goto: argv.goto,
-			diff: argv.diff && paths.length === 2,
-			extensionHomePath: normalizePath(argv.extensionHomePath),
-			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
-			extensionTestsPath: normalizePath(argv.extensionTestsPath),
-			'disable-extensions': argv['disable-extensions'],
-			'open-url': argv['open-url'],
-			locale: argv.locale,
-			wait: argv.wait
-		});
-	}
-}
-
-function parsePathArguments(args: string[], gotoLineMode?: boolean): string[] {
+function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 	const cwd = process.env['VSCODE_CWD'] || process.cwd();
 	const result = args.map(arg => {
 		let pathCandidate = String(arg);
 
-		let parsedPath: IParsedPath;
+		let parsedPath: IPathWithLineAndColumn;
 		if (gotoLineMode) {
 			parsedPath = parseLineAndColumnAware(pathCandidate);
 			pathCandidate = parsedPath.path;
@@ -86,7 +57,7 @@ function parsePathArguments(args: string[], gotoLineMode?: boolean): string[] {
 
 		if (gotoLineMode) {
 			parsedPath.path = realPath;
-			return toLineAndColumnPath(parsedPath);
+			return toPath(parsedPath);
 		}
 
 		return realPath;
@@ -120,17 +91,13 @@ function preparePath(cwd: string, p: string): string {
 	return p;
 }
 
-function normalizePath(p?: string): string {
-	return p ? path.normalize(p) : p;
-}
-
-export interface IParsedPath {
+export interface IPathWithLineAndColumn {
 	path: string;
 	line?: number;
 	column?: number;
 }
 
-export function parseLineAndColumnAware(rawPath: string): IParsedPath {
+export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn {
 	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
 
 	let path: string;
@@ -159,15 +126,15 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 	};
 }
 
-function toLineAndColumnPath(parsedPath: IParsedPath): string {
-	const segments = [parsedPath.path];
+function toPath(p: IPathWithLineAndColumn): string {
+	const segments = [p.path];
 
-	if (types.isNumber(parsedPath.line)) {
-		segments.push(String(parsedPath.line));
+	if (types.isNumber(p.line)) {
+		segments.push(String(p.line));
 	}
 
-	if (types.isNumber(parsedPath.column)) {
-		segments.push(String(parsedPath.column));
+	if (types.isNumber(p.column)) {
+		segments.push(String(p.column));
 	}
 
 	return segments.join(':');

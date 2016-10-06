@@ -18,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
-import { IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
+import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
@@ -163,7 +163,6 @@ export class WindowsManager implements IWindowsService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
-		@IEnvService private envService: IEnvService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IUpdateService private updateService: IUpdateService,
@@ -222,7 +221,7 @@ export class WindowsManager implements IWindowsService {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
+				this.open({ cli: this.environmentService.args, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
@@ -238,7 +237,7 @@ export class WindowsManager implements IWindowsService {
 			this.logService.log('IPC#vscode-windowOpen: ', paths);
 
 			if (paths && paths.length) {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: paths, forceNewWindow: forceNewWindow });
+				this.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
 			}
 		});
 
@@ -277,7 +276,7 @@ export class WindowsManager implements IWindowsService {
 
 			const win = this.getWindowById(windowId);
 			if (win) {
-				this.open({ cli: this.envService.cliArgs, forceEmpty: true, windowToUse: win });
+				this.open({ cli: this.environmentService.args, forceEmpty: true, windowToUse: win });
 			}
 		});
 
@@ -862,7 +861,7 @@ export class WindowsManager implements IWindowsService {
 			return null;
 		}
 
-		let parsedPath: IParsedPath;
+		let parsedPath: IPathWithLineAndColumn;
 		if (gotoLineMode) {
 			parsedPath = parseLineAndColumnAware(anyPath);
 			anyPath = parsedPath.path;
@@ -1107,7 +1106,7 @@ export class WindowsManager implements IWindowsService {
 	private doPickAndOpen(options: INativeOpenDialogOptions): void {
 		this.getFileOrFolderPaths(options, (paths: string[]) => {
 			if (paths && paths.length) {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
+				this.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
 			}
 		});
 	}
@@ -1213,7 +1212,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	public openNewWindow(): void {
-		this.open({ cli: this.envService.cliArgs, forceNewWindow: true, forceEmpty: true });
+		this.open({ cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
 	public sendToFocused(channel: string, ...args: any[]): void {
