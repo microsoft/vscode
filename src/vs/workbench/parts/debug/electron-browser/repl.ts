@@ -62,7 +62,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private static HISTORY: replhistory.ReplHistory;
 	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
-	private static REPL_INPUT_INITIAL_HEIGHT = 22;
+	private static REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static REPL_INPUT_MAX_HEIGHT = 170;
 
 	private toDispose: lifecycle.IDisposable[];
@@ -276,7 +276,6 @@ export class Repl extends Panel implements IPrivateReplService {
 			},
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
-			lineHeight: 21,
 			theme: this.themeService.getColorTheme(),
 			renderLineHighlight: false
 		};

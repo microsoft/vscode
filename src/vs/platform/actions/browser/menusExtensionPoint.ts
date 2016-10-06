@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createCSSRule} from 'vs/base/browser/dom';
-import {localize} from 'vs/nls';
-import {join} from 'vs/base/common/paths';
-import {IdGenerator} from 'vs/base/common/idGenerator';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {forEach} from 'vs/base/common/collections';
-import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {MenuId, MenuRegistry} from 'vs/platform/actions/common/actions';
+import { createCSSRule } from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
+import { join } from 'vs/base/common/paths';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { forEach } from 'vs/base/common/collections';
+import { IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 
 namespace schema {
 
@@ -30,7 +30,7 @@ namespace schema {
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
-			case 'editor/title/context': return MenuId.EditorTabContext;
+			case 'editor/title/context': return MenuId.EditorTitleContext;
 		}
 	}
 
@@ -211,7 +211,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 
 	const ids = new IdGenerator('contrib-cmd-icon-');
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand , extension: IExtensionPointUser<any>) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;

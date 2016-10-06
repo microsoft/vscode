@@ -390,8 +390,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
 		return this.loadCompatibleVersion(<IGalleryExtension>extension)
-			.then(compatible => this.getDependenciesReccursively(compatible.properties.dependencies, [extension]))
-			.then(dependencies => dependencies.slice(1));
+			.then(compatible => this.getDependenciesReccursively(compatible.properties.dependencies, [], extension));
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
@@ -445,9 +444,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
+	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[], root: IGalleryExtension): TPromise<IGalleryExtension[]> {
 		if (!toGet || !toGet.length) {
 			return TPromise.wrap(result);
+		}
+		if (toGet.indexOf(`${root.publisher}.${root.name}`) && result.indexOf(root) === -1) {
+			result.push(root);
 		}
 		toGet = result.length ? toGet.filter(e => !ExtensionGalleryService.hasExtensionByName(result, e)) : toGet;
 		if (!toGet.length) {
@@ -464,7 +466,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				}
 				result = distinct(result.concat(loadedDependencies), d => d.id);
 				const dependencies = dependenciesSet.elements.filter(d => !ExtensionGalleryService.hasExtensionByName(result, d));
-				return this.getDependenciesReccursively(dependencies, result);
+				return this.getDependenciesReccursively(dependencies, result, root);
 			});
 	}
 

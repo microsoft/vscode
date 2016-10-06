@@ -297,8 +297,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
-			.done(null, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).done(null, err => this.onError(err));
 	}
 
 	private onEnter(): void {

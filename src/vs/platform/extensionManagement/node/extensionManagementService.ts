@@ -202,7 +202,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private installWithDependencies(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		return this.galleryService.getAllDependencies(extension)
-			.then(allDependencies => this.filterOutInstalled(allDependencies))
+			.then(allDependencies => this.filterDependenciesToInstall(extension, allDependencies))
 			.then(toInstall => this.filterObsolete(...toInstall.map(i => getExtensionId(i, i.version)))
 				.then((obsolete) => {
 					if (obsolete.length) {
@@ -248,11 +248,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => null);
 	}
 
-	private filterOutInstalled(extensions: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
+	private filterDependenciesToInstall(extension: IGalleryExtension, dependencies: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
 		return this.getInstalled()
 			.then(local => {
-				return extensions.filter(extension => {
-					const extensionId = getExtensionId(extension, extension.version);
+				return dependencies.filter(d => {
+					if (extension.id === d.id) {
+						return false;
+					}
+					const extensionId = getExtensionId(d, d.version);
 					return local.every(local => local.id !== extensionId);
 				});
 			});

@@ -9,8 +9,8 @@ import { EventEmitter } from 'events';
 import { isString } from 'vs/base/common/types';
 import { Promise } from 'vs/base/common/winjs.base';
 import { asJson } from 'vs/base/node/request';
-import { IEnvService } from 'vs/code/electron-main/env';
 import { IRequestService } from 'vs/platform/request/common/request';
+import product from 'vs/platform/product';
 
 export interface IUpdate {
 	url: string;
@@ -25,7 +25,6 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 	private currentRequest: Promise;
 
 	constructor(
-		@IEnvService private envService: IEnvService,
 		@IRequestService private requestService: IRequestService
 	) {
 		super();
@@ -55,7 +54,7 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 				if (!update || !update.url || !update.version) {
 					this.emit('update-not-available');
 				} else {
-					this.emit('update-available', null, this.envService.product.downloadUrl, update.version);
+					this.emit('update-available', null, product.downloadUrl, update.version);
 				}
 			})
 			.then(null, e => {

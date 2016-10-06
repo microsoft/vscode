@@ -9,13 +9,13 @@ import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
 import { EventEmitter } from 'events';
-import { IEnvService } from 'vs/code/electron-main/env';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/common/request';
+import product from 'vs/platform/product';
 
 export enum State {
 	Uninitialized,
@@ -71,7 +71,6 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEnvService private envService: IEnvService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IRequestService requestService: IRequestService
 	) {
@@ -234,7 +233,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		const config = this.configurationService.getConfiguration<{ channel: string; }>('update');
 		const channel = config && config.channel;
 
-		return channel === 'none' ? null : this.envService.quality;
+		return channel === 'none' ? null : product.quality;
 	}
 
 	private getUpdateFeedUrl(channel: string): string {
@@ -246,12 +245,12 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 			return null;
 		}
 
-		if (!this.envService.updateUrl || !this.envService.product.commit) {
+		if (!product.updateUrl || !product.commit) {
 			return null;
 		}
 
 		const platform = process.platform === 'linux' ? `linux-${process.arch}` : process.platform;
 
-		return `${ this.envService.updateUrl }/api/update/${ platform }/${ channel }/${ this.envService.product.commit }`;
+		return `${ product.updateUrl }/api/update/${ platform }/${ channel }/${ product.commit }`;
 	}
 }
