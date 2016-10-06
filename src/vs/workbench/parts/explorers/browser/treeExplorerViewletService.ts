@@ -1,6 +1,6 @@
 'use strict';
 
-import { ITreeNode, TreeContentProvider } from 'vscode';
+import { TreeContentNode, TreeContentProvider } from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, {Emitter} from 'vs/base/common/event';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -11,8 +11,8 @@ export interface ITreeExplorerViewletService {
 	_serviceBrand: any;
 
 	registerTreeContentProvider(providerId: string, provider: TreeContentProvider): void;
-	provideTreeContent(providerId: string): TPromise<ITreeNode>;
-	resolveChildren(providerId: string, node: ITreeNode): TPromise<ITreeNode[]>;
+	provideTreeContent(providerId: string): TPromise<TreeContentNode>;
+	resolveChildren(providerId: string, node: TreeContentNode): TPromise<TreeContentNode[]>;
 }
 
 export class TreeExplorerViewletService implements ITreeExplorerViewletService {
@@ -30,11 +30,11 @@ export class TreeExplorerViewletService implements ITreeExplorerViewletService {
 		this._treeContentProviders[providerId] = provider;
 	}
 
-	provideTreeContent(providerId: string): TPromise<ITreeNode> {
+	provideTreeContent(providerId: string): TPromise<TreeContentNode> {
 		return TPromise.wrap(this._treeContentProviders[providerId].provideTreeContent());
 	}
 
-	resolveChildren(providerId: string, node: ITreeNode): TPromise<ITreeNode[]> {
+	resolveChildren(providerId: string, node: TreeContentNode): TPromise<TreeContentNode[]> {
 		return TPromise.wrap(this._treeContentProviders[providerId].resolveChildren(node));
 	}
 }

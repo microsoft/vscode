@@ -1348,15 +1348,37 @@ declare module 'vscode' {
 		provideTextDocumentContent(uri: Uri, token: CancellationToken): string | Thenable<string>;
 	}
 
+	/**
+	 * A tree content provider allows extension to contribute a custom tree-like
+	 * explorer as a Viewlet.
+	 *
+	 * Tree content providers are registered through [workspace.registerTreeContentProvider](#workspace.registerTreeContentProvider).
+	 */
 	export interface TreeContentProvider {
-		provideTreeContent(): Thenable<ITreeNode>;
-		resolveChildren(node: ITreeNode): Thenable<ITreeNode[]>;
+		provideTreeContent(): Thenable<TreeContentNode>;
+		resolveChildren(node: TreeContentNode): Thenable<TreeContentNode[]>;
 	}
 
-	export interface ITreeNode {
+	/**
+	 * Represents a tree node on the tree explorer.
+	 */
+	export interface TreeContentNode {
+
+		/**
+		 * A human readable string used to render the tree node.
+		 */
 		label: string;
+
+		/**
+		 * Whether the tree node is expanded.
+		 */
 		isExpanded: boolean;
-		children: ITreeNode[];
+
+		/**
+		 * Children of the current node. Can be empty initially and later
+		 * resolved through [TreeContentProvider.resolveChildren](#TreeContentProvider.resolveChildren)
+		 */
+		children: TreeContentNode[];
 	}
 
 	/**
@@ -3814,6 +3836,14 @@ declare module 'vscode' {
 		 */
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
+		/**
+		 * Register a tree content provider, used as a data source
+		 * for custom tree explorers.
+		 *
+		 * @param providerId A unique id that identifies the provider.
+		 * @param provider A [TreeContentProvider](#TreeContentProvider)
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
 		export function registerTreeContentProvider(providerId: string, provider: TreeContentProvider): Disposable;
 
 		/**

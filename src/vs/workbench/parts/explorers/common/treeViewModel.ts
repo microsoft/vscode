@@ -1,6 +1,6 @@
-import { ITreeNode } from 'vscode';
+import { TreeContentNode } from 'vscode';
 
-export class TreeViewNode implements ITreeNode {
+export class TreeViewNode implements TreeContentNode {
   static idCounter = 1;
 
   id: number;
@@ -15,7 +15,7 @@ export class TreeViewNode implements ITreeNode {
     this.id = TreeViewNode.idCounter++;
   }
 
-  public static create(node: ITreeNode): TreeViewNode {
+  public static create(node: TreeContentNode): TreeViewNode {
     const children = node.children.map(TreeViewNode.create);
     return new TreeViewNode(node.label, node.isExpanded, children)
   }
