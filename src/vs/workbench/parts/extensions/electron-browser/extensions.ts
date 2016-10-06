@@ -70,7 +70,7 @@ export interface IExtensionsWorkbenchService {
 	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
-	open(extension: IExtension, sideByside?: boolean): void;
+	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 }
 
 export const ConfigurationKey = 'extensions';
