@@ -256,16 +256,16 @@ export class FileWalker {
 	 */
 	public spawnFindCmd(rootFolder: string, excludePattern: glob.ParsedExpression) {
 		const basenames = glob.getBasenameTerms(excludePattern);
-		const pathEnds = glob.getPathEndTerms(excludePattern);
+		const paths = glob.getPathTerms(excludePattern);
 		let args = ['-L', '.'];
-		if (basenames.length || pathEnds.length) {
+		if (basenames.length || paths.length) {
 			args.push('-not', '(', '(');
 			for (const basename of basenames) {
-				args.push('-name', FileWalker.escapeGlobSpecials(basename));
+				args.push('-name', basename);
 				args.push('-o');
 			}
-			for (const pathEnd of pathEnds) {
-				args.push('-path', '*' + FileWalker.escapeGlobSpecials(pathEnd));
+			for (const path of paths) {
+				args.push('-path', path);
 				args.push('-o');
 			}
 			args.pop();
@@ -273,12 +273,6 @@ export class FileWalker {
 		}
 		args.push('-type', 'f');
 		return childProcess.spawn('find', args, { cwd: rootFolder });
-	}
-
-	private static GLOB_SPECIALS = /[*?\[\]\\]/g;
-	private static ESCAPE_CHAR = '\\$&';
-	private static escapeGlobSpecials(string) {
-		return string.replace(this.GLOB_SPECIALS, this.ESCAPE_CHAR);
 	}
 
 	/**
