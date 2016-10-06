@@ -107,7 +107,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			const schema = resourceInput.resource.scheme;
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
-				
+
 				return TPromise.as<IEditor>(null);
 			}
 		}
@@ -198,12 +198,29 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
+		let disposeInput = !(input instanceof EditorInput); // dispose input if we created it in here
+
 		return this.createInput(input).then(typedInput => {
+			let resolvePromise: TPromise<IEditorModel>;
 			if (typedInput instanceof EditorInput) {
-				return typedInput.resolve(!!refresh);
+				resolvePromise = typedInput.resolve(!!refresh);
+			} else {
+				resolvePromise = TPromise.as<IEditorModel>(null);
 			}
 
-			return TPromise.as<IEditorModel>(null);
+			return resolvePromise.then(model => {
+				if (disposeInput) {
+					typedInput.dispose();
+				}
+
+				return model;
+			}, error => {
+				if (disposeInput) {
+					typedInput.dispose();
+				}
+
+				return TPromise.wrapError(error);
+			});
 		});
 	}
 
