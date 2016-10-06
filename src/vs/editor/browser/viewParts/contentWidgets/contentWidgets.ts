@@ -121,14 +121,8 @@ export class ViewContentWidgets extends ViewPart {
 			// below can read out the adjusted width/height of widgets
 			let keys = Object.keys(this._widgets);
 			for (let i = 0, len = keys.length; i < len; i++) {
-				const widgetId = keys[i];
-				const widgetData = this._widgets[widgetId];
-				const widget = widgetData.widget;
-				const maxWidth = widgetData.allowEditorOverflow
-					? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
-					: this._contentWidth;
-
-				StyleMutator.setMaxWidth(widget.getDomNode(), maxWidth);
+				let widgetId = keys[i];
+				StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
 			}
 		}
 
@@ -280,18 +274,20 @@ export class ViewContentWidgets extends ViewPart {
 		if (absoluteLeft + width + 20 > INNER_WIDTH) {
 			let delta = absoluteLeft - (INNER_WIDTH - width - 20);
 			absoluteLeft -= delta;
+			left -= delta;
 		}
 		if (absoluteLeft < 0) {
 			let delta = absoluteLeft;
 			absoluteLeft -= delta;
+			left -= delta;
 		}
 
 		return {
-			aboveTop: absoluteAboveTop,
+			aboveTop: aboveTop,
 			fitsAbove: fitsAbove,
-			belowTop: absoluteBelowTop,
+			belowTop: belowTop,
 			fitsBelow: fitsBelow,
-			left: absoluteLeft
+			left: left
 		};
 	}
 
