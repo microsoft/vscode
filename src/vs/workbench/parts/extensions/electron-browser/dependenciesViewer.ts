@@ -4,14 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, ITree, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IExtensionDependencies } from './extensions';
+import { Action } from 'vs/base/common/actions';
+import { IExtensionDependencies, IExtensionsWorkbenchService, IExtension } from './extensions';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 interface IExtensionTemplateData {
 	icon: HTMLImageElement;
@@ -100,6 +107,12 @@ export class Renderer implements IRenderer {
 
 export class Controller extends DefaultController {
 
+	constructor(@IContextMenuService private contextMenuService: IContextMenuService,
+				@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService,
+				@IInstantiationService private instantiationService: IInstantiationService) {
+		super();
+	}
+
 	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
 		let currentFoucssed = tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
@@ -113,5 +126,72 @@ export class Controller extends DefaultController {
 			}
 		}
 		return false;
+	}
+
+	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
+		tree.setFocus(element);
+		const anchor = { x: event.posx + 1, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+
+			getActions: () => {
+				return TPromise.as([this.instantiationService.createInstance(OpenExtensionAction)]);
+			},
+
+			getActionItem: () => null,
+
+			getKeyBinding: (action): Keybinding => {
+				return this.keybindingForAction(action.id);
+			},
+
+			getActionsContext: (event) => {
+				return {
+					extension: (<IExtensionDependencies>tree.getFocus()).extension
+				};
+			},
+
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					tree.DOMFocus();
+				}
+			}
+		});
+
+		return true;
+	}
+
+	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
+		if (super.onEnter(tree, event)) {
+			return this.openExtension(tree.getFocus());
+		}
+		return false;
+	}
+
+	private openExtension(element: IExtensionDependencies, sideByside: boolean = false): boolean {
+		this.extensionWorkbenchService.open(element.extension);
+		return true;
+	}
+
+	private keybindingForAction(id: string): Keybinding {
+		switch (id) {
+			case OpenExtensionAction.ID:
+				return new Keybinding(KeyCode.Enter);
+		}
+
+		return null;
+	}
+}
+
+class OpenExtensionAction extends Action {
+
+	public static ID = 'extensions.open.extension';
+
+	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+		super('extensions.open.extension', localize('extensions.open', "Open"));
+	}
+
+	run(context: { extension: IExtension, sideByside?: boolean }): TPromise<any> {
+		this.extensionsWorkdbenchService.open(context.extension);
+		return TPromise.as(null);
 	}
 }
