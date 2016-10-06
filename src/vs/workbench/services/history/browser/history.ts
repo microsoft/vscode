@@ -5,6 +5,7 @@
 
 'use strict';
 
+import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
@@ -16,7 +17,7 @@ import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
+import {IEditorInput, ITextEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -222,7 +223,7 @@ export abstract class BaseHistoryService {
 }
 
 interface IStackEntry {
-	input: IEditorInput;
+	input: IEditorInput|IResourceInput;
 	options?: ITextEditorOptions;
 }
 
@@ -335,9 +336,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private navigate(): void {
-		const state = this.stack[this.index];
+		const entry = this.stack[this.index];
 
-		let options = state.options;
+		let options = entry.options;
 		if (options) {
 			options.revealIfVisible = true;
 		} else {
@@ -345,7 +346,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		this.blockStackChanges = true;
-		this.editorService.openEditor(state.input, options).done(() => {
+
+		let openEditorPromise: TPromise<IBaseEditor>;
+		if (entry.input instanceof EditorInput) {
+			openEditorPromise = this.editorService.openEditor(entry.input, options);
+		} else {
+			const resourceInput = entry.input as IResourceInput;
+			openEditorPromise = this.editorService.openEditor({ resource: resourceInput.resource, options });
+		}
+
+		openEditorPromise.done(() => {
 			this.blockStackChanges = false;
 		}, (error) => {
 			this.blockStackChanges = false;
@@ -472,7 +482,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private handleNonTextEditorEvent(editor: IBaseEditor): void {
 		const currentStack = this.stack[this.index];
-		if (currentStack && currentStack.input.matches(editor.input)) {
+		if (currentStack && this.matches(editor.input, currentStack.input)) {
 			return; // do not push same editor input again
 		}
 
@@ -493,15 +503,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		let replace = false;
 		if (this.stack[this.index]) {
 			const currentEntry = this.stack[this.index];
-			if (currentEntry.input.matches(input) && this.sameOptions(currentEntry.options, options)) {
+			if (this.matches(input, currentEntry.input) && this.sameOptions(currentEntry.options, options)) {
 				replace = true;
 			}
 		}
 
-		const entry = {
-			input,
-			options
-		};
+		const stackInput = this.preferResourceInput(input);
+		const entry = { input: stackInput, options };
 
 		// If we are not at the end of history, we remove anything after
 		if (this.stack.length > this.index + 1) {
@@ -527,11 +535,23 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 		}
 
-		// Restore on dispose
-		const onceDispose = once(input.onDispose);
-		onceDispose(() => {
-			this.restoreInStack(input);
-		});
+		// Remove this from the stack unless the stack input is a resource
+		// that can easily be restored even when the input gets disposed
+		if (stackInput instanceof EditorInput) {
+			const onceDispose = once(stackInput.onDispose);
+			onceDispose(() => {
+				this.removeFromStack(input);
+			});
+		}
+	}
+
+	private preferResourceInput(input: IEditorInput): IEditorInput|IResourceInput {
+		const fileInput = asFileEditorInput(input);
+		if (fileInput) {
+			return { resource: fileInput.getResource() };
+		}
+
+		return input;
 	}
 
 	private sameOptions(optionsA?: ITextEditorOptions, optionsB?: ITextEditorOptions): boolean {
@@ -557,29 +577,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return s1.startLineNumber === s2.startLineNumber; // we consider the history entry same if we are on the same line
 	}
 
-	private restoreInStack(input: IEditorInput): void {
-		let restoredInput: EditorInput;
-		let restored = false;
-
-		this.stack.forEach((e, i) => {
-			if (e.input.matches(input)) {
-				if (!restored) {
-					restoredInput = this.restoreInput(input);
-					restored = true;
-				}
-
-				if (restoredInput) {
-					this.stack[i].input = restoredInput;
-				} else {
-					this.stack.splice(i, 1);
-					if (this.index >= i) {
-						this.index--; // reduce index if the element is before index
-					}
-				}
-			}
-		});
-	}
-
 	private restoreInput(input: IEditorInput): EditorInput {
 		if (input instanceof EditorInput) {
 			const factory = this.registry.getEditorInputFactory(input.getTypeId());
@@ -596,7 +593,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private removeFromStack(input: IEditorInput): void {
 		this.stack.forEach((e, i) => {
-			if (e.input.matches(input)) {
+			if (this.matches(input, e.input)) {
 				this.stack.splice(i, 1);
 				if (this.index >= i) {
 					this.index--; // reduce index if the element is before index
@@ -623,6 +620,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		return group.getEditors().some(e => this.matchesFile(resource, e));
+	}
+
+	private matches(typedInput: IEditorInput, input: IEditorInput|IResourceInput): boolean {
+		if (input instanceof EditorInput) {
+			return input.matches(typedInput);
+		}
+
+		const resourceInput = input as IResourceInput;
+
+		return this.matchesFile(resourceInput.resource, typedInput);
 	}
 
 	private matchesFile(resource: URI, input: IEditorInput): boolean {
