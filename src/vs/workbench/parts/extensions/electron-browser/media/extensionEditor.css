@@ -227,7 +227,7 @@
 
 .extension-editor .subcontent .monaco-tree-row .dependency > .details > .header {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	flex-wrap: wrap;
 	height: 19px;
 	overflow: hidden;
@@ -246,7 +246,10 @@
 .extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .identifier {
 	font-size: 90%;
 	opacity: 0.6;
-	padding-left: 10px;
+	margin-left: 10px;
+	background: rgba(173, 173, 173, 0.31);
+	padding: 0px 4px;
+	border-radius: 4px;
 }
 
 .extension-editor .subcontent .monaco-tree-row .dependency > .details > .footer {
