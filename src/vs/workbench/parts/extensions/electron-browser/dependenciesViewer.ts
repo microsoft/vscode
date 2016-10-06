@@ -5,8 +5,10 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
+import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExtensionDependencies } from './extensions';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
@@ -93,5 +95,23 @@ export class Renderer implements IRenderer {
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		(<IExtensionTemplateData>templateData).extensionDisposables = dispose((<IExtensionTemplateData>templateData).extensionDisposables);
+	}
+}
+
+export class Controller extends DefaultController {
+
+	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
+		let currentFoucssed = tree.getFocus();
+		if (super.onLeftClick(tree, element, event)) {
+			if (element.dependent === null) {
+				if (currentFoucssed) {
+					tree.setFocus(currentFoucssed);
+				} else {
+					tree.focusFirst();
+				}
+				return true;
+			}
+		}
+		return false;
 	}
 }

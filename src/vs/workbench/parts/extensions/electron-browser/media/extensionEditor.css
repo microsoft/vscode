@@ -228,7 +228,6 @@
 .extension-editor .subcontent .monaco-tree-row .dependency > .details > .header {
 	display: flex;
 	align-items: center;
-	flex-wrap: wrap;
 	height: 19px;
 	overflow: hidden;
 }
