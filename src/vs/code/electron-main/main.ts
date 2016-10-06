@@ -102,7 +102,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	});
 
 	logService.log('Starting VS Code in verbose mode');
-	logService.log(`from: ${envService.appRoot}`);
+	logService.log(`from: ${environmentService.appRoot}`);
 	logService.log('args:', envService.cliArgs);
 
 	// Setup Windows mutex
@@ -134,8 +134,8 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: IProce
 	// Spawn shared process
 	const initData = { args: environmentService.args };
 	const options = {
-		allowOutput: !envService.isBuilt || envService.cliArgs.verbose,
-		debugPort: envService.isBuilt ? null : 5871
+		allowOutput: !environmentService.isBuilt || environmentService.verbose,
+		debugPort: environmentService.isBuilt ? null : 5871
 	};
 
 	let sharedProcessDisposable;

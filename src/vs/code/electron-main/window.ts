@@ -11,7 +11,8 @@ import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code/electron-main/env';
+import { ICommandLineArguments, IProcessEnvironment } from 'vs/code/electron-main/env';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -135,7 +136,7 @@ export class VSCodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
-		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService
 	) {
@@ -173,7 +174,7 @@ export class VSCodeWindow {
 		};
 
 		if (platform.isLinux) {
-			options.icon = path.join(this.envService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
 		// Create the browser window.
@@ -340,7 +341,7 @@ export class VSCodeWindow {
 
 		// Prevent any kind of navigation triggered by the user!
 		// But do not touch this in dev version because it will prevent "Reload" from dev tools
-		if (this.envService.isBuilt) {
+		if (this.environmentService.isBuilt) {
 			this._win.webContents.on('will-navigate', (event: Event) => {
 				if (event) {
 					event.preventDefault();
@@ -375,7 +376,7 @@ export class VSCodeWindow {
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
-		if (!this.envService.isBuilt) {
+		if (!this.environmentService.isBuilt) {
 			this.showTimeoutHandle = setTimeout(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();

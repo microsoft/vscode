@@ -7,7 +7,7 @@
 
 import * as path from 'path';
 import * as fs from 'original-fs';
-import { IEnvService } from 'vs/code/electron-main/env';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
@@ -26,8 +26,8 @@ export class StorageService implements IStorageService {
 	private dbPath: string;
 	private database: any = null;
 
-	constructor(@IEnvService private envService: IEnvService) {
-		this.dbPath = path.join(envService.appHome, 'storage.json');
+	constructor(@IEnvironmentService private environmentService: IEnvironmentService) {
+		this.dbPath = path.join(environmentService.userDataPath, 'storage.json');
 	}
 
 	getItem<T>(key: string, defaultValue?: T): T {
@@ -74,7 +74,7 @@ export class StorageService implements IStorageService {
 		try {
 			return JSON.parse(fs.readFileSync(this.dbPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
-			if (this.envService.cliArgs.verbose) {
+			if (this.environmentService.verbose) {
 				console.error(error);
 			}
 
@@ -86,7 +86,7 @@ export class StorageService implements IStorageService {
 		try {
 			fs.writeFileSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
 		} catch (error) {
-			if (this.envService.cliArgs.verbose) {
+			if (this.environmentService.verbose) {
 				console.error(error);
 			}
 		}

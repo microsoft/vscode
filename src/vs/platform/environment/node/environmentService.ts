@@ -89,6 +89,7 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
+	get wait(): boolean { return this._args.wait; }
 	get performance(): boolean { return this._args.performance; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
