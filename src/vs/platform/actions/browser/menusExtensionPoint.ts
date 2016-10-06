@@ -339,6 +339,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 });
 
 ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
+	let baseOrder = 200;
 	for (let extension of extensions) {
 		const { treeContentProviderId, treeLabel, icon } = extension.value;
 
@@ -348,7 +349,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 			'workbench.view.customViewlet.' + treeContentProviderId,
 			treeLabel,
 			treeContentProviderId,
-			125
+			baseOrder++
 		));
 	}
 });
