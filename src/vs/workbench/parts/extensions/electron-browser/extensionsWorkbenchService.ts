@@ -361,7 +361,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension)))
 			.then(extensions => {
 				const map = new Map<string, Extension>();
-				map.set(`${extension.publisher}.${extension.name}`, <Extension>extension);
 				for (const extension of extensions) {
 					map.set(`${extension.publisher}.${extension.name}`, extension);
 				}
