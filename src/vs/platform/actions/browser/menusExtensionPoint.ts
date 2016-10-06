@@ -340,8 +340,23 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 
 ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
 	let baseOrder = 200;
+
 	for (let extension of extensions) {
 		const { treeContentProviderId, treeLabel, icon } = extension.value;
+
+		const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
+		if (icon) {
+			if (typeof icon === 'string') {
+				const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeContentProviderId}`;
+				const iconPath = join(extension.description.extensionFolderPath, icon);
+				createCSSRule(iconClass, getIconRule(iconPath));
+			} else {
+				const lightIconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeContentProviderId}`;
+				const darkIconClass = `.vs-dark .monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeContentProviderId}`;
+				createCSSRule(lightIconClass, getIconRule(icon.light));
+				createCSSRule(darkIconClass, getIconRule(icon.dark));
+			}
+		}
 
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
