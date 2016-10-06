@@ -25,6 +25,7 @@ import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
+import product from 'vs/platform/product';
 
 const EventTypes = {
 	OPEN: 'open',
@@ -561,7 +562,7 @@ export class WindowsManager implements IWindowsService {
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
 					const options: Electron.ShowMessageBoxOptions = {
-						title: this.envService.product.nameLong,
+						title: product.nameLong,
 						type: 'info',
 						buttons: [nls.localize('ok', "OK")],
 						message: nls.localize('pathNotExistTitle', "Path does not exist"),
@@ -1262,7 +1263,7 @@ export class WindowsManager implements IWindowsService {
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
 			dialog.showMessageBox(vscodeWindow.win, {
-				title: this.envService.product.nameLong,
+				title: product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('reopen', "Reopen"), nls.localize('wait', "Keep Waiting"), nls.localize('close', "Close")],
 				message: nls.localize('appStalled', "The window is no longer responding"),
@@ -1281,7 +1282,7 @@ export class WindowsManager implements IWindowsService {
 		// Crashed
 		else {
 			dialog.showMessageBox(vscodeWindow.win, {
-				title: this.envService.product.nameLong,
+				title: product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('reopen', "Reopen"), nls.localize('close', "Close")],
 				message: nls.localize('appCrashed', "The window has crashed"),

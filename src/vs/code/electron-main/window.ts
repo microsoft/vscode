@@ -15,6 +15,7 @@ import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/code
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
+import product from 'vs/platform/product';
 
 export interface IWindowState {
 	width?: number;
@@ -165,7 +166,7 @@ export class VSCodeWindow {
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
-			title: this.envService.product.nameLong,
+			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
 			}

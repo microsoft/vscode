@@ -16,8 +16,8 @@ import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import product, { IProductConfiguration } from 'vs/platform/product';
 import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
+import product from 'vs/platform/product';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -33,9 +33,6 @@ export interface IEnvService {
 	_serviceBrand: any;
 	cliArgs: ICommandLineArguments;
 	isBuilt: boolean;
-	product: IProductConfiguration;
-	updateUrl: string;
-	quality: string;
 	userHome: string;
 	appRoot: string;
 	currentWorkingDirectory: string;
@@ -56,10 +53,6 @@ export class EnvService implements IEnvService {
 	get userExtensionsHome(): string { return this._userExtensionsHome; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
-
-	get product(): IProductConfiguration { return product; }
-	get updateUrl(): string { return product.updateUrl; }
-	get quality(): string { return product.quality; }
 
 	private _userHome: string;
 	get userHome(): string { return this._userHome; }
