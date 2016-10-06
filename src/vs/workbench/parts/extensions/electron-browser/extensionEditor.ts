@@ -28,7 +28,7 @@ import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/pl
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from './extensions';
-import { Renderer, DataSource } from './dependenciesViewer';
+import { Renderer, DataSource, Controller } from './dependenciesViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
 import { RatingsWidget, InstallWidget } from './extensionsWidgets';
@@ -353,20 +353,26 @@ export class ExtensionEditor extends BaseEditor {
 			append(this.content, scrollableContent.getDomNode());
 			this.contentDisposables.push(scrollableContent);
 
-			const layout = () => scrollableContent.scanDomNode();
+			const tree = ExtensionEditor.renderDependencies(content, extensionDependencies);
+			const layout = () => {
+				scrollableContent.scanDomNode();
+				tree.layout(scrollableContent.getHeight());
+			};
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 			this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-			this.contentDisposables.push(ExtensionEditor.renderDependencies(content, extensionDependencies));
+			this.contentDisposables.push(tree);
 			scrollableContent.scanDomNode();
 		});
 	}
 
 	private static renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
-		var renderer = new Renderer();
+		const renderer = new Renderer();
+		const controller = new Controller();
 		const tree = new Tree(container, {
 			dataSource: new DataSource(),
-			renderer
+			renderer,
+			controller
 		}, {
 				indentPixels: 40,
 				twistiePixels: 20
