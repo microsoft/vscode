@@ -32,6 +32,12 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 				this._layout();
 			}
 		}));
+		this._toDispose.push(this._editor.onDidChangeModelDecorations(() => {
+			// hide when something has been added to glyph margin
+			if (this._visible && !this._hasSpaceInGlyphMargin(this._position.lineNumber)) {
+				this.hide();
+			}
+		}));
 	}
 
 	public dispose(): void {
@@ -93,11 +99,23 @@ export class LightBulbWidget implements IOverlayWidget, IDisposable {
 	}
 
 	show(where: IPosition): void {
+		if (!this._hasSpaceInGlyphMargin(where.lineNumber)) {
+			return;
+		}
 		if (!this._visible || !Position.equals(this._position, where)) {
 			this._position = where;
 			this._visible = true;
 			this._layout();
 		}
+	}
+
+	private _hasSpaceInGlyphMargin(line: number): boolean {
+		for (const {options} of this._editor.getLineDecorations(line)) {
+			if (options.glyphMarginClassName) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private _layout(): void {
