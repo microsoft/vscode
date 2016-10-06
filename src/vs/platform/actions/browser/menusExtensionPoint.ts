@@ -213,6 +213,7 @@ namespace schema {
 
 	export interface IExplorer {
 		treeContentProviderId: string;
+		treeLabel: string;
 		icon: IUserFriendlyIcon;
 	}
 
@@ -222,6 +223,10 @@ namespace schema {
 		properties: {
 			treeContentProviderId: {
 				description: localize('vscode.extension.contributes.explorer.treeContentProviderId', 'Unique id used to identify provider registered through vscode.workspace.registerTreeContentProvider'),
+				type: 'string'
+			},
+			treeLabel: {
+				description: localize('vscode.extension.contributes.explorer.treeLabel', 'Human readable string used to render the custom tree Viewlet'),
 				type: 'string'
 			},
 			icon: {
@@ -335,13 +340,13 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 
 ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.explorerContribtion).setHandler(extensions => {
 	for (let extension of extensions) {
-		const { treeContentProviderId, icon } = extension.value;
+		const { treeContentProviderId, treeLabel, icon } = extension.value;
 
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 			'TreeExplorerViewlet',
 			'workbench.view.customViewlet.' + treeContentProviderId,
-			treeContentProviderId,
+			treeLabel,
 			treeContentProviderId,
 			125
 		));
