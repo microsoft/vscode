@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { ICommandLineArguments } from 'vs/code/electron-main/env';
 import { IWindowsService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -13,14 +12,15 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 export interface IStartArguments {
-	args: ICommandLineArguments;
+	args: ParsedArgs;
 	userEnv: IProcessEnvironment;
 }
 
 export interface ILaunchService {
-	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void>;
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void>;
 }
 
 export interface ILaunchChannel extends IChannel {
@@ -45,7 +45,7 @@ export class LaunchChannelClient implements ILaunchService {
 
 	constructor(private channel: ILaunchChannel) { }
 
-	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		return this.channel.call('start', { args, userEnv });
 	}
 }
@@ -58,7 +58,7 @@ export class LaunchService implements ILaunchService {
 		@IURLService private urlService: IURLService
 	) {}
 
-	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		this.logService.log('Received data from other instance: ', args, userEnv);
 
 		const openUrlArg = args['open-url'] || [];
@@ -73,9 +73,9 @@ export class LaunchService implements ILaunchService {
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv });
-		} else if (args.paths.length === 0 && args['new-window']) {
+		} else if (args._.length === 0 && args['new-window']) {
 			usedWindows = this.windowsService.open({ cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
-		} else if (args.paths.length === 0) {
+		} else if (args._.length === 0) {
 			usedWindows = [this.windowsService.focusLastActive(args)];
 		} else {
 			usedWindows = this.windowsService.open({

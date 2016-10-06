@@ -11,11 +11,10 @@ import * as objects from 'vs/base/common/objects';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { ICommandLineArguments } from 'vs/code/electron-main/env';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, ParsedArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product';
 
 export interface IWindowState {
@@ -88,7 +87,7 @@ export interface IPath {
 	createFilePath?: boolean;
 }
 
-export interface IWindowConfiguration extends ICommandLineArguments {
+export interface IWindowConfiguration extends ParsedArgs {
 	appRoot: string;
 	execPath: string;
 
@@ -387,7 +386,7 @@ export class VSCodeWindow {
 		}
 	}
 
-	public reload(cli?: ICommandLineArguments): void {
+	public reload(cli?: ParsedArgs): void {
 
 		// Inherit current properties but overwrite some
 		const configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);

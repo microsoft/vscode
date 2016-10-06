@@ -15,31 +15,26 @@ import * as types from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { parseMainProcessArgv, ParsedArgs } from 'vs/platform/environment/node/argv';
 
-export interface ICommandLineArguments extends ParsedArgs {
-	paths?: string[];
-}
-
 export const IEnvService = createDecorator<IEnvService>('mainEnvironmentService');
 
 export interface IEnvService {
 	_serviceBrand: any;
-	cliArgs: ICommandLineArguments;
+	cliArgs: ParsedArgs;
 }
 
 export class EnvService implements IEnvService {
 
 	_serviceBrand: any;
 
-	private _cliArgs: ICommandLineArguments;
-	get cliArgs(): ICommandLineArguments { return this._cliArgs; }
+	private _cliArgs: ParsedArgs;
+	get cliArgs(): ParsedArgs { return this._cliArgs; }
 
 	constructor() {
 		const argv = parseMainProcessArgv(process.argv);
 		const paths = parsePathArguments(argv._, argv.goto);
 
 		this._cliArgs = Object.freeze({
-			_: [],
-			paths,
+			_: paths,
 			performance: argv.performance,
 			verbose: argv.verbose,
 			debugPluginHost: argv.debugPluginHost,

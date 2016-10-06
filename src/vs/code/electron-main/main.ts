@@ -253,9 +253,9 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 	updateService.initialize();
 
 	// Open our first window
-	if (envService.cliArgs['new-window'] && envService.cliArgs.paths.length === 0) {
+	if (envService.cliArgs['new-window'] && envService.cliArgs._.length === 0) {
 		windowsService.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
-	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.paths || !envService.cliArgs.paths.length)) {
+	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs._ || !envService.cliArgs._.length)) {
 		windowsService.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
 		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs['new-window'], diffMode: envService.cliArgs.diff }); // default: read paths from cli
@@ -426,6 +426,7 @@ function getEnvironment(accessor: ServicesAccessor): TPromise<platform.IProcessE
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [environmentService.appSettingsHome, environmentService.userHome, environmentService.extensionsPath];
+	
 	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
 }
 
