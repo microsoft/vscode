@@ -678,7 +678,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			editors.push(editor.modifiedInput);
 		}
 
-		return editors.reduce((prev, e) => prev += this.stacks.count(editor), 0);
+		return editors.reduce((prev, e) => prev += this.stacks.count(e), 0);
 	}
 
 	public getStacksModel(): EditorStacksModel {
