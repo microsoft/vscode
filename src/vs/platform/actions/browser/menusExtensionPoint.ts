@@ -361,7 +361,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 			'TreeExplorerViewlet',
-			'workbench.view.customViewlet.' + treeContentProviderId,
+			'workbench.view.customTreeExplorerViewlet.' + treeContentProviderId,
 			treeLabel,
 			treeContentProviderId,
 			baseOrder++
