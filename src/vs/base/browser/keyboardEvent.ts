@@ -149,6 +149,10 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 })();
 
 export function lookupKeyCode(e:KeyboardEvent): KeyCode {
+	// when IME enabled
+	if (e.keyCode === 229) {
+		return KeyCodeUtils.fromString(e.key.toUpperCase());
+	}
 	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
 }
 
