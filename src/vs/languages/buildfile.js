@@ -49,10 +49,5 @@ exports.collectModules = function(args) {
 	// 	.combine(worker)
 	// 		.define('vs/languages/html/common/htmlWorker', ['vs/languages/lib/common/beautify-html']);
 
-	// // ---- razor -----------------------------------
-	// common.define('vs/languages/razor/common/razor', ['vs/languages/html/common/html'])
-	// 	.combine(worker)
-	// 		.define('vs/languages/razor/common/razorWorker', ['vs/languages/html/common/htmlWorker', 'vs/languages/lib/common/beautify-html'] );
-
 	return result;
 };

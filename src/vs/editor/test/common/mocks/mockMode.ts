@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMode, IState, IStream, ITokenizationResult, ITokenizationSupport, TokenizationRegistry} from 'vs/editor/common/modes';
+import {IMode, IState, IStream, ITokenizationResult, TokenizationRegistry} from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 let instanceCount = 0;
-export function generateMockModeId(): string {
+function generateMockModeId(): string {
 	return 'mockMode' + (++instanceCount);
 }
 
