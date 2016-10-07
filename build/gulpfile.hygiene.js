@@ -47,9 +47,6 @@ const indentationFilter = [
 	'!**/package.json',
 	'!**/npm-shrinkwrap.json',
 	'!**/octicons/**',
-	'!**/vs/languages/sass/test/common/example.scss',
-	'!**/vs/languages/less/common/parser/less.grammar.txt',
-	'!**/vs/languages/css/common/buildscripts/css-schema.xml',
 	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
@@ -89,7 +86,6 @@ const tslintFilter = [
 	'!src/vs/base/**/*.test.ts',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!src/vs/languages/**/*.test.ts',
 	'!src/vs/workbench/**/*.test.ts',
 	'!extensions/**/*.test.ts'
 ];
