@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { append, $ } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -39,9 +39,9 @@ export class ReleaseNotesEditor extends BaseEditor {
 	static ID: string = 'workbench.editor.releaseNotes';
 
 	private content: HTMLElement;
-	private webview: WebView;
 
 	private contentDisposables: IDisposable[] = [];
+	private disposables: IDisposable[];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -53,6 +53,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 		@IModeService private modeService: IModeService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService);
+		this.disposables = [];
 	}
 
 	createEditor(parent: Builder): void {
@@ -63,7 +64,6 @@ export class ReleaseNotesEditor extends BaseEditor {
 	setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
 		const { text } = input;
 
-		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
 
 		return super.setInput(input, options)
@@ -89,19 +89,18 @@ export class ReleaseNotesEditor extends BaseEditor {
 			})
 			.then(renderBody)
 			.then<void>(body => {
-				this.webview = new WebView(
+				const webview = new WebView(
 					this.content,
 					document.querySelector('.monaco-editor-background')
 				);
 
-				this.webview.baseUrl = `https://code.visualstudio.com/raw/`;
-				this.webview.style(this.themeService.getColorTheme());
-				this.webview.contents = [body];
+				webview.baseUrl = `https://code.visualstudio.com/raw/`;
+				webview.style(this.themeService.getColorTheme());
+				webview.contents = [body];
 
-				this.webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this.themeService.onDidColorThemeChange(themeId => this.webview.style(themeId), null, this.contentDisposables);
-				this.contentDisposables.push(this.webview);
-				this.contentDisposables.push(toDisposable(() => this.webview = null));
+				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+				this.themeService.onDidColorThemeChange(themeId => webview.style(themeId), null, this.contentDisposables);
+				this.contentDisposables.push(webview);
 			});
 	}
 
@@ -109,16 +108,8 @@ export class ReleaseNotesEditor extends BaseEditor {
 		// noop
 	}
 
-	focus(): void {
-		if (!this.webview) {
-			return;
-		}
-
-		this.webview.focus();
-	}
-
 	dispose(): void {
-		this.contentDisposables = dispose(this.contentDisposables);
+		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
 }
