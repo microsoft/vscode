@@ -9,7 +9,7 @@ export class TreeViewNode implements TreeContentNode {
 
   constructor(
     public label: string,
-    public isExpanded: boolean = true,
+    public shouldInitiallyExpand: boolean = true,
     public children: TreeViewNode[] = []
   ) {
     this.id = TreeViewNode.idCounter++;
@@ -17,6 +17,6 @@ export class TreeViewNode implements TreeContentNode {
 
   public static create(node: TreeContentNode): TreeViewNode {
     const children = node.children.map(TreeViewNode.create);
-    return new TreeViewNode(node.label, node.isExpanded, children)
+    return new TreeViewNode(node.label, node.shouldInitiallyExpand, children)
   }
 }

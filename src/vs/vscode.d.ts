@@ -1370,9 +1370,11 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Whether the tree node is expanded.
+		 * Wheather the tree node should be initially be expanded.
+		 * If set to true, [TreeContentProvider.resolveChildren](#TreeContentProvider.resolveChildren) will
+		 * be called on the node after rendering.
 		 */
-		isExpanded: boolean;
+		shouldInitiallyExpand: boolean;
 
 		/**
 		 * Children of the current node. Can be empty initially and later
