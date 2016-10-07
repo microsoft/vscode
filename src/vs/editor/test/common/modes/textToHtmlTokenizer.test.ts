@@ -69,7 +69,9 @@ class State extends AbstractState {
 	}
 
 	public tokenize(stream:LineStream):ITokenizationResult {
-		return { type: stream.next() === '.' ? '' : 'text' };
+		let chr = stream.peek();
+		stream.advance(1);
+		return { type: chr === '.' ? '' : 'text' };
 	}
 }
 

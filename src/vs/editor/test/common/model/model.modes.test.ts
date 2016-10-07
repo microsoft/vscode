@@ -40,7 +40,9 @@ suite('Editor Model - Model Modes 1', () => {
 			return this === other;
 		}
 		public tokenize(stream:LineStream): ITokenizationResult {
-			calledState.calledFor.push(stream.next());
+			let chr = stream.peek();
+			stream.advance(1);
+			calledState.calledFor.push(chr);
 			stream.advanceToEOS();
 			return { type: '' };
 		}
@@ -190,10 +192,7 @@ suite('Editor Model - Model Modes 2', () => {
 		}
 
 		public tokenize(stream:LineStream):ITokenizationResult {
-			var line= '';
-			while (!stream.eos()) {
-				line+= stream.next();
-			}
+			var line= stream.advanceToEOS();
 			this.prevLineContent= line;
 			return { type: '' };
 		}
@@ -329,7 +328,9 @@ suite('Editor Model - Token Iterator', () => {
 		public tokenize(stream:LineStream):ITokenizationResult {
 			var ndash = this.n, value = '';
 			while(!stream.eos() && ndash > 0) {
-				value += stream.next();
+				let chr = stream.peek();
+				stream.advance(1);
+				value += chr;
 				ndash--;
 			}
 			return { type: 'n-' + (this.n - ndash) + '-' + value };
