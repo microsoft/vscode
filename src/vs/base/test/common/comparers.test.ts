@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { compareFileNames } from 'vs/base/common/Comparers';
+import { compareFileNames } from 'vs/base/common/comparers';
 import * as assert from 'assert';
 
 suite('Comparers', () => {
