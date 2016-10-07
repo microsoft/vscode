@@ -24,7 +24,9 @@ import {QuickOpenWidget, HideReason} from 'vs/base/parts/quickopen/browser/quick
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
+import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
 import {Registry} from 'vs/platform/platform';
+import {IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {getIconClasses} from 'vs/workbench/browser/labels';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -744,14 +746,28 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		const results: QuickOpenEntry[] = [];
 		history.forEach(input => {
-			const resource = getUntitledOrFileResource(input);
+			let resource: URI;
+			if (input instanceof EditorInput) {
+				resource = getUntitledOrFileResource(input);
+			} else {
+				resource = (input as IResourceInput).resource;
+			}
+
 			if (!resource) {
 				return; //For now, only support to match on inputs that provide resource information
 			}
 
+			let searchTargetToMatch: string;
+			if (searchInPath) {
+				searchTargetToMatch = labels.getPathLabel(resource, this.contextService);
+			} else if (input instanceof EditorInput) {
+				searchTargetToMatch = input.getName();
+			} else {
+				searchTargetToMatch = paths.basename((input as IResourceInput).resource.fsPath);
+			}
+
 			// Check if this entry is a match for the search value
-			const targetToMatch = searchInPath ? labels.getPathLabel(resource, this.contextService) : input.getName();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch)) {
+			if (!filters.matchesFuzzy(searchValue, searchTargetToMatch)) {
 				return;
 			}
 
@@ -1018,28 +1034,42 @@ export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
 }
 
 export class EditorHistoryEntry extends EditorQuickOpenEntry {
-	private input: EditorInput;
+	private input: IEditorInput | IResourceInput;
 	private resource: URI;
+	private label: string;
+	private description: string;
 
 	constructor(
-		input: EditorInput,
+		input: IEditorInput | IResourceInput,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(editorService);
 
 		this.input = input;
-		this.resource = getUntitledOrFileResource(input);
+
+		if (input instanceof EditorInput) {
+			this.resource = getUntitledOrFileResource(input);
+			this.label = input.getName();
+			this.description = input.getDescription();
+		} else {
+			const resourceInput = input as IResourceInput;
+			this.resource = resourceInput.resource;
+			this.label = paths.basename(resourceInput.resource.fsPath);
+			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
+		}
 	}
 
 	public getIcon(): string {
-		return this.input.isDirty() ? 'dirty' : '';
+		return this.resource && this.textFileService.isDirty(this.resource) ? 'dirty' : '';
 	}
 
 	public getLabel(): string {
-		return this.input.getName();
+		return this.label;
 	}
 
 	public getLabelOptions(): IIconLabelOptions {
@@ -1053,19 +1083,15 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		return this.input.getDescription();
+		return this.description;
 	}
 
 	public getResource(): URI {
 		return this.resource;
 	}
 
-	public getInput(): EditorInput {
+	public getInput(): IEditorInput | IResourceInput {
 		return this.input;
-	}
-
-	public matches(input: EditorInput): boolean {
-		return this.input.matches(input);
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
@@ -1073,7 +1099,11 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
 
-			this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
+			if (this.input instanceof EditorInput) {
+				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
+			} else {
+				this.editorService.openEditor({ resource: (this.input as IResourceInput).resource, options: { pinned: true } }, sideBySide);
+			}
 
 			return true;
 		}
