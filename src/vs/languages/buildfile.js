@@ -41,9 +41,6 @@ exports.collectModules = function(args) {
 	// ---- beautify-html (shared btw html and xml) -----------------------------
 	// worker.define('vs/languages/lib/common/beautify-html');
 
-	// // ---- handlebars ----------------------------------
-	// common.define('vs/languages/handlebars/common/handlebars', ['vs/languages/html/common/html']);
-
 	// // ---- html ----------------------------------
 	// common.define('vs/languages/html/common/html')
 	// 	.combine(worker)
