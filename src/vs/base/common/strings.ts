@@ -531,14 +531,12 @@ export function lcut(text: string, n: number): string {
 // Escape codes
 // http://en.wikipedia.org/wiki/ANSI_escape_code
 const EL = /\x1B\x5B[12]?K/g; // Erase in line
-const LF = /\xA/g; // line feed
 const COLOR_START = /\x1b\[\d+m/g; // Color
 const COLOR_END = /\x1b\[0?m/g; // Color
 
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
 		str = str.replace(EL, '');
-		str = str.replace(LF, '\n');
 		str = str.replace(COLOR_START, '');
 		str = str.replace(COLOR_END, '');
 	}
