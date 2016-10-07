@@ -190,9 +190,13 @@ export class FocusFirstGroupAction extends Action {
 		const history = this.historyService.getHistory();
 		for (let input of history) {
 
-			// For now only support to open resources from history to the side
-			if (!!getUntitledOrFileResource(input)) {
-				return this.editorService.openEditor(input, null, Position.LEFT);
+			// For now only support to open files from history to the side
+			if (input instanceof EditorInput) {
+				if (!!getUntitledOrFileResource(input)) {
+					return this.editorService.openEditor(input, null, Position.LEFT);
+				}
+			} else {
+				return this.editorService.openEditor(input as IResourceInput, Position.LEFT);
 			}
 		}
 
@@ -259,8 +263,12 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			for (let input of history) {
 
 				// For now only support to open files from history to the side
-				if (!!getUntitledOrFileResource(input)) {
-					return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
+				if (input instanceof EditorInput) {
+					if (!!getUntitledOrFileResource(input)) {
+						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
+					}
+				} else {
+					return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
 				}
 			}
 		}
