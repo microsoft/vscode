@@ -16,7 +16,7 @@ import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
 import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {IMenuService, IMenu, MenuId} from 'vs/platform/actions/common/actions';
+import {IMenuService, MenuId} from 'vs/platform/actions/common/actions';
 import {ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
@@ -39,7 +39,6 @@ export class ContextMenuController implements IEditorContribution {
 	private _toDispose: IDisposable[] = [];
 	private _contextMenuIsBeingShownCount: number = 0;
 	private _editor: ICodeEditor;
-	private _contextMenu: IMenu;
 
 	constructor(
 		editor: ICodeEditor,
@@ -50,9 +49,6 @@ export class ContextMenuController implements IEditorContribution {
 		@IMenuService private _menuService: IMenuService
 	) {
 		this._editor = editor;
-
-		this._contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		this._toDispose.push(this._contextMenu);
 
 		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
 		this._toDispose.push(this._editor.onDidScrollChange((e: IScrollEvent) => {
@@ -129,7 +125,10 @@ export class ContextMenuController implements IEditorContribution {
 
 	private _getMenuActions(): IAction[] {
 		const result: IAction[] = [];
-		const groups = this._contextMenu.getActions();
+
+		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
+		const groups = contextMenu.getActions();
+		contextMenu.dispose();
 
 		for (let group of groups) {
 			const [, actions] = group;
