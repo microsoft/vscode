@@ -78,14 +78,14 @@ export class ExtHostTreeNode implements TreeContentNode {
 	id: number;
 
 	label: string;
-	isExpanded: boolean;
+	shouldInitiallyExpand: boolean;
 	children: ExtHostTreeNode[];
 
 	constructor(node: TreeContentNode, parent: ExtHostTreeNode, treeNodeMap: { [id: number]: ExtHostTreeNode}) {
 		this.id = ExtHostTreeNode.idCounter++;
 
 		this.label = node.label;
-		this.isExpanded = node.isExpanded;
+		this.shouldInitiallyExpand = node.shouldInitiallyExpand;
 		this.children = node.children.map(child => {
 			return new ExtHostTreeNode(child, this, treeNodeMap);
 		})
