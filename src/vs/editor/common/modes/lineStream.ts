@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IStream} from 'vs/editor/common/modes';
 import {CharacterClassifier} from 'vs/editor/common/core/characterClassifier';
 
 class CharacterSet {
@@ -32,7 +31,13 @@ class CharacterSet {
 	}
 }
 
-export class LineStream implements IStream {
+/**
+ * A LineStream is a character & token stream abstraction over a line of text. It
+ *  is never multi-line. The stream can be navigated character by character, or
+ *  token by token, given some token rules.
+ * @internal
+ */
+export class LineStream {
 
 	private _source:string;
 	private _sourceLength:number;
@@ -56,14 +61,23 @@ export class LineStream implements IStream {
 		this._tokenEnd = -1;
 	}
 
+	/**
+	 * Returns the current character position of the stream on the line.
+	 */
 	public pos():number {
 		return this._pos;
 	}
 
+	/**
+	 * Returns true iff the stream is at the end of the line.
+	 */
 	public eos() {
 		return this._pos >= this._sourceLength;
 	}
 
+	/**
+	 * Returns the next character in the stream.
+	 */
 	public peek():string {
 		// Check EOS
 		if (this._pos >= this._sourceLength) {
@@ -72,6 +86,9 @@ export class LineStream implements IStream {
 		return this._source[this._pos];
 	}
 
+	/**
+	 * Returns the next character in the stream, and advances it by one character.
+	 */
 	public next():string {
 		// Check EOS
 		if (this._pos >= this._sourceLength) {
@@ -85,6 +102,9 @@ export class LineStream implements IStream {
 		return this._source[this._pos++];
 	}
 
+	/**
+	 * Advances the stream by one character.
+	 */
 	public next2(): void {
 		// Check EOS
 		if (this._pos >= this._sourceLength) {
@@ -98,6 +118,9 @@ export class LineStream implements IStream {
 		this._pos++;
 	}
 
+	/**
+	 * Advances the stream by `n` characters.
+	 */
 	public advance(n: number): string {
 		if (n === 0) {
 			return '';
@@ -121,6 +144,9 @@ export class LineStream implements IStream {
 		return n;
 	}
 
+	/**
+	 * Advances the stream until the end of the line.
+	 */
 	public advanceToEOS():string {
 		const oldPos = this._pos;
 		this._pos = this._sourceLength;
@@ -128,6 +154,9 @@ export class LineStream implements IStream {
 		return this._source.substring(oldPos, this._pos);
 	}
 
+	/**
+	 * Brings the stream back `n` characters.
+	 */
 	public goBack(n:number) {
 		this._pos -= n;
 		this.resetPeekedToken();
@@ -175,9 +204,27 @@ export class LineStream implements IStream {
 
 		return len;
 	}
+	/**
+	 *  Advances the stream if the next characters validate a condition. A condition can be
+	 *
+	 *      - a regular expression (always starting with ^)
+	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
+	 *
+	 *  	- a string
+	 * 			EXAMPLES: "1954", "albert"
+	 */
 	public advanceIfStringCaseInsensitive(condition: string): string {
 		return this.advance(this._advanceIfStringCaseInsensitive(condition));
 	}
+	/**
+	 *  Advances the stream if the next characters validate a condition. A condition can be
+	 *
+	 *      - a regular expression (always starting with ^)
+	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
+	 *
+	 *  	- a string
+	 * 			EXAMPLES: "1954", "albert"
+	 */
 	public advanceIfStringCaseInsensitive2(condition: string): number {
 		return this._advance2(this._advanceIfStringCaseInsensitive(condition));
 	}
@@ -201,9 +248,27 @@ export class LineStream implements IStream {
 
 		return len;
 	}
+	/**
+	 *  Advances the stream if the next characters validate a condition. A condition can be
+	 *
+	 *      - a regular expression (always starting with ^)
+	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
+	 *
+	 *  	- a string
+	 * 			EXAMPLES: "1954", "albert"
+	 */
 	public advanceIfString(condition:string): string {
 		return this.advance(this._advanceIfString(condition));
 	}
+	/**
+	 *  Advances the stream if the next characters validate a condition. A condition can be
+	 *
+	 *      - a regular expression (always starting with ^)
+	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
+	 *
+	 *  	- a string
+	 * 			EXAMPLES: "1954", "albert"
+	 */
 	public advanceIfString2(condition: string): number {
 		return this._advance2(this._advanceIfString(condition));
 	}
@@ -217,9 +282,27 @@ export class LineStream implements IStream {
 
 		return 0;
 	}
+	/**
+	 *  Advances the stream if the next characters validate a condition. A condition can be
+	 *
+	 *      - a regular expression (always starting with ^)
+	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
+	 *
+	 *  	- a string
+	 * 			EXAMPLES: "1954", "albert"
+	 */
 	public advanceIfCharCode(charCode: number): string {
 		return this.advance(this._advanceIfCharCode(charCode));
 	}
+	/**
+	 *  Advances the stream if the next characters validate a condition. A condition can be
+	 *
+	 *      - a regular expression (always starting with ^)
+	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
+	 *
+	 *  	- a string
+	 * 			EXAMPLES: "1954", "albert"
+	 */
 	public advanceIfCharCode2(charCode: number): number {
 		return this._advance2(this._advanceIfCharCode(charCode));
 	}
@@ -235,9 +318,27 @@ export class LineStream implements IStream {
 		}
 		return RegExp.lastMatch.length;
 	}
+	/**
+	 *  Advances the stream if the next characters validate a condition. A condition can be
+	 *
+	 *      - a regular expression (always starting with ^)
+	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
+	 *
+	 *  	- a string
+	 * 			EXAMPLES: "1954", "albert"
+	 */
 	public advanceIfRegExp(condition: RegExp): string {
 		return this.advance(this._advanceIfRegExp(condition));
 	}
+	/**
+	 *  Advances the stream if the next characters validate a condition. A condition can be
+	 *
+	 *      - a regular expression (always starting with ^)
+	 * 			EXAMPLES: /^\d+/, /^function|var|interface|class/
+	 *
+	 *  	- a string
+	 * 			EXAMPLES: "1954", "albert"
+	 */
 	public advanceIfRegExp2(condition: RegExp): number {
 		return this._advance2(this._advanceIfRegExp(condition));
 	}
@@ -273,10 +374,19 @@ export class LineStream implements IStream {
 		return this._source.substring(oldPos, this._pos);
 	}
 
+	/**
+	 * Advances the stream while the next characters validate a condition. Check #advanceIf for
+	 * details on the possible types for condition.
+	 */
 	public advanceWhile(condition:RegExp|string):string {
 		return this.advanceLoop(condition, true, false);
 	}
 
+	/**
+	 * Advances the stream until the some characters validate a condition. Check #advanceIf for
+	 * details on the possible types for condition. The `including` boolean value indicates
+	 * whether the stream will advance the characters that matched the condition as well, or not.
+	 */
 	public advanceUntil(condition:RegExp|string, including:boolean):string {
 		return this.advanceLoop(condition, false, including);
 	}
@@ -316,6 +426,16 @@ export class LineStream implements IStream {
 		this._tokenEnd = -1;
 	}
 
+	/**
+	 * The token rules define how consecutive characters should be put together as a token,
+	 * or separated into two different tokens. They are given through a separator characters
+	 * string and a whitespace characters string. A separator is always one token. Consecutive
+	 * whitespace is always one token. Everything in between these two token types, is also a token.
+	 *
+	 * 	EXAMPLE: stream.setTokenRules("+-", " ");
+	 * 	Setting these token rules defines the tokens for the string "123+456 -    7" as being
+	 * 		["123", "+", "456", " ", "-", "    ", "7"]
+	 */
 	public setTokenRules(separators:string, whitespace:string):void {
 		if (this._separators !== separators || this._whitespace !== whitespace) {
 			this._separators = separators;
@@ -328,6 +448,9 @@ export class LineStream implements IStream {
 
 	// --- tokens
 
+	/**
+	 * Returns the next token, given that the stream was configured with token rules.
+	 */
 	public peekToken():string {
 		if (this._tokenStart !== -1) {
 			return this._source.substring(this._tokenStart, this._tokenEnd);
@@ -368,6 +491,10 @@ export class LineStream implements IStream {
 		return source.substring(tokenStart, tokenEnd);
 	}
 
+	/**
+	 * Returns the next token, given that the stream was configured with token rules, and advances the
+	 * stream by the exact length of the found token.
+	 */
 	public nextToken():string {
 		// Check EOS
 		if (this._pos >= this._sourceLength) {
@@ -394,6 +521,9 @@ export class LineStream implements IStream {
 
 	// -- whitespace
 
+	/**
+	 * Returns the next whitespace, if found. Returns an empty string otherwise.
+	 */
 	public peekWhitespace():string {
 		const source = this._source;
 		const sourceLength = this._sourceLength;
@@ -420,9 +550,17 @@ export class LineStream implements IStream {
 
 		return (peek - oldPos);
 	}
+	/**
+	 * Returns the next whitespace, if found, and advances the stream by the exact length of the found
+	 * whitespace. Returns an empty string otherwise.
+	 */
 	public skipWhitespace(): string {
 		return this.advance(this._skipWhitespace());
 	}
+	/**
+	 * Returns the next whitespace, if found, and advances the stream by the exact length of the found
+	 * whitespace. Returns an empty string otherwise.
+	 */
 	public skipWhitespace2(): number {
 		return this._advance2(this._skipWhitespace());
 	}

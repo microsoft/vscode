@@ -12,6 +12,7 @@ import {Model} from 'vs/editor/common/model/model';
 import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import * as modes from 'vs/editor/common/modes';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 // --------- utils
 
@@ -38,7 +39,7 @@ suite('Editor Model - Model Modes 1', () => {
 		public equals(other: modes.IState): boolean {
 			return this === other;
 		}
-		public tokenize(stream:modes.IStream): ITokenizationResult {
+		public tokenize(stream:LineStream): ITokenizationResult {
 			calledState.calledFor.push(stream.next());
 			stream.advanceToEOS();
 			return { type: '' };
@@ -188,7 +189,7 @@ suite('Editor Model - Model Modes 2', () => {
 			return (other instanceof ModelState2) && (this.prevLineContent === (<ModelState2>other).prevLineContent);
 		}
 
-		public tokenize(stream:modes.IStream):ITokenizationResult {
+		public tokenize(stream:LineStream):ITokenizationResult {
 			var line= '';
 			while (!stream.eos()) {
 				line+= stream.next();
@@ -325,7 +326,7 @@ suite('Editor Model - Token Iterator', () => {
 			return true;
 		}
 
-		public tokenize(stream:modes.IStream):ITokenizationResult {
+		public tokenize(stream:LineStream):ITokenizationResult {
 			var ndash = this.n, value = '';
 			while(!stream.eos() && ndash > 0) {
 				value += stream.next();

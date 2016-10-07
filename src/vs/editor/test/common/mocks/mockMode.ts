@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMode, IState, IStream, TokenizationRegistry} from 'vs/editor/common/modes';
+import {IMode, IState, TokenizationRegistry} from 'vs/editor/common/modes';
 import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 let instanceCount = 0;
 function generateMockModeId(): string {
@@ -45,7 +46,7 @@ export class StateForMockTokenizingMode extends AbstractState {
 		return true;
 	}
 
-	public tokenize(stream:IStream):ITokenizationResult {
+	public tokenize(stream:LineStream):ITokenizationResult {
 		stream.advanceToEOS();
 		return { type: this._tokenType };
 	}

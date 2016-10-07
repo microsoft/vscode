@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IState, IStream} from 'vs/editor/common/modes';
+import {IState} from 'vs/editor/common/modes';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 /**
  * @internal
@@ -61,7 +62,7 @@ export abstract class AbstractState implements IState {
 		return false;
 	}
 
-	public abstract tokenize(stream:IStream):ITokenizationResult;
+	public abstract tokenize(stream:LineStream):ITokenizationResult;
 
 	public static safeEquals(a: IState, b: IState): boolean {
 		if (a === null && b === null) {

@@ -94,7 +94,7 @@ export class MonarchLexer extends AbstractState {
 	 * TODO: there are many optimizations possible here for the common cases
 	 * but for now I concentrated on functionality and correctness.
 	 */
-	public tokenize(stream: modes.IStream, noConsumeIsOk?: boolean): ITokenizationResult {
+	public tokenize(stream: LineStream, noConsumeIsOk?: boolean): ITokenizationResult {
 		var stackLen0 = this.stack.length;  // these are saved to check progress
 		var groupLen0 = 0;
 		var state: string = this.stack[0];  // the current state
