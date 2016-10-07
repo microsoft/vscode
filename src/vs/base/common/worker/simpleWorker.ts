@@ -7,10 +7,37 @@
 import {transformErrorForSerialization} from 'vs/base/common/errors';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {ErrorCallback, TPromise, ValueCallback} from 'vs/base/common/winjs.base';
-import {IWorker, IWorkerFactory} from './workerClient';
 import {ShallowCancelThenPromise} from 'vs/base/common/async';
+import {isWeb} from 'vs/base/common/platform';
 
 const INITIALIZE = '$initialize';
+
+export interface IWorker {
+	getId():number;
+	postMessage(message:string):void;
+	dispose():void;
+}
+
+export interface IWorkerCallback {
+	(message:string):void;
+}
+
+export interface IWorkerFactory {
+	create(moduleId:string, callback:IWorkerCallback, onErrorCallback:(err:any)=>void):IWorker;
+}
+
+let webWorkerWarningLogged = false;
+export function logOnceWebWorkerWarning(err: any): void {
+	if (!isWeb) {
+		// running tests
+		return;
+	}
+	if (!webWorkerWarningLogged) {
+		webWorkerWarningLogged = true;
+		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/Microsoft/monaco-editor#faq');
+	}
+	console.warn(err.message);
+}
 
 interface IMessage {
 	vsWorker: number;
@@ -308,7 +335,6 @@ export class SimpleWorkerServer {
 	private initialize(workerId: number, moduleId: string, loaderConfig:any): TPromise<any> {
 		this._protocol.setWorkerId(workerId);
 
-		// TODO@Alex: share this code with workerServer
 		if (loaderConfig) {
 			// Remove 'baseUrl', handling it is beyond scope for now
 			if (typeof loaderConfig.baseUrl !== 'undefined') {
