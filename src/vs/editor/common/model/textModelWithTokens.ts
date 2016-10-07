@@ -23,6 +23,7 @@ import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Position} from 'vs/editor/common/core/position';
 import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {IndentRange, computeRanges} from 'vs/editor/common/model/indentRanges';
 import {Token} from 'vs/editor/common/core/token';
 import {LineTokens, LineToken} from 'vs/editor/common/core/lineTokens';
 
@@ -132,7 +133,41 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._resetTokenizationState();
 	}
 
-	protected _resetTokenizationState(): void {
+	protected _computeIndentRanges(): IndentRange[] {
+		var foldEndPattern = LanguageConfigurationRegistry.getFoldEndPattern(this.getMode().getId());
+		return computeRanges(this, foldEndPattern);
+	}
+
+	_resetMode(e:editorCommon.IModelModeChangedEvent, newMode:IMode): void {
+		// Cancel tokenization, clear all tokens and begin tokenizing
+		this._mode = newMode;
+		this._resetModeListener(newMode);
+		this._resetTokenizationState();
+
+		this.emitModelTokensChangedEvent(1, this.getLineCount());
+	}
+
+	private _resetModeListener(newMode: IMode): void {
+		if (this._modeListener) {
+			this._modeListener.dispose();
+			this._modeListener = null;
+		}
+		if (newMode && typeof newMode.addSupportChangedListener === 'function') {
+			this._modeListener = newMode.addSupportChangedListener( (e) => this._onModeSupportChanged(e) );
+		}
+	}
+
+	private _onModeSupportChanged(e: editorCommon.IModeSupportChangedEvent): void {
+		this._emitModelModeSupportChangedEvent(e);
+		if (e.tokenizationSupport) {
+			this._resetTokenizationState();
+			this.emitModelTokensChangedEvent(1, this.getLineCount());
+		}
+	}
+
+	_resetTokenizationState(): void {
+		this._retokenizers = dispose(this._retokenizers);
+		this._scheduleRetokenizeNow.cancel();
 		this._clearTimers();
 		for (let i = 0; i < this._lines.length; i++) {
 			this._lines[i].resetTokenizationState();

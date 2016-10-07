@@ -29,7 +29,8 @@ export class IndentRange {
 	}
 }
 
-export function computeRanges(model: ITextModel, minimumRangeSize: number = 1): IndentRange[] {
+export function computeRanges(model: ITextModel, foldEndPattern: RegExp = null, minimumRangeSize: number = 1): IndentRange[] {
+
 
 	let result: IndentRange[] = [];
 
@@ -53,6 +54,14 @@ export function computeRanges(model: ITextModel, minimumRangeSize: number = 1): 
 
 			// new folding range
 			let endLineNumber = previous.line - 1;
+
+			if (previous.line <= model.getLineCount() && foldEndPattern) {
+				let foldEndLineContent = model.getLineContent(previous.line);
+				if (previous.indent === indent && foldEndPattern.test(foldEndLineContent)) {
+					endLineNumber = previous.line;
+				}
+			}
+
 			if (endLineNumber - line >= minimumRangeSize) {
 				result.push(new IndentRange(line, endLineNumber, indent));
 			}
