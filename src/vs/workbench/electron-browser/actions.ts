@@ -18,12 +18,12 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import errors = require('vs/base/common/errors');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IWindowConfiguration} from 'vs/workbench/electron-browser/common';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
 import {IExtensionManagementService, LocalExtensionType, ILocalExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
 import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
 import {isMacintosh} from 'vs/base/common/platform';
@@ -205,44 +205,82 @@ export class ToggleDevToolsAction extends Action {
 	}
 }
 
-export class ZoomInAction extends Action {
+export abstract class BaseZoomAction extends Action {
+	private static SETTING_KEY = 'window.zoomLevel';
+
+	constructor(
+		id: string,
+		label: string,
+		@IMessageService private messageService: IMessageService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+	) {
+		super(id, label);
+	}
+
+	protected setConfiguredZoomLevel(level: number): void {
+		let target = ConfigurationTarget.USER;
+		if (typeof this.configurationService.lookup(BaseZoomAction.SETTING_KEY).workspace === 'number') {
+			target = ConfigurationTarget.WORKSPACE;
+		}
+
+		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(null, error => {
+
+			// Fallback to apply on window
+			webFrame.setZoomLevel(level);
+			browser.setZoomLevel(level); // Ensure others can listen to zoom level changes
+
+			// Inform user
+			this.messageService.show(Severity.Error, error);
+		});
+	}
+}
+
+export class ZoomInAction extends BaseZoomAction {
 
 	public static ID = 'workbench.action.zoomIn';
 	public static LABEL = nls.localize('zoomIn', "Zoom In");
 
-	constructor(id: string, label: string) {
-		super(id, label);
+	constructor(
+		id: string,
+		label: string,
+		@IMessageService messageService: IMessageService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+	) {
+		super(id, label, messageService, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
-		webFrame.setZoomLevel(webFrame.getZoomLevel() + 1);
-		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+		this.setConfiguredZoomLevel(webFrame.getZoomLevel() + 1);
 
 		return TPromise.as(true);
 	}
 }
 
-export class ZoomOutAction extends Action {
+export class ZoomOutAction extends BaseZoomAction {
 
 	public static ID = 'workbench.action.zoomOut';
 	public static LABEL = nls.localize('zoomOut', "Zoom Out");
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IMessageService messageService: IMessageService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label);
+		super(id, label, messageService, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
-		webFrame.setZoomLevel(webFrame.getZoomLevel() - 1);
-		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+		this.setConfiguredZoomLevel(webFrame.getZoomLevel() - 1);
 
 		return TPromise.as(true);
 	}
 }
 
-export class ZoomResetAction extends Action {
+export class ZoomResetAction extends BaseZoomAction {
 
 	public static ID = 'workbench.action.zoomReset';
 	public static LABEL = nls.localize('zoomReset', "Reset Zoom");
@@ -250,26 +288,17 @@ export class ZoomResetAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IMessageService messageService: IMessageService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
 	) {
-		super(id, label);
+		super(id, label, messageService, configurationService, configurationEditingService);
 	}
 
 	public run(): TPromise<boolean> {
-		const level = this.getConfiguredZoomLevel();
-		webFrame.setZoomLevel(level);
-		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+		this.setConfiguredZoomLevel(0);
 
 		return TPromise.as(true);
-	}
-
-	private getConfiguredZoomLevel(): number {
-		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
-		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			return windowConfig.window.zoomLevel;
-		}
-
-		return 0; // default
 	}
 }
 
