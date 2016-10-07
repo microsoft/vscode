@@ -5,7 +5,7 @@
 'use strict';
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
+import {IEditorInput, ITextEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
@@ -46,5 +46,5 @@ export interface IHistoryService {
 	/**
 	 * Get the entire history of opened editors.
 	 */
-	getHistory(): IEditorInput[];
+	getHistory(): (IEditorInput|IResourceInput)[];
 }
