@@ -37,7 +37,6 @@ export function register(language:ILanguageExtensionPoint): void {
 export function getLanguages(): ILanguageExtensionPoint[] {
 	let result:ILanguageExtensionPoint[] = [];
 	result = result.concat(ModesRegistry.getLanguages());
-	result = result.concat(ModesRegistry.getCompatModes());
 	return result;
 }
 

@@ -8,16 +8,10 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import * as mime from 'vs/base/common/mime';
 import * as strings from 'vs/base/common/strings';
-import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
-
-export interface ICompatModeDescriptor {
-	moduleId: string;
-	ctorName: string;
-	deps: string[];
-}
 
 export class LanguagesRegistry {
 
@@ -27,7 +21,6 @@ export class LanguagesRegistry {
 	private id2Name: { [id: string]: string; };
 	private id2Extensions: { [id: string]: string[]; };
 	private id2Filenames: { [id: string]: string[]; };
-	private compatModes: { [id: string]: ICompatModeDescriptor; };
 	private lowerName2Id: { [name: string]: string; };
 	private id2ConfigurationFiles: { [id:string]: string[]; };
 
@@ -41,42 +34,13 @@ export class LanguagesRegistry {
 		this.id2Name = {};
 		this.id2Extensions = {};
 		this.id2Filenames = {};
-		this.compatModes = {};
 		this.lowerName2Id = {};
 		this.id2ConfigurationFiles = {};
 
 		if (useModesRegistry) {
-			this._registerCompatModes(ModesRegistry.getCompatModes());
-			ModesRegistry.onDidAddCompatModes((m) => this._registerCompatModes(m));
-
 			this._registerLanguages(ModesRegistry.getLanguages());
 			ModesRegistry.onDidAddLanguages((m) => this._registerLanguages(m));
 		}
-	}
-
-	_registerCompatModes(defs:ILegacyLanguageDefinition[]): void {
-		let addedModes: string[] = [];
-		for (let i = 0; i < defs.length; i++) {
-			let def = defs[i];
-
-			this._registerLanguage({
-				id: def.id,
-				extensions: def.extensions,
-				filenames: def.filenames,
-				firstLine: def.firstLine,
-				aliases: def.aliases,
-				mimetypes: def.mimetypes
-			});
-
-			this.compatModes[def.id] = {
-				moduleId: def.moduleId,
-				ctorName: def.ctorName,
-				deps: def.deps
-			};
-
-			addedModes.push(def.id);
-		}
-		this._onDidAddModes.fire(addedModes);
 	}
 
 	_registerLanguages(desc:ILanguageExtensionPoint[]): void {
@@ -261,10 +225,6 @@ export class LanguagesRegistry {
 		}
 		var mimeTypes = mime.guessMimeTypes(filename, firstLine);
 		return this.extractModeIds(mimeTypes.join(','));
-	}
-
-	public getCompatMode(modeId: string): ICompatModeDescriptor {
-		return this.compatModes[modeId] || null;
 	}
 
 	public getExtensions(languageName: string): string[] {
