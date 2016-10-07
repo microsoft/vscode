@@ -605,19 +605,16 @@ export class WindowsManager implements IWindowsService {
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
-		// Restore backups if they exist and it's the first instance
+		// Add any existing backup workspaces
 		if (openConfig.restoreBackups) {
-			const backupWorkspaces = this.backupService.getBackupWorkspaces();
-			if (backupWorkspaces.length > 0) {
-				backupWorkspaces.forEach(workspace => {
-					iPathsToOpen.push(this.toIPath(workspace));
-				});
-				// Get rid of duplicates
-				iPathsToOpen = arrays.distinct(iPathsToOpen, path => {
-					return path.workspacePath;
-				});
-				this.backupService.clearBackupWorkspaces();
-			}
+			// TODO: Ensure the workspaces being added actually have backups
+			this.backupService.getBackupWorkspaces().forEach(ws => {
+				iPathsToOpen.push(this.toIPath(ws));
+			});
+			// Get rid of duplicates
+			iPathsToOpen = arrays.distinct(iPathsToOpen, path => {
+				return path.workspacePath;
+			});
 		}
 
 		let filesToOpen: IPath[] = [];
@@ -749,6 +746,7 @@ export class WindowsManager implements IWindowsService {
 		iPathsToOpen.forEach(iPath => this.eventEmitter.emit(EventTypes.OPEN, iPath));
 
 		// Add to backups
+		console.log('iPathsToOpen', iPathsToOpen);
 		this.backupService.pushBackupWorkspaces(iPathsToOpen.map((path) => {
 			return path.workspacePath;
 		}));

@@ -22,6 +22,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
+import {IBackupService} from 'vs/platform/backup/common/backup';
 
 export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions|ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -46,6 +47,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	constructor(
 		editorPart: IEditorPart | IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IBackupService private backupService: IBackupService,
 		@IInstantiationService private instantiationService?: IInstantiationService
 	) {
 		this.editorPart = editorPart;
@@ -107,7 +109,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			const schema = resourceInput.resource.scheme;
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
-				
+
 				return TPromise.as<IEditor>(null);
 			}
 		}
@@ -208,8 +210,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	public createInput(input: EditorInput): TPromise<EditorInput>;
-	public createInput(input: IResourceInput): TPromise<EditorInput>;
-	public createInput(input: any): TPromise<IEditorInput> {
+	public createInput(input: IResourceInput, restoreFromBackup?: boolean): TPromise<EditorInput>;
+	public createInput(input: any, restoreFromBackup?: boolean): TPromise<IEditorInput> {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
@@ -263,7 +265,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Base Text Editor Support for file resources
 		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
-			return this.createFileInput(resourceInput.resource, resourceInput.encoding);
+			return this.createFileInput(resourceInput.resource, resourceInput.encoding, restoreFromBackup);
 		}
 
 		// Treat an URI as ResourceEditorInput
@@ -277,10 +279,14 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as<EditorInput>(null);
 	}
 
-	private createFileInput(resource: URI, encoding?: string): TPromise<IFileEditorInput> {
+	private createFileInput(resource: URI, encoding?: string, restoreFromBackup?: boolean): TPromise<IFileEditorInput> {
 		return this.instantiationService.createInstance(this.fileInputDescriptor).then((typedFileInput) => {
 			typedFileInput.setResource(resource);
 			typedFileInput.setPreferredEncoding(encoding);
+
+			if (restoreFromBackup) {
+				typedFileInput.setRestoreResource(this.backupService.getBackupResource(resource));
+			}
 
 			return typedFileInput;
 		});
@@ -315,11 +321,13 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 		handler: IDelegatingWorkbenchEditorServiceHandler,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IBackupService backupService: IBackupService
 	) {
 		super(
 			editorService,
 			untitledEditorService,
+			backupService,
 			instantiationService
 		);
 

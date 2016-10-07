@@ -26,6 +26,7 @@ import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IBackupService} from 'vs/platform/backup/common/backup';
 
 import {shell} from 'electron';
 
@@ -51,7 +52,8 @@ export class FileService implements IFileService {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.toUnbind = [];
 		this.activeOutOfWorkspaceWatchers = Object.create(null);
@@ -81,7 +83,7 @@ export class FileService implements IFileService {
 
 		// create service
 		const workspace = this.contextService.getWorkspace();
-		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService, this.environmentService, this.configurationService);
+		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService, this.environmentService, this.configurationService, this.backupService, this.contextService);
 
 		// Listeners
 		this.registerListeners();

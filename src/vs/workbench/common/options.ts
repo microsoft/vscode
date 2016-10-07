@@ -22,4 +22,6 @@ export interface IOptions {
 	 * Instructs the workbench to open a diff of the provided files right after startup.
 	 */
 	filesToDiff?: IResourceInput[];
+
+	filesToRestore?: IResourceInput[];
 }

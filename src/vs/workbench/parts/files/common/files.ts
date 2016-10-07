@@ -42,6 +42,8 @@ export abstract class FileEditorInput extends EditorInput implements IFileEditor
 
 	public abstract setResource(resource: URI): void;
 
+	public abstract setRestoreResource(resource: URI): void;
+
 	public abstract getResource(): URI;
 
 	public abstract setPreferredEncoding(encoding: string): void;
