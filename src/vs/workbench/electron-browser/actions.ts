@@ -224,15 +224,17 @@ export abstract class BaseZoomAction extends Action {
 			target = ConfigurationTarget.WORKSPACE;
 		}
 
-		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(null, error => {
-
-			// Fallback to apply on window
+		const applyZoom = (error?: Error) => {
 			webFrame.setZoomLevel(level);
 			browser.setZoomLevel(level); // Ensure others can listen to zoom level changes
 
 			// Inform user
-			this.messageService.show(Severity.Error, error);
-		});
+			if (error) {
+				this.messageService.show(Severity.Error, error);
+			}
+		};
+
+		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(() => applyZoom(), error => applyZoom(error));
 	}
 }
 
