@@ -24,6 +24,7 @@ import {IHistoryService} from 'vs/workbench/services/history/common/history';
  */
 export class FileEditorInput extends CommonFileEditorInput {
 	private resource: URI;
+	private restoreResource: URI;
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
 
@@ -100,6 +101,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		this.name = null;
 		this.description = null;
 		this.verboseDescription = null;
+	}
+
+	public setRestoreResource(resource: URI): void {
+		this.restoreResource = resource;
 	}
 
 	public getResource(): URI {
@@ -195,7 +200,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
-		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
+		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh, this.restoreResource).then(null, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {

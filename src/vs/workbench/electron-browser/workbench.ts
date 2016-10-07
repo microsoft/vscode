@@ -16,6 +16,7 @@ import {Delayer} from 'vs/base/common/async';
 import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
+import Uri from 'vs/base/common/uri';
 import {toErrorMessage} from 'vs/base/common/errorMessage';
 import {Registry} from 'vs/platform/platform';
 import {isWindows, isLinux} from 'vs/base/common/platform';
@@ -74,6 +75,7 @@ import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IBackupService} from 'vs/platform/backup/common/backup';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -155,7 +157,8 @@ export class Workbench implements IPartService {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IBackupService private backupService: IBackupService
 	) {
 		this.container = container;
 
@@ -165,7 +168,12 @@ export class Workbench implements IPartService {
 			serviceCollection
 		};
 
-		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0);
+		// Restore any backups if they exist
+		options.filesToRestore = this.backupService.getBackupFiles(workspace.resource.fsPath).map(filePath => {
+			return { resource: Uri.file(filePath) };
+		});
+
+		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0) || (options.filesToRestore.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
@@ -292,6 +300,7 @@ export class Workbench implements IPartService {
 			const wbopt = this.workbenchParams.options;
 			const filesToCreate = wbopt.filesToCreate || [];
 			const filesToOpen = wbopt.filesToOpen || [];
+			const filesToRestore = wbopt.filesToRestore || [];
 			const filesToDiff = wbopt.filesToDiff;
 
 			// Files to diff is exclusive
@@ -311,7 +320,9 @@ export class Workbench implements IPartService {
 				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
 				// Files to open
-				return TPromise.join<EditorInput>(filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput))).then((inputsToOpen) => {
+				let filesToOpenInputPromise = filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput));
+				let filesToRestoreInputPromise = filesToRestore.map(resourceInput => this.editorService.createInput(resourceInput, true));
+				return TPromise.join<EditorInput>(filesToOpenInputPromise.concat(filesToRestoreInputPromise)).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
 					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
 

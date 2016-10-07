@@ -36,6 +36,8 @@ import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IBackupService} from 'vs/platform/backup/common/backup';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -73,7 +75,6 @@ export class FileService implements IFileService {
 
 	public _serviceBrand: any;
 
-	private static SESSION_BACKUP_ID = crypto.randomBytes(20).toString('hex'); // defined the directory to store backups for the session
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
@@ -90,7 +91,15 @@ export class FileService implements IFileService {
 
 	private configuredHotExit: boolean;
 
-	constructor(basePath: string, options: IFileServiceOptions, private eventEmitter: IEventService, private environmentService: IEnvironmentService, private configurationService: IConfigurationService) {
+	constructor(
+		basePath: string,
+		options: IFileServiceOptions,
+		private eventEmitter: IEventService,
+		private environmentService: IEnvironmentService,
+		private configurationService: IConfigurationService,
+		private backupService: IBackupService,
+		private contextService: IWorkspaceContextService
+	) {
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
 		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
@@ -449,13 +458,16 @@ export class FileService implements IFileService {
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
 		if (resource.scheme === 'file') {
 			// TODO: Persist hash -> file map on disk (json file?)
+
 		}
+		this.backupService.registerBackupFile(resource);
 		const backupResource = this.getBackupPath(resource);
 		console.log(`Backing up to ${backupResource.fsPath}`);
 		return this.updateContent(backupResource, content);
 	}
 
 	public discardBackup(resource: uri): TPromise<void> {
+		this.backupService.deregisterBackupFile(resource);
 		return this.del(this.getBackupPath(resource));
 	}
 
@@ -476,7 +488,8 @@ export class FileService implements IFileService {
 	}
 
 	private getBackupRoot(): string {
-		return paths.join(this.environmentService.userDataPath, 'Backups', FileService.SESSION_BACKUP_ID);
+		let workspaceHash = crypto.createHash('md5').update(this.contextService.getWorkspace().resource.fsPath).digest('hex');
+		return paths.join(this.environmentService.userDataPath, 'Backups', workspaceHash);
 	}
 
 	private toAbsolutePath(arg1: uri | IFileStat): string {

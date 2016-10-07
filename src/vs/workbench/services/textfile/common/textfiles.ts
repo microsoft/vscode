@@ -192,7 +192,7 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean): TPromise<ITextEditorModel>;
+	loadOrCreate(resource: URI, preferredEncoding: string, refresh?: boolean, restoreResource?: URI): TPromise<ITextEditorModel>;
 }
 
 export interface IModelSaveOptions {
@@ -216,6 +216,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	updatePreferredEncoding(encoding: string): void;
 
 	save(options?: IModelSaveOptions): TPromise<void>;
+
+	setRestoreResource(resource: URI): void;
 
 	revert(): TPromise<void>;
 

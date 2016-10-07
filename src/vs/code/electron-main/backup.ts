@@ -7,7 +7,6 @@
 
 import * as fs from 'original-fs';
 import * as path from 'path';
-import * as arrays from 'vs/base/common/arrays';
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -17,43 +16,61 @@ export interface IBackupService {
 	getBackupWorkspaces(): string[];
 	clearBackupWorkspaces(): void;
 	pushBackupWorkspaces(workspaces: string[]): void;
+	getBackupFiles(workspace: string): string[];
+}
+
+interface IBackupFormat {
+	folderWorkspaces?: {
+		[workspacePath: string]: string[]
+	};
 }
 
 export class BackupService implements IBackupService {
 
 	private filePath: string;
-	private fileContent: string[];
+	private fileContent: IBackupFormat;
 
 	constructor(
-		@IEnvironmentService private envService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		this.filePath = path.join(envService.userDataPath, 'Backups', 'workspaces.json');
+		this.filePath = path.join(environmentService.userDataPath, 'Backups', 'workspaces.json');
 	}
 
 	public getBackupWorkspaces(): string[] {
 		if (!this.fileContent) {
 			this.load();
 		}
-		return this.fileContent;
+		return Object.keys(this.fileContent.folderWorkspaces || {});
 	}
 
 	public clearBackupWorkspaces(): void {
-		this.fileContent = [];
+		this.fileContent = {
+			folderWorkspaces: {}
+		};
 		this.save();
 	}
 
 	public pushBackupWorkspaces(workspaces: string[]): void {
-		this.fileContent = arrays.distinct(this.fileContent.concat(workspaces).filter(workspace => {
-			return workspace !== null;
-		}));
+		this.load();
+		if (!this.fileContent.folderWorkspaces) {
+			this.fileContent.folderWorkspaces = {};
+		}
+		workspaces.forEach(workspace => {
+			this.fileContent.folderWorkspaces[workspace] = this.fileContent.folderWorkspaces[workspace] || [];
+		});
 		this.save();
+	}
+
+	public getBackupFiles(workspace: string): string[] {
+		this.load();
+		return this.fileContent.folderWorkspaces[workspace];
 	}
 
 	private load(): void {
 		try {
 			this.fileContent = JSON.parse(fs.readFileSync(this.filePath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
-			this.fileContent = [];
+			this.fileContent = {};
 		}
 	}
 

@@ -40,6 +40,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static saveParticipant: ISaveParticipant;
 
 	private resource: URI;
+	private restoreResource: URI;
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
 	private dirty: boolean;
@@ -182,8 +183,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
+	public setRestoreResource(resource: URI): void {
+		this.restoreResource = resource;
+	}
+
 	public load(force?: boolean /* bypass any caches and really go to disk */): TPromise<EditorModel> {
 		diag('load() - enter', this.resource, new Date());
+		console.log(`load model ${this.resource.fsPath}`);
 
 		// It is very important to not reload the model when the model is dirty. We only want to reload the model from the disk
 		// if no save is pending to avoid data loss. This might cause a save conflict in case the file has been modified on the disk
@@ -259,18 +265,37 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			else {
 				diag('load() - created text editor model', this.resource, new Date());
 
-				this.createTextEditorModelPromise = this.createTextEditorModel(content.value, content.resource).then(() => {
-					this.createTextEditorModelPromise = null;
+				if (this.restoreResource) {
+					// TODO: De-duplicate code
+					console.log(`Attempting to restore resource ${this.restoreResource.fsPath}`);
+					this.createTextEditorModelPromise = this.textFileService.resolveTextContent(this.restoreResource, { acceptTextOnly: true, etag: etag, encoding: this.preferredEncoding }).then((restoreContent) => {
+						return this.createTextEditorModel(restoreContent.value, content.resource).then(() => {
+							this.createTextEditorModelPromise = null;
 
-					this.setDirty(false); // Ensure we are not tracking a stale state
-					this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+							this.setDirty(true); // Ensure we are not tracking a stale state
+							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
-					return this;
-				}, (error) => {
-					this.createTextEditorModelPromise = null;
+							return this;
+						}, (error) => {
+							this.createTextEditorModelPromise = null;
 
-					return TPromise.wrapError(error);
-				});
+							return TPromise.wrapError(error);
+						});
+					});
+				} else {
+					this.createTextEditorModelPromise = this.createTextEditorModel(content.value, content.resource).then(() => {
+						this.createTextEditorModelPromise = null;
+
+						this.setDirty(false); // Ensure we are not tracking a stale state
+						this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
+
+						return this;
+					}, (error) => {
+						this.createTextEditorModelPromise = null;
+
+						return TPromise.wrapError(error);
+					});
+				}
 
 				return this.createTextEditorModelPromise;
 			}

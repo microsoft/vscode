@@ -6,6 +6,7 @@
 'use strict';
 
 import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import Uri from 'vs/base/common/uri';
 
 export const IBackupService = createDecorator<IBackupService>('backupService');
 
@@ -14,6 +15,10 @@ export interface IBackupService {
 
 	getBackupWorkspaces(): string[];
 	clearBackupWorkspaces(): void;
-	pushBackupWorkspaces(workspaces: string[]): void;
 	removeWorkspace(workspace: string): void;
+
+	registerBackupFile(resource: Uri): void;
+	deregisterBackupFile(resource: Uri): void;
+	getBackupFiles(workspace: string): string[];
+	getBackupResource(resource: Uri): Uri;
 }
