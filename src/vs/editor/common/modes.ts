@@ -21,20 +21,10 @@ import Event, {Emitter} from 'vs/base/common/event';
 /**
  * @internal
  */
-export interface ITokenizationResult {
-	type?:string;
-	dontMergeWithPrev?:boolean;
-	nextState?:IState;
-}
-
-/**
- * @internal
- */
 export interface IState {
 	clone():IState;
 	equals(other:IState):boolean;
 	getModeId():string;
-	tokenize(stream:IStream):ITokenizationResult;
 	getStateData(): IState;
 	setStateData(state:IState):void;
 }
