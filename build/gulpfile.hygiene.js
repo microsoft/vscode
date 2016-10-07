@@ -164,21 +164,21 @@ const hygiene = exports.hygiene = (some, options) => {
 		this.emit('data', file);
 	});
 
-	const formatting = es.through(function (file) {
+	const formatting = es.map(function (file, cb) {
 
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
 			verify: true,
 			tsfmt: true,
-			verbose: true
+			// verbose: true
 		}).then(result => {
 			if (result.error) {
 				console.error(file.relative + ': ' + result.message);
 				errorCount++;
 			}
-			this.emit('data', file);
+			cb(null, file);
 
 		}, err => {
-			this.emit('error', err);
+			cb(err);
 		});
 	});
 
