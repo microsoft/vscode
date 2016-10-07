@@ -12,6 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {isWindows} from 'vs/base/common/platform';
 import {findFreePort} from 'vs/base/node/ports';
 import {IMainProcessExtHostIPC, create} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -150,6 +151,13 @@ class ExtensionHostProcessManager {
 			return this.resolveDebugPort(this.environmentService.debugExtensionHost.port, port => {
 				if (port) {
 					opts.execArgv = ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port];
+				}
+				// We only detach the extension host on windows. Linux and Mac orphan by default
+				// and detach under Linux and Mac create another process group.
+				if (isWindows) {
+					// We detach because we have noticed that when the renderer exits, its child processes
+					// (i.e. extension host) is taken down in a brutal fashion by the OS
+					opts.detached = true;
 				}
 
 				// Run Extension Host as fork of current process
