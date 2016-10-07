@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMode, IState, IStream, ITokenizationResult, TokenizationRegistry} from 'vs/editor/common/modes';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {IMode, IState, IStream, TokenizationRegistry} from 'vs/editor/common/modes';
+import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 let instanceCount = 0;

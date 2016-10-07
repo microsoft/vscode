@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as modes from 'vs/editor/common/modes';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import {handleEvent} from 'vs/editor/common/modes/supports';
 import {IModeLocator, ILeavingNestedModeData, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {createMockLineContext} from 'vs/editor/test/common/modesTestUtils';
@@ -36,7 +36,7 @@ export class StateMemorizingLastWord extends AbstractState {
 		return new StateMemorizingLastWord(this.getModeId(), this.descriptor, this.lastWord);
 	}
 
-	public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+	public tokenize(stream:modes.IStream):ITokenizationResult {
 		stream.setTokenRules('[]{}()==--', '\t \u00a0');
 		if (stream.skipWhitespace() !== '') {
 			return {
@@ -61,7 +61,7 @@ export class SwitchingMode extends MockMode {
 		modes.TokenizationRegistry.register(this.getId(), new TokenizationSupport(null, this.getId(), this, true));
 	}
 
-	public getInitialState():modes.IState {
+	public getInitialState():AbstractState {
 		return new StateMemorizingLastWord(this.getId(), this._switchingModeDescriptor, null);
 	}
 
@@ -167,7 +167,7 @@ suite('Editor Modes - Tokenization', () => {
 				return new State(this.getModeId());
 			}
 
-			public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+			public tokenize(stream:modes.IStream):ITokenizationResult {
 				return { type: stream.next() === '.' ? '' : 'text' };
 			}
 		}

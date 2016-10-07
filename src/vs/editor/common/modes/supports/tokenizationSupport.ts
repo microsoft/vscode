@@ -11,6 +11,7 @@ import {NullState, nullTokenize, NULL_MODE_ID} from 'vs/editor/common/modes/null
 import {Token} from 'vs/editor/common/core/token';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 
 export interface ILeavingNestedModeData {
 	/**
@@ -26,7 +27,7 @@ export interface ILeavingNestedModeData {
 	/**
 	 * The state that will be used for continuing tokenization by the parent mode after the nested mode
 	 */
-	stateAfterNestedMode: modes.IState;
+	stateAfterNestedMode: AbstractState;
 }
 
 export interface IModeLocator {
@@ -35,11 +36,11 @@ export interface IModeLocator {
 
 export interface ITokenizationCustomization {
 
-	getInitialState():modes.IState;
+	getInitialState():AbstractState;
 
-	enterNestedMode?: (state:modes.IState) => boolean;
+	enterNestedMode?: (state:AbstractState) => boolean;
 
-	getNestedMode?: (state:modes.IState, locator:IModeLocator) => modes.IMode;
+	getNestedMode?: (state:AbstractState, locator:IModeLocator) => modes.IMode;
 
 	/**
 	 * Return null if the line does not leave the nested mode
@@ -109,7 +110,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		if (state.getModeId() !== this._modeId) {
 			return this._nestedTokenize(line, state, deltaOffset, stopAtOffset, [], []);
 		} else {
-			return this._myTokenize(line, state, deltaOffset, stopAtOffset, [], []);
+			return this._myTokenize(line, <AbstractState>state, deltaOffset, stopAtOffset, [], []);
 		}
 	}
 
@@ -178,9 +179,9 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 	 * Precondition is: state.getMode() === this
 	 * This means we are in the current mode when parsing starts on this line.
 	 */
-	private _myTokenize(buffer:string, myState:modes.IState, deltaOffset:number, stopAtOffset:number, prependTokens:Token[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
+	private _myTokenize(buffer:string, myState:AbstractState, deltaOffset:number, stopAtOffset:number, prependTokens:Token[], prependModeTransitions:ModeTransition[]):modes.ILineTokens {
 		let lineStream = new LineStream(buffer);
-		let tokenResult:modes.ITokenizationResult, beforeTokenizeStreamPos:number;
+		let tokenResult:ITokenizationResult, beforeTokenizeStreamPos:number;
 		let previousType:string = null;
 
 		myState = myState.clone();
@@ -228,7 +229,12 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 						return result;
 					} else {
 						// Transition to the nested mode state
-						myState = nestedModeState;
+						return {
+							tokens: prependTokens,
+							actualStopOffset: lineStream.pos() + deltaOffset,
+							modeTransitions: prependModeTransitions,
+							endState: nestedModeState
+						};
 					}
 				}
 			}
@@ -251,7 +257,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		return result;
 	}
 
-	private _enterNestedMode(state:modes.IState): boolean {
+	private _enterNestedMode(state:AbstractState): boolean {
 		if (this.defaults.enterNestedMode) {
 			return false;
 		}
@@ -259,7 +265,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 
 	}
 
-	private _getNestedMode(state:modes.IState): modes.IMode {
+	private _getNestedMode(state:AbstractState): modes.IMode {
 		if (this.defaults.getNestedMode) {
 			return null;
 		}
@@ -291,7 +297,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 		return this.customization.getNestedMode(state, locator);
 	}
 
-	private _getNestedModeInitialState(state:modes.IState): modes.IState {
+	private _getNestedModeInitialState(state:AbstractState): modes.IState {
 		let nestedMode = this._getNestedMode(state);
 		if (nestedMode) {
 			let tokenizationSupport = modes.TokenizationRegistry.get(nestedMode.getId());

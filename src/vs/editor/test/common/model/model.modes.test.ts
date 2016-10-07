@@ -9,7 +9,7 @@ import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Model} from 'vs/editor/common/model/model';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import * as modes from 'vs/editor/common/modes';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
@@ -38,7 +38,7 @@ suite('Editor Model - Model Modes 1', () => {
 		public equals(other: modes.IState): boolean {
 			return this === other;
 		}
-		public tokenize(stream:modes.IStream): modes.ITokenizationResult {
+		public tokenize(stream:modes.IStream): ITokenizationResult {
 			calledState.calledFor.push(stream.next());
 			stream.advanceToEOS();
 			return { type: '' };
@@ -188,7 +188,7 @@ suite('Editor Model - Model Modes 2', () => {
 			return (other instanceof ModelState2) && (this.prevLineContent === (<ModelState2>other).prevLineContent);
 		}
 
-		public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+		public tokenize(stream:modes.IStream):ITokenizationResult {
 			var line= '';
 			while (!stream.eos()) {
 				line+= stream.next();
@@ -309,7 +309,7 @@ suite('Editor Model - Token Iterator', () => {
 	class NState extends AbstractState {
 
 		private n:number;
-		private allResults:modes.ITokenizationResult[];
+		private allResults:ITokenizationResult[];
 
 		constructor(modeId:string, n:number) {
 			super(modeId);
@@ -325,7 +325,7 @@ suite('Editor Model - Token Iterator', () => {
 			return true;
 		}
 
-		public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+		public tokenize(stream:modes.IStream):ITokenizationResult {
 			var ndash = this.n, value = '';
 			while(!stream.eos() && ndash > 0) {
 				value += stream.next();

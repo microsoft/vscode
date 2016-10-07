@@ -4,9 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IState, IStream, ITokenizationResult} from 'vs/editor/common/modes';
+import {IState, IStream} from 'vs/editor/common/modes';
+
+/**
+ * @internal
+ */
+export interface ITokenizationResult {
+	type?:string;
+	dontMergeWithPrev?:boolean;
+	nextState?:AbstractState;
+}
 
 export abstract class AbstractState implements IState {
+
+	_abstractStateBrand: void;
 
 	private modeId:string;
 	private stateData:IState;

@@ -10,7 +10,7 @@
  */
 
 import * as modes from 'vs/editor/common/modes';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
 import {IModeLocator, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
@@ -94,7 +94,7 @@ export class MonarchLexer extends AbstractState {
 	 * TODO: there are many optimizations possible here for the common cases
 	 * but for now I concentrated on functionality and correctness.
 	 */
-	public tokenize(stream: modes.IStream, noConsumeIsOk?: boolean): modes.ITokenizationResult {
+	public tokenize(stream: modes.IStream, noConsumeIsOk?: boolean): ITokenizationResult {
 		var stackLen0 = this.stack.length;  // these are saved to check progress
 		var groupLen0 = 0;
 		var state: string = this.stack[0];  // the current state
@@ -388,7 +388,7 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 
 export function createTokenizationSupport(_modeService:IModeService, modeId:string, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
 	return new TokenizationSupport(_modeService, modeId, {
-		getInitialState: (): modes.IState => {
+		getInitialState: (): AbstractState => {
 			return new MonarchLexer(modeId, _modeService, lexer);
 		},
 

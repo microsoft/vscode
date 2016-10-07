@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IState, ITokenizationResult} from 'vs/editor/common/modes';
+import {IState} from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {StackElement} from 'vscode-textmate';
 
@@ -48,10 +48,6 @@ export class TMState implements IState {
 
 	public getModeId():string {
 		return this._modeId;
-	}
-
-	public tokenize(stream:any):ITokenizationResult {
-		throw new Error();
 	}
 
 	public getStateData():IState {

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IState, IStream, ITokenizationResult, ILineTokens} from 'vs/editor/common/modes';
+import {IState, IStream, ILineTokens} from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {Token} from 'vs/editor/common/core/token';
+import {ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 
 export class NullState implements IState {
 

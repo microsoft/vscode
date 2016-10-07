@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IStream, ITokenizationResult, TokenizationRegistry} from 'vs/editor/common/modes';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {IStream, TokenizationRegistry} from 'vs/editor/common/modes';
+import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
