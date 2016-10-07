@@ -57,9 +57,9 @@ export class BaseTwoEditorsAction extends Action {
 	}
 
 	protected createIfNotExists(resource: URI, contents: string): TPromise<boolean> {
-		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, (error) => {
+		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return this.fileService.updateContent(resource, contents).then(null, (error) => {
+				return this.fileService.updateContent(resource, contents).then(null, error => {
 					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService), error)));
 				});
 			}
@@ -72,7 +72,7 @@ export class BaseTwoEditorsAction extends Action {
 
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
-			return this.editorService.createInput({ resource: editableResource }).then((typedRightHandEditableInput) => {
+			return this.editorService.createInput({ resource: editableResource }).then(typedRightHandEditableInput => {
 				const editors = [
 					{ input: leftHandDefaultInput, position: Position.LEFT, options: { pinned: true } },
 					{ input: typedRightHandEditableInput, position: Position.CENTER, options: { pinned: true } }
@@ -150,9 +150,9 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 				message: nls.localize('workspaceHasSettings', "The currently opened folder contains workspace settings that may override user settings"),
 				actions: [
 					new Action('open.workspaceSettings', nls.localize('openWorkspaceSettings', "Open Workspace Settings"), null, true, () => {
-						let editorCount = this.editorService.getVisibleEditors().length;
+						const editorCount = this.editorService.getVisibleEditors().length;
 
-						return this.editorService.createInput({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) }).then((typedInput) => {
+						return this.editorService.createInput({ resource: this.contextService.toResource(WORKSPACE_CONFIG_DEFAULT_PATH) }).then(typedInput => {
 							return this.editorService.openEditor(typedInput, { pinned: true }, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
 						});
 					}),
@@ -167,7 +167,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		}
 
 		// Open settings
-		let emptySettingsHeader = nls.localize('emptySettingsHeader', "Place your settings in this file to overwrite the default settings");
+		const emptySettingsHeader = nls.localize('emptySettingsHeader', "Place your settings in this file to overwrite the default settings");
 
 		return this.open('// ' + emptySettingsHeader + '\n{\n}', URI.file(this.environmentService.appSettingsPath));
 	}
@@ -195,7 +195,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 	}
 
 	public run(event?: any): TPromise<void> {
-		let emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
+		const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 
 		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.keybindingService), URI.file(this.environmentService.appKeybindingsPath), emptyContents);
 	}
@@ -213,7 +213,7 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 			return;
 		}
 
-		let emptySettingsHeader = [
+		const emptySettingsHeader = [
 			'// ' + nls.localize('emptySettingsHeader1', "Place your settings in this file to overwrite default and user settings."),
 			'{',
 			'}'
@@ -228,8 +228,8 @@ class DefaultSettingsInput extends StringEditorInput {
 
 	public static getInstance(instantiationService: IInstantiationService, configurationService: IWorkspaceConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
-			let editorConfig = configurationService.getConfiguration<any>();
-			let defaults = getDefaultValuesContent(editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
+			const editorConfig = configurationService.getConfiguration<any>();
+			const defaults = getDefaultValuesContent(editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
 
 			let defaultsHeader = '// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file.");
 			defaultsHeader += '\n// ' + nls.localize('defaultSettingsHeader2', "See http://go.microsoft.com/fwlink/?LinkId=808995 for the most commonly used settings.");
@@ -249,8 +249,8 @@ class DefaultKeybindingsInput extends StringEditorInput {
 
 	public static getInstance(instantiationService: IInstantiationService, keybindingService: IKeybindingService): DefaultKeybindingsInput {
 		if (!DefaultKeybindingsInput.INSTANCE) {
-			let defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
-			let defaultContents = keybindingService.getDefaultKeybindings();
+			const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+			const defaultContents = keybindingService.getDefaultKeybindings();
 
 			DefaultKeybindingsInput.INSTANCE = instantiationService.createInstance(DefaultKeybindingsInput, nls.localize('defaultKeybindings', "Default Keyboard Shortcuts"), null, defaultsHeader + '\n' + defaultContents, 'application/json', false);
 		}
