@@ -414,6 +414,11 @@
       "from": "vscode-textmate@2.2.0",
       "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-2.2.0.tgz"
     },
+    "windows-foreground-love": {
+      "version": "0.1.0",
+      "from": "windows-foreground-love@0.1.0",
+      "resolved": "https://registry.npmjs.org/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz"
+    },
     "windows-mutex": {
       "version": "0.2.0",
       "from": "windows-mutex@>=0.2.0 <0.3.0",

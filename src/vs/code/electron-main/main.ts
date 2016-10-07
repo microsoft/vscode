@@ -299,7 +299,22 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
 
-					return service.start(environmentService.args, process.env)
+					let promise = TPromise.as(null);
+					if (platform.isWindows) {
+						promise = service.getMainProcessId()
+							.then(processId => {
+								logService.log('Sending some foreground love to the running instance:', processId);
+								try {
+									const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
+									allowSetForegroundWindow(processId);
+								} catch (e) {
+									// noop
+								}
+							});
+					}
+
+					return promise
+						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
 						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
 				},
