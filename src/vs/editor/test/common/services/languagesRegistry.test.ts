@@ -12,13 +12,11 @@ suite('LanguagesRegistry', () => {
 	test('output mode does not have a name', () => {
 		let registry = new LanguagesRegistry(false);
 
-		registry._registerCompatModes([{
+		registry._registerLanguages([{
 			id: 'outputModeId',
 			extensions: [],
 			aliases: [null],
 			mimetypes: ['outputModeMimeType'],
-			moduleId: 'outputModeModuleId',
-			ctorName: 'outputModeCtorName'
 		}]);
 
 		assert.deepEqual(registry.getRegisteredLanguageNames(), []);
@@ -27,13 +25,11 @@ suite('LanguagesRegistry', () => {
 	test('mode with alias does have a name', () => {
 		let registry = new LanguagesRegistry(false);
 
-		registry._registerCompatModes([{
+		registry._registerLanguages([{
 			id: 'modeId',
 			extensions: [],
 			aliases: ['ModeName'],
 			mimetypes: ['bla'],
-			moduleId: 'bla',
-			ctorName: 'bla'
 		}]);
 
 		assert.deepEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
@@ -43,13 +39,11 @@ suite('LanguagesRegistry', () => {
 	test('mode without alias gets a name', () => {
 		let registry = new LanguagesRegistry(false);
 
-		registry._registerCompatModes([{
+		registry._registerLanguages([{
 			id: 'modeId',
 			extensions: [],
 			aliases: [],
 			mimetypes: ['bla'],
-			moduleId: 'bla',
-			ctorName: 'bla'
 		}]);
 
 		assert.deepEqual(registry.getRegisteredLanguageNames(), ['modeId']);
@@ -59,22 +53,18 @@ suite('LanguagesRegistry', () => {
 	test('bug #4360: f# not shown in status bar', () => {
 		let registry = new LanguagesRegistry(false);
 
-		registry._registerCompatModes([{
+		registry._registerLanguages([{
 			id: 'modeId',
 			extensions: ['.ext1'],
 			aliases: ['ModeName'],
 			mimetypes: ['bla'],
-			moduleId: 'bla',
-			ctorName: 'bla'
 		}]);
 
-		registry._registerCompatModes([{
+		registry._registerLanguages([{
 			id: 'modeId',
 			extensions: ['.ext2'],
 			aliases: [],
 			mimetypes: ['bla'],
-			moduleId: 'bla',
-			ctorName: 'bla'
 		}]);
 
 		assert.deepEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
@@ -84,22 +74,18 @@ suite('LanguagesRegistry', () => {
 	test('issue #5278: Extension cannot override language name anymore', () => {
 		let registry = new LanguagesRegistry(false);
 
-		registry._registerCompatModes([{
+		registry._registerLanguages([{
 			id: 'modeId',
 			extensions: ['.ext1'],
 			aliases: ['ModeName'],
 			mimetypes: ['bla'],
-			moduleId: 'bla',
-			ctorName: 'bla'
 		}]);
 
-		registry._registerCompatModes([{
+		registry._registerLanguages([{
 			id: 'modeId',
 			extensions: ['.ext2'],
 			aliases: ['BetterModeName'],
 			mimetypes: ['bla'],
-			moduleId: 'bla',
-			ctorName: 'bla'
 		}]);
 
 		assert.deepEqual(registry.getRegisteredLanguageNames(), ['BetterModeName']);

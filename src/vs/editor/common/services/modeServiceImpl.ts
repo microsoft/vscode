@@ -11,7 +11,6 @@ import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -137,7 +136,6 @@ export class ModeServiceImpl implements IModeService {
 	private _instantiationService: IInstantiationService;
 	protected _extensionService: IExtensionService;
 
-	private _activationPromises: { [modeId: string]: TPromise<modes.IMode>; };
 	private _instantiatedModes: { [modeId: string]: modes.IMode; };
 
 	private _registry: LanguagesRegistry;
@@ -155,7 +153,6 @@ export class ModeServiceImpl implements IModeService {
 		this._instantiationService = instantiationService;
 		this._extensionService = extensionService;
 
-		this._activationPromises = {};
 		this._instantiatedModes = {};
 
 		this._registry = new LanguagesRegistry();
@@ -164,11 +161,6 @@ export class ModeServiceImpl implements IModeService {
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
 		return this._registry.isRegisteredMode(mimetypeOrModeId);
-	}
-
-	public isCompatMode(modeId:string): boolean {
-		let compatModeData = this._registry.getCompatMode(modeId);
-		return (compatModeData ? true : false);
 	}
 
 	public getRegisteredModes(): string[] {
@@ -300,61 +292,18 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	private _getOrCreateMode(modeId: string): TPromise<modes.IMode> {
-		if (this._instantiatedModes.hasOwnProperty(modeId)) {
-			return TPromise.as(this._instantiatedModes[modeId]);
-		}
+	private _getOrCreateMode(modeId: string): modes.IMode {
+		if (!this._instantiatedModes.hasOwnProperty(modeId)) {
+			this._instantiatedModes[modeId] = this._instantiationService.createInstance(FrankensteinMode, {
+				id: modeId
+			});
 
-		if (this._activationPromises.hasOwnProperty(modeId)) {
-			return this._activationPromises[modeId];
-		}
-		var c, e;
-		var promise = new TPromise((cc,ee,pp) => { c = cc; e = ee; });
-		this._activationPromises[modeId] = promise;
-
-		this._createMode(modeId).then((mode) => {
-			this._instantiatedModes[modeId] = mode;
-			delete this._activationPromises[modeId];
-
-			this._onDidCreateMode.fire(mode);
+			this._onDidCreateMode.fire(this._instantiatedModes[modeId]);
 
 			this._extensionService.activateByEvent(`onLanguage:${modeId}`).done(null, onUnexpectedError);
-
-			return this._instantiatedModes[modeId];
-		}).then(c, e);
-
-		return promise;
-	}
-
-	private _createMode(modeId:string): TPromise<modes.IMode> {
-		let modeDescriptor = this._createModeDescriptor(modeId);
-
-		let compatModeData = this._registry.getCompatMode(modeId);
-		if (compatModeData) {
-			// This is a compatibility mode
-
-			let resolvedDeps: TPromise<modes.IMode[]> = null;
-			if (Array.isArray(compatModeData.deps)) {
-				resolvedDeps = TPromise.join(compatModeData.deps.map(dep => this.getOrCreateMode(dep)));
-			} else {
-				resolvedDeps = TPromise.as<modes.IMode[]>(null);
-			}
-
-			return resolvedDeps.then(_ => {
-				let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
-				return this._instantiationService.createInstance(compatModeAsyncDescriptor, modeDescriptor);
-			});
 		}
-
-		return TPromise.as<modes.IMode>(this._instantiationService.createInstance(FrankensteinMode, modeDescriptor));
+		return this._instantiatedModes[modeId];
 	}
-
-	private _createModeDescriptor(modeId:string): modes.IModeDescriptor {
-		return {
-			id: modeId
-		};
-	}
-
 }
 
 export class TokenizationState2Adapter implements modes.IState {

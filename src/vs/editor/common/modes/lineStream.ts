@@ -50,12 +50,11 @@ export class LineStream {
 	/**
 	 * Advances the stream by `n` characters.
 	 */
-	public advance(n: number): number {
+	public advance(n: number): void {
 		if (n === 0) {
-			return n;
+			return;
 		}
 		this._pos += n;
-		return n;
 	}
 
 	/**
