@@ -38,13 +38,27 @@ export class StateMemorizingLastWord extends AbstractState {
 	}
 
 	public tokenize(stream:LineStream):ITokenizationResult {
-		stream.setTokenRules('[]{}()==--', '\t \u00a0');
-		if (stream.skipWhitespace() !== '') {
-			return {
-				type: ''
-			};
+		let contents = stream.advanceToEOS();
+		stream.goBack(contents.length);
+
+		let m = contents.match(/^([\t \u00a0]+)/);
+		if (m) {
+			stream.advance(m[0].length);
+			return { type: '' };
 		}
-		var word = stream.nextToken();
+
+		m = contents.match(/^([\[\]\{\}\(\)])/);
+		let word: string;
+		if (m) {
+			stream.advance(m[0].length);
+			word = m[1];
+
+		} else {
+			m = contents.match(/([a-zA-Z]+)/);
+			stream.advance(m[0].length);
+			word = m[1];
+		}
+
 		return {
 			type: this.getModeId() + '.' + word,
 			nextState: new StateMemorizingLastWord(this.getModeId(), this.descriptor, word)
@@ -169,7 +183,9 @@ suite('Editor Modes - Tokenization', () => {
 			}
 
 			public tokenize(stream:LineStream):ITokenizationResult {
-				return { type: stream.next() === '.' ? '' : 'text' };
+				let chr = stream.peek();
+				stream.advance(1);
+				return { type: chr === '.' ? '' : 'text' };
 			}
 		}
 
