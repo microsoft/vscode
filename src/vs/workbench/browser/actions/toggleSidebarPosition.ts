@@ -17,7 +17,7 @@ import {IPartService, Position} from 'vs/workbench/services/part/common/partServ
 export class ToggleSidebarPositionAction extends Action {
 
 	public static ID = 'workbench.action.toggleSidebarPosition';
-	public static LABEL = nls.localize('togglePosition', "Toggle Side Bar Position");
+	public static LABEL = nls.localize('toggleLocation', "Toggle Side Bar Location");
 
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 
