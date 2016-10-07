@@ -43,6 +43,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationEditingService} from 'vs/workbench/services/configuration/common/configurationEditing';
 import {ConfigurationEditingService} from 'vs/workbench/services/configuration/node/configurationEditingService';
 import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
@@ -104,11 +105,12 @@ const Identifiers = {
  */
 export class Workbench implements IPartService {
 
-	private static sidebarPositionSettingKey = 'workbench.sidebar.position';
 	private static statusbarHiddenSettingKey = 'workbench.statusbar.hidden';
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
 	private static sidebarRestoreSettingKey = 'workbench.sidebar.restore';
 	private static panelHiddenSettingKey = 'workbench.panel.hidden';
+
+	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 
 	public _serviceBrand: any;
 
@@ -122,6 +124,7 @@ export class Workbench implements IPartService {
 	private editorService: WorkbenchEditorService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
+	private configurationEditingService: IConfigurationEditingService;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -154,6 +157,7 @@ export class Workbench implements IPartService {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
@@ -392,7 +396,8 @@ export class Workbench implements IPartService {
 		serviceCollection.set(ITextFileService, this.instantiationService.createInstance(TextFileService));
 
 		// Configuration Editing
-		serviceCollection.set(IConfigurationEditingService, this.instantiationService.createInstance(ConfigurationEditingService));
+		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
+		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
 
 		// Configuration Resolver
 		const workspace = this.contextService.getWorkspace();
@@ -438,8 +443,8 @@ export class Workbench implements IPartService {
 		}
 
 		// Sidebar position
-		const rawPosition = this.storageService.get(Workbench.sidebarPositionSettingKey, StorageScope.GLOBAL, 'left');
-		this.sideBarPosition = (rawPosition === 'left') ? Position.LEFT : Position.RIGHT;
+		const sideBarPosition = this.configurationService.lookup<string>(Workbench.sidebarPositionConfigurationKey).value;
+		this.sideBarPosition = (sideBarPosition === 'right') ? Position.RIGHT : Position.LEFT;
 
 		// Statusbar visibility
 		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.GLOBAL, false);
@@ -613,7 +618,7 @@ export class Workbench implements IPartService {
 		return this.sideBarPosition;
 	}
 
-	public setSideBarPosition(position: Position): void {
+	private setSideBarPosition(position: Position): void {
 		if (this.sideBarHidden) {
 			this.setSideBarHidden(false, true /* Skip Layout */);
 		}
@@ -630,9 +635,6 @@ export class Workbench implements IPartService {
 
 		// Layout
 		this.workbenchLayout.layout(true);
-
-		// Remember in settings
-		this.storageService.store(Workbench.sidebarPositionSettingKey, position === Position.LEFT ? 'left' : 'right', StorageScope.GLOBAL);
 	}
 
 	public dispose(): void {
@@ -666,13 +668,14 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.editorPart.onEditorsChanged(() => this.onEditorsChanged()));
 
 		// Handle message service and quick open events
-		if (this.messageService instanceof WorkbenchMessageService) {
-			this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesShowing(() => this.messagesVisibleContext.set(true)));
-			this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesCleared(() => this.messagesVisibleContext.reset()));
+		this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesShowing(() => this.messagesVisibleContext.set(true)));
+		this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesCleared(() => this.messagesVisibleContext.reset()));
 
-			this.toDispose.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
-			this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
-		}
+		this.toDispose.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
+		this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
+
+		// Configuration changes
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.onDidUpdateConfiguration()));
 	}
 
 	private onEditorsChanged(): void {
@@ -688,6 +691,15 @@ export class Workbench implements IPartService {
 		} else {
 			this.editorsVisibleContext.set(true);
 			this.editorBackgroundDelayer.trigger(() => editorContainer.removeClass('empty'));
+		}
+	}
+
+	private onDidUpdateConfiguration(): void {
+		const newSidebarPositionValue = this.configurationService.lookup<string>(Workbench.sidebarPositionConfigurationKey).value;
+		const newSidebarPosition = newSidebarPositionValue === 'right' ? Position.RIGHT : Position.LEFT;
+
+		if (newSidebarPosition !== this.getSideBarPosition()) {
+			this.setSideBarPosition(newSidebarPosition);
 		}
 	}
 

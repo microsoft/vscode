@@ -256,7 +256,6 @@ export class TestPartService implements IPartService {
 		return 0;
 	}
 
-	public setSideBarPosition(position): void { }
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }

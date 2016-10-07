@@ -109,7 +109,13 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
 			'default': true
-		}
+		},
+		'workbench.sideBar.location': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': 'left',
+			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
+		},
 	}
 });
 

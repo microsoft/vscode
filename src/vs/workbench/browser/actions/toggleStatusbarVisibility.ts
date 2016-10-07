@@ -17,14 +17,18 @@ export class ToggleStatusbarVisibilityAction extends Action {
 	public static ID = 'workbench.action.toggleStatusbarVisibility';
 	public static LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
 
-	constructor(id: string, label: string, @IPartService private partService: IPartService) {
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService
+	) {
 		super(id, label);
 
 		this.enabled = !!this.partService;
 	}
 
 	public run(): TPromise<any> {
-		let hideStatusbar = !this.partService.isStatusBarHidden();
+		const hideStatusbar = !this.partService.isStatusBarHidden();
 		this.partService.setStatusBarHidden(hideStatusbar);
 
 		return TPromise.as(null);
