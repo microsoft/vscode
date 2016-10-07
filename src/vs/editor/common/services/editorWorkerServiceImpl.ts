@@ -8,7 +8,7 @@ import {IntervalTimer, ShallowCancelThenPromise, wireCancellationToken} from 'vs
 import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
+import {SimpleWorkerClient, logOnceWebWorkerWarning} from 'vs/base/common/worker/simpleWorker';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
@@ -16,7 +16,6 @@ import {IInplaceReplaceSupportResult, ILink, ISuggestResult, LinkProviderRegistr
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorSimpleWorkerImpl} from 'vs/editor/common/services/editorSimpleWorker';
-import {logOnceWebWorkerWarning} from 'vs/base/common/worker/workerClient';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -256,7 +255,7 @@ export class EditorWorkerClient extends Disposable {
 	constructor(modelService: IModelService, label:string) {
 		super();
 		this._modelService = modelService;
-		this._workerFactory = new DefaultWorkerFactory(label, /*do not use iframe*/false);
+		this._workerFactory = new DefaultWorkerFactory(label);
 		this._worker = null;
 		this._modelManager = null;
 	}
