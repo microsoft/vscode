@@ -102,13 +102,13 @@ export class MainThreadTextEditor {
 		this._onConfigurationChanged = new Emitter<IResolvedTextEditorConfiguration>();
 
 		this._lastSelection = [ new Selection(1,1,1,1) ];
-		this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 		this._modelListeners = [];
 		this._modelListeners.push(this._model.onDidChangeOptions((e) => {
 			this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 		}));
 
 		this.setCodeEditor(codeEditor);
+		this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 	}
 
 	public dispose(): void {
