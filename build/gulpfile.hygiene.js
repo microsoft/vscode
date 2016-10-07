@@ -172,7 +172,7 @@ const hygiene = exports.hygiene = (some, options) => {
 			// verbose: true
 		}).then(result => {
 			if (result.error) {
-				console.error(file.relative + ': ' + result.message);
+				console.error(result.message);
 				errorCount++;
 			}
 			cb(null, file);
