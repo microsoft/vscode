@@ -91,12 +91,6 @@ export interface IPartService {
 	getSideBarPosition(): Position;
 
 	/**
-	 * Sets the side bar position. If the side bar is hidden, the side bar will
-	 * also be made visible.
-	 */
-	setSideBarPosition(position: Position): void;
-
-	/**
 	 * Adds a class to the workbench part.
 	 */
 	addClass(clazz: string): void;

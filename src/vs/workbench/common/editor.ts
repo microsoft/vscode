@@ -881,7 +881,7 @@ export interface IWorkbenchEditorConfiguration {
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
-			openPositioning: string;
+			openPositioning: 'left' | 'right' | 'first' | 'last';
 		}
 	};
 }

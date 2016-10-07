@@ -18,14 +18,18 @@ export class ToggleSidebarVisibilityAction extends Action {
 	public static ID = 'workbench.action.toggleSidebarVisibility';
 	public static LABEL = nls.localize('toggleSidebar', "Toggle Side Bar Visibility");
 
-	constructor(id: string, label: string, @IPartService private partService: IPartService) {
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService
+	) {
 		super(id, label);
 
 		this.enabled = !!this.partService;
 	}
 
 	public run(): TPromise<any> {
-		let hideSidebar = !this.partService.isSideBarHidden();
+		const hideSidebar = !this.partService.isSideBarHidden();
 		this.partService.setSideBarHidden(hideSidebar);
 
 		return TPromise.as(null);
