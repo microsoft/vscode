@@ -9,6 +9,7 @@ const gulp = require('gulp');
 const filter = require('gulp-filter');
 const es = require('event-stream');
 const gulptslint = require('gulp-tslint');
+const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
 
 const all = [
@@ -163,6 +164,24 @@ const hygiene = exports.hygiene = (some, options) => {
 		this.emit('data', file);
 	});
 
+	const formatting = es.through(function (file) {
+
+		tsfmt.processString(file.path, file.contents.toString('utf8'), {
+			verify: true,
+			tsfmt: true,
+			verbose: true
+		}).then(result => {
+			if (result.error) {
+				console.error(file.relative + ': ' + result.message);
+				errorCount++;
+			}
+			this.emit('data', file);
+
+		}, err => {
+			this.emit('error', err);
+		});
+	});
+
 	const tsl = es.through(function(file) {
 		const configuration = tslint.findConfiguration(null, '.');
 		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
@@ -187,6 +206,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights)
 		.pipe(filter(tslintFilter))
+		.pipe(formatting)
 		.pipe(tsl)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {
