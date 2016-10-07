@@ -5,7 +5,7 @@
 
 exports.base = require('./vs/base/buildfile').collectModules();
 exports.editor = require('./vs/editor/buildfile').collectModules();
-exports.languages = require('./vs/languages/buildfile').collectModules();
+exports.languages = [];
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
 exports.code = require('./vs/code/buildfile').collectModules();
 
