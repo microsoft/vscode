@@ -23,7 +23,6 @@ import {ExtHostThreadService} from 'vs/workbench/services/thread/common/extHostT
 import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Client} from 'vs/base/parts/ipc/node/ipc.net';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
 const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
@@ -66,7 +65,7 @@ export class ExtensionHostMain {
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
-	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData, sharedProcessClient: Client) {
+	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData) {
 		this._isTerminating = false;
 
 		this._environment = initData.environment;

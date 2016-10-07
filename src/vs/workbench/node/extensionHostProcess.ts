@@ -8,7 +8,6 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, IInitData, exit } from 'vs/workbench/node/extensionHostMain';
-import { Client, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
 
@@ -103,20 +102,8 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 	});
 }
 
-function connectToSharedProcess(): TPromise<Client> {
-	return connect(process.env['VSCODE_SHARED_IPC_HOOK'], `extensionHost:${ process.env['VSCODE_WINDOW_ID'] }`);
-}
-
-TPromise.join<any>([connectToRenderer(), connectToSharedProcess()])
-	.done(result => {
-		const renderer: IRendererConnection = result[0];
-		const sharedProcessClient: Client = result[1];
-		const extensionHostMain = new ExtensionHostMain(renderer.remoteCom, renderer.initData, sharedProcessClient);
-
-		onTerminate = () => {
-			extensionHostMain.terminate();
-		};
-
-		extensionHostMain.start()
-			.done(null, err => console.error(err));
-	});
+connectToRenderer().then(renderer => {
+	const extensionHostMain = new ExtensionHostMain(renderer.remoteCom, renderer.initData);
+	onTerminate = () => extensionHostMain.terminate();
+	return extensionHostMain.start();
+}).done(null, err => console.error(err));
