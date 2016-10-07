@@ -5,11 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IStream, TokenizationRegistry} from 'vs/editor/common/modes';
+import {TokenizationRegistry} from 'vs/editor/common/modes';
 import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	test('TextToHtmlTokenizer', () => {
@@ -67,7 +68,7 @@ class State extends AbstractState {
 		return new State(this.getModeId());
 	}
 
-	public tokenize(stream:IStream):ITokenizationResult {
+	public tokenize(stream:LineStream):ITokenizationResult {
 		return { type: stream.next() === '.' ? '' : 'text' };
 	}
 }

@@ -13,6 +13,7 @@ import {createMockLineContext} from 'vs/editor/test/common/modesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {Token} from 'vs/editor/common/core/token';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 export interface IModeSwitchingDescriptor {
 	[character:string]:{
@@ -36,7 +37,7 @@ export class StateMemorizingLastWord extends AbstractState {
 		return new StateMemorizingLastWord(this.getModeId(), this.descriptor, this.lastWord);
 	}
 
-	public tokenize(stream:modes.IStream):ITokenizationResult {
+	public tokenize(stream:LineStream):ITokenizationResult {
 		stream.setTokenRules('[]{}()==--', '\t \u00a0');
 		if (stream.skipWhitespace() !== '') {
 			return {
@@ -167,7 +168,7 @@ suite('Editor Modes - Tokenization', () => {
 				return new State(this.getModeId());
 			}
 
-			public tokenize(stream:modes.IStream):ITokenizationResult {
+			public tokenize(stream:LineStream):ITokenizationResult {
 				return { type: stream.next() === '.' ? '' : 'text' };
 			}
 		}
