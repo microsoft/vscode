@@ -23,6 +23,7 @@ import {ExtHostThreadService} from 'vs/workbench/services/thread/common/extHostT
 import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import * as errors from 'vs/base/common/errors';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
 const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
@@ -151,21 +152,28 @@ export class ExtensionHostMain {
 		}
 		this._isTerminating = true;
 
+		errors.setUnexpectedErrorHandler((err) => {
+			// TODO: write to log once we have one
+		});
+
+		let allPromises: TPromise<void>[] = [];
 		try {
 			let allExtensions = ExtensionsRegistry.getAllExtensionDescriptions();
 			let allExtensionsIds = allExtensions.map(ext => ext.id);
 			let activatedExtensions = allExtensionsIds.filter(id => this._extensionService.isActivated(id));
 
-			activatedExtensions.forEach((extensionId) => {
-				this._extensionService.deactivate(extensionId);
+			allPromises = activatedExtensions.map((extensionId) => {
+				return this._extensionService.deactivate(extensionId);
 			});
 		} catch (err) {
 			// TODO: write to log once we have one
 		}
 
+		let extensionsDeactivated = TPromise.join(allPromises).then<void>(() => void 0);
+
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
-			exit();
+			TPromise.any<void>([TPromise.timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
 	}
 

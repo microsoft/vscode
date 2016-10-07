@@ -148,16 +148,21 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		return this._activatedExtensions[extensionId].exports;
 	}
 
-	public deactivate(extensionId: string): void {
+	public deactivate(extensionId: string): TPromise<void> {
+		let result:TPromise<void> = TPromise.as(void 0);
+
 		let extension = this._activatedExtensions[extensionId];
 		if (!extension) {
-			return;
+			return result;
 		}
 
 		// call deactivate if available
 		try {
 			if (typeof extension.module.deactivate === 'function') {
-				extension.module.deactivate();
+				result = TPromise.wrap(extension.module.deactivate()).then(null, (err) => {
+					// TODO: Do something with err if this is not the shutdown case
+					return TPromise.as(void 0);
+				});
 			}
 		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
@@ -169,6 +174,8 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}
+
+		return result;
 	}
 
 	public registrationDone(messages: IMessage[]): void {
