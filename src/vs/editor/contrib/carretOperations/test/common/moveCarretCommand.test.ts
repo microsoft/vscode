@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Selection} from 'vs/editor/common/core/selection';
-import {MoveCarretCommand} from 'vs/editor/contrib/carretOperations/common/moveCarretCommand';
-import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
+import { Selection } from 'vs/editor/common/core/selection';
+import { MoveCarretCommand } from 'vs/editor/contrib/carretOperations/common/moveCarretCommand';
+import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 
 
 function testMoveCarretLeftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {

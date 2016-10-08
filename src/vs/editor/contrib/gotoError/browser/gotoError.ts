@@ -7,26 +7,23 @@
 
 import 'vs/css!./gotoError';
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {Emitter} from 'vs/base/common/event';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import {getCodeActions, IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
+import { editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -190,124 +187,10 @@ class MarkerModel {
 	}
 }
 
-class FixesWidget {
-
-	domNode: HTMLDivElement;
-
-	private _disposeOnUpdate: IDisposable[] = [];
-	private _listener: IDisposable;
-
-	constructor(
-		container: HTMLElement,
-		private _markerWidget: MarkerNavigationWidget,
-		@ICommandService private _commandService: ICommandService
-	) {
-		this.domNode = document.createElement('div');
-		container.appendChild(this.domNode);
-
-		this._listener = dom.addStandardDisposableListener(container, 'keydown', (e) => {
-			switch (e.asKeybinding()) {
-				case KeyCode.LeftArrow:
-					this._move(true);
-					e.preventDefault();
-					e.stopPropagation();
-					break;
-				case KeyCode.RightArrow:
-					this._move(false);
-					e.preventDefault();
-					e.stopPropagation();
-					break;
-			}
-		});
-	}
-
-	dispose(): void {
-		this._disposeOnUpdate = dispose(this._disposeOnUpdate);
-		this._listener = dispose(this._listener);
-	}
-
-	update(marker: IMarker): TPromise<any> {
-		this._disposeOnUpdate = dispose(this._disposeOnUpdate);
-		this.domNode.style.display = 'none';
-		if (marker) {
-			const fixes = getCodeActions(this._markerWidget.editor.getModel(), Range.lift(marker));
-			return fixes.then(fixes => this._doUpdate(fixes), onUnexpectedError);
-		}
-	}
-
-	private _doUpdate(fixes: IQuickFix2[]): void {
-
-		dom.clearNode(this.domNode);
-
-		if (!fixes || fixes.length === 0) {
-			return;
-		}
-
-		// light bulb and label
-		let quickfixhead = document.createElement('span');
-		quickfixhead.className = 'quickfixhead';
-		quickfixhead.appendChild(document.createTextNode(fixes.length > 1
-			? nls.localize('quickfix.multiple.label', 'Suggested fixes: ')
-			: nls.localize('quickfix.single.label', 'Suggested fix: ')));
-		this.domNode.appendChild(quickfixhead);
-
-		// each fix as entry
-		const container = document.createElement('span');
-		container.className = 'quickfixcontainer';
-
-		fixes.forEach((fix, idx, arr) => {
-
-			if (idx > 0) {
-				let separator = document.createElement('span');
-				separator.appendChild(document.createTextNode(', '));
-				container.appendChild(separator);
-			}
-
-			let entry = document.createElement('a');
-			entry.tabIndex = 0;
-			entry.className = `quickfixentry`;
-			entry.dataset['idx'] = String(idx);
-			entry.dataset['next'] = String(idx < arr.length - 1 ? idx + 1 : 0);
-			entry.dataset['prev'] = String(idx > 0 ? idx - 1 : arr.length - 1);
-			entry.appendChild(document.createTextNode(fix.command.title));
-			this._disposeOnUpdate.push(dom.addDisposableListener(entry, dom.EventType.CLICK, (e) => {
-				this._commandService.executeCommand(fix.command.id, ...fix.command.arguments);
-				this._markerWidget.focus();
-				e.preventDefault();
-			}));
-			this._disposeOnUpdate.push(dom.addStandardDisposableListener(entry, 'keydown', (e) => {
-				switch (e.asKeybinding()) {
-					case KeyCode.Enter:
-					case KeyCode.Space:
-						this._commandService.executeCommand(fix.command.id, ...fix.command.arguments);
-						this._markerWidget.focus();
-						e.preventDefault();
-						e.stopPropagation();
-				}
-			}));
-			container.appendChild(entry);
-		});
-
-		this.domNode.appendChild(container);
-		this.domNode.style.display = '';
-	}
-
-	private _move(left: boolean): void {
-		let target: HTMLElement;
-		if (document.activeElement.classList.contains('quickfixentry')) {
-			let current = <HTMLElement> document.activeElement;
-			let idx = left ? current.dataset['prev'] : current.dataset['next'];
-			target = <HTMLElement>this.domNode.querySelector(`a[data-idx='${idx}']`);
-		} else {
-			target = <HTMLElement> this.domNode.querySelector('.quickfixentry');
-		}
-		target.focus();
-	}
-}
-
 class MessageWidget {
 
 	domNode: HTMLDivElement;
+	lines: number = 0;
 
 	constructor(container: HTMLElement) {
 		this.domNode = document.createElement('div');
@@ -318,9 +201,11 @@ class MessageWidget {
 	}
 
 	update({source, message}: IMarker): void {
+		this.lines = 1;
 		if (source) {
 			const indent = new Array(source.length + 3 + 1).join(' ');
-			message = `[${source}] ` + message.replace(/\r\n|\r|\n/g, function () {
+			message = `[${source}] ` + message.replace(/\r\n|\r|\n/g, () => {
+				this.lines += 1;
 				return '\n' + indent;
 			});
 		}
@@ -334,7 +219,6 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private _container: HTMLElement;
 	private _title: HTMLElement;
 	private _message: MessageWidget;
-	private _fixesWidget: FixesWidget;
 	private _callOnDispose: IDisposable[] = [];
 
 	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService) {
@@ -367,10 +251,6 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 		this._message = new MessageWidget(this._container);
 		this.editor.applyFontInfo(this._message.domNode);
-
-		this._fixesWidget = new FixesWidget(this._container, this, this._commandService);
-		this._fixesWidget.domNode.classList.add('fixes');
-		this._callOnDispose.push(this._fixesWidget);
 	}
 
 	public show(where: editorCommon.IPosition, heightInLines: number): void {
@@ -393,11 +273,9 @@ class MarkerNavigationWidget extends ZoneWidget {
 		// update:
 		// * title
 		// * message
-		// * quick fixes
 		this._container.classList.remove('stale');
 		this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", this._model.indexOf(marker), this._model.total);
 		this._message.update(marker);
-		this._fixesWidget.update(marker).then(() => this._relayout());
 
 		this._model.withoutWatchingEditorPosition(() => {
 
@@ -420,20 +298,14 @@ class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	private _onMarkersChanged(): void {
-
 		const marker = this._model.findMarkerAtPosition(this.position);
-
 		if (marker) {
 			this._container.classList.remove('stale');
 			this._message.update(marker);
-			this._relayout();
-			this._fixesWidget.update(marker).then(() => this._relayout());
-
 		} else {
 			this._container.classList.add('stale');
-			this._fixesWidget.update(marker);
-			this._relayout();
 		}
+		this._relayout();
 	}
 
 	protected _relayout(): void {
@@ -441,9 +313,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	private computeRequiredHeight() {
-		// minimum one line content, add one line for zone widget decorations
-		const lineHeight = this.editor.getConfiguration().lineHeight || 12;
-		return Math.max(1, Math.ceil(this._container.clientHeight / lineHeight)) + 1;
+		return 1 + this._message.lines;
 	}
 }
 
@@ -451,12 +321,12 @@ class MarkerNavigationAction extends EditorAction {
 
 	private _isNext: boolean;
 
-	constructor(next: boolean, opts:IActionOptions) {
+	constructor(next: boolean, opts: IActionOptions) {
 		super(opts);
 		this._isNext = next;
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		const telemetryService = accessor.get(ITelemetryService);
 
 		let controller = MarkerController.get(editor);

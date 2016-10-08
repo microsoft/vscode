@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {isEmptyObject} from 'vs/base/common/types';
-import {forEach, contains, lookup} from 'vs/base/common/collections';
+import { isEmptyObject } from 'vs/base/common/types';
+import { forEach, contains, lookup } from 'vs/base/common/collections';
 
 export interface Node<T> {
 	data: T;

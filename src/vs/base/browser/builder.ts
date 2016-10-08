@@ -5,9 +5,9 @@
 'use strict';
 
 import 'vs/css!./builder';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
 import DOM = require('vs/base/browser/dom');
@@ -183,7 +183,7 @@ export class Builder implements IDisposable {
 		}
 
 		// Wrap Builders into MultiBuilder
-		let builders:Builder[] = [this];
+		let builders: Builder[] = [this];
 		if (obj instanceof MultiBuilder) {
 			for (let i = 0; i < (<MultiBuilder>obj).length; i++) {
 				builders.push((<MultiBuilder>obj).item(i));
@@ -680,7 +680,7 @@ export class Builder implements IDisposable {
 	public preventDefault(type: string, cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
 	public preventDefault(typesArray: string[], cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
 	public preventDefault(arg1: any, cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder {
-		let fn = function(e: Event) {
+		let fn = function (e: Event) {
 			e.preventDefault();
 
 			if (cancelBubble) {
@@ -1891,7 +1891,7 @@ export class MultiBuilder extends Builder {
 		// Mixin Builder functions to operate on all builders
 		let $outer = this;
 		let propertyFn = (prop: string) => {
-			(<any>$outer)[prop] = function(): any {
+			(<any>$outer)[prop] = function (): any {
 				let args = Array.prototype.slice.call(arguments);
 
 				let returnValues: any[];
@@ -2102,7 +2102,7 @@ export let Binding = {
 
 let SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
-export let $: QuickBuilder = function(arg?: any): Builder {
+export let $: QuickBuilder = function (arg?: any): Builder {
 
 	// Off-DOM use
 	if (types.isUndefined(arg)) {

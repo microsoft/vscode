@@ -122,7 +122,7 @@ export class PagedModel<T> implements IPagedModel<T> {
  * Similar to array.map, `mapPager` lets you map the elements of an
  * abstract paged collection to another type.
  */
-export function mapPager<T,R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
+export function mapPager<T, R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
 	return {
 		firstPage: pager.firstPage.map(fn),
 		total: pager.total,

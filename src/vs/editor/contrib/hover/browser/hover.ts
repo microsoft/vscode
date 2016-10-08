@@ -7,19 +7,19 @@
 
 import 'vs/css!./hover';
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IOpenerService} from 'vs/platform/opener/common/opener';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {Range} from 'vs/editor/common/core/range';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {ModesContentHoverWidget} from './modesContentHover';
-import {ModesGlyphHoverWidget} from './modesGlyphHover';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { ModesContentHoverWidget } from './modesContentHover';
+import { ModesGlyphHoverWidget } from './modesGlyphHover';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -29,7 +29,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	private static ID = 'editor.contrib.hover';
 
 	private _editor: ICodeEditor;
-	private _toUnhook:IDisposable[];
+	private _toUnhook: IDisposable[];
 
 	private _contentWidget: ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHoverWidget;
@@ -50,7 +50,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 			this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._toUnhook.push(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.push(this._editor.onMouseLeave((e: IEditorMouseEvent) => this._hideWidgets()));
-			this._toUnhook.push(this._editor.onKeyDown((e:IKeyboardEvent) => this._onKeyDown(e)));
+			this._toUnhook.push(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 			this._toUnhook.push(this._editor.onDidChangeModel(() => this._hideWidgets()));
 			this._toUnhook.push(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 			this._toUnhook.push(this._editor.onDidScrollChange((e) => {
@@ -72,7 +72,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		var targetType = mouseEvent.target.type;
 
-		if (targetType === editorCommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail ===  ModesContentHoverWidget.ID) {
+		if (targetType === editorCommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
 			// mouse down on top of content hover widget
 			return;
 		}
@@ -89,7 +89,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 		var targetType = mouseEvent.target.type;
 		var stopKey = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (targetType === editorCommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail ===  ModesContentHoverWidget.ID && !mouseEvent.event[stopKey]) {
+		if (targetType === editorCommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !mouseEvent.event[stopKey]) {
 			// mouse moved on top of content hover widget
 			return;
 		}
@@ -160,7 +160,7 @@ class ShowHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		let controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;

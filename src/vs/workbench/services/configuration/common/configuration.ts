@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IConfigurationService, IConfigurationValue}  from 'vs/platform/configuration/common/configuration';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const CONFIG_DEFAULT_NAME = 'settings';
 export const WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME = '.vscode';

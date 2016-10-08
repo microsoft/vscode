@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult} from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult } from 'vscode-languageserver';
 
-import {HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration} from 'vscode-html-languageservice';
-import {getLanguageModelCache} from './languageModelCache';
+import { HTMLDocument, getLanguageService, CompletionConfiguration, HTMLFormatConfiguration } from 'vscode-html-languageservice';
+import { getLanguageModelCache } from './languageModelCache';
 
 
 import * as nls from 'vscode-nls';

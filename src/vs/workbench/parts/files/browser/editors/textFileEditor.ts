@@ -4,35 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
-import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
-import {IEditorViewState} from 'vs/editor/common/editorCommon';
-import {Action} from 'vs/base/common/actions';
-import {Scope} from 'vs/workbench/common/memento';
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {VIEWLET_ID, TEXT_FILE_EDITOR_ID, ITextFileEditorModel} from 'vs/workbench/parts/files/common/files';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
-import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, IFileService} from 'vs/platform/files/common/files';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, CancelAction} from 'vs/platform/message/common/message';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { Action } from 'vs/base/common/actions';
+import { Scope } from 'vs/workbench/common/memento';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
+import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, IFileService } from 'vs/platform/files/common/files';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, CancelAction } from 'vs/platform/message/common/message';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -120,8 +120,8 @@ export class TextFileEditor extends BaseTextEditor {
 		// Different Input (Reload)
 		return this.editorService.resolveEditorModel(input, true /* Reload */).then(resolvedModel => {
 
-			// There is a special case where the text editor has to handle binary file editor input: if a file with application/unknown
-			// mime has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
+			// There is a special case where the text editor has to handle binary file editor input: if a binary file
+			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
 			// editor has to open this model using the binary editor. We return early in this case.
 			if (resolvedModel instanceof BinaryEditorModel) {
 				return this.openAsBinary(input, options);
@@ -162,7 +162,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// In case we tried to open a file inside the text editor and the response
 			// indicates that this is not a text file, reopen the file through the binary
-			// editor by using application/octet-stream as mime.
+			// editor.
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY) {
 				return this.openAsBinary(input, options);
 			}
@@ -182,7 +182,6 @@ export class TextFileEditor extends BaseTextEditor {
 								// Open
 								return this.editorService.openEditor({
 									resource: input.getResource(),
-									mime: MIME_TEXT,
 									options: {
 										pinned: true // new file gets pinned by default
 									}
@@ -200,8 +199,8 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
-		const fileInputBinary = this.instantiationService.createInstance(FileEditorInput, input.getResource(), MIME_BINARY, void 0);
-		this.editorService.openEditor(fileInputBinary, options, this.position).done(null, errors.onUnexpectedError);
+		input.setForceOpenAsBinary();
+		this.editorService.openEditor(input, options, this.position).done(null, errors.onUnexpectedError);
 	}
 
 	private openAsFolder(input: FileEditorInput): boolean {

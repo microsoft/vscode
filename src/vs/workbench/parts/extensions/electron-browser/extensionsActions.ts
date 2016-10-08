@@ -201,7 +201,7 @@ export class CombinedInstallAction extends Action {
 export class UpdateAction extends Action {
 
 	private static EnabledClass = 'extension-action update';
-	private static DisabledClass = `${ UpdateAction.EnabledClass } disabled`;
+	private static DisabledClass = `${UpdateAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
@@ -251,7 +251,7 @@ export class UpdateAction extends Action {
 export class EnableAction extends Action {
 
 	private static EnabledClass = 'extension-action enable';
-	private static DisabledClass = `${ EnableAction.EnabledClass } disabled`;
+	private static DisabledClass = `${EnableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
@@ -325,7 +325,7 @@ export class UpdateAllAction extends Action {
 		this.enabled = this.outdated.length > 0;
 	}
 
-	run(promptToInstallDependencies: boolean = true,): TPromise<any> {
+	run(promptToInstallDependencies: boolean = true, ): TPromise<any> {
 		return TPromise.join(this.outdated.map(e => this.extensionsWorkbenchService.install(e, promptToInstallDependencies)));
 	}
 
@@ -623,7 +623,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', `${ ConfigurationKey }.json`));
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', `${ConfigurationKey}.json`));
 
 		return this.fileService.resolveContent(extensionsFileResource).then(content => {
 			return { created: false, extensionsFileResource };
@@ -676,9 +676,9 @@ export class BuiltinStatusLabelAction extends Action {
 
 	private update(): void {
 		if (this.extension && this.extension.type === LocalExtensionType.System) {
-			this.class = `${ BuiltinStatusLabelAction.Class } system`;
+			this.class = `${BuiltinStatusLabelAction.Class} system`;
 		} else {
-			this.class = `${ BuiltinStatusLabelAction.Class } user`;
+			this.class = `${BuiltinStatusLabelAction.Class} user`;
 		}
 	}
 

@@ -5,16 +5,17 @@
 
 'use strict';
 
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as strings from 'vs/base/common/strings';
-import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { binarySearch } from 'vs/base/common/arrays';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, commonEditorContribution, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ICodeSnippet, CodeSnippet} from './snippet';
+import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ICodeSnippet, CodeSnippet } from './snippet';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -57,14 +58,34 @@ export class InsertSnippetController {
 	}
 
 	private initialize(adaptedSnippet: ICodeSnippet, startLineNumber: number): void {
-		var i: number, len: number;
 
-		for (i = 0, len = adaptedSnippet.placeHolders.length; i < len; i++) {
-			var placeHolder = adaptedSnippet.placeHolders[i];
+		// sorted list of all placeholder occurences for subsequent lockups
+		const sortedOccurrences: editorCommon.IRange[] = [];
+		for (const {occurences} of adaptedSnippet.placeHolders) {
+			for (const range of occurences) {
+				sortedOccurrences.push(range);
+			}
+		}
+		sortedOccurrences.sort(Range.compareRangesUsingStarts);
 
-			var trackedRanges: string[] = [];
-			for (var j = 0, lenJ = placeHolder.occurences.length; j < lenJ; j++) {
-				trackedRanges.push(this.model.addTrackedRange(placeHolder.occurences[j], editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges));
+		// track each occurence
+		for (const {occurences} of adaptedSnippet.placeHolders) {
+			const trackedRanges: string[] = [];
+
+			for (const range of occurences) {
+				let stickiness = editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+
+				// Check if the previous range ends exactly where this range starts
+				// and iff so change the stickiness to avoid conflicts
+				let idx = binarySearch(sortedOccurrences, range, Range.compareRangesUsingStarts);
+				if (idx > 0
+					&& sortedOccurrences[idx - 1].endLineNumber === range.startLineNumber
+					&& sortedOccurrences[idx - 1].endColumn === range.startColumn) {
+
+					stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+				}
+
+				trackedRanges.push(this.model.addTrackedRange(range, stickiness));
 			}
 
 			this.trackedPlaceHolders.push({
@@ -525,7 +546,7 @@ export class SnippetController {
 					finalCursorOffset = finalCursorPos.column - typeRange.startColumn;
 				} else {
 					finalCursorOffset = finalCursorPos.column - 1;
-					for (let i = 0, lineNumber = typeRange.startLineNumber; lineNumber < finalCursorPos.lineNumber; i++, lineNumber++) {
+					for (let i = 0, lineNumber = typeRange.startLineNumber; lineNumber < finalCursorPos.lineNumber; i++ , lineNumber++) {
 						finalCursorOffset += adaptedSnippet.lines[i].length + model.getEOL().length;
 					}
 				}

@@ -14,7 +14,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
+import {
+	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionIdentity, IExtensionManifest, IGalleryMetadata,
 	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -82,7 +83,7 @@ function readManifest(extensionPath: string): TPromise<{ manifest: IExtensionMan
 }
 
 function getExtensionId(extension: IExtensionIdentity, version: string): string {
-	return `${ extension.publisher }.${ extension.name }-${ version }`;
+	return `${extension.publisher}.${extension.name}-${version}`;
 }
 
 export class ExtensionManagementService implements IExtensionManagementService {
@@ -131,8 +132,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 				return this.installExtension(zipPath, id)
 					.then(
-						local => this._onDidInstallExtension.fire({ id, zipPath, local }),
-						error => { this._onDidInstallExtension.fire({ id, zipPath, error }); return TPromise.wrapError(error); }
+					local => this._onDidInstallExtension.fire({ id, zipPath, local }),
+					error => { this._onDidInstallExtension.fire({ id, zipPath, error }); return TPromise.wrapError(error); }
 					);
 			});
 		});
@@ -148,11 +149,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			this._onInstallExtension.fire({ id, gallery: extension });
 			return this.installCompatibleVersion(extension, true, promptToInstallDependencies)
 				.then(
-					local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
-					error => {
-						this._onDidInstallExtension.fire({ id, gallery: extension, error });
-						return TPromise.wrapError(error);
-					}
+				local => this._onDidInstallExtension.fire({ id, local, gallery: extension }),
+				error => {
+					this._onDidInstallExtension.fire({ id, gallery: extension, error });
+					return TPromise.wrapError(error);
+				}
 				);
 		});
 	}
@@ -181,7 +182,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return this.installWithDependencies(compatibleVersion);
 					}
 				})
-		);
+			);
 	}
 
 	private getDependenciesToInstall(extension: IGalleryExtension, checkDependecies: boolean): TPromise<string[]> {
@@ -202,7 +203,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private installWithDependencies(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		return this.galleryService.getAllDependencies(extension)
-			.then(allDependencies => this.filterOutInstalled(allDependencies))
+			.then(allDependencies => this.filterDependenciesToInstall(extension, allDependencies))
 			.then(toInstall => this.filterObsolete(...toInstall.map(i => getExtensionId(i, i.version)))
 				.then((obsolete) => {
 					if (obsolete.length) {
@@ -243,26 +244,27 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private rollback(localExtension: ILocalExtension, dependecies: IGalleryExtension[]): TPromise<void> {
 		return this.uninstall(localExtension)
-					.then(() => this.filterOutUnInstalled(dependecies))
-					.then(installed => TPromise.join(installed.map((i) => this.uninstall(i))))
-					.then(() => null);
+			.then(() => this.filterOutUninstalled(dependecies))
+			.then(installed => TPromise.join(installed.map((i) => this.uninstall(i))))
+			.then(() => null);
 	}
 
-	private filterOutInstalled(extensions: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
-		return this.getInstalled().then(local => {
-			return extensions.filter(extension => {
-				const extensionId = getExtensionId(extension, extension.version);
-				return local.every(local => local.id !== extensionId);
+	private filterDependenciesToInstall(extension: IGalleryExtension, dependencies: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
+		return this.getInstalled()
+			.then(local => {
+				return dependencies.filter(d => {
+					if (extension.id === d.id) {
+						return false;
+					}
+					const extensionId = getExtensionId(d, d.version);
+					return local.every(local => local.id !== extensionId);
+				});
 			});
-		});
 	}
 
-	private filterOutUnInstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
-		return this.getInstalled().then(installed => {
-			return installed.filter(local => {
-				return !!this.getGalleryExtensionForLocalExtension(extensions, local);
-			});
-		});
+	private filterOutUninstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
+		return this.getInstalled()
+			.then(installed => installed.filter(local => !!this.getGalleryExtensionForLocalExtension(extensions, local)));
 	}
 
 	private getGalleryExtensionForLocalExtension(galleryExtensions: IGalleryExtension[], localExtension: ILocalExtension): IGalleryExtension {
@@ -273,10 +275,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private downloadAndInstall(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		const id = getExtensionId(extension, extension.version);
 		const metadata = {
-				id: extension.id,
-				publisherId: extension.publisherId,
-				publisherDisplayName: extension.publisherDisplayName,
-			};
+			id: extension.id,
+			publisherId: extension.publisherId,
+			publisherDisplayName: extension.publisherDisplayName,
+		};
+
 		return this.galleryService.download(extension)
 			.then(zipPath => validate(zipPath).then(() => zipPath))
 			.then(zipPath => this.installExtension(zipPath, id, metadata));
@@ -308,12 +311,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: ILocalExtension): TPromise<void> {
-		return this.scanUserExtensions().then<void>(installed => {
-			const promises = installed
-				.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-				.map(({ id }) => this.uninstallExtension(id));
+		return this.removeOutdatedExtensions().then(() => {
+			return this.scanUserExtensions().then<void>(installed => {
+				const promises = installed
+					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
+					.map(({ id }) => this.uninstallExtension(id));
 
-			return TPromise.join(promises);
+				return TPromise.join(promises);
+			});
 		});
 	}
 
@@ -349,7 +354,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private scanUserExtensions(): TPromise<ILocalExtension[]> {
 		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User).then(extensions => {
-			const byId = values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`));
+			const byId = values(groupBy(extensions, p => `${p.manifest.publisher}.${p.manifest.name}`));
 			return byId.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
 		});
 	}
@@ -380,26 +385,35 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			});
 	}
 
-	removeDeprecatedExtensions(): TPromise<void> {
-		const outdated = this.getOutdatedExtensionIds()
-			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)));
+	removeDeprecatedExtensions(): TPromise<any> {
+		return TPromise.join([
+			this.removeOutdatedExtensions(),
+			this.removeObsoleteExtensions()
+		]);
+	}
 
-		const obsolete = this.getObsoleteExtensions()
-			.then(obsolete => Object.keys(obsolete));
+	private removeOutdatedExtensions(): TPromise<any> {
+		return this.getOutdatedExtensionIds()
+			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)))
+			.then(extensionIds => this.removeExtensions(extensionIds));
+	}
 
-		return TPromise.join([outdated, obsolete])
-			.then(result => flatten(result))
-			.then<void>(extensionsIds => {
-				return TPromise.join(extensionsIds.map(id => {
-					return pfs.rimraf(path.join(this.extensionsPath, id))
-						.then(() => this.withObsoleteExtensions(obsolete => delete obsolete[id]));
-				}));
-			});
+	private removeObsoleteExtensions(): TPromise<any> {
+		return this.getObsoleteExtensions()
+			.then(obsolete => Object.keys(obsolete))
+			.then(extensionIds => this.removeExtensions(extensionIds));
+	}
+
+	private removeExtensions(extensionsIds: string[]): TPromise<any> {
+		return TPromise.join(extensionsIds.map(id => {
+			return pfs.rimraf(path.join(this.extensionsPath, id))
+				.then(() => this.withObsoleteExtensions(obsolete => delete obsolete[id]));
+		}));
 	}
 
 	private getOutdatedExtensionIds(): TPromise<ILocalExtension[]> {
 		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User)
-			.then(extensions => values(groupBy(extensions, p => `${ p.manifest.publisher }.${ p.manifest.name }`)))
+			.then(extensions => values(groupBy(extensions, p => `${p.manifest.publisher}.${p.manifest.name}`)))
 			.then(versions => flatten(versions.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
 	}
 
@@ -427,16 +441,16 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.withObsoleteExtensions<void>(obsolete => delete obsolete[id]);
 	}
 
-	private getObsoleteExtensions(): TPromise<{ [id:string]: boolean; }> {
+	private getObsoleteExtensions(): TPromise<{ [id: string]: boolean; }> {
 		return this.withObsoleteExtensions(obsolete => obsolete);
 	}
 
-	private withObsoleteExtensions<T>(fn: (obsolete: { [id:string]: boolean; }) => T): TPromise<T> {
+	private withObsoleteExtensions<T>(fn: (obsolete: { [id: string]: boolean; }) => T): TPromise<T> {
 		return this.obsoleteFileLimiter.queue(() => {
 			let result: T = null;
 			return pfs.readFile(this.obsoletePath, 'utf8')
 				.then<string>(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
-				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; }})
+				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(obsolete => { result = fn(obsolete); return obsolete; })
 				.then(obsolete => {
 					if (Object.keys(obsolete).length === 0) {

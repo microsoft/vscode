@@ -7,23 +7,23 @@
 
 import 'vs/css!./accessibility';
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Disposable} from 'vs/base/common/lifecycle';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import {clearNode} from 'vs/base/browser/dom';
-import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {Widget} from 'vs/base/browser/ui/widget';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
-import {ICommonCodeEditor, IEditorContribution, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Command} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
+import { clearNode } from 'vs/base/browser/dom';
+import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
+import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
+import { ICommonCodeEditor, IEditorContribution, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Command } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
@@ -33,7 +33,7 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 	private static ID = 'editor.contrib.accessibilityHelpController';
 
-	public static get(editor:ICommonCodeEditor): AccessibilityHelpController {
+	public static get(editor: ICommonCodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
 	}
 
@@ -41,7 +41,7 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 	private _widget: AccessibilityHelpWidget;
 
 	constructor(
-		editor:ICodeEditor,
+		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
@@ -76,7 +76,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private _isVisible: boolean;
 	private _isVisibleKey: IContextKey<boolean>;
 
-	constructor(editor:ICodeEditor, contextKeyService: IContextKeyService, keybindingService: IKeybindingService) {
+	constructor(editor: ICodeEditor, contextKeyService: IContextKeyService, keybindingService: IKeybindingService) {
 		super();
 
 		this._editor = editor;
@@ -138,7 +138,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.focus();
 	}
 
-	private _descriptionForCommand(commandId:string, msg:string, noKbMsg:string): string {
+	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
 		let keybindings = this._keybindingService.lookupKeybindings(commandId);
 		if (keybindings.length > 0) {
 			return strings.format(msg, this._keybindingService.getAriaLabelFor(keybindings[0]));
@@ -201,7 +201,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.showAccessibilityHelp',
-			label: nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help"),
+			label: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"),
 			alias: 'Show Accessibility Help',
 			precondition: null,
 			kbOpts: {
@@ -211,7 +211,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let controller = AccessibilityHelpController.get(editor);
 		if (controller) {
 			controller.show();
@@ -245,7 +245,7 @@ class ToggleExperimentalScreenReaderSupportCommand extends Command {
 		});
 	}
 
-	public runCommand(accessor:ServicesAccessor, args: any): void {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
 		let currentValue = GlobalScreenReaderNVDA.getValue();
 		GlobalScreenReaderNVDA.setValue(!currentValue);
 	}

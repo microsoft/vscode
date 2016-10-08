@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {IDecorationRenderOptions} from 'vs/editor/common/editorCommon';
+import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 
 suite('Browser Services - EditorLayoutProvider', () => {
 	var options: IDecorationRenderOptions = {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import DOM = require('vs/base/browser/dom');
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import cp = require('child_process');
 import lifecycle = require('vs/base/common/lifecycle');

@@ -30,24 +30,24 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import {mkdirp} from 'vs/base/node/pfs';
+import { mkdirp } from 'vs/base/node/pfs';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, eg: {0}", 'ms-vscode.csharp');
 
 function getId(manifest: IExtensionManifest): string {
-	return `${ manifest.publisher }.${ manifest.name }`;
+	return `${manifest.publisher}.${manifest.name}`;
 }
 
-type Task = { ():TPromise<void> };
+type Task = { (): TPromise<void> };
 
 class Main {
 
 	constructor(
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
-	) {}
+	) { }
 
 	run(argv: ParsedArgs): TPromise<any> {
 		// TODO@joao - make this contributable
@@ -110,7 +110,7 @@ class Main {
 							const [extension] = result.firstPage;
 
 							if (!extension) {
-								return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
+								return TPromise.wrapError(`${notFound(id)}\n${useId}`);
 							}
 
 							console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
@@ -131,7 +131,7 @@ class Main {
 				const [extension] = installed.filter(e => getId(e.manifest) === id);
 
 				if (!extension) {
-					return TPromise.wrapError(`${ notInstalled(id) }\n${ useId }`);
+					return TPromise.wrapError(`${notInstalled(id)}\n${useId}`);
 				}
 
 				console.log(localize('uninstalling', "Uninstalling {0}...", id));

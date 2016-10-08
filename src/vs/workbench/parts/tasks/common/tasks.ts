@@ -11,7 +11,7 @@ import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 
 import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/common/parsers';
-import { Executable, ExecutableParser, Config  as ProcessConfig} from 'vs/base/common/processes';
+import { Executable, ExecutableParser, Config as ProcessConfig } from 'vs/base/common/processes';
 
 import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser } from 'vs/platform/markers/common/problemMatcher';
 
@@ -157,7 +157,7 @@ export interface ParserSettings {
 	emptyCommand?: boolean;
 }
 
-export class TaskParser  extends Parser {
+export class TaskParser extends Parser {
 
 	private resolver: { get(name: string): ProblemMatcher; };
 
@@ -245,7 +245,7 @@ export class TaskParser  extends Parser {
 }
 
 // let tasksExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.Task | Config.Task[]>('tasks', {
-	// TODO@Dirk: provide JSON schema here
+// TODO@Dirk: provide JSON schema here
 // });
 
 // const extensionPoint: string = 'tasks';

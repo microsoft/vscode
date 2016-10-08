@@ -6,21 +6,21 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
+import { ITree, IElementCallback } from 'vs/base/parts/tree/browser/tree';
 import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import {IconLabel, IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
-import {IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {Action, IAction, IActionRunner} from 'vs/base/common/actions';
-import {compareAnything, compareByScore as doCompareByScore} from 'vs/base/common/comparers';
-import {ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {LegacyRenderer, ILegacyTemplateData} from 'vs/base/parts/tree/browser/treeDefaults';
-import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IconLabel, IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
+import { compareAnything, compareByScore as doCompareByScore } from 'vs/base/common/comparers';
+import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { LegacyRenderer, ILegacyTemplateData } from 'vs/base/parts/tree/browser/treeDefaults';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
 
 export interface IContext {
@@ -591,7 +591,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.icon.className = iconClass;
 
 			// Label
-			const options:IIconLabelOptions = entry.getLabelOptions() || Object.create(null);
+			const options: IIconLabelOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
 			data.label.setValue(entry.getLabel(), null, options);
 

@@ -28,7 +28,7 @@ function removeFromParent(element: HTMLElement): void {
 
 export class RowCache<T> implements IDisposable {
 
-	private cache: { [templateId:string]: IRow[]; };
+	private cache: { [templateId: string]: IRow[]; };
 	private scrollingRow: IRow;
 
 	constructor(private renderers: { [templateId: string]: IRenderer<T, any>; }) {

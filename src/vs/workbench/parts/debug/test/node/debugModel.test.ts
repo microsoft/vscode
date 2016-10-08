@@ -8,7 +8,7 @@ import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 import * as sinon from 'sinon';
-import {MockDebugService} from 'vs/workbench/parts/debug/test/common/mockDebugService';
+import { MockDebugService } from 'vs/workbench/parts/debug/test/common/mockDebugService';
 
 suite('Debug - Model', () => {
 	var model: debugmodel.Model;
@@ -36,7 +36,7 @@ suite('Debug - Model', () => {
 	test('breakpoints toggling', () => {
 		var modelUri = uri.file('/myfolder/myfile.js');
 		model.addBreakpoints([{ uri: modelUri, lineNumber: 5, enabled: true }, { uri: modelUri, lineNumber: 10, enabled: false }]);
-		model.addBreakpoints([{ uri: modelUri, lineNumber: 12, enabled: true, condition: 'fake condition'}]);
+		model.addBreakpoints([{ uri: modelUri, lineNumber: 12, enabled: true, condition: 'fake condition' }]);
 		assert.equal(model.getBreakpoints().length, 3);
 		model.removeBreakpoints([model.getBreakpoints().pop()]);
 		assert.equal(model.getBreakpoints().length, 2);
@@ -56,7 +56,7 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 5);
 		var bp = model.getBreakpoints()[0];
 		var originalLineLumber = bp.lineNumber;
-		const update:any = {};
+		const update: any = {};
 		update[bp.getId()] = { line: 100, verified: false };
 		model.updateBreakpoints(update);
 		assert.equal(bp.lineNumber, 100);
@@ -301,9 +301,9 @@ suite('Debug - Model', () => {
 
 		assert.equal(model.getReplElements().length, 3);
 		model.getReplElements().forEach(re => {
-			assert.equal((<debugmodel.Expression> re).available, false);
-			assert.equal((<debugmodel.Expression> re).name, 'myVariable');
-			assert.equal((<debugmodel.Expression> re).reference, 0);
+			assert.equal((<debugmodel.Expression>re).available, false);
+			assert.equal((<debugmodel.Expression>re).name, 'myVariable');
+			assert.equal((<debugmodel.Expression>re).reference, 0);
 		});
 
 		model.removeReplExpressions();
@@ -318,7 +318,7 @@ suite('Debug - Model', () => {
 		model.logToRepl('second line', severity.Warning);
 		model.logToRepl('second line', severity.Error);
 
-		let elements = <debugmodel.ValueOutputElement[]> model.getReplElements();
+		let elements = <debugmodel.ValueOutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 3);
 		assert.equal(elements[0].value, 'first line');
 		assert.equal(elements[0].counter, 1);
@@ -330,14 +330,14 @@ suite('Debug - Model', () => {
 		model.appendReplOutput('1', severity.Error);
 		model.appendReplOutput('2', severity.Error);
 		model.appendReplOutput('3', severity.Error);
-		elements = <debugmodel.ValueOutputElement[]> model.getReplElements();
+		elements = <debugmodel.ValueOutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 4);
 		assert.equal(elements[3].value, '123');
 		assert.equal(elements[3].severity, severity.Error);
 
-		const keyValueObject = { 'key1' : 2, 'key2': 'value' };
+		const keyValueObject = { 'key1': 2, 'key2': 'value' };
 		model.logToRepl(keyValueObject);
-		const element = <debugmodel.KeyValueOutputElement> model.getReplElements()[4];
+		const element = <debugmodel.KeyValueOutputElement>model.getReplElements()[4];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 

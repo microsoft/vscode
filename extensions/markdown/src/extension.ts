@@ -92,8 +92,8 @@ function showPreview(uri?: Uri, sideBySide: boolean = false) {
 		`Preview '${path.basename(resource.fsPath)}'`);
 
 	telemetryReporter.sendTelemetryEvent('openPreview', {
-		where : sideBySide ? 'sideBySide' : 'inPlace',
-		how : (uri instanceof Uri) ? 'action' : 'pallete'
+		where: sideBySide ? 'sideBySide' : 'inPlace',
+		how: (uri instanceof Uri) ? 'action' : 'pallete'
 	});
 
 	return thenable;
@@ -151,14 +151,14 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo {
 
 
 interface IRenderer {
-	render(text: string) : string;
+	render(text: string): string;
 }
 
 class MDDocumentContentProvider implements TextDocumentContentProvider {
 	private _context: ExtensionContext;
 	private _onDidChange = new EventEmitter<Uri>();
-	private _waiting : boolean;
-	private _renderer : IRenderer;
+	private _waiting: boolean;
+	private _renderer: IRenderer;
 
 	constructor(context: ExtensionContext) {
 		this._context = context;
@@ -166,7 +166,7 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 		this._renderer = this.createRenderer();
 	}
 
-	private createRenderer() : IRenderer {
+	private createRenderer(): IRenderer {
 		const hljs = require('highlight.js');
 		const mdnh = require('markdown-it-named-headers');
 		const md = require('markdown-it')({
@@ -183,15 +183,15 @@ class MDDocumentContentProvider implements TextDocumentContentProvider {
 		return md;
 	}
 
-	private getMediaPath(mediaFile) : string {
+	private getMediaPath(mediaFile): string {
 		return this._context.asAbsolutePath(path.join('media', mediaFile));
 	}
 
-	private isAbsolute(p) : boolean {
+	private isAbsolute(p): boolean {
 		return path.normalize(p + '/') === path.normalize(path.resolve(p) + '/');
 	}
 
-	private fixHref(resource: Uri, href: string) : string {
+	private fixHref(resource: Uri, href: string): string {
 		if (href) {
 			// Use href if it is already an URL
 			if (Uri.parse(href).scheme) {

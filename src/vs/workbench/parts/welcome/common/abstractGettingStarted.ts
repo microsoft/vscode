@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product';
 
 /**

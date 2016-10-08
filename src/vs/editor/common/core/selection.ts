@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import {ISelection} from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/editorCommon';
 
 /**
  * The direction of a selection.
@@ -77,7 +77,7 @@ export class Selection extends Range {
 	/**
 	 * Test if the two selections are equal.
 	 */
-	public static selectionsEqual(a:ISelection, b:ISelection): boolean {
+	public static selectionsEqual(a: ISelection, b: ISelection): boolean {
 		return (
 			a.selectionStartLineNumber === b.selectionStartLineNumber &&
 			a.selectionStartColumn === b.selectionStartColumn &&
@@ -121,14 +121,14 @@ export class Selection extends Range {
 	/**
 	 * Create a `Selection` from an `ISelection`.
 	 */
-	public static liftSelection(sel:ISelection): Selection {
+	public static liftSelection(sel: ISelection): Selection {
 		return new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
 	}
 
 	/**
 	 * `a` equals `b`.
 	 */
-	public static selectionsArrEqual(a:ISelection[], b:ISelection[]): boolean {
+	public static selectionsArrEqual(a: ISelection[], b: ISelection[]): boolean {
 		if (a && !b || !a && b) {
 			return false;
 		}
@@ -162,7 +162,7 @@ export class Selection extends Range {
 	/**
 	 * Create with a direction.
 	 */
-	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction:SelectionDirection): Selection {
+	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction: SelectionDirection): Selection {
 
 		if (direction === SelectionDirection.LTR) {
 			return new Selection(startLineNumber, startColumn, endLineNumber, endColumn);

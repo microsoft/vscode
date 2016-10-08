@@ -4,31 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
-import {guessMimeTypes} from 'vs/base/common/mime';
-import {Registry} from 'vs/platform/platform';
-import {basename, dirname} from 'vs/base/common/paths';
+import { Registry } from 'vs/platform/platform';
+import { basename, dirname } from 'vs/base/common/paths';
 import types = require('vs/base/common/types');
-import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
-import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
+import { IDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor } from 'vs/editor/common/editorCommon';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions } from 'vs/workbench/common/editor';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 
 export interface IEditorPart {
-	openEditor(input?: IEditorInput, options?: IEditorOptions|ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	openEditor(input?: IEditorInput, options?: IEditorOptions|ITextEditorOptions, position?: Position): TPromise<BaseEditor>;
-	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions|ITextEditorOptions }[]): TPromise<BaseEditor[]>;
-	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions|ITextEditorOptions }[]): TPromise<BaseEditor[]>;
+	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
+	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, position?: Position): TPromise<BaseEditor>;
+	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
+	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
@@ -70,7 +69,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return false;
 		}
 
-		return this.getVisibleEditors().some((editor) => {
+		return this.getVisibleEditors().some(editor => {
 			if (!editor.input) {
 				return false;
 			}
@@ -108,6 +107,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			const schema = resourceInput.resource.scheme;
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
+
 				return TPromise.as<IEditor>(null);
 			}
 		}
@@ -263,7 +263,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Base Text Editor Support for file resources
 		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
-			return this.createFileInput(resourceInput.resource, resourceInput.mime, resourceInput.encoding);
+			return this.createFileInput(resourceInput.resource, resourceInput.encoding);
 		}
 
 		// Treat an URI as ResourceEditorInput
@@ -277,10 +277,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as<EditorInput>(null);
 	}
 
-	private createFileInput(resource: URI, mime?: string, encoding?: string): TPromise<IFileEditorInput> {
+	private createFileInput(resource: URI, encoding?: string): TPromise<IFileEditorInput> {
 		return this.instantiationService.createInstance(this.fileInputDescriptor).then((typedFileInput) => {
 			typedFileInput.setResource(resource);
-			typedFileInput.setMime(mime || guessMimeTypes(resource.fsPath).join(', '));
 			typedFileInput.setPreferredEncoding(encoding);
 
 			return typedFileInput;

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import uuid = require('vs/base/common/uuid');
 import objects = require('vs/base/common/objects');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {Source} from 'vs/workbench/parts/debug/common/debugSource';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 const MAX_REPL_LENGTH = 10000;
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
@@ -60,10 +60,10 @@ const arrayElementSyntax = /\[.*\]$/;
 export function getFullExpressionName(expression: debug.IExpression, sessionType: string): string {
 	let names = [expression.name];
 	if (expression instanceof Variable) {
-		let v = (<Variable> expression).parent;
+		let v = (<Variable>expression).parent;
 		while (v instanceof Variable || v instanceof Expression) {
-			names.push((<Variable> v).name);
-			v = (<Variable> v).parent;
+			names.push((<Variable>v).name);
+			v = (<Variable>v).parent;
 		}
 	}
 	names = names.reverse();
@@ -74,9 +74,9 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 			result = name;
 		} else if (arrayElementSyntax.test(name) || (sessionType === 'node' && !notPropertySyntax.test(name))) {
 			// use safe way to access node properties a['property_name']. Also handles array elements.
-			result = name && name.indexOf('[') === 0 ? `${ result }${ name }` : `${ result }['${ name }']`;
+			result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
 		} else {
-			result = `${ result }.${ name }`;
+			result = `${result}.${name}`;
 		}
 	});
 
@@ -97,7 +97,7 @@ export class Thread implements debug.IThread {
 	}
 
 	public getId(): string {
-		return `thread:${ this.name }:${ this.threadId }`;
+		return `thread:${this.name}:${this.threadId}`;
 	}
 
 	public clearCallStack(): void {
@@ -159,7 +159,7 @@ export class OutputElement implements debug.ITreeElement {
 	}
 
 	public getId(): string {
-		return `outputelement:${ this.id }`;
+		return `outputelement:${this.id}`;
 	}
 }
 
@@ -293,7 +293,7 @@ export abstract class ExpressionContainer implements debug.IExpressionContainer 
 		return this._value;
 	}
 
-	private fetchVariables(session: debug.IRawDebugSession, start: number, count: number, filter: 'indexed'|'named'): TPromise<Variable[]> {
+	private fetchVariables(session: debug.IRawDebugSession, start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
 		return session.variables({
 			variablesReference: this.reference,
 			start,
@@ -383,7 +383,7 @@ export class StackFrame implements debug.IStackFrame {
 	}
 
 	public getId(): string {
-		return `stackframe:${ this.threadId }:${ this.frameId }`;
+		return `stackframe:${this.threadId}:${this.frameId}`;
 	}
 
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {
@@ -410,7 +410,8 @@ export class Breakpoint implements debug.IBreakpoint {
 		public source: Source,
 		public desiredLineNumber: number,
 		public enabled: boolean,
-		public condition: string
+		public condition: string,
+		public hitCondition: string
 	) {
 		if (enabled === undefined) {
 			this.enabled = true;
@@ -431,7 +432,7 @@ export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 	public verified: boolean;
 	public idFromAdapter: number;
 
-	constructor(public name: string, public enabled: boolean) {
+	constructor(public name: string, public enabled: boolean, public hitCondition: string) {
 		this.verified = false;
 		this.id = uuid.generateUuid();
 	}
@@ -563,7 +564,7 @@ export class Model implements debug.IModel {
 
 	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
+			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
 		this._onDidChangeBreakpoints.fire();
 	}
@@ -589,7 +590,7 @@ export class Model implements debug.IModel {
 	public setEnablement(element: debug.IEnablement, enable: boolean): void {
 		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
-			var breakpoint = <Breakpoint> element;
+			var breakpoint = <Breakpoint>element;
 			breakpoint.lineNumber = breakpoint.desiredLineNumber;
 			breakpoint.verified = false;
 		}
@@ -612,17 +613,18 @@ export class Model implements debug.IModel {
 	}
 
 	public addFunctionBreakpoint(functionName: string): void {
-		this.functionBreakpoints.push(new FunctionBreakpoint(functionName, true));
+		this.functionBreakpoints.push(new FunctionBreakpoint(functionName, true, null));
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number } }): void {
+	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number; hitCondition?: string } }): void {
 		this.functionBreakpoints.forEach(fbp => {
 			const fbpData = data[fbp.getId()];
 			if (fbpData) {
 				fbp.name = fbpData.name || fbp.name;
 				fbp.verified = fbpData.verified;
 				fbp.idFromAdapter = fbpData.id;
+				fbp.hitCondition = fbpData.hitCondition;
 			}
 		});
 
@@ -646,7 +648,7 @@ export class Model implements debug.IModel {
 	}
 
 	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
-		let elements:OutputElement[] = [];
+		let elements: OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 
 		// string message

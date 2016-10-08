@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMirrorModel, IWorkerContext} from 'vs/editor/common/services/editorSimpleWorker';
-import {ILink} from 'vs/editor/common/modes';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
+import { ILink } from 'vs/editor/common/modes';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 
 export interface ICreateData {
 	workspaceResourceUri: string;
@@ -23,17 +23,17 @@ export interface IResourceCreator {
 
 export class OutputLinkComputer {
 
-	private _ctx:IWorkerContext;
+	private _ctx: IWorkerContext;
 	private _patterns: RegExp[];
 	private _workspaceResource: URI;
 
-	constructor(ctx:IWorkerContext, createData:ICreateData) {
+	constructor(ctx: IWorkerContext, createData: ICreateData) {
 		this._ctx = ctx;
 		this._workspaceResource = URI.parse(createData.workspaceResourceUri);
 		this._patterns = OutputLinkComputer.createPatterns(this._workspaceResource);
 	}
 
-	private _getModel(uri:string): IMirrorModel {
+	private _getModel(uri: string): IMirrorModel {
 		let models = this._ctx.getMirrorModels();
 		for (let i = 0; i < models.length; i++) {
 			let model = models[i];
@@ -44,7 +44,7 @@ export class OutputLinkComputer {
 		return null;
 	}
 
-	public computeLinks(uri:string): TPromise<ILink[]> {
+	public computeLinks(uri: string): TPromise<ILink[]> {
 		let model = this._getModel(uri);
 		if (!model) {
 			return;
@@ -115,7 +115,7 @@ export class OutputLinkComputer {
 
 				// Convert the relative path information to a resource that we can use in links
 				let workspaceRelativePath = strings.rtrim(match[1], '.').replace(/\\/g, '/'); // remove trailing "." that likely indicate end of sentence
-				let resource:string;
+				let resource: string;
 				try {
 					resource = contextService.toResource(workspaceRelativePath).toString();
 				} catch (error) {
@@ -161,6 +161,6 @@ export class OutputLinkComputer {
 	}
 }
 
-export function create(ctx:IWorkerContext, createData:ICreateData): OutputLinkComputer {
+export function create(ctx: IWorkerContext, createData: ICreateData): OutputLinkComputer {
 	return new OutputLinkComputer(ctx, createData);
 }

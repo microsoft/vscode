@@ -6,22 +6,22 @@
 
 import 'vs/css!./keybindings';
 import * as nls from 'vs/nls';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {KeyCode} from 'vs/base/common/keyCodes';
-import {Keybinding} from 'vs/base/common/keybinding';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import * as dom from 'vs/base/browser/dom';
-import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {ICommandService, CommandsRegistry, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingItem, IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
-import {IMessageService} from 'vs/platform/message/common/message';
-import Event, {Emitter} from 'vs/base/common/event';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingItem, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IMessageService } from 'vs/platform/message/common/message';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export abstract class KeybindingService implements IKeybindingService {
 	public _serviceBrand: any;

@@ -5,21 +5,21 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ISingleEditOperation, ISelection, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IDecorationOptions} from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, ITextEditorConfigurationUpdate} from 'vs/workbench/api/node/mainThreadEditorsTracker';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IEventService} from 'vs/platform/event/common/event';
-import {equals as arrayEquals} from 'vs/base/common/arrays';
-import {equals as objectEquals} from 'vs/base/common/objects';
-import {ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData} from './extHost.protocol';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ISingleEditOperation, ISelection, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditorsTracker';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEventService } from 'vs/platform/event/common/event';
+import { equals as arrayEquals } from 'vs/base/common/arrays';
+import { equals as objectEquals } from 'vs/base/common/objects';
+import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
 
 export class MainThreadEditors extends MainThreadEditorsShape {
 
@@ -281,7 +281,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts:IApplyEditsOptions): TPromise<boolean> {
+	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { Emitter }  from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { EventEmitter } from 'events';
 
 export function fromEventEmitter<T>(emitter: EventEmitter, eventName: string, map: (...args: any[]) => T): Event<T> {

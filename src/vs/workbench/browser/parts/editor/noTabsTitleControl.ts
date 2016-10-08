@@ -7,10 +7,10 @@
 
 import 'vs/css!./media/notabstitle';
 import errors = require('vs/base/common/errors');
-import {IEditorGroup, getResource} from 'vs/workbench/common/editor';
+import { IEditorGroup, getResource } from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
-import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
-import {EditorLabel} from 'vs/workbench/browser/labels';
+import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorLabel } from 'vs/workbench/browser/labels';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;

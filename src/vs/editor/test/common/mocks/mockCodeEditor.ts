@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IContextKeyService, IContextKeyServiceTarget} from 'vs/platform/contextkey/common/contextkey';
-import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
-import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {Cursor} from 'vs/editor/common/controller/cursor';
+import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
+import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
-import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
-import {Range} from 'vs/editor/common/core/range';
+import { Model } from 'vs/editor/common/model/model';
+import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { Range } from 'vs/editor/common/core/range';
 
 export class MockCodeEditor extends CommonCodeEditor {
-	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
+	protected _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
 		return new MockConfiguration(options);
 	}
 	public getCenteredRangeInViewport(): Range { return null; }
@@ -30,14 +30,14 @@ export class MockCodeEditor extends CommonCodeEditor {
 	public getScrollHeight(): number { return 0; }
 	public getScrollTop(): number { return 0; }
 
-	public setScrollLeft(newScrollLeft:number): void { }
-	public setScrollTop(newScrollTop:number): void { }
+	public setScrollLeft(newScrollLeft: number): void { }
+	public setScrollTop(newScrollTop: number): void { }
 	public setScrollPosition(position: editorCommon.INewScrollPosition): void { }
 
 	public saveViewState(): editorCommon.ICodeEditorViewState { return null; }
-	public restoreViewState(state:editorCommon.IEditorViewState): void { }
+	public restoreViewState(state: editorCommon.IEditorViewState): void { }
 
-	public layout(dimension?:editorCommon.IDimension): void { }
+	public layout(dimension?: editorCommon.IDimension): void { }
 
 	public focus(): void { }
 	public isFocused(): boolean { return true; }
@@ -47,16 +47,16 @@ export class MockCodeEditor extends CommonCodeEditor {
 	protected _createView(): void { }
 	protected _getViewInternalEventBus(): IEventEmitter { return new EventEmitter(); }
 
-	protected _registerDecorationType(key:string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void { throw new Error('NotImplemented'); }
-	protected _removeDecorationType(key:string): void { throw new Error('NotImplemented'); }
-	protected _resolveDecorationOptions(typeKey:string, writable: boolean): editorCommon.IModelDecorationOptions { throw new Error('NotImplemented'); }
+	protected _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void { throw new Error('NotImplemented'); }
+	protected _removeDecorationType(key: string): void { throw new Error('NotImplemented'); }
+	protected _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions { throw new Error('NotImplemented'); }
 
 	// --- test utils
 	getCursor(): Cursor {
 		return this.cursor;
 	}
 
-	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor:any): T {
+	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(ctor: any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
 		this._contributions[r.getId()] = r;
 		return r;
@@ -72,20 +72,20 @@ export class MockCodeEditor extends CommonCodeEditor {
 }
 
 export class MockScopeLocation implements IContextKeyServiceTarget {
-	parentElement:IContextKeyServiceTarget = null;
-	setAttribute(attr:string, value:string): void { }
-	removeAttribute(attr:string): void { }
+	parentElement: IContextKeyServiceTarget = null;
+	setAttribute(attr: string, value: string): void { }
+	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }
 	getAttribute(attr: string): string { return; }
 }
 
-export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEditorWidgetCreationOptions, callback:(editor:MockCodeEditor, cursor:Cursor)=>void): void {
+export function withMockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {
 	let editor = <MockCodeEditor>mockCodeEditor(text, options);
 	callback(editor, editor.getCursor());
 	editor.dispose();
 }
 
-export function mockCodeEditor(text:string[], options:editorCommon.ICodeEditorWidgetCreationOptions): CommonCodeEditor {
+export function mockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions): CommonCodeEditor {
 
 	let contextKeyService = new MockKeybindingService();
 

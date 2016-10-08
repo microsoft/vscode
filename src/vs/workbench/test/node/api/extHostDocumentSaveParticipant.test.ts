@@ -14,7 +14,7 @@ import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDoc
 import { OneGetThreadService } from './testThreadService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
-import { SaveReason } from 'vs/workbench/parts/files/common/files';
+import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -157,17 +157,17 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, overall timeout', () => {
-		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, { timeout: 10, errors: 5 });
+		const participant = new ExtHostDocumentSaveParticipant(documents, workspace, { timeout: 20, errors: 5 });
 
 		let callCount = 0;
 		let sub1 = participant.onWillSaveTextDocumentEvent(function (event) {
 			callCount += 1;
-			event.waitUntil(TPromise.timeout(7));
+			event.waitUntil(TPromise.timeout(17));
 		});
 
 		let sub2 = participant.onWillSaveTextDocumentEvent(function (event) {
 			callCount += 1;
-			event.waitUntil(TPromise.timeout(7));
+			event.waitUntil(TPromise.timeout(17));
 		});
 
 		let sub3 = participant.onWillSaveTextDocumentEvent(function (event) {

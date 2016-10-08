@@ -5,27 +5,27 @@
 
 import 'vs/css!./media/panelpart';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {Action, IAction} from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Action, IAction } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
-import {Builder} from 'vs/base/browser/builder';
-import {Registry} from 'vs/platform/platform';
-import {ActivityAction} from 'vs/workbench/browser/parts/activitybar/activityAction';
-import {Scope} from 'vs/workbench/browser/actionBarRegistry';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/actionRegistry';
-import {IPanel} from 'vs/workbench/common/panel';
-import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
-import {Panel, PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { Builder } from 'vs/base/browser/builder';
+import { Registry } from 'vs/platform/platform';
+import { ActivityAction } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actionRegistry';
+import { IPanel } from 'vs/workbench/common/panel';
+import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
+import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 

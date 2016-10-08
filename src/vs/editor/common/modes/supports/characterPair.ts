@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IRichEditCharacterPair, CharacterPair} from 'vs/editor/common/modes';
-import {handleEvent} from 'vs/editor/common/modes/supports';
-import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IRichEditCharacterPair, CharacterPair } from 'vs/editor/common/modes';
+import { handleEvent } from 'vs/editor/common/modes/supports';
+import { LanguageConfigurationRegistryImpl } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class CharacterPairSupport implements IRichEditCharacterPair {
 
@@ -15,7 +15,7 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 	private _autoClosingPairs: IAutoClosingPairConditional[];
 	private _surroundingPairs: IAutoClosingPair[];
 
-	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[]}) {
+	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[] }) {
 		this._registry = registry;
 		this._modeId = modeId;
 		this._autoClosingPairs = config.autoClosingPairs;
@@ -29,8 +29,8 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 		return this._autoClosingPairs;
 	}
 
-	public shouldAutoClosePair(character:string, context:ILineContext, offset:number): boolean {
-		return handleEvent(context, offset, (nestedModeId:string, context:ILineContext, offset:number) => {
+	public shouldAutoClosePair(character: string, context: ILineContext, offset: number): boolean {
+		return handleEvent(context, offset, (nestedModeId: string, context: ILineContext, offset: number) => {
 			if (this._modeId === nestedModeId) {
 
 				// Always complete on empty line
@@ -66,7 +66,7 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 		});
 	}
 
-	public getSurroundingPairs(): IAutoClosingPair[]{
+	public getSurroundingPairs(): IAutoClosingPair[] {
 		return this._surroundingPairs;
 	}
 }

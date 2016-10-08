@@ -21,7 +21,7 @@ export function memoize(target: any, key: string, descriptor: any) {
 		throw new Error('not supported');
 	}
 
-	const memoizeKey = `$memoize$${ key }`;
+	const memoizeKey = `$memoize$${key}`;
 
 	descriptor[fnKey] = function (...args) {
 		if (!this.hasOwnProperty(memoizeKey)) {

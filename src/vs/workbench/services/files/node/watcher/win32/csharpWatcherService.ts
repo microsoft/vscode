@@ -7,12 +7,12 @@
 
 import cp = require('child_process');
 
-import {FileChangeType} from 'vs/platform/files/common/files';
+import { FileChangeType } from 'vs/platform/files/common/files';
 import decoder = require('vs/base/node/decoder');
 import glob = require('vs/base/common/glob');
 import uri from 'vs/base/common/uri';
 
-import {IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';
+import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 
 export class OutOfProcessWin32FolderWatcher {
 

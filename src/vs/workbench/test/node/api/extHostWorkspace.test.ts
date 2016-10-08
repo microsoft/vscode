@@ -6,8 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ExtHostWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
-import {TestThreadService} from './testThreadService';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { TestThreadService } from './testThreadService';
 
 suite('ExtHostWorkspace', function () {
 

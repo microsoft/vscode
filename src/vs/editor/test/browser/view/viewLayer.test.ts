@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {RenderedLinesCollection, ILine} from 'vs/editor/browser/view/viewLayer';
+import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 
 class TestLine implements ILine {
 
 	_pinged = false;
-	constructor(public id:string) {
+	constructor(public id: string) {
 	}
 
 	onContentChanged(): void {
@@ -36,8 +36,8 @@ interface ILinesCollectionState {
 	pinged: boolean[];
 }
 
-function assertState(col:RenderedLinesCollection<TestLine>, state:ILinesCollectionState): void {
-	let actualState:ILinesCollectionState = {
+function assertState(col: RenderedLinesCollection<TestLine>, state: ILinesCollectionState): void {
+	let actualState: ILinesCollectionState = {
 		startLineNumber: col.getStartLineNumber(),
 		lines: [],
 		pinged: []
@@ -51,7 +51,7 @@ function assertState(col:RenderedLinesCollection<TestLine>, state:ILinesCollecti
 
 suite('RenderedLinesCollection onModelLinesDeleted', () => {
 
-	function testOnModelLinesDeleted(deleteFromLineNumber:number, deleteToLineNumber:number, expectedDeleted:string[], expectedState:ILinesCollectionState): void {
+	function testOnModelLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
 		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
@@ -326,7 +326,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 
 suite('RenderedLinesCollection onModelLineChanged', () => {
 
-	function testOnModelLineChanged(changedLineNumber:number, expectedPinged:boolean, expectedState:ILinesCollectionState): void {
+	function testOnModelLineChanged(changedLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
 		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
@@ -407,7 +407,7 @@ suite('RenderedLinesCollection onModelLineChanged', () => {
 
 suite('RenderedLinesCollection onModelLinesInserted', () => {
 
-	function testOnModelLinesInserted(insertFromLineNumber:number, insertToLineNumber:number, expectedDeleted:string[], expectedState:ILinesCollectionState): void {
+	function testOnModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
 		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
@@ -683,7 +683,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 
 suite('RenderedLinesCollection onModelTokensChanged', () => {
 
-	function testOnModelTokensChanged(changedFromLineNumber:number, changedToLineNumber:number, expectedPinged:boolean, expectedState:ILinesCollectionState): void {
+	function testOnModelTokensChanged(changedFromLineNumber: number, changedToLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
 		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),

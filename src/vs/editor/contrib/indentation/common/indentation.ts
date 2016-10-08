@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, IActionOptions, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/common/indentationCommands';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 @editorAction
 export class IndentationToSpacesAction extends EditorAction {
@@ -24,7 +24,7 @@ export class IndentationToSpacesAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -51,7 +51,7 @@ export class IndentationToTabsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -71,7 +71,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		super(opts);
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		const modelService = accessor.get(IModelService);
 
@@ -92,7 +92,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
 
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
-			quickOpenService.pick(picks, { placeHolder: nls.localize({key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
+			quickOpenService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
 				if (pick) {
 					model.updateOptions({
 						tabSize: parseInt(pick.label, 10),
@@ -148,7 +148,7 @@ export class DetectIndentation extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		const modelService = accessor.get(IModelService);
 
 		let model = editor.getModel();
@@ -173,7 +173,7 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let renderWhitespace = editor.getConfiguration().viewInfo.renderWhitespace;
 		if (renderWhitespace === 'none') {
 			editor.updateOptions({
@@ -199,7 +199,7 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		editor.updateOptions({
 			renderControlCharacters: !editor.getConfiguration().viewInfo.renderControlCharacters
 		});

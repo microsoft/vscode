@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BinaryKeybindings} from 'vs/base/common/keyCodes';
-import {ISimplifiedPlatform, Keybinding} from 'vs/base/common/keybinding';
+import { BinaryKeybindings } from 'vs/base/common/keyCodes';
+import { ISimplifiedPlatform, Keybinding } from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
-import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IResolveResult {
 	enterChord: number;
@@ -40,7 +40,7 @@ export class NormalizedKeybindingItem {
 	isDefault: boolean;
 	actualCommand: string;
 
-	public static fromKeybindingItem(source:IKeybindingItem, isDefault:boolean): NormalizedKeybindingItem {
+	public static fromKeybindingItem(source: IKeybindingItem, isDefault: boolean): NormalizedKeybindingItem {
 		let when: ContextKeyExpr = null;
 		if (source.when) {
 			when = source.when.normalize();
@@ -118,7 +118,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb:NormalizedKeybindingItem, keybinding:number, command:string, when:ContextKeyExpr): boolean {
+	private static _isTargetedForRemoval(defaultKb: NormalizedKeybindingItem, keybinding: number, command: string, when: ContextKeyExpr): boolean {
 		if (defaultKb.actualCommand !== command) {
 			return false;
 		}
@@ -139,7 +139,7 @@ export class KeybindingResolver {
 
 	}
 
-	public static combine(rawDefaults:IKeybindingItem[], rawOverrides: IKeybindingItem[]): NormalizedKeybindingItem[] {
+	public static combine(rawDefaults: IKeybindingItem[], rawOverrides: IKeybindingItem[]): NormalizedKeybindingItem[] {
 		let defaults = rawDefaults.map(kb => NormalizedKeybindingItem.fromKeybindingItem(kb, true));
 		let overrides: NormalizedKeybindingItem[] = [];
 		for (let i = 0, len = rawOverrides.length; i < len; i++) {
@@ -409,17 +409,17 @@ export class IOSupport {
 	}
 
 	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number): IKeybindingItem {
-		let key:number = 0;
+		let key: number = 0;
 		if (typeof input.key === 'string') {
 			key = IOSupport.readKeybinding(input.key);
 		}
 
-		let when:ContextKeyExpr = null;
+		let when: ContextKeyExpr = null;
 		if (typeof input.when === 'string') {
 			when = IOSupport.readKeybindingWhen(input.when);
 		}
 
-		let command:string = null;
+		let command: string = null;
 		if (typeof input.command === 'string') {
 			command = input.command;
 		}

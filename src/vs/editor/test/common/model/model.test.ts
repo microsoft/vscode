@@ -5,15 +5,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import {
 	EventType, IModelContentChangedEvent, IModelContentChangedFlushEvent, IModelContentChangedLineChangedEvent,
 	IModelContentChangedLinesDeletedEvent, IModelContentChangedLinesInsertedEvent
 } from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
-import {TextModel} from 'vs/editor/common/model/textModel';
+import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --------- utils
 
@@ -131,7 +131,7 @@ suite('Editor Model - Model', () => {
 				assert.equal((<IModelContentChangedLinesInsertedEvent>e).fromLineNumber, 2, 'ModelContentChangedLinesInserted fromLineNumber');
 				assert.equal((<IModelContentChangedLinesInsertedEvent>e).toLineNumber, 2, 'ModelContentChangedLinesInserted toLineNumber');
 			} else {
-				assert.ok (false);
+				assert.ok(false);
 			}
 
 		});
@@ -238,7 +238,7 @@ suite('Editor Model - Model', () => {
 				assert.equal((<IModelContentChangedLinesDeletedEvent>e).fromLineNumber, 2);
 				assert.equal((<IModelContentChangedLinesDeletedEvent>e).toLineNumber, 2);
 			} else {
-				assert.ok (false);
+				assert.ok(false);
 			}
 
 		});
@@ -266,7 +266,7 @@ suite('Editor Model - Model', () => {
 				assert.equal((<IModelContentChangedLinesDeletedEvent>e).fromLineNumber, 2);
 				assert.equal((<IModelContentChangedLinesDeletedEvent>e).toLineNumber, 3);
 			} else {
-				assert.ok (false);
+				assert.ok(false);
 			}
 
 		});
@@ -309,12 +309,12 @@ suite('Editor Model - Model', () => {
 	// --------- setValue
 	test('setValue eventing', () => {
 		var listenerCalls = 0;
-		thisModel.onDidChangeRawContent((e:IModelContentChangedEvent) => {
+		thisModel.onDidChangeRawContent((e: IModelContentChangedEvent) => {
 			listenerCalls++;
 
 			assert.equal(e.changeType, EventType.ModelRawContentChangedFlush);
 
-			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.lines, [ 'new value' ]);
+			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.lines, ['new value']);
 		});
 		thisModel.setValue('new value');
 		assert.equal(listenerCalls, 1, 'listener calls');
@@ -371,7 +371,7 @@ suite('Editor Model - Words', () => {
 	var thisModel: Model;
 
 	setup(() => {
-		var text = [ 'This text has some  words. ' ];
+		var text = ['This text has some  words. '];
 		thisModel = Model.createFromString(text.join('\n'));
 	});
 
@@ -398,11 +398,11 @@ suite('Editor Model - Words', () => {
 // --------- Find
 suite('Editor Model - Find', () => {
 
-	function toArrRange(r:Range): [number,number,number,number] {
+	function toArrRange(r: Range): [number, number, number, number] {
 		return [r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn];
 	}
 
-	function assertFindMatches(text:string, searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:[number,number,number,number][]): void {
+	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: [number, number, number, number][]): void {
 		let model = Model.createFromString(text);
 
 		let actualRanges = model.findMatches(searchString, false, isRegex, matchCase, wholeWord);
@@ -423,7 +423,7 @@ suite('Editor Model - Find', () => {
 		// test `findPrevMatch`
 		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
 		match = model.findPreviousMatch(searchString, startPos, isRegex, matchCase, wholeWord);
-		assert.deepEqual(toArrRange(match), expected[expected.length-1], `findPrevMatch ${startPos}`);
+		assert.deepEqual(toArrRange(match), expected[expected.length - 1], `findPrevMatch ${startPos}`);
 		for (let i = 0; i < expected.length; i++) {
 			startPos = new Position(expected[i][2], expected[i][3]);
 			match = model.findPreviousMatch(searchString, startPos, isRegex, matchCase, wholeWord);
@@ -699,7 +699,7 @@ suite('Editor Model - Find', () => {
 		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
 		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
 
-		actual = testObject.findNextMatch('line', {lineNumber: 1, column: 3}, false, false, false);
+		actual = testObject.findNextMatch('line', { lineNumber: 1, column: 3 }, false, false, false);
 		assert.equal(new Range(1, 6, 1, 10).toString(), actual.toString());
 
 		actual = testObject.findNextMatch('line', actual.getEndPosition(), false, false, false);
@@ -780,7 +780,7 @@ suite('Editor Model - Find', () => {
 		testObject.dispose();
 	});
 
-	function assertParseSearchResult(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean, expected:RegExp): void {
+	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean, expected: RegExp): void {
 		let actual = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		assert.deepEqual(actual, expected);
 	}

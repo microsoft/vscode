@@ -6,12 +6,12 @@
 'use strict';
 
 import DOM = require('vs/base/browser/dom');
-import {defaultGenerator} from 'vs/base/common/idGenerator';
-import {escape} from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IHTMLContentElement, MarkedString} from 'vs/base/common/htmlContent';
-import {marked} from 'vs/base/common/marked/marked';
-import {IMouseEvent} from 'vs/base/browser/mouseEvent';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { escape } from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IHTMLContentElement, MarkedString } from 'vs/base/common/htmlContent';
+import { marked } from 'vs/base/common/marked/marked';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export type RenderableContent = string | IHTMLContentElement | IHTMLContentElement[];
 

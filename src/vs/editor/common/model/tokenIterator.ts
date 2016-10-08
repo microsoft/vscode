@@ -5,8 +5,8 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {LineToken} from 'vs/editor/common/core/lineTokens';
-import {Position} from 'vs/editor/common/core/position';
+import { LineToken } from 'vs/editor/common/core/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
 
 class TokenInfo implements editorCommon.ITokenInfo {
 	_tokenInfoBrand: void;
@@ -17,7 +17,7 @@ class TokenInfo implements editorCommon.ITokenInfo {
 	public endColumn: number;
 	public type: string;
 
-	constructor(actual:LineToken, lineNumber:number) {
+	constructor(actual: LineToken, lineNumber: number) {
 		this._actual = actual;
 		this.lineNumber = lineNumber;
 		this.startColumn = this._actual.startOffset + 1;
@@ -26,7 +26,7 @@ class TokenInfo implements editorCommon.ITokenInfo {
 	}
 }
 
-function findClosestNonEmptyLine(model:editorCommon.ITokenizedModel, position:Position): Position {
+function findClosestNonEmptyLine(model: editorCommon.ITokenizedModel, position: Position): Position {
 	const lineNumber = position.lineNumber;
 	if (model.getLineMaxColumn(lineNumber) !== 1) {
 		return position;
@@ -68,12 +68,12 @@ function findClosestNonEmptyLine(model:editorCommon.ITokenizedModel, position:Po
 
 export class TokenIterator implements editorCommon.ITokenIterator {
 
-	private _model:editorCommon.ITokenizedModel;
-	private _lineCount:number;
-	private _prev:TokenInfo;
-	private _next:TokenInfo;
+	private _model: editorCommon.ITokenizedModel;
+	private _lineCount: number;
+	private _prev: TokenInfo;
+	private _next: TokenInfo;
 
-	constructor(model:editorCommon.ITokenizedModel, position:Position) {
+	constructor(model: editorCommon.ITokenizedModel, position: Position) {
 		this._model = model;
 		this._lineCount = this._model.getLineCount();
 		this._prev = null;
@@ -153,7 +153,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 
 	public _invalidate() {
 		// replace all public functions with errors
-		var errorFn = function(): any {
+		var errorFn = function (): any {
 			throw new Error('iteration isn\'t valid anymore');
 		};
 		this.hasNext = errorFn;

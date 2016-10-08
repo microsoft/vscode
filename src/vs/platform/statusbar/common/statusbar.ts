@@ -5,8 +5,8 @@
 
 'use strict';
 
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export var IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 

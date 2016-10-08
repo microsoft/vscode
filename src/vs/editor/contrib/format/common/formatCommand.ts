@@ -5,17 +5,17 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export class EditOperationsCommand implements editorCommon.ICommand {
 
-	private _edits:editorCommon.ISingleEditOperation[];
+	private _edits: editorCommon.ISingleEditOperation[];
 	private _initialSelection: Selection;
 	private _selectionId: string;
 
-	constructor(edits:editorCommon.ISingleEditOperation[], initialSelection: Selection) {
+	constructor(edits: editorCommon.ISingleEditOperation[], initialSelection: Selection) {
 		this._edits = edits;
 		this._initialSelection = initialSelection;
 	}
@@ -30,11 +30,11 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 		var selectionIsSet = false;
 		if (Array.isArray(this._edits) && this._edits.length === 1 && this._initialSelection.isEmpty()) {
 			if (this._edits[0].range.startColumn === this._initialSelection.endColumn &&
-					this._edits[0].range.startLineNumber === this._initialSelection.endLineNumber) {
+				this._edits[0].range.startLineNumber === this._initialSelection.endLineNumber) {
 				selectionIsSet = true;
 				this._selectionId = builder.trackSelection(this._initialSelection, true);
 			} else if (this._edits[0].range.endColumn === this._initialSelection.startColumn &&
-					this._edits[0].range.endLineNumber === this._initialSelection.startLineNumber) {
+				this._edits[0].range.endLineNumber === this._initialSelection.startLineNumber) {
 				selectionIsSet = true;
 				this._selectionId = builder.trackSelection(this._initialSelection, false);
 			}
@@ -61,14 +61,14 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 	 * bug #15108. There the cursor was jumping since the tracked selection was in the middle of the range edit
 	 * and was lost.
 	 */
-	static trimEdit(edit:editorCommon.ISingleEditOperation, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
+	static trimEdit(edit: editorCommon.ISingleEditOperation, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
 
 		this.fixLineTerminators(edit, model);
 
 		return this._trimEdit(model.validateRange(edit.range), edit.text, edit.forceMoveMarkers, model);
 	}
 
-	static _trimEdit(editRange:Range, editText:string, editForceMoveMarkers:boolean, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
+	static _trimEdit(editRange: Range, editText: string, editForceMoveMarkers: boolean, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
 
 		let currentText = model.getValueInRange(editRange);
 

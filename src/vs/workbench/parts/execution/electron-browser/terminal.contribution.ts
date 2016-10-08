@@ -5,25 +5,25 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Registry} from 'vs/platform/platform';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Registry } from 'vs/platform/platform';
 import baseplatform = require('vs/base/common/platform');
-import {IAction, Action} from 'vs/base/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
+import { IAction, Action } from 'vs/base/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import paths = require('vs/base/common/paths');
-import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
+import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import uri from 'vs/base/common/uri';
-import {asFileResource} from 'vs/workbench/parts/files/common/files';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
-import {KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX} from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { asFileResource } from 'vs/workbench/parts/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
