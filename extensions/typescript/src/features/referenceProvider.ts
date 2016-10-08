@@ -14,7 +14,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 
 	private client: ITypescriptServiceClient;
 
-	public tokens:string[] = [];
+	public tokens: string[] = [];
 
 	public constructor(client: ITypescriptServiceClient) {
 		this.client = client;

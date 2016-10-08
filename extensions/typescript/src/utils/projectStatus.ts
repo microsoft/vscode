@@ -6,10 +6,10 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import {ITypescriptServiceClient} from '../typescriptService';
-import {loadMessageBundle} from 'vscode-nls';
-import {dirname, join} from 'path';
-import {exists} from 'fs';
+import { ITypescriptServiceClient } from '../typescriptService';
+import { loadMessageBundle } from 'vscode-nls';
+import { dirname, join } from 'path';
+import { exists } from 'fs';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
@@ -25,7 +25,7 @@ interface Hint {
 
 const fileLimit = 500;
 
-export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>Promise<boolean>, memento: vscode.Memento) {
+export function create(client: ITypescriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento) {
 
 	const toDispose: vscode.Disposable[] = [];
 	const projectHinted: { [k: string]: boolean } = Object.create(null);
@@ -157,7 +157,7 @@ export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>P
 	return vscode.Disposable.from(...toDispose);
 }
 
-function computeLargeRoots(configFileName:string, fileNames: string[]): string[] {
+function computeLargeRoots(configFileName: string, fileNames: string[]): string[] {
 
 	let roots: { [first: string]: number } = Object.create(null);
 	let dir = dirname(configFileName);
