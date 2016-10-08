@@ -6,8 +6,8 @@
 
 import * as path from 'path';
 
-import {workspace, languages, ExtensionContext, extensions, Uri} from 'vscode';
-import {LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
+import { workspace, languages, ExtensionContext, extensions, Uri } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import * as nls from 'vscode-nls';
@@ -97,8 +97,8 @@ export function activate(context: ExtensionContext) {
 	});
 }
 
-function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
-	let associations : ISchemaAssociations = {};
+function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
+	let associations: ISchemaAssociations = {};
 	extensions.all.forEach(extension => {
 		let packageJSON = extension.packageJSON;
 		if (packageJSON && packageJSON.contributes && packageJSON.contributes.jsonValidation) {
