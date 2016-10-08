@@ -208,15 +208,29 @@ export class TerminalStylesContribution {
 		terminalBrightWhite: 15
 	};
 
+	/**
+	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
+	 */
+	private _convertHexCssColorToRgba(hex: string, alpha: number): string {
+		const r = parseInt(hex.substr(1, 2), 16);
+		const g = parseInt(hex.substr(3, 2), 16);
+		const b = parseInt(hex.substr(5, 2), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}
+
 	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]): void {
-		let theme = new Theme(themeId, themeDocument);
+		const theme = new Theme(themeId, themeDocument);
 		if (theme.hasGlobalSettings()) {
-			let keys = Object.keys(theme.getGlobalSettings());
+			const keys = Object.keys(theme.getGlobalSettings());
 			keys.filter(key => key.indexOf('terminal') === 0).forEach(key => {
 				if (key in TerminalStylesContribution.ansiColorMap) {
-					let color = theme.getGlobalSettings()[key];
-					let index = TerminalStylesContribution.ansiColorMap[key];
+					const color = theme.getGlobalSettings()[key];
+					const index = TerminalStylesContribution.ansiColorMap[key];
+					const rgba = this._convertHexCssColorToRgba(color, 0.996);
 					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`);
 				}
 			});
 		}
