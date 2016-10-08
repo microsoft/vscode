@@ -5,15 +5,15 @@
 
 'use strict';
 
-import {addJSONProviders} from './features/jsonContributions';
+import { addJSONProviders } from './features/jsonContributions';
 import * as httpRequest from 'request-light';
 
-import {ExtensionContext, env, workspace} from 'vscode';
+import { ExtensionContext, env, workspace } from 'vscode';
 
 import * as nls from 'vscode-nls';
 
 export function activate(context: ExtensionContext): any {
-	nls.config({locale: env.language});
+	nls.config({ locale: env.language });
 
 	configureHttpRequest();
 	workspace.onDidChangeConfiguration(e => configureHttpRequest());
