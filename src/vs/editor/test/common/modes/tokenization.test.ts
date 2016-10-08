@@ -6,13 +6,14 @@
 
 import * as assert from 'assert';
 import * as modes from 'vs/editor/common/modes';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import {handleEvent} from 'vs/editor/common/modes/supports';
 import {IModeLocator, ILeavingNestedModeData, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {createMockLineContext} from 'vs/editor/test/common/modesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {Token} from 'vs/editor/common/core/token';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 export interface IModeSwitchingDescriptor {
 	[character:string]:{
@@ -36,14 +37,28 @@ export class StateMemorizingLastWord extends AbstractState {
 		return new StateMemorizingLastWord(this.getModeId(), this.descriptor, this.lastWord);
 	}
 
-	public tokenize(stream:modes.IStream):modes.ITokenizationResult {
-		stream.setTokenRules('[]{}()==--', '\t \u00a0');
-		if (stream.skipWhitespace() !== '') {
-			return {
-				type: ''
-			};
+	public tokenize(stream:LineStream):ITokenizationResult {
+		let contents = stream.advanceToEOS();
+		stream.goBack(contents.length);
+
+		let m = contents.match(/^([\t \u00a0]+)/);
+		if (m) {
+			stream.advance(m[0].length);
+			return { type: '' };
 		}
-		var word = stream.nextToken();
+
+		m = contents.match(/^([\[\]\{\}\(\)])/);
+		let word: string;
+		if (m) {
+			stream.advance(m[0].length);
+			word = m[1];
+
+		} else {
+			m = contents.match(/([a-zA-Z]+)/);
+			stream.advance(m[0].length);
+			word = m[1];
+		}
+
 		return {
 			type: this.getModeId() + '.' + word,
 			nextState: new StateMemorizingLastWord(this.getModeId(), this.descriptor, word)
@@ -61,7 +76,7 @@ export class SwitchingMode extends MockMode {
 		modes.TokenizationRegistry.register(this.getId(), new TokenizationSupport(null, this.getId(), this, true));
 	}
 
-	public getInitialState():modes.IState {
+	public getInitialState():AbstractState {
 		return new StateMemorizingLastWord(this.getId(), this._switchingModeDescriptor, null);
 	}
 
@@ -167,8 +182,10 @@ suite('Editor Modes - Tokenization', () => {
 				return new State(this.getModeId());
 			}
 
-			public tokenize(stream:modes.IStream):modes.ITokenizationResult {
-				return { type: stream.next() === '.' ? '' : 'text' };
+			public tokenize(stream:LineStream):ITokenizationResult {
+				let chr = stream.peek();
+				stream.advance(1);
+				return { type: chr === '.' ? '' : 'text' };
 			}
 		}
 

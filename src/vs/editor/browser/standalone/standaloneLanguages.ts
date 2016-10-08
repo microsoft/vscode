@@ -37,7 +37,6 @@ export function register(language:ILanguageExtensionPoint): void {
 export function getLanguages(): ILanguageExtensionPoint[] {
 	let result:ILanguageExtensionPoint[] = [];
 	result = result.concat(ModesRegistry.getLanguages());
-	result = result.concat(ModesRegistry.getCompatModes());
 	return result;
 }
 
@@ -105,7 +104,24 @@ export function registerSignatureHelpProvider(languageId:string, provider:modes.
  * Register a hover provider (used by e.g. editor hover).
  */
 export function registerHoverProvider(languageId:string, provider:modes.HoverProvider): IDisposable {
-	return modes.HoverProviderRegistry.register(languageId, provider);
+	return modes.HoverProviderRegistry.register(languageId, {
+		provideHover: (model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.Hover> => {
+			let word = model.getWordAtPosition(position);
+
+			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
+				if (!value) {
+					return;
+				}
+				if (!value.range && word) {
+					value.range = new Range(position.lineNumber, word.startColumn, position.column, word.endColumn);
+				}
+				if (!value.range) {
+					value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+				}
+				return value;
+			});
+		}
+	});
 }
 
 /**

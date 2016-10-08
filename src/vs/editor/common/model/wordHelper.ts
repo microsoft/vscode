@@ -15,7 +15,7 @@ export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
  * The default would look like this:
  * /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
  */
-export function createWordRegExp(allowInWords:string = ''): RegExp {
+function createWordRegExp(allowInWords:string = ''): RegExp {
 	var usualSeparators = USUAL_WORD_SEPARATORS;
 	var source = '(-?\\d*\\.\\d\\w*)|([^';
 	for (var i = 0; i < usualSeparators.length; i++) {
