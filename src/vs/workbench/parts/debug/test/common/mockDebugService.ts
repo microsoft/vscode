@@ -5,11 +5,11 @@
 
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ISuggestion} from 'vs/editor/common/modes';
-import {Position} from 'vs/editor/common/core/position';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ISuggestion } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {Source} from 'vs/workbench/parts/debug/common/debugSource';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export class MockDebugService implements debug.IDebugService {
 	private session: MockRawSession;
@@ -51,7 +51,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public addFunctionBreakpoint(): void {}
+	public addFunctionBreakpoint(): void { }
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
 		return TPromise.as(null);
@@ -65,11 +65,11 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public removeReplExpressions(): void {}
+	public removeReplExpressions(): void { }
 
-	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {}
+	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void { }
 
-	public appendReplOutput(value: string, severity?: severity): void {}
+	public appendReplOutput(value: string, severity?: severity): void { }
 
 	public addWatchExpression(name?: string): TPromise<void> {
 		return TPromise.as(null);
@@ -79,7 +79,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public removeWatchExpressions(id?: string): void {}
+	public removeWatchExpressions(id?: string): void { }
 
 	public createSession(noDebug: boolean): TPromise<any> {
 		return TPromise.as(null);

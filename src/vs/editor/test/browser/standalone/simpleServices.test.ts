@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ContextKeyService} from 'vs/platform/contextkey/browser/contextKeyService';
-import {SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService, StandaloneCommandService} from 'vs/editor/browser/standalone/simpleServices';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {KeyCode} from 'vs/base/common/keyCodes';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { SimpleConfigurationService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService, StandaloneCommandService } from 'vs/editor/browser/standalone/simpleServices';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 suite('StandaloneKeybindingService', () => {
 
@@ -46,7 +46,7 @@ suite('StandaloneKeybindingService', () => {
 
 		keybindingService.dispatch(<any>{
 			asKeybinding: () => KeyCode.F9,
-			preventDefault: () => {}
+			preventDefault: () => { }
 		});
 
 		assert.ok(commandInvoked, 'command invoked');

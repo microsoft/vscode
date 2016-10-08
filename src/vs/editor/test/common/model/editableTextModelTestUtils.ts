@@ -6,12 +6,12 @@
 
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import {TextModel} from 'vs/editor/common/model/textModel';
-import {Position} from 'vs/editor/common/core/position';
+import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
+import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { Position } from 'vs/editor/common/core/position';
 
-export function testApplyEditsWithSyncedModels(original:string[], edits:editorCommon.IIdentifiedSingleEditOperation[], expected:string[], inputEditsAreInvalid:boolean = false): void {
+export function testApplyEditsWithSyncedModels(original: string[], edits: editorCommon.IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	var originalStr = original.join('\n');
 	var expectedStr = expected.join('\n');
 
@@ -44,13 +44,13 @@ const enum AssertDocumentLineMappingDirection {
 	PositionToOffset
 }
 
-function assertOneDirectionLineMapping(model:TextModel, direction:AssertDocumentLineMappingDirection, msg:string): void {
+function assertOneDirectionLineMapping(model: TextModel, direction: AssertDocumentLineMappingDirection, msg: string): void {
 	let allText = model.getValue();
 
 	let line = 1, column = 1, previousIsCarriageReturn = false;
 	for (let offset = 0; offset <= allText.length; offset++) {
 		// The position coordinate system cannot express the position between \r and \n
-		let	position = new Position(line, column + (previousIsCarriageReturn ? -1 : 0));
+		let position = new Position(line, column + (previousIsCarriageReturn ? -1 : 0));
 
 		if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
 			let actualPosition = model.getPositionAt(offset);
@@ -73,13 +73,13 @@ function assertOneDirectionLineMapping(model:TextModel, direction:AssertDocument
 	}
 }
 
-function assertLineMapping(model:TextModel, msg:string): void {
+function assertLineMapping(model: TextModel, msg: string): void {
 	assertOneDirectionLineMapping(model, AssertDocumentLineMappingDirection.PositionToOffset, msg);
 	assertOneDirectionLineMapping(model, AssertDocumentLineMappingDirection.OffsetToPosition, msg);
 }
 
 
-export function assertSyncedModels(text:string, callback:(model:EditableTextModel, assertMirrorModels:()=>void)=>void, setup:(model:EditableTextModel)=>void = null): void {
+export function assertSyncedModels(text: string, callback: (model: EditableTextModel, assertMirrorModels: () => void) => void, setup: (model: EditableTextModel) => void = null): void {
 	var model = new EditableTextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS), null);
 	model.setEOL(editorCommon.EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
@@ -92,7 +92,7 @@ export function assertSyncedModels(text:string, callback:(model:EditableTextMode
 	var mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.onDidChangeContent((e:editorCommon.IModelContentChangedEvent2) => {
+	model.onDidChangeContent((e: editorCommon.IModelContentChangedEvent2) => {
 		let versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');

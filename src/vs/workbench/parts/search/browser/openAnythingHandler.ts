@@ -7,27 +7,27 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {ThrottledDelayer} from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
-import {isWindows} from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
-import {IRange} from 'vs/editor/common/editorCommon';
-import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {FileEntry, OpenFileHandler, FileQuickOpenModel} from 'vs/workbench/parts/search/browser/openFileHandler';
+import { IRange } from 'vs/editor/common/editorCommon';
+import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { FileEntry, OpenFileHandler, FileQuickOpenModel } from 'vs/workbench/parts/search/browser/openFileHandler';
 /* tslint:disable:no-unused-variable */
 import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
 /* tslint:enable:no-unused-variable */
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ISearchStats, ICachedSearchStats, IUncachedSearchStats} from 'vs/platform/search/common/search';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IWorkbenchSearchConfiguration} from 'vs/workbench/parts/search/common/search';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ISearchStats, ICachedSearchStats, IUncachedSearchStats } from 'vs/platform/search/common/search';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchSearchConfiguration } from 'vs/workbench/parts/search/common/search';
 
 const objects_assign: <T, U>(destination: T, source: U) => T & U = objects.assign;
 
@@ -60,12 +60,12 @@ interface ITimerEventData {
 		cmdForkResultTime?: number;
 		cmdResultCount?: number;
 	} | {
-		cacheLookupStartDuration: number;
-		cacheFilterStartDuration: number;
-		cacheLookupResultDuration: number;
-		cacheEntryCount: number;
-		joined?: any;
-	});
+			cacheLookupStartDuration: number;
+			cacheFilterStartDuration: number;
+			cacheLookupResultDuration: number;
+			cacheEntryCount: number;
+			joined?: any;
+		});
 }
 
 interface ITelemetryData {
@@ -161,7 +161,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// The throttler needs a factory for its promises
 		const promiseFactory = () => {
-			const resultPromises: TPromise<QuickOpenModel|FileQuickOpenModel>[] = [];
+			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
 			resultPromises.push(this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS));
@@ -357,15 +357,15 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			cacheEntryCount: cached.cacheEntryCount,
 			joined: cached.joined && this.createFileEventData(startTime, cached.joined)
 		} : {
-			traversal: uncached.traversal,
-			errors: uncached.errors,
-			fileWalkStartDuration: uncached.fileWalkStartTime - startTime,
-			fileWalkResultDuration: uncached.fileWalkResultTime - startTime,
-			directoriesWalked: uncached.directoriesWalked,
-			filesWalked: uncached.filesWalked,
-			cmdForkStartDuration: uncached.cmdForkStartTime && uncached.cmdForkStartTime - startTime,
-			cmdForkResultDuration: uncached.cmdForkResultTime && uncached.cmdForkResultTime - startTime,
-			cmdResultCount: uncached.cmdResultCount
-		});
+					traversal: uncached.traversal,
+					errors: uncached.errors,
+					fileWalkStartDuration: uncached.fileWalkStartTime - startTime,
+					fileWalkResultDuration: uncached.fileWalkResultTime - startTime,
+					directoriesWalked: uncached.directoriesWalked,
+					filesWalked: uncached.filesWalked,
+					cmdForkStartDuration: uncached.cmdForkStartTime && uncached.cmdForkStartTime - startTime,
+					cmdForkResultDuration: uncached.cmdForkResultTime && uncached.cmdForkResultTime - startTime,
+					cmdResultCount: uncached.cmdResultCount
+				});
 	}
 }

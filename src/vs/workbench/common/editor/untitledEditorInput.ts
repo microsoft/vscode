@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {suggestFilename} from 'vs/base/common/mime';
+import { suggestFilename } from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
-import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
-import {UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
-import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
-import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
+import { UntitledEditorInput as AbstractUntitledEditorInput, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 /**
  * An editor input to be used for untitled text buffers.

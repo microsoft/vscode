@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorModel} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {IFileService} from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 
 /**
  * An editor model that just represents a resource that can be loaded.
@@ -58,7 +58,7 @@ export class BinaryEditorModel extends EditorModel {
 	}
 
 	public load(): TPromise<EditorModel> {
-		return this.fileService.resolveFile(this.resource).then(stat => {
+		return this.fileService.resolveFile(this.resource).then(stat => {
 			this.etag = stat.etag;
 			this.size = stat.size;
 

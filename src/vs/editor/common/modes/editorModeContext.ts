@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
-import {ICommonCodeEditor, ModeContextKeys, EditorContextKeys} from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
 
 export class EditorModeContext {
 

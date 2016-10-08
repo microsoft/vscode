@@ -9,13 +9,13 @@ import path = require('path');
 import assert = require('assert');
 
 import * as glob from 'vs/base/common/glob';
-import {join, normalize} from 'vs/base/common/paths';
+import { join, normalize } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import {LineMatch} from 'vs/platform/search/common/search';
+import { LineMatch } from 'vs/platform/search/common/search';
 
-import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/search/node/fileSearch';
-import {IRawFileMatch} from 'vs/workbench/services/search/node/search';
-import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/textSearch';
+import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
+import { IRawFileMatch } from 'vs/workbench/services/search/node/search';
+import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 
 function count(lineMatches: LineMatch[]): number {
 	let count = 0;

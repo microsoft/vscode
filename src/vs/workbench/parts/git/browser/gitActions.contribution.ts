@@ -20,12 +20,12 @@ import gitcontrib = require('vs/workbench/parts/git/browser/gitWorkbenchContribu
 import { IGitService, Status, IFileStatus, StatusType } from 'vs/workbench/parts/git/common/git';
 import gitei = require('vs/workbench/parts/git/browser/gitEditorInputs');
 import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IPartService, Parts} from 'vs/workbench/services/part/common/partService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IFileService} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction } from './gitActions';
@@ -39,7 +39,7 @@ function getStatus(gitService: IGitService, contextService: IWorkspaceContextSer
 	const repositoryRelativePath = paths.normalize(paths.relative(repositoryRoot, input.getResource().fsPath));
 
 	return statusModel.getWorkingTreeStatus().find(repositoryRelativePath) ||
-			statusModel.getIndexStatus().find(repositoryRelativePath);
+		statusModel.getIndexStatus().find(repositoryRelativePath);
 }
 
 class OpenInDiffAction extends baseeditor.EditorInputAction {
@@ -54,7 +54,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 	private contextService: IWorkspaceContextService;
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IGitService gitService: IGitService, @IViewletService viewletService: IViewletService, @IPartService partService: IPartService, @IWorkspaceContextService contextService : IWorkspaceContextService) {
+	constructor( @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IGitService gitService: IGitService, @IViewletService viewletService: IViewletService, @IPartService partService: IPartService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(OpenInDiffAction.ID, OpenInDiffAction.Label);
 
 		this.class = 'git-action open-in-diff';
@@ -69,7 +69,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		this.enabled = this.isEnabled();
 	}
 
-	public isEnabled():boolean {
+	public isEnabled(): boolean {
 		if (!super.isEnabled()) {
 			return false;
 		}
@@ -88,20 +88,20 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		);
 	}
 
-	private onGitStateChanged():void {
+	private onGitStateChanged(): void {
 		if (this.gitService.isIdle()) {
 			this.enabled = this.isEnabled();
 		}
 	}
 
-	private getStatus():IFileStatus {
-		return getStatus(this.gitService, this.contextService, <filesCommon.FileEditorInput> this.input);
+	private getStatus(): IFileStatus {
+		return getStatus(this.gitService, this.contextService, <filesCommon.FileEditorInput>this.input);
 	}
 
 	public run(context?: WorkbenchEditorCommon.IEditorContext): TPromise<any> {
 		const event = context ? context.event : null;
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		const editor = <editorbrowser.ICodeEditor> this.editorService.getActiveEditor().getControl();
+		const editor = <editorbrowser.ICodeEditor>this.editorService.getActiveEditor().getControl();
 		const viewState = editor ? editor.saveViewState() : null;
 
 		return this.gitService.getInput(this.getStatus()).then((input) => {
@@ -118,9 +118,9 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 
 				return this.editorService.openEditor(input, options, sideBySide).then((editor) => {
 					if (viewState) {
-						var codeEditor = <editorbrowser.ICodeEditor> this.editorService.getActiveEditor().getControl();
+						var codeEditor = <editorbrowser.ICodeEditor>this.editorService.getActiveEditor().getControl();
 						codeEditor.restoreViewState({
-							original: { },
+							original: {},
 							modified: viewState
 						});
 					}
@@ -129,7 +129,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		});
 	}
 
-	public dispose():void {
+	public dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
@@ -147,7 +147,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 	private partService: IPartService;
 	private contextService: IWorkspaceContextService;
 
-	constructor(@IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IGitService gitService: IGitService, @IViewletService viewletService: IViewletService, @IPartService partService: IPartService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor( @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IGitService gitService: IGitService, @IViewletService viewletService: IViewletService, @IPartService partService: IPartService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(OpenInEditorAction.ID, OpenInEditorAction.LABEL);
 
 		this.class = 'git-action open-in-editor';
@@ -161,7 +161,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		this.enabled = this.isEnabled();
 	}
 
-	public isEnabled():boolean {
+	public isEnabled(): boolean {
 		if (!super.isEnabled()) {
 			return false;
 		}
@@ -171,7 +171,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 			return false;
 		}
 
-		var status:IFileStatus = (<any>this.input).getFileStatus();
+		var status: IFileStatus = (<any>this.input).getFileStatus();
 		if (OpenInEditorAction.DELETED_STATES.indexOf(status.getStatus()) > -1) {
 			return false;
 		}
@@ -202,7 +202,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		});
 	}
 
-	private saveTextViewState():editorcommon.IEditorViewState {
+	private saveTextViewState(): editorcommon.IEditorViewState {
 		var textEditor = this.getTextEditor();
 		if (textEditor) {
 			return textEditor.saveViewState();
@@ -211,7 +211,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		return null;
 	}
 
-	private restoreTextViewState(state:editorcommon.IEditorViewState):void {
+	private restoreTextViewState(state: editorcommon.IEditorViewState): void {
 		var textEditor = this.getTextEditor();
 		if (textEditor) {
 			return textEditor.restoreViewState(state);
@@ -224,14 +224,14 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		if (editor instanceof tdeditor.TextDiffEditor) {
 			return (<editorbrowser.IDiffEditor>editor.getControl()).getModifiedEditor();
 		} else if (editor instanceof teditor.BaseTextEditor) {
-			return <editorbrowser.ICodeEditor> editor.getControl();
+			return <editorbrowser.ICodeEditor>editor.getControl();
 		}
 
 		return null;
 	}
 
-	private getRepositoryRelativePath():string {
-		var status: IFileStatus = (<any> this.input).getFileStatus();
+	private getRepositoryRelativePath(): string {
+		var status: IFileStatus = (<any>this.input).getFileStatus();
 
 		if (status.getStatus() === Status.INDEX_RENAMED) {
 			return status.getRename();
@@ -273,7 +273,7 @@ export class WorkbenchStageAction extends BaseStageAction {
 		}
 	}
 
-	isEnabled():boolean {
+	isEnabled(): boolean {
 		if (!super.isEnabled()) {
 			return false;
 		}
@@ -331,7 +331,7 @@ export class WorkbenchUnstageAction extends BaseUnstageAction {
 		}
 	}
 
-	isEnabled():boolean {
+	isEnabled(): boolean {
 		if (!super.isEnabled()) {
 			return false;
 		}
@@ -366,9 +366,9 @@ export class WorkbenchUnstageAction extends BaseUnstageAction {
 export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction {
 	private gitService: IGitService;
 	private editorService: IWorkbenchEditorService;
-	private editor:editorbrowser.IDiffEditor;
+	private editor: editorbrowser.IDiffEditor;
 
-	constructor(id: string, label: string, editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+	constructor(id: string, label: string, editor: tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label);
 
 		this.editorService = editorService;
@@ -379,7 +379,7 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 		this.class = 'git-action stage-ranges';
 	}
 
-	public isEnabled():boolean {
+	public isEnabled(): boolean {
 		if (!super.isEnabled()) {
 			return false;
 		}
@@ -404,7 +404,7 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 		return applyChangesToModel(editor.getModel().original, editor.getModel().modified, changes);
 	}
 
-	public run():TPromise<any> {
+	public run(): TPromise<any> {
 		var result = this.getRangesAppliedResult(this.editor);
 
 		var status = (<gitei.GitWorkingTreeDiffEditorInput>this.input).getFileStatus();
@@ -430,7 +430,7 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 		});
 	}
 
-	private updateEnablement():void {
+	private updateEnablement(): void {
 		this.enabled = this.isEnabled();
 	}
 }
@@ -439,7 +439,7 @@ export class StageRangesAction extends BaseStageRangesAction {
 	static ID = 'workbench.action.git.stageRanges';
 	static LABEL = nls.localize('stageSelectedLines', "Stage Selected Lines");
 
-	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+	constructor(editor: tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(StageRangesAction.ID, StageRangesAction.LABEL, editor, gitService, editorService);
 	}
 }
@@ -448,79 +448,79 @@ export class UnstageRangesAction extends BaseStageRangesAction {
 	static ID = 'workbench.action.git.unstageRanges';
 	static LABEL = nls.localize('unstageSelectedLines', "Unstage Selected Lines");
 
-	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+	constructor(editor: tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(UnstageRangesAction.ID, UnstageRangesAction.LABEL, editor, gitService, editorService);
 	}
 
 	protected getRangesAppliedResult(editor: editorbrowser.IDiffEditor) {
-	const selections = editor.getSelections();
-	const changes = getSelectedChanges(editor.getLineChanges(), selections)
-		.map(c => ({
-			modifiedStartLineNumber: c.originalStartLineNumber,
-			modifiedEndLineNumber: c.originalEndLineNumber,
-			originalStartLineNumber: c.modifiedStartLineNumber,
-			originalEndLineNumber: c.modifiedEndLineNumber
-		}));
+		const selections = editor.getSelections();
+		const changes = getSelectedChanges(editor.getLineChanges(), selections)
+			.map(c => ({
+				modifiedStartLineNumber: c.originalStartLineNumber,
+				modifiedEndLineNumber: c.originalEndLineNumber,
+				originalStartLineNumber: c.modifiedStartLineNumber,
+				originalEndLineNumber: c.modifiedEndLineNumber
+			}));
 
-	return applyChangesToModel(editor.getModel().modified, editor.getModel().original, changes);
+		return applyChangesToModel(editor.getModel().modified, editor.getModel().original, changes);
 	}
 }
 
 class FileEditorActionContributor extends baseeditor.EditorInputActionContributor {
-	private instantiationService:IInstantiationService;
+	private instantiationService: IInstantiationService;
 
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService instantiationService: IInstantiationService) {
 		super();
 
 		this.instantiationService = instantiationService;
 	}
 
-	public hasActionsForEditorInput(context:baseeditor.IEditorInputActionContext):boolean {
+	public hasActionsForEditorInput(context: baseeditor.IEditorInputActionContext): boolean {
 		return context.input instanceof filesCommon.FileEditorInput;
 	}
 
-	public getActionsForEditorInput(context:baseeditor.IEditorInputActionContext):baseeditor.IEditorInputAction[] {
-		return [ this.instantiationService.createInstance(OpenInDiffAction) ];
+	public getActionsForEditorInput(context: baseeditor.IEditorInputActionContext): baseeditor.IEditorInputAction[] {
+		return [this.instantiationService.createInstance(OpenInDiffAction)];
 	}
 }
 
 class GitEditorActionContributor extends baseeditor.EditorInputActionContributor {
-	private instantiationService:IInstantiationService;
+	private instantiationService: IInstantiationService;
 
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService instantiationService: IInstantiationService) {
 		super();
 
 		this.instantiationService = instantiationService;
 	}
 
-	public hasActionsForEditorInput(context:baseeditor.IEditorInputActionContext):boolean {
+	public hasActionsForEditorInput(context: baseeditor.IEditorInputActionContext): boolean {
 		return gitei.isGitEditorInput(context.input);
 	}
 
-	public getActionsForEditorInput(context:baseeditor.IEditorInputActionContext):baseeditor.IEditorInputAction[] {
-		return [ this.instantiationService.createInstance(OpenInEditorAction) ];
+	public getActionsForEditorInput(context: baseeditor.IEditorInputActionContext): baseeditor.IEditorInputAction[] {
+		return [this.instantiationService.createInstance(OpenInEditorAction)];
 	}
 }
 
 class GitWorkingTreeDiffEditorActionContributor extends baseeditor.EditorInputActionContributor {
-	private instantiationService:IInstantiationService;
+	private instantiationService: IInstantiationService;
 
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService instantiationService: IInstantiationService) {
 		super();
 
 		this.instantiationService = instantiationService;
 	}
 
-	public hasSecondaryActionsForEditorInput(context:baseeditor.IEditorInputActionContext):boolean {
+	public hasSecondaryActionsForEditorInput(context: baseeditor.IEditorInputActionContext): boolean {
 		return (context.input instanceof gitei.GitDiffEditorInput && context.editor instanceof tdeditor.TextDiffEditor);
 	}
 
-	public getSecondaryActionsForEditorInput(context:baseeditor.IEditorInputActionContext):baseeditor.IEditorInputAction[] {
+	public getSecondaryActionsForEditorInput(context: baseeditor.IEditorInputActionContext): baseeditor.IEditorInputAction[] {
 		if (context.input instanceof gitei.GitIndexDiffEditorInput) {
-			return [ this.instantiationService.createInstance(UnstageRangesAction, <tdeditor.TextDiffEditor>context.editor) ];
+			return [this.instantiationService.createInstance(UnstageRangesAction, <tdeditor.TextDiffEditor>context.editor)];
 		}
 
-		return [ this.instantiationService.createInstance(StageRangesAction, <tdeditor.TextDiffEditor>context.editor) ];
+		return [this.instantiationService.createInstance(StageRangesAction, <tdeditor.TextDiffEditor>context.editor)];
 	}
 }
 
@@ -559,7 +559,7 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 		}
 
 		var sideBySide = !!(context && (context.ctrlKey || context.metaKey));
-		var editor = <editorbrowser.ICodeEditor> this.editorService.getActiveEditor().getControl();
+		var editor = <editorbrowser.ICodeEditor>this.editorService.getActiveEditor().getControl();
 		var viewState = editor ? editor.saveViewState() : null;
 
 		return this.gitService.getInput(status).then((input) => {
@@ -576,9 +576,9 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 
 				return this.editorService.openEditor(input, options, sideBySide).then((editor) => {
 					if (viewState) {
-						var codeEditor = <editorbrowser.ICodeEditor> this.editorService.getActiveEditor().getControl();
+						var codeEditor = <editorbrowser.ICodeEditor>this.editorService.getActiveEditor().getControl();
 						codeEditor.restoreViewState({
-							original: { },
+							original: {},
 							modified: viewState
 						});
 					}
@@ -621,12 +621,12 @@ class GlobalOpenInEditorAction extends OpenFileAction {
 	}
 }
 
-var actionBarRegistry = <abr.IActionBarRegistry> platform.Registry.as(abr.Extensions.Actionbar);
+var actionBarRegistry = <abr.IActionBarRegistry>platform.Registry.as(abr.Extensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, FileEditorActionContributor);
 actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, GitEditorActionContributor);
 actionBarRegistry.registerActionBarContributor(abr.Scope.EDITOR, GitWorkingTreeDiffEditorActionContributor);
 
-let workbenchActionRegistry = (<wbar.IWorkbenchActionRegistry> platform.Registry.as(wbar.Extensions.WorkbenchActions));
+let workbenchActionRegistry = (<wbar.IWorkbenchActionRegistry>platform.Registry.as(wbar.Extensions.WorkbenchActions));
 
 // Register Actions
 const category = nls.localize('git', "Git");

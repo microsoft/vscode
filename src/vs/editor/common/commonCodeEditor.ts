@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
-import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {ContextKeyExpr, IContextKey, IContextKeyServiceTarget, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import {Cursor} from 'vs/editor/common/controller/cursor';
-import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
-import {IViewModelHelper} from 'vs/editor/common/controller/oneCursor';
-import {EditorState} from 'vs/editor/common/core/editorState';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {DynamicEditorAction} from 'vs/editor/common/editorAction';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ContextKeyExpr, IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { CursorMoveHelper } from 'vs/editor/common/controller/cursorMoveHelper';
+import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
+import { EditorState } from 'vs/editor/common/core/editorState';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { DynamicEditorAction } from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
-import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
-import {hash} from 'vs/base/common/hash';
-import {EditorModeContext} from 'vs/editor/common/modes/editorModeContext';
-import {MenuId, MenuRegistry, IMenuItem} from 'vs/platform/actions/common/actions';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { hash } from 'vs/base/common/hash';
+import { EditorModeContext } from 'vs/editor/common/modes/editorModeContext';
+import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -36,66 +36,66 @@ var EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
-	public onDidChangeModelRawContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
+	public onDidChangeModelRawContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
 	}
-	public onDidChangeModelContent(listener: (e:editorCommon.IModelContentChangedEvent2)=>void): IDisposable {
+	public onDidChangeModelContent(listener: (e: editorCommon.IModelContentChangedEvent2) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
 	}
-	public onDidChangeModelMode(listener: (e:editorCommon.IModelModeChangedEvent)=>void): IDisposable {
+	public onDidChangeModelMode(listener: (e: editorCommon.IModelModeChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
 	}
-	public onDidChangeModelOptions(listener: (e:editorCommon.IModelOptionsChangedEvent)=>void): IDisposable {
+	public onDidChangeModelOptions(listener: (e: editorCommon.IModelOptionsChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
 	}
-	public onDidChangeModelDecorations(listener: (e:editorCommon.IModelDecorationsChangedEvent)=>void): IDisposable {
+	public onDidChangeModelDecorations(listener: (e: editorCommon.IModelDecorationsChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelDecorationsChanged, listener);
 	}
-	public onDidChangeConfiguration(listener: (e:editorCommon.IConfigurationChangedEvent)=>void): IDisposable {
+	public onDidChangeConfiguration(listener: (e: editorCommon.IConfigurationChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ConfigurationChanged, listener);
 	}
-	public onDidChangeModel(listener: (e:editorCommon.IModelChangedEvent)=>void): IDisposable {
+	public onDidChangeModel(listener: (e: editorCommon.IModelChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelChanged, listener);
 	}
-	public onDidChangeCursorPosition(listener: (e:editorCommon.ICursorPositionChangedEvent)=>void): IDisposable {
+	public onDidChangeCursorPosition(listener: (e: editorCommon.ICursorPositionChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.CursorPositionChanged, listener);
 	}
-	public onDidChangeCursorSelection(listener: (e:editorCommon.ICursorSelectionChangedEvent)=>void): IDisposable {
+	public onDidChangeCursorSelection(listener: (e: editorCommon.ICursorSelectionChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.CursorSelectionChanged, listener);
 	}
-	public onDidFocusEditorText(listener: ()=>void): IDisposable {
+	public onDidFocusEditorText(listener: () => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.EditorTextFocus, listener);
 	}
-	public onDidBlurEditorText(listener: ()=>void): IDisposable {
+	public onDidBlurEditorText(listener: () => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.EditorTextBlur, listener);
 	}
-	public onDidFocusEditor(listener: ()=>void): IDisposable {
+	public onDidFocusEditor(listener: () => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.EditorFocus, listener);
 	}
-	public onDidBlurEditor(listener: ()=>void): IDisposable {
+	public onDidBlurEditor(listener: () => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.EditorBlur, listener);
 	}
-	public onDidDispose(listener: ()=>void): IDisposable {
+	public onDidDispose(listener: () => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.Disposed, listener);
 	}
 
 	protected domElement: IContextKeyServiceTarget;
 
-	protected id:number;
+	protected id: number;
 
 	protected _lifetimeDispose: IDisposable[];
-	protected _configuration:CommonEditorConfiguration;
+	protected _configuration: CommonEditorConfiguration;
 
-	protected _contributions:{ [key:string]:editorCommon.IEditorContribution; };
-	protected _actions:{ [key:string]:editorCommon.IEditorAction; };
+	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
+	protected _actions: { [key: string]: editorCommon.IEditorAction; };
 
 	// --- Members logically associated to a model
-	protected model:editorCommon.IModel;
-	protected listenersToRemove:IDisposable[];
+	protected model: editorCommon.IModel;
+	protected listenersToRemove: IDisposable[];
 	protected hasView: boolean;
 
-	protected viewModel:ViewModel;
-	protected cursor:Cursor;
+	protected viewModel: ViewModel;
+	protected cursor: Cursor;
 
 	protected _instantiationService: IInstantiationService;
 	protected _contextKeyService: IContextKeyService;
@@ -103,8 +103,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	/**
 	 * map from "parent" decoration type to live decoration ids.
 	 */
-	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[]};
-	private _decorationTypeSubtypes: {[decorationTypeKey:string]:{ [subtype:string]:boolean}};
+	private _decorationTypeKeysToIds: { [decorationTypeKey: string]: string[] };
+	private _decorationTypeSubtypes: { [decorationTypeKey: string]: { [subtype: string]: boolean } };
 
 
 	constructor(
@@ -148,7 +148,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._actions = {};
 	}
 
-	protected abstract _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration;
+	protected abstract _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration;
 
 	public getId(): string {
 		return this.getEditorType() + ':' + this.id;
@@ -182,15 +182,15 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		super.dispose();
 	}
 
-	public captureState(...flags:editorCommon.CodeEditorStateFlag[]): editorCommon.ICodeEditorState {
+	public captureState(...flags: editorCommon.CodeEditorStateFlag[]): editorCommon.ICodeEditorState {
 		return new EditorState(this, flags);
 	}
 
-	public invokeWithinContext<T>(fn:(accessor:ServicesAccessor)=>T): T {
+	public invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
 		return this._instantiationService.invokeFunction(fn);
 	}
 
-	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
+	public updateOptions(newOptions: editorCommon.IEditorOptions): void {
 		this._configuration.updateOptions(newOptions);
 	}
 
@@ -202,13 +202,13 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this._configuration.getRawOptions();
 	}
 
-	public getValue(options:{ preserveBOM:boolean; lineEnding:string; }=null): string {
+	public getValue(options: { preserveBOM: boolean; lineEnding: string; } = null): string {
 		if (this.model) {
-			let preserveBOM:boolean = (options && options.preserveBOM) ? true : false;
+			let preserveBOM: boolean = (options && options.preserveBOM) ? true : false;
 			let eolPreference = editorCommon.EndOfLinePreference.TextDefined;
 			if (options && options.lineEnding && options.lineEnding === '\n') {
 				eolPreference = editorCommon.EndOfLinePreference.LF;
-			} else if (options  && options.lineEnding && options.lineEnding === '\r\n') {
+			} else if (options && options.lineEnding && options.lineEnding === '\r\n') {
 				eolPreference = editorCommon.EndOfLinePreference.CRLF;
 			}
 			return this.model.getValue(eolPreference, preserveBOM);
@@ -216,7 +216,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return '';
 	}
 
-	public setValue(newValue:string): void {
+	public setValue(newValue: string): void {
 		if (this.model) {
 			this.model.setValue(newValue);
 		}
@@ -226,7 +226,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this.model;
 	}
 
-	public setModel(model:editorCommon.IModel = null): void {
+	public setModel(model: editorCommon.IModel = null): void {
 		if (this.model === model) {
 			// Current model is the new model
 			return;
@@ -248,7 +248,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	public abstract getCompletelyVisibleLinesRangeInViewport(): Range;
 
-	public getVisibleColumnFromPosition(rawPosition:editorCommon.IPosition): number {
+	public getVisibleColumnFromPosition(rawPosition: editorCommon.IPosition): number {
 		if (!this.model) {
 			return rawPosition.column;
 		}
@@ -266,7 +266,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this.cursor.getPosition().clone();
 	}
 
-	public setPosition(position:editorCommon.IPosition, reveal:boolean = false, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = false): void {
+	public setPosition(position: editorCommon.IPosition, reveal: boolean = false, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
 		if (!this.cursor) {
 			return;
 		}
@@ -330,7 +330,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, false);
 	}
 
-	public revealPosition(position: editorCommon.IPosition, revealVerticalInCenter:boolean=false, revealHorizontal:boolean=false): void {
+	public revealPosition(position: editorCommon.IPosition, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
 		if (!Position.isIPosition(position)) {
 			throw new Error('Invalid arguments');
 		}
@@ -378,18 +378,18 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			return null;
 		}
 		let selections = this.cursor.getSelections();
-		let result:Selection[] = [];
+		let result: Selection[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			result[i] = selections[i].clone();
 		}
 		return result;
 	}
 
-	public setSelection(range:editorCommon.IRange, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
-	public setSelection(editorRange:Range, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
-	public setSelection(selection:editorCommon.ISelection, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
-	public setSelection(editorSelection:Selection, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
-	public setSelection(something:any, reveal:boolean = false, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = false): void {
+	public setSelection(range: editorCommon.IRange, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+	public setSelection(editorRange: Range, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+	public setSelection(selection: editorCommon.ISelection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+	public setSelection(editorSelection: Selection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+	public setSelection(something: any, reveal: boolean = false, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
 		let isSelection = Selection.isISelection(something);
 		let isRange = Range.isIRange(something);
 
@@ -401,7 +401,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this._setSelectionImpl(<editorCommon.ISelection>something, reveal, revealVerticalInCenter, revealHorizontal);
 		} else if (isRange) {
 			// act as if it was an IRange
-			let selection:editorCommon.ISelection = {
+			let selection: editorCommon.ISelection = {
 				selectionStartLineNumber: something.startLineNumber,
 				selectionStartColumn: something.startColumn,
 				positionLineNumber: something.endLineNumber,
@@ -411,7 +411,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}
 	}
 
-	private _setSelectionImpl(sel:editorCommon.ISelection, reveal:boolean, revealVerticalInCenter:boolean, revealHorizontal:boolean): void {
+	private _setSelectionImpl(sel: editorCommon.ISelection, reveal: boolean, revealVerticalInCenter: boolean, revealHorizontal: boolean): void {
 		if (!this.cursor) {
 			return;
 		}
@@ -449,7 +449,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, false);
 	}
 
-	public revealRange(range: editorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = true): void {
+	public revealRange(range: editorCommon.IRange, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
 		this._sendRevealRange(range, revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, revealHorizontal);
 	}
 
@@ -482,12 +482,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public abstract getScrollHeight(): number;
 	public abstract getScrollTop(): number;
 
-	public abstract setScrollLeft(newScrollLeft:number): void;
-	public abstract setScrollTop(newScrollTop:number): void;
+	public abstract setScrollLeft(newScrollLeft: number): void;
+	public abstract setScrollTop(newScrollTop: number): void;
 	public abstract setScrollPosition(position: editorCommon.INewScrollPosition): void;
 
 	public abstract saveViewState(): editorCommon.ICodeEditorViewState;
-	public abstract restoreViewState(state:editorCommon.IEditorViewState): void;
+	public abstract restoreViewState(state: editorCommon.IEditorViewState): void;
 
 	public onVisible(): void {
 	}
@@ -495,7 +495,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 	public onHide(): void {
 	}
 
-	public abstract layout(dimension?:editorCommon.IDimension): void;
+	public abstract layout(dimension?: editorCommon.IDimension): void;
 
 	public abstract focus(): void;
 	public abstract isFocused(): boolean;
@@ -505,7 +505,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return <T>(this._contributions[id] || null);
 	}
 
-	public addAction(descriptor:editorCommon.IActionDescriptor): void {
+	public addAction(descriptor: editorCommon.IActionDescriptor): void {
 		if (
 			(typeof descriptor.id !== 'string')
 			|| (typeof descriptor.label !== 'string')
@@ -560,11 +560,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return result;
 	}
 
-	public getAction(id:string): editorCommon.IEditorAction {
+	public getAction(id: string): editorCommon.IEditorAction {
 		return this._actions[id] || null;
 	}
 
-	public trigger(source:string, handlerId:string, payload:any): void {
+	public trigger(source: string, handlerId: string, payload: any): void {
 		payload = payload || {};
 		let candidate = this.getAction(handlerId);
 		if (candidate !== null) {
@@ -621,9 +621,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommands, commands);
 	}
 
-	public changeDecorations(callback:(changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>any): any {
+	public changeDecorations(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => any): any {
 		if (!this.model) {
-//			console.warn('Cannot change decorations on editor that is not attached to a model');
+			//			console.warn('Cannot change decorations on editor that is not attached to a model');
 			// callback will not be called
 			return null;
 		}
@@ -637,7 +637,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this.model.getLineDecorations(lineNumber, this.id, this._configuration.editor.readOnly);
 	}
 
-	public deltaDecorations(oldDecorations:string[], newDecorations:editorCommon.IModelDeltaDecoration[]): string[] {
+	public deltaDecorations(oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] {
 		if (!this.model) {
 			return [];
 		}
@@ -649,13 +649,13 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this.model.deltaDecorations(oldDecorations, newDecorations, this.id);
 	}
 
-	public setDecorations(decorationTypeKey: string, decorationOptions:editorCommon.IDecorationOptions[]): void {
+	public setDecorations(decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
 
-		let newDecorationsSubTypes: {[key:string]:boolean}= {};
+		let newDecorationsSubTypes: { [key: string]: boolean } = {};
 		let oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
 		this._decorationTypeSubtypes[decorationTypeKey] = newDecorationsSubTypes;
 
-		let newModelDecorations :editorCommon.IModelDeltaDecoration[] = [];
+		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = [];
 
 		for (let decorationOption of decorationOptions) {
 			let typeKey = decorationTypeKey;
@@ -705,7 +705,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		}
 	}
 
-	public addTypingListener(character:string, callback: () => void): IDisposable {
+	public addTypingListener(character: string, callback: () => void): IDisposable {
 		if (!this.cursor) {
 			return {
 				dispose: () => {
@@ -727,7 +727,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return this._configuration.editor.layoutInfo;
 	}
 
-	protected _attachModel(model:editorCommon.IModel): void {
+	protected _attachModel(model: editorCommon.IModel): void {
 		this.model = model ? model : null;
 		this.listenersToRemove = [];
 		this.viewModel = null;
@@ -762,7 +762,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				() => this.getCenteredRangeInViewport()
 			);
 
-			let viewModelHelper:IViewModelHelper = {
+			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
 				getCurrentCompletelyVisibleViewLinesRangeInViewport: () => {
 					return this.viewModel.convertModelRangeToViewRange(this.getCompletelyVisibleLinesRangeInViewport());
@@ -770,25 +770,25 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				getCurrentCompletelyVisibleModelLinesRangeInViewport: () => {
 					return this.getCompletelyVisibleLinesRangeInViewport();
 				},
-				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
+				convertModelPositionToViewPosition: (lineNumber: number, column: number) => {
 					return this.viewModel.convertModelPositionToViewPosition(lineNumber, column);
 				},
-				convertModelRangeToViewRange: (modelRange:Range) => {
+				convertModelRangeToViewRange: (modelRange: Range) => {
 					return this.viewModel.convertModelRangeToViewRange(modelRange);
 				},
-				convertViewToModelPosition: (lineNumber:number, column:number) => {
+				convertViewToModelPosition: (lineNumber: number, column: number) => {
 					return this.viewModel.convertViewPositionToModelPosition(lineNumber, column);
 				},
-				convertViewSelectionToModelSelection: (viewSelection:editorCommon.ISelection) => {
+				convertViewSelectionToModelSelection: (viewSelection: editorCommon.ISelection) => {
 					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
 				},
-				convertViewRangeToModelRange: (viewRange:Range) => {
+				convertViewRangeToModelRange: (viewRange: Range) => {
 					return this.viewModel.convertViewRangeToModelRange(viewRange);
 				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:Position) => {
+				validateViewPosition: (viewLineNumber: number, viewColumn: number, modelPosition: Position) => {
 					return this.viewModel.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
 				},
-				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:Range) => {
+				validateViewRange: (viewStartLineNumber: number, viewStartColumn: number, viewEndLineNumber: number, viewEndColumn: number, modelRange: Range) => {
 					return this.viewModel.validateViewRange(viewStartLineNumber, viewStartColumn, viewEndLineNumber, viewEndColumn, modelRange);
 				}
 			};
@@ -858,7 +858,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							break;
 
 						default:
-							// console.warn("Unhandled view event: ", e);
+						// console.warn("Unhandled view event: ", e);
 					}
 				}
 			}));
@@ -896,7 +896,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							break;
 
 						default:
-							// console.warn("Unhandled model event: ", e);
+						// console.warn("Unhandled model event: ", e);
 					}
 				}
 			}));
@@ -916,7 +916,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							break;
 
 						default:
-							// console.warn("Unhandled cursor event: ", e);
+						// console.warn("Unhandled cursor event: ", e);
 					}
 				}
 			}));
@@ -931,7 +931,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 	protected abstract _getViewInternalEventBus(): IEventEmitter;
 
-	protected _postDetachModelCleanup(detachedModel:editorCommon.IModel): void {
+	protected _postDetachModelCleanup(detachedModel: editorCommon.IModel): void {
 		if (detachedModel) {
 			this._decorationTypeKeysToIds = {};
 			if (this._decorationTypeSubtypes) {
@@ -974,14 +974,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		return result;
 	}
 
-	protected abstract _registerDecorationType(key:string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
-	protected abstract _removeDecorationType(key:string): void;
-	protected abstract _resolveDecorationOptions(typeKey:string, writable: boolean): editorCommon.IModelDecorationOptions;
+	protected abstract _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
+	protected abstract _removeDecorationType(key: string): void;
+	protected abstract _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions;
 }
 
 class EditorContextKeysManager extends Disposable {
 
-	private _editor:CommonCodeEditor;
+	private _editor: CommonCodeEditor;
 
 	private _editorId: IContextKey<string>;
 	private _editorFocus: IContextKey<boolean>;
@@ -992,7 +992,7 @@ class EditorContextKeysManager extends Disposable {
 	private _hasNonEmptySelection: IContextKey<boolean>;
 
 	constructor(
-		editor:CommonCodeEditor,
+		editor: CommonCodeEditor,
 		contextKeyService: IContextKeyService
 	) {
 		super();

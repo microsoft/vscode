@@ -5,9 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {resolveWorkbenchCommonProperties} from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import {TestStorageService} from 'vs/test/utils/servicesTestUtils';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { TestStorageService } from 'vs/test/utils/servicesTestUtils';
 
 suite('Telemetry - common properties', function () {
 

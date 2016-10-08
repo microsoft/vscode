@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import vscode = require('vscode');
-import {ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape } from './extHost.protocol';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostTerminal implements vscode.Terminal {
 

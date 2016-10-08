@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -18,13 +18,13 @@ import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from '
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from '../common/suggest';
 import { ICompletionItem, CompletionModel } from '../common/completionModel';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const sticky = false; // for development purposes
@@ -86,8 +86,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			const fontFamily = configuration.fontInfo.fontFamily;
 			const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
 			const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
-			const fontSizePx = `${ fontSize }px`;
-			const lineHeightPx = `${ lineHeight }px`;
+			const fontSizePx = `${fontSize}px`;
+			const lineHeightPx = `${lineHeight}px`;
 
 			data.root.style.fontSize = fontSizePx;
 			main.style.fontFamily = fontFamily;
@@ -270,8 +270,8 @@ class SuggestionDetails {
 		const fontFamily = configuration.fontInfo.fontFamily;
 		const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
 		const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
-		const fontSizePx = `${ fontSize }px`;
-		const lineHeightPx = `${ lineHeight }px`;
+		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
 
 		this.el.style.fontSize = fontSizePx;
 		this.title.style.fontFamily = fontFamily;
@@ -403,16 +403,16 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.editor.focus();
 	}
 
-	private _getSuggestionAriaAlertLabel(item:ICompletionItem): string {
+	private _getSuggestionAriaAlertLabel(item: ICompletionItem): string {
 		if (item.suggestion.documentation) {
-			return nls.localize('ariaCurrentSuggestionWithDetails',"{0}, suggestion, has details", item.suggestion.label);
+			return nls.localize('ariaCurrentSuggestionWithDetails', "{0}, suggestion, has details", item.suggestion.label);
 		} else {
-			return nls.localize('ariaCurrentSuggestion',"{0}, suggestion", item.suggestion.label);
+			return nls.localize('ariaCurrentSuggestion', "{0}, suggestion", item.suggestion.label);
 		}
 	}
 
 	private _lastAriaAlertLabel: string;
-	private _ariaAlert(newAriaAlertLabel:string): void {
+	private _ariaAlert(newAriaAlertLabel: string): void {
 		if (this._lastAriaAlertLabel === newAriaAlertLabel) {
 			return;
 		}
@@ -528,7 +528,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
-	get onDidSelect():Event<ICompletionItem> {
+	get onDidSelect(): Event<ICompletionItem> {
 		return this.onDidSelectEmitter.event;
 	}
 
@@ -575,7 +575,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.completionModel = null;
 
 		} else {
-			const {stats}  = this.completionModel;
+			const {stats} = this.completionModel;
 			stats['wasAutomaticallyTriggered'] = !!isAuto;
 			this.telemetryService.publicLog('suggestWidget', stats);
 

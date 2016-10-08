@@ -6,47 +6,47 @@
 'use strict';
 
 import 'vs/css!./media/fileactions';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
-import {sequence, ITask} from 'vs/base/common/async';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { sequence, ITask } from 'vs/base/common/async';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
-import {Event, EventType as CommonEventType} from 'vs/base/common/events';
+import { Event, EventType as CommonEventType } from 'vs/base/common/events';
 import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {Action, IAction} from 'vs/base/common/actions';
-import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
-import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
-import {LocalFileChangeEvent, ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
-import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
-import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, IEditorIdentifier} from 'vs/workbench/common/editor';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
-import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
-import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {CollapseAction} from 'vs/workbench/browser/viewlet';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {Position, IResourceInput} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {Keybinding} from 'vs/base/common/keybinding';
-import {Selection} from 'vs/editor/common/core/selection';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { Action, IAction } from 'vs/base/common/actions';
+import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { LocalFileChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileService, IFileStat, IImportResult } from 'vs/platform/files/common/files';
+import { DiffEditorInput, toDiffLabel } from 'vs/workbench/common/editor/diffEditorInput';
+import { asFileEditorInput, getUntitledOrFileResource, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
+import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
+import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export interface IEditableData {
 	action: IAction;
@@ -1461,7 +1461,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			}
 
 			// Just save
-			return this.textFileService.save(source, { force: true /* force a change to the file to trigger external watchers if any */});
+			return this.textFileService.save(source, { force: true /* force a change to the file to trigger external watchers if any */ });
 		}
 
 		return TPromise.as(false);

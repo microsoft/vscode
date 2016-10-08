@@ -6,19 +6,19 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, EditorGroup, GroupEvent} from 'vs/workbench/common/editor/editorStacksModel';
-import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/common/editor';
+import { EditorStacksModel, EditorGroup, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService} from 'vs/test/utils/servicesTestUtils';
-import {TestInstantiationService} from 'vs/test/utils/instantiationTestUtils';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Registry} from 'vs/platform/platform';
-import {Position, Direction} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import { TestStorageService, TestConfigurationService, TestLifecycleService, TestContextService } from 'vs/test/utils/servicesTestUtils';
+import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Registry } from 'vs/platform/platform';
+import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import 'vs/workbench/browser/parts/editor/baseEditor';
 
 function create(): EditorStacksModel {

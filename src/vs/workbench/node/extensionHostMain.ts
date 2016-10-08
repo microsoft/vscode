@@ -11,18 +11,18 @@ import * as crypto from 'crypto';
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import pkg from 'vs/platform/package';
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ExtHostAPIImplementation, defineAPI} from 'vs/workbench/api/node/extHost.api.impl';
-import {IMainProcessExtHostIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
-import {ExtHostExtensionService} from 'vs/workbench/api/node/extHostExtensionService';
-import {ExtHostThreadService} from 'vs/workbench/services/thread/common/extHostThreadService';
-import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
-import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
-import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtHostAPIImplementation, defineAPI } from 'vs/workbench/api/node/extHost.api.impl';
+import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
+import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
+import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
+import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
@@ -47,7 +47,7 @@ export interface IInitData {
 }
 
 const nativeExit = process.exit.bind(process);
-process.exit = function() {
+process.exit = function () {
 	const err = new Error('An extension called process.exit() and this was prevented.');
 	console.warn((<any>err).stack);
 };
@@ -78,7 +78,7 @@ export class ExtensionHostMain {
 
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 
-		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, {_serviceBrand: 'optionalArgs', workspaceStoragePath });
+		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
 
 		// Connect to shared process services
 		/*

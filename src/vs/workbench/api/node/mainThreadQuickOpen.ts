@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IQuickOpenService, IPickOptions, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {InputBoxOptions} from 'vscode';
-import {ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IQuickOpenService, IPickOptions, IInputOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { InputBoxOptions } from 'vscode';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from './extHost.protocol';
 
 export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 

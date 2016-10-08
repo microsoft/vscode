@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IPanel} from 'vs/workbench/common/panel';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IPanel } from 'vs/workbench/common/panel';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export const IPanelService = createDecorator<IPanelService>('panelService');
 

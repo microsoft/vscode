@@ -7,7 +7,7 @@
 
 import { EventEmitter } from 'events';
 import { ipcMain as ipc, app } from 'electron';
-import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
+import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

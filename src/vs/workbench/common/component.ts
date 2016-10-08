@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
-import {Scope, Memento} from 'vs/workbench/common/memento';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Scope, Memento } from 'vs/workbench/common/memento';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 /**

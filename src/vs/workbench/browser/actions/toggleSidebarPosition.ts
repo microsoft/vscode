@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
-import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
-import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
+import { Registry } from 'vs/platform/platform';
+import { Action } from 'vs/base/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleSidebarPositionAction extends Action {
 

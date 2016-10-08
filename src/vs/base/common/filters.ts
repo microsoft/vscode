@@ -5,8 +5,8 @@
 'use strict';
 
 import strings = require('vs/base/common/strings');
-import {BoundedLinkedMap} from 'vs/base/common/map';
-import {CharCode} from 'vs/base/common/charCode';
+import { BoundedLinkedMap } from 'vs/base/common/map';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IFilter {
 	// Returns null if word doesn't match.

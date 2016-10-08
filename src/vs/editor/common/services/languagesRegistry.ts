@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
-import Event, {Emitter} from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as mime from 'vs/base/common/mime';
 import * as strings from 'vs/base/common/strings';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -22,7 +22,7 @@ export class LanguagesRegistry {
 	private id2Extensions: { [id: string]: string[]; };
 	private id2Filenames: { [id: string]: string[]; };
 	private lowerName2Id: { [name: string]: string; };
-	private id2ConfigurationFiles: { [id:string]: string[]; };
+	private id2ConfigurationFiles: { [id: string]: string[]; };
 
 	private _onDidAddModes: Emitter<string[]> = new Emitter<string[]>();
 	public onDidAddModes: Event<string[]> = this._onDidAddModes.event;
@@ -43,7 +43,7 @@ export class LanguagesRegistry {
 		}
 	}
 
-	_registerLanguages(desc:ILanguageExtensionPoint[]): void {
+	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
 		let addedModes: string[] = [];
 		for (let i = 0; i < desc.length; i++) {
 			this._registerLanguage(desc[i]);
@@ -52,7 +52,7 @@ export class LanguagesRegistry {
 		this._onDidAddModes.fire(addedModes);
 	}
 
-	private _setLanguageName(languageId:string, languageName:string, force:boolean): void {
+	private _setLanguageName(languageId: string, languageName: string, force: boolean): void {
 		let prevName = this.id2Name[languageId];
 		if (prevName) {
 			if (!force) {
@@ -160,7 +160,7 @@ export class LanguagesRegistry {
 		return Object.keys(this.knownModeIds);
 	}
 
-	public getRegisteredLanguageNames(): string[]{
+	public getRegisteredLanguageNames(): string[] {
 		return Object.keys(this.name2LanguageId);
 	}
 
@@ -207,7 +207,7 @@ export class LanguagesRegistry {
 		);
 	}
 
-	public getModeIdsFromLanguageName(languageName: string): string[]{
+	public getModeIdsFromLanguageName(languageName: string): string[] {
 		if (!languageName) {
 			return [];
 		}
@@ -219,7 +219,7 @@ export class LanguagesRegistry {
 		return [];
 	}
 
-	public getModeIdsFromFilenameOrFirstLine(filename: string, firstLine?:string): string[] {
+	public getModeIdsFromFilenameOrFirstLine(filename: string, firstLine?: string): string[] {
 		if (!filename && !firstLine) {
 			return [];
 		}

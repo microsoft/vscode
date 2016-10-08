@@ -4,32 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IdGenerator} from 'vs/base/common/idGenerator';
-import {Position} from 'vs/editor/common/core/position';
-import {IModelContentChangedFlushEvent, IRawText, IReadOnlyLineMarker, ITextModelWithMarkers} from 'vs/editor/common/editorCommon';
-import {ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
-import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { Position } from 'vs/editor/common/core/position';
+import { IModelContentChangedFlushEvent, IRawText, IReadOnlyLineMarker, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
+import { ILineMarker, ModelLine } from 'vs/editor/common/model/modelLine';
+import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 
 export interface IMarkerIdToMarkerMap {
-	[key:string]:ILineMarker;
+	[key: string]: ILineMarker;
 }
 
 export interface INewMarker {
-	lineNumber:number;
-	column:number;
-	stickToPreviousCharacter:boolean;
+	lineNumber: number;
+	column: number;
+	stickToPreviousCharacter: boolean;
 }
 
 export class LineMarker implements ILineMarker {
 
-	id:string;
-	column:number;
-	stickToPreviousCharacter:boolean;
-	oldLineNumber:number;
-	oldColumn:number;
-	line:ModelLine;
+	id: string;
+	column: number;
+	stickToPreviousCharacter: boolean;
+	oldLineNumber: number;
+	oldColumn: number;
+	line: ModelLine;
 
-	constructor(id:string, column:number, stickToPreviousCharacter:boolean) {
+	constructor(id: string, column: number, stickToPreviousCharacter: boolean) {
 		this.id = id;
 		this.column = column;
 		this.stickToPreviousCharacter = stickToPreviousCharacter;
@@ -49,7 +49,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 
 	private _markerIdGenerator: IdGenerator;
 	protected _markerIdToMarker: IMarkerIdToMarkerMap;
-	constructor(allowedEventTypes:string[], rawText:IRawText, languageId:string) {
+	constructor(allowedEventTypes: string[], rawText: IRawText, languageId: string) {
 		super(allowedEventTypes, rawText, languageId);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._markerIdToMarker = {};
@@ -60,14 +60,14 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		super.dispose();
 	}
 
-	protected _resetValue(e:IModelContentChangedFlushEvent, newValue:IRawText): void {
+	protected _resetValue(e: IModelContentChangedFlushEvent, newValue: IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my markers
 		this._markerIdToMarker = {};
 	}
 
-	_addMarker(lineNumber:number, column:number, stickToPreviousCharacter:boolean): string {
+	_addMarker(lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
 		var pos = this.validatePosition(new Position(lineNumber, column));
 
 		var marker = new LineMarker(this._markerIdGenerator.nextId(), pos.column, stickToPreviousCharacter);
@@ -78,12 +78,12 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		return marker.id;
 	}
 
-	protected _addMarkers(newMarkers:INewMarker[]): string[] {
+	protected _addMarkers(newMarkers: INewMarker[]): string[] {
 		let addMarkersPerLine: {
-			[lineNumber:number]: LineMarker[];
+			[lineNumber: number]: LineMarker[];
 		} = Object.create(null);
 
-		let result:string[] = [];
+		let result: string[] = [];
 		for (let i = 0, len = newMarkers.length; i < len; i++) {
 			let newMarker = newMarkers[i];
 
@@ -107,7 +107,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		return result;
 	}
 
-	_changeMarker(id:string, lineNumber:number, column:number): void {
+	_changeMarker(id: string, lineNumber: number, column: number): void {
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			var newPos = this.validatePosition(new Position(lineNumber, column));
@@ -123,7 +123,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		}
 	}
 
-	_changeMarkerStickiness(id:string, newStickToPreviousCharacter:boolean): void {
+	_changeMarkerStickiness(id: string, newStickToPreviousCharacter: boolean): void {
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 
@@ -133,7 +133,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		}
 	}
 
-	_getMarker(id:string): Position {
+	_getMarker(id: string): Position {
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			return new Position(marker.line.lineNumber, marker.column);
@@ -153,7 +153,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		return this._lines[lineNumber - 1].getMarkers();
 	}
 
-	_removeMarker(id:string): void {
+	_removeMarker(id: string): void {
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			marker.line.removeMarker(marker);
@@ -161,10 +161,10 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		}
 	}
 
-	protected _removeMarkers(ids:string[]): void {
+	protected _removeMarkers(ids: string[]): void {
 		let removeMarkersPerLine: {
-			[lineNumber:number]: {
-				[markerId:string]: boolean;
+			[lineNumber: number]: {
+				[markerId: string]: boolean;
 			};
 		} = Object.create(null);
 
@@ -193,7 +193,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		}
 	}
 
-	protected _getMarkersInMap(markersMap:{[markerId:string]:boolean;}): ILineMarker[] {
+	protected _getMarkersInMap(markersMap: { [markerId: string]: boolean; }): ILineMarker[] {
 		let result: ILineMarker[] = [];
 		let keys = Object.keys(markersMap);
 		for (let i = 0, len = keys.length; i < len; i++) {

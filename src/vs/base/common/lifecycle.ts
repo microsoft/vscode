@@ -47,7 +47,7 @@ export abstract class Disposable implements IDisposable {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	protected _register<T extends IDisposable>(t:T): T {
+	protected _register<T extends IDisposable>(t: T): T {
 		this._toDispose.push(t);
 		return t;
 	}

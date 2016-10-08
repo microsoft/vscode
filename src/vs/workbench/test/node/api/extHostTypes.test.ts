@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import {isWindows} from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -185,7 +185,7 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(null, new types.Position(0, 0)));
 
 		let range = new types.Range(1, 0, 0, 0);
-		assert.throws(() => (range as any).start= null);
+		assert.throws(() => (range as any).start = null);
 		assert.throws(() => (range as any).start = new types.Position(0, 3));
 	});
 
@@ -373,7 +373,7 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null));
 	});
 
-	test('toJSON & stringify', function() {
+	test('toJSON & stringify', function () {
 
 		assertToJSON(new types.Selection(3, 4, 2, 1), { start: { line: 2, character: 1 }, end: { line: 3, character: 4 }, anchor: { line: 3, character: 4 }, active: { line: 2, character: 1 } });
 

@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
 import labels = require('vs/base/common/labels');
-import {Registry} from 'vs/platform/platform';
-import {Action} from 'vs/base/common/actions';
+import { Registry } from 'vs/platform/platform';
+import { Action } from 'vs/base/common/actions';
 import strings = require('vs/base/common/strings');
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
-import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
-import {Position} from 'vs/platform/editor/common/editor';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
+import { getDefaultValuesContent } from 'vs/platform/configuration/common/model';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceConfigurationService, WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { Position } from 'vs/platform/editor/common/editor';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 interface IWorkbenchSettingsConfiguration {
 	workbench: {

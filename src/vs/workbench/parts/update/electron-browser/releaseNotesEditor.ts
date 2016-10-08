@@ -28,9 +28,9 @@ function renderBody(body: string): string {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css') }" >
+				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
 			</head>
-			<body>${ body }</body>
+			<body>${ body}</body>
 		</html>`;
 }
 

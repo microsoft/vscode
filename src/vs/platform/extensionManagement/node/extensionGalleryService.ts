@@ -143,7 +143,7 @@ const DefaultQueryState: IQueryState = {
 
 class Query {
 
-	constructor(private state = DefaultQueryState) {}
+	constructor(private state = DefaultQueryState) { }
 
 	get pageNumber(): number { return this.state.pageNumber; }
 	get pageSize(): number { return this.state.pageSize; }
@@ -227,7 +227,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		manifest: getAssetSource(version.files, AssetType.Manifest),
 		readme: getAssetSource(version.files, AssetType.Details),
 		changelog: getAssetSource(version.files, AssetType.Changelog),
-		download: `${ getAssetSource(version.files, AssetType.VSIX) }?install=true`,
+		download: `${getAssetSource(version.files, AssetType.VSIX)}?install=true`,
 		icon,
 		iconFallback,
 		license: getAssetSource(version.files, AssetType.License)
@@ -264,8 +264,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	private get commonHeaders(): TPromise<{ [key: string]: string; }> {
 		return this.telemetryService.getTelemetryInfo().then(({ machineId }) => {
 			const result: { [key: string]: string; } = {
-				'X-Market-Client-Id': `VSCode ${ pkg.version }`,
-				'User-Agent': `VSCode ${ pkg.version }`
+				'X-Market-Client-Id': `VSCode ${pkg.version}`,
+				'User-Agent': `VSCode ${pkg.version}`
 			};
 
 			if (machineId) {
@@ -286,7 +286,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private api(path = ''): string {
-		return `${ this.extensionsGalleryUrl }${ path }`;
+		return `${this.extensionsGalleryUrl}${path}`;
 	}
 
 	isEnabled(): boolean {
@@ -385,7 +385,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	getAsset(url: string): TPromise<IRequestContext> {
-		return this._getAsset({ url });
+		return this._getAsset({ url });
 	}
 
 	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {MainThreadTelemetryShape} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { MainThreadTelemetryShape } from './extHost.protocol';
 
 /**
  * Helper always instantiated in the main process to receive telemetry events from remote telemetry services

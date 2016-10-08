@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {normalize} from 'path';
+import { normalize } from 'path';
 
-import {IProgress, IUncachedSearchStats} from 'vs/platform/search/common/search';
-import {ISearchEngine, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchComplete} from 'vs/workbench/services/search/node/search';
-import {SearchService as RawSearchService} from 'vs/workbench/services/search/node/rawSearchService';
-import {DiskSearch} from 'vs/workbench/services/search/node/searchService';
+import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
+import { ISearchEngine, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchComplete } from 'vs/workbench/services/search/node/search';
+import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
+import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
 
 const stats: IUncachedSearchStats = {
@@ -90,16 +90,16 @@ suite('SearchService', () => {
 
 		let results = 0;
 		return service.doFileSearch(Engine, rawSearch)
-		.then(() => {
-			assert.strictEqual(results, 5);
-		}, null, value => {
-			if (!Array.isArray(value)) {
-				assert.deepStrictEqual(value, match);
-				results++;
-			} else {
-				assert.fail(value);
-			}
-		});
+			.then(() => {
+				assert.strictEqual(results, 5);
+			}, null, value => {
+				if (!Array.isArray(value)) {
+					assert.deepStrictEqual(value, match);
+					results++;
+				} else {
+					assert.fail(value);
+				}
+			});
 	});
 
 	test('Batch results', function () {
@@ -109,18 +109,18 @@ suite('SearchService', () => {
 
 		const results = [];
 		return service.doFileSearch(Engine, rawSearch, 10)
-		.then(() => {
-			assert.deepStrictEqual(results, [10, 10, 5]);
-		}, null, value => {
-			if (Array.isArray(value)) {
-				value.forEach(m => {
-					assert.deepStrictEqual(m, match);
-				});
-				results.push(value.length);
-			} else {
-				assert.fail(value);
-			}
-		});
+			.then(() => {
+				assert.deepStrictEqual(results, [10, 10, 5]);
+			}, null, value => {
+				if (Array.isArray(value)) {
+					value.forEach(m => {
+						assert.deepStrictEqual(m, match);
+					});
+					results.push(value.length);
+				} else {
+					assert.fail(value);
+				}
+			});
 	});
 
 	test('Collect batched results', function () {
@@ -131,13 +131,13 @@ suite('SearchService', () => {
 
 		const progressResults = [];
 		return DiskSearch.collectResults(service.doFileSearch(Engine, rawSearch, 10))
-		.then(result => {
-			assert.strictEqual(result.results.length, 25, 'Result');
-			assert.strictEqual(progressResults.length, 25, 'Progress');
-		}, null, match => {
-			assert.strictEqual(match.resource.path, uriPath);
-			progressResults.push(match);
-		});
+			.then(result => {
+				assert.strictEqual(result.results.length, 25, 'Result');
+				assert.strictEqual(progressResults.length, 25, 'Progress');
+			}, null, match => {
+				assert.strictEqual(match.resource.path, uriPath);
+				progressResults.push(match);
+			});
 	});
 
 	test('Sorted results', function () {
@@ -181,18 +181,18 @@ suite('SearchService', () => {
 			sortByScore: true,
 			maxResults: 23
 		}, 10)
-		.then(() => {
-			assert.deepStrictEqual(results, [10, 10, 3]);
-		}, null, value => {
-			if (Array.isArray(value)) {
-				value.forEach(m => {
-					assert.deepStrictEqual(m, match);
-				});
-				results.push(value.length);
-			} else {
-				assert.fail(value);
-			}
-		});
+			.then(() => {
+				assert.deepStrictEqual(results, [10, 10, 3]);
+			}, null, value => {
+				if (Array.isArray(value)) {
+					value.forEach(m => {
+						assert.deepStrictEqual(m, match);
+					});
+					results.push(value.length);
+				} else {
+					assert.fail(value);
+				}
+			});
 	});
 
 	test('Cached results', function () {

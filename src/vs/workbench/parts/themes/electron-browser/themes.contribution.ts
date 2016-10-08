@@ -5,20 +5,20 @@
 
 'use strict';
 
-import {localize} from 'vs/nls';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Action} from 'vs/base/common/actions';
-import {firstIndex} from 'vs/base/common/arrays';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {Registry} from 'vs/platform/platform';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {VIEWLET_ID, IExtensionsViewlet} from 'vs/workbench/parts/extensions/electron-browser/extensions';
-import {IExtensionGalleryService} from 'vs/platform/extensionManagement/common/extensionManagement';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {Delayer} from 'vs/base/common/async';
+import { localize } from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Action } from 'vs/base/common/actions';
+import { firstIndex } from 'vs/base/common/arrays';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { Registry } from 'vs/platform/platform';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/electron-browser/extensions';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { Delayer } from 'vs/base/common/async';
 
 class SelectColorThemeAction extends Action {
 
@@ -69,7 +69,7 @@ class SelectColorThemeAction extends Action {
 				theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
 				null,
 				theme => delayer.trigger(() => selectTheme(theme, false))
-			);
+				);
 		});
 	}
 }

@@ -5,11 +5,11 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IVisibleLineData {
 	getDomNode(): HTMLElement;
@@ -20,13 +20,13 @@ export interface IVisibleLineData {
 	onLinesDeletedAbove(): void;
 	onLineChangedAbove(): void;
 	onTokensChanged(): void;
-	onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): void;
+	onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): void;
 
-	getLineOuterHTML(out:string[], lineNumber: number, deltaTop: number): void;
+	getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void;
 	getLineInnerHTML(lineNumber: number): string;
 
-	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:InlineDecoration[]): boolean;
-	layoutLine(lineNumber: number, deltaTop:number): void;
+	shouldUpdateHTML(startLineNumber: number, lineNumber: number, inlineDecorations: InlineDecoration[]): boolean;
+	layoutLine(lineNumber: number, deltaTop: number): void;
 }
 
 interface IRendererContext<T extends IVisibleLineData> {
@@ -34,7 +34,7 @@ interface IRendererContext<T extends IVisibleLineData> {
 	rendLineNumberStart: number;
 	lines: T[];
 	linesLength: number;
-	getInlineDecorationsForLineInViewport(lineNumber:number): InlineDecoration[];
+	getInlineDecorationsForLineInViewport(lineNumber: number): InlineDecoration[];
 	viewportTop: number;
 	viewportHeight: number;
 	scrollDomNode: HTMLElement;
@@ -51,21 +51,21 @@ export interface ILine {
 
 export class RenderedLinesCollection<T extends ILine> {
 	private _lines: T[];
-	private _rendLineNumberStart:number;
-	private _createLine:()=>T;
+	private _rendLineNumberStart: number;
+	private _createLine: () => T;
 
-	constructor(createLine:()=>T) {
+	constructor(createLine: () => T) {
 		this._lines = [];
 		this._rendLineNumberStart = 1;
 		this._createLine = createLine;
 	}
 
-	_set(rendLineNumberStart:number, lines:T[]): void {
+	_set(rendLineNumberStart: number, lines: T[]): void {
 		this._lines = lines;
 		this._rendLineNumberStart = rendLineNumberStart;
 	}
 
-	_get(): { rendLineNumberStart:number; lines:T[]; } {
+	_get(): { rendLineNumberStart: number; lines: T[]; } {
 		return {
 			rendLineNumberStart: this._rendLineNumberStart,
 			lines: this._lines
@@ -90,7 +90,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return this._lines.length;
 	}
 
-	public getLine(lineNumber:number): T {
+	public getLine(lineNumber: number): T {
 		let lineIndex = lineNumber - this._rendLineNumberStart;
 		if (lineIndex < 0 || lineIndex >= this._lines.length) {
 			throw new Error('Illegal value for lineNumber: ' + lineNumber);
@@ -101,7 +101,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	/**
 	 * @returns Lines that were removed from this collection
 	 */
-	public onModelLinesDeleted(deleteFromLineNumber:number, deleteToLineNumber:number): T[] {
+	public onModelLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): T[] {
 		if (this.getCount() === 0) {
 			// no lines
 			return null;
@@ -150,7 +150,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deleted;
 	}
 
-	public onModelLineChanged(changedLineNumber:number): boolean {
+	public onModelLineChanged(changedLineNumber: number): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -177,7 +177,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return notifiedSomeone;
 	}
 
-	public onModelLinesInserted(insertFromLineNumber:number, insertToLineNumber:number): T[] {
+	public onModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] {
 		if (this.getCount() === 0) {
 			// no lines
 			return null;
@@ -228,7 +228,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deletedLines;
 	}
 
-	public onModelTokensChanged(changedFromLineNumber:number, changedToLineNumber:number): boolean {
+	public onModelTokensChanged(changedFromLineNumber: number, changedToLineNumber: number): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -260,7 +260,7 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 	private _scrollDomNode: HTMLElement;
 	private _scrollDomNodeIsAbove: boolean;
 
-	constructor(context:ViewContext) {
+	constructor(context: ViewContext) {
 		super(context);
 
 		this.domNode = this._createDomNode();
@@ -287,7 +287,7 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		let startLineNumber = this._linesCollection.getStartLineNumber();
 		let endLineNumber = this._linesCollection.getEndLineNumber();
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
@@ -297,11 +297,11 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 		return true;
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 
-	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
 		return e.scrollTopChanged;
 	}
 
@@ -316,7 +316,7 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 		return true;
 	}
 
-	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		let deleted = this._linesCollection.onModelLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
@@ -331,11 +331,11 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 		return true;
 	}
 
-	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
 		return this._linesCollection.onModelLineChanged(e.lineNumber);
 	}
 
-	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
 		let deleted = this._linesCollection.onModelLinesInserted(e.fromLineNumber, e.toLineNumber);
 		if (deleted) {
 			// Remove from DOM
@@ -350,13 +350,13 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 		return true;
 	}
 
-	public onModelTokensChanged(e:editorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
 		return this._linesCollection.onModelTokensChanged(e.fromLineNumber, e.toLineNumber);
 	}
 
 
 	// ---- end view event handlers
-	public _renderLines(linesViewportData:ViewLinesViewportData): void {
+	public _renderLines(linesViewportData: ViewLinesViewportData): void {
 
 		let inp = this._linesCollection._get();
 
@@ -365,7 +365,7 @@ export abstract class ViewLayer<T extends IVisibleLineData> extends ViewPart {
 			rendLineNumberStart: inp.rendLineNumberStart,
 			lines: inp.lines,
 			linesLength: inp.lines.length,
-			getInlineDecorationsForLineInViewport: (lineNumber:number) => linesViewportData.getInlineDecorationsForLineInViewport(lineNumber),
+			getInlineDecorationsForLineInViewport: (lineNumber: number) => linesViewportData.getInlineDecorationsForLineInViewport(lineNumber),
 			viewportTop: linesViewportData.viewportTop,
 			viewportHeight: linesViewportData.viewportHeight,
 			scrollDomNode: this._scrollDomNode,
@@ -402,11 +402,11 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 		this._extraDomNodeHTML = extraDomNodeHTML;
 	}
 
-	public renderWithManyUpdates(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop:number[]): IRendererContext<T> {
+	public renderWithManyUpdates(ctx: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
 		return this._render(ctx, startLineNumber, stopLineNumber, deltaTop);
 	}
 
-	private _render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop:number[]): IRendererContext<T> {
+	private _render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
 
 		var ctx: IRendererContext<T> = {
 			domNode: inContext.domNode,
@@ -516,7 +516,7 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 		return ctx;
 	}
 
-	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop:number[], deltaLN:number): void {
+	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
 		var i: number,
 			lineNumber: number;
 
@@ -529,9 +529,9 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 		}
 	}
 
-	private _insertLinesBefore(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop:number[], deltaLN:number): void {
-		var newLines:T[] = [],
-			line:T,
+	private _insertLinesBefore(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop: number[], deltaLN: number): void {
+		var newLines: T[] = [],
+			line: T,
 			lineNumber: number;
 
 		for (lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
@@ -587,9 +587,9 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 		ctx.lines.splice(0, removeCount);
 	}
 
-	private _insertLinesAfter(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop:number[], deltaLN:number): void {
-		var newLines:T[] = [],
-			line:T,
+	private _insertLinesAfter(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop: number[], deltaLN: number): void {
+		var newLines: T[] = [],
+			line: T,
 			lineNumber: number;
 
 		for (lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
@@ -621,7 +621,7 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 		return result;
 	}
 
-	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty:boolean, newLinesHTML: string[], wasNew: boolean[]): void {
+	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string[], wasNew: boolean[]): void {
 		var lastChild = <HTMLElement>ctx.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
 			ctx.domNode.innerHTML = this._extraDomNodeHTML() + newLinesHTML.join('');
@@ -644,8 +644,8 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 
 		hugeDomNode.innerHTML = invalidLinesHTML.join('');
 
-		var lineDomNode:HTMLElement,
-			source:HTMLElement;
+		var lineDomNode: HTMLElement,
+			source: HTMLElement;
 		for (let i = 0; i < ctx.linesLength; i++) {
 			let line = ctx.lines[i];
 			if (wasInvalid[i]) {
@@ -657,7 +657,7 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 		}
 	}
 
-	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty:boolean, deltaTop:number[]): void {
+	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
 
 		let inlineDecorations = ViewLayerRenderer._resolveInlineDecorations(ctx);
 
@@ -688,7 +688,7 @@ class ViewLayerRenderer<T extends IVisibleLineData> {
 					line.getLineOuterHTML(invalidLinesHTML, lineNumber, deltaTop[i]);
 					wasInvalid[i] = true;
 					hadInvalidLine = true;
-//					lineDomNode.innerHTML = line.getLineInnerHTML(lineNumber);
+					//					lineDomNode.innerHTML = line.getLineInnerHTML(lineNumber);
 				}
 			}
 		}

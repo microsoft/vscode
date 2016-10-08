@@ -5,9 +5,9 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Handler, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {editorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Handler, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { editorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
 
 @editorAction
 class SelectBracketAction extends HandlerEditorAction {

@@ -5,16 +5,16 @@
 
 'use strict';
 
-import {localize} from 'vs/nls';
-import {escapeRegExpCharacters} from 'vs/base/common/strings';
-import {ITelemetryService, ITelemetryAppender, ITelemetryInfo, ITelemetryExperiments, defaultExperiments} from 'vs/platform/telemetry/common/telemetry';
-import {optional} from 'vs/platform/instantiation/common/instantiation';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {cloneAndChange, mixin} from 'vs/base/common/objects';
-import {Registry} from 'vs/platform/platform';
+import { localize } from 'vs/nls';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { ITelemetryService, ITelemetryAppender, ITelemetryInfo, ITelemetryExperiments, defaultExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { cloneAndChange, mixin } from 'vs/base/common/objects';
+import { Registry } from 'vs/platform/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;

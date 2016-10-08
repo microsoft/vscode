@@ -5,10 +5,10 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {BaseBinaryResourceEditor} from 'vs/workbench/browser/parts/editor/binaryEditor';
-import {BINARY_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
+import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * An implementation of editor for binary files like images.

@@ -7,29 +7,29 @@
 
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
-import {WorkspaceContextService, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {ISearchService} from 'vs/platform/search/common/search';
-import {ITelemetryService, ITelemetryInfo, ITelemetryExperiments, defaultExperiments} from 'vs/platform/telemetry/common/telemetry';
-import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ISearchService } from 'vs/platform/search/common/search';
+import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments, defaultExperiments } from 'vs/platform/telemetry/common/telemetry';
+import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'path';
-import {QuickOpenHandler, IQuickOpenRegistry, Extensions} from 'vs/workbench/browser/quickopen';
-import {Registry} from 'vs/platform/platform';
-import {SearchService} from 'vs/workbench/services/search/node/searchService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {TestEnvironmentService, TestEditorService, TestEditorGroupService} from 'vs/test/utils/servicesTestUtils';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { QuickOpenHandler, IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
+import { Registry } from 'vs/platform/platform';
+import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestEnvironmentService, TestEditorService, TestEditorGroupService } from 'vs/test/utils/servicesTestUtils';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as Timer from 'vs/base/common/timer';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {SimpleConfigurationService} from 'vs/editor/browser/standalone/simpleServices';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { SimpleConfigurationService } from 'vs/editor/browser/standalone/simpleServices';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 declare var __dirname: string;
 

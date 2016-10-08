@@ -403,7 +403,7 @@ export function once<T extends Function>(fn: T): T {
 	let didCall = false;
 	let result: any;
 
-	return function() {
+	return function () {
 		if (didCall) {
 			return result;
 		}
@@ -488,7 +488,7 @@ export class TimeoutTimer extends Disposable {
 		}
 	}
 
-	cancelAndSet(runner: () => void, timeout:number): void {
+	cancelAndSet(runner: () => void, timeout: number): void {
 		this.cancel();
 		this._token = platform.setTimeout(() => {
 			this._token = -1;
@@ -529,7 +529,7 @@ export class IntervalTimer extends Disposable {
 		}
 	}
 
-	cancelAndSet(runner: () => void, interval:number): void {
+	cancelAndSet(runner: () => void, interval: number): void {
 		this.cancel();
 		this._token = platform.setInterval(() => {
 			runner();

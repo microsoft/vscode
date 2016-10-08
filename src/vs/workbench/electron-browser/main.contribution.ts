@@ -5,21 +5,21 @@
 
 'use strict';
 
-import {Registry} from 'vs/platform/platform';
+import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
-import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
-import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction} from 'vs/workbench/electron-browser/actions';
-import {MessagesVisibleContext, NoEditorsVisibleContext} from 'vs/workbench/electron-browser/workbench';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { CloseEditorAction, ReloadWindowAction, ShowStartupPerformance, ReportIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleDevToolsAction, ToggleFullScreenAction, ToggleMenuBarAction, OpenRecentAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction } from 'vs/workbench/electron-browser/actions';
+import { MessagesVisibleContext, NoEditorsVisibleContext } from 'vs/workbench/electron-browser/workbench';
 
-const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] }};
+const closeEditorOrWindowKeybindings: IKeybindings = { primary: KeyMod.CtrlCmd | KeyCode.KEY_W, win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] } };
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
@@ -41,7 +41,7 @@ workbenchActionsRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(ZoomOutAction, ZoomOutAction.ID, ZoomOutAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.US_MINUS,
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS],
-		linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: []}
+		linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [] }
 	}), 'View: Zoom Out', viewCategory
 );
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ZoomResetAction, ZoomResetAction.ID, ZoomResetAction.LABEL), 'View: Reset Zoom', viewCategory);

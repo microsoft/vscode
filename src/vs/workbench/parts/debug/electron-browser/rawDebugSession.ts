@@ -7,28 +7,28 @@ import nls = require('vs/nls');
 import cp = require('child_process');
 import fs = require('fs');
 import net = require('net');
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
-import {Action} from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import stdfork = require('vs/base/node/stdFork');
-import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {ITerminalService as IExternalTerminalService} from 'vs/workbench/parts/execution/common/execution';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
+import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
-import {IOutputService} from 'vs/workbench/parts/output/common/output';
-import {ExtensionsChannelId} from 'vs/platform/extensionManagement/common/extensionManagement';
-import {TerminalSupport} from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
-import {shell} from 'electron';
+import { shell } from 'electron';
 
 export interface SessionExitedEvent extends DebugProtocol.ExitedEvent {
 	body: {
@@ -138,11 +138,11 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 		const serverPromise = this.debugServerPort ? this.connectServer(this.debugServerPort) : this.startServer();
 		this.cachedInitServer = serverPromise.then(() => {
-				this.startTime = new Date().getTime();
-			}, err => {
-				this.cachedInitServer = null;
-				return TPromise.wrapError(err);
-			}
+			this.startTime = new Date().getTime();
+		}, err => {
+			this.cachedInitServer = null;
+			return TPromise.wrapError(err);
+		}
 		);
 
 		return this.cachedInitServer;
@@ -172,10 +172,12 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorMessage;
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-					return TPromise.wrapError(errors.create(userMessage, { actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
-						shell.openExternal(error.url);
-						return TPromise.as(null);
-					})]}));
+					return TPromise.wrapError(errors.create(userMessage, {
+						actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
+							shell.openExternal(error.url);
+							return TPromise.as(null);
+						})]
+					}));
 				}
 
 				return TPromise.wrapError(new Error(userMessage));

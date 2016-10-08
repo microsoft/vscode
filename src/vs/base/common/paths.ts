@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {isLinux, isWindows} from 'vs/base/common/platform';
-import {fill} from 'vs/base/common/arrays';
-import {CharCode} from 'vs/base/common/charCode';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { fill } from 'vs/base/common/arrays';
+import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * The forward slash path separator.
@@ -150,7 +150,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 }
 
 function streql(value: string, start: number, end: number, other: string): boolean {
-	return start + other.length === end &&  value.indexOf(other, start) === start;
+	return start + other.length === end && value.indexOf(other, start) === start;
 }
 
 /**

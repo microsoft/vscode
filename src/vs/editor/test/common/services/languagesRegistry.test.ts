@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
+import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 
 suite('LanguagesRegistry', () => {
 

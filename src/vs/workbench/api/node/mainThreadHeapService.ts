@@ -5,10 +5,10 @@
 
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ExtHostContext} from './extHost.protocol';
-import {onDidGarbageCollectSignals, consumeSignals} from 'gc-signals';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostContext } from './extHost.protocol';
+import { onDidGarbageCollectSignals, consumeSignals } from 'gc-signals';
 
 export class MainThreadHeapService {
 

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import {EditorAccessor, IGrammarContributions} from 'vs/workbench/parts/emmet/node/editorAccessor';
-import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import assert = require('assert');
 
 //
@@ -91,7 +91,7 @@ suite('Emmet', () => {
 
 			function testIsEnabled(mode: string, scopeName: string, isEnabled = true, profile = {}, excluded = []) {
 				editor.getModel().setMode(mode);
-				editor.setPosition({ lineNumber: 1, column: 3});
+				editor.setPosition({ lineNumber: 1, column: 3 });
 				let editorAccessor = new EditorAccessor(editor, profile, excluded, new MockGrammarContributions(scopeName));
 				assert.equal(editorAccessor.isEmmetEnabledMode(), isEnabled);
 			}

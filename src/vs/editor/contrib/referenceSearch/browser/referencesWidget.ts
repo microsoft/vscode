@@ -7,51 +7,51 @@
 import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
 import * as collections from 'vs/base/common/collections';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {getPathLabel} from 'vs/base/common/labels';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, dispose, Disposables} from 'vs/base/common/lifecycle';
-import {Schemas} from 'vs/base/common/network';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { getPathLabel } from 'vs/base/common/labels';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose, Disposables } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {$, Builder} from 'vs/base/browser/builder';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
-import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IMouseEvent} from 'vs/base/browser/mouseEvent';
-import {GestureEvent} from 'vs/base/browser/touch';
-import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
-import {FileLabel} from 'vs/base/browser/ui/iconLabel/iconLabel';
-import {LeftRightWidget} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
+import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { GestureEvent } from 'vs/base/browser/touch';
+import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
+import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import {DefaultController, LegacyRenderer} from 'vs/base/parts/tree/browser/treeDefaults';
-import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import {Range} from 'vs/editor/common/core/range';
+import { DefaultController, LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import {PeekViewWidget, IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {FileReferences, OneReference, ReferencesModel} from './referencesModel';
+import { Model } from 'vs/editor/common/model/model';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 
 class DecorationsManager implements IDisposable {
 
-	private static DecorationOptions:editorCommon.IModelDecorationOptions = {
+	private static DecorationOptions: editorCommon.IModelDecorationOptions = {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'reference-decoration'
 	};
 
 	private _decorationSet = collections.createStringDictionary<OneReference>();
 	private _decorationIgnoreSet = collections.createStringDictionary<OneReference>();
-	private _callOnDispose:IDisposable[] = [];
-	private _callOnModelChange:IDisposable[] = [];
+	private _callOnDispose: IDisposable[] = [];
+	private _callOnModelChange: IDisposable[] = [];
 
-	constructor(private editor:ICodeEditor, private model:ReferencesModel) {
+	constructor(private editor: ICodeEditor, private model: ReferencesModel) {
 		this._callOnDispose.push(this.editor.onDidChangeModel(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
@@ -62,34 +62,34 @@ class DecorationsManager implements IDisposable {
 		this.removeDecorations();
 	}
 
-	private _onModelChanged():void {
+	private _onModelChanged(): void {
 
 		this.removeDecorations();
 		this._callOnModelChange = dispose(this._callOnModelChange);
 
 		var model = this.editor.getModel();
-		if(!model) {
+		if (!model) {
 			return;
 		}
 
-		for(var i = 0, len = this.model.groups.length; i < len; i++) {
-			if(this.model.groups[i].uri.toString() === model.uri.toString()) {
+		for (var i = 0, len = this.model.groups.length; i < len; i++) {
+			if (this.model.groups[i].uri.toString() === model.uri.toString()) {
 				this._addDecorations(this.model.groups[i]);
 				return;
 			}
 		}
 	}
 
-	private _addDecorations(reference:FileReferences):void {
+	private _addDecorations(reference: FileReferences): void {
 		this._callOnModelChange.push(this.editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
 
 		this.editor.getModel().changeDecorations((accessor) => {
 			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 			var newDecorationsActualIndex: number[] = [];
 
-			for(let i = 0, len = reference.children.length; i < len; i++) {
+			for (let i = 0, len = reference.children.length; i < len; i++) {
 				let oneReference = reference.children[i];
-				if(this._decorationIgnoreSet[oneReference.id]) {
+				if (this._decorationIgnoreSet[oneReference.id]) {
 					continue;
 				}
 				newDecorations.push({
@@ -107,35 +107,35 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	private _onDecorationChanged(event:editorCommon.IModelDecorationsChangedEvent):void {
+	private _onDecorationChanged(event: editorCommon.IModelDecorationsChangedEvent): void {
 		var addedOrChangedDecorations = event.addedOrChangedDecorations,
-			toRemove:string[] = [];
+			toRemove: string[] = [];
 
-		for(var i = 0, len = addedOrChangedDecorations.length; i < len; i++) {
+		for (var i = 0, len = addedOrChangedDecorations.length; i < len; i++) {
 			var reference = collections.lookup(this._decorationSet, addedOrChangedDecorations[i].id);
-			if(!reference) {
+			if (!reference) {
 				continue;
 			}
 
 			var newRange = addedOrChangedDecorations[i].range,
 				ignore = false;
 
-			if(Range.equalsRange(newRange, reference.range)) {
+			if (Range.equalsRange(newRange, reference.range)) {
 				continue;
 
-			} else if(Range.spansMultipleLines(newRange)) {
+			} else if (Range.spansMultipleLines(newRange)) {
 				ignore = true;
 
 			} else {
 				var lineLength = reference.range.endColumn - reference.range.startColumn,
 					newLineLength = newRange.endColumn - newRange.startColumn;
 
-				if(lineLength !== newLineLength) {
+				if (lineLength !== newLineLength) {
 					ignore = true;
 				}
 			}
 
-			if(ignore) {
+			if (ignore) {
 				this._decorationIgnoreSet[reference.id] = reference;
 				toRemove.push(addedOrChangedDecorations[i].id);
 			} else {
@@ -151,7 +151,7 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	public removeDecorations():void {
+	public removeDecorations(): void {
 		var keys = Object.keys(this._decorationSet);
 		if (keys.length > 0) {
 			this.editor.changeDecorations((accessor) => {
@@ -225,7 +225,7 @@ class Controller extends DefaultController {
 		OPEN_TO_SIDE: 'events/custom/opentoside'
 	};
 
-	public onTap(tree: tree.ITree, element: any, event: GestureEvent):boolean {
+	public onTap(tree: tree.ITree, element: any, event: GestureEvent): boolean {
 		if (element instanceof FileReferences) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -237,7 +237,7 @@ class Controller extends DefaultController {
 		return result;
 	}
 
-	public onMouseDown(tree:tree.ITree, element:any, event:IMouseEvent):boolean {
+	public onMouseDown(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		if (event.leftButton) {
 			if (element instanceof FileReferences) {
 				event.preventDefault();
@@ -248,7 +248,7 @@ class Controller extends DefaultController {
 			var result = super.onClick(tree, element, event);
 			if (event.ctrlKey || event.metaKey) {
 				tree.emit(Controller.Events.OPEN_TO_SIDE, element);
-			} else if(event.detail === 2) {
+			} else if (event.detail === 2) {
 				tree.emit(Controller.Events.SELECTED, element);
 			} else {
 				tree.emit(Controller.Events.FOCUSED, element);
@@ -259,7 +259,7 @@ class Controller extends DefaultController {
 		return false;
 	}
 
-	public onClick(tree:tree.ITree, element:any, event:IMouseEvent):boolean {
+	public onClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		if (event.leftButton) {
 			return false; // Already handled by onMouseDown
 		}
@@ -267,7 +267,7 @@ class Controller extends DefaultController {
 		return super.onClick(tree, element, event);
 	}
 
-	private _expandCollapse(tree:tree.ITree, element:any):boolean {
+	private _expandCollapse(tree: tree.ITree, element: any): boolean {
 
 		if (tree.isExpanded(element)) {
 			tree.collapse(element).done(null, onUnexpectedError);
@@ -277,11 +277,11 @@ class Controller extends DefaultController {
 		return true;
 	}
 
-	public onEscape(tree:tree.ITree, event:IKeyboardEvent):boolean {
+	public onEscape(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		return false;
 	}
 
-	public onEnter(tree:tree.ITree, event:IKeyboardEvent):boolean {
+	public onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		var element = tree.getFocus();
 		if (element instanceof FileReferences) {
 			return this._expandCollapse(tree, element);
@@ -296,43 +296,43 @@ class Controller extends DefaultController {
 		return result;
 	}
 
-	public onUp(tree:tree.ITree, event:IKeyboardEvent):boolean {
+	public onUp(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		super.onUp(tree, event);
 		this._fakeFocus(tree, event);
 		return true;
 	}
 
-	public onPageUp(tree:tree.ITree, event:IKeyboardEvent):boolean {
+	public onPageUp(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		super.onPageUp(tree, event);
 		this._fakeFocus(tree, event);
 		return true;
 	}
 
-	public onLeft(tree:tree.ITree, event:IKeyboardEvent):boolean {
+	public onLeft(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		super.onLeft(tree, event);
 		this._fakeFocus(tree, event);
 		return true;
 	}
 
-	public onDown(tree:tree.ITree, event:IKeyboardEvent):boolean {
+	public onDown(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		super.onDown(tree, event);
 		this._fakeFocus(tree, event);
 		return true;
 	}
 
-	public onPageDown(tree:tree.ITree, event:IKeyboardEvent):boolean {
+	public onPageDown(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		super.onPageDown(tree, event);
 		this._fakeFocus(tree, event);
 		return true;
 	}
 
-	public onRight(tree:tree.ITree, event:IKeyboardEvent):boolean {
+	public onRight(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		super.onRight(tree, event);
 		this._fakeFocus(tree, event);
 		return true;
 	}
 
-	private _fakeFocus(tree:tree.ITree, event:IKeyboardEvent):void {
+	private _fakeFocus(tree: tree.ITree, event: IKeyboardEvent): void {
 		// focus next item
 		var focus = tree.getFocus();
 		tree.setSelection([focus]);
@@ -342,7 +342,7 @@ class Controller extends DefaultController {
 }
 
 class Renderer extends LegacyRenderer {
-	private _contextService:IWorkspaceContextService;
+	private _contextService: IWorkspaceContextService;
 
 	constructor( @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super();
@@ -411,7 +411,7 @@ class VSash {
 	private _width: number;
 	private _onDidChangePercentages = new Emitter<VSash>();
 
-	constructor(container: HTMLElement, ratio:number) {
+	constructor(container: HTMLElement, ratio: number) {
 		this._ratio = ratio;
 		this._sash = new Sash(container, <IVerticalSashLayoutProvider>{
 			getVerticalSashLeft: () => this._width * this._ratio,
@@ -568,7 +568,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._sash = new VSash(containerElement, this.layoutData.ratio || .8);
 		this._sash.onDidChangePercentages(() => {
 			let [left, right] = this._sash.percentages;
-			this._previewContainer.style({ width: left});
+			this._previewContainer.style({ width: left });
 			this._treeContainer.style({ width: right });
 			this._preview.layout();
 			this._tree.layout();

@@ -6,8 +6,8 @@
 'use strict';
 
 import 'vs/css!./media/part';
-import {Dimension, Builder} from 'vs/base/browser/builder';
-import {WorkbenchComponent} from 'vs/workbench/common/component';
+import { Dimension, Builder } from 'vs/base/browser/builder';
+import { WorkbenchComponent } from 'vs/workbench/common/component';
 
 /**
  * Parts are layed out in the workbench and have their own layout that arranges a title,

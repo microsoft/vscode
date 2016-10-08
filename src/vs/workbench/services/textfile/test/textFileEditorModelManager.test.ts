@@ -7,17 +7,17 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import {EditorModel} from 'vs/workbench/common/editor';
-import {join, basename} from 'vs/base/common/paths';
-import {workbenchInstantiationService, TestEditorGroupService, createFileInput} from 'vs/test/utils/servicesTestUtils';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import {IEventService} from 'vs/platform/event/common/event';
-import {LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
-import {FileChangesEvent, EventType as CommonFileEventType, FileChangeType} from 'vs/platform/files/common/files';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { EditorModel } from 'vs/workbench/common/editor';
+import { join, basename } from 'vs/base/common/paths';
+import { workbenchInstantiationService, TestEditorGroupService, createFileInput } from 'vs/test/utils/servicesTestUtils';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { IEventService } from 'vs/platform/event/common/event';
+import { LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileChangesEvent, EventType as CommonFileEventType, FileChangeType } from 'vs/platform/files/common/files';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
 	constructor(

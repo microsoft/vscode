@@ -27,7 +27,7 @@ export interface CommandOptions {
 	 * The environment of the executed program or shell. If omitted
 	 * the parent process' environment is used.
 	 */
-	env?: { [key:string]: string; };
+	env?: { [key: string]: string; };
 }
 
 export interface Executable {
@@ -67,19 +67,19 @@ export enum Source {
  * The data send via a success callback
  */
 export interface SuccessData {
-	error?:Error;
-	cmdCode?:number;
-	terminated?:boolean;
+	error?: Error;
+	cmdCode?: number;
+	terminated?: boolean;
 }
 
 /**
  * The data send via a error callback
  */
 export interface ErrorData {
-	error?:Error;
-	terminated?:boolean;
-	stdout?:string;
-	stderr?:string;
+	error?: Error;
+	terminated?: boolean;
+	stdout?: string;
+	stderr?: string;
 }
 
 export interface TerminateResponse {
@@ -115,7 +115,7 @@ export namespace Config {
 		/**
 		 * Index signature
 		 */
-		[key:string]: string | string[] | IStringDictionary<string>;
+		[key: string]: string | string[] | IStringDictionary<string>;
 	}
 
 	export interface BaseExecutable {

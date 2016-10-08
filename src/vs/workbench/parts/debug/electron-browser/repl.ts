@@ -6,38 +6,38 @@
 import 'vs/css!./../browser/media/repl';
 import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
-import {wireCancellationToken} from 'vs/base/common/async';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { wireCancellationToken } from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import actions = require('vs/base/common/actions');
 import builder = require('vs/base/browser/builder');
 import dom = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
-import {IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
+import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import viewer = require('vs/workbench/parts/debug/electron-browser/replViewer');
-import {ReplEditor} from 'vs/workbench/parts/debug/electron-browser/replEditor';
+import { ReplEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {Expression} from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
 import replhistory = require('vs/workbench/parts/debug/common/replHistory');
-import {Panel} from 'vs/workbench/browser/panel';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import { Panel } from 'vs/workbench/browser/panel';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 const $ = dom.$;
 
@@ -179,16 +179,16 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.replInput.setModel(model);
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
-				triggerCharacters: ['.'],
-				provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
-					const word = this.replInput.getModel().getWordAtPosition(position);
-					const text = this.replInput.getModel().getLineContent(position.lineNumber);
-					return wireCancellationToken(token, this.debugService.completions(text, position).then(suggestions => ({
-						currentWord: word ? word.word : '',
-						suggestions
-					})));
-				}
-			},
+			triggerCharacters: ['.'],
+			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+				const word = this.replInput.getModel().getWordAtPosition(position);
+				const text = this.replInput.getModel().getLineContent(position.lineNumber);
+				return wireCancellationToken(token, this.debugService.completions(text, position).then(suggestions => ({
+					currentWord: word ? word.word : '',
+					suggestions
+				})));
+			}
+		},
 			true
 		);
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import * as assert from 'assert';
-import {LineStream} from 'vs/editor/common/modes/lineStream';
+import { LineStream } from 'vs/editor/common/modes/lineStream';
 
 suite('Editor Modes - LineStream', () => {
 

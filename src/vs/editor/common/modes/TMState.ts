@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IState} from 'vs/editor/common/modes';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {StackElement} from 'vscode-textmate';
+import { IState } from 'vs/editor/common/modes';
+import { AbstractState } from 'vs/editor/common/modes/abstractState';
+import { StackElement } from 'vscode-textmate';
 
 export class TMState implements IState {
 
@@ -20,12 +20,12 @@ export class TMState implements IState {
 		this._ruleStack = ruleStack;
 	}
 
-	public clone():TMState {
+	public clone(): TMState {
 		let parentEmbedderStateClone = AbstractState.safeClone(this._parentEmbedderState);
 		return new TMState(this._modeId, parentEmbedderStateClone, this._ruleStack);
 	}
 
-	public equals(other:IState):boolean {
+	public equals(other: IState): boolean {
 		if (!other || !(other instanceof TMState)) {
 			return false;
 		}
@@ -46,15 +46,15 @@ export class TMState implements IState {
 		return this._ruleStack.equals(otherState._ruleStack);
 	}
 
-	public getModeId():string {
+	public getModeId(): string {
 		return this._modeId;
 	}
 
-	public getStateData():IState {
+	public getStateData(): IState {
 		return this._parentEmbedderState;
 	}
 
-	public setStateData(state:IState):void {
+	public setStateData(state: IState): void {
 		this._parentEmbedderState = state;
 	}
 
@@ -62,7 +62,7 @@ export class TMState implements IState {
 		return this._ruleStack;
 	}
 
-	public setRuleStack(ruleStack:StackElement): void {
+	public setRuleStack(ruleStack: StackElement): void {
 		this._ruleStack = ruleStack;
 	}
 }

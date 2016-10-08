@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import paths = require('vs/base/common/paths');
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');

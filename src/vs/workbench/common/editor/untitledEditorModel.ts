@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
-import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorModel, IEncodingSupport } from 'vs/workbench/common/editor';
+import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
-import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
-import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IMode} from 'vs/editor/common/modes';
-import Event, {Emitter} from 'vs/base/common/event';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IMode } from 'vs/editor/common/modes';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
 	private textModelChangeListener: IDisposable;

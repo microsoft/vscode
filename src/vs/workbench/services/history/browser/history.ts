@@ -5,29 +5,29 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
-import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
-import {EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup} from 'vs/workbench/common/editor';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {Selection} from 'vs/editor/common/core/selection';
-import {IEditorInput, ITextEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {Registry} from 'vs/platform/platform';
-import {once} from 'vs/base/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
+import { IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
+import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, asFileEditorInput, IEditorGroup } from 'vs/workbench/common/editor';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { Registry } from 'vs/platform/platform';
+import { once } from 'vs/base/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -227,7 +227,7 @@ export abstract class BaseHistoryService {
 }
 
 interface IStackEntry {
-	input: IEditorInput|IResourceInput;
+	input: IEditorInput | IResourceInput;
 	options?: ITextEditorOptions;
 }
 
@@ -250,7 +250,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private blockStackChanges: boolean;
 	private currentFileEditorState: EditorState;
 
-	private history: (IEditorInput|IResourceInput)[];
+	private history: (IEditorInput | IResourceInput)[];
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private registry: IEditorRegistry;
@@ -535,7 +535,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private preferResourceInput(input: IEditorInput): IEditorInput|IResourceInput {
+	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
 		const fileInput = asFileEditorInput(input);
 		if (fileInput) {
 			return { resource: fileInput.getResource() };
@@ -598,7 +598,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return group.getEditors().some(e => this.matchesFile(resource, e));
 	}
 
-	private matches(typedInput: IEditorInput, input: IEditorInput|IResourceInput): boolean {
+	private matches(typedInput: IEditorInput, input: IEditorInput | IResourceInput): boolean {
 		if (input instanceof EditorInput) {
 			return input.matches(typedInput);
 		}
@@ -612,7 +612,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return fileInput && fileInput.getResource().toString() === resource.toString();
 	}
 
-	public getHistory(): (IEditorInput|IResourceInput)[] {
+	public getHistory(): (IEditorInput | IResourceInput)[] {
 		this.ensureLoaded();
 
 		return this.history.slice(0);
@@ -643,7 +643,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private load(): void {
-		let entries: (ILegacySerializedEditorInput|ISerializedFileEditorInput)[] = [];
+		let entries: (ILegacySerializedEditorInput | ISerializedFileEditorInput)[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {

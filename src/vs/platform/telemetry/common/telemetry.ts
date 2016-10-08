@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IStorageService} from 'vs/platform/storage/common/storage';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -105,7 +105,7 @@ export interface ITelemetryAppender {
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
-	return { log: (e, d) => appenders.forEach(a => a.log(e,d)) };
+	return { log: (e, d) => appenders.forEach(a => a.log(e, d)) };
 }
 
 export const NullAppender: ITelemetryAppender = { log: () => null };

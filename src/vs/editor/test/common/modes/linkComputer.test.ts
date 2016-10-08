@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ILink} from 'vs/editor/common/modes';
-import {ILinkComputerTarget, computeLinks} from 'vs/editor/common/modes/linkComputer';
+import { ILink } from 'vs/editor/common/modes';
+import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
 
 class SimpleLinkComputerTarget implements ILinkComputerTarget {
 
-	constructor(private _lines:string[]) {
+	constructor(private _lines: string[]) {
 		// Intentional Empty
 	}
 
@@ -18,17 +18,17 @@ class SimpleLinkComputerTarget implements ILinkComputerTarget {
 		return this._lines.length;
 	}
 
-	public getLineContent(lineNumber:number): string {
+	public getLineContent(lineNumber: number): string {
 		return this._lines[lineNumber - 1];
 	}
 }
 
-function myComputeLinks(lines:string[]): ILink[] {
+function myComputeLinks(lines: string[]): ILink[] {
 	var target = new SimpleLinkComputerTarget(lines);
 	return computeLinks(target);
 }
 
-function assertLink(text:string, extractedLink:string): void {
+function assertLink(text: string, extractedLink: string): void {
 	var startColumn = 0,
 		endColumn = 0,
 		chr: string,
@@ -64,7 +64,7 @@ function assertLink(text:string, extractedLink:string): void {
 
 suite('Editor Modes - Link Computer', () => {
 
-	test('Null model',() => {
+	test('Null model', () => {
 		var r = computeLinks(null);
 		assert.deepEqual(r, []);
 	});

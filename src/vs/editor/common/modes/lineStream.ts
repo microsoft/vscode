@@ -12,11 +12,11 @@
  */
 export class LineStream {
 
-	private _source:string;
-	private _sourceLength:number;
-	private _pos:number;
+	private _source: string;
+	private _sourceLength: number;
+	private _pos: number;
 
-	constructor(source:string) {
+	constructor(source: string) {
 		this._source = source;
 		this._sourceLength = source.length;
 		this._pos = 0;
@@ -25,7 +25,7 @@ export class LineStream {
 	/**
 	 * Returns the current character position of the stream on the line.
 	 */
-	public pos():number {
+	public pos(): number {
 		return this._pos;
 	}
 
@@ -39,7 +39,7 @@ export class LineStream {
 	/**
 	 * Returns the next character in the stream.
 	 */
-	public peek():string {
+	public peek(): string {
 		// Check EOS
 		if (this._pos >= this._sourceLength) {
 			throw new Error('Stream is at the end');
@@ -60,7 +60,7 @@ export class LineStream {
 	/**
 	 * Advances the stream until the end of the line.
 	 */
-	public advanceToEOS():string {
+	public advanceToEOS(): string {
 		const oldPos = this._pos;
 		this._pos = this._sourceLength;
 		return this._source.substring(oldPos, this._pos);
@@ -69,7 +69,7 @@ export class LineStream {
 	/**
 	 * Brings the stream back `n` characters.
 	 */
-	public goBack(n:number) {
+	public goBack(n: number) {
 		this._pos -= n;
 	}
 }

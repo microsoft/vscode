@@ -6,18 +6,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {EncodingMode} from 'vs/workbench/common/editor';
-import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import {IEventService} from 'vs/platform/event/common/event';
-import {ITextFileService, ModelState, StateChange} from 'vs/workbench/services/textfile/common/textfiles';
-import {workbenchInstantiationService, TestTextFileService, createFileInput} from 'vs/test/utils/servicesTestUtils';
-import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import {FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { EncodingMode } from 'vs/workbench/common/editor';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { IEventService } from 'vs/platform/event/common/event';
+import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { workbenchInstantiationService, TestTextFileService, createFileInput } from 'vs/test/utils/servicesTestUtils';
+import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toResource(path) {
 	return URI.file(paths.join('C:\\', path));
