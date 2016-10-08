@@ -5,13 +5,13 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {relative, isEqualOrParent} from 'vs/base/common/paths';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IResourceEdit} from 'vs/editor/common/services/bulkEdit';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {fromRange} from 'vs/workbench/api/node/extHostTypeConverters';
-import {Uri, CancellationToken} from 'vscode';
-import {MainContext, MainThreadWorkspaceShape} from './extHost.protocol';
+import { relative, isEqualOrParent } from 'vs/base/common/paths';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
+import { Uri, CancellationToken } from 'vscode';
+import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 
 export class ExtHostWorkspace {
 
@@ -20,7 +20,7 @@ export class ExtHostWorkspace {
 	private _proxy: MainThreadWorkspaceShape;
 	private _workspacePath: string;
 
-	constructor(threadService: IThreadService, workspacePath:string) {
+	constructor(threadService: IThreadService, workspacePath: string) {
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
 		this._workspacePath = workspacePath;
 	}

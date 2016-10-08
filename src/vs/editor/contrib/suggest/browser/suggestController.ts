@@ -177,7 +177,7 @@ export class TriggerSuggestAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		SuggestController.get(editor).triggerSuggest();
 	}
 }

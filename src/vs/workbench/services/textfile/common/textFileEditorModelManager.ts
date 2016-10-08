@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {ModelState, ITextFileEditorModel, LocalFileChangeEvent, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange} from 'vs/workbench/services/textfile/common/textfiles';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ModelState, ITextFileEditorModel, LocalFileChangeEvent, ITextFileEditorModelManager, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { FileChangesEvent, EventType as CommonFileEventType } from 'vs/platform/files/common/files';
 
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 

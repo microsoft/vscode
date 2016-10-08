@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TMState} from 'vs/editor/common/modes/TMState';
+import { TMState } from 'vs/editor/common/modes/TMState';
 
 suite('Editor Modes - TMState', () => {
 	test('Bug #16982: Cannot read property \'length\' of null', () => {

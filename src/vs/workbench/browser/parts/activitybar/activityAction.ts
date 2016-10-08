@@ -7,12 +7,12 @@
 
 import 'vs/css!./media/activityaction';
 import nls = require('vs/nls');
-import {Builder, $} from 'vs/base/browser/builder';
-import {DelayedDragHandler} from 'vs/base/browser/dnd';
-import {Action} from 'vs/base/common/actions';
-import {BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge} from 'vs/workbench/services/activity/common/activityService';
-import Event, {Emitter} from 'vs/base/common/event';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { DelayedDragHandler } from 'vs/base/browser/dnd';
+import { Action } from 'vs/base/common/actions';
+import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityService';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class ActivityAction extends Action {
 

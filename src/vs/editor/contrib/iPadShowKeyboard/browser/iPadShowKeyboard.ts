@@ -6,23 +6,23 @@
 'use strict';
 
 import 'vs/css!./iPadShowKeyboard';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import {IEditorContribution} from 'vs/editor/common/editorCommon';
-import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 @editorContribution
 export class IPadShowKeyboard implements IEditorContribution {
 
 	private static ID = 'editor.contrib.iPadShowKeyboard';
 
-	private editor:ICodeEditor;
-	private widget:ShowKeyboardWidget;
-	private toDispose:IDisposable[];
+	private editor: ICodeEditor;
+	private widget: ShowKeyboardWidget;
+	private toDispose: IDisposable[];
 
-	constructor(editor:ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this.editor = editor;
 		this.toDispose = [];
 		if (browser.isIPad) {
@@ -66,10 +66,10 @@ class ShowKeyboardWidget implements IOverlayWidget {
 
 	private editor: ICodeEditor;
 
-	private _domNode:HTMLElement;
-	private _toDispose:IDisposable[];
+	private _domNode: HTMLElement;
+	private _toDispose: IDisposable[];
 
-	constructor(editor:ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this.editor = editor;
 		this._domNode = document.createElement('textarea');
 		this._domNode.className = 'iPadShowKeyboard';

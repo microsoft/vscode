@@ -123,7 +123,7 @@ export class ListView<T> implements IDisposable {
 		each(renderRange, i => this.insertItemInDOM(this.items[i], i));
 
 		const scrollHeight = this.getContentHeight();
-		this.rowsContainer.style.height = `${ scrollHeight }px`;
+		this.rowsContainer.style.height = `${scrollHeight}px`;
 		this.scrollableElement.updateState({ scrollHeight });
 
 		return deleted.map(i => i.element);
@@ -175,7 +175,7 @@ export class ListView<T> implements IDisposable {
 		rangesToInsert.forEach(range => each(range, i => this.insertItemInDOM(this.items[i], i)));
 		rangesToRemove.forEach(range => each(range, i => this.removeItemFromDOM(this.items[i])));
 
-		this.rowsContainer.style.transform = `translate3d(0px, -${ renderTop }px, 0px)`;
+		this.rowsContainer.style.transform = `translate3d(0px, -${renderTop}px, 0px)`;
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
 	}
@@ -192,8 +192,8 @@ export class ListView<T> implements IDisposable {
 		}
 
 		const renderer = this.renderers[item.templateId];
-		item.row.domNode.style.top = `${ this.elementTop(index) }px`;
-		item.row.domNode.style.height = `${ item.size }px`;
+		item.row.domNode.style.top = `${this.elementTop(index)}px`;
+		item.row.domNode.style.height = `${item.size}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
 		renderer.renderElement(item.element, index, item.row.templateData);
 	}
@@ -225,7 +225,7 @@ export class ListView<T> implements IDisposable {
 
 	// Events
 
-	addListener(type: string, handler: (event:any)=>void, useCapture?: boolean): IDisposable {
+	addListener(type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 		const userHandler = handler;
 		let domNode = this.domNode;
 
@@ -239,7 +239,7 @@ export class ListView<T> implements IDisposable {
 		return DOM.addDisposableListener(domNode, type, handler, useCapture);
 	}
 
-	private fireScopedEvent(handler: (event: any)=>void, index) {
+	private fireScopedEvent(handler: (event: any) => void, index) {
 		if (index < 0) {
 			return;
 		}

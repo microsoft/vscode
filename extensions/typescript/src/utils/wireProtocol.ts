@@ -7,25 +7,25 @@
 
 import stream = require('stream');
 
-let DefaultSize:number = 8192;
-let ContentLength:string = 'Content-Length: ';
-let ContentLengthSize:number = Buffer.byteLength(ContentLength, 'utf8');
-let Blank:number = new Buffer(' ', 'utf8')[0];
-let BackslashR:number = new Buffer('\r', 'utf8')[0];
-let BackslashN:number = new Buffer('\n', 'utf8')[0];
+let DefaultSize: number = 8192;
+let ContentLength: string = 'Content-Length: ';
+let ContentLengthSize: number = Buffer.byteLength(ContentLength, 'utf8');
+let Blank: number = new Buffer(' ', 'utf8')[0];
+let BackslashR: number = new Buffer('\r', 'utf8')[0];
+let BackslashN: number = new Buffer('\n', 'utf8')[0];
 
 class ProtocolBuffer {
 
-	private index:number;
-	private buffer:Buffer;
+	private index: number;
+	private buffer: Buffer;
 
 	constructor() {
 		this.index = 0;
 		this.buffer = new Buffer(DefaultSize);
 	}
 
-	public append(data:string | Buffer):void {
-		let toAppend:Buffer = null;
+	public append(data: string | Buffer): void {
+		let toAppend: Buffer = null;
 		if (Buffer.isBuffer(data)) {
 			toAppend = <Buffer>data;
 		} else {
@@ -42,10 +42,10 @@ class ProtocolBuffer {
 				this.buffer = Buffer.concat([this.buffer.slice(0, this.index), toAppend], newSize);
 			}
 		}
-		this.index+= toAppend.length;
+		this.index += toAppend.length;
 	}
 
-	public tryReadContentLength():number {
+	public tryReadContentLength(): number {
 		let result = -1;
 		let current = 0;
 		// we are utf8 encoding...
@@ -57,7 +57,7 @@ class ProtocolBuffer {
 		}
 		current += ContentLengthSize;
 		let start = current;
-		while(current < this.index && this.buffer[current] !== BackslashR) {
+		while (current < this.index && this.buffer[current] !== BackslashR) {
 			current++;
 		}
 		if (current + 3 >= this.index || this.buffer[current + 1] !== BackslashN || this.buffer[current + 2] !== BackslashR || this.buffer[current + 3] !== BackslashN) {
@@ -70,13 +70,13 @@ class ProtocolBuffer {
 		return result;
 	}
 
-	public tryReadContent(length:number):string {
+	public tryReadContent(length: number): string {
 		if (this.index < length) {
 			return null;
 		}
 		let result = this.buffer.toString('utf8', 0, length);
 		let sourceStart = length;
-		while(sourceStart < this.index && (this.buffer[sourceStart] === BackslashR || this.buffer[sourceStart] === BackslashN)) {
+		while (sourceStart < this.index && (this.buffer[sourceStart] === BackslashR || this.buffer[sourceStart] === BackslashN)) {
 			sourceStart++;
 		}
 		this.buffer.copy(this.buffer, 0, sourceStart);
@@ -84,8 +84,8 @@ class ProtocolBuffer {
 		return result;
 	}
 
-	public tryReadLine():string {
-		let end:number = 0;
+	public tryReadLine(): string {
+		let end: number = 0;
 		while (end < this.index && this.buffer[end] !== BackslashR && this.buffer[end] !== BackslashN) {
 			end++;
 		}
@@ -105,7 +105,7 @@ class ProtocolBuffer {
 		return result;
 	}
 
-	public get numberOfBytes():number {
+	public get numberOfBytes(): number {
 		return this.index;
 	}
 }
@@ -116,35 +116,35 @@ export enum ReaderType {
 }
 
 export interface ICallback<T> {
-	(data:T):void;
+	(data: T): void;
 }
 
 export class Reader<T> {
 
-	private readable:stream.Readable;
-	private callback:ICallback<T>;
-	private buffer:ProtocolBuffer;
-	private nextMessageLength:number;
+	private readable: stream.Readable;
+	private callback: ICallback<T>;
+	private buffer: ProtocolBuffer;
+	private nextMessageLength: number;
 
-	public constructor(readable:stream.Readable, callback:ICallback<T>, type:ReaderType = ReaderType.Length) {
+	public constructor(readable: stream.Readable, callback: ICallback<T>, type: ReaderType = ReaderType.Length) {
 		this.readable = readable;
 		this.buffer = new ProtocolBuffer();
 		this.callback = callback;
 		this.nextMessageLength = -1;
 		if (type === ReaderType.Length) {
-			this.readable.on('data', (data:Buffer) => {
+			this.readable.on('data', (data: Buffer) => {
 				this.onLengthData(data);
 			});
 		} else if (type === ReaderType.Line) {
-			this.readable.on('data', (data:Buffer) => {
+			this.readable.on('data', (data: Buffer) => {
 				this.onLineData(data);
 			});
 		}
 	}
 
-	private onLengthData(data:Buffer):void {
+	private onLengthData(data: Buffer): void {
 		this.buffer.append(data);
-		while(true) {
+		while (true) {
 			if (this.nextMessageLength === -1) {
 				this.nextMessageLength = this.buffer.tryReadContentLength();
 				if (this.nextMessageLength === -1) {
@@ -161,9 +161,9 @@ export class Reader<T> {
 		}
 	}
 
-	private onLineData(data:Buffer):void {
+	private onLineData(data: Buffer): void {
 		this.buffer.append(data);
-		while(true) {
+		while (true) {
 			let msg = this.buffer.tryReadLine();
 			if (msg === null) {
 				return;
@@ -175,15 +175,15 @@ export class Reader<T> {
 
 export class Writer<T> {
 
-	private writable:stream.Writable;
+	private writable: stream.Writable;
 
-	public constructor(writable:stream.Writable) {
+	public constructor(writable: stream.Writable) {
 		this.writable = writable;
 	}
 
-	public write(msg:T):void {
+	public write(msg: T): void {
 		let json = JSON.stringify(msg);
-		let buffer:string[] = [
+		let buffer: string[] = [
 			ContentLength,
 			Buffer.byteLength(json, 'utf8').toString(),
 			'\r\n\r\n',

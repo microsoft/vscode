@@ -5,22 +5,22 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {Range, Disposable, CompletionList, CompletionItem} from 'vs/workbench/api/node/extHostTypes';
-import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import { Range, Disposable, CompletionList, CompletionItem } from 'vs/workbench/api/node/extHostTypes';
+import { IPosition, IRange, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
-import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
-import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
-import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
-import {IWorkspaceSymbolProvider, IWorkspaceSymbol} from 'vs/workbench/parts/search/common/search';
-import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
-import {MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier} from './extHost.protocol';
-import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
+import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
+import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { asWinJsPromise, ShallowCancelThenPromise } from 'vs/base/common/async';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
+import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 
 // --- adapter
 
@@ -324,7 +324,7 @@ class QuickFixAdapter {
 				return;
 			}
 			return commands.map((command, i) => {
-				return <modes.CodeAction> {
+				return <modes.CodeAction>{
 					command: TypeConverters.Command.from(command, cachedCommands),
 					score: i
 				};
@@ -395,7 +395,7 @@ class OnTypeFormattingAdapter {
 		const {document, version} = this._documents.getDocumentData(resource);
 		const pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any> options, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return TypeConverters.TextEdit.minimalEditOperations(value, document, version);
 			}
@@ -509,7 +509,7 @@ class SuggestAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise<vscode.CompletionItem[]|vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
+		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
 
 			const result: modes.ISuggestResult = {
 				suggestions: [],
@@ -690,7 +690,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		if (!(adapter instanceof ctor)) {
 			return TPromise.wrapError(new Error('no adapter found'));
 		}
-		return callback(<any> adapter);
+		return callback(<any>adapter);
 	}
 
 	// --- outline
@@ -902,7 +902,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	// --- configuration
 
-	setLanguageConfiguration(languageId:string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
+	setLanguageConfiguration(languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
 		let {wordPattern} = configuration;
 
 		// check for a valid word pattern

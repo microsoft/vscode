@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IAutoClosingPair,
+import {
+	ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IAutoClosingPair,
 	IAutoClosingPairConditional, IRichEditOnEnter, CharacterPair,
-	IRichEditElectricCharacter, EnterAction, IndentAction} from 'vs/editor/common/modes';
-import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
-import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
-import {IndentationRule, OnEnterRule, IOnEnterSupportOptions, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import {RichEditBrackets} from 'vs/editor/common/modes/supports/richEditBrackets';
-import Event, {Emitter} from 'vs/base/common/event';
-import {ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {Position} from 'vs/editor/common/core/position';
+	IRichEditElectricCharacter, EnterAction, IndentAction
+} from 'vs/editor/common/modes';
+import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
+import { BracketElectricCharacterSupport, IBracketElectricCharacterContribution } from 'vs/editor/common/modes/supports/electricCharacter';
+import { IndentationRule, OnEnterRule, IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import Event, { Emitter } from 'vs/base/common/event';
+import { ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {DEFAULT_WORD_REGEXP} from 'vs/editor/common/model/wordHelper';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 
 /**
  * Describes how comments for a language work.
@@ -93,9 +95,9 @@ export class RichEditSupport {
 	public onEnter: IRichEditOnEnter;
 	public brackets: IRichEditBrackets;
 
-	constructor(modeId:string, previous:RichEditSupport, rawConf:LanguageConfiguration) {
+	constructor(modeId: string, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
-		let prev:LanguageConfiguration = null;
+		let prev: LanguageConfiguration = null;
 		if (previous) {
 			prev = previous._conf;
 		}
@@ -116,7 +118,7 @@ export class RichEditSupport {
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
 	}
 
-	private static _mergeConf(prev:LanguageConfiguration, current:LanguageConfiguration): LanguageConfiguration {
+	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
 		return {
 			comments: (prev ? current.comments || prev.comments : current.comments),
 			brackets: (prev ? current.brackets || prev.brackets : current.brackets),
@@ -129,7 +131,7 @@ export class RichEditSupport {
 		};
 	}
 
-	private _handleOnEnter(modeId:string, conf:LanguageConfiguration): void {
+	private _handleOnEnter(modeId: string, conf: LanguageConfiguration): void {
 		// on enter
 		let onEnter: IOnEnterSupportOptions = {};
 		let empty = true;
@@ -152,7 +154,7 @@ export class RichEditSupport {
 		}
 	}
 
-	private _handleComments(modeId:string, conf:LanguageConfiguration): void {
+	private _handleComments(modeId: string, conf: LanguageConfiguration): void {
 		let commentRule = conf.comments;
 
 		// comment configuration
@@ -174,7 +176,7 @@ export class RichEditSupport {
 
 export class LanguageConfigurationRegistryImpl {
 
-	private _entries: {[languageId:string]:RichEditSupport;};
+	private _entries: { [languageId: string]: RichEditSupport; };
 
 	private _onDidChange: Emitter<void> = new Emitter<void>();
 	public onDidChange: Event<void> = this._onDidChange.event;
@@ -183,20 +185,20 @@ export class LanguageConfigurationRegistryImpl {
 		this._entries = Object.create(null);
 	}
 
-	public register(languageId:string, configuration:LanguageConfiguration): IDisposable {
+	public register(languageId: string, configuration: LanguageConfiguration): IDisposable {
 		let previous = this._entries[languageId] || null;
 		this._entries[languageId] = new RichEditSupport(languageId, previous, configuration);
 		this._onDidChange.fire(void 0);
 		return {
-			dispose: () => {}
+			dispose: () => { }
 		};
 	}
 
-	private _getRichEditSupport(modeId:string): RichEditSupport {
+	private _getRichEditSupport(modeId: string): RichEditSupport {
 		return this._entries[modeId];
 	}
 
-	public getElectricCharacterSupport(modeId:string): IRichEditElectricCharacter {
+	public getElectricCharacterSupport(modeId: string): IRichEditElectricCharacter {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
@@ -204,7 +206,7 @@ export class LanguageConfigurationRegistryImpl {
 		return value.electricCharacter || null;
 	}
 
-	public getComments(modeId:string): ICommentsConfiguration {
+	public getComments(modeId: string): ICommentsConfiguration {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
@@ -212,7 +214,7 @@ export class LanguageConfigurationRegistryImpl {
 		return value.comments || null;
 	}
 
-	public getCharacterPairSupport(modeId:string): IRichEditCharacterPair {
+	public getCharacterPairSupport(modeId: string): IRichEditCharacterPair {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
@@ -220,7 +222,7 @@ export class LanguageConfigurationRegistryImpl {
 		return value.characterPair || null;
 	}
 
-	public getWordDefinition(modeId:string): RegExp {
+	public getWordDefinition(modeId: string): RegExp {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
@@ -228,7 +230,7 @@ export class LanguageConfigurationRegistryImpl {
 		return value.wordDefinition || null;
 	}
 
-	public getOnEnterSupport(modeId:string): IRichEditOnEnter {
+	public getOnEnterSupport(modeId: string): IRichEditOnEnter {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
@@ -236,8 +238,8 @@ export class LanguageConfigurationRegistryImpl {
 		return value.onEnter || null;
 	}
 
-	public getRawEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): EnterAction {
-		let result:EnterAction;
+	public getRawEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
+		let result: EnterAction;
 
 		let onEnterSupport = this.getOnEnterSupport(model.getMode().getId());
 
@@ -252,7 +254,7 @@ export class LanguageConfigurationRegistryImpl {
 		return result;
 	}
 
-	public getEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): { enterAction: EnterAction; indentation: string; } {
+	public getEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): { enterAction: EnterAction; indentation: string; } {
 		let lineText = model.getLineContent(lineNumber);
 		let indentation = strings.getLeadingWhitespace(lineText);
 		if (indentation.length > column - 1) {
@@ -266,7 +268,7 @@ export class LanguageConfigurationRegistryImpl {
 				appendText: '',
 			};
 		} else {
-			if(!enterAction.appendText) {
+			if (!enterAction.appendText) {
 				if (
 					(enterAction.indentAction === IndentAction.Indent) ||
 					(enterAction.indentAction === IndentAction.IndentOutdent)
@@ -288,7 +290,7 @@ export class LanguageConfigurationRegistryImpl {
 		};
 	}
 
-	public getBracketsSupport(modeId:string): IRichEditBrackets {
+	public getBracketsSupport(modeId: string): IRichEditBrackets {
 		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;

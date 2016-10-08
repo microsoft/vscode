@@ -19,7 +19,7 @@ export function getTelemetryData(extension: ILocalExtension | IGalleryExtension)
 
 	if (local.path) {
 		return {
-			id: `${ local.manifest.publisher }.${ local.manifest.name }`,
+			id: `${local.manifest.publisher}.${local.manifest.name}`,
 			name: local.manifest.name,
 			galleryId: local.metadata ? local.metadata.id : null,
 			publisherId: local.metadata ? local.metadata.publisherId : null,
@@ -28,7 +28,7 @@ export function getTelemetryData(extension: ILocalExtension | IGalleryExtension)
 		};
 	} else {
 		return {
-			id: `${ gallery.publisher }.${ gallery.name }`,
+			id: `${gallery.publisher}.${gallery.name}`,
 			name: gallery.name,
 			galleryId: gallery.id,
 			publisherId: gallery.publisherId,
@@ -44,7 +44,7 @@ export function getOutdatedExtensions(extensionsService: IExtensionManagementSer
 	}
 
 	return extensionsService.getInstalled(LocalExtensionType.User).then(installed => {
-		const names = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
+		const names = installed.map(({ manifest }) => `${manifest.publisher}.${manifest.name}`);
 
 		if (installed.length === 0) {
 			return TPromise.as([]);

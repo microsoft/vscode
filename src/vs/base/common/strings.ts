@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BoundedLinkedMap} from 'vs/base/common/map';
-import {CharCode} from 'vs/base/common/charCode';
+import { BoundedLinkedMap } from 'vs/base/common/map';
+import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * The empty string.
@@ -38,7 +38,7 @@ export function format(value: string, ...args: any[]): string {
 	if (args.length === 0) {
 		return value;
 	}
-	return value.replace(_formatRegexp, function(match, group) {
+	return value.replace(_formatRegexp, function (match, group) {
 		let idx = parseInt(group, 10);
 		return isNaN(idx) || idx < 0 || idx >= args.length ?
 			match :
@@ -51,7 +51,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function(match) {
+	return html.replace(/[<|>|&]/g, function (match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -301,7 +301,7 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 export function compare(a: string, b: string): number {
 	if (a < b) {
 		return -1;
-	} else if(a > b) {
+	} else if (a > b) {
 		return 1;
 	} else {
 		return 0;
@@ -396,15 +396,15 @@ export function commonSuffixLength(a: string, b: string): number {
 //	}
 //	return chrCode;
 //}
-export function isHighSurrogate(charCode:number): boolean {
+export function isHighSurrogate(charCode: number): boolean {
 	return (0xD800 <= charCode && charCode <= 0xDBFF);
 }
 
-export function isLowSurrogate(charCode:number): boolean {
+export function isLowSurrogate(charCode: number): boolean {
 	return (0xDC00 <= charCode && charCode <= 0xDFFF);
 }
 
-export function isFullWidthCharacter(charCode:number): boolean {
+export function isFullWidthCharacter(charCode: number): boolean {
 	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns
 	// http://jrgraphix.net/research/unicode_blocks.php
 	//          2E80 — 2EFF   CJK Radicals Supplement
@@ -575,7 +575,7 @@ export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
 }
 
-export function repeat(s:string, count: number): string {
+export function repeat(s: string, count: number): string {
 	var result = '';
 	for (var i = 0; i < count; i++) {
 		result += s;

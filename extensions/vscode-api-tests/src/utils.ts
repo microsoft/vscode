@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
-import {join} from 'path';
+import { join } from 'path';
 
 function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);

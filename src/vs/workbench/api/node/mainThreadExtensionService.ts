@@ -5,14 +5,14 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
-import {IMessage, IExtensionDescription, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ExtHostContext, ExtHostExtensionServiceShape} from './extHost.protocol';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
+import { IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostContext, ExtHostExtensionServiceShape } from './extHost.protocol';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /**
  * Represents a failed extension in the ext host.

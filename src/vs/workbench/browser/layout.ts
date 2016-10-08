@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Dimension, Builder, Box} from 'vs/base/browser/builder';
-import {Part} from 'vs/workbench/browser/part';
-import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import {Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation} from 'vs/base/browser/ui/sash/sash';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import { Dimension, Builder, Box } from 'vs/base/browser/builder';
+import { Part } from 'vs/workbench/browser/part';
+import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
+import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;

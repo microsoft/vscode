@@ -7,10 +7,10 @@
 
 import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Action} from 'vs/base/common/actions';
-import {ipcRenderer as ipc, shell} from 'electron';
-import {IMessageService} from 'vs/platform/message/common/message';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Action } from 'vs/base/common/actions';
+import { ipcRenderer as ipc, shell } from 'electron';
+import { IMessageService } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 import URI from 'vs/base/common/uri';
@@ -57,7 +57,7 @@ export function loadReleaseNotes(accessor: ServicesAccessor, version: string): T
 
 	const versionLabel = match[1].replace(/\./g, '_');
 	const baseUrl = 'https://code.visualstudio.com/raw';
-	const url = `${ baseUrl }/v${ versionLabel }.md`;
+	const url = `${baseUrl}/v${versionLabel}.md`;
 
 	const patchKeybindings = (text: string): string => {
 		const kb = (match: string, kb: string) => {
@@ -132,7 +132,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return this.instantiationService.invokeFunction(loadReleaseNotes, this.version)
-			.then(text =>  this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version, text)))
+			.then(text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version, text)))
 			.then(() => true)
 			.then(null, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import {IPosition, ITextModel, ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {EnterAction, ILineContext, IRichEditOnEnter, IndentAction, CharacterPair} from 'vs/editor/common/modes';
-import {handleEvent} from 'vs/editor/common/modes/supports';
-import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IPosition, ITextModel, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { EnterAction, ILineContext, IRichEditOnEnter, IndentAction, CharacterPair } from 'vs/editor/common/modes';
+import { handleEvent } from 'vs/editor/common/modes/supports';
+import { LanguageConfigurationRegistryImpl } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
  * Describes indentation rules for a language.
@@ -76,7 +76,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 	private _indentationRules: IndentationRule;
 	private _regExpRules: OnEnterRule[];
 
-	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, opts?:IOnEnterSupportOptions) {
+	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, opts?: IOnEnterSupportOptions) {
 		this._registry = registry;
 		opts = opts || {};
 		opts.brackets = opts.brackets || [
@@ -98,10 +98,10 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		this._indentationRules = opts.indentationRules;
 	}
 
-	public onEnter(model:ITokenizedModel, position: IPosition): EnterAction {
+	public onEnter(model: ITokenizedModel, position: IPosition): EnterAction {
 		var context = model.getLineContext(position.lineNumber);
 
-		return handleEvent(context, position.column - 1, (nestedModeId:string, context:ILineContext, offset:number) => {
+		return handleEvent(context, position.column - 1, (nestedModeId: string, context: ILineContext, offset: number) => {
 			if (this._modeId === nestedModeId) {
 				return this._onEnter(model, position);
 			}
@@ -115,7 +115,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		});
 	}
 
-	private _onEnter(model:ITextModel, position: IPosition): EnterAction {
+	private _onEnter(model: ITextModel, position: IPosition): EnterAction {
 		let lineText = model.getLineContent(position.lineNumber);
 		let beforeEnterText = lineText.substr(0, position.column - 1);
 		let afterEnterText = lineText.substr(position.column - 1);
@@ -125,7 +125,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		return this._actualOnEnter(oneLineAboveText, beforeEnterText, afterEnterText);
 	}
 
-	_actualOnEnter(oneLineAboveText:string, beforeEnterText:string, afterEnterText:string): EnterAction {
+	_actualOnEnter(oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction {
 		// (1): `regExpRules`
 		for (let i = 0, len = this._regExpRules.length; i < len; i++) {
 			let rule = this._regExpRules[i];
@@ -182,7 +182,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		return null;
 	}
 
-	private static _createOpenBracketRegExp(bracket:string): RegExp {
+	private static _createOpenBracketRegExp(bracket: string): RegExp {
 		var str = strings.escapeRegExpCharacters(bracket);
 		if (!/\B/.test(str.charAt(0))) {
 			str = '\\b' + str;
@@ -191,7 +191,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		return OnEnterSupport._safeRegExp(str);
 	}
 
-	private static _createCloseBracketRegExp(bracket:string): RegExp {
+	private static _createCloseBracketRegExp(bracket: string): RegExp {
 		var str = strings.escapeRegExpCharacters(bracket);
 		if (!/\B/.test(str.charAt(str.length - 1))) {
 			str = str + '\\b';
@@ -200,10 +200,10 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		return OnEnterSupport._safeRegExp(str);
 	}
 
-	private static _safeRegExp(def:string): RegExp {
+	private static _safeRegExp(def: string): RegExp {
 		try {
 			return new RegExp(def);
-		} catch(err) {
+		} catch (err) {
 			onUnexpectedError(err);
 			return null;
 		}

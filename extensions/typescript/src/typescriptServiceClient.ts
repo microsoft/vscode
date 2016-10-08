@@ -12,9 +12,9 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem }  from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem } from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost, APIVersion }  from './typescriptService';
+import { ITypescriptServiceClient, ITypescriptServiceClientHost, APIVersion } from './typescriptService';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
@@ -73,7 +73,7 @@ enum MessageAction {
 	close
 }
 
-interface MyMessageItem extends MessageItem  {
+interface MyMessageItem extends MessageItem {
 	id: MessageAction;
 }
 
@@ -261,7 +261,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._packageInfo;
 	}
 
-	public logTelemetry(eventName: string, properties?: {[prop: string]: string}) {
+	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
 		if (this.telemetryReporter) {
 			this.telemetryReporter.sendTelemetryEvent(eventName, properties);
 		}
@@ -337,7 +337,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 								if (!selected || selected.id === MessageAction.close) {
 									return modulePath;
 								}
-								switch(selected.id) {
+								switch (selected.id) {
 									case MessageAction.useLocal:
 										let pathValue = './node_modules/typescript/lib';
 										tsConfig.update('tsdk', pathValue, false);
@@ -381,7 +381,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 
 
-				const label = version || localize('versionNumber.custom' ,'custom');
+				const label = version || localize('versionNumber.custom', 'custom');
 				const tooltip = modulePath;
 				VersionStatus.enable(!!this.tsdk || showVersionStatusItem);
 				VersionStatus.setInfo(label, tooltip);
@@ -459,7 +459,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							this.lastError = err;
 							this.error('Starting TSServer failed with error.', err);
 							window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
-							this.logTelemetry('error', {message: err.message});
+							this.logTelemetry('error', { message: err.message });
 							return;
 						}
 						this.lastStart = Date.now();
@@ -494,7 +494,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		if (this._experimentalAutoBuild && this.storagePath) {
 			try {
 				fs.mkdirSync(this.storagePath);
-			} catch(error) {
+			} catch (error) {
 			}
 			this.execute('configure', {
 				autoBuild: true,
@@ -521,7 +521,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		let desc = null;
 		try {
 			desc = JSON.parse(contents);
-		} catch(err) {
+		} catch (err) {
 			return undefined;
 		}
 		if (!desc.version) {
@@ -542,7 +542,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let startService = true;
 			if (this.numberRestarts > 5) {
 				if (diff < 60 * 1000 /* 1 Minutes */) {
-					window.showWarningMessage(localize('serverDied','The TypeScript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.'));
+					window.showWarningMessage(localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.'));
 				} else if (diff < 2 * 1000 /* 2 seconds */) {
 					startService = false;
 					window.showErrorMessage(localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.'));

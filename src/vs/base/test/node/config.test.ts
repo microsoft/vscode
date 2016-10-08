@@ -12,7 +12,7 @@ import path = require('path');
 import fs = require('fs');
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
-import {ConfigWatcher} from 'vs/base/node/config';
+import { ConfigWatcher } from 'vs/base/node/config';
 
 suite('Config', () => {
 

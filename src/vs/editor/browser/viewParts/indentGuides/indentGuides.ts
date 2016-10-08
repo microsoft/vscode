@@ -7,19 +7,19 @@
 
 import 'vs/css!./indentGuides';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
+import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
-	private _context:ViewContext;
+	private _context: ViewContext;
 	private _lineHeight: number;
 	private _spaceWidth: number;
 	private _renderResult: string[];
 	private _enabled: boolean;
 
-	constructor(context:ViewContext) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -40,16 +40,16 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
@@ -61,10 +61,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
-	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
 		return e.scrollTopChanged;// || e.scrollWidthChanged;
 	}
 	public onZonesChanged(): boolean {
@@ -72,7 +72,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	}
 	// --- end event handlers
 
-	public prepareRender(ctx:IRenderingContext): void {
+	public prepareRender(ctx: IRenderingContext): void {
 		if (!this.shouldRender()) {
 			throw new Error('I did not ask to render!');
 		}
@@ -88,7 +88,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const tabWidth = tabSize * this._spaceWidth;
 		const lineHeight = this._lineHeight;
 
-		let output:string[] = [];
+		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			let lineIndex = lineNumber - visibleStartLineNumber;
 			let indent = this._context.model.getLineIndentGuide(lineNumber);
@@ -105,7 +105,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._renderResult = output;
 	}
 
-	public render(startLineNumber:number, lineNumber:number): string {
+	public render(startLineNumber: number, lineNumber: number): string {
 		if (!this._renderResult) {
 			return '';
 		}

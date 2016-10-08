@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ModelBuilder, computeHash} from 'vs/editor/node/model/modelBuilder';
-import {ITextModelCreationOptions, IRawText} from 'vs/editor/common/editorCommon';
-import {TextModel} from 'vs/editor/common/model/textModel';
+import { ModelBuilder, computeHash } from 'vs/editor/node/model/modelBuilder';
+import { ITextModelCreationOptions, IRawText } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
 
-export function testModelBuilder(chunks:string[], opts:ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
+export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
 	let expectedRawText = TextModel.toRawText(chunks.join(''), opts);
 	let expectedHash = computeHash(expectedRawText);
 
@@ -28,7 +28,7 @@ export function testModelBuilder(chunks:string[], opts:ITextModelCreationOptions
 	return expectedHash;
 }
 
-function toRawText(lines:string[]): IRawText {
+function toRawText(lines: string[]): IRawText {
 	return {
 		BOM: '',
 		lines: lines,
@@ -38,7 +38,7 @@ function toRawText(lines:string[]): IRawText {
 	};
 }
 
-export function testDifferentHash(lines1:string[], lines2:string[]): void {
+export function testDifferentHash(lines1: string[], lines2: string[]): void {
 	let hash1 = computeHash(toRawText(lines1));
 	let hash2 = computeHash(toRawText(lines2));
 	assert.notEqual(hash1, hash2);
@@ -77,11 +77,11 @@ suite('ModelBuilder', () => {
 	});
 
 	test('two lines in multiple chunks 2', () => {
-		testModelBuilder(['Hello worl', 'd' , '\n', 'H', 'ow are you?']);
+		testModelBuilder(['Hello worl', 'd', '\n', 'H', 'ow are you?']);
 	});
 
 	test('two lines in multiple chunks 3', () => {
-		testModelBuilder(['Hello worl', 'd' , '\nHow are you?']);
+		testModelBuilder(['Hello worl', 'd', '\nHow are you?']);
 	});
 
 	test('multiple lines in single chunks', () => {

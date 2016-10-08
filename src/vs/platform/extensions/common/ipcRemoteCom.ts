@@ -16,22 +16,22 @@ interface IRPCFunc {
 const pendingRPCReplies: { [msgId: string]: LazyPromise; } = {};
 
 class MessageFactory {
-	public static cancel(req:string): string {
+	public static cancel(req: string): string {
 		return `{"cancel":"${req}"}`;
 	}
 
-	public static request(req:string, rpcId:string, method:string, args:any[]): string {
+	public static request(req: string, rpcId: string, method: string, args: any[]): string {
 		return `{"req":"${req}","rpcId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
 	}
 
-	public static replyOK(req:string, res:any): string {
+	public static replyOK(req: string, res: any): string {
 		if (typeof res === 'undefined') {
 			return `{"seq":"${req}"}`;
 		}
 		return `{"seq":"${req}","res":${marshalling.stringify(res)}}`;
 	}
 
-	public static replyErr(req:string, err:any): string {
+	public static replyErr(req: string, err: any): string {
 		if (typeof err === 'undefined') {
 			return `{"seq":"${req}","err":null}`;
 		}
@@ -41,7 +41,7 @@ class MessageFactory {
 
 class LazyPromise {
 
-	private _onCancel: ()=>void;
+	private _onCancel: () => void;
 
 	private _actual: winjs.TPromise<any>;
 	private _actualOk: winjs.ValueCallback;
@@ -55,7 +55,7 @@ class LazyPromise {
 
 	private _isCanceled: boolean;
 
-	constructor(onCancel: ()=>void) {
+	constructor(onCancel: () => void) {
 		this._onCancel = onCancel;
 		this._actual = null;
 		this._actualOk = null;
@@ -85,7 +85,7 @@ class LazyPromise {
 		return this._actual;
 	}
 
-	public resolveOk(value:any): void {
+	public resolveOk(value: any): void {
 		if (this._isCanceled || this._hasErr) {
 			return;
 		}
@@ -98,7 +98,7 @@ class LazyPromise {
 		}
 	}
 
-	public resolveErr(err:any): void {
+	public resolveErr(err: any): void {
 		if (this._isCanceled || this._hasValue) {
 			return;
 		}
@@ -111,7 +111,7 @@ class LazyPromise {
 		}
 	}
 
-	public then(success:any, error:any): any {
+	public then(success: any, error: any): any {
 		if (this._isCanceled) {
 			return;
 		}
@@ -119,7 +119,7 @@ class LazyPromise {
 		return this._ensureActual().then(success, error);
 	}
 
-	public done(success:any, error:any): void {
+	public done(success: any, error: any): void {
 		if (this._isCanceled) {
 			return;
 		}

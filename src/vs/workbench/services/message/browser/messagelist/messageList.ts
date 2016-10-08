@@ -7,17 +7,17 @@
 
 import 'vs/css!./messageList';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Builder, $} from 'vs/base/browser/builder';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import aria = require('vs/base/browser/ui/aria/aria');
 import types = require('vs/base/common/types');
-import Event, {Emitter} from 'vs/base/common/event';
-import {Action} from 'vs/base/common/actions';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Action } from 'vs/base/common/actions';
 import htmlRenderer = require('vs/base/browser/htmlContentRenderer');
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export enum Severity {
 	Info,
@@ -86,12 +86,12 @@ export class MessageList {
 		return this._onMessagesCleared.event;
 	}
 
-	public showMessage(severity: Severity, message: string, onHide?: ()=>void): () => void;
-	public showMessage(severity: Severity, message: Error, onHide?: ()=>void): () => void;
-	public showMessage(severity: Severity, message: string[], onHide?: ()=>void): () => void;
-	public showMessage(severity: Severity, message: Error[], onHide?: ()=>void): () => void;
-	public showMessage(severity: Severity, message: IMessageWithAction, onHide?: ()=>void): () => void;
-	public showMessage(severity: Severity, message: any, onHide?: ()=>void): () => void {
+	public showMessage(severity: Severity, message: string, onHide?: () => void): () => void;
+	public showMessage(severity: Severity, message: Error, onHide?: () => void): () => void;
+	public showMessage(severity: Severity, message: string[], onHide?: () => void): () => void;
+	public showMessage(severity: Severity, message: Error[], onHide?: () => void): () => void;
+	public showMessage(severity: Severity, message: IMessageWithAction, onHide?: () => void): () => void;
+	public showMessage(severity: Severity, message: any, onHide?: () => void): () => void {
 		if (Array.isArray(message)) {
 			const closeFns: Function[] = [];
 			message.forEach((msg: any) => closeFns.push(this.showMessage(severity, msg, onHide)));
@@ -125,10 +125,10 @@ export class MessageList {
 		return null;
 	}
 
-	private doShowMessage(id: string, message: string, severity: Severity, onHide: ()=>void): () => void;
-	private doShowMessage(id: Error, message: string, severity: Severity, onHide: ()=>void): () => void;
-	private doShowMessage(id: IMessageWithAction, message: string, severity: Severity, onHide: ()=>void): () => void;
-	private doShowMessage(id: any, message: string, severity: Severity, onHide: ()=>void): () => void {
+	private doShowMessage(id: string, message: string, severity: Severity, onHide: () => void): () => void;
+	private doShowMessage(id: Error, message: string, severity: Severity, onHide: () => void): () => void;
+	private doShowMessage(id: IMessageWithAction, message: string, severity: Severity, onHide: () => void): () => void;
+	private doShowMessage(id: any, message: string, severity: Severity, onHide: () => void): () => void {
 
 		// Trigger Auto-Purge of messages to keep list small
 		this.purgeMessages();

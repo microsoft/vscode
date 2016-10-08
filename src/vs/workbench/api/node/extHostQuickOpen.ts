@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {wireCancellationToken} from 'vs/base/common/async';
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {QuickPickOptions, QuickPickItem, InputBoxOptions} from 'vscode';
-import {MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { wireCancellationToken } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { QuickPickOptions, QuickPickItem, InputBoxOptions } from 'vscode';
+import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from './extHost.protocol';
 
 export type Item = string | QuickPickItem;
 

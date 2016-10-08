@@ -73,7 +73,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 				}
 
 				const document = this._documents.getDocumentData(resource).document;
-				return this._deliverEventAsyncAndBlameBadListeners(fn, thisArg, <any> { document, reason: TextDocumentSaveReason.to(reason) });
+				return this._deliverEventAsyncAndBlameBadListeners(fn, thisArg, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
 			};
 		}));
 

@@ -4,37 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {MarkedString, CompletionItemKind, CompletionItem, DocumentSelector} from 'vscode';
-import {IJSONContribution, ISuggestionsCollector} from './jsonContributions';
-import {XHRRequest} from 'request-light';
-import {Location} from 'jsonc-parser';
-import {textToMarkedString} from './markedTextUtil';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector } from 'vscode';
+import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
+import { XHRRequest } from 'request-light';
+import { Location } from 'jsonc-parser';
+import { textToMarkedString } from './markedTextUtil';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export class BowerJSONContribution implements IJSONContribution {
 
-	private topRanked = ['twitter','bootstrap','angular-1.1.6','angular-latest','angulerjs','d3','myjquery','jq','abcdef1234567890','jQuery','jquery-1.11.1','jquery',
-		'sushi-vanilla-x-data','font-awsome','Font-Awesome','font-awesome','fontawesome','html5-boilerplate','impress.js','homebrew',
-		'backbone','moment1','momentjs','moment','linux','animate.css','animate-css','reveal.js','jquery-file-upload','blueimp-file-upload','threejs','express','chosen',
-		'normalize-css','normalize.css','semantic','semantic-ui','Semantic-UI','modernizr','underscore','underscore1',
-		'material-design-icons','ionic','chartjs','Chart.js','nnnick-chartjs','select2-ng','select2-dist','phantom','skrollr','scrollr','less.js','leancss','parser-lib',
-		'hui','bootstrap-languages','async','gulp','jquery-pjax','coffeescript','hammer.js','ace','leaflet','jquery-mobile','sweetalert','typeahead.js','soup','typehead.js',
-		'sails','codeigniter2'];
+	private topRanked = ['twitter', 'bootstrap', 'angular-1.1.6', 'angular-latest', 'angulerjs', 'd3', 'myjquery', 'jq', 'abcdef1234567890', 'jQuery', 'jquery-1.11.1', 'jquery',
+		'sushi-vanilla-x-data', 'font-awsome', 'Font-Awesome', 'font-awesome', 'fontawesome', 'html5-boilerplate', 'impress.js', 'homebrew',
+		'backbone', 'moment1', 'momentjs', 'moment', 'linux', 'animate.css', 'animate-css', 'reveal.js', 'jquery-file-upload', 'blueimp-file-upload', 'threejs', 'express', 'chosen',
+		'normalize-css', 'normalize.css', 'semantic', 'semantic-ui', 'Semantic-UI', 'modernizr', 'underscore', 'underscore1',
+		'material-design-icons', 'ionic', 'chartjs', 'Chart.js', 'nnnick-chartjs', 'select2-ng', 'select2-dist', 'phantom', 'skrollr', 'scrollr', 'less.js', 'leancss', 'parser-lib',
+		'hui', 'bootstrap-languages', 'async', 'gulp', 'jquery-pjax', 'coffeescript', 'hammer.js', 'ace', 'leaflet', 'jquery-mobile', 'sweetalert', 'typeahead.js', 'soup', 'typehead.js',
+		'sails', 'codeigniter2'];
 
 	public constructor(private xhr: XHRRequest) {
 	}
 
 	public getDocumentSelector(): DocumentSelector {
-		return  [{ language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
+		return [{ language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
 	}
 
 	public collectDefaultSuggestions(resource: string, collector: ISuggestionsCollector): Thenable<any> {
 		let defaultValue = {
 			'name': '{{name}}',
 			'description': '{{description}}',
-			'authors': [ '{{author}}' ],
+			'authors': ['{{author}}'],
 			'version': '{{1.0.0}}',
 			'main': '{{pathToMain}}',
 			'dependencies': {}
@@ -46,19 +46,19 @@ export class BowerJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast:boolean, collector: ISuggestionsCollector) : Thenable<any> {
+	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
 			if (currentWord.length > 0) {
 				let queryUrl = 'https://bower.herokuapp.com/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.xhr({
-					url : queryUrl
+					url: queryUrl
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
 							let obj = JSON.parse(success.responseText);
 							if (Array.isArray(obj)) {
-								let results = <{name:string; description:string;}[]> obj;
+								let results = <{ name: string; description: string; }[]>obj;
 								for (let i = 0; i < results.length; i++) {
 									let name = results[i].name;
 									let description = results[i].description || '';
@@ -126,7 +126,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public resolveSuggestion(item: CompletionItem) : Thenable<CompletionItem> {
+	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem> {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
 			return this.getInfo(item.label).then(documentation => {
 				if (documentation) {
@@ -143,12 +143,12 @@ export class BowerJSONContribution implements IJSONContribution {
 		let queryUrl = 'https://bower.herokuapp.com/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({
-			url : queryUrl
+			url: queryUrl
 		}).then((success) => {
 			try {
 				let obj = JSON.parse(success.responseText);
 				if (obj && obj.url) {
-					let url : string = obj.url;
+					let url: string = obj.url;
 					if (url.indexOf('git://') === 0) {
 						url = url.substring(6);
 					}
@@ -170,7 +170,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			let pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
-				let htmlContent : MarkedString[] = [];
+				let htmlContent: MarkedString[] = [];
 				htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
 				return this.getInfo(pack).then(documentation => {
 					if (documentation) {

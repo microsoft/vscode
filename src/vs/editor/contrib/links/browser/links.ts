@@ -7,22 +7,22 @@
 
 import 'vs/css!./links';
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IOpenerService} from 'vs/platform/opener/common/opener';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {LinkProviderRegistry} from 'vs/editor/common/modes';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {IEditorMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {getLinks, Link} from 'vs/editor/contrib/links/common/links';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { LinkProviderRegistry } from 'vs/editor/common/modes';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorMouseEvent, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getLinks, Link } from 'vs/editor/contrib/links/common/links';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 class LinkOccurence {
 
@@ -329,7 +329,7 @@ class OpenLinkAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		let linkDetector = LinkDetector.get(editor);
 		if (!linkDetector) {
 			return;

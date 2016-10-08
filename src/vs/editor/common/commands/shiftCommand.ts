@@ -5,12 +5,12 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {CharCode} from 'vs/base/common/charCode';
+import { CursorMoveHelper } from 'vs/editor/common/controller/cursorMoveHelper';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -20,7 +20,7 @@ export interface IShiftCommandOpts {
 
 export class ShiftCommand implements ICommand {
 
-	public static unshiftIndentCount(line:string, column:number, tabSize:number): number {
+	public static unshiftIndentCount(line: string, column: number, tabSize: number): number {
 		// Determine the visible column where the content starts
 		var contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
 
@@ -30,7 +30,7 @@ export class ShiftCommand implements ICommand {
 		return desiredTabStop / tabSize;
 	}
 
-	public static shiftIndentCount(line:string, column:number, tabSize:number): number {
+	public static shiftIndentCount(line: string, column: number, tabSize: number): number {
 		// Determine the visible column where the content starts
 		var contentStartVisibleColumn = CursorMoveHelper.visibleColumnFromColumn2(line, column, tabSize);
 
@@ -45,7 +45,7 @@ export class ShiftCommand implements ICommand {
 	private _selectionId: string;
 	private _useLastEditRangeForCursorEndPosition: boolean;
 
-	constructor(range: Selection, opts:IShiftCommandOpts) {
+	constructor(range: Selection, opts: IShiftCommandOpts) {
 		this._opts = opts;
 		this._selection = range;
 		this._useLastEditRangeForCursorEndPosition = false;
@@ -59,7 +59,7 @@ export class ShiftCommand implements ICommand {
 			endLine = endLine - 1;
 		}
 
-		let lineNumber:number,
+		let lineNumber: number,
 			tabSize = this._opts.tabSize,
 			oneIndent = this._opts.oneIndent,
 			shouldIndentEmptyLines = (startLine === endLine);
@@ -76,7 +76,7 @@ export class ShiftCommand implements ICommand {
 
 		// keep track of previous line's "miss-alignment"
 		let previousLineExtraSpaces = 0, extraSpaces = 0;
-		for (lineNumber = startLine; lineNumber <= endLine; lineNumber++, previousLineExtraSpaces = extraSpaces) {
+		for (lineNumber = startLine; lineNumber <= endLine; lineNumber++ , previousLineExtraSpaces = extraSpaces) {
 			extraSpaces = 0;
 			let lineText = model.getLineContent(lineNumber);
 			let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
@@ -143,7 +143,7 @@ export class ShiftCommand implements ICommand {
 
 			// Fill `indents`, as needed
 			for (let j = indents.length; j <= desiredIndentCount; j++) {
-				indents[j] = indents[j-1] + oneIndent;
+				indents[j] = indents[j - 1] + oneIndent;
 			}
 
 			builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);

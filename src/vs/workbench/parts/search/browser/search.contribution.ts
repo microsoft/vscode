@@ -6,24 +6,24 @@
 'use strict';
 
 import 'vs/css!./media/search.contribution';
-import {Registry} from 'vs/platform/platform';
-import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor} from 'vs/workbench/browser/viewlet';
-import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/platform';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
-import {IAction} from 'vs/base/common/actions';
-import {asFileResource} from 'vs/workbench/parts/files/common/files';
-import {SyncActionDescriptor, DeferredAction} from 'vs/platform/actions/common/actions';
-import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { IAction } from 'vs/base/common/actions';
+import { asFileResource } from 'vs/workbench/parts/files/common/files';
+import { SyncActionDescriptor, DeferredAction } from 'vs/platform/actions/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as searchActions from 'vs/workbench/parts/search/browser/searchActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
@@ -123,7 +123,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusAct
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FindInFilesAction, Constants.FindInFilesActionId, nls.localize('findInFiles', "Find in Files"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F },
 	Constants.SearchInputBoxFocussedKey.toNegated()), 'Find in Files');
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ReplaceInFilesAction, searchActions.ReplaceInFilesAction.ID, searchActions.ReplaceInFilesAction.LABEL, {primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H}), 'Replace in Files');
+registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ReplaceInFilesAction, searchActions.ReplaceInFilesAction.ID, searchActions.ReplaceInFilesAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files');
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.CloseReplaceAction, Constants.CloseReplaceWidgetActionId, '', { primary: KeyCode.Escape }, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceInputBoxFocussedKey)), '');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowNextSearchTermAction, searchActions.ShowNextSearchTermAction.ID, searchActions.ShowNextSearchTermAction.LABEL, ShowNextFindTermKeybinding,

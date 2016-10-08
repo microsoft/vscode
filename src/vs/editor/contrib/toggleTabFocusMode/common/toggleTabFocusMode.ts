@@ -5,10 +5,10 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {TabFocus} from 'vs/editor/common/config/commonEditorConfig';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 
 @editorAction
 export class ToggleTabFocusModeAction extends EditorAction {
@@ -29,7 +29,7 @@ export class ToggleTabFocusModeAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let oldValue = TabFocus.getTabFocusMode();
 		TabFocus.setTabFocusMode(!oldValue);
 	}

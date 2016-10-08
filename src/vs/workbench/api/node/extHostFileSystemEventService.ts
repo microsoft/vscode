@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable} from './extHostTypes';
-import {match} from 'vs/base/common/glob';
-import {Uri, FileSystemWatcher as _FileSystemWatcher} from 'vscode';
-import {FileSystemEvents, ExtHostFileSystemEventServiceShape} from './extHost.protocol';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Disposable } from './extHostTypes';
+import { match } from 'vs/base/common/glob';
+import { Uri, FileSystemWatcher as _FileSystemWatcher } from 'vscode';
+import { FileSystemEvents, ExtHostFileSystemEventServiceShape } from './extHost.protocol';
 
 export class FileSystemWatcher implements _FileSystemWatcher {
 
@@ -18,15 +18,15 @@ export class FileSystemWatcher implements _FileSystemWatcher {
 	private _disposable: Disposable;
 	private _config: number;
 
-	get ignoreCreateEvents(): boolean{
+	get ignoreCreateEvents(): boolean {
 		return Boolean(this._config & 0b001);
 	}
 
-	get ignoreChangeEvents(): boolean{
+	get ignoreChangeEvents(): boolean {
 		return Boolean(this._config & 0b010);
 	}
 
-	get ignoreDeleteEvents(): boolean{
+	get ignoreDeleteEvents(): boolean {
 		return Boolean(this._config & 0b100);
 	}
 

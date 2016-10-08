@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise, Promise }  from 'vs/base/common/winjs.base';
-import { TerminateResponse} from 'vs/base/common/processes';
+import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { TerminateResponse } from 'vs/base/common/processes';
 
 import { IMode } from 'vs/editor/common/modes';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 
-import { ITaskSystem, ITaskSummary, TaskDescription, TelemetryEvent, Triggers, TaskConfiguration, ITaskExecuteResult, TaskExecuteKind }  from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, TaskDescription, TelemetryEvent, Triggers, TaskConfiguration, ITaskExecuteResult, TaskExecuteKind } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
 export interface LanguageServiceTaskConfiguration extends TaskConfiguration {
-	modes:string[];
+	modes: string[];
 }
 
 export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSystem {
@@ -55,7 +55,7 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 		return { kind: TaskExecuteKind.Started, promise: TPromise.wrapError<ITaskSummary>('Not implemented yet.') };
 	}
 
-	public run(taskIdentifier:string): ITaskExecuteResult {
+	public run(taskIdentifier: string): ITaskExecuteResult {
 		return { kind: TaskExecuteKind.Started, promise: TPromise.wrapError<ITaskSummary>('Not implemented yet.') };
 	}
 
@@ -90,24 +90,26 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 			command: 'languageService',
 			success: true
 		};
-		return { kind: TaskExecuteKind.Started, started: {}, promise: Promise.join(this.configuration.modes.map((mode) => {
-			return this.modeService.getOrCreateMode(mode);
-		})).then((modes: IMode[]) => {
-			let promises: Promise[] = [];
-			modes.forEach((mode) => {
-				let promise = fn(mode);
-				if (promise) {
-					promises.push(promise);
-				}
-			});
-			return Promise.join(promises);
-		}).then((value) => {
+		return {
+			kind: TaskExecuteKind.Started, started: {}, promise: Promise.join(this.configuration.modes.map((mode) => {
+				return this.modeService.getOrCreateMode(mode);
+			})).then((modes: IMode[]) => {
+				let promises: Promise[] = [];
+				modes.forEach((mode) => {
+					let promise = fn(mode);
+					if (promise) {
+						promises.push(promise);
+					}
+				});
+				return Promise.join(promises);
+			}).then((value) => {
 				this.telemetryService.publicLog(LanguageServiceTaskSystem.TelemetryEventName, telemetryEvent);
 				return value;
 			}, (err) => {
 				telemetryEvent.success = false;
 				this.telemetryService.publicLog(LanguageServiceTaskSystem.TelemetryEventName, telemetryEvent);
 				return Promise.wrapError(err);
-		})};
+			})
+		};
 	}
 }

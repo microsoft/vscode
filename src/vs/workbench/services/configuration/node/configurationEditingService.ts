@@ -6,21 +6,21 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
 import strings = require('vs/base/common/strings');
-import {getConfigurationKeys} from 'vs/platform/configuration/common/model';
-import {setProperty} from 'vs/base/common/jsonEdit';
-import {applyEdits} from 'vs/base/common/jsonFormatter';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {WORKSPACE_CONFIG_DEFAULT_PATH} from 'vs/workbench/services/configuration/common/configuration';
-import {IFileService} from 'vs/platform/files/common/files';
-import {IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue} from 'vs/workbench/services/configuration/common/configurationEditing';
+import { getConfigurationKeys } from 'vs/platform/configuration/common/model';
+import { setProperty } from 'vs/base/common/jsonEdit';
+import { applyEdits } from 'vs/base/common/jsonFormatter';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { WORKSPACE_CONFIG_DEFAULT_PATH } from 'vs/workbench/services/configuration/common/configuration';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
 	'tasks': '.vscode/tasks.json',

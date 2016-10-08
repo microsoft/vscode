@@ -39,7 +39,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, BuiltinStatusLabelAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { Keybinding } from 'vs/base/common/keybinding';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -50,9 +50,9 @@ function renderBody(body: string): string {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css') }" >
+				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
 			</head>
-			<body>${ body }</body>
+			<body>${ body}</body>
 		</html>`;
 }
 
@@ -222,14 +222,14 @@ export class ExtensionEditor extends BaseEditor {
 		this.description.textContent = extension.description;
 
 		if (product.extensionsGallery) {
-			const extensionUrl = `${ product.extensionsGallery.itemUrl }?itemName=${ extension.publisher }.${ extension.name }`;
+			const extensionUrl = `${product.extensionsGallery.itemUrl}?itemName=${extension.publisher}.${extension.name}`;
 
 			this.name.onclick = finalHandler(() => shell.openExternal(extensionUrl));
-			this.rating.onclick = finalHandler(() => shell.openExternal(`${ extensionUrl }#review-details`));
+			this.rating.onclick = finalHandler(() => shell.openExternal(`${extensionUrl}#review-details`));
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
-					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`));
+					.done(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
 			});
 
 			if (extension.licenseUrl) {
@@ -600,7 +600,7 @@ export class ExtensionEditor extends BaseEditor {
 	private keybindingToLabel(rawKeyBinding: IKeyBinding): string {
 		let key: string;
 
-		switch(process.platform) {
+		switch (process.platform) {
 			case 'win32': key = rawKeyBinding.win; break;
 			case 'linux': key = rawKeyBinding.linux; break;
 			case 'darwin': key = rawKeyBinding.mac; break;
@@ -610,7 +610,7 @@ export class ExtensionEditor extends BaseEditor {
 		return this.keybindingService.getLabelFor(keyBinding);
 	}
 
-	private loadContents(loadingTask: ()=>TPromise<any>): void {
+	private loadContents(loadingTask: () => TPromise<any>): void {
 		addClass(this.content, 'loading');
 
 		let promise = loadingTask();

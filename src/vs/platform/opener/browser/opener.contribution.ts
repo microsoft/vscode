@@ -5,8 +5,8 @@
 
 'use strict';
 
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {OpenerService} from 'vs/platform/opener/browser/openerService';
-import {IOpenerService} from 'vs/platform/opener/common/opener';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { OpenerService } from 'vs/platform/opener/browser/openerService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 registerSingleton(IOpenerService, OpenerService);

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IProcessEnvironment} from 'vs/base/common/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export const ITerminalService = createDecorator<ITerminalService>('nativeTerminalService');
 

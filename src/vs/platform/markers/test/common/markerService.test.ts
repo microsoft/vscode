@@ -8,7 +8,7 @@
 import assert = require('assert');
 import URI from 'vs/base/common/uri';
 import markerService = require('vs/platform/markers/common/markerService');
-import {IMarkerData} from 'vs/platform/markers/common/markers';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 function randomMarkerData(): IMarkerData {
 	return {
@@ -94,9 +94,9 @@ suite('Marker Service', () => {
 			resource: URI.parse('file:///d/path'),
 			marker: randomMarkerData()
 		}, {
-				resource: URI.parse('file:///d/path'),
-				marker: randomMarkerData()
-			}]);
+			resource: URI.parse('file:///d/path'),
+			marker: randomMarkerData()
+		}]);
 
 		assert.equal(service.read({ owner: 'far' }).length, 2);
 
@@ -116,9 +116,9 @@ suite('Marker Service', () => {
 			resource: URI.parse('file:///c/test/file.cs'),
 			marker: randomMarkerData()
 		}, {
-				resource: URI.parse('file:///c/test/file.cs'),
-				marker: randomMarkerData()
-			}]);
+			resource: URI.parse('file:///c/test/file.cs'),
+			marker: randomMarkerData()
+		}]);
 
 		assert.equal(service.read({ owner: 'far' }).length, 2);
 	});

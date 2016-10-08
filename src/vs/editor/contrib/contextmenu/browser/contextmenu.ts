@@ -5,22 +5,22 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IAction} from 'vs/base/common/actions';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Keybinding} from 'vs/base/common/keybinding';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { IAction } from 'vs/base/common/actions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {IMenuService, MenuId} from 'vs/platform/actions/common/actions';
-import {ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { ICommonCodeEditor, IEditorContribution, MouseTargetType, EditorContextKeys, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 export interface IPosition {
 	x: number;
@@ -237,7 +237,7 @@ class ShowContextMenu extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let contribution = ContextMenuController.get(editor);
 		contribution.showContextMenu();
 	}

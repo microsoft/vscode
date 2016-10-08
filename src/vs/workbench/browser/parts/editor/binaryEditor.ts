@@ -6,17 +6,17 @@
 'use strict';
 
 import nls = require('vs/nls');
-import Event, {Emitter} from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
-import {EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import Event, { Emitter } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { ResourceViewer } from 'vs/base/browser/ui/resourceviewer/resourceViewer';
+import { EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 /*
  * This class is only intended to be subclassed and not instantiated.

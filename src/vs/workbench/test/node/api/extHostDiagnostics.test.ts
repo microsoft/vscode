@@ -8,11 +8,11 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import {DiagnosticCollection} from 'vs/workbench/api/node/extHostDiagnostics';
-import {Diagnostic, DiagnosticSeverity, Range} from 'vs/workbench/api/node/extHostTypes';
-import {MainThreadDiagnosticsShape} from 'vs/workbench/api/node/extHost.protocol';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IMarkerData} from 'vs/platform/markers/common/markers';
+import { DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
+import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/extHostTypes';
+import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 suite('ExtHostDiagnostics', () => {
 

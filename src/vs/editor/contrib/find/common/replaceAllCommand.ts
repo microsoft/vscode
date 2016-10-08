@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
 interface IEditOperation {
-	range:Range;
-	text:string;
+	range: Range;
+	text: string;
 }
 
 export class ReplaceAllCommand implements editorCommon.ICommand {
@@ -20,16 +20,16 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 	private _ranges: Range[];
 	private _replaceStrings: string[];
 
-	constructor(editorSelection:Selection, ranges: Range[], replaceStrings:string[]) {
+	constructor(editorSelection: Selection, ranges: Range[], replaceStrings: string[]) {
 		this._editorSelection = editorSelection;
 		this._ranges = ranges;
 		this._replaceStrings = replaceStrings;
 	}
 
-	public getEditOperations(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		if (this._ranges.length > 0) {
 			// Collect all edit operations
-			var ops:IEditOperation[] = [];
+			var ops: IEditOperation[] = [];
 			for (var i = 0; i < this._ranges.length; i++) {
 				ops.push({
 					range: this._ranges[i],
@@ -43,7 +43,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 			});
 
 			// Merge operations that touch each other
-			var resultOps:IEditOperation[] = [];
+			var resultOps: IEditOperation[] = [];
 			var previousOp = ops[0];
 			for (var i = 1; i < ops.length; i++) {
 				if (previousOp.range.endLineNumber === ops[i].range.startLineNumber && previousOp.range.endColumn === ops[i].range.startColumn) {
@@ -65,7 +65,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._trackedEditorSelectionId = builder.trackSelection(this._editorSelection);
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._trackedEditorSelectionId);
 	}
 }

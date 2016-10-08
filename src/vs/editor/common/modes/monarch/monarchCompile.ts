@@ -11,7 +11,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
-import {IMonarchLanguage, IMonarchLanguageBracket} from 'vs/editor/common/modes/monarch/monarchTypes';
+import { IMonarchLanguage, IMonarchLanguageBracket } from 'vs/editor/common/modes/monarch/monarchTypes';
 
 /*
  * Type helpers
@@ -40,7 +40,7 @@ function isArrayOf(elemType: (x: any) => boolean, obj: any): boolean {
 	return true;
 }
 
-function bool(prop: any, def?: boolean, onerr?: () => void ): boolean {
+function bool(prop: any, def?: boolean, onerr?: () => void): boolean {
 	if (typeof (prop) === 'boolean') {
 		return prop;
 	}
@@ -50,7 +50,7 @@ function bool(prop: any, def?: boolean, onerr?: () => void ): boolean {
 	return (def === undefined ? null : def);
 }
 
-function string(prop: any, def?: string, onerr?: () => void ): string {
+function string(prop: any, def?: string, onerr?: () => void): string {
 	if (typeof (prop) === 'string') {
 		return prop;
 	}
@@ -75,7 +75,7 @@ function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
 	var n = 0;
 	while (str.indexOf('@') >= 0 && n < 5) { // at most 5 expansions
 		n++;
-		str = str.replace(/@(\w+)/g, function(s, attr?) {
+		str = str.replace(/@(\w+)/g, function (s, attr?) {
 			var sub = '';
 			if (typeof (lexer[attr]) === 'string') {
 				sub = lexer[attr];
@@ -156,27 +156,27 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 	// special case a regexp that matches just words
 	if ((op === '~' || op === '!~') && /^(\w|\|)*$/.test(pat)) {
 		var inWords = objects.createKeywordMatcher(pat.split('|'), lexer.ignoreCase);
-		tester = function(s) { return (op === '~' ? inWords(s) : !inWords(s)); };
+		tester = function (s) { return (op === '~' ? inWords(s) : !inWords(s)); };
 	}
 	else if (op === '@' || op === '!@') {
 		var words = lexer[pat];
 		if (!words) {
 			monarchCommon.throwError(lexer, 'the @ match target \'' + pat + '\' is not defined, in rule: ' + ruleName);
 		}
-		if (!(isArrayOf(function(elem) { return (typeof (elem) === 'string'); }, words))) {
+		if (!(isArrayOf(function (elem) { return (typeof (elem) === 'string'); }, words))) {
 			monarchCommon.throwError(lexer, 'the @ match target \'' + pat + '\' must be an array of strings, in rule: ' + ruleName);
 		}
 		var inWords = objects.createKeywordMatcher(words, lexer.ignoreCase);
-		tester = function(s) { return (op === '@' ? inWords(s) : !inWords(s)); };
+		tester = function (s) { return (op === '@' ? inWords(s) : !inWords(s)); };
 	}
 	else if (op === '~' || op === '!~') {
 		if (pat.indexOf('$') < 0) {
 			// precompile regular expression
 			var re = compileRegExp(lexer, '^' + pat + '$');
-			tester = function(s) { return (op === '~' ? re.test(s) : !re.test(s)); };
+			tester = function (s) { return (op === '~' ? re.test(s) : !re.test(s)); };
 		}
 		else {
-			tester = function(s, id, matches, state) {
+			tester = function (s, id, matches, state) {
 				var re = compileRegExp(lexer, '^' + monarchCommon.substituteMatches(lexer, pat, id, matches, state) + '$');
 				return re.test(s);
 			};
@@ -185,11 +185,11 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 	else { // if (op==='==' || op==='!=') {
 		if (pat.indexOf('$') < 0) {
 			var patx = monarchCommon.fixCase(lexer, pat);
-			tester = function(s) { return (op === '==' ? s === patx : s !== patx); };
+			tester = function (s) { return (op === '==' ? s === patx : s !== patx); };
 		}
 		else {
 			var patx = monarchCommon.fixCase(lexer, pat);
-			tester = function(s, id, matches, state, eos) {
+			tester = function (s, id, matches, state, eos) {
 				var patexp = monarchCommon.substituteMatches(lexer, patx, id, matches, state);
 				return (op === '==' ? s === patexp : s !== patexp);
 			};
@@ -199,14 +199,14 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 	// return the branch object
 	if (scrut === -1) {
 		return {
-			name: tkey, value: val, test: function(id, matches, state, eos) {
+			name: tkey, value: val, test: function (id, matches, state, eos) {
 				return tester(id, id, matches, state, eos);
 			}
 		};
 	}
 	else {
 		return {
-			name: tkey, value: val, test: function(id, matches, state, eos) {
+			name: tkey, value: val, test: function (id, matches, state, eos) {
 				var scrutinee = selectScrutinee(id, matches, state, scrut);
 				return tester(!scrutinee ? '' : scrutinee, id, matches, state, eos);
 			}
@@ -309,7 +309,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 					cases.push({ test: null, value: val, name: tkey });
 				}
 				else if (tkey === '@eos') {
-					cases.push({ test: function(id, matches, state, eos) { return eos; }, value: val, name: tkey });
+					cases.push({ test: function (id, matches, state, eos) { return eos; }, value: val, name: tkey });
 				}
 				else {
 					cases.push(createGuard(lexer, ruleName, tkey, val));  // call separate function to avoid local variable capture
@@ -320,7 +320,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 		// create a matching function
 		var def = lexer.defaultToken;
 		return {
-			test: function(id, matches, state, eos) {
+			test: function (id, matches, state, eos) {
 				var idx: string;
 				for (idx in cases) {
 					if (cases.hasOwnProperty(idx)) {
@@ -386,7 +386,7 @@ class Rule implements monarchCommon.IRule {
  * (Currently we have no samples that need this so perhaps we should always have
  * jsonStrict to true).
  */
-export function compile(languageId:string, json: IMonarchLanguage): monarchCommon.ILexer {
+export function compile(languageId: string, json: IMonarchLanguage): monarchCommon.ILexer {
 	if (!json || typeof (json) !== 'object') {
 		throw new Error('Monarch: expecting a language definition object');
 	}
@@ -512,10 +512,10 @@ export function compile(languageId:string, json: IMonarchLanguage): monarchCommo
 			{ open: '(', close: ')', token: 'delimiter.parenthesis' },
 			{ open: '<', close: '>', token: 'delimiter.angle' }];
 	}
-	var brackets : IMonarchLanguageBracket[] = [];
+	var brackets: IMonarchLanguageBracket[] = [];
 	for (var bracketIdx in json.brackets) {
 		if (json.brackets.hasOwnProperty(bracketIdx)) {
-			var desc = <any> json.brackets[bracketIdx];
+			var desc = <any>json.brackets[bracketIdx];
 			if (desc && Array.isArray(desc) && desc.length === 3) {
 				desc = { token: desc[2], open: desc[0], close: desc[1] };
 			}

@@ -6,8 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
-import {FileImportedEvent} from 'vs/workbench/parts/files/browser/fileActions';
+import { LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileImportedEvent } from 'vs/workbench/parts/files/browser/fileActions';
 
 suite('Files - Events', () => {
 

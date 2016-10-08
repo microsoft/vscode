@@ -121,7 +121,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		return TPromise.as(null);
 	}
 
-	setVisible(visible:boolean): TPromise<void> {
+	setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
 			if (visible) {
 				this.searchBox.focus();
@@ -137,7 +137,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		this.searchBox.focus();
 	}
 
-	layout({ height, width }: Dimension):void {
+	layout({ height, width }: Dimension): void {
 		this.list.layout(height - 38);
 		toggleClass(this.root, 'narrow', width <= 300);
 	}
@@ -236,7 +236,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		const query = Query.parse(value);
 		let options: IQueryOptions = {};
 
-		switch(query.sortBy) {
+		switch (query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
 			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
 		}
@@ -267,7 +267,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
 				const names = this.tipsService.getRecommendations()
-					.filter(name => local.every(ext => `${ ext.publisher }.${ ext.name }` !== name))
+					.filter(name => local.every(ext => `${ext.publisher}.${ext.name}` !== name))
 					.filter(name => name.toLowerCase().indexOf(value) > -1);
 
 				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });

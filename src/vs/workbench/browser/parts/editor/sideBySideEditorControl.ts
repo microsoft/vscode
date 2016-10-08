@@ -7,35 +7,35 @@
 
 import 'vs/css!./media/sidebyside';
 import arrays = require('vs/base/common/arrays');
-import Event, {Emitter} from 'vs/base/common/event';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import Event, { Emitter } from 'vs/base/common/event';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import types = require('vs/base/common/types');
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
-import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {isMacintosh} from 'vs/base/common/platform';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
-import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TabsTitleControl} from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import {TitleControl} from 'vs/workbench/browser/parts/editor/titleControl';
-import {NoTabsTitleControl} from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import {IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier} from 'vs/workbench/common/editor';
-import {ITitleAreaControl} from 'vs/workbench/browser/parts/editor/titleControl';
-import {extractResources} from 'vs/base/browser/dnd';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
+import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
+import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
+import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { extractResources } from 'vs/base/browser/dnd';
 
 export enum Rochade {
 	NONE,
@@ -788,7 +788,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			if (showTabs) {
 				titleContainer.addClass('tabs');
 			}
-			if (showIcons)  {
+			if (showIcons) {
 				titleContainer.addClass('show-file-icons');
 			}
 			this.hookTitleDragListener(titleContainer);

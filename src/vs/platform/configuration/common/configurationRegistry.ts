@@ -5,12 +5,12 @@
 'use strict';
 
 import nls = require('vs/nls');
-import Event, {Emitter} from 'vs/base/common/event';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {Registry} from 'vs/platform/platform';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Registry } from 'vs/platform/platform';
 import objects = require('vs/base/common/objects');
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IJSONContributionRegistry, Extensions as JSONExtensions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'

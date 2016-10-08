@@ -18,8 +18,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import {
+	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType
+} from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -50,7 +52,7 @@ class Extension implements IExtension {
 		private stateProvider: IExtensionStateProvider,
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension = null
-	) {}
+	) { }
 
 	get type(): LocalExtensionType {
 		return this.local ? this.local.type : null;
@@ -197,11 +199,11 @@ class Extension implements IExtension {
 		return this.galleryService.getAsset(readmeUrl).then(asText);
 	}
 
-	get hasChangelog() : boolean {
+	get hasChangelog(): boolean {
 		return !!(this.changelogUrl);
 	}
 
-	getChangelog() : TPromise<string> {
+	getChangelog(): TPromise<string> {
 		const changelogUrl = this.changelogUrl;
 
 		if (!changelogUrl) {
@@ -228,7 +230,7 @@ class Extension implements IExtension {
 
 class ExtensionDependencies implements IExtensionDependencies {
 
-	constructor(private _extension: Extension, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) {}
+	constructor(private _extension: Extension, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) { }
 
 	get hasDependencies(): boolean {
 		return this._extension.gallery.properties.dependencies.length > 0;

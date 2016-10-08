@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/sidebarpart';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import {Action} from 'vs/base/common/actions';
-import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
-import {Viewlet, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IViewlet} from 'vs/workbench/common/viewlet';
-import {Scope} from 'vs/workbench/browser/actionBarRegistry';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/platform';
+import { Action } from 'vs/base/common/actions';
+import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
+import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {

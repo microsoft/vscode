@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/css!./button';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 import DOM = require('vs/base/browser/dom');
-import {Builder, $} from 'vs/base/browser/builder';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class Button extends EventEmitter {
 

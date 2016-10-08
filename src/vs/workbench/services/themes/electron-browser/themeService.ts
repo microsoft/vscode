@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
-import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IThemeService, IThemeData, IThemeSetting, IThemeDocument} from 'vs/workbench/services/themes/common/themeService';
-import {TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution} from 'vs/workbench/services/themes/electron-browser/stylesContributions';
-import {getBaseThemeId} from 'vs/platform/theme/common/themes';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Registry} from 'vs/platform/platform';
-import {Extensions as JSONExtensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRegistry, IExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IThemeService, IThemeData, IThemeSetting, IThemeDocument } from 'vs/workbench/services/themes/common/themeService';
+import { TokenStylesContribution, EditorStylesContribution, SearchViewStylesContribution } from 'vs/workbench/services/themes/electron-browser/stylesContributions';
+import { getBaseThemeId } from 'vs/platform/theme/common/themes';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Registry } from 'vs/platform/platform';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import {$} from 'vs/base/browser/builder';
-import Event, {Emitter} from 'vs/base/common/event';
+import { $ } from 'vs/base/browser/builder';
+import Event, { Emitter } from 'vs/base/common/event';
 
 import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
@@ -41,7 +41,7 @@ let defaultBaseTheme = getBaseThemeId(DEFAULT_THEME_ID);
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
-function validateThemeId(theme: string) : string {
+function validateThemeId(theme: string): string {
 	// migrations
 	switch (theme) {
 		case 'vs': return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
@@ -119,22 +119,22 @@ interface FontDefinition {
 	weight: string;
 	style: string;
 	size: string;
-	src: { path:string; format:string; }[];
+	src: { path: string; format: string; }[];
 }
 
 interface IconsAssociation {
 	folder?: string;
 	file?: string;
 	folderExpanded?: string;
-	folderNames?: {[folderName:string]: string; };
-	folderNamesExpanded?: {[folderName:string]: string; };
-	fileExtensions?: {[extension:string]: string; };
-	fileNames?: {[fileName:string]: string; };
-	languageIds?: {[languageId:string]: string; };
+	folderNames?: { [folderName: string]: string; };
+	folderNamesExpanded?: { [folderName: string]: string; };
+	fileExtensions?: { [extension: string]: string; };
+	fileNames?: { [fileName: string]: string; };
+	languageIds?: { [languageId: string]: string; };
 }
 
 interface IconThemeDocument extends IconsAssociation {
-	iconDefinitions: { [key:string]: IconDefinition };
+	iconDefinitions: { [key: string]: IconDefinition };
 	fonts: FontDefinition[];
 	light?: IconsAssociation;
 	highContrast?: IconsAssociation;
@@ -152,10 +152,10 @@ export class ThemeService implements IThemeService {
 	private currentIconTheme: string;
 
 	constructor(
-			@IExtensionService private extensionService: IExtensionService,
-			@IWindowService private windowService: IWindowService,
-			@IStorageService private storageService: IStorageService,
-			@ITelemetryService private telemetryService: ITelemetryService) {
+		@IExtensionService private extensionService: IExtensionService,
+		@IWindowService private windowService: IWindowService,
+		@IStorageService private storageService: IStorageService,
+		@ITelemetryService private telemetryService: ITelemetryService) {
 
 		this.knownColorThemes = [];
 		this.onColorThemeChange = new Emitter<string>();
@@ -207,7 +207,7 @@ export class ThemeService implements IThemeService {
 
 	}
 
-	public setColorTheme(themeId: string, broadcastToAllWindows: boolean) : TPromise<boolean> {
+	public setColorTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean> {
 		if (!themeId) {
 			return TPromise.as(false);
 		}
@@ -250,19 +250,19 @@ export class ThemeService implements IThemeService {
 		return this.getColorThemes().then(allThemes => {
 			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
-				return <IInternalThemeData> themes[0];
+				return <IInternalThemeData>themes[0];
 			}
 			if (defaultId) {
 				let themes = allThemes.filter(t => t.id === defaultId);
 				if (themes.length > 0) {
-					return <IInternalThemeData> themes[0];
+					return <IInternalThemeData>themes[0];
 				}
 			}
 			return null;
 		});
 	}
 
-	private applyThemeCSS(themeId: string, defaultId: string, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
+	private applyThemeCSS(themeId: string, defaultId: string, onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 		return this.findThemeData(themeId, defaultId).then(theme => {
 			if (theme) {
 				return applyTheme(theme, onApply);
@@ -384,7 +384,7 @@ export class ThemeService implements IThemeService {
 		return this.currentIconTheme || this.storageService.get(ICON_THEME_PREF, StorageScope.GLOBAL, '');
 	}
 
-	public setFileIconTheme(iconTheme: string, broadcastToAllWindows: boolean) : TPromise<boolean> {
+	public setFileIconTheme(iconTheme: string, broadcastToAllWindows: boolean): TPromise<boolean> {
 		iconTheme = iconTheme || '';
 		if (iconTheme === this.currentIconTheme) {
 			if (broadcastToAllWindows) {
@@ -407,12 +407,12 @@ export class ThemeService implements IThemeService {
 		return this._updateIconTheme(onApply);
 	}
 
-	private _updateIconTheme(onApply: (theme:IInternalThemeData) => void) : TPromise<boolean> {
+	private _updateIconTheme(onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 		return this.getFileIconThemes().then(allIconSets => {
 			let iconSetData;
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === this.currentIconTheme) {
-					iconSetData = <IInternalThemeData> iconSet;
+					iconSetData = <IInternalThemeData>iconSet;
 					break;
 				}
 			}
@@ -421,7 +421,7 @@ export class ThemeService implements IThemeService {
 	}
 }
 
-function _applyIconTheme(data: IInternalThemeData, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
+function _applyIconTheme(data: IInternalThemeData, onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 	if (!data) {
 		_applyRules('', iconThemeRulesClassName);
 		onApply(data);
@@ -444,10 +444,10 @@ function _applyIconTheme(data: IInternalThemeData, onApply: (theme:IInternalThem
 	});
 }
 
-function _loadIconThemeDocument(fileSetPath: string) : TPromise<IconThemeDocument> {
+function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument> {
 	return pfs.readFile(fileSetPath).then(content => {
 		let errors: Json.ParseError[] = [];
-		let contentValue = <IThemeDocument> Json.parse(content.toString(), errors);
+		let contentValue = <IThemeDocument>Json.parse(content.toString(), errors);
 		if (errors.length > 0) {
 			return TPromise.wrapError(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 		}
@@ -455,11 +455,11 @@ function _loadIconThemeDocument(fileSetPath: string) : TPromise<IconThemeDocumen
 	});
 }
 
-function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument) : string {
+function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument): string {
 	if (!iconThemeDocument.iconDefinitions) {
 		return '';
 	}
-	let selectorByDefinitionId : {[def:string]:string[]} = {};
+	let selectorByDefinitionId: { [def: string]: string[] } = {};
 
 	function resolvePath(path: string) {
 		return Paths.join(Paths.dirname(iconThemeDocumentPath), path);
@@ -588,7 +588,7 @@ function toCSSSelector(str: string) {
 	return str;
 }
 
-function applyTheme(theme: IInternalThemeData, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
+function applyTheme(theme: IInternalThemeData, onApply: (theme: IInternalThemeData) => void): TPromise<boolean> {
 	if (theme.styleSheetContent) {
 		_applyRules(theme.styleSheetContent, colorThemeRulesClassName);
 		onApply(theme);
@@ -605,11 +605,11 @@ function applyTheme(theme: IInternalThemeData, onApply: (theme:IInternalThemeDat
 	});
 }
 
-function _loadThemeDocument(themePath: string) : TPromise<IThemeDocument> {
+function _loadThemeDocument(themePath: string): TPromise<IThemeDocument> {
 	return pfs.readFile(themePath).then(content => {
 		if (Paths.extname(themePath) === '.json') {
 			let errors: Json.ParseError[] = [];
-			let contentValue = <IThemeDocument> Json.parse(content.toString(), errors);
+			let contentValue = <IThemeDocument>Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
 				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 			}
@@ -631,7 +631,7 @@ function _loadThemeDocument(themePath: string) : TPromise<IThemeDocument> {
 
 function _processThemeObject(themeId: string, themeDocument: IThemeDocument): string {
 	let cssRules: string[] = [];
-	let themeSettings : IThemeSetting[] = themeDocument.settings;
+	let themeSettings: IThemeSetting[] = themeDocument.settings;
 
 	if (Array.isArray(themeSettings)) {
 		new TokenStylesContribution().contributeStyles(themeId, themeDocument, cssRules);

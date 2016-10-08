@@ -251,6 +251,6 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 
 		const platform = process.platform === 'linux' ? `linux-${process.arch}` : process.platform;
 
-		return `${ product.updateUrl }/api/update/${ platform }/${ channel }/${ product.commit }`;
+		return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
 	}
 }

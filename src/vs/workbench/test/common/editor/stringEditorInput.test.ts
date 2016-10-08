@@ -8,12 +8,12 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
 import URI from 'vs/base/common/uri';
-import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
-import {createMockModelService, TestEditorService} from 'vs/test/utils/servicesTestUtils';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModeService} from 'vs/editor/common/services/modeService';
+import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { createMockModelService, TestEditorService } from 'vs/test/utils/servicesTestUtils';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 
 suite('Workbench - StringEditorInput', () => {
@@ -24,10 +24,10 @@ suite('Workbench - StringEditorInput', () => {
 	let modeService: IModeService;
 
 	setup(() => {
-		instantiationService= new TestInstantiationService();
-		editorService= <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
-		modeService= instantiationService.stub(IModeService);
-		modelService= <IModelService> instantiationService.stub(IModelService, createMockModelService(instantiationService));
+		instantiationService = new TestInstantiationService();
+		editorService = <WorkbenchEditorService.IWorkbenchEditorService>instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService(function () { }));
+		modeService = instantiationService.stub(IModeService);
+		modelService = <IModelService>instantiationService.stub(IModelService, createMockModelService(instantiationService));
 	});
 
 	test('StringEditorInput', function (done) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {illegalArgument} from 'vs/base/common/errors';
+import { illegalArgument } from 'vs/base/common/errors';
 import * as instantiation from './instantiation';
 
 export class AbstractDescriptor<T> {

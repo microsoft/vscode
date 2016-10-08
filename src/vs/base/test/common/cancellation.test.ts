@@ -5,11 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import {CancellationTokenSource, CancellationToken} from 'vs/base/common/cancellation';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
-suite('CancellationToken', function() {
+suite('CancellationToken', function () {
 
-	test('None', function() {
+	test('None', function () {
 		assert.equal(CancellationToken.None.isCancellationRequested, false);
 		assert.equal(typeof CancellationToken.None.onCancellationRequested, 'function');
 	});
@@ -48,7 +48,7 @@ suite('CancellationToken', function() {
 		});
 	});
 
-	test('cancel happens only once', function() {
+	test('cancel happens only once', function () {
 
 		let source = new CancellationTokenSource();
 		assert.equal(source.token.isCancellationRequested, false);
@@ -85,7 +85,7 @@ suite('CancellationToken', function() {
 		assert.equal(count, 3);
 	});
 
-	test('token stays the same', function(){
+	test('token stays the same', function () {
 
 		let source = new CancellationTokenSource();
 		let token = source.token;

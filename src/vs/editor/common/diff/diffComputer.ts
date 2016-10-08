@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDiffChange, ISequence, LcsDiff} from 'vs/base/common/diff/diff';
+import { IDiffChange, ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import * as strings from 'vs/base/common/strings';
-import {ICharChange, ILineChange} from 'vs/editor/common/editorCommon';
+import { ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 
 var MAXIMUM_RUN_TIME = 5000; // 5 seconds
 var MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
@@ -17,24 +17,24 @@ interface IMarker {
 	offset: number;
 }
 
-function computeDiff(originalSequence:ISequence, modifiedSequence:ISequence, continueProcessingPredicate:()=>boolean): IDiffChange[] {
+function computeDiff(originalSequence: ISequence, modifiedSequence: ISequence, continueProcessingPredicate: () => boolean): IDiffChange[] {
 	var diffAlgo = new LcsDiff(originalSequence, modifiedSequence, continueProcessingPredicate);
 	return diffAlgo.ComputeDiff();
 }
 
 class MarkerSequence implements ISequence {
 
-	public buffer:string;
-	public startMarkers:IMarker[];
-	public endMarkers:IMarker[];
+	public buffer: string;
+	public startMarkers: IMarker[];
+	public endMarkers: IMarker[];
 
-	constructor(buffer:string, startMarkers:IMarker[], endMarkers:IMarker[]) {
+	constructor(buffer: string, startMarkers: IMarker[], endMarkers: IMarker[]) {
 		this.buffer = buffer;
 		this.startMarkers = startMarkers;
 		this.endMarkers = endMarkers;
 	}
 
-	public equals(other:any): boolean {
+	public equals(other: any): boolean {
 		if (!(other instanceof MarkerSequence)) {
 			return false;
 		}
@@ -56,11 +56,11 @@ class MarkerSequence implements ISequence {
 		return this.startMarkers.length;
 	}
 
-	public getElementHash(i:number): string {
+	public getElementHash(i: number): string {
 		return this.buffer.substring(this.startMarkers[i].offset, this.endMarkers[i].offset);
 	}
 
-	public getStartLineNumber(i:number): number {
+	public getStartLineNumber(i: number): number {
 		if (i === this.startMarkers.length) {
 			// This is the special case where a change happened after the last marker
 			return this.startMarkers[i - 1].lineNumber + 1;
@@ -68,15 +68,15 @@ class MarkerSequence implements ISequence {
 		return this.startMarkers[i].lineNumber;
 	}
 
-	public getStartColumn(i:number): number {
+	public getStartColumn(i: number): number {
 		return this.startMarkers[i].column;
 	}
 
-	public getEndLineNumber(i:number): number {
+	public getEndLineNumber(i: number): number {
 		return this.endMarkers[i].lineNumber;
 	}
 
-	public getEndColumn(i:number): number {
+	public getEndColumn(i: number): number {
 		return this.endMarkers[i].column;
 	}
 
@@ -84,10 +84,10 @@ class MarkerSequence implements ISequence {
 
 class LineMarkerSequence extends MarkerSequence {
 
-	constructor(lines:string[], shouldIgnoreTrimWhitespace:boolean) {
-		var i:number, length:number, pos:number;
+	constructor(lines: string[], shouldIgnoreTrimWhitespace: boolean) {
+		var i: number, length: number, pos: number;
 		var buffer = '';
-		var startMarkers:IMarker[] = [], endMarkers:IMarker[] = [], startColumn:number, endColumn:number;
+		var startMarkers: IMarker[] = [], endMarkers: IMarker[] = [], startColumn: number, endColumn: number;
 
 		for (pos = 0, i = 0, length = lines.length; i < length; i++) {
 			buffer += lines[i];
@@ -107,7 +107,7 @@ class LineMarkerSequence extends MarkerSequence {
 
 			endMarkers.push({
 				offset: pos + endColumn - 1,
-				lineNumber: i+1,
+				lineNumber: i + 1,
 				column: endColumn
 			});
 
@@ -117,7 +117,7 @@ class LineMarkerSequence extends MarkerSequence {
 		super(buffer, startMarkers, endMarkers);
 	}
 
-	private static _getFirstNonBlankColumn(txt:string, defaultValue:number): number {
+	private static _getFirstNonBlankColumn(txt: string, defaultValue: number): number {
 		var r = strings.firstNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
@@ -125,7 +125,7 @@ class LineMarkerSequence extends MarkerSequence {
 		return r + 1;
 	}
 
-	private static _getLastNonBlankColumn(txt:string, defaultValue:number): number {
+	private static _getLastNonBlankColumn(txt: string, defaultValue: number): number {
 		var r = strings.lastNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
@@ -133,8 +133,8 @@ class LineMarkerSequence extends MarkerSequence {
 		return r + 2;
 	}
 
-	public getCharSequence(startIndex:number, endIndex:number):MarkerSequence {
-		var startMarkers:IMarker[] = [], endMarkers:IMarker[] = [], index:number, i:number, startMarker:IMarker, endMarker:IMarker;
+	public getCharSequence(startIndex: number, endIndex: number): MarkerSequence {
+		var startMarkers: IMarker[] = [], endMarkers: IMarker[] = [], index: number, i: number, startMarker: IMarker, endMarker: IMarker;
 		for (index = startIndex; index <= endIndex; index++) {
 			startMarker = this.startMarkers[index];
 			endMarker = this.endMarkers[index];
@@ -157,17 +157,17 @@ class LineMarkerSequence extends MarkerSequence {
 
 class CharChange implements ICharChange {
 
-	public originalStartLineNumber:number;
-	public originalStartColumn:number;
-	public originalEndLineNumber:number;
-	public originalEndColumn:number;
+	public originalStartLineNumber: number;
+	public originalStartColumn: number;
+	public originalEndLineNumber: number;
+	public originalEndColumn: number;
 
-	public modifiedStartLineNumber:number;
-	public modifiedStartColumn:number;
-	public modifiedEndLineNumber:number;
-	public modifiedEndColumn:number;
+	public modifiedStartLineNumber: number;
+	public modifiedStartColumn: number;
+	public modifiedEndLineNumber: number;
+	public modifiedEndColumn: number;
 
-	constructor(diffChange:IDiffChange, originalCharSequence:MarkerSequence, modifiedCharSequence:MarkerSequence) {
+	constructor(diffChange: IDiffChange, originalCharSequence: MarkerSequence, modifiedCharSequence: MarkerSequence) {
 		if (diffChange.originalLength === 0) {
 			this.originalStartLineNumber = 0;
 			this.originalStartColumn = 0;
@@ -195,13 +195,13 @@ class CharChange implements ICharChange {
 
 }
 
-function postProcessCharChanges(rawChanges:IDiffChange[]): IDiffChange[] {
+function postProcessCharChanges(rawChanges: IDiffChange[]): IDiffChange[] {
 	if (rawChanges.length <= 1) {
 		return rawChanges;
 	}
-	var result = [ rawChanges[0] ];
+	var result = [rawChanges[0]];
 
-	var i:number, len:number, originalMatchingLength:number, modifiedMatchingLength:number, matchingLength:number, prevChange = result[0], currChange:IDiffChange;
+	var i: number, len: number, originalMatchingLength: number, modifiedMatchingLength: number, matchingLength: number, prevChange = result[0], currChange: IDiffChange;
 	for (i = 1, len = rawChanges.length; i < len; i++) {
 		currChange = rawChanges[i];
 
@@ -225,13 +225,13 @@ function postProcessCharChanges(rawChanges:IDiffChange[]): IDiffChange[] {
 }
 
 class LineChange implements ILineChange {
-	public originalStartLineNumber:number;
-	public originalEndLineNumber:number;
-	public modifiedStartLineNumber:number;
-	public modifiedEndLineNumber:number;
-	public charChanges:CharChange[];
+	public originalStartLineNumber: number;
+	public originalEndLineNumber: number;
+	public modifiedStartLineNumber: number;
+	public modifiedEndLineNumber: number;
+	public charChanges: CharChange[];
 
-	constructor(diffChange:IDiffChange, originalLineSequence:LineMarkerSequence, modifiedLineSequence:LineMarkerSequence, continueProcessingPredicate:()=>boolean, shouldPostProcessCharChanges:boolean) {
+	constructor(diffChange: IDiffChange, originalLineSequence: LineMarkerSequence, modifiedLineSequence: LineMarkerSequence, continueProcessingPredicate: () => boolean, shouldPostProcessCharChanges: boolean) {
 		if (diffChange.originalLength === 0) {
 			this.originalStartLineNumber = originalLineSequence.getStartLineNumber(diffChange.originalStart) - 1;
 			this.originalEndLineNumber = 0;
@@ -275,15 +275,15 @@ export interface IDiffComputerOpts {
 
 export class DiffComputer {
 
-	private shouldPostProcessCharChanges:boolean;
-	private shouldIgnoreTrimWhitespace:boolean;
-	private maximumRunTimeMs:number;
-	private original:LineMarkerSequence;
-	private modified:LineMarkerSequence;
+	private shouldPostProcessCharChanges: boolean;
+	private shouldIgnoreTrimWhitespace: boolean;
+	private maximumRunTimeMs: number;
+	private original: LineMarkerSequence;
+	private modified: LineMarkerSequence;
 
-	private computationStartTime:number;
+	private computationStartTime: number;
 
-	constructor(originalLines:string[], modifiedLines:string[], opts:IDiffComputerOpts) {
+	constructor(originalLines: string[], modifiedLines: string[], opts: IDiffComputerOpts) {
 		this.shouldPostProcessCharChanges = opts.shouldPostProcessCharChanges;
 		this.shouldIgnoreTrimWhitespace = opts.shouldIgnoreTrimWhitespace;
 		this.maximumRunTimeMs = MAXIMUM_RUN_TIME;
@@ -297,7 +297,7 @@ export class DiffComputer {
 		}
 	}
 
-	public computeDiff():ILineChange[] {
+	public computeDiff(): ILineChange[] {
 		this.computationStartTime = (new Date()).getTime();
 
 		var rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this));

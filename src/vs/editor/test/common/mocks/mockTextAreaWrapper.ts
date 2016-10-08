@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper} from 'vs/editor/common/controller/textAreaState';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper } from 'vs/editor/common/controller/textAreaState';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
@@ -57,7 +57,7 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 		return this._value;
 	}
 
-	public setValue(reason:string, value:string): void {
+	public setValue(reason: string, value: string): void {
 		this._value = value;
 		this._selectionStart = this._value.length;
 		this._selectionEnd = this._value.length;
@@ -71,7 +71,7 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 		return this._selectionEnd;
 	}
 
-	public setSelectionRange(selectionStart:number, selectionEnd:number): void {
+	public setSelectionRange(selectionStart: number, selectionEnd: number): void {
 		if (selectionStart < 0) {
 			selectionStart = 0;
 		}

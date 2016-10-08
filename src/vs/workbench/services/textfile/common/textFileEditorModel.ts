@@ -5,29 +5,29 @@
 'use strict';
 
 import nls = require('vs/nls');
-import Event, {Emitter} from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {guessMimeTypes} from 'vs/base/common/mime';
-import {toErrorMessage} from 'vs/base/common/errorMessage';
+import Event, { Emitter } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { guessMimeTypes } from 'vs/base/common/mime';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
 import * as assert from 'vs/base/common/assert';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
-import {IMode} from 'vs/editor/common/modes';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason} from 'vs/workbench/services/textfile/common/textfiles';
-import {EncodingMode, EditorModel} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {IFileService, IFileStat, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ITelemetryService, anonymize} from 'vs/platform/telemetry/common/telemetry';
+import { IModelContentChangedEvent } from 'vs/editor/common/editorCommon';
+import { IMode } from 'vs/editor/common/modes';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { EncodingMode, EditorModel } from 'vs/workbench/common/editor';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { IFileService, IFileStat, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITelemetryService, anonymize } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -729,7 +729,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 class DefaultSaveErrorHandler implements ISaveErrorHandler {
 
-	constructor(@IMessageService private messageService: IMessageService) { }
+	constructor( @IMessageService private messageService: IMessageService) { }
 
 	public onSaveError(error: any, model: TextFileEditorModel): void {
 		this.messageService.show(Severity.Error, nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));

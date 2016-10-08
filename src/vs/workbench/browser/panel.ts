@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import {Registry} from 'vs/platform/platform';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IPanel} from 'vs/workbench/common/panel';
-import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
+import { Registry } from 'vs/platform/platform';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IPanel } from 'vs/workbench/common/panel';
+import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -92,7 +92,7 @@ export abstract class TogglePanelAction extends Action {
 	}
 
 	private isPanelShowing(): boolean {
-		let panel= this.panelService.getActivePanel();
+		let panel = this.panelService.getActivePanel();
 		return panel && panel.getId() === this.panelId;
 	}
 

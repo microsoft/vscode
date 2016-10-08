@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {illegalArgument} from 'vs/base/common/errors';
+import { illegalArgument } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {Registry} from 'vs/platform/platform';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ICommandOptions, Command as ConfigBasicCommand, EditorCommand as ConfigEditorCommand} from 'vs/editor/common/config/config';
-import {Position} from 'vs/editor/common/core/position';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { Registry } from 'vs/platform/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICommandOptions, Command as ConfigBasicCommand, EditorCommand as ConfigEditorCommand } from 'vs/editor/common/config/config';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {MenuId, MenuRegistry, IMenuItem} from 'vs/platform/actions/common/actions';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 
 export type ServicesAccessor = ServicesAccessor;
 export const Command = ConfigBasicCommand;
@@ -38,7 +38,7 @@ export abstract class EditorAction extends ConfigEditorCommand {
 	public alias: string;
 	private menuOpts: IEditorCommandMenuOptions;
 
-	constructor(opts:IActionOptions) {
+	constructor(opts: IActionOptions) {
 		super(opts);
 		this.label = opts.label;
 		this.alias = opts.alias;
@@ -61,16 +61,16 @@ export abstract class EditorAction extends ConfigEditorCommand {
 		};
 	}
 
-	public runEditorCommand(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
+	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
 		this.reportTelemetry(accessor);
 		return this.run(accessor, editor);
 	}
 
-	protected reportTelemetry(accessor:ServicesAccessor){
+	protected reportTelemetry(accessor: ServicesAccessor) {
 		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id });
 	}
 
-	public abstract run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void | TPromise<void>;
+	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void | TPromise<void>;
 }
 
 export interface IHandlerActionOptions extends IActionOptions {
@@ -84,18 +84,18 @@ export abstract class HandlerEditorAction extends EditorAction {
 		this._handlerId = opts.handlerId;
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		editor.trigger(this.id, this._handlerId, null);
 	}
 }
 
 // --- Editor Actions
 
-export function editorAction(ctor:{ new(): EditorAction; }): void {
+export function editorAction(ctor: { new (): EditorAction; }): void {
 	CommonEditorRegistry.registerEditorAction(new ctor());
 }
 
-export function commonEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
+export function commonEditorContribution(ctor: editorCommon.ICommonEditorContributionCtor): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
 }
 
@@ -103,7 +103,7 @@ export module CommonEditorRegistry {
 
 	// --- Editor Actions
 
-	export function registerEditorAction(desc:EditorAction) {
+	export function registerEditorAction(desc: EditorAction) {
 		EditorContributionRegistry.INSTANCE.registerEditorAction(desc);
 	}
 	export function getEditorActions(): EditorAction[] {
@@ -131,7 +131,7 @@ export module CommonEditorRegistry {
 	}
 
 	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: Position, args: { [n: string]: any }) => any) {
-		registerLanguageCommand(id, function(accessor, args) {
+		registerLanguageCommand(id, function (accessor, args) {
 
 			const {resource, position} = args;
 			if (!(resource instanceof URI) || !Position.isIPosition(position)) {
@@ -167,11 +167,11 @@ class EditorContributionRegistry {
 		this.editorActions = [];
 	}
 
-	public registerEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
+	public registerEditorContribution(ctor: editorCommon.ICommonEditorContributionCtor): void {
 		this.editorContributions.push(ctor);
 	}
 
-	public registerEditorAction(action:EditorAction) {
+	public registerEditorAction(action: EditorAction) {
 
 		let menuItem = action.toMenuItem();
 		if (menuItem) {

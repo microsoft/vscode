@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ReplacePattern} from 'vs/platform/search/common/replace';
-import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ReplacePattern } from 'vs/platform/search/common/replace';
+import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {TextModel} from 'vs/editor/common/model/textModel';
-import {FindDecorations} from './findDecorations';
-import {FindReplaceState, FindReplaceStateChangedEvent} from './findState';
-import {ReplaceAllCommand} from './replaceAllCommand';
-import {Selection} from 'vs/editor/common/core/selection';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { FindDecorations } from './findDecorations';
+import { FindReplaceState, FindReplaceStateChangedEvent } from './findState';
+import { ReplaceAllCommand } from './replaceAllCommand';
+import { Selection } from 'vs/editor/common/core/selection';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,

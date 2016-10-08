@@ -6,13 +6,13 @@
 'use strict';
 
 import 'vs/css!./zoneWidget';
-import {Disposables} from 'vs/base/common/lifecycle';
+import { Disposables } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
-import {Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent} from 'vs/base/browser/ui/sash/sash';
-import {EditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
-import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
+import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
+import { EditorLayoutInfo, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -307,7 +307,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	// --- sash
 
-	private _initSash(): void{
+	private _initSash(): void {
 		this._resizeSash = new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL });
 
 		if (!this.options.isResizeable) {

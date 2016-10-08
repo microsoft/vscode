@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {HorizontalRange} from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 export class RangeUtil {
 
@@ -13,7 +13,7 @@ export class RangeUtil {
 	 * because IE is buggy and constantly freezes when using a large number
 	 * of ranges and calling .detach on them
 	 */
-	private static _handyReadyRange:Range;
+	private static _handyReadyRange: Range;
 
 	private static _createRange(): Range {
 		if (!this._handyReadyRange) {
@@ -22,13 +22,13 @@ export class RangeUtil {
 		return this._handyReadyRange;
 	}
 
-	private static _detachRange(range:Range, endNode:HTMLElement): void {
+	private static _detachRange(range: Range, endNode: HTMLElement): void {
 		// Move range out of the span node, IE doesn't like having many ranges in
 		// the same spot and will act badly for lines containing dashes ('-')
 		range.selectNodeContents(endNode);
 	}
 
-	private static _readClientRects(startElement:Node, startOffset:number, endElement:Node, endOffset:number, endNode:HTMLElement): ClientRectList {
+	private static _readClientRects(startElement: Node, startOffset: number, endElement: Node, endOffset: number, endNode: HTMLElement): ClientRectList {
 		let range = this._createRange();
 		try {
 			range.setStart(startElement, startOffset);
@@ -43,12 +43,12 @@ export class RangeUtil {
 		}
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number, scaleRatio:number): HorizontalRange[] {
+	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList, clientRectDeltaLeft: number, scaleRatio: number): HorizontalRange[] {
 		if (!clientRects || clientRects.length === 0) {
 			return null;
 		}
 
-		let result:HorizontalRange[] = [];
+		let result: HorizontalRange[] = [];
 		let prevLeft = Math.max(0, clientRects[0].left * scaleRatio - clientRectDeltaLeft);
 		let prevWidth = clientRects[0].width * scaleRatio;
 
@@ -74,7 +74,7 @@ export class RangeUtil {
 		return result;
 	}
 
-	public static readHorizontalRanges(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, clientRectDeltaLeft:number, scaleRatio:number, endNode:HTMLElement): HorizontalRange[] {
+	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, scaleRatio: number, endNode: HTMLElement): HorizontalRange[] {
 		// Panic check
 		let min = 0;
 		let max = domNode.children.length - 1;

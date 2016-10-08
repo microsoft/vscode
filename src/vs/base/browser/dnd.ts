@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {$} from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 
 /**

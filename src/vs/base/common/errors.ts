@@ -6,7 +6,7 @@
 
 import platform = require('vs/base/common/platform');
 import types = require('vs/base/common/types');
-import {IAction} from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -27,7 +27,7 @@ export class ErrorHandler {
 
 		this.listeners = [];
 
-		this.unexpectedErrorHandler = function(e: any) {
+		this.unexpectedErrorHandler = function (e: any) {
 			platform.setTimeout(() => {
 				if (e.stack) {
 					throw new Error(e.message + '\n\n' + e.stack);

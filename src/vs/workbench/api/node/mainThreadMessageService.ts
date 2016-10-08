@@ -5,17 +5,17 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IMessageService} from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import {Action} from 'vs/base/common/actions';
-import {TPromise as Promise} from 'vs/base/common/winjs.base';
-import {MainThreadMessageServiceShape} from './extHost.protocol';
+import { Action } from 'vs/base/common/actions';
+import { TPromise as Promise } from 'vs/base/common/winjs.base';
+import { MainThreadMessageServiceShape } from './extHost.protocol';
 
 export class MainThreadMessageService extends MainThreadMessageServiceShape {
 
 	private _messageService: IMessageService;
 
-	constructor(@IMessageService messageService:IMessageService) {
+	constructor( @IMessageService messageService: IMessageService) {
 		super();
 		this._messageService = messageService;
 	}

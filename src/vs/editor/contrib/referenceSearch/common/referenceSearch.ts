@@ -5,13 +5,13 @@
 
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {Position} from 'vs/editor/common/core/position';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { Position } from 'vs/editor/common/core/position';
 
 export function provideReferences(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
 
@@ -21,7 +21,7 @@ export function provideReferences(model: IReadOnlyModel, position: Position): TP
 			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
 		}).then(result => {
 			if (Array.isArray(result)) {
-				return <Location[]> result;
+				return <Location[]>result;
 			}
 		}, err => {
 			onUnexpectedError(err);

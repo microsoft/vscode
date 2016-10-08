@@ -89,6 +89,7 @@
     "source-map": "^0.4.4",
     "tslint": "^3.3.0",
     "typescript": "^2.0.3",
+    "typescript-formatter": "git+https://github.com/jrieken/typescript-formatter.git#560ea3b",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",

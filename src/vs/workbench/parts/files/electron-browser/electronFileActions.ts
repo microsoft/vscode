@@ -5,20 +5,20 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Action} from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
-import {ipcRenderer as ipc, shell, clipboard} from 'electron';
+import { ipcRenderer as ipc, shell, clipboard } from 'electron';
 
 export class RevealInOSAction extends Action {
 	private resource: uri;
