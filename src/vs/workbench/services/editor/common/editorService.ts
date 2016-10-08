@@ -5,10 +5,10 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IEditorModel} from 'vs/platform/editor/common/editor';
-import {ITextEditorModel} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IEditorModel } from 'vs/platform/editor/common/editor';
+import { ITextEditorModel } from 'vs/workbench/common/editor';
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
@@ -46,8 +46,8 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Opens an Editor on the given input with the provided options at the given position. If sideBySide parameter
 	 * is provided, causes the editor service to decide in what position to open the input.
 	 */
-	openEditor(input: IEditorInput, options?: IEditorOptions|ITextEditorOptions, position?: Position): TPromise<IEditor>;
-	openEditor(input: IEditorInput, options?: IEditorOptions|ITextEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
+	openEditor(input: IEditorInput, options?: IEditorOptions | ITextEditorOptions, position?: Position): TPromise<IEditor>;
+	openEditor(input: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 
 	/**
 	 * Specific overload to open an instance of IResourceInput.
@@ -60,14 +60,14 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * more than one editor per position, only the first one will be active and the others stacked behind inactive.
 	 */
 	openEditors(editors: { input: IResourceInput, position: Position }[]): TPromise<IEditor[]>;
-	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions|ITextEditorOptions }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
 
 	/**
 	 * Given a list of editors to replace, will look across all groups where this editor is open (active or hidden)
 	 * and replace it with the new editor and the provied options.
 	 */
 	replaceEditors(editors: { toReplace: IResourceInput, replaceWith: IResourceInput }[]): TPromise<IEditor[]>;
-	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions|ITextEditorOptions }[]): TPromise<IEditor[]>;
+	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
 
 	/**
 	 * Closes the editor at the provided position.

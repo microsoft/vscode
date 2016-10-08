@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {sequence, asWinJsPromise} from 'vs/base/common/async';
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {compare} from 'vs/base/common/strings';
-import {assign} from 'vs/base/common/objects';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
-import {ISnippetsRegistry, Extensions} from 'vs/editor/common/modes/snippetsRegistry';
-import {Position} from 'vs/editor/common/core/position';
-import {Registry} from 'vs/platform/platform';
-import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { compare } from 'vs/base/common/strings';
+import { assign } from 'vs/base/common/objects';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IReadOnlyModel, IPosition } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry } from 'vs/editor/common/modes';
+import { ISnippetsRegistry, Extensions } from 'vs/editor/common/modes/snippetsRegistry';
+import { Position } from 'vs/editor/common/core/position';
+import { Registry } from 'vs/platform/platform';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),

@@ -6,9 +6,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {MainThreadCommands} from 'vs/workbench/api/node/mainThreadCommands';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {OneGetThreadService} from './testThreadService';
+import { MainThreadCommands } from 'vs/workbench/api/node/mainThreadCommands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { OneGetThreadService } from './testThreadService';
 
 suite('MainThreadCommands', function () {
 

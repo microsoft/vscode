@@ -21,9 +21,13 @@ interface NLSConfig {
 	availableLanguages: { [key: string]: string; };
 }
 
+export interface IProcessEnvironment {
+	[key: string]: string;
+}
+
 interface INodeProcess {
 	platform: string;
-	env: { [key: string]: string; };
+	env: IProcessEnvironment;
 	getuid(): number;
 }
 declare let process: INodeProcess;
@@ -47,7 +51,7 @@ if (typeof process === 'object') {
 	let rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
-			let nlsConfig:NLSConfig = JSON.parse(rawNlsConfig);
+			let nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
 			let resolved = nlsConfig.availableLanguages['*'];
 			_locale = nlsConfig.locale;
 			// VSCode's default language is 'en'
@@ -74,7 +78,7 @@ export enum Platform {
 	Windows
 }
 
-export let _platform:Platform = Platform.Web;
+export let _platform: Platform = Platform.Web;
 if (_isNative) {
 	if (_isMacintosh) {
 		_platform = Platform.Mac;
@@ -123,7 +127,7 @@ interface IGlobals {
 	clearInterval(token: IntervalToken);
 }
 
-const _globals = <IGlobals> (typeof self === 'object' ? self : global);
+const _globals = <IGlobals>(typeof self === 'object' ? self : global);
 export const globals: any = _globals;
 
 export function hasWebWorkerSupport(): boolean {

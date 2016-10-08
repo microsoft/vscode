@@ -13,9 +13,9 @@ import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import numbers = require('vs/base/common/numbers');
 import sash = require('vs/base/browser/ui/sash/sash');
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {KeyCode} from 'vs/base/common/keyCodes';
-import Event, {Emitter} from 'vs/base/common/event';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export enum Orientation {
 	VERTICAL,
@@ -379,9 +379,9 @@ export abstract class FixedCollapsibleView extends AbstractCollapsibleView {
 }
 
 class PlainView extends View {
-	render() {}
-	focus() {}
-	layout() {}
+	render() { }
+	focus() { }
+	layout() { }
 }
 
 class DeadView extends PlainView {
@@ -413,8 +413,7 @@ function sum(arr: number[]): number {
 
 export class SplitView implements
 	sash.IHorizontalSashLayoutProvider,
-	sash.IVerticalSashLayoutProvider
-{
+	sash.IVerticalSashLayoutProvider {
 	private orientation: Orientation;
 	private el: HTMLElement;
 	private size: number;

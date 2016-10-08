@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Registry, BaseRegistry} from 'vs/platform/platform';
-import {IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import { Registry, BaseRegistry } from 'vs/platform/platform';
+import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 // --- Workbench Contribution Registry
 

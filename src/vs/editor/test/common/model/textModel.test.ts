@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {TextModel} from 'vs/editor/common/model/textModel';
-import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 
-function testGuessIndentation(defaultInsertSpaces:boolean, defaultTabSize:number, expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
+function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	var m = new TextModel([], TextModel.toRawText(text.join('\n'), {
 		tabSize: defaultTabSize,
 		insertSpaces: defaultInsertSpaces,
@@ -25,7 +25,7 @@ function testGuessIndentation(defaultInsertSpaces:boolean, defaultTabSize:number
 	assert.equal(r.tabSize, expectedTabSize, msg);
 }
 
-function assertGuess(expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
+function assertGuess(expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	if (typeof expectedInsertSpaces === 'undefined') {
 		// cannot guess insertSpaces
 		if (typeof expectedTabSize === 'undefined') {
@@ -579,20 +579,20 @@ suite('Editor Model - TextModel', () => {
 	test('modifyPosition', () => {
 
 		var m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
-		assert.deepEqual(m.modifyPosition(new Position(1,1), 0), new Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position(0,0), 0), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
 
-		assert.deepEqual(m.modifyPosition(new Position(1,1), 17), new Position(2, 9));
-		assert.deepEqual(m.modifyPosition(new Position(1,1), 1), new Position(1, 2));
-		assert.deepEqual(m.modifyPosition(new Position(1,1), 3), new Position(1, 4));
+		assert.deepEqual(m.modifyPosition(new Position(1, 1), 17), new Position(2, 9));
+		assert.deepEqual(m.modifyPosition(new Position(1, 1), 1), new Position(1, 2));
+		assert.deepEqual(m.modifyPosition(new Position(1, 1), 3), new Position(1, 4));
 		assert.deepEqual(m.modifyPosition(new Position(1, 2), 10), new Position(2, 3));
 		assert.deepEqual(m.modifyPosition(new Position(1, 5), 13), new Position(2, 9));
 		assert.deepEqual(m.modifyPosition(new Position(1, 2), 16), new Position(2, 9));
 
 		assert.deepEqual(m.modifyPosition(new Position(2, 9), -17), new Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position(1,2), -1), new Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position(1,4), -3), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), -1), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(1, 4), -3), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(2, 3), -10), new Position(1, 2));
 		assert.deepEqual(m.modifyPosition(new Position(2, 9), -13), new Position(1, 5));
 		assert.deepEqual(m.modifyPosition(new Position(2, 9), -16), new Position(1, 2));
@@ -675,11 +675,11 @@ suite('Editor Model - TextModel', () => {
 });
 
 suite('TextModel.getLineIndentGuide', () => {
-	function assertIndentGuides(lines:[number,string][]): void {
+	function assertIndentGuides(lines: [number, string][]): void {
 		let text = lines.map(l => l[1]).join('\n');
 		let model = new TextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS));
 
-		let actual: [number,string][] = [];
+		let actual: [number, string][] = [];
 		for (let line = 1; line <= model.getLineCount(); line++) {
 			actual[line - 1] = [model.getLineIndentGuide(line), model.getLineContent(line)];
 		}
@@ -786,23 +786,23 @@ suite('TextModel.getLineIndentGuide', () => {
 
 	test('getLineIndentGuide checker.ts', () => {
 		assertIndentGuides([
-			/* 1*/[ 0, '/// <reference path="binder.ts"/>'],
-			/* 2*/[ 0, ''],
-			/* 3*/[ 0, '/* @internal */'],
-			/* 4*/[ 0, 'namespace ts {'],
-			/* 5*/[ 1, '    let nextSymbolId = 1;'],
-			/* 6*/[ 1, '    let nextNodeId = 1;'],
-			/* 7*/[ 1, '    let nextMergeId = 1;'],
-			/* 8*/[ 1, '    let nextFlowId = 1;'],
-			/* 9*/[ 1, ''],
-			/*10*/[ 1, '    export function getNodeId(node: Node): number {'],
-			/*11*/[ 2, '        if (!node.id) {'],
-			/*12*/[ 3, '            node.id = nextNodeId;'],
-			/*13*/[ 3, '            nextNodeId++;'],
-			/*14*/[ 2, '        }'],
-			/*15*/[ 2, '        return node.id;'],
-			/*16*/[ 1, '    }'],
-			/*17*/[ 0, '}'],
+			/* 1*/[0, '/// <reference path="binder.ts"/>'],
+			/* 2*/[0, ''],
+			/* 3*/[0, '/* @internal */'],
+			/* 4*/[0, 'namespace ts {'],
+			/* 5*/[1, '    let nextSymbolId = 1;'],
+			/* 6*/[1, '    let nextNodeId = 1;'],
+			/* 7*/[1, '    let nextMergeId = 1;'],
+			/* 8*/[1, '    let nextFlowId = 1;'],
+			/* 9*/[1, ''],
+			/*10*/[1, '    export function getNodeId(node: Node): number {'],
+			/*11*/[2, '        if (!node.id) {'],
+			/*12*/[3, '            node.id = nextNodeId;'],
+			/*13*/[3, '            nextNodeId++;'],
+			/*14*/[2, '        }'],
+			/*15*/[2, '        return node.id;'],
+			/*16*/[1, '    }'],
+			/*17*/[0, '}'],
 		]);
 	});
 

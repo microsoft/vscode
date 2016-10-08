@@ -10,11 +10,11 @@ import Events = require('vs/base/common/eventEmitter');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface ITree extends Events.IEventEmitter {
 
-	emit(eventType:string, data?:any):void;
+	emit(eventType: string, data?: any): void;
 
 	/**
 	 * Returns the tree's DOM element.
@@ -122,7 +122,7 @@ export interface ITree extends Events.IEventEmitter {
 	 * Reveals an element in the tree. The relativeTop is a value between 0 and 1. The closer to 0 the more the
 	 * element will scroll up to the top.
 	 */
-	reveal(element: any, relativeTop?:number): WinJS.Promise;
+	reveal(element: any, relativeTop?: number): WinJS.Promise;
 
 	/**
 	 * Returns the relative top position of any given element, if visible.
@@ -152,7 +152,7 @@ export interface ITree extends Events.IEventEmitter {
 	 * Sets the tree's highlight to be the given element.
 	 * Provide no arguments and it clears the tree's highlight.
 	 */
-	setHighlight(element?: any, eventPayload?:any): void;
+	setHighlight(element?: any, eventPayload?: any): void;
 
 	/**
 	 * Returns the currently highlighted element.
@@ -167,47 +167,47 @@ export interface ITree extends Events.IEventEmitter {
 	/**
 	 * Clears the highlight.
 	 */
-	clearHighlight(eventPayload?:any): void;
+	clearHighlight(eventPayload?: any): void;
 
 	/**
 	 * Selects an element.
 	 */
-	select(element: any, eventPayload?:any): void;
+	select(element: any, eventPayload?: any): void;
 
 	/**
 	 * Selects a range of elements.
 	 */
-	selectRange(fromElement: any, toElement: any, eventPayload?:any): void;
+	selectRange(fromElement: any, toElement: any, eventPayload?: any): void;
 
 	/**
 	 * Deselects a range of elements.
 	 */
-	deselectRange(fromElement: any, toElement: any, eventPayload?:any): void;
+	deselectRange(fromElement: any, toElement: any, eventPayload?: any): void;
 
 	/**
 	 * Selects several elements.
 	 */
-	selectAll(elements: any[], eventPayload?:any): void;
+	selectAll(elements: any[], eventPayload?: any): void;
 
 	/**
 	 * Deselects an element.
 	 */
-	deselect(element: any, eventPayload?:any): void;
+	deselect(element: any, eventPayload?: any): void;
 
 	/**
 	 * Deselects several elements.
 	 */
-	deselectAll(elements: any[], eventPayload?:any): void;
+	deselectAll(elements: any[], eventPayload?: any): void;
 
 	/**
 	 * Replaces the current selection with the given elements.
 	 */
-	setSelection(elements: any[], eventPayload?:any): void;
+	setSelection(elements: any[], eventPayload?: any): void;
 
 	/**
 	 * Toggles the element's selection.
 	 */
-	toggleSelection(element: any, eventPayload?:any): void;
+	toggleSelection(element: any, eventPayload?: any): void;
 
 	/**
 	 * Returns the currently selected elements.
@@ -222,27 +222,27 @@ export interface ITree extends Events.IEventEmitter {
 	/**
 	 * Selects the next `count`-nth element, in visible order.
 	 */
-	selectNext(count?: number, clearSelection?: boolean, eventPayload?:any): void;
+	selectNext(count?: number, clearSelection?: boolean, eventPayload?: any): void;
 
 	/**
 	 * Selects the previous `count`-nth element, in visible order.
 	 */
-	selectPrevious(count?: number, clearSelection?: boolean, eventPayload?:any): void;
+	selectPrevious(count?: number, clearSelection?: boolean, eventPayload?: any): void;
 
 	/**
 	 * Selects the currently selected element's parent.
 	 */
-	selectParent(clearSelection?: boolean, eventPayload?:any): void;
+	selectParent(clearSelection?: boolean, eventPayload?: any): void;
 
 	/**
 	 * Clears the selection.
 	 */
-	clearSelection(eventPayload?:any): void;
+	clearSelection(eventPayload?: any): void;
 
 	/**
 	 * Sets the focused element.
 	 */
-	setFocus(element?: any, eventPayload?:any): void;
+	setFocus(element?: any, eventPayload?: any): void;
 
 	/**
 	 * Returns whether an element is focused or not.
@@ -257,12 +257,12 @@ export interface ITree extends Events.IEventEmitter {
 	/**
 	 * Focuses the next `count`-nth element, in visible order.
 	 */
-	focusNext(count?: number, eventPayload?:any): void;
+	focusNext(count?: number, eventPayload?: any): void;
 
 	/**
 	 * Focuses the previous `count`-nth element, in visible order.
 	 */
-	focusPrevious(count?: number, eventPayload?:any): void;
+	focusPrevious(count?: number, eventPayload?: any): void;
 
 	/**
 	 * Focuses the currently focused element's parent.
@@ -277,37 +277,37 @@ export interface ITree extends Events.IEventEmitter {
 	/**
 	 * Focuses the second element, in visible order.
 	 */
-	focusFirst(eventPayload?:any): void;
+	focusFirst(eventPayload?: any): void;
 
 	/**
 	 * Focuses the nth element, in visible order.
 	 */
-	focusNth(index:number, eventPayload?:any): void;
+	focusNth(index: number, eventPayload?: any): void;
 
 	/**
 	 * Focuses the last element, in visible order.
 	 */
-	focusLast(eventPayload?:any): void;
+	focusLast(eventPayload?: any): void;
 
 	/**
 	 * Focuses the element at the end of the next page, in visible order.
 	 */
-	focusNextPage(eventPayload?:any): void;
+	focusNextPage(eventPayload?: any): void;
 
 	/**
 	 * Focuses the element at the beginning of the previous page, in visible order.
 	 */
-	focusPreviousPage(eventPayload?:any): void;
+	focusPreviousPage(eventPayload?: any): void;
 
 	/**
 	 * Clears the focus.
 	 */
-	clearFocus(eventPayload?:any): void;
+	clearFocus(eventPayload?: any): void;
 
 	/**
 	 * Adds the trait to elements.
 	 */
-	addTraits(trait:string, elements: any[]): void;
+	addTraits(trait: string, elements: any[]): void;
 
 	/**
 	 * Removes the trait from elements.
@@ -566,18 +566,18 @@ export interface IDragAndDrop {
 	/**
 	 * Sent when the drag operation is starting.
 	 */
-	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent:Mouse.DragMouseEvent): void;
+	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: Mouse.DragMouseEvent): void;
 
 	/**
 	 * Returns a DragOverReaction indicating whether sources can be
 	 * dropped into target or some parent of the target.
 	 */
-	onDragOver(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent:Mouse.DragMouseEvent): IDragOverReaction;
+	onDragOver(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent: Mouse.DragMouseEvent): IDragOverReaction;
 
 	/**
 	 * Handles the action of dropping sources into target.
 	 */
-	drop(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent:Mouse.DragMouseEvent): void;
+	drop(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent: Mouse.DragMouseEvent): void;
 }
 
 export interface IFilter {
@@ -592,7 +592,7 @@ export interface IElementCallback {
 	(tree: ITree, element: any): void;
 }
 
-export type ICallback = ()=>void;
+export type ICallback = () => void;
 
 export interface ISorter {
 
@@ -637,9 +637,9 @@ export interface ITreeOptions {
 	verticalScrollMode?: ScrollbarVisibility;
 	alwaysFocused?: boolean;
 	autoExpandSingleChildren?: boolean;
-	useShadows?:boolean;
-	paddingOnRow?:boolean;
-	ariaLabel?:string;
+	useShadows?: boolean;
+	paddingOnRow?: boolean;
+	ariaLabel?: string;
 }
 
 export interface ITreeContext extends ITreeConfiguration {

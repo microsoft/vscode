@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {MainThreadStorageShape} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { MainThreadStorageShape } from './extHost.protocol';
 
 export class MainThreadStorage extends MainThreadStorageShape {
 

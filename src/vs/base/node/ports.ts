@@ -14,7 +14,7 @@ import net = require('net');
 export function findFreePort(startPort: number, giveUpAfter: number, timeout: number, clb: (port: number) => void): void {
 	let done = false;
 
-	const timeoutHandle = setTimeout(() =>  {
+	const timeoutHandle = setTimeout(() => {
 		if (!done) {
 			done = true;
 

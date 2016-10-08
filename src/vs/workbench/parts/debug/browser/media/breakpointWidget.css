@@ -4,9 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
-	border-top-color: #E89208;
-	border-bottom-color: #E89208;
 	height: 30px !important;
+	display: flex;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container {
+	display: flex;
+	justify-content: center;
+	flex-direction: column;
+	padding: 0 10px;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container .select-box {
+	border-color: rgba(128, 128, 128, 0.35);
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputBoxContainer {
+	flex: 1;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .monaco-inputbox {
@@ -16,6 +30,7 @@
 .monaco-editor .breakpoint-widget .input {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	line-height: 22px;
+	background-color: transparent;
 }
 
 .monaco-workbench.mac .monaco-editor .breakpoint-widget .input {

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
-import {CharCode} from 'vs/base/common/charCode';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { CharCode } from 'vs/base/common/charCode';
 
 export class RenderLineInput {
 	_renderLineInputBrand: void;
@@ -50,7 +50,7 @@ export class RenderLineOutput {
 	}
 }
 
-export function renderLine(input:RenderLineInput): RenderLineOutput {
+export function renderLine(input: RenderLineInput): RenderLineOutput {
 	const lineText = input.lineContent;
 	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
@@ -76,7 +76,7 @@ export function renderLine(input:RenderLineInput): RenderLineOutput {
 	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts.slice(0), renderWhitespace, renderControlCharacters, charBreakIndex);
 }
 
-function isWhitespace(type:string): boolean {
+function isWhitespace(type: string): boolean {
 	return (type.indexOf('whitespace') >= 0);
 }
 
@@ -141,10 +141,10 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					partContentCnt++;
 				}
 
-				charOffsetInPart ++;
+				charOffsetInPart++;
 
 				if (charIndex >= charBreakIndex) {
-					out += '<span class="token '+part.type+'" style="width:'+(spaceWidth * partContentCnt)+'px">';
+					out += '<span class="token ' + part.type + '" style="width:' + (spaceWidth * partContentCnt) + 'px">';
 					out += partContent;
 					out += '&hellip;</span></span>';
 					charOffsetInPartArr[charIndex] = charOffsetInPart;
@@ -155,7 +155,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 					);
 				}
 			}
-			out += '<span class="token '+part.type+'" style="width:'+(spaceWidth * partContentCnt)+'px">';
+			out += '<span class="token ' + part.type + '" style="width:' + (spaceWidth * partContentCnt) + 'px">';
 			out += partContent;
 			out += '</span>';
 		} else {
@@ -216,7 +216,7 @@ function renderLineActual(lineText: string, lineTextLength: number, tabSize: num
 						}
 				}
 
-				charOffsetInPart ++;
+				charOffsetInPart++;
 
 				if (charIndex >= charBreakIndex) {
 					out += '&hellip;</span></span>';

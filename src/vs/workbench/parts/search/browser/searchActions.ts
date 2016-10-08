@@ -143,11 +143,36 @@ export class FocusPreviousInputAction extends Action {
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
 
-	public static ID = Constants.VIEWLET_ID;
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
+	}
+
+}
+
+export class FocusActiveEditorAction extends Action {
+
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let editor = this.editorService.getActiveEditor();
+		if (editor) {
+			editor.focus();
+		}
+		return TPromise.as(true);
+	}
+
+}
+
+export class FindInFilesAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true);
 	}
 
 }
@@ -167,6 +192,20 @@ export class ReplaceInFilesAction extends Action {
 			searchAndReplaceWidget.toggleReplace(true);
 			searchAndReplaceWidget.focus(false, true);
 		});
+	}
+}
+
+export class CloseReplaceAction extends Action {
+
+	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let searchAndReplaceWidget = (<SearchViewlet>this.viewletService.getActiveViewlet()).searchAndReplaceWidget;
+		searchAndReplaceWidget.toggleReplace(false);
+		searchAndReplaceWidget.focus();
+		return TPromise.as(null);
 	}
 }
 
@@ -265,7 +304,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	private getNavigatorAt(element: FileMatchOrMatch, viewer: ITree): INavigator<any> {
-		let navigator:INavigator<any> = viewer.getNavigator();
+		let navigator: INavigator<any> = viewer.getNavigator();
 		while (navigator.current() !== element && !!navigator.next()) { };
 		return navigator;
 	}

@@ -9,11 +9,12 @@ import cp = require('child_process');
 import processes = require('vs/base/node/processes');
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX} from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
 import uri from 'vs/base/common/uri';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -34,13 +35,13 @@ export class WinTerminalService implements ITerminalService {
 			.done(null, errors.onUnexpectedError);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
 
-		return new TPromise<void>( (c, e) => {
+		return new TPromise<void>((c, e) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
@@ -50,7 +51,7 @@ export class WinTerminalService implements ITerminalService {
 			];
 
 			// merge environment variables into a copy of the process.env
-			const env = extendObject(extendObject( { }, process.env), envVars);
+			const env = extendObject(extendObject({}, process.env), envVars);
 
 			const options: any = {
 				cwd: dir,
@@ -101,13 +102,13 @@ export class MacTerminalService implements ITerminalService {
 		this.spawnTerminal(cp, configuration, path).done(null, errors.onUnexpectedError);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
 
-		return new TPromise<void>( (c, e) => {
+		return new TPromise<void>((c, e) => {
 
 			if (terminalApp === DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
@@ -149,7 +150,7 @@ export class MacTerminalService implements ITerminalService {
 							const lines = stderr.split('\n', 1);
 							e(new Error(lines[0]));
 						} else {
-							e(new Error(nls.localize('mac.terminal.script.failed', "script '{0}' failed with exit code {1}", script, code)));
+							e(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
 						}
 					}
 				});
@@ -188,13 +189,13 @@ export class LinuxTerminalService implements ITerminalService {
 			.done(null, errors.onUnexpectedError);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: { [key: string]: string; }): TPromise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
 		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig.linuxExec || DEFAULT_TERMINAL_LINUX;
 
-		return new TPromise<void>( (c, e) => {
+		return new TPromise<void>((c, e) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
@@ -211,7 +212,7 @@ export class LinuxTerminalService implements ITerminalService {
 			termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 			// merge environment variables into a copy of the process.env
-			const env = extendObject(extendObject( { }, process.env), envVars);
+			const env = extendObject(extendObject({}, process.env), envVars);
 
 			const options: any = {
 				cwd: dir,
@@ -252,7 +253,7 @@ export class LinuxTerminalService implements ITerminalService {
 	}
 }
 
-function extendObject<T> (objectCopy: T, object: T): T {
+function extendObject<T>(objectCopy: T, object: T): T {
 
 	for (let key in object) {
 		if (object.hasOwnProperty(key)) {

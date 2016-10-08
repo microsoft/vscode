@@ -41,7 +41,7 @@ class ConfiguationBuilder {
 	}
 
 	public shell(value: boolean): ConfiguationBuilder {
-		this.result.isShellCommand= value;
+		this.result.isShellCommand = value;
 		return this;
 	}
 
@@ -176,7 +176,7 @@ class PatternBuilder {
 			file: 1,
 			message: 0,
 			line: 2,
-			column : 3
+			column: 3
 		};
 	}
 
@@ -253,7 +253,7 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.shell(true).
 			task('tsc').
-				suppressTaskName(true);
+			suppressTaskName(true);
 		testGobalCommand(
 			{
 				version: '0.1.0',
@@ -267,8 +267,8 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.
 			task('tsc').
-				suppressTaskName(true).
-				showOutput(TaskSystem.ShowOutput.Silent);
+			suppressTaskName(true).
+			showOutput(TaskSystem.ShowOutput.Silent);
 		testGobalCommand(
 			{
 				version: '0.1.0',
@@ -328,8 +328,8 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.
 			task('tsc').
-				suppressTaskName(true).
-				showOutput(TaskSystem.ShowOutput.Never);
+			suppressTaskName(true).
+			showOutput(TaskSystem.ShowOutput.Never);
 		testGobalCommand(
 			{
 				version: '0.1.0',
@@ -344,8 +344,8 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.
 			task('tsc').
-				suppressTaskName(true).
-				echoCommand(true);
+			suppressTaskName(true).
+			echoCommand(true);
 		testGobalCommand(
 			{
 				version: '0.1.0',
@@ -361,7 +361,7 @@ suite('Tasks Configuration parsing tests', () => {
 		builder.
 			args(['--p']).
 			task('tsc').
-				suppressTaskName(true);
+			suppressTaskName(true);
 		testGobalCommand(
 			{
 				version: '0.1.0',
@@ -378,10 +378,10 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.
 			options({
-					cwd: 'myPath'
-				}).
+				cwd: 'myPath'
+			}).
 			task('tsc').
-				suppressTaskName(true);
+			suppressTaskName(true);
 		testGobalCommand(
 			{
 				version: '0.1.0',
@@ -399,7 +399,7 @@ suite('Tasks Configuration parsing tests', () => {
 		builder.
 			options({ cwd: '${workspaceRoot}', env: { key: 'value' } }).
 			task('tsc').
-				suppressTaskName(true);
+			suppressTaskName(true);
 		testGobalCommand(
 			{
 				version: '0.1.0',
@@ -419,7 +419,7 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder(name);
 		builder.
 			task(name).
-				suppressTaskName(true);
+			suppressTaskName(true);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -436,7 +436,7 @@ suite('Tasks Configuration parsing tests', () => {
 		builder.
 			shell(true).
 			task(name).
-				suppressTaskName(true);
+			suppressTaskName(true);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -453,7 +453,7 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder(name);
 		builder.
 			task(name).
-				suppressTaskName(true);
+			suppressTaskName(true);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -469,7 +469,7 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder(name);
 		builder.
 			task(name).
-				suppressTaskName(true);
+			suppressTaskName(true);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -484,8 +484,8 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.
 			task('tsc').
-				showOutput(Platform.isWindows ? TaskSystem.ShowOutput.Always : TaskSystem.ShowOutput.Never).
-				suppressTaskName(true);
+			showOutput(Platform.isWindows ? TaskSystem.ShowOutput.Always : TaskSystem.ShowOutput.Never).
+			suppressTaskName(true);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -501,8 +501,8 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder('tsc');
 		builder.
 			task('tsc').
-				echoCommand(Platform.isWindows ? false : true).
-				suppressTaskName(true);
+			echoCommand(Platform.isWindows ? false : true).
+			suppressTaskName(true);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',

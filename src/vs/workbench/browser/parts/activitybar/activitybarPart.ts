@@ -7,21 +7,21 @@
 
 import 'vs/css!./media/activitybarpart';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Builder, $} from 'vs/base/browser/builder';
-import {Action} from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
-import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {Registry} from 'vs/platform/platform';
-import {IComposite} from 'vs/workbench/common/composite';
-import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
-import {Part} from 'vs/workbench/browser/part';
-import {ActivityAction, ActivityActionItem} from 'vs/workbench/browser/parts/activitybar/activityAction';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IActivityService, IBadge} from 'vs/workbench/services/activity/common/activityService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import { ActionsOrientation, ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Registry } from 'vs/platform/platform';
+import { IComposite } from 'vs/workbench/common/composite';
+import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { Part } from 'vs/workbench/browser/part';
+import { ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activityAction';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activityService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class ActivitybarPart extends Part implements IActivityService {
 	public _serviceBrand: any;

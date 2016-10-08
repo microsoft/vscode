@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IRemoteCom} from 'vs/base/common/remote';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {AbstractThreadService} from 'vs/workbench/services/thread/common/abstractThreadService';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import { IRemoteCom } from 'vs/base/common/remote';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostThreadService extends AbstractThreadService implements IThreadService {
 	public _serviceBrand: any;
@@ -19,7 +19,7 @@ export class ExtHostThreadService extends AbstractThreadService implements IThre
 		this._remoteCom.setManyHandler(this);
 	}
 
-	protected _callOnRemote(proxyId: string, path: string, args:any[]): TPromise<any> {
+	protected _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any> {
 		return this._remoteCom.callOnRemote(proxyId, path, args);
 	}
 }

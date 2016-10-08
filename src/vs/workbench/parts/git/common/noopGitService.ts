@@ -13,7 +13,7 @@ export class NoOpGitService implements IRawGitService {
 	private _onOutput = new Emitter<string>();
 	get onOutput(): Event<string> { return this._onOutput.event; }
 
-	private static STATUS:IRawStatus = {
+	private static STATUS: IRawStatus = {
 		repositoryRoot: null,
 		state: ServiceState.NotAWorkspace,
 		status: [],

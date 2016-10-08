@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./countBadge';
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
 
 export class CountBadge {

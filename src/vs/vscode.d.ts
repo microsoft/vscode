@@ -3285,7 +3285,7 @@ declare namespace vscode {
 	 * ```json
 	 * {
 	 * "contributes": {
-	 * 		"commands": [{
+	 * 	"commands": [{
 	 * 		"command": "extension.sayHello",
 	 * 		"title": "Hello World"
 	 * 	}]

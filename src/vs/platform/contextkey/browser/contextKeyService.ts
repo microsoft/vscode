@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IContextKey, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IContextKey, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
 export class ContextValuesContainer {
 	protected _parent: ContextValuesContainer;
-	protected _value: {[key:string]:any;};
+	protected _value: { [key: string]: any; };
 	protected _id: number;
 
 	constructor(id: number, parent: ContextValuesContainer) {
@@ -61,7 +61,7 @@ class ConfigAwareContextValuesContainer extends ContextValuesContainer {
 	private _emitter: Emitter<string>;
 	private _subscription: IDisposable;
 
-	constructor(id: number, configurationService: IConfigurationService, emitter:Emitter<string>) {
+	constructor(id: number, configurationService: IConfigurationService, emitter: Emitter<string>) {
 		super(id, null);
 
 		this._emitter = emitter;
@@ -182,13 +182,13 @@ export abstract class AbstractContextKeyService {
 	}
 
 	public setContext(key: string, value: any): void {
-		if(this.getContextValuesContainer(this._myContextId).setValue(key, value)) {
+		if (this.getContextValuesContainer(this._myContextId).setValue(key, value)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}
 
 	public removeContext(key: string): void {
-		if(this.getContextValuesContainer(this._myContextId).removeValue(key)) {
+		if (this.getContextValuesContainer(this._myContextId).removeValue(key)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}
@@ -213,7 +213,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 	private _toDispose: IDisposable[] = [];
 
-	constructor(@IConfigurationService configurationService: IConfigurationService) {
+	constructor( @IConfigurationService configurationService: IConfigurationService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);

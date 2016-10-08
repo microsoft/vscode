@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {validateConstraint} from 'vs/base/common/types';
-import {ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { validateConstraint } from 'vs/base/common/types';
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ExtHostEditors } from 'vs/workbench/api/node/extHostEditors';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
-import {cloneAndChange} from 'vs/base/common/objects';
-import {MainContext, MainThreadCommandsShape, ExtHostCommandsShape} from './extHost.protocol';
+import { cloneAndChange } from 'vs/base/common/objects';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape } from './extHost.protocol';
 
 interface CommandHandler {
 	callback: Function;
@@ -28,7 +28,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 
 	constructor(
 		threadService: IThreadService,
-		extHostEditors:ExtHostEditors
+		extHostEditors: ExtHostEditors
 	) {
 		super();
 		this._extHostEditors = extHostEditors;
@@ -65,7 +65,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 		} else {
 			// automagically convert some argument types
 
-			args = cloneAndChange(args, function(value) {
+			args = cloneAndChange(args, function (value) {
 				if (value instanceof extHostTypes.Position) {
 					return extHostTypeConverter.fromPosition(value);
 				}

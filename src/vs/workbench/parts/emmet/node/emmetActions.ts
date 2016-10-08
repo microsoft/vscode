@@ -5,15 +5,15 @@
 /// <reference path="emmet.d.ts" />
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
-import {ICommandKeybindingsOptions} from 'vs/editor/common/config/config';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { ICommandKeybindingsOptions } from 'vs/editor/common/config/config';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 
-import {EditorAccessor, IGrammarContributions} from 'vs/workbench/parts/emmet/node/editorAccessor';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as emmet from 'emmet';
 
 interface IEmmetConfiguration {

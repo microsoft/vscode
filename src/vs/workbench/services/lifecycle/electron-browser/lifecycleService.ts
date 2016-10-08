@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import {toErrorMessage} from 'vs/base/common/errorMessage';
-import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {ipcRenderer as ipc} from 'electron';
-import Event, {Emitter} from 'vs/base/common/event';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { ipcRenderer as ipc } from 'electron';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class LifecycleService implements ILifecycleService {
 

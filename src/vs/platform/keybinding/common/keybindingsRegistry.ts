@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BinaryKeybindings, KeyCodeUtils} from 'vs/base/common/keyCodes';
+import { BinaryKeybindings, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import {IKeybindingItem, IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {CommandsRegistry, ICommandHandler, ICommandHandlerDescription} from 'vs/platform/commands/common/commands';
-import {Registry} from 'vs/platform/platform';
+import { IKeybindingItem, IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { Registry } from 'vs/platform/platform';
 
 export interface IKeybindingRule extends IKeybindings {
 	id: string;

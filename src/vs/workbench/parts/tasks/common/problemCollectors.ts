@@ -20,13 +20,13 @@ export namespace ProblemCollectorEvents {
 }
 
 export interface IProblemMatcher {
-	processLine(line:string):void;
+	processLine(line: string): void;
 }
 
 export class AbstractProblemCollector extends EventEmitter implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
-	private activeMatcher : ILineMatcher;
+	private activeMatcher: ILineMatcher;
 	private _numberOfMatches: number;
 	private buffer: string[];
 	private bufferLength: number;
@@ -103,7 +103,7 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 	}
 
 	protected shouldApplyMatch(result: ProblemMatch): boolean {
-		switch(result.description.applyTo) {
+		switch (result.description.applyTo) {
 			case ApplyToKind.allDocuments:
 				return true;
 			case ApplyToKind.openDocuments:
@@ -164,9 +164,9 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 	private markers: IStringDictionary<IMarkerData[]> = Object.create(null);
 
 
-	constructor(problemMatchers: ProblemMatcher[], markerService:IMarkerService, modelService: IModelService, strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean) {
+	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean) {
 		super(problemMatchers, modelService);
-		let ownerSet:{ [key:string]:boolean; } = Object.create(null);
+		let ownerSet: { [key: string]: boolean; } = Object.create(null);
 		problemMatchers.forEach(description => ownerSet[description.owner] = true);
 		this.owners = Object.keys(ownerSet);
 		this.markerService = markerService;
@@ -174,7 +174,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		this.currentResourcesWithMarkers = Object.create(null);
 		this.reportedResourcesWithMarkers = Object.create(null);
 		this.owners.forEach((owner) => {
-			this.currentResourcesWithMarkers[owner] = this.markerService.read({owner: owner}).map(m => m.resource);
+			this.currentResourcesWithMarkers[owner] = this.markerService.read({ owner: owner }).map(m => m.resource);
 			this.reportedResourcesWithMarkers[owner] = Object.create(null);
 		});
 		this.currentResource = null;
@@ -182,7 +182,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		this.markers = Object.create(null);
 	}
 
-	public processLine(line:string):void {
+	public processLine(line: string): void {
 		let markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
@@ -223,7 +223,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		}
 		if (this.strategy === ProblemHandlingStrategy.Clean) {
 			Object.keys(this.currentResourcesWithMarkers).forEach((owner) => {
-				let toRemove:URI[] = [];
+				let toRemove: URI[] = [];
 				let withMarkers = this.reportedResourcesWithMarkers[owner];
 				this.currentResourcesWithMarkers[owner].forEach((resource) => {
 					if (!withMarkers[resource.toString()]) {

@@ -1274,6 +1274,16 @@ declare module monaco.editor {
          */
         wordBasedSuggestions?: boolean;
         /**
+         * The font size for the suggest widget.
+         * Defaults to the editor font size.
+         */
+        suggestFontSize?: number;
+        /**
+         * The line height for the suggest widget.
+         * Defaults to the editor line height.
+         */
+        suggestLineHeight?: number;
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
@@ -1453,6 +1463,8 @@ declare module monaco.editor {
         snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
         tabCompletion: boolean;
         wordBasedSuggestions: boolean;
+        suggestFontSize: number;
+        suggestLineHeight: number;
         selectionHighlight: boolean;
         codeLens: boolean;
         folding: boolean;
@@ -2776,6 +2788,20 @@ declare module monaco.editor {
          * An array of keybindings for the action.
          */
         keybindings?: number[];
+        /**
+         * Control if the action should show up in the context menu and where.
+         * The context menu of the editor has these default:
+         *   navigation - The navigation group comes first in all cases.
+         *   1_modification - This group comes next and contains commands that modify your code.
+         *   9_cutcopypaste - The last default group with the basic editing commands.
+         * You can also create your own group.
+         * Defaults to null (don't show in context menu).
+         */
+        contextMenuGroupId?: string;
+        /**
+         * Control the order in the context menu group.
+         */
+        contextMenuOrder?: number;
         /**
          * The keybinding rule.
          */

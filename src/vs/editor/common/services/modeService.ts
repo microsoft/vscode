@@ -5,8 +5,8 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
 
 export var IModeService = createDecorator<IModeService>('modeService');
@@ -46,13 +46,12 @@ export interface IModeService {
 
 	// --- reading
 	isRegisteredMode(mimetypeOrModeId: string): boolean;
-	isCompatMode(modeId: string): boolean;
 	getRegisteredModes(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
 	getFilenames(alias: string): string[];
 	getMimeForMode(modeId: string): string;
-	getLanguageName(modeId:string): string;
+	getLanguageName(modeId: string): string;
 	getModeIdForLanguageName(alias: string): string;
 	getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string;
@@ -63,5 +62,5 @@ export interface IModeService {
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): modes.IMode;
 	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<modes.IMode>;
 	getOrCreateModeByLanguageName(languageName: string): TPromise<modes.IMode>;
-	getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?:string): TPromise<modes.IMode>;
+	getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<modes.IMode>;
 }

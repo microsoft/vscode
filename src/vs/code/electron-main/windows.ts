@@ -14,17 +14,20 @@ import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
 import { EventEmitter } from 'events';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState, IWindowSettings } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
-import { ICommandLineArguments, IProcessEnvironment, IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
+import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/electron-main/paths';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
+import product from 'vs/platform/product';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 const EventTypes = {
 	OPEN: 'open',
@@ -38,8 +41,8 @@ enum WindowError {
 }
 
 export interface IOpenConfiguration {
-	cli: ICommandLineArguments;
-	userEnv?: IProcessEnvironment;
+	cli: ParsedArgs;
+	userEnv?: platform.IProcessEnvironment;
 	pathsToOpen?: string[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
@@ -96,15 +99,15 @@ export interface IWindowsService {
 	onWindowFocus: CommonEvent<number>;
 
 	// methods
-	ready(initialUserEnv: IProcessEnvironment): void;
-	reload(win: VSCodeWindow, cli?: ICommandLineArguments): void;
+	ready(initialUserEnv: platform.IProcessEnvironment): void;
+	reload(win: VSCodeWindow, cli?: ParsedArgs): void;
 	open(openConfig: IOpenConfiguration): VSCodeWindow[];
 	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	openFileFolderPicker(forceNewWindow?: boolean): void;
 	openFilePicker(forceNewWindow?: boolean): void;
 	openFolderPicker(forceNewWindow?: boolean): void;
 	openAccessibilityOptions(): void;
-	focusLastActive(cli: ICommandLineArguments): VSCodeWindow;
+	focusLastActive(cli: ParsedArgs): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow;
 	openNewWindow(): void;
@@ -123,7 +126,7 @@ export class WindowEventService implements IWindowEventService {
 
 	_serviceBrand: any;
 
-	constructor(@IWindowsService private windowsService: IWindowsService) { }
+	constructor( @IWindowsService private windowsService: IWindowsService) { }
 
 	public get onWindowFocus(): CommonEvent<number> {
 		return this.windowsService.onWindowFocus;
@@ -147,7 +150,7 @@ export class WindowsManager implements IWindowsService {
 	private static WINDOWS: VSCodeWindow[] = [];
 
 	private eventEmitter = new EventEmitter();
-	private initialUserEnv: IProcessEnvironment;
+	private initialUserEnv: platform.IProcessEnvironment;
 	private windowsState: IWindowsState;
 
 	private _onFocus = new Emitter<number>();
@@ -160,7 +163,7 @@ export class WindowsManager implements IWindowsService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService,
-		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IUpdateService private updateService: IUpdateService,
 		@IConfigurationService private configurationService: IConfigurationService
@@ -184,7 +187,7 @@ export class WindowsManager implements IWindowsService {
 		return () => this.eventEmitter.removeListener(EventTypes.CLOSE, clb);
 	}
 
-	public ready(initialUserEnv: IProcessEnvironment): void {
+	public ready(initialUserEnv: platform.IProcessEnvironment): void {
 		this.registerListeners();
 
 		this.initialUserEnv = initialUserEnv;
@@ -218,7 +221,7 @@ export class WindowsManager implements IWindowsService {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
+				this.open({ cli: this.environmentService.args, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
@@ -234,7 +237,7 @@ export class WindowsManager implements IWindowsService {
 			this.logService.log('IPC#vscode-windowOpen: ', paths);
 
 			if (paths && paths.length) {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: paths, forceNewWindow: forceNewWindow });
+				this.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: forceNewWindow });
 			}
 		});
 
@@ -273,7 +276,7 @@ export class WindowsManager implements IWindowsService {
 
 			const win = this.getWindowById(windowId);
 			if (win) {
-				this.open({ cli: this.envService.cliArgs, forceEmpty: true, windowToUse: win });
+				this.open({ cli: this.environmentService.args, forceEmpty: true, windowToUse: win });
 			}
 		});
 
@@ -462,7 +465,7 @@ export class WindowsManager implements IWindowsService {
 			const windows = this.getWindows();
 			const window = this.getWindowById(windowId);
 			window.send('vscode:switchWindow', windows.map(w => {
-				return {path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id};
+				return { path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id };
 			}));
 		});
 
@@ -539,7 +542,7 @@ export class WindowsManager implements IWindowsService {
 		}
 	}
 
-	public reload(win: VSCodeWindow, cli?: ICommandLineArguments): void {
+	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
 		this.lifecycleService.unload(win).done(veto => {
@@ -561,7 +564,7 @@ export class WindowsManager implements IWindowsService {
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
 					const options: Electron.ShowMessageBoxOptions = {
-						title: this.envService.product.nameLong,
+						title: product.nameLong,
 						type: 'info',
 						buttons: [nls.localize('ok', "OK")],
 						message: nls.localize('pathNotExistTitle', "Path does not exist"),
@@ -595,7 +598,7 @@ export class WindowsManager implements IWindowsService {
 
 		// Otherwise infer from command line arguments
 		else {
-			const ignoreFileNotFound = openConfig.cli.paths.length > 0; // we assume the user wants to create this file from command line
+			const ignoreFileNotFound = openConfig.cli._.length > 0; // we assume the user wants to create this file from command line
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
@@ -803,7 +806,7 @@ export class WindowsManager implements IWindowsService {
 		return { files, folders };
 	}
 
-	private getWindowUserEnv(openConfig: IOpenConfiguration): IProcessEnvironment {
+	private getWindowUserEnv(openConfig: IOpenConfiguration): platform.IProcessEnvironment {
 		return assign({}, this.initialUserEnv, openConfig.userEnv || {});
 	}
 
@@ -821,28 +824,28 @@ export class WindowsManager implements IWindowsService {
 		}
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
-		if (openConfig.cli.paths.length === 0 && !openConfig.cli.extensionTestsPath) {
+		if (openConfig.cli._.length === 0 && !openConfig.cli.extensionTestsPath) {
 			const workspaceToOpen = this.windowsState.lastPluginDevelopmentHostWindow && this.windowsState.lastPluginDevelopmentHostWindow.workspacePath;
 			if (workspaceToOpen) {
-				openConfig.cli.paths = [workspaceToOpen];
+				openConfig.cli._ = [workspaceToOpen];
 			}
 		}
 
 		// Make sure we are not asked to open a path that is already opened
-		if (openConfig.cli.paths.length > 0) {
-			res = WindowsManager.WINDOWS.filter(w => w.openedWorkspacePath && openConfig.cli.paths.indexOf(w.openedWorkspacePath) >= 0);
+		if (openConfig.cli._.length > 0) {
+			res = WindowsManager.WINDOWS.filter(w => w.openedWorkspacePath && openConfig.cli._.indexOf(w.openedWorkspacePath) >= 0);
 			if (res.length) {
-				openConfig.cli.paths = [];
+				openConfig.cli._ = [];
 			}
 		}
 
 		// Open it
-		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.paths.length === 0 });
+		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli._.length === 0 });
 	}
 
-	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
+	private toConfiguration(userEnv: platform.IProcessEnvironment, cli: ParsedArgs, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[]): IWindowConfiguration {
 		const configuration: IWindowConfiguration = mixin({}, cli); // inherit all properties from CLI
-		configuration.appRoot = this.envService.appRoot;
+		configuration.appRoot = this.environmentService.appRoot;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = userEnv;
 		configuration.workspacePath = workspacePath;
@@ -858,7 +861,7 @@ export class WindowsManager implements IWindowsService {
 			return null;
 		}
 
-		let parsedPath: IParsedPath;
+		let parsedPath: IPathWithLineAndColumn;
 		if (gotoLineMode) {
 			parsedPath = parseLineAndColumnAware(anyPath);
 			anyPath = parsedPath.path;
@@ -885,12 +888,12 @@ export class WindowsManager implements IWindowsService {
 		return null;
 	}
 
-	private cliToPaths(cli: ICommandLineArguments, ignoreFileNotFound?: boolean): IPath[] {
+	private cliToPaths(cli: ParsedArgs, ignoreFileNotFound?: boolean): IPath[] {
 
 		// Check for pass in candidate or last opened path
 		let candidates: string[] = [];
-		if (cli.paths.length > 0) {
-			candidates = cli.paths;
+		if (cli._.length > 0) {
+			candidates = cli._;
 		}
 
 		// No path argument, check settings for what to do now
@@ -1103,7 +1106,7 @@ export class WindowsManager implements IWindowsService {
 	private doPickAndOpen(options: INativeOpenDialogOptions): void {
 		this.getFileOrFolderPaths(options, (paths: string[]) => {
 			if (paths && paths.length) {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
+				this.open({ cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
 			}
 		});
 	}
@@ -1136,7 +1139,7 @@ export class WindowsManager implements IWindowsService {
 		});
 	}
 
-	public focusLastActive(cli: ICommandLineArguments): VSCodeWindow {
+	public focusLastActive(cli: ParsedArgs): VSCodeWindow {
 		const lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();
@@ -1209,7 +1212,7 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	public openNewWindow(): void {
-		this.open({ cli: this.envService.cliArgs, forceNewWindow: true, forceEmpty: true });
+		this.open({ cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
 	public sendToFocused(channel: string, ...args: any[]): void {
@@ -1262,7 +1265,7 @@ export class WindowsManager implements IWindowsService {
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
 			dialog.showMessageBox(vscodeWindow.win, {
-				title: this.envService.product.nameLong,
+				title: product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('reopen', "Reopen"), nls.localize('wait', "Keep Waiting"), nls.localize('close', "Close")],
 				message: nls.localize('appStalled', "The window is no longer responding"),
@@ -1281,7 +1284,7 @@ export class WindowsManager implements IWindowsService {
 		// Crashed
 		else {
 			dialog.showMessageBox(vscodeWindow.win, {
-				title: this.envService.product.nameLong,
+				title: product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('reopen', "Reopen"), nls.localize('close', "Close")],
 				message: nls.localize('appCrashed', "The window has crashed"),

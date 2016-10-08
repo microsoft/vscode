@@ -6,10 +6,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
-import {MainThreadConfigurationShape} from 'vs/workbench/api/node/extHost.protocol';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError} from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { MainThreadConfigurationShape } from 'vs/workbench/api/node/extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ConfigurationTarget, ConfigurationEditingErrorCode, IConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 suite('ExtHostConfiguration', function () {
 
@@ -64,6 +64,6 @@ suite('ExtHostConfiguration', function () {
 		return createExtHostConfiguration({}, shape)
 			.getConfiguration('')
 			.update('', true, false)
-			.then(() => assert.ok(false), err => { /* expecting rejection */});
+			.then(() => assert.ok(false), err => { /* expecting rejection */ });
 	});
 });

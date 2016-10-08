@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
-import {LineToken} from 'vs/editor/common/core/lineTokens';
-import {IRichEditBrackets} from 'vs/editor/common/modes';
-import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
-import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { LineToken } from 'vs/editor/common/core/lineTokens';
+import { IRichEditBrackets } from 'vs/editor/common/modes';
+import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
+import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export const enum TokenTreeBracket {
 	None = 0,
@@ -108,7 +108,7 @@ class Token {
 	type: string;
 	bracket: TokenTreeBracket;
 
-	constructor(range:Range, type: string, bracket: TokenTreeBracket) {
+	constructor(range: Range, type: string, bracket: TokenTreeBracket) {
 		this.range = range;
 		this.type = type;
 		this.bracket = bracket;
@@ -132,7 +132,7 @@ class RawToken {
 	public type: string;
 	public modeId: string;
 
-	constructor(source:LineToken, lineNumber:number, lineText:string) {
+	constructor(source: LineToken, lineNumber: number, lineText: string) {
 		this.lineNumber = lineNumber;
 		this.lineText = lineText;
 		this.startOffset = source.startOffset;
@@ -151,7 +151,7 @@ class ModelRawTokenScanner {
 	private _lineText: string;
 	private _next: LineToken;
 
-	constructor(model:IModel) {
+	constructor(model: IModel) {
 		this._model = model;
 		this._lineCount = this._model.getLineCount();
 		this._versionId = this._model.getVersionId();
@@ -258,7 +258,7 @@ class TokenScanner {
 
 				startOffset = foundBracketEndOffset;
 			}
-		} while(foundBracket);
+		} while (foundBracket);
 
 		if (startOffset < endOffset) {
 			// there is some remaining none-bracket text in this token

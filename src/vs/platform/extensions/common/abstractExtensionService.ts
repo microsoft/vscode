@@ -6,9 +6,9 @@
 
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IExtensionDescription, IExtensionService, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IExtensionDescription, IExtensionService, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 

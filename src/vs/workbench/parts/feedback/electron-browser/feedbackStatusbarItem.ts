@@ -5,12 +5,12 @@
 
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {FeedbackDropdown, IFeedback, IFeedbackService} from 'vs/workbench/parts/feedback/browser/feedback';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {shell} from 'electron';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { FeedbackDropdown, IFeedback, IFeedbackService } from 'vs/workbench/parts/feedback/browser/feedback';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { shell } from 'electron';
 import product from 'vs/platform/product';
 
 class TwitterFeedbackService implements IFeedbackService {
@@ -41,7 +41,7 @@ class TwitterFeedbackService implements IFeedbackService {
 		if (TwitterFeedbackService.VIA_NAME) {
 			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
 		}
-		
+
 		return 140 - length;
 	}
 }

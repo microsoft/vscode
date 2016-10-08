@@ -7,26 +7,26 @@
 
 import 'vs/css!./defineKeybinding';
 import * as nls from 'vs/nls';
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {MarkedString} from 'vs/base/common/htmlContent';
-import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
-import {Keybinding} from 'vs/base/common/keybinding';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { MarkedString } from 'vs/base/common/htmlContent';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {Range} from 'vs/editor/common/core/range';
+import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
-import {SmartSnippetInserter} from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
+import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { SmartSnippetInserter } from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -42,12 +42,12 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 	private static ID = 'editor.contrib.defineKeybinding';
 
-	public static get(editor:editorCommon.ICommonCodeEditor): DefineKeybindingController {
+	public static get(editor: editorCommon.ICommonCodeEditor): DefineKeybindingController {
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
 	}
 
 	private _editor: ICodeEditor;
-	private _keybindingService:IKeybindingService;
+	private _keybindingService: IKeybindingService;
 	private _launchWidget: DefineKeybindingLauncherWidget;
 	private _defineWidget: DefineKeybindingWidget;
 	private _toDispose: IDisposable[];
@@ -55,8 +55,8 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	private _updateDecorations: RunOnceScheduler;
 
 	constructor(
-		editor:ICodeEditor,
-		@IKeybindingService keybindingService:IKeybindingService
+		editor: ICodeEditor,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this._editor = editor;
 		this._keybindingService = keybindingService;
@@ -106,7 +106,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		}
 	}
 
-	private _onAccepted(keybinding:string): void {
+	private _onAccepted(keybinding: string): void {
 		let snippetText = [
 			'{',
 			'\t"key": "' + keybinding + '",',
@@ -145,7 +145,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		this._updateDecorations.schedule();
 	}
 
-	private _dec:string[] = [];
+	private _dec: string[] = [];
 	private _updateDecorationsNow(): void {
 		let model = this._editor.getModel();
 		let regex = Keybinding.getUserSettingsKeybindingRegex();
@@ -177,7 +177,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 		data.forEach((item) => {
-			let msg:MarkedString[];
+			let msg: MarkedString[];
 			let className: string;
 			let inlineClassName: string;
 			let overviewRulerColor: string;
@@ -236,7 +236,7 @@ class DefineKeybindingLauncherWidget implements IOverlayWidget {
 	private _toDispose: IDisposable[];
 	private _isVisible: boolean;
 
-	constructor(editor:ICodeEditor, keybindingService:IKeybindingService, onLaunch:()=>void) {
+	constructor(editor: ICodeEditor, keybindingService: IKeybindingService, onLaunch: () => void) {
 		this._editor = editor;
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'defineKeybindingLauncher';
@@ -245,7 +245,7 @@ class DefineKeybindingLauncherWidget implements IOverlayWidget {
 		let keybinding = keybindingService.lookupKeybindings(DefineKeybindingAction.ID);
 		let extra = '';
 		if (keybinding.length > 0) {
-			extra += ' ('+keybindingService.getLabelFor(keybinding[0])+')';
+			extra += ' (' + keybindingService.getLabelFor(keybinding[0]) + ')';
 		}
 		this._domNode.appendChild(document.createTextNode(NLS_LAUNCH_MESSAGE + extra));
 
@@ -305,7 +305,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	private static HEIGHT = 90;
 
 	private _editor: ICodeEditor;
-	private _keybindingService:IKeybindingService;
+	private _keybindingService: IKeybindingService;
 
 	private _domNode: HTMLElement;
 	private _toDispose: IDisposable[];
@@ -315,10 +315,10 @@ class DefineKeybindingWidget implements IOverlayWidget {
 	private _outputNode: HTMLElement;
 
 	private _lastKeybinding: Keybinding;
-	private _onAccepted: (keybinding:string) => void;
+	private _onAccepted: (keybinding: string) => void;
 	private _isVisible: boolean;
 
-	constructor(editor:ICodeEditor, keybindingService:IKeybindingService, onAccepted:(keybinding:string) => void) {
+	constructor(editor: ICodeEditor, keybindingService: IKeybindingService, onAccepted: (keybinding: string) => void) {
 		this._editor = editor;
 		this._keybindingService = keybindingService;
 		this._onAccepted = onAccepted;
@@ -457,7 +457,7 @@ export class DefineKeybindingAction extends EditorAction {
 	constructor() {
 		super({
 			id: DefineKeybindingAction.ID,
-			label: nls.localize('DefineKeybindingAction',"Define Keybinding"),
+			label: nls.localize('DefineKeybindingAction', "Define Keybinding"),
 			alias: 'Define Keybinding',
 			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json')),
 			kbOpts: {
@@ -467,7 +467,7 @@ export class DefineKeybindingAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		if (!isInterestingEditorModel(editor)) {
 			return;
 		}
@@ -479,7 +479,7 @@ export class DefineKeybindingAction extends EditorAction {
 
 }
 
-function isInterestingEditorModel(editor:editorCommon.ICommonCodeEditor): boolean {
+function isInterestingEditorModel(editor: editorCommon.ICommonCodeEditor): boolean {
 	if (editor.getConfiguration().readOnly) {
 		return false;
 	}

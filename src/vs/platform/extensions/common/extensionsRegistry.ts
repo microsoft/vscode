@@ -5,13 +5,13 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
-import {IActivationEventListener, IMessage, IExtensionDescription, IPointListener} from 'vs/platform/extensions/common/extensions';
-import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {Registry} from 'vs/platform/platform';
+import { IActivationEventListener, IMessage, IExtensionDescription, IPointListener } from 'vs/platform/extensions/common/extensions';
+import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { Registry } from 'vs/platform/platform';
 
 export interface IExtensionMessageCollector {
 	error(message: string): void;
@@ -21,15 +21,15 @@ export interface IExtensionMessageCollector {
 
 class ExtensionMessageCollector implements IExtensionMessageCollector {
 
-	private _messageHandler: (msg:IMessage)=>void;
+	private _messageHandler: (msg: IMessage) => void;
 	private _source: string;
 
-	constructor(messageHandler: (msg:IMessage)=>void, source:string) {
+	constructor(messageHandler: (msg: IMessage) => void, source: string) {
 		this._messageHandler = messageHandler;
 		this._source = source;
 	}
 
-	private _msg(type:Severity, message:string): void {
+	private _msg(type: Severity, message: string): void {
 		this._messageHandler({
 			type: type,
 			message: message,
@@ -144,7 +144,7 @@ export interface IExtensionsRegistry {
 	triggerActivationEventListeners(activationEvent: string): void;
 
 	registerExtensionPoint<T>(extensionPoint: string, jsonSchema: IJSONSchema): IExtensionPoint<T>;
-	handleExtensionPoints(messageHandler: (msg:IMessage)=>void): void;
+	handleExtensionPoints(messageHandler: (msg: IMessage) => void): void;
 }
 
 class ExtensionPoint<T> implements IExtensionPoint<T> {
@@ -152,7 +152,7 @@ class ExtensionPoint<T> implements IExtensionPoint<T> {
 	public name: string;
 	private _registry: ExtensionsRegistryImpl;
 	private _handler: IExtensionPointHandler<T>;
-	private _messageHandler: (msg:IMessage)=>void;
+	private _messageHandler: (msg: IMessage) => void;
 
 	constructor(name: string, registry: ExtensionsRegistryImpl) {
 		this.name = name;
@@ -169,7 +169,7 @@ class ExtensionPoint<T> implements IExtensionPoint<T> {
 		this._handle();
 	}
 
-	handle(messageHandler: (msg:IMessage)=>void): void {
+	handle(messageHandler: (msg: IMessage) => void): void {
 		this._messageHandler = messageHandler;
 		this._handle();
 	}
@@ -214,6 +214,10 @@ const schema: IJSONSchema = {
 		// 		}
 		// 	}
 		// },
+		publisher: {
+			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
+			type: 'string'
+		},
 		displayName: {
 			description: nls.localize('vscode.extension.displayName', 'The display name for the extension used in the VS Code gallery.'),
 			type: 'string'
@@ -221,6 +225,7 @@ const schema: IJSONSchema = {
 		categories: {
 			description: nls.localize('vscode.extension.categories', 'The categories used by the VS Code gallery to categorize the extension.'),
 			type: 'array',
+			uniqueItems: true,
 			items: {
 				type: 'string',
 				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Productivity', 'Other']
@@ -241,21 +246,52 @@ const schema: IJSONSchema = {
 				}
 			}
 		},
-		publisher: {
-			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
-			type: 'string'
+		contributes: {
+			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
+			type: 'object',
+			properties: {
+				// extensions will fill in
+			},
+			default: {}
+		},
+		preview: {
+			type: 'boolean',
+			description: nls.localize('vscode.extension.preview', 'Sets the extension to be flagged as a Preview in the Marketplace.'),
 		},
 		activationEvents: {
 			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
 			type: 'array',
 			items: {
 				type: 'string',
-				defaultSnippets: [{ label: 'onLanguage', body: 'onLanguage:{{languageId}}'}, {label: 'onCommand', body: 'onCommand:{{commandId}}'}, {label: 'onDebug', body: 'onDebug:{{type}}'}, {label: 'workspaceContains', body: 'workspaceContains:{{fileName}}'}],
+				defaultSnippets: [{ label: 'onLanguage', body: 'onLanguage:{{languageId}}' }, { label: 'onCommand', body: 'onCommand:{{commandId}}' }, { label: 'onDebug', body: 'onDebug:{{type}}' }, { label: 'workspaceContains', body: 'workspaceContains:{{fileName}}' }],
+			}
+		},
+		badges: {
+			type: 'array',
+			description: nls.localize('vscode.extension.badges', 'Array of badges to display in the sidebar of the Marketplace\'s extension page.'),
+			items: {
+				type: 'object',
+				required: ['url', 'href', 'description'],
+				properties: {
+					url: {
+						type: 'string',
+						description: nls.localize('vscode.extension.badges.url', 'Badge image URL.')
+					},
+					href: {
+						type: 'string',
+						description: nls.localize('vscode.extension.badges.href', 'Badge link.')
+					},
+					description: {
+						type: 'string',
+						description: nls.localize('vscode.extension.badges.description', 'Badge description.')
+					}
+				}
 			}
 		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
 			type: 'array',
+			uniqueItems: true,
 			items: {
 				type: 'string'
 			}
@@ -269,13 +305,9 @@ const schema: IJSONSchema = {
 				}
 			}
 		},
-		contributes: {
-			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
-			type: 'object',
-			properties: {
-				// extensions will fill in
-			},
-			default: {}
+		icon: {
+			type: 'string',
+			description: nls.localize('vscode.extension.icon', 'The path to a 128x128 pixel icon.')
 		}
 	}
 };
@@ -325,7 +357,7 @@ class ExtensionsRegistryImpl implements IExtensionsRegistry {
 		return result;
 	}
 
-	public handleExtensionPoints(messageHandler: (msg:IMessage)=>void): void {
+	public handleExtensionPoints(messageHandler: (msg: IMessage) => void): void {
 		Object.keys(this._extensionPoints).forEach((extensionPointName) => {
 			this._extensionPoints[extensionPointName].handle(messageHandler);
 		});

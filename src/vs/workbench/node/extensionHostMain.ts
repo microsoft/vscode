@@ -11,19 +11,19 @@ import * as crypto from 'crypto';
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import pkg from 'vs/platform/package';
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ExtHostAPIImplementation, defineAPI} from 'vs/workbench/api/node/extHost.api.impl';
-import {IMainProcessExtHostIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
-import {ExtHostExtensionService} from 'vs/workbench/api/node/extHostExtensionService';
-import {ExtHostThreadService} from 'vs/workbench/services/thread/common/extHostThreadService';
-import {RemoteTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
-import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
-import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Client} from 'vs/base/parts/ipc/node/ipc.net';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtHostAPIImplementation, defineAPI } from 'vs/workbench/api/node/extHost.api.impl';
+import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
+import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
+import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
+import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import * as errors from 'vs/base/common/errors';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
 const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
@@ -47,7 +47,7 @@ export interface IInitData {
 }
 
 const nativeExit = process.exit.bind(process);
-process.exit = function() {
+process.exit = function () {
 	const err = new Error('An extension called process.exit() and this was prevented.');
 	console.warn((<any>err).stack);
 };
@@ -66,7 +66,7 @@ export class ExtensionHostMain {
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
-	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData, sharedProcessClient: Client) {
+	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData) {
 		this._isTerminating = false;
 
 		this._environment = initData.environment;
@@ -78,7 +78,7 @@ export class ExtensionHostMain {
 
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 
-		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, {_serviceBrand: 'optionalArgs', workspaceStoragePath });
+		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
 
 		// Connect to shared process services
 		/*
@@ -152,21 +152,28 @@ export class ExtensionHostMain {
 		}
 		this._isTerminating = true;
 
+		errors.setUnexpectedErrorHandler((err) => {
+			// TODO: write to log once we have one
+		});
+
+		let allPromises: TPromise<void>[] = [];
 		try {
 			let allExtensions = ExtensionsRegistry.getAllExtensionDescriptions();
 			let allExtensionsIds = allExtensions.map(ext => ext.id);
 			let activatedExtensions = allExtensionsIds.filter(id => this._extensionService.isActivated(id));
 
-			activatedExtensions.forEach((extensionId) => {
-				this._extensionService.deactivate(extensionId);
+			allPromises = activatedExtensions.map((extensionId) => {
+				return this._extensionService.deactivate(extensionId);
 			});
 		} catch (err) {
 			// TODO: write to log once we have one
 		}
 
+		let extensionsDeactivated = TPromise.join(allPromises).then<void>(() => void 0);
+
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
-			exit();
+			TPromise.any<void>([TPromise.timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
 	}
 

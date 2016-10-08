@@ -38,8 +38,10 @@ export interface IMenuItem {
 
 export enum MenuId {
 	EditorTitle = 1,
-	EditorContext = 2,
-	ExplorerContext = 3
+	EditorTitleContext = 2,
+	EditorContext = 3,
+	ExplorerContext = 4,
+	ProblemsPanelContext = 5
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');

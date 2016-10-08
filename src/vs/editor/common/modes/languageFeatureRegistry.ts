@@ -5,10 +5,10 @@
 
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {LanguageSelector, score} from 'vs/editor/common/modes/languageSelector';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 
 interface Entry<T> {
 	selector: LanguageSelector;

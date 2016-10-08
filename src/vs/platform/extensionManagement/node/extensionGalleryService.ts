@@ -143,7 +143,7 @@ const DefaultQueryState: IQueryState = {
 
 class Query {
 
-	constructor(private state = DefaultQueryState) {}
+	constructor(private state = DefaultQueryState) { }
 
 	get pageNumber(): number { return this.state.pageNumber; }
 	get pageSize(): number { return this.state.pageSize; }
@@ -227,7 +227,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		manifest: getAssetSource(version.files, AssetType.Manifest),
 		readme: getAssetSource(version.files, AssetType.Details),
 		changelog: getAssetSource(version.files, AssetType.Changelog),
-		download: `${ getAssetSource(version.files, AssetType.VSIX) }?install=true`,
+		download: `${getAssetSource(version.files, AssetType.VSIX)}?install=true`,
 		icon,
 		iconFallback,
 		license: getAssetSource(version.files, AssetType.License)
@@ -264,8 +264,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	private get commonHeaders(): TPromise<{ [key: string]: string; }> {
 		return this.telemetryService.getTelemetryInfo().then(({ machineId }) => {
 			const result: { [key: string]: string; } = {
-				'X-Market-Client-Id': `VSCode ${ pkg.version }`,
-				'User-Agent': `VSCode ${ pkg.version }`
+				'X-Market-Client-Id': `VSCode ${pkg.version}`,
+				'User-Agent': `VSCode ${pkg.version}`
 			};
 
 			if (machineId) {
@@ -286,7 +286,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private api(path = ''): string {
-		return `${ this.extensionsGalleryUrl }${ path }`;
+		return `${this.extensionsGalleryUrl}${path}`;
 	}
 
 	isEnabled(): boolean {
@@ -385,13 +385,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	getAsset(url: string): TPromise<IRequestContext> {
-		return this._getAsset({ url });
+		return this._getAsset({ url });
 	}
 
 	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
 		return this.loadCompatibleVersion(<IGalleryExtension>extension)
-			.then(compatible => this.getDependenciesReccursively(compatible.properties.dependencies, [extension]))
-			.then(dependencies => dependencies.slice(1));
+			.then(compatible => this.getDependenciesReccursively(compatible.properties.dependencies, [], extension));
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
@@ -445,9 +444,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
+	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[], root: IGalleryExtension): TPromise<IGalleryExtension[]> {
 		if (!toGet || !toGet.length) {
 			return TPromise.wrap(result);
+		}
+		if (toGet.indexOf(`${root.publisher}.${root.name}`) && result.indexOf(root) === -1) {
+			result.push(root);
 		}
 		toGet = result.length ? toGet.filter(e => !ExtensionGalleryService.hasExtensionByName(result, e)) : toGet;
 		if (!toGet.length) {
@@ -464,7 +466,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				}
 				result = distinct(result.concat(loadedDependencies), d => d.id);
 				const dependencies = dependenciesSet.elements.filter(d => !ExtensionGalleryService.hasExtensionByName(result, d));
-				return this.getDependenciesReccursively(dependencies, result);
+				return this.getDependenciesReccursively(dependencies, result, root);
 			});
 	}
 

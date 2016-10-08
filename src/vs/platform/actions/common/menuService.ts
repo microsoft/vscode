@@ -5,15 +5,15 @@
 
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IAction} from 'vs/base/common/actions';
-import {values} from 'vs/base/common/collections';
-import {ContextKeyExpr, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {MenuId, MenuRegistry, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService} from 'vs/platform/actions/common/actions';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {ResourceContextKey} from 'vs/platform/actions/common/resourceContextKey';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IAction } from 'vs/base/common/actions';
+import { values } from 'vs/base/common/collections';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MenuId, MenuRegistry, ICommandAction, MenuItemAction, IMenu, IMenuItem, IMenuService } from 'vs/platform/actions/common/actions';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ResourceContextKey } from 'vs/platform/actions/common/resourceContextKey';
 
 export class MenuService implements IMenuService {
 

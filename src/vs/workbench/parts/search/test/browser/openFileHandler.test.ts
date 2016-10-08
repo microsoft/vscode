@@ -7,10 +7,10 @@
 import * as assert from 'assert';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {CacheState} from 'vs/workbench/parts/search/browser/openFileHandler';
-import {DeferredTPromise} from 'vs/test/utils/promiseTestUtils';
-import {QueryType, ISearchQuery} from 'vs/platform/search/common/search';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { CacheState } from 'vs/workbench/parts/search/browser/openFileHandler';
+import { DeferredTPromise } from 'vs/test/utils/promiseTestUtils';
+import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 
 suite('CacheState', () => {
 
@@ -176,8 +176,8 @@ suite('CacheState', () => {
 	class MockCache {
 
 		public cacheKeys: string[] = [];
-		public loading: {[cacheKey: string]: DeferredTPromise<any>} = {};
-		public disposing: {[cacheKey: string]: DeferredTPromise<void>} = {};
+		public loading: { [cacheKey: string]: DeferredTPromise<any> } = {};
+		public disposing: { [cacheKey: string]: DeferredTPromise<void> } = {};
 
 		public baseQuery: ISearchQuery = {
 			type: QueryType.File

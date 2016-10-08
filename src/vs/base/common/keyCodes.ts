@@ -191,7 +191,7 @@ export const enum KeyCode {
 }
 
 export interface IReverseMap {
-	[str:string]:KeyCode;
+	[str: string]: KeyCode;
 }
 
 export class Mapping {
@@ -204,11 +204,11 @@ export class Mapping {
 		this._toKeyCode = toKeyCode;
 	}
 
-	fromKeyCode(keyCode:KeyCode): string {
+	fromKeyCode(keyCode: KeyCode): string {
 		return this._fromKeyCode[keyCode];
 	}
 
-	toKeyCode(str:string): KeyCode {
+	toKeyCode(str: string): KeyCode {
 		if (this._toKeyCode.hasOwnProperty(str)) {
 			return this._toKeyCode[str];
 		}
@@ -217,7 +217,7 @@ export class Mapping {
 
 }
 
-function createMapping(fill1:(map:string[])=>void, fill2:(reverseMap:IReverseMap)=>void): Mapping {
+function createMapping(fill1: (map: string[]) => void, fill2: (reverseMap: IReverseMap) => void): Mapping {
 	let MAP: string[] = [];
 	fill1(MAP);
 
@@ -242,28 +242,28 @@ function createMapping(fill1:(map:string[])=>void, fill2:(reverseMap:IReverseMap
 }
 
 let STRING = createMapping((TO_STRING_MAP) => {
-	TO_STRING_MAP[KeyCode.Unknown] 		= 'unknown';
+	TO_STRING_MAP[KeyCode.Unknown] = 'unknown';
 
-	TO_STRING_MAP[KeyCode.Backspace] 	= 'Backspace';
-	TO_STRING_MAP[KeyCode.Tab] 			= 'Tab';
-	TO_STRING_MAP[KeyCode.Enter] 		= 'Enter';
-	TO_STRING_MAP[KeyCode.Shift] 		= 'Shift';
-	TO_STRING_MAP[KeyCode.Ctrl] 		= 'Ctrl';
-	TO_STRING_MAP[KeyCode.Alt] 			= 'Alt';
-	TO_STRING_MAP[KeyCode.PauseBreak] 	= 'PauseBreak';
-	TO_STRING_MAP[KeyCode.CapsLock] 	= 'CapsLock';
-	TO_STRING_MAP[KeyCode.Escape] 		= 'Escape';
-	TO_STRING_MAP[KeyCode.Space] 		= 'Space';
-	TO_STRING_MAP[KeyCode.PageUp] 		= 'PageUp';
-	TO_STRING_MAP[KeyCode.PageDown] 	= 'PageDown';
-	TO_STRING_MAP[KeyCode.End] 			= 'End';
-	TO_STRING_MAP[KeyCode.Home] 		= 'Home';
-	TO_STRING_MAP[KeyCode.LeftArrow] 	= 'LeftArrow';
-	TO_STRING_MAP[KeyCode.UpArrow] 		= 'UpArrow';
-	TO_STRING_MAP[KeyCode.RightArrow] 	= 'RightArrow';
-	TO_STRING_MAP[KeyCode.DownArrow] 	= 'DownArrow';
-	TO_STRING_MAP[KeyCode.Insert] 		= 'Insert';
-	TO_STRING_MAP[KeyCode.Delete] 		= 'Delete';
+	TO_STRING_MAP[KeyCode.Backspace] = 'Backspace';
+	TO_STRING_MAP[KeyCode.Tab] = 'Tab';
+	TO_STRING_MAP[KeyCode.Enter] = 'Enter';
+	TO_STRING_MAP[KeyCode.Shift] = 'Shift';
+	TO_STRING_MAP[KeyCode.Ctrl] = 'Ctrl';
+	TO_STRING_MAP[KeyCode.Alt] = 'Alt';
+	TO_STRING_MAP[KeyCode.PauseBreak] = 'PauseBreak';
+	TO_STRING_MAP[KeyCode.CapsLock] = 'CapsLock';
+	TO_STRING_MAP[KeyCode.Escape] = 'Escape';
+	TO_STRING_MAP[KeyCode.Space] = 'Space';
+	TO_STRING_MAP[KeyCode.PageUp] = 'PageUp';
+	TO_STRING_MAP[KeyCode.PageDown] = 'PageDown';
+	TO_STRING_MAP[KeyCode.End] = 'End';
+	TO_STRING_MAP[KeyCode.Home] = 'Home';
+	TO_STRING_MAP[KeyCode.LeftArrow] = 'LeftArrow';
+	TO_STRING_MAP[KeyCode.UpArrow] = 'UpArrow';
+	TO_STRING_MAP[KeyCode.RightArrow] = 'RightArrow';
+	TO_STRING_MAP[KeyCode.DownArrow] = 'DownArrow';
+	TO_STRING_MAP[KeyCode.Insert] = 'Insert';
+	TO_STRING_MAP[KeyCode.Delete] = 'Delete';
 
 	TO_STRING_MAP[KeyCode.KEY_0] = '0';
 	TO_STRING_MAP[KeyCode.KEY_1] = '1';
@@ -326,22 +326,22 @@ let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.F19] = 'F19';
 
 
-	TO_STRING_MAP[KeyCode.NumLock] 		= 'NumLock';
-	TO_STRING_MAP[KeyCode.ScrollLock] 	= 'ScrollLock';
+	TO_STRING_MAP[KeyCode.NumLock] = 'NumLock';
+	TO_STRING_MAP[KeyCode.ScrollLock] = 'ScrollLock';
 
-	TO_STRING_MAP[KeyCode.US_SEMICOLON] 			= ';';
-	TO_STRING_MAP[KeyCode.US_EQUAL] 				= '=';
-	TO_STRING_MAP[KeyCode.US_COMMA] 				= ',';
-	TO_STRING_MAP[KeyCode.US_MINUS] 				= '-';
-	TO_STRING_MAP[KeyCode.US_DOT] 					= '.';
-	TO_STRING_MAP[KeyCode.US_SLASH] 				= '/';
-	TO_STRING_MAP[KeyCode.US_BACKTICK] 				= '`';
-	TO_STRING_MAP[KeyCode.US_OPEN_SQUARE_BRACKET] 	= '[';
-	TO_STRING_MAP[KeyCode.US_BACKSLASH] 			= '\\';
-	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] 	= ']';
-	TO_STRING_MAP[KeyCode.US_QUOTE]					= '\'';
-	TO_STRING_MAP[KeyCode.OEM_8]					= 'OEM_8';
-	TO_STRING_MAP[KeyCode.OEM_102]					= 'OEM_102';
+	TO_STRING_MAP[KeyCode.US_SEMICOLON] = ';';
+	TO_STRING_MAP[KeyCode.US_EQUAL] = '=';
+	TO_STRING_MAP[KeyCode.US_COMMA] = ',';
+	TO_STRING_MAP[KeyCode.US_MINUS] = '-';
+	TO_STRING_MAP[KeyCode.US_DOT] = '.';
+	TO_STRING_MAP[KeyCode.US_SLASH] = '/';
+	TO_STRING_MAP[KeyCode.US_BACKTICK] = '`';
+	TO_STRING_MAP[KeyCode.US_OPEN_SQUARE_BRACKET] = '[';
+	TO_STRING_MAP[KeyCode.US_BACKSLASH] = '\\';
+	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] = ']';
+	TO_STRING_MAP[KeyCode.US_QUOTE] = '\'';
+	TO_STRING_MAP[KeyCode.OEM_8] = 'OEM_8';
+	TO_STRING_MAP[KeyCode.OEM_102] = 'OEM_102';
 
 	TO_STRING_MAP[KeyCode.NUMPAD_0] = 'NumPad0';
 	TO_STRING_MAP[KeyCode.NUMPAD_1] = 'NumPad1';
@@ -396,10 +396,10 @@ export let USER_SETTINGS = createMapping((TO_USER_SETTINGS_MAP) => {
 });
 
 export namespace KeyCodeUtils {
-	export function toString(key:KeyCode): string {
+	export function toString(key: KeyCode): string {
 		return STRING.fromKeyCode(key);
 	}
-	export function fromString(key:string): KeyCode {
+	export function fromString(key: string): KeyCode {
 		return STRING.toKeyCode(key);
 	}
 }
@@ -425,41 +425,41 @@ export const enum KeyMod {
 	WinCtrl = 1 << 12,
 }
 
-export function KeyChord(firstPart:number, secondPart:number): number {
+export function KeyChord(firstPart: number, secondPart: number): number {
 	return firstPart | ((secondPart & 0x0000ffff) << 16);
 }
 
 export class BinaryKeybindings {
 
-	public static extractFirstPart(keybinding:number): number {
+	public static extractFirstPart(keybinding: number): number {
 		return keybinding & 0x0000ffff;
 	}
 
-	public static extractChordPart(keybinding:number): number {
+	public static extractChordPart(keybinding: number): number {
 		return (keybinding >> 16) & 0x0000ffff;
 	}
 
-	public static hasChord(keybinding:number): boolean {
+	public static hasChord(keybinding: number): boolean {
 		return (this.extractChordPart(keybinding) !== 0);
 	}
 
-	public static hasCtrlCmd(keybinding:number): boolean {
+	public static hasCtrlCmd(keybinding: number): boolean {
 		return (keybinding & BinaryKeybindingsMask.CtrlCmd ? true : false);
 	}
 
-	public static hasShift(keybinding:number): boolean {
+	public static hasShift(keybinding: number): boolean {
 		return (keybinding & BinaryKeybindingsMask.Shift ? true : false);
 	}
 
-	public static hasAlt(keybinding:number): boolean {
+	public static hasAlt(keybinding: number): boolean {
 		return (keybinding & BinaryKeybindingsMask.Alt ? true : false);
 	}
 
-	public static hasWinCtrl(keybinding:number): boolean {
+	public static hasWinCtrl(keybinding: number): boolean {
 		return (keybinding & BinaryKeybindingsMask.WinCtrl ? true : false);
 	}
 
-	public static extractKeyCode(keybinding:number): KeyCode {
+	public static extractKeyCode(keybinding: number): KeyCode {
 		return (keybinding & BinaryKeybindingsMask.KeyCode);
 	}
 }

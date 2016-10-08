@@ -4,34 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Location, getLocation, createScanner, SyntaxKind, ScanError} from 'jsonc-parser';
-import {basename} from 'path';
-import {BowerJSONContribution} from './bowerJSONContribution';
-import {PackageJSONContribution} from './packageJSONContribution';
-import {XHRRequest} from 'request-light';
+import { Location, getLocation, createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
+import { basename } from 'path';
+import { BowerJSONContribution } from './bowerJSONContribution';
+import { PackageJSONContribution } from './packageJSONContribution';
+import { XHRRequest } from 'request-light';
 
-import {CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,
-		CancellationToken, Range, TextEdit, MarkedString, DocumentSelector, languages, Disposable} from 'vscode';
+import {
+	CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,
+	CancellationToken, Range, TextEdit, MarkedString, DocumentSelector, languages, Disposable
+} from 'vscode';
 
 export interface ISuggestionsCollector {
 	add(suggestion: CompletionItem): void;
-	error(message:string): void;
-	log(message:string): void;
+	error(message: string): void;
+	log(message: string): void;
 	setAsIncomplete(): void;
 }
 
 export interface IJSONContribution {
 	getDocumentSelector(): DocumentSelector;
-	getInfoContribution(fileName: string, location: Location) : Thenable<MarkedString[]>;
-	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast:boolean, result: ISuggestionsCollector) : Thenable<any>;
+	getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[]>;
+	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any>;
 	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any>;
 	collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any>;
 	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem>;
 }
 
-export function addJSONProviders(xhr: XHRRequest) : Disposable {
+export function addJSONProviders(xhr: XHRRequest): Disposable {
 	let contributions = [new PackageJSONContribution(xhr), new BowerJSONContribution(xhr)];
-	let subscriptions : Disposable[] = [];
+	let subscriptions: Disposable[] = [];
 	contributions.forEach(contribution => {
 		let selector = contribution.getDocumentSelector();
 		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '.', '$'));
@@ -72,7 +74,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public resolveCompletionItem(item: CompletionItem, token: CancellationToken) : Thenable<CompletionItem> {
+	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): Thenable<CompletionItem> {
 		if (this.jsonContribution.resolveSuggestion) {
 			let resolver = this.jsonContribution.resolveSuggestion(item);
 			if (resolver) {
@@ -87,7 +89,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		let fileName = basename(document.fileName);
 
 		let currentWord = this.getCurrentWord(document, position);
-		let overwriteRange : Range;
+		let overwriteRange: Range;
 
 		let items: CompletionItem[] = [];
 		let isIncomplete = false;
@@ -116,7 +118,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			log: (message: string) => console.log(message)
 		};
 
-		let collectPromise : Thenable<any> = null;
+		let collectPromise: Thenable<any> = null;
 
 		if (location.isAtPropertyKey) {
 			let addValue = !location.previousNode || !location.previousNode.columnOffset;
@@ -146,15 +148,15 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		while (i >= 0 && ' \t\n\r\v":{[,'.indexOf(text.charAt(i)) === -1) {
 			i--;
 		}
-		return text.substring(i+1, position.character);
+		return text.substring(i + 1, position.character);
 	}
 
-	private isLast(document: TextDocument, position: Position):boolean {
+	private isLast(document: TextDocument, position: Position): boolean {
 		let scanner = createScanner(document.getText(), true);
 		scanner.setPosition(document.offsetAt(position));
 		let nextToken = scanner.scan();
 		if (nextToken === SyntaxKind.StringLiteral && scanner.getTokenError() === ScanError.UnexpectedEndOfString) {
-			nextToken= scanner.scan();
+			nextToken = scanner.scan();
 		}
 		return nextToken === SyntaxKind.CloseBraceToken || nextToken === SyntaxKind.EOF;
 	}

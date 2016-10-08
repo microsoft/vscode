@@ -6,7 +6,7 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, toDisposable }  from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 
 enum MessageType {
@@ -37,7 +37,7 @@ interface IRawRequest extends IRawMessage {
 interface IRequest {
 	raw: IRawRequest;
 	emitter?: Emitter<any>;
-	flush?: ()=>void;
+	flush?: () => void;
 }
 
 interface IRawResponse extends IRawMessage {
@@ -88,7 +88,7 @@ export class ChannelServer {
 		this.channels = Object.create(null);
 		this.activeRequests = Object.create(null);
 		this.protocolListener = this.protocol.onMessage(r => this.onMessage(r));
-		this.protocol.send(<IRawResponse> { type: MessageType.ResponseInitialize });
+		this.protocol.send(<IRawResponse>{ type: MessageType.ResponseInitialize });
 	}
 
 	registerChannel(channelName: string, channel: IChannel): void {
@@ -120,22 +120,24 @@ export class ChannelServer {
 		const id = request.id;
 
 		const requestPromise = promise.then(data => {
-			this.protocol.send(<IRawResponse> { id, data, type: MessageType.ResponseSuccess });
+			this.protocol.send(<IRawResponse>{ id, data, type: MessageType.ResponseSuccess });
 			delete this.activeRequests[request.id];
 		}, data => {
 			if (data instanceof Error) {
-				this.protocol.send(<IRawResponse> { id, data: {
-					message: data.message,
-					name: data.name,
-					stack: data.stack ? data.stack.split('\n') : void 0
-				}, type: MessageType.ResponseError });
+				this.protocol.send(<IRawResponse>{
+					id, data: {
+						message: data.message,
+						name: data.name,
+						stack: data.stack ? data.stack.split('\n') : void 0
+					}, type: MessageType.ResponseError
+				});
 			} else {
-				this.protocol.send(<IRawResponse> { id, data, type: MessageType.ResponseErrorObj });
+				this.protocol.send(<IRawResponse>{ id, data, type: MessageType.ResponseErrorObj });
 			}
 
 			delete this.activeRequests[request.id];
 		}, data => {
-			this.protocol.send(<IRawResponse> { id, data, type: MessageType.ResponseProgress });
+			this.protocol.send(<IRawResponse>{ id, data, type: MessageType.ResponseProgress });
 		});
 
 		this.activeRequests[request.id] = toDisposable(() => requestPromise.cancel());
@@ -223,7 +225,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					case MessageType.ResponseError:
 						delete this.handlers[id];
 						const error = new Error(response.data.message);
-						(<any> error).stack = response.data.stack;
+						(<any>error).stack = response.data.stack;
 						error.name = response.data.name;
 						e(error);
 						break;
@@ -241,7 +243,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 			this.send(request.raw);
 		},
-		() => this.send({ id, type: MessageType.RequestCancel }));
+			() => this.send({ id, type: MessageType.RequestCancel }));
 	}
 
 	private bufferRequest(request: IRequest): Promise {
@@ -332,10 +334,10 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	return { call } as T;
 }
 
-export type Serializer<T,R> = (obj: T) => R;
-export type Deserializer<T,R> = (raw: R) => T;
+export type Serializer<T, R> = (obj: T) => R;
+export type Deserializer<T, R> = (raw: R) => T;
 
-export function eventToCall<T>(event: Event<T>, serializer: Serializer<T,any> = t => t): TPromise<void> {
+export function eventToCall<T>(event: Event<T>, serializer: Serializer<T, any> = t => t): TPromise<void> {
 	let disposable: IDisposable;
 
 	return new Promise(
@@ -344,7 +346,7 @@ export function eventToCall<T>(event: Event<T>, serializer: Serializer<T,any> = 
 	);
 }
 
-export function eventFromCall<T>(channel: IChannel, name: string, arg: any = null, deserializer: Deserializer<T,any> = t => t): Event<T> {
+export function eventFromCall<T>(channel: IChannel, name: string, arg: any = null, deserializer: Deserializer<T, any> = t => t): Event<T> {
 	let promise: Promise;
 
 	const emitter = new Emitter<any>({

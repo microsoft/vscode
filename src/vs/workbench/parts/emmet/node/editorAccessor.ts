@@ -5,11 +5,11 @@
 
 'use strict';
 
-import {IPosition, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import { IPosition, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
-import {Range} from 'vs/editor/common/core/range';
-import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
+import { Range } from 'vs/editor/common/core/range';
+import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 
 
 import emmet = require('emmet');
@@ -92,7 +92,7 @@ export class EditorAccessor implements emmet.Editor {
 		}
 
 		// test if > is located after the replace range. Either replace these too, or block the expansion
-		if (this._editor.getModel().getLineContent(endPosition.lineNumber).substr(endPosition.column-1, endPosition.column) ==='>') {
+		if (this._editor.getModel().getLineContent(endPosition.lineNumber).substr(endPosition.column - 1, endPosition.column) === '>') {
 			if (strings.endsWith(value, '>')) {
 				endPosition = { lineNumber: endPosition.lineNumber, column: endPosition.column + 1 };
 			} else {
