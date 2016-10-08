@@ -15,7 +15,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
-import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { SnippetController, CONTEXT_SNIPPET_MODE } from 'vs/editor/contrib/snippet/common/snippetController';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -100,6 +100,7 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 		kbExpr: ContextKeyExpr.and(
 			EditorContextKeys.TextFocus,
 			EditorContextKeys.TabDoesNotMoveFocus,
+			CONTEXT_SNIPPET_MODE.toNegated(),
 			ContextKeyExpr.has('config.editor.tabCompletion')
 		),
 		primary: KeyCode.Tab
