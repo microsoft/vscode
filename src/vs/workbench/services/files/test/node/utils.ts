@@ -5,8 +5,8 @@
 
 'use strict';
 
-import {IFileStat} from 'vs/platform/files/common/files';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
+import { IFileStat } from 'vs/platform/files/common/files';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 
 export class TestEventService extends EventEmitter {
 	_serviceBrand: any;

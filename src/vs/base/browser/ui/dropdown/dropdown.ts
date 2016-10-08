@@ -6,16 +6,16 @@
 'use strict';
 
 import 'vs/css!./dropdown';
-import {Builder, $} from 'vs/base/browser/builder';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Gesture, EventType} from 'vs/base/browser/touch';
-import {ActionRunner, IAction} from 'vs/base/common/actions';
-import {ActionItem, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
-import {IMenuOptions} from 'vs/base/browser/ui/menu/menu';
-import {Keybinding} from 'vs/base/common/keybinding';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Gesture, EventType } from 'vs/base/browser/touch';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { ActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
+import { Keybinding } from 'vs/base/common/keybinding';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -262,7 +262,7 @@ export class DropdownMenu extends BaseDropdown {
 			getActions: () => TPromise.as(this.actions),
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
-			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action): null,
+			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
 			onHide: () => this.$el.removeClass('active')
 		});

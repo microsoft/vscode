@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export enum Parts {
 	ACTIVITYBAR_PART,
@@ -23,7 +23,7 @@ export enum Position {
 export const IPartService = createDecorator<IPartService>('partService');
 
 export interface IPartService {
-	_serviceBrand : ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Asks the part service to layout all parts.

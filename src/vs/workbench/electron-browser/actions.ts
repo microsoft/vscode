@@ -6,35 +6,35 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
-import {Action} from 'vs/base/common/actions';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {EditorInput} from 'vs/workbench/common/editor';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import { Action } from 'vs/base/common/actions';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorInput } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import errors = require('vs/base/common/errors');
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IConfigurationEditingService, ConfigurationTarget} from 'vs/workbench/services/configuration/common/configurationEditing';
-import {IExtensionManagementService, LocalExtensionType, ILocalExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
-import {IWorkspaceConfigurationService} from 'vs/workbench/services/configuration/common/configuration';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import paths = require('vs/base/common/paths');
-import {isMacintosh} from 'vs/base/common/platform';
-import {IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry, ISeparator} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry, ISeparator } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as browser from 'vs/base/browser/browser';
-import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 import * as os from 'os';
-import {ipcRenderer as ipc, webFrame, remote, shell} from 'electron';
+import { ipcRenderer as ipc, webFrame, remote, shell } from 'electron';
 
 // --- actions
 
@@ -555,7 +555,7 @@ export class ReportIssueAction extends Action {
 		});
 	}
 
-	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions:ILocalExtension[]): string {
+	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions: ILocalExtension[]): string {
 		// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';

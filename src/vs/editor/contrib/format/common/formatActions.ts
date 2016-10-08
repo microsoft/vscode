@@ -6,16 +6,16 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {editorAction, ServicesAccessor, EditorAction, commonEditorContribution} from 'vs/editor/common/editorCommonExtensions';
-import {OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
-import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
-import {EditOperationsCommand} from './formatCommand';
-import {Selection} from 'vs/editor/common/core/selection';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits } from '../common/format';
+import { EditOperationsCommand } from './formatCommand';
+import { Selection } from 'vs/editor/common/core/selection';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -120,7 +120,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 			this.editor.executeCommand(this.getId(), new EditOperationsCommand(edits, this.editor.getSelection()));
 
-		},(err) => {
+		}, (err) => {
 			unbind.dispose();
 			throw err;
 		});
@@ -157,15 +157,15 @@ export class FormatAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 
 		const model = editor.getModel();
 		const editorSelection = editor.getSelection();
 		const modelOpts = model.getOptions();
 		const options = {
-				tabSize: modelOpts.tabSize,
-				insertSpaces: modelOpts.insertSpaces,
-			};
+			tabSize: modelOpts.tabSize,
+			insertSpaces: modelOpts.insertSpaces,
+		};
 
 		let formattingPromise: TPromise<editorCommon.ISingleEditOperation[]>;
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {Selection} from 'vs/editor/common/core/selection';
-import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
-import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/common/indentationCommands';
+import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (sel) => new IndentationToSpacesCommand(sel, tabSize), expectedLines, expectedSelection);
@@ -17,7 +17,7 @@ function testIndentationToTabsCommand(lines: string[], selection: Selection, tab
 
 suite('Editor Contrib - Indentation to Spaces', () => {
 
-	test('single tabs only at start of line', function() {
+	test('single tabs only at start of line', function () {
 		testIndentationToSpacesCommand(
 			[
 				'first',
@@ -39,7 +39,7 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 		);
 	});
 
-	test('multiple tabs at start of line', function() {
+	test('multiple tabs at start of line', function () {
 		testIndentationToSpacesCommand(
 			[
 				'\t\tfirst',
@@ -61,7 +61,7 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 		);
 	});
 
-	test('multiple tabs', function() {
+	test('multiple tabs', function () {
 		testIndentationToSpacesCommand(
 			[
 				'\t\tfirst\t',
@@ -83,7 +83,7 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 		);
 	});
 
-	test('empty lines', function() {
+	test('empty lines', function () {
 		testIndentationToSpacesCommand(
 			[
 				'\t\t\t',
@@ -104,7 +104,7 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 
 suite('Editor Contrib - Indentation to Tabs', () => {
 
-	test('spaces only at start of line', function() {
+	test('spaces only at start of line', function () {
 		testIndentationToTabsCommand(
 			[
 				'    first',
@@ -126,7 +126,7 @@ suite('Editor Contrib - Indentation to Tabs', () => {
 		);
 	});
 
-	test('multiple spaces at start of line', function() {
+	test('multiple spaces at start of line', function () {
 		testIndentationToTabsCommand(
 			[
 				'first',
@@ -148,7 +148,7 @@ suite('Editor Contrib - Indentation to Tabs', () => {
 		);
 	});
 
-	test('multiple spaces', function() {
+	test('multiple spaces', function () {
 		testIndentationToTabsCommand(
 			[
 				'      first   ',

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {ICursorStateComputer, IEditableTextModel, IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
-import {Selection} from 'vs/editor/common/core/selection';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ICursorStateComputer, IEditableTextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
 
 interface IEditOperation {
 	operations: IIdentifiedSingleEditOperation[];
@@ -29,12 +29,12 @@ export interface IUndoRedoResult {
 
 export class EditStack {
 
-	private model:IEditableTextModel;
-	private currentOpenStackElement:IStackElement;
-	private past:IStackElement[];
-	private future:IStackElement[];
+	private model: IEditableTextModel;
+	private currentOpenStackElement: IStackElement;
+	private past: IStackElement[];
+	private future: IStackElement[];
 
-	constructor(model:IEditableTextModel) {
+	constructor(model: IEditableTextModel) {
 		this.model = model;
 		this.currentOpenStackElement = null;
 		this.past = [];
@@ -54,7 +54,7 @@ export class EditStack {
 		this.future = [];
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): Selection[] {
+	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] {
 		// No support for parallel universes :(
 		this.future = [];
 
@@ -68,7 +68,7 @@ export class EditStack {
 			};
 		}
 
-		var inverseEditOperation:IEditOperation = {
+		var inverseEditOperation: IEditOperation = {
 			operations: this.model.applyEdits(editOperations)
 		};
 
@@ -97,7 +97,7 @@ export class EditStack {
 						operations: this.model.applyEdits(pastStackElement.editOperations[i].operations)
 					};
 				}
-			} catch(e) {
+			} catch (e) {
 				this.clear();
 				return null;
 			}
@@ -129,7 +129,7 @@ export class EditStack {
 						operations: this.model.applyEdits(futureStackElement.editOperations[i].operations)
 					};
 				}
-			} catch(e) {
+			} catch (e) {
 				this.clear();
 				return null;
 			}

@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IWindowEventService } from 'vs/code/common/windows';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
@@ -126,7 +126,7 @@ export class WindowEventService implements IWindowEventService {
 
 	_serviceBrand: any;
 
-	constructor(@IWindowsService private windowsService: IWindowsService) { }
+	constructor( @IWindowsService private windowsService: IWindowsService) { }
 
 	public get onWindowFocus(): CommonEvent<number> {
 		return this.windowsService.onWindowFocus;
@@ -465,7 +465,7 @@ export class WindowsManager implements IWindowsService {
 			const windows = this.getWindows();
 			const window = this.getWindowById(windowId);
 			window.send('vscode:switchWindow', windows.map(w => {
-				return {path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id};
+				return { path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id };
 			}));
 		});
 

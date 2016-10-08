@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./sash';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {Builder, $} from 'vs/base/browser/builder';
-import {isIPad} from 'vs/base/browser/browser';
-import {isMacintosh} from 'vs/base/common/platform';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { isIPad } from 'vs/base/browser/browser';
+import { isMacintosh } from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
-import {Gesture, EventType, GestureEvent} from 'vs/base/browser/touch';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface ISashLayoutProvider { }
 

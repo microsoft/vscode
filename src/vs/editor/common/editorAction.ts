@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IActionDescriptor, ICommonCodeEditor, IEditorAction} from 'vs/editor/common/editorCommon';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {EditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IActionDescriptor, ICommonCodeEditor, IEditorAction } from 'vs/editor/common/editorCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export abstract class AbstractInternalEditorAction {
 
@@ -17,7 +17,7 @@ export abstract class AbstractInternalEditorAction {
 	public alias: string;
 	protected _editor: ICommonCodeEditor;
 
-	constructor(id:string, label:string, alias:string, editor:ICommonCodeEditor) {
+	constructor(id: string, label: string, alias: string, editor: ICommonCodeEditor) {
 		this.id = id;
 		this.label = label;
 		this.alias = alias;
@@ -28,14 +28,14 @@ export abstract class AbstractInternalEditorAction {
 export class InternalEditorAction extends AbstractInternalEditorAction implements IEditorAction {
 
 	private _actual: EditorAction;
-	private _instantiationService:IInstantiationService;
-	private _contextKeyService:IContextKeyService;
+	private _instantiationService: IInstantiationService;
+	private _contextKeyService: IContextKeyService;
 
 	constructor(
-		actual:EditorAction,
-		editor:ICommonCodeEditor,
-		@IInstantiationService instantiationService:IInstantiationService,
-		@IContextKeyService contextKeyService:IContextKeyService
+		actual: EditorAction,
+		editor: ICommonCodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(actual.id, actual.label, actual.alias, editor);
 		this._actual = actual;
@@ -43,7 +43,7 @@ export class InternalEditorAction extends AbstractInternalEditorAction implement
 		this._contextKeyService = contextKeyService;
 	}
 
-	public isSupported():boolean {
+	public isSupported(): boolean {
 		return this._contextKeyService.contextMatchesRules(this._actual.precondition);
 	}
 
@@ -60,15 +60,15 @@ export class InternalEditorAction extends AbstractInternalEditorAction implement
 
 export class DynamicEditorAction extends AbstractInternalEditorAction implements IEditorAction {
 
-	private _run: (editor:ICommonCodeEditor)=>void;
+	private _run: (editor: ICommonCodeEditor) => void;
 
-	constructor(descriptor:IActionDescriptor, editor:ICommonCodeEditor) {
+	constructor(descriptor: IActionDescriptor, editor: ICommonCodeEditor) {
 		super(descriptor.id, descriptor.label, descriptor.label, editor);
 
 		this._run = descriptor.run;
 	}
 
-	public isSupported():boolean {
+	public isSupported(): boolean {
 		return true;
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {DiffChange} from 'vs/base/common/diff/diffChange';
+import { DiffChange } from 'vs/base/common/diff/diffChange';
 
 
 function createStringSequence(a: string): ISequence {
@@ -22,7 +22,7 @@ export function stringDiff(original: string, modified: string): IDiffChange[] {
 
 export interface ISequence {
 	getLength(): number;
-	getElementHash(index:number): string;
+	getElementHash(index: number): string;
 }
 
 export interface IDiffChange {
@@ -30,29 +30,29 @@ export interface IDiffChange {
 	 * The position of the first element in the original sequence which
 	 * this change affects.
 	 */
-	originalStart:number;
+	originalStart: number;
 
 	/**
 	 * The number of elements from the original sequence which were
 	 * affected.
 	 */
-	originalLength:number;
+	originalLength: number;
 
 	/**
 	 * The position of the first element in the modified sequence which
 	 * this change affects.
 	 */
-	modifiedStart:number;
+	modifiedStart: number;
 
 	/**
 	 * The number of elements from the modified sequence which were
 	 * affected (added).
 	 */
-	modifiedLength:number;
+	modifiedLength: number;
 }
 
 export interface IContinueProcessingPredicate {
-	(furthestOriginalIndex:number, originalSequence:ISequence, matchLengthOfLongest:number): boolean;
+	(furthestOriginalIndex: number, originalSequence: ISequence, matchLengthOfLongest: number): boolean;
 }
 
 //
@@ -61,7 +61,7 @@ export interface IContinueProcessingPredicate {
 
 export class Debug {
 
-	public static Assert(condition:boolean, message:string): void {
+	public static Assert(condition: boolean, message: string): void {
 		if (!condition) {
 			throw new Error(message);
 		}
@@ -84,7 +84,7 @@ export class MyArray {
 	 * length:
 	 *		A 64-bit integer that represents the number of elements to copy.
 	 */
-	public static Copy(sourceArray:any[], sourceIndex:number, destinationArray:any[], destinationIndex:number, length:number) {
+	public static Copy(sourceArray: any[], sourceIndex: number, destinationArray: any[], destinationIndex: number, length: number) {
 		for (let i = 0; i < length; i++) {
 			destinationArray[destinationIndex + i] = sourceArray[sourceIndex + i];
 		}
@@ -119,11 +119,11 @@ let MaxDifferencesHistory = 1447;
  */
 class DiffChangeHelper {
 
-	private m_changes:DiffChange[];
-	private m_originalStart:number;
-	private m_modifiedStart:number;
-	private m_originalCount:number;
-	private m_modifiedCount:number;
+	private m_changes: DiffChange[];
+	private m_originalStart: number;
+	private m_modifiedStart: number;
+	private m_originalCount: number;
+	private m_modifiedCount: number;
 
 	/**
 	 * Constructs a new DiffChangeHelper for the given DiffSequences.
@@ -161,7 +161,7 @@ class DiffChangeHelper {
 	 * @param originalIndex The index of the original element to add.
 	 * @param modifiedIndex The index of the modified element that provides corresponding position in the modified sequence.
 	 */
-	public AddOriginalElement(originalIndex:number, modifiedIndex:number) {
+	public AddOriginalElement(originalIndex: number, modifiedIndex: number) {
 		// The 'true' start index is the smallest of the ones we've seen
 		this.m_originalStart = Math.min(this.m_originalStart, originalIndex);
 		this.m_modifiedStart = Math.min(this.m_modifiedStart, modifiedIndex);
@@ -176,7 +176,7 @@ class DiffChangeHelper {
 	 * @param originalIndex The index of the original element that provides corresponding position in the original sequence.
 	 * @param modifiedIndex The index of the modified element to add.
 	 */
-	public AddModifiedElement(originalIndex:number, modifiedIndex:number): void {
+	public AddModifiedElement(originalIndex: number, modifiedIndex: number): void {
 		// The 'true' start index is the smallest of the ones we've seen
 		this.m_originalStart = Math.min(this.m_originalStart, originalIndex);
 		this.m_modifiedStart = Math.min(this.m_modifiedStart, modifiedIndex);
@@ -219,19 +219,19 @@ const hasOwnProperty = Object.prototype.hasOwnProperty;
  */
 export class LcsDiff {
 
-	private OriginalSequence:ISequence;
-	private ModifiedSequence:ISequence;
-	private ContinueProcessingPredicate:IContinueProcessingPredicate;
+	private OriginalSequence: ISequence;
+	private ModifiedSequence: ISequence;
+	private ContinueProcessingPredicate: IContinueProcessingPredicate;
 
-	private m_originalIds:number[];
-	private m_modifiedIds:number[];
-	private m_forwardHistory:number[][];
-	private m_reverseHistory:number[][];
+	private m_originalIds: number[];
+	private m_modifiedIds: number[];
+	private m_forwardHistory: number[][];
+	private m_reverseHistory: number[][];
 
 	/**
 	 * Constructs the DiffFinder
 	 */
-	constructor(originalSequence:ISequence, newSequence:ISequence, continueProcessingPredicate:IContinueProcessingPredicate = null) {
+	constructor(originalSequence: ISequence, newSequence: ISequence, continueProcessingPredicate: IContinueProcessingPredicate = null) {
 		this.OriginalSequence = originalSequence;
 		this.ModifiedSequence = newSequence;
 		this.ContinueProcessingPredicate = continueProcessingPredicate;
@@ -252,7 +252,7 @@ export class LcsDiff {
 
 		// Create a new hash table for unique elements from the original
 		// sequence.
-		let hashTable:{[key:string]:number;} = {};
+		let hashTable: { [key: string]: number; } = {};
 		let currentUniqueId = 1;
 		let i: number;
 
@@ -282,7 +282,7 @@ export class LcsDiff {
 		}
 	}
 
-	private ElementsAreEqual(originalIndex:number, newIndex:number): boolean {
+	private ElementsAreEqual(originalIndex: number, newIndex: number): boolean {
 		return this.m_originalIds[originalIndex] === this.m_modifiedIds[newIndex];
 	}
 
@@ -295,8 +295,8 @@ export class LcsDiff {
 	 * sequences on the bounded range.
 	 * @returns An array of the differences between the two input sequences.
 	 */
-	private _ComputeDiff(originalStart:number, originalEnd:number, modifiedStart:number, modifiedEnd:number): DiffChange[] {
-		let quitEarlyArr = [ false ];
+	private _ComputeDiff(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number): DiffChange[] {
+		let quitEarlyArr = [false];
 		return this.ComputeDiffRecursive(originalStart, originalEnd, modifiedStart, modifiedEnd, quitEarlyArr);
 	}
 
@@ -305,7 +305,7 @@ export class LcsDiff {
 	 * recursively.
 	 * @returns An array of the differences between the two input sequences.
 	 */
-	private ComputeDiffRecursive(originalStart:number, originalEnd:number, modifiedStart:number, modifiedEnd:number, quitEarlyArr:boolean[]): DiffChange[] {
+	private ComputeDiffRecursive(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, quitEarlyArr: boolean[]): DiffChange[] {
 		quitEarlyArr[0] = false;
 
 		// Find the start of the differences
@@ -322,7 +322,7 @@ export class LcsDiff {
 
 		// In the special case where we either have all insertions or all deletions or the sequences are identical
 		if (originalStart > originalEnd || modifiedStart > modifiedEnd) {
-			let changes:DiffChange[];
+			let changes: DiffChange[];
 
 			if (modifiedStart <= modifiedEnd) {
 				Debug.Assert(originalStart === originalEnd + 1, 'originalStart should only be one more than originalEnd');
@@ -384,16 +384,16 @@ export class LcsDiff {
 
 		// If we hit here, we quit early, and so can't return anything meaningful
 		return [
-			new DiffChange(originalStart, originalEnd -originalStart + 1, modifiedStart, modifiedEnd - modifiedStart + 1)
+			new DiffChange(originalStart, originalEnd - originalStart + 1, modifiedStart, modifiedEnd - modifiedStart + 1)
 		];
 	}
 
-	private WALKTRACE(diagonalForwardBase:number, diagonalForwardStart:number, diagonalForwardEnd:number, diagonalForwardOffset:number,
-					diagonalReverseBase:number, diagonalReverseStart:number, diagonalReverseEnd:number, diagonalReverseOffset:number,
-					forwardPoints:number[], reversePoints:number[],
-					originalIndex:number, originalEnd:number, midOriginalArr:number[],
-					modifiedIndex:number, modifiedEnd:number, midModifiedArr:number[],
-					deltaIsEven:boolean, quitEarlyArr:boolean[]): DiffChange[] {
+	private WALKTRACE(diagonalForwardBase: number, diagonalForwardStart: number, diagonalForwardEnd: number, diagonalForwardOffset: number,
+		diagonalReverseBase: number, diagonalReverseStart: number, diagonalReverseEnd: number, diagonalReverseOffset: number,
+		forwardPoints: number[], reversePoints: number[],
+		originalIndex: number, originalEnd: number, midOriginalArr: number[],
+		modifiedIndex: number, modifiedEnd: number, midModifiedArr: number[],
+		deltaIsEven: boolean, quitEarlyArr: boolean[]): DiffChange[] {
 		let forwardChanges: DiffChange[] = null, reverseChanges: DiffChange[] = null;
 
 		// First, walk backward through the forward diagonals history
@@ -459,7 +459,7 @@ export class LcsDiff {
 
 			reverseChanges = [
 				new DiffChange(originalStartPoint, originalEnd - originalStartPoint + 1,
-							modifiedStartPoint, modifiedEnd - modifiedStartPoint + 1)
+					modifiedStartPoint, modifiedEnd - modifiedStartPoint + 1)
 			];
 		} else {
 			// Now walk backward through the reverse diagonals history
@@ -529,11 +529,11 @@ export class LcsDiff {
 	 * @param midModified The middle point of the modified sequence range
 	 * @returns The diff changes, if available, otherwise null
 	 */
-	private ComputeRecursionPoint(originalStart:number, originalEnd:number, modifiedStart:number, modifiedEnd:number, midOriginalArr:number[], midModifiedArr:number[], quitEarlyArr:boolean[]) {
-		let originalIndex:number, modifiedIndex:number;
+	private ComputeRecursionPoint(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, midOriginalArr: number[], midModifiedArr: number[], quitEarlyArr: boolean[]) {
+		let originalIndex: number, modifiedIndex: number;
 		let diagonalForwardStart = 0, diagonalForwardEnd = 0;
 		let diagonalReverseStart = 0, diagonalReverseEnd = 0;
-		let numDifferences:number;
+		let numDifferences: number;
 
 		// To traverse the edit graph and produce the proper LCS, our actual
 		// start position is just outside the given boundary
@@ -555,8 +555,8 @@ export class LcsDiff {
 		// The modifiedIndex can be computed mathematically from the originalIndex and the diagonal number.
 		let maxDifferences = (originalEnd - originalStart) + (modifiedEnd - modifiedStart);
 		let numDiagonals = maxDifferences + 1;
-		let forwardPoints:number[] = new Array<number>(numDiagonals);
-		let reversePoints:number[] = new Array<number>(numDiagonals);
+		let forwardPoints: number[] = new Array<number>(numDiagonals);
+		let reversePoints: number[] = new Array<number>(numDiagonals);
 		// diagonalForwardBase: Index into forwardPoints of the diagonal which passes through (originalStart, modifiedStart)
 		// diagonalReverseBase: Index into reversePoints of the diagonal which passes through (originalEnd, modifiedEnd)
 		let diagonalForwardBase = (modifiedEnd - modifiedStart);
@@ -591,7 +591,7 @@ export class LcsDiff {
 		//   away from the reference diagonal (which is diagonalForwardBase for forward, diagonalReverseBase for reverse).
 		// --We extend on even diagonals (relative to the reference diagonal) only when numDifferences
 		//   is even and odd diagonals only when numDifferences is odd.
-		let diagonal:number, tempOriginalIndex:number;
+		let diagonal: number, tempOriginalIndex: number;
 		for (numDifferences = 1; numDifferences <= (maxDifferences / 2) + 1; numDifferences++) {
 			let furthestOriginalIndex = 0;
 			let furthestModifiedIndex = 0;
@@ -683,7 +683,7 @@ export class LcsDiff {
 
 					return [
 						new DiffChange(originalStart, originalEnd - originalStart + 1,
-								modifiedStart, modifiedEnd - modifiedStart + 1)
+							modifiedStart, modifiedEnd - modifiedStart + 1)
 					];
 				}
 			}
@@ -743,7 +743,7 @@ export class LcsDiff {
 			if (numDifferences <= MaxDifferencesHistory) {
 				// We are allocating space for one extra int, which we fill with
 				// the index of the diagonal base index
-				let temp:number[] = new Array<number>(diagonalForwardEnd - diagonalForwardStart + 2);
+				let temp: number[] = new Array<number>(diagonalForwardEnd - diagonalForwardStart + 2);
 				temp[0] = diagonalForwardBase - diagonalForwardStart + 1;
 				MyArray.Copy(forwardPoints, diagonalForwardStart, temp, 1, diagonalForwardEnd - diagonalForwardStart + 1);
 				this.m_forwardHistory.push(temp);
@@ -776,9 +776,9 @@ export class LcsDiff {
 	 * @param The right changes
 	 * @returns The concatenated list
 	 */
-	private ConcatenateChanges(left:DiffChange[], right:DiffChange[]): DiffChange[] {
-		let mergedChangeArr:DiffChange[] = [];
-		let result:DiffChange[] = null;
+	private ConcatenateChanges(left: DiffChange[], right: DiffChange[]): DiffChange[] {
+		let mergedChangeArr: DiffChange[] = [];
+		let result: DiffChange[] = null;
 
 		if (left.length === 0 || right.length === 0) {
 			return (right.length > 0) ? right : left;
@@ -810,12 +810,11 @@ export class LcsDiff {
 	 * @param mergedChange The merged change if the two overlap, null otherwise
 	 * @returns True if the two changes overlap
 	 */
-	private ChangesOverlap(left:DiffChange, right:DiffChange, mergedChangeArr:DiffChange[]): boolean {
+	private ChangesOverlap(left: DiffChange, right: DiffChange, mergedChangeArr: DiffChange[]): boolean {
 		Debug.Assert(left.originalStart <= right.originalStart, 'Left change is not less than or equal to right change');
 		Debug.Assert(left.modifiedStart <= right.modifiedStart, 'Left change is not less than or equal to right change');
 
-		if (left.originalStart + left.originalLength >= right.originalStart || left.modifiedStart + left.modifiedLength >= right.modifiedStart)
-		{
+		if (left.originalStart + left.originalLength >= right.originalStart || left.modifiedStart + left.modifiedLength >= right.modifiedStart) {
 			let originalStart = left.originalStart;
 			let originalLength = left.originalLength;
 			let modifiedStart = left.modifiedStart;
@@ -849,7 +848,7 @@ export class LcsDiff {
 	 * @returns The clipped diagonal index.
 	 */
 
-	private ClipDiagonalBound(diagonal:number, numDifferences:number, diagonalBaseIndex:number, numDiagonals:number): number {
+	private ClipDiagonalBound(diagonal: number, numDifferences: number, diagonalBaseIndex: number, numDiagonals: number): number {
 		if (diagonal >= 0 && diagonal < numDiagonals) {
 			// Nothing to clip, its in range
 			return diagonal;

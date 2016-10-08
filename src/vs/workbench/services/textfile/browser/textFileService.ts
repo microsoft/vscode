@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
-import Event, {Emitter} from 'vs/base/common/event';
-import {IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions} from 'vs/workbench/services/textfile/common/textfiles';
-import {ConfirmResult} from 'vs/workbench/common/editor';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
-import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
-import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ConfirmResult } from 'vs/workbench/common/editor';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IFileService, IResolveContentOptions, IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
+import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.

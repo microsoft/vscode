@@ -30,10 +30,10 @@ export class Query {
 		let result = this.value;
 
 		if (this.sortBy) {
-			result = `${ result }${ result ? ' ' : '' }@sort:${ this.sortBy }`;
+			result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
 
 			if (this.sortOrder) {
-				result = `${ result }-${ this.sortOrder }`;
+				result = `${result}-${this.sortOrder}`;
 			}
 		}
 

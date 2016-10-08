@@ -6,15 +6,15 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {join, basename} from 'vs/base/common/paths';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {workbenchInstantiationService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {EncodingMode} from 'vs/workbench/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {ITextFileEditorModel, ITextFileService, LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
-import {FileOperationResult, IFileOperationResult, FileChangesEvent, FileChangeType, EventType} from 'vs/platform/files/common/files';
+import { join, basename } from 'vs/base/common/paths';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EncodingMode } from 'vs/workbench/common/editor';
+import { IEventService } from 'vs/platform/event/common/event';
+import { ITextFileEditorModel, ITextFileService, LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileOperationResult, IFileOperationResult, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
 
 function toResource(path) {
 	return URI.file(join('C:\\', path));

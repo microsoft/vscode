@@ -6,13 +6,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {isUndefinedOrNull, isArray} from 'vs/base/common/types';
-import {isLinux, isWindows} from 'vs/base/common/platform';
+import { isUndefinedOrNull, isArray } from 'vs/base/common/types';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
-import {join} from 'vs/base/common/paths';
-import {validateFileName} from 'vs/workbench/parts/files/browser/fileActions';
-import {LocalFileChangeEvent} from 'vs/workbench/services/textfile/common/textfiles';
-import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
+import { join } from 'vs/base/common/paths';
+import { validateFileName } from 'vs/workbench/parts/files/browser/fileActions';
+import { LocalFileChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
 
 function createStat(path, name, isFolder, hasChildren, size, mtime) {
 	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);

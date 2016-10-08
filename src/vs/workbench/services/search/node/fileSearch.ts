@@ -6,11 +6,11 @@
 'use strict';
 
 import * as childProcess from 'child_process';
-import {StringDecoder, NodeStringDecoder} from 'string_decoder';
-import {toErrorMessage} from 'vs/base/common/errorMessage';
+import { StringDecoder, NodeStringDecoder } from 'string_decoder';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import fs = require('fs');
 import paths = require('path');
-import {Readable} from "stream";
+import { Readable } from "stream";
 
 import scorer = require('vs/base/common/scorer');
 import arrays = require('vs/base/common/arrays');
@@ -18,11 +18,11 @@ import platform = require('vs/base/common/platform');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import glob = require('vs/base/common/glob');
-import {IProgress, IUncachedSearchStats} from 'vs/platform/search/common/search';
+import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
-import {IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} from './search';
+import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
 
 enum Traversal {
 	Node = 1,
@@ -130,7 +130,7 @@ export class FileWalker {
 				if (platform.isMacintosh) {
 					this.traversal = Traversal.MacFind;
 					traverse = this.findTraversal;
-				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
+					// Disable 'dir' for now (#11181, #11179, #11183, #11182).
 				} /* else if (platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
@@ -171,7 +171,7 @@ export class FileWalker {
 	private findTraversal(rootFolder: string, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
 		const isMac = platform.isMacintosh;
 		let done = (err?: Error) => {
-			done = () => {};
+			done = () => { };
 			cb(err);
 		};
 		let leftover = '';
@@ -288,7 +288,7 @@ export class FileWalker {
 	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
 		let done = (err: Error, stdout?: string, last?: boolean) => {
 			if (err || last) {
-				done = () => {};
+				done = () => { };
 				this.cmdForkResultTime = Date.now();
 			}
 			cb(err, stdout, last);

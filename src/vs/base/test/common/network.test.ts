@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 
-function assertUrl(raw:string, scheme:string, domain:string, port:string, path:string, queryString:string, fragmentId:string): void {
+function assertUrl(raw: string, scheme: string, domain: string, port: string, path: string, queryString: string, fragmentId: string): void {
 	// check for equivalent behaviour
 	var uri = URI.parse(raw);
 	assert.equal(uri.scheme, scheme);

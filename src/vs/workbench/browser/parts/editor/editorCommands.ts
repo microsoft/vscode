@@ -5,19 +5,19 @@
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands} from 'vs/workbench/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditor, Position, POSITIONS} from 'vs/platform/editor/common/editor';
-import {EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {TextCompareEditorVisible, TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
-import {Action} from 'vs/base/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWorkbenchEditorConfiguration, ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
+import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { TextCompareEditorVisible, TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
+import { Action } from 'vs/base/common/actions';
 
 export function setup() {
 	registerActiveEditorMoveCommand();

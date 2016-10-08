@@ -5,11 +5,11 @@
 
 'use strict';
 
-import Event, {mapEvent, chain, buffer, Emitter, any} from 'vs/base/common/event';
-import {fromEventEmitter} from 'vs/base/node/event';
-import {IURLService} from 'vs/platform/url/common/url';
+import Event, { mapEvent, chain, buffer, Emitter, any } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
+import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/product';
-import {app} from 'electron';
+import { app } from 'electron';
 import URI from 'vs/base/common/uri';
 
 export class URLService implements IURLService {
@@ -43,7 +43,7 @@ export class URLService implements IURLService {
 			.map(url => {
 				try {
 					return URI.parse(url);
-				} catch(e) {
+				} catch (e) {
 					return null;
 				}
 			})

@@ -15,7 +15,7 @@ import Errors = require('vs/base/common/errors');
 import * as paths from 'vs/base/common/paths';
 import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
-import {StandardKeyboardEvent, IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Actions = require('vs/base/common/actions');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import Tree = require('vs/base/parts/tree/browser/tree');
@@ -26,20 +26,20 @@ import GitActions = require('vs/workbench/parts/git/browser/gitActions');
 import GitModel = require('vs/workbench/parts/git/common/gitModel');
 import Viewer = require('vs/workbench/parts/git/browser/views/changes/changesViewer');
 import GitEditorInputs = require('vs/workbench/parts/git/browser/gitEditorInputs');
-import {IOutputService} from 'vs/workbench/parts/output/common/output';
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
 import Severity from 'vs/base/common/severity';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IEditorInput} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IEventService} from 'vs/platform/event/common/event';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEventService } from 'vs/platform/event/common/event';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 import IGitService = git.IGitService;
 
@@ -115,7 +115,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 	// IView
 
-	public get element():HTMLElement {
+	public get element(): HTMLElement {
 		this.render();
 		return this.$el.getHTMLElement();
 	}
@@ -158,7 +158,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		this.commitInputBox.onDidChange((value) => this.emit('change', value));
 		this.commitInputBox.onDidHeightChange((value) => this.emit('heightchange', value));
 
-		$(this.commitInputBox.inputElement).on('keydown', (e:KeyboardEvent) => {
+		$(this.commitInputBox.inputElement).on('keydown', (e: KeyboardEvent) => {
 			var keyboardEvent = new StandardKeyboardEvent(e);
 
 			if (keyboardEvent.equals(KeyMod.CtrlCmd | KeyCode.Enter) || keyboardEvent.equals(KeyMod.CtrlCmd | KeyCode.KEY_S)) {
@@ -190,10 +190,10 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			dnd: dnd,
 			controller: controller
 		}, {
-			indentPixels: 0,
-			twistiePixels: 20,
-			ariaLabel: nls.localize('treeAriaLabel', "Git Changes View")
-		});
+				indentPixels: 0,
+				twistiePixels: 20,
+				ariaLabel: nls.localize('treeAriaLabel', "Git Changes View")
+			});
 
 		this.tree.setInput(this.gitService.getModel().getStatus());
 		this.tree.expandAll(this.gitService.getModel().getStatus().getGroups());
@@ -202,7 +202,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		this.toDispose.push(this.commitInputBox.onDidHeightChange(() => this.layout()));
 	}
 
-	public focus():void {
+	public focus(): void {
 		var selection = this.tree.getSelection();
 		if (selection.length > 0) {
 			this.tree.reveal(selection[0], 0.5).done(null, Errors.onUnexpectedError);
@@ -211,7 +211,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		this.commitInputBox.focus();
 	}
 
-	public layout(dimension:Builder.Dimension = this.currentDimension):void {
+	public layout(dimension: Builder.Dimension = this.currentDimension): void {
 		if (!dimension) {
 			return;
 		}
@@ -230,7 +230,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 	}
 
-	public setVisible(visible:boolean): WinJS.TPromise<void> {
+	public setVisible(visible: boolean): WinJS.TPromise<void> {
 		this.visible = visible;
 
 		if (visible) {
@@ -374,7 +374,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		var isDoubleClick = isMouseOrigin && e.payload.originalEvent && e.payload.originalEvent.detail === 2;
 
-		var status = <git.IFileStatus> element;
+		var status = <git.IFileStatus>element;
 
 		this.gitService.getInput(status).done((input) => {
 			var options = new WorkbenchEditorCommon.TextDiffEditorOptions();
@@ -382,7 +382,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			if (isMouseOrigin) {
 				options.preserveFocus = true;
 
-				var originalEvent:MouseEvent = e && e.payload && e.payload.origin === 'mouse' && e.payload.originalEvent;
+				var originalEvent: MouseEvent = e && e.payload && e.payload.origin === 'mouse' && e.payload.originalEvent;
 				if (originalEvent && originalEvent.detail === 2) {
 					options.preserveFocus = false;
 					originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
@@ -442,11 +442,11 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 
 		if (input instanceof GitEditorInputs.GitDiffEditorInput) {
-			return (<GitEditorInputs.GitDiffEditorInput> input).getFileStatus();
+			return (<GitEditorInputs.GitDiffEditorInput>input).getFileStatus();
 		}
 
 		if (input instanceof GitEditorInputs.NativeGitIndexStringEditorInput) {
-			return (<GitEditorInputs.NativeGitIndexStringEditorInput> input).getFileStatus() || null;
+			return (<GitEditorInputs.NativeGitIndexStringEditorInput>input).getFileStatus() || null;
 		}
 
 		const fileInput = WorkbenchEditorCommon.asFileEditorInput(input);

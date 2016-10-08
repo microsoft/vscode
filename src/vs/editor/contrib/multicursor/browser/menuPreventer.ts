@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {IEditorContribution} from 'vs/editor/common/editorCommon';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 /**
  * Prevents the top-level menu from showing up when doing Alt + Click in the editor
@@ -18,11 +18,11 @@ export class MenuPreventer extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.menuPreventer';
 
-	private _editor:ICodeEditor;
-	private _altListeningMouse:boolean;
-	private _altMouseTriggered:boolean;
+	private _editor: ICodeEditor;
+	private _altListeningMouse: boolean;
+	private _altMouseTriggered: boolean;
 
-	constructor(editor:ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		super();
 		this._editor = editor;
 		this._altListeningMouse = false;
@@ -49,7 +49,7 @@ export class MenuPreventer extends Disposable implements IEditorContribution {
 
 		this._register(this._editor.onKeyUp((e) => {
 			if (e.equals(KeyMod.Alt)) {
-				if(this._altMouseTriggered){
+				if (this._altMouseTriggered) {
 					e.preventDefault();
 				}
 				this._altListeningMouse = false;

@@ -5,11 +5,11 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {EncodingMode, EditorInput, IFileEditorInput, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
-import {RawContextKey} from 'vs/platform/contextkey/common/contextkey';
+import { IEditorOptions } from 'vs/editor/common/editorCommon';
+import { EncodingMode, EditorInput, IFileEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Explorer viewlet id.

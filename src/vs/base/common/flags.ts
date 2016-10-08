@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {globals} from 'vs/base/common/platform';
+import { globals } from 'vs/base/common/platform';
 
 // Option for hosts to overwrite the worker script url (used in the standalone editor)
 export const getCrossOriginWorkerScriptUrl: (workerId: string, label: string) => string = environment('getWorkerUrl', null);

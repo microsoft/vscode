@@ -34,8 +34,8 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		promises.push(getOrCreateMachineId(storageService).then(value => result['common.machineId'] = value));
 
 		if (process.platform === 'win32') {
-			promises.push(getSqmUserId(storageService).then(value => result['common.sqm.userid']= value));
-			promises.push(getSqmMachineId(storageService).then(value => result['common.sqm.machineid']= value));
+			promises.push(getSqmUserId(storageService).then(value => result['common.sqm.userid'] = value));
+			promises.push(getSqmMachineId(storageService).then(value => result['common.sqm.machineid'] = value));
 		}
 
 		return TPromise.join(promises).then(() => result);

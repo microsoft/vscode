@@ -112,7 +112,7 @@ export class GitError {
 		}, null, 2);
 
 		if (this.error) {
-			result += (<any> this.error).stack;
+			result += (<any>this.error).stack;
 		}
 
 		return result;
@@ -120,11 +120,11 @@ export class GitError {
 }
 
 export interface IGitOptions {
-	gitPath:string;
+	gitPath: string;
 	version: string;
-	tmpPath:string;
+	tmpPath: string;
 	defaultEncoding?: string;
-	env?:any;
+	env?: any;
 }
 
 export class Git {
@@ -245,7 +245,7 @@ export class Git {
 		});
 
 		if (options.log !== false) {
-			this.log(`git ${ args.join(' ') }\n`);
+			this.log(`git ${args.join(' ')}\n`);
 		}
 
 		return spawn(this.gitPath, args, options);
@@ -313,7 +313,7 @@ export class Repository {
 		return this.run(['init']);
 	}
 
-	config(scope: string, key:string, value:any, options:any): TPromise<string> {
+	config(scope: string, key: string, value: any, options: any): TPromise<string> {
 		const args = ['config'];
 
 		if (scope) {
@@ -396,7 +396,7 @@ export class Repository {
 	}
 
 	checkout(treeish: string, paths: string[]): Promise {
-		const args = [ 'checkout', '-q' ];
+		const args = ['checkout', '-q'];
 
 		if (treeish) {
 			args.push(treeish);
@@ -452,21 +452,21 @@ export class Repository {
 	}
 
 	branch(name: string, checkout: boolean): Promise {
-		const args = checkout ? ['checkout', '-q', '-b', name] : [ 'branch', '-q', name ];
+		const args = checkout ? ['checkout', '-q', '-b', name] : ['branch', '-q', name];
 		return this.run(args);
 	}
 
 	clean(paths: string[]): Promise {
 		const byDirname = index<string, string[]>(paths, p => path.dirname(p), (p, r) => (r || []).concat([p]));
 		const groups = Object.keys(byDirname).map(key => byDirname[key]);
-		const tasks = groups.map(group => () => this.run([ 'clean', '-f', '-q', '--' ].concat(group)));
+		const tasks = groups.map(group => () => this.run(['clean', '-f', '-q', '--'].concat(group)));
 
 		return sequence(tasks);
 	}
 
 	undo(): Promise {
-		return this.run([ 'clean', '-fd' ]).then(() => {
-			return this.run([ 'checkout', '--', '.' ]).then(null, (err: GitError) => {
+		return this.run(['clean', '-fd']).then(() => {
+			return this.run(['checkout', '--', '.']).then(null, (err: GitError) => {
 				if (/did not match any file\(s\) known to git\./.test(err.stderr)) {
 					return TPromise.as(null);
 				}
@@ -489,14 +489,14 @@ export class Repository {
 	}
 
 	revertFiles(treeish: string, paths: string[]): Promise {
-		return this.run([ 'branch' ]).then((result) => {
+		return this.run(['branch']).then((result) => {
 			let args: string[];
 
 			// In case there are no branches, we must use rm --cached
 			if (!result.stdout) {
-				args = [ 'rm', '--cached', '-r', '--' ];
+				args = ['rm', '--cached', '-r', '--'];
 			} else {
-				args = [ 'reset', '-q', treeish, '--' ];
+				args = ['reset', '-q', treeish, '--'];
 			}
 
 			if (paths && paths.length) {
@@ -548,7 +548,7 @@ export class Repository {
 		});
 	}
 
-	push(remote?: string, name?: string, options?:IPushOptions): Promise {
+	push(remote?: string, name?: string, options?: IPushOptions): Promise {
 		const args = ['push'];
 		if (options && options.setUpstream) { args.push('-u'); }
 		if (remote) { args.push(remote); }
@@ -576,13 +576,13 @@ export class Repository {
 	getStatus(): TPromise<IRawFileStatus[]> {
 		return this.run(['status', '-z', '-u'], { log: false }).then((executionResult) => {
 			const status = executionResult.stdout;
-			const result:IRawFileStatus[] = [];
-			let current:IRawFileStatus;
+			const result: IRawFileStatus[] = [];
+			let current: IRawFileStatus;
 			let i = 0;
 
-			function readName():string {
+			function readName(): string {
 				const start = i;
-				let c:string;
+				let c: string;
 				while ((c = status.charAt(i)) !== '\u0000') { i++; }
 				return status.substring(start, i++);
 			}
@@ -605,7 +605,7 @@ export class Repository {
 				current.mimetype = guessMimeTypes(current.path)[0];
 
 				// If path ends with slash, it must be a nested git repo
-				if (current.path[current.path.length-1] === '/') {
+				if (current.path[current.path.length - 1] === '/') {
 					continue;
 				}
 
@@ -644,7 +644,7 @@ export class Repository {
 					if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
 						return { name: match[1], commit: match[2], type: RefType.Head };
 					} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
-						return { name: `${ match[1] }/${ match[2] }`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
+						return { name: `${match[1]}/${match[2]}`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
 					} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
 						return { name: match[1], commit: match[2], type: RefType.Tag };
 					}
@@ -722,7 +722,7 @@ export class Repository {
 			// https://github.com/git/git/blob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#L612
 			const homedir = os.homedir();
 			let templatePath = result.stdout.trim()
-				.replace(/^~([^\/]*)\//, (_, user) => `${ user ? path.join(path.dirname(homedir), user) : homedir }/`);
+				.replace(/^~([^\/]*)\//, (_, user) => `${user ? path.join(path.dirname(homedir), user) : homedir}/`);
 
 			if (!path.isAbsolute(templatePath)) {
 				templatePath = path.join(this.repository, templatePath);

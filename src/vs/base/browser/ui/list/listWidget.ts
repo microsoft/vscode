@@ -28,8 +28,8 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 {
 	constructor(
 		private controller: Trait<T>,
-		private renderer: IRenderer<T,D>
-	) {}
+		private renderer: IRenderer<T, D>
+	) { }
 
 	public get templateId(): string {
 		return this.renderer.templateId;
@@ -79,7 +79,7 @@ class Trait<T> implements IDisposable {
 		this._onChange.fire({ indexes });
 	}
 
-	renderElement(element: T, index: number, container:HTMLElement): void {
+	renderElement(element: T, index: number, container: HTMLElement): void {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
@@ -110,11 +110,11 @@ class Trait<T> implements IDisposable {
 
 class FocusTrait<T> extends Trait<T> {
 
-	constructor(private getElementId:(number) => string) {
+	constructor(private getElementId: (number) => string) {
 		super('focused');
 	}
 
-	renderElement(element: T, index: number, container:HTMLElement): void {
+	renderElement(element: T, index: number, container: HTMLElement): void {
 		super.renderElement(element, index, container);
 		container.setAttribute('role', 'option');
 		container.setAttribute('id', this.getElementId(index));
@@ -208,7 +208,7 @@ const DefaultOptions: IListOptions = {};
 export class List<T> implements IDisposable {
 
 	private static InstanceCount = 0;
-	private idPrefix = `list_id_${ ++List.InstanceCount }`;
+	private idPrefix = `list_id_${++List.InstanceCount}`;
 
 	private focus: Trait<T>;
 	private selection: Trait<T>;
@@ -352,7 +352,7 @@ export class List<T> implements IDisposable {
 	}
 
 	focusPreviousPage(): void {
-		let firstPageIndex:number;
+		let firstPageIndex: number;
 		const scrollTop = this.view.getScrollTop();
 
 		if (scrollTop === 0) {
@@ -409,8 +409,8 @@ export class List<T> implements IDisposable {
 		}
 	}
 
-	getElementId(index:number): string {
-		return `${ this.idPrefix }_${ index }`;
+	getElementId(index: number): string {
+		return `${this.idPrefix}_${index}`;
 	}
 
 	private toListEvent({ indexes }: ITraitChangeEvent) {

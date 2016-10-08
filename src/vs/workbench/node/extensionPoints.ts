@@ -8,14 +8,14 @@
 import * as nls from 'vs/nls';
 import * as Platform from 'vs/base/common/platform';
 import pfs = require('vs/base/node/pfs');
-import {IExtensionDescription, IMessage} from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {groupBy, values} from 'vs/base/common/collections';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { groupBy, values } from 'vs/base/common/collections';
 import paths = require('vs/base/common/paths');
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
-import {isValidExtensionDescription} from 'vs/platform/extensions/node/extensionValidator';
+import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
 
 const MANIFEST_FILE = 'package.json';
@@ -42,7 +42,7 @@ export class MessagesCollector {
 		return this._messages;
 	}
 
-	private _msg(source:string, type:Severity, message:string): void {
+	private _msg(source: string, type: Severity, message: string): void {
 		this._messages.push({
 			type: type,
 			message: message,
@@ -50,15 +50,15 @@ export class MessagesCollector {
 		});
 	}
 
-	public error(source:string, message: string): void {
+	public error(source: string, message: string): void {
 		this._msg(source, Severity.Error, message);
 	}
 
-	public warn(source:string, message: string): void {
+	public warn(source: string, message: string): void {
 		this._msg(source, Severity.Warning, message);
 	}
 
-	public info(source:string, message: string): void {
+	public info(source: string, message: string): void {
 		this._msg(source, Severity.Info, message);
 	}
 }
@@ -71,7 +71,7 @@ abstract class ExtensionManifestHandler {
 	protected _isBuiltin: boolean;
 	protected _absoluteManifestPath: string;
 
-	constructor(ourVersion: string, collector: MessagesCollector, absoluteFolderPath:string, isBuiltin:boolean) {
+	constructor(ourVersion: string, collector: MessagesCollector, absoluteFolderPath: string, isBuiltin: boolean) {
 		this._ourVersion = ourVersion;
 		this._collector = collector;
 		this._absoluteFolderPath = absoluteFolderPath;
@@ -101,7 +101,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 
 class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 
-	public replaceNLS(extensionDescription:IExtensionDescription): TPromise<IExtensionDescription> {
+	public replaceNLS(extensionDescription: IExtensionDescription): TPromise<IExtensionDescription> {
 		let extension = paths.extname(this._absoluteManifestPath);
 		let basename = this._absoluteManifestPath.substr(0, this._absoluteManifestPath.length - extension.length);
 
@@ -133,7 +133,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	}
 
 	private static findMessageBundle(basename: string): TPromise<string> {
-		return new TPromise<string>((c ,e, p) => {
+		return new TPromise<string>((c, e, p) => {
 			function loop(basename: string, locale: string): void {
 				let toCheck = `${basename}.nls.${locale}.json`;
 				pfs.fileExists(toCheck).then(exists => {
@@ -163,7 +163,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * Strings to replace are one values of a key. So for example string[] are ignored.
 	 * This is done to speed things up.
 	 */
-	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, collector: MessagesCollector, messageScope:string): void {
+	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, collector: MessagesCollector, messageScope: string): void {
 		Object.keys(literal).forEach(key => {
 			if (literal.hasOwnProperty(key)) {
 				let value = literal[key];
@@ -198,7 +198,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 }
 
 class ExtensionManifestValidator extends ExtensionManifestHandler {
-	validate(extensionDescription:IExtensionDescription): IExtensionDescription {
+	validate(extensionDescription: IExtensionDescription): IExtensionDescription {
 		extensionDescription.isBuiltin = this._isBuiltin;
 
 		let notices: string[] = [];
@@ -215,7 +215,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		});
 
 		// id := `publisher.name`
-		extensionDescription.id = `${ extensionDescription.publisher }.${ extensionDescription.name }`;
+		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
 
 		// main := absolutePath(`main`)
 		if (extensionDescription.main) {
@@ -236,10 +236,9 @@ export class ExtensionScanner {
 	public static scanExtension(
 		version: string,
 		collector: MessagesCollector,
-		absoluteFolderPath:string,
-		isBuiltin:boolean
-	) : TPromise<IExtensionDescription>
-	{
+		absoluteFolderPath: string,
+		isBuiltin: boolean
+	): TPromise<IExtensionDescription> {
 		absoluteFolderPath = paths.normalize(absoluteFolderPath);
 
 		let parser = new ExtensionManifestParser(version, collector, absoluteFolderPath, isBuiltin);
@@ -266,10 +265,9 @@ export class ExtensionScanner {
 	public static scanExtensions(
 		version: string,
 		collector: MessagesCollector,
-		absoluteFolderPath:string,
-		isBuiltin:boolean
-	) : TPromise<IExtensionDescription[]>
-	{
+		absoluteFolderPath: string,
+		isBuiltin: boolean
+	): TPromise<IExtensionDescription[]> {
 		let obsolete = TPromise.as({});
 
 		if (!isBuiltin) {
@@ -283,7 +281,7 @@ export class ExtensionScanner {
 				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
 				.then(extensionDescriptions => extensionDescriptions.filter(item => item !== null))
 				// TODO: align with extensionsService
-				.then(extensionDescriptions => extensionDescriptions.filter(p => !obsolete[`${ p.publisher }.${ p.name }-${ p.version }`]))
+				.then(extensionDescriptions => extensionDescriptions.filter(p => !obsolete[`${p.publisher}.${p.name}-${p.version}`]))
 				.then(extensionDescriptions => {
 					const extensionDescriptionsById = values(groupBy(extensionDescriptions, p => p.id));
 					return extensionDescriptionsById.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
@@ -302,10 +300,9 @@ export class ExtensionScanner {
 	public static scanOneOrMultipleExtensions(
 		version: string,
 		collector: MessagesCollector,
-		absoluteFolderPath:string,
-		isBuiltin:boolean
-	) : TPromise<IExtensionDescription[]>
-	{
+		absoluteFolderPath: string,
+		isBuiltin: boolean
+	): TPromise<IExtensionDescription[]> {
 		return pfs.fileExists(paths.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				return this.scanExtension(version, collector, absoluteFolderPath, isBuiltin).then((extensionDescription) => {

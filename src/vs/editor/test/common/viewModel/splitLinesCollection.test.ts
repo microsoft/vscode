@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Position} from 'vs/editor/common/core/position';
-import {CharacterHardWrappingLineMapping, CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import {ILineMapping, IModel, SplitLine, SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
-import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
-import {Model} from 'vs/editor/common/model/model';
+import { Position } from 'vs/editor/common/core/position';
+import { CharacterHardWrappingLineMapping, CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { ILineMapping, IModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { Model } from 'vs/editor/common/model/model';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -116,7 +116,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			startColumn: 1,
 			endLineNumber: 6,
 			endColumn: 1
-		}], (eventType, payload) => {/*no-op*/});
+		}], (eventType, payload) => {/*no-op*/ });
 
 		let viewLineCount = linesCollection.getOutputLineCount();
 		assert.equal(viewLineCount, 1, 'getOutputLineCount()');
@@ -172,26 +172,26 @@ function pos(lineNumber: number, column: number): Position {
 	return new Position(lineNumber, column);
 }
 
-function createSplitLine(splitLengths:number[], wrappedLinesPrefix:string, isVisible: boolean = true): SplitLine {
+function createSplitLine(splitLengths: number[], wrappedLinesPrefix: string, isVisible: boolean = true): SplitLine {
 	return new SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix), isVisible);
 }
 
-function createLineMapping(breakingLengths:number[], wrappedLinesPrefix:string): ILineMapping {
+function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string): ILineMapping {
 	return new CharacterHardWrappingLineMapping(new PrefixSumComputer(breakingLengths), wrappedLinesPrefix);
 }
 
-function createModel(text:string): IModel {
+function createModel(text: string): IModel {
 	return {
-		getLineTokens: (lineNumber:number, inaccurateTokensAcceptable?:boolean) => {
+		getLineTokens: (lineNumber: number, inaccurateTokensAcceptable?: boolean) => {
 			return null;
 		},
-		getLineContent: (lineNumber:number) => {
+		getLineContent: (lineNumber: number) => {
 			return text;
 		},
-		getLineMinColumn: (lineNumber:number) => {
+		getLineMinColumn: (lineNumber: number) => {
 			return 1;
 		},
-		getLineMaxColumn: (lineNumber:number) => {
+		getLineMaxColumn: (lineNumber: number) => {
 			return text.length + 1;
 		}
 	};

@@ -4,43 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IState} from 'vs/editor/common/modes';
-import {LineStream} from 'vs/editor/common/modes/lineStream';
+import { IState } from 'vs/editor/common/modes';
+import { LineStream } from 'vs/editor/common/modes/lineStream';
 
 /**
  * @internal
  */
 export interface ITokenizationResult {
-	type?:string;
-	dontMergeWithPrev?:boolean;
-	nextState?:AbstractState;
+	type?: string;
+	dontMergeWithPrev?: boolean;
+	nextState?: AbstractState;
 }
 
 export abstract class AbstractState implements IState {
 
 	_abstractStateBrand: void;
 
-	private modeId:string;
-	private stateData:IState;
+	private modeId: string;
+	private stateData: IState;
 
-	constructor(modeId:string, stateData:IState = null) {
+	constructor(modeId: string, stateData: IState = null) {
 		this.modeId = modeId;
 		this.stateData = stateData;
 	}
 
-	public getModeId():string {
+	public getModeId(): string {
 		return this.modeId;
 	}
 
-	public clone():AbstractState {
-		var result:AbstractState = this.makeClone();
+	public clone(): AbstractState {
+		var result: AbstractState = this.makeClone();
 		result.initializeFrom(this);
 		return result;
 	}
 
-	protected abstract makeClone():AbstractState;
+	protected abstract makeClone(): AbstractState;
 
-	protected initializeFrom(other:AbstractState): void {
+	protected initializeFrom(other: AbstractState): void {
 		this.stateData = other.stateData !== null ? other.stateData.clone() : null;
 	}
 
@@ -48,11 +48,11 @@ export abstract class AbstractState implements IState {
 		return this.stateData;
 	}
 
-	public setStateData(state:IState):void {
+	public setStateData(state: IState): void {
 		this.stateData = state;
 	}
 
-	public equals(other:IState):boolean {
+	public equals(other: IState): boolean {
 		if (other === null || this.modeId !== other.getModeId()) {
 			return false;
 		}
@@ -62,7 +62,7 @@ export abstract class AbstractState implements IState {
 		return false;
 	}
 
-	public abstract tokenize(stream:LineStream):ITokenizationResult;
+	public abstract tokenize(stream: LineStream): ITokenizationResult;
 
 	public static safeEquals(a: IState, b: IState): boolean {
 		if (a === null && b === null) {

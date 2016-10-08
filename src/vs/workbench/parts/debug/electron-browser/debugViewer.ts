@@ -4,33 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import {isMacintosh} from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import dom = require('vs/base/browser/dom');
-import {IMouseEvent} from 'vs/base/browser/mouseEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import labels = require('vs/base/common/labels');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import tree = require('vs/base/parts/tree/browser/tree');
-import {InputBox, IInputValidationOptions} from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import {CopyValueAction} from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Source} from 'vs/workbench/parts/debug/common/debugSource';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -287,7 +287,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements renderer.IActionProvider {
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
@@ -332,7 +332,7 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 
 export class CallStackDataSource implements tree.IDataSource {
 
-	constructor(@debug.IDebugService private debugService: debug.IDebugService) {
+	constructor( @debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
@@ -408,7 +408,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	private static ERROR_TEMPLATE_ID = 'error';
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
@@ -512,7 +512,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 export class CallstackAccessibilityProvider implements tree.IAccessibilityProvider {
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
@@ -1204,7 +1204,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProvider {
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 

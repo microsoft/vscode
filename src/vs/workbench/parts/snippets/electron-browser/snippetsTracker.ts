@@ -5,17 +5,17 @@
 
 'use strict';
 
-import {localize} from 'vs/nls';
+import { localize } from 'vs/nls';
 import workbenchExt = require('vs/workbench/common/contributions');
 import paths = require('vs/base/common/paths');
 import async = require('vs/base/common/async');
 import winjs = require('vs/base/common/winjs.base');
 import extfs = require('vs/base/node/extfs');
 import lifecycle = require('vs/base/common/lifecycle');
-import {readAndRegisterSnippets} from 'vs/editor/node/textMate/TMSnippets';
-import {IFileService} from 'vs/platform/files/common/files';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { readAndRegisterSnippets } from 'vs/editor/node/textMate/TMSnippets';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 import fs = require('fs');
 
@@ -25,7 +25,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	private snippetFolder: string;
 	private toDispose: lifecycle.IDisposable[];
 	private watcher: fs.FSWatcher;
-	private fileWatchDelayer:async.ThrottledDelayer<void>;
+	private fileWatchDelayer: async.ThrottledDelayer<void>;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -61,14 +61,14 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 				}
 				scheduler.schedule();
 			});
-	} catch (error) {
+		} catch (error) {
 			// the path might not exist anymore, ignore this error and return
 		}
 
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private scanUserSnippets() : winjs.Promise {
+	private scanUserSnippets(): winjs.Promise {
 		return readFilesInDir(this.snippetFolder, /\.json$/).then(snippetFiles => {
 			return winjs.TPromise.join(snippetFiles.map(snippetFile => {
 				var modeId = snippetFile.replace(/\.json$/, '').toLowerCase();
@@ -97,7 +97,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 
 function readDir(path: string): winjs.TPromise<string[]> {
 	return new winjs.TPromise<string[]>((c, e, p) => {
-		extfs.readdir(path,(err, files) => {
+		extfs.readdir(path, (err, files) => {
 			if (err) {
 				return e(err);
 			}
@@ -108,7 +108,7 @@ function readDir(path: string): winjs.TPromise<string[]> {
 
 function fileExists(path: string): winjs.TPromise<boolean> {
 	return new winjs.TPromise<boolean>((c, e, p) => {
-		fs.stat(path,(err, stats) => {
+		fs.stat(path, (err, stats) => {
 			if (err) {
 				return c(false);
 			}
@@ -122,7 +122,7 @@ function fileExists(path: string): winjs.TPromise<boolean> {
 	});
 }
 
-function readFilesInDir(dirPath: string, namePattern:RegExp = null): winjs.TPromise<string[]> {
+function readFilesInDir(dirPath: string, namePattern: RegExp = null): winjs.TPromise<string[]> {
 	return readDir(dirPath).then((children) => {
 		return winjs.TPromise.join(
 			children.map((child) => {

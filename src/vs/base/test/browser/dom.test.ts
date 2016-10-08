@@ -83,7 +83,7 @@ suite('dom', () => {
 	//	}
 	//});
 
-	test('safeStringify', function() {
+	test('safeStringify', function () {
 		var obj1 = {
 			friend: null
 		};
@@ -95,7 +95,7 @@ suite('dom', () => {
 		obj1.friend = obj2;
 		obj2.friend = obj1;
 
-		var arr:any = [1];
+		var arr: any = [1];
 		arr.push(arr);
 
 		var circular = {
@@ -117,17 +117,19 @@ suite('dom', () => {
 			a: 42,
 			b: '[Circular]',
 			c: [
-				{friend: {
-					friend: '[Circular]'
-				}},
+				{
+					friend: {
+						friend: '[Circular]'
+					}
+				},
 				'[Circular]'
 			],
 			d: [1, '[Circular]', '[Circular]']
 		});
 	});
 
-	test('safeStringify2', function() {
-		var obj:any = {
+	test('safeStringify2', function () {
+		var obj: any = {
 			a: null,
 			b: document.createElement('div'),
 			c: null,

@@ -5,15 +5,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Cursor} from 'vs/editor/common/controller/cursor';
-import {Position} from 'vs/editor/common/core/position';
-import {Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection, IPosition} from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
-import {IMode} from 'vs/editor/common/modes';
-import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
-import {viewModelHelper as aViewModelHelper} from 'vs/editor/test/common/editorTestUtils';
-import {IViewModelHelper} from 'vs/editor/common/controller/oneCursor';
-import {Range} from 'vs/editor/common/core/range';
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Position } from 'vs/editor/common/core/position';
+import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection, IPosition } from 'vs/editor/common/editorCommon';
+import { Model } from 'vs/editor/common/model/model';
+import { IMode } from 'vs/editor/common/modes';
+import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { viewModelHelper as aViewModelHelper } from 'vs/editor/test/common/editorTestUtils';
+import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
+import { Range } from 'vs/editor/common/core/range';
 
 let H = Handler;
 
@@ -47,7 +47,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move left should move to left character', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 
 		moveLeft(thisCursor);
@@ -56,7 +56,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move left should move to left by n characters', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 
 		moveLeft(thisCursor, 3);
@@ -65,7 +65,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move left should move to left by half line', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 
 		moveLeft(thisCursor, 1, CursorMoveByUnit.HalfLine);
@@ -74,7 +74,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move left moves to previous line', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 2, 3);
 
 		moveLeft(thisCursor, 10);
@@ -83,7 +83,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move right should move to right character', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 5);
 
 		moveRight(thisCursor);
@@ -92,7 +92,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move right should move to right by n characters', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 2);
 
 		moveRight(thisCursor, 6);
@@ -101,7 +101,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move right should move to right by half line', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 4);
 
 		moveRight(thisCursor, 1, CursorMoveByUnit.HalfLine);
@@ -110,7 +110,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move right moves to next line', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 
 		moveRight(thisCursor, 100);
@@ -119,14 +119,14 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to first character of line from middle', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 		moveToLineStart(thisCursor);
 		cursorEqual(thisCursor, 1, 1);
 	});
 
 	test('move to first character of line from first non white space character', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 6);
 
 		moveToLineStart(thisCursor);
@@ -135,7 +135,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to first character of line from first character', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 1);
 
 		moveToLineStart(thisCursor);
@@ -144,7 +144,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to first non white space character of line from middle', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 
 		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
@@ -153,7 +153,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to first non white space character of line from first non white space character', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 6);
 
 		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
@@ -162,7 +162,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to first non white space character of line from first character', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 1);
 
 		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
@@ -171,7 +171,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to end of line from middle', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 
 		moveToLineEnd(thisCursor);
@@ -180,7 +180,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to end of line from last non white space character', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, LINE1.length - 1);
 
 		moveToLineEnd(thisCursor);
@@ -189,7 +189,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to end of line from line end', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, LINE1.length + 1);
 
 		moveToLineEnd(thisCursor);
@@ -198,7 +198,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to last non white space character from middle', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 
 		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
@@ -207,7 +207,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to last non white space character from last non white space character', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, LINE1.length - 1);
 
 		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
@@ -216,7 +216,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to last non white space character from line end', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, LINE1.length + 1);
 
 		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
@@ -225,7 +225,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to center of line not from center', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 8);
 
 		moveToLineCenter(thisCursor);
@@ -234,7 +234,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to center of line from center', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveTo(thisCursor, 1, 11);
 
 		moveToLineCenter(thisCursor);
@@ -243,7 +243,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to center of line from start', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveToLineStart(thisCursor);
 
 		moveToLineCenter(thisCursor);
@@ -252,7 +252,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to center of line from end', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 		moveToLineEnd(thisCursor);
 
 		moveToLineCenter(thisCursor);
@@ -261,7 +261,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move up by cursor move command', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 
 		moveTo(thisCursor, 3, 5);
 		cursorEqual(thisCursor, 3, 5);
@@ -274,7 +274,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move up by model line cursor move command', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 
 		moveTo(thisCursor, 3, 5);
 		cursorEqual(thisCursor, 3, 5);
@@ -287,7 +287,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move down by model line cursor move command', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 
 		moveTo(thisCursor, 3, 5);
 		cursorEqual(thisCursor, 3, 5);
@@ -300,7 +300,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move up with selection by cursor move command', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 
 		moveTo(thisCursor, 3, 5);
 		cursorEqual(thisCursor, 3, 5);
@@ -313,7 +313,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move up and down with tabs by cursor move command', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 
 		moveTo(thisCursor, 1, 5);
 		cursorEqual(thisCursor, 1, 5);
@@ -335,7 +335,7 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move up and down with end of lines starting from a long one by cursor move command', () => {
-		thisCursor= aCursor();
+		thisCursor = aCursor();
 
 		moveToEndOfLine(thisCursor);
 		cursorEqual(thisCursor, 1, LINE1.length - 1);
@@ -357,9 +357,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view top line moves to first visible line if it is first line', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 10, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 10, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
 		moveToTop(thisCursor);
@@ -368,9 +368,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view top line moves to top visible line when first line is not visible', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(2, 1, 10, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(2, 1, 10, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
 		moveToTop(thisCursor);
@@ -379,9 +379,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view top line moves to nth line from top', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 10, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 10, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
 		moveToTop(thisCursor, 3);
@@ -390,9 +390,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view top line moves to last line if n is greater than last visible line number', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 3, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 3, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
 		moveToTop(thisCursor, 4);
@@ -401,9 +401,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view center line moves to the center line', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(3, 1, 3, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(3, 1, 3, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
 		moveToCenter(thisCursor);
@@ -412,9 +412,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view bottom line moves to last visible line if it is last line', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 5, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 5, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
 		moveToBottom(thisCursor);
@@ -423,9 +423,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view bottom line moves to last visible line when last line is not visible', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(2, 1, 3, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(2, 1, 3, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 2, 2);
 		moveToBottom(thisCursor);
@@ -434,9 +434,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view bottom line moves to nth line from bottom', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(1, 1, 5, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(1, 1, 5, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
 		moveToBottom(thisCursor, 3);
@@ -445,9 +445,9 @@ suite('Cursor move command test', () => {
 	});
 
 	test('move to view bottom line moves to first line if n is lesser than first visible line number', () => {
-		let viewModelHelper= aViewModelHelper(thisModel);
-		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport= () =>  new Range(2, 1, 5, 1);
-		thisCursor= aCursor(viewModelHelper);
+		let viewModelHelper = aViewModelHelper(thisModel);
+		viewModelHelper.getCurrentCompletelyVisibleModelLinesRangeInViewport = () => new Range(2, 1, 5, 1);
+		thisCursor = aCursor(viewModelHelper);
 
 		moveTo(thisCursor, 4, 1);
 		moveToBottom(thisCursor, 5);
@@ -483,59 +483,59 @@ function move(cursor: Cursor, args: any) {
 }
 
 function moveToLineStart(cursor: Cursor) {
-	move(cursor, {to: CursorMovePosition.WrappedLineStart});
+	move(cursor, { to: CursorMovePosition.WrappedLineStart });
 }
 
 function moveToLineFirstNonWhiteSpaceCharacter(cursor: Cursor) {
-	move(cursor, {to: CursorMovePosition.WrappedLineFirstNonWhitespaceCharacter});
+	move(cursor, { to: CursorMovePosition.WrappedLineFirstNonWhitespaceCharacter });
 }
 
 function moveToLineCenter(cursor: Cursor) {
-	move(cursor, {to: CursorMovePosition.WrappedLineColumnCenter});
+	move(cursor, { to: CursorMovePosition.WrappedLineColumnCenter });
 }
 
 function moveToLineEnd(cursor: Cursor) {
-	move(cursor, {to: CursorMovePosition.WrappedLineEnd});
+	move(cursor, { to: CursorMovePosition.WrappedLineEnd });
 }
 
 function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
-	move(cursor, {to: CursorMovePosition.WrappedLineLastNonWhitespaceCharacter});
+	move(cursor, { to: CursorMovePosition.WrappedLineLastNonWhitespaceCharacter });
 }
 
 function moveLeft(cursor: Cursor, value?: number, by?: string, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Left, by:by, value: value, select: select});
+	move(cursor, { to: CursorMovePosition.Left, by: by, value: value, select: select });
 }
 
 function moveRight(cursor: Cursor, value?: number, by?: string, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Right, by:by, value: value, select: select});
+	move(cursor, { to: CursorMovePosition.Right, by: by, value: value, select: select });
 }
 
-function moveUp(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Up, by:CursorMoveByUnit.WrappedLine, value: noOfLines, select: select});
+function moveUp(cursor: Cursor, noOfLines: number = 1, select?: boolean) {
+	move(cursor, { to: CursorMovePosition.Up, by: CursorMoveByUnit.WrappedLine, value: noOfLines, select: select });
 }
 
-function moveUpByModelLine(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Up, value: noOfLines, select: select});
+function moveUpByModelLine(cursor: Cursor, noOfLines: number = 1, select?: boolean) {
+	move(cursor, { to: CursorMovePosition.Up, value: noOfLines, select: select });
 }
 
-function moveDown(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Down, by:CursorMoveByUnit.WrappedLine, value: noOfLines, select: select});
+function moveDown(cursor: Cursor, noOfLines: number = 1, select?: boolean) {
+	move(cursor, { to: CursorMovePosition.Down, by: CursorMoveByUnit.WrappedLine, value: noOfLines, select: select });
 }
 
-function moveDownByModelLine(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.Down, value: noOfLines, select: select});
+function moveDownByModelLine(cursor: Cursor, noOfLines: number = 1, select?: boolean) {
+	move(cursor, { to: CursorMovePosition.Down, value: noOfLines, select: select });
 }
 
-function moveToTop(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.ViewPortTop, value: noOfLines, select: select});
+function moveToTop(cursor: Cursor, noOfLines: number = 1, select?: boolean) {
+	move(cursor, { to: CursorMovePosition.ViewPortTop, value: noOfLines, select: select });
 }
 
 function moveToCenter(cursor: Cursor, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.ViewPortCenter, select: select});
+	move(cursor, { to: CursorMovePosition.ViewPortCenter, select: select });
 }
 
-function moveToBottom(cursor: Cursor, noOfLines: number= 1, select?: boolean) {
-	move(cursor, {to: CursorMovePosition.ViewPortBottom, value: noOfLines, select: select});
+function moveToBottom(cursor: Cursor, noOfLines: number = 1, select?: boolean) {
+	move(cursor, { to: CursorMovePosition.ViewPortBottom, value: noOfLines, select: select });
 }
 
 function cursorEqual(cursor: Cursor, posLineNumber: number, posColumn: number, selLineNumber: number = posLineNumber, selColumn: number = posColumn) {
@@ -543,28 +543,28 @@ function cursorEqual(cursor: Cursor, posLineNumber: number, posColumn: number, s
 	selectionEqual(cursor.getSelection(), posLineNumber, posColumn, selLineNumber, selColumn);
 }
 
-function positionEqual(position:IPosition, lineNumber: number, column: number) {
+function positionEqual(position: IPosition, lineNumber: number, column: number) {
 	assert.deepEqual({
 		lineNumber: position.lineNumber,
 		column: position.column
 	}, {
-		lineNumber: lineNumber,
-		column: column
-	}, 'position equal');
+			lineNumber: lineNumber,
+			column: column
+		}, 'position equal');
 }
 
-function selectionEqual(selection:ISelection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {
+function selectionEqual(selection: ISelection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {
 	assert.deepEqual({
 		selectionStartLineNumber: selection.selectionStartLineNumber,
 		selectionStartColumn: selection.selectionStartColumn,
 		positionLineNumber: selection.positionLineNumber,
 		positionColumn: selection.positionColumn
 	}, {
-		selectionStartLineNumber: selLineNumber,
-		selectionStartColumn: selColumn,
-		positionLineNumber: posLineNumber,
-		positionColumn: posColumn
-	}, 'selection equal');
+			selectionStartLineNumber: selLineNumber,
+			selectionStartColumn: selColumn,
+			positionLineNumber: posLineNumber,
+			positionColumn: posColumn
+		}, 'selection equal');
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
@@ -572,5 +572,5 @@ function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionM
 }
 
 function moveToEndOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ?  H.CursorEndSelect : H.CursorEnd);
+	cursorCommand(cursor, inSelectionMode ? H.CursorEndSelect : H.CursorEnd);
 }

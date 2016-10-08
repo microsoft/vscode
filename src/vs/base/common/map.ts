@@ -6,7 +6,7 @@
 'use strict';
 
 export interface Key {
-	toString():string;
+	toString(): string;
 }
 
 export interface Entry<K, T> {
@@ -86,7 +86,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	public delete(k: K): T {
-		let value:T= this.get(k);
+		let value: T = this.get(k);
 		if (value) {
 			this.pop(k);
 			return value;
@@ -115,7 +115,7 @@ export class LinkedMap<K extends Key, T> {
 	}
 
 	protected peek(k: K): T {
-		const entry= this.map[k.toString()];
+		const entry = this.map[k.toString()];
 		return entry ? entry.value : null;
 	}
 }

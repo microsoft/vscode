@@ -5,31 +5,31 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import Event, {Emitter} from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
-import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
-import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {Token} from 'vs/editor/common/core/token';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
+import { ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AbstractState } from 'vs/editor/common/modes/abstractState';
+import { Token } from 'vs/editor/common/core/token';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
 
 let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
 	type: 'array',
 	items: {
 		type: 'object',
-		defaultSnippets: [{ body: { id: '{{languageId}}', aliases: ['{{label}}'], extensions: ['{{extension}}'], configuration: './language-configuration.json'} }],
+		defaultSnippets: [{ body: { id: '{{languageId}}', aliases: ['{{label}}'], extensions: ['{{extension}}'], configuration: './language-configuration.json' } }],
 		properties: {
 			id: {
 				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
@@ -94,7 +94,7 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value:ILanguageExtensionPoint, collector:IExtensionMessageCollector): boolean {
+function isValidLanguageExtensionPoint(value: ILanguageExtensionPoint, collector: IExtensionMessageCollector): boolean {
 	if (!value) {
 		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;
@@ -147,8 +147,8 @@ export class ModeServiceImpl implements IModeService {
 	public onDidCreateMode: Event<modes.IMode> = this._onDidCreateMode.event;
 
 	constructor(
-		instantiationService:IInstantiationService,
-		extensionService:IExtensionService
+		instantiationService: IInstantiationService,
+		extensionService: IExtensionService
 	) {
 		this._instantiationService = instantiationService;
 		this._extensionService = extensionService;
@@ -187,7 +187,7 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getLanguageName(modeId);
 	}
 
-	public getModeIdForLanguageName(alias:string): string {
+	public getModeIdForLanguageName(alias: string): string {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
@@ -207,7 +207,7 @@ export class ModeServiceImpl implements IModeService {
 
 	// --- instantiation
 
-	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[]{
+	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[] {
 		var r: IModeLookupResult[] = [];
 		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
@@ -254,7 +254,7 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?:string): string {
+	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
 		var modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
 
 		if (modeIds.length > 0) {
@@ -284,7 +284,7 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?:string): TPromise<modes.IMode> {
+	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<modes.IMode> {
 		return this.onReady().then(() => {
 			var modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
 			// Fall back to plain text if no mode was found
@@ -324,7 +324,7 @@ export class TokenizationState2Adapter implements modes.IState {
 		return new TokenizationState2Adapter(this._modeId, this._actual.clone(), AbstractState.safeClone(this._stateData));
 	}
 
-	public equals(other:modes.IState): boolean {
+	public equals(other: modes.IState): boolean {
 		if (other instanceof TokenizationState2Adapter) {
 			if (!this._actual.equals(other._actual)) {
 				return false;
@@ -338,7 +338,7 @@ export class TokenizationState2Adapter implements modes.IState {
 		return this._modeId;
 	}
 
-	public tokenize(stream:any): any {
+	public tokenize(stream: any): any {
 		throw new Error('Unexpected tokenize call!');
 	}
 
@@ -346,7 +346,7 @@ export class TokenizationState2Adapter implements modes.IState {
 		return this._stateData;
 	}
 
-	public setStateData(stateData:modes.IState): void {
+	public setStateData(stateData: modes.IState): void {
 		this._stateData = stateData;
 	}
 }
@@ -365,7 +365,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 		return new TokenizationState2Adapter(this._modeId, this._actual.getInitialState(), null);
 	}
 
-	public tokenize(line:string, state:modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
+	public tokenize(line: string, state: modes.IState, offsetDelta: number = 0, stopAtOffset?: number): modes.ILineTokens {
 		if (state instanceof TokenizationState2Adapter) {
 			let actualResult = this._actual.tokenize(line, state.actual);
 			let tokens: Token[] = [];
@@ -395,14 +395,14 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	private _onReadyPromise: TPromise<boolean>;
 
 	constructor(
-		@IInstantiationService instantiationService:IInstantiationService,
-		@IExtensionService extensionService:IExtensionService,
-		@IConfigurationService configurationService:IConfigurationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(instantiationService, extensionService);
 		this._configurationService = configurationService;
 
-		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
+		languagesExtPoint.setHandler((extensions: IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
 			let allValidLanguages: IValidLanguageExtensionPoint[] = [];
 
 			for (let i = 0, len = extensions.length; i < len; i++) {

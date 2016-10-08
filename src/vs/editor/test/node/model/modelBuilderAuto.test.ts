@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {testModelBuilder, testDifferentHash} from 'vs/editor/test/node/model/modelBuilder.test';
-import {CharCode} from 'vs/base/common/charCode';
+import { testModelBuilder, testDifferentHash } from 'vs/editor/test/node/model/modelBuilder.test';
+import { CharCode } from 'vs/base/common/charCode';
 
 const GENERATE_TESTS = false;
 
 suite('ModelBuilder Auto Tests', () => {
 
 	test('auto1', () => {
-		testModelBuilder(['sarjniow','\r','\nbpb','ofb','\njzldgxx','\r\nkzwfjysng']);
+		testModelBuilder(['sarjniow', '\r', '\nbpb', 'ofb', '\njzldgxx', '\r\nkzwfjysng']);
 	});
 
 	test('auto2', () => {
-		testModelBuilder(['i','yyernubi\r\niimgn\n','ut\r']);
+		testModelBuilder(['i', 'yyernubi\r\niimgn\n', 'ut\r']);
 	});
 
 	test('auto3', () => {
@@ -69,8 +69,8 @@ function generateRandomFile(): string {
 	return lines.join('');
 }
 
-function generateRandomChunks(file:string): string[] {
-	let result:string[] = [];
+function generateRandomChunks(file: string): string[] {
+	let result: string[] = [];
 	let cnt = getRandomInt(1, 20);
 
 	let maxOffset = file.length;
@@ -97,9 +97,9 @@ function generateRandomChunks(file:string): string[] {
 	return result;
 }
 
-let HASH_TO_CONTENT: {[hash:string]:string;} = {};
+let HASH_TO_CONTENT: { [hash: string]: string; } = {};
 
-function testRandomFile(file:string): boolean {
+function testRandomFile(file: string): boolean {
 	let tests = getRandomInt(5, 10);
 	for (let i = 0; i < tests; i++) {
 		let chunks = generateRandomChunks(file);
@@ -117,7 +117,7 @@ function testRandomFile(file:string): boolean {
 			} else {
 				HASH_TO_CONTENT[hash] = logicalContent;
 			}
-		} catch(err) {
+		} catch (err) {
 			console.log(err);
 			console.log(JSON.stringify(chunks));
 			return false;
@@ -128,7 +128,7 @@ function testRandomFile(file:string): boolean {
 
 if (GENERATE_TESTS) {
 	let number = 1;
-	while(true) {
+	while (true) {
 		console.log('------BEGIN NEW TEST: ' + number);
 
 		if (!testRandomFile(generateRandomFile())) {

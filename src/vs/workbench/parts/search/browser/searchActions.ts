@@ -304,7 +304,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	private getNavigatorAt(element: FileMatchOrMatch, viewer: ITree): INavigator<any> {
-		let navigator:INavigator<any> = viewer.getNavigator();
+		let navigator: INavigator<any> = viewer.getNavigator();
 		while (navigator.current() !== element && !!navigator.next()) { };
 		return navigator;
 	}

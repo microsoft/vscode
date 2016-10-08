@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export namespace Schemas {
 
@@ -12,38 +12,38 @@ export namespace Schemas {
 	 * A schema that is used for models that exist in memory
 	 * only and that have no correspondence on a server or such.
 	 */
-	export var inMemory:string = 'inmemory';
+	export var inMemory: string = 'inmemory';
 
 	/**
 	 * A schema that is used for setting files
 	 */
-	export var vscode:string = 'vscode';
+	export var vscode: string = 'vscode';
 
 	/**
 	 * A schema that is used for internal private files
 	 */
-	export var internal:string = 'private';
+	export var internal: string = 'private';
 
-	export var http:string = 'http';
+	export var http: string = 'http';
 
-	export var https:string = 'https';
+	export var https: string = 'https';
 
-	export var file:string = 'file';
+	export var file: string = 'file';
 }
 
 export interface IXHROptions {
-	type?:string;
-	url?:string;
-	user?:string;
-	password?:string;
-	responseType?:string;
-	headers?:any;
-	customRequestInitializer?:(req:any)=>void;
-	data?:any;
+	type?: string;
+	url?: string;
+	user?: string;
+	password?: string;
+	responseType?: string;
+	headers?: any;
+	customRequestInitializer?: (req: any) => void;
+	data?: any;
 }
 
-export function xhr(options:IXHROptions): TPromise<XMLHttpRequest> {
-	let req:XMLHttpRequest = null;
+export function xhr(options: IXHROptions): TPromise<XMLHttpRequest> {
+	let req: XMLHttpRequest = null;
 	let canceled = false;
 
 	return new TPromise<XMLHttpRequest>((c, e, p) => {

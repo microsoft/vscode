@@ -16,7 +16,7 @@ import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 
 export class FakeRenderer {
 
-	public getHeight(tree:_.ITree, element:any):number {
+	public getHeight(tree: _.ITree, element: any): number {
 		return 20;
 	}
 
@@ -39,16 +39,16 @@ export class FakeRenderer {
 
 class TreeContext implements _.ITreeContext {
 
-	public tree:_.ITree = null;
-	public options:_.ITreeOptions = { autoExpandSingleChildren: true };
-	public dataSource:_.IDataSource;
-	public renderer:_.IRenderer;
-	public controller:_.IController;
-	public dnd:_.IDragAndDrop;
-	public filter:_.IFilter;
-	public sorter:_.ISorter;
+	public tree: _.ITree = null;
+	public options: _.ITreeOptions = { autoExpandSingleChildren: true };
+	public dataSource: _.IDataSource;
+	public renderer: _.IRenderer;
+	public controller: _.IController;
+	public dnd: _.IDragAndDrop;
+	public filter: _.IFilter;
+	public sorter: _.ISorter;
 
-	constructor(public configuration:_.ITreeConfiguration) {
+	constructor(public configuration: _.ITreeConfiguration) {
 		this.dataSource = configuration.dataSource;
 		this.renderer = configuration.renderer || new FakeRenderer();
 		this.controller = configuration.controller;
@@ -60,7 +60,7 @@ class TreeContext implements _.ITreeContext {
 
 class TreeModel extends model.TreeModel {
 
-	constructor(configuration:_.ITreeConfiguration) {
+	constructor(configuration: _.ITreeConfiguration) {
 		super(new TreeContext(configuration));
 	}
 }
@@ -75,7 +75,7 @@ class EventCounter {
 		this._count = 0;
 	}
 
-	public listen(emitter: ee.IEventEmitter, event: string, fn:(e)=>void = null): ()=>void {
+	public listen(emitter: ee.IEventEmitter, event: string, fn: (e) => void = null): () => void {
 		let r = emitter.addListener2(event, (e) => {
 			this._count++;
 			fn && fn(e);
@@ -106,64 +106,82 @@ class EventCounter {
 	}
 }
 
-var SAMPLE:any = {
+var SAMPLE: any = {
 	ONE: { id: 'one' },
 
-	AB:{ id: 'ROOT', children: [
-		{ id: 'a', children: [
-			{ id: 'aa' },
-			{ id: 'ab' }
-		]},
-		{ id: 'b' },
-		{ id: 'c', children: [
-			{ id: 'ca' },
-			{ id: 'cb' }
-		] }
-	]},
+	AB: {
+		id: 'ROOT', children: [
+			{
+				id: 'a', children: [
+					{ id: 'aa' },
+					{ id: 'ab' }
+				]
+			},
+			{ id: 'b' },
+			{
+				id: 'c', children: [
+					{ id: 'ca' },
+					{ id: 'cb' }
+				]
+			}
+		]
+	},
 
-	DEEP: { id: 'ROOT', children: [
-		{ id: 'a', children: [
-			{ id: 'x', children: [
-				{ id: 'xa' },
-				{ id: 'xb' },
-			]}
-		]},
-		{ id: 'b' }
-	]},
+	DEEP: {
+		id: 'ROOT', children: [
+			{
+				id: 'a', children: [
+					{
+						id: 'x', children: [
+							{ id: 'xa' },
+							{ id: 'xb' },
+						]
+					}
+				]
+			},
+			{ id: 'b' }
+		]
+	},
 
-	DEEP2: { id: 'ROOT', children: [
-		{ id: 'a', children: [
-			{ id: 'x', children: [
-				{ id: 'xa' },
-				{ id: 'xb' },
-			]},
-			{ id: 'y' }
-		]},
-		{ id: 'b' }
-	]}
+	DEEP2: {
+		id: 'ROOT', children: [
+			{
+				id: 'a', children: [
+					{
+						id: 'x', children: [
+							{ id: 'xa' },
+							{ id: 'xb' },
+						]
+					},
+					{ id: 'y' }
+				]
+			},
+			{ id: 'b' }
+		]
+	}
 };
 
 class TestDataSource implements _.IDataSource {
-	public getId(tree, element):string {
+	public getId(tree, element): string {
 		return element.id;
 	}
 
-	public hasChildren(tree, element):boolean {
+	public hasChildren(tree, element): boolean {
 		return !!element.children;
 	}
 
-	public getChildren(tree, element):WinJS.Promise {
+	public getChildren(tree, element): WinJS.Promise {
 		return WinJS.TPromise.as(element.children);
 	}
 
-	public getParent(tree, element):WinJS.Promise {
+	public getParent(tree, element): WinJS.Promise {
 		throw new Error('Not implemented');
 	}
 }
 
 suite('TreeModel', () => {
-	var model:model.TreeModel;
-	var counter:EventCounter;
+	var model: model.TreeModel;
+	var counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -190,7 +208,7 @@ suite('TreeModel', () => {
 			counter.listen(model, 'item:childrenRefreshing'); // 1
 			counter.listen(model, 'item:childrenRefreshed'); // 1
 			return model.refresh(null);
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 8);
 			done();
 		});
@@ -204,7 +222,7 @@ suite('TreeModel', () => {
 			counter.listen(model, 'item:childrenRefreshing'); // 1
 			counter.listen(model, 'item:childrenRefreshed'); // 1
 			return model.refresh(SAMPLE.AB);
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 8);
 			done();
 		});
@@ -218,7 +236,7 @@ suite('TreeModel', () => {
 			counter.listen(model, 'item:childrenRefreshing'); // 1
 			counter.listen(model, 'item:childrenRefreshed'); // 1
 			return model.refresh(SAMPLE.AB, false);
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 5);
 			done();
 		});
@@ -232,7 +250,7 @@ suite('TreeModel', () => {
 			counter.listen(model, 'item:childrenRefreshing'); // 0
 			counter.listen(model, 'item:childrenRefreshed'); // 0
 			return model.refresh(SAMPLE.AB.children[0]);
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 3);
 			done();
 		});
@@ -248,7 +266,7 @@ suite('TreeModel', () => {
 			counter.listen(model, 'item:childrenRefreshing'); // 1
 			counter.listen(model, 'item:childrenRefreshed'); // 1
 			return model.refresh(SAMPLE.AB.children[0]);
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 7);
 			done();
 		});
@@ -267,7 +285,7 @@ suite('TreeModel', () => {
 			counter.listen(model, 'item:childrenRefreshing'); // 1
 			counter.listen(model, 'item:childrenRefreshed'); // 1
 			return model.refresh(SAMPLE.AB.children[0], false);
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 6);
 			done();
 		});
@@ -285,7 +303,7 @@ suite('TreeModel', () => {
 			counter.listen(model, 'item:childrenRefreshed'); // 2
 
 			return model.refreshAll([SAMPLE.AB.children[0], SAMPLE.AB.children[1], SAMPLE.AB.children[2]]);
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 17);
 			done();
 		});
@@ -303,7 +321,7 @@ suite('TreeModel', () => {
 			counter.listen(model, 'item:childrenRefreshed'); // 2
 
 			return model.refreshAll([SAMPLE.AB.children[0], SAMPLE.AB.children[1], SAMPLE.AB.children[2]], false);
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 13);
 			done();
 		});
@@ -329,7 +347,7 @@ suite('TreeModel', () => {
 			});
 
 			return model.refresh();
-		}).done(() =>{
+		}).done(() => {
 			assert.equal(counter.count, 16);
 			done();
 		});
@@ -340,7 +358,7 @@ suite('TreeModel', () => {
 			model.expandAll(['a', 'c']);
 
 			// going internals
-			var r = (<any> model).registry;
+			var r = (<any>model).registry;
 
 			assert(r.getItem('a').intersects(r.getItem('a')));
 			assert(r.getItem('a').intersects(r.getItem('aa')));
@@ -359,8 +377,8 @@ suite('TreeModel', () => {
 });
 
 suite('TreeModel - TreeNavigator', () => {
-	var model:model.TreeModel;
-	var counter:EventCounter;
+	var model: model.TreeModel;
+	var counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -539,8 +557,8 @@ suite('TreeModel - TreeNavigator', () => {
 });
 
 suite('TreeModel - Expansion', () => {
-	var model:model.TreeModel;
-	var counter:EventCounter;
+	var model: model.TreeModel;
+	var counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -665,12 +683,12 @@ suite('TreeModel - Expansion', () => {
 			assert.equal(nav.next().id, 'c');
 			assert.equal(nav.next() && false, null);
 
-			var f:()=>void = counter.listen(model, 'item:childrenRefreshing', (e) => {
+			var f: () => void = counter.listen(model, 'item:childrenRefreshing', (e) => {
 				assert.equal(e.item.id, 'a');
 				f();
 			});
 
-			var g:()=>void = counter.listen(model, 'item:childrenRefreshed', (e) => {
+			var g: () => void = counter.listen(model, 'item:childrenRefreshed', (e) => {
 				assert.equal(e.item.id, 'a');
 				g();
 			});
@@ -711,21 +729,21 @@ suite('TreeModel - Expansion', () => {
 
 class TestFilter implements _.IFilter {
 
-	public fn:(any)=>boolean;
+	public fn: (any) => boolean;
 
 	constructor() {
 		this.fn = () => true;
 	}
 
-	public isVisible(tree, element):boolean {
+	public isVisible(tree, element): boolean {
 		return this.fn(element);
 	}
 }
 
 suite('TreeModel - Filter', () => {
-	var model:model.TreeModel;
-	var counter:EventCounter;
-	var filter:TestFilter;
+	var model: model.TreeModel;
+	var counter: EventCounter;
+	var filter: TestFilter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -872,8 +890,8 @@ suite('TreeModel - Filter', () => {
 });
 
 suite('TreeModel - Traits', () => {
-	var model:model.TreeModel;
-	var counter:EventCounter;
+	var model: model.TreeModel;
+	var counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -1104,8 +1122,8 @@ suite('TreeModel - Traits', () => {
 
 class DynamicModel extends Events.EventEmitter implements _.IDataSource {
 
-	private data:any;
-	public promiseFactory:{ ():WinJS.Promise; };
+	private data: any;
+	public promiseFactory: { (): WinJS.Promise; };
 
 	constructor() {
 		super();
@@ -1137,15 +1155,15 @@ class DynamicModel extends Events.EventEmitter implements _.IDataSource {
 		this.addChild(parent, newName);
 	}
 
-	public getId(tree, element):string {
+	public getId(tree, element): string {
 		return element;
 	}
 
-	public hasChildren(tree, element):boolean {
+	public hasChildren(tree, element): boolean {
 		return !!this.data[element];
 	}
 
-	public getChildren(tree, element):WinJS.Promise {
+	public getChildren(tree, element): WinJS.Promise {
 		this.emit('getChildren', element);
 		var result = this.promiseFactory ? this.promiseFactory() : WinJS.TPromise.as(null);
 		return result.then(() => {
@@ -1154,15 +1172,15 @@ class DynamicModel extends Events.EventEmitter implements _.IDataSource {
 		});
 	}
 
-	public getParent(tree, element):WinJS.Promise {
+	public getParent(tree, element): WinJS.Promise {
 		throw new Error('Not implemented');
 	}
 }
 
 suite('TreeModel - Dynamic data model', () => {
-	var model:model.TreeModel;
-	var dataModel:DynamicModel;
-	var counter:EventCounter;
+	var model: model.TreeModel;
+	var dataModel: DynamicModel;
+	var counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -1640,7 +1658,7 @@ suite('TreeModel - Dynamic data model', () => {
 });
 
 suite('TreeModel - bugs', () => {
-	var counter:EventCounter;
+	var counter: EventCounter;
 
 	setup(() => {
 		counter = new EventCounter();
@@ -1668,7 +1686,7 @@ suite('TreeModel - bugs', () => {
 			}
 		});
 
-		let listeners = <any> [];
+		let listeners = <any>[];
 
 		// helpers
 		var getGetRootChildren = (children: string[], timeout = 0) => () => WinJS.TPromise.timeout(timeout).then(() => children);

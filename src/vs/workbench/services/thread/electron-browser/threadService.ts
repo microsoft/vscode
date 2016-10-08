@@ -6,26 +6,26 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {toErrorMessage} from 'vs/base/common/errorMessage';
-import {stringify} from 'vs/base/common/marshalling';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { stringify } from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {isWindows} from 'vs/base/common/platform';
-import {findFreePort} from 'vs/base/node/ports';
-import {IMainProcessExtHostIPC, create} from 'vs/platform/extensions/common/ipcRemoteCom';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {AbstractThreadService} from 'vs/workbench/services/thread/common/abstractThreadService';
-import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {ChildProcess, fork} from 'child_process';
-import {ipcRenderer as ipc} from 'electron';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { isWindows } from 'vs/base/common/platform';
+import { findFreePort } from 'vs/base/node/ports';
+import { IMainProcessExtHostIPC, create } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
+import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { ChildProcess, fork } from 'child_process';
+import { ipcRenderer as ipc } from 'electron';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -213,7 +213,7 @@ class ExtensionHostProcessManager {
 	}
 
 	// @return `true` if ready
-	private onMessaage(msg : any, onExtensionHostMessage : (msg: any) => void): boolean {
+	private onMessaage(msg: any, onExtensionHostMessage: (msg: any) => void): boolean {
 		// 1) Host is ready to receive messages, initialize it
 		if (msg === 'ready') {
 			this.initializeExtensionHost();
@@ -228,7 +228,7 @@ class ExtensionHostProcessManager {
 			return true;
 		}
 
-			// Support logging from extension host
+		// Support logging from extension host
 		if (msg && (<ILogEntry>msg).type === '__$console') {
 			this.logExtensionHostMessage(<ILogEntry>msg);
 			return false;

@@ -65,7 +65,7 @@ export class LaunchService implements ILaunchService {
 		@ILogService private logService: ILogService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IURLService private urlService: IURLService
-	) {}
+	) { }
 
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		this.logService.log('Received data from other instance: ', args, userEnv);
