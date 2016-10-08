@@ -9,9 +9,10 @@ import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Model} from 'vs/editor/common/model/model';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {AbstractState, ITokenizationResult} from 'vs/editor/common/modes/abstractState';
 import * as modes from 'vs/editor/common/modes';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 // --------- utils
 
@@ -38,8 +39,10 @@ suite('Editor Model - Model Modes 1', () => {
 		public equals(other: modes.IState): boolean {
 			return this === other;
 		}
-		public tokenize(stream:modes.IStream): modes.ITokenizationResult {
-			calledState.calledFor.push(stream.next());
+		public tokenize(stream:LineStream): ITokenizationResult {
+			let chr = stream.peek();
+			stream.advance(1);
+			calledState.calledFor.push(chr);
 			stream.advanceToEOS();
 			return { type: '' };
 		}
@@ -188,11 +191,8 @@ suite('Editor Model - Model Modes 2', () => {
 			return (other instanceof ModelState2) && (this.prevLineContent === (<ModelState2>other).prevLineContent);
 		}
 
-		public tokenize(stream:modes.IStream):modes.ITokenizationResult {
-			var line= '';
-			while (!stream.eos()) {
-				line+= stream.next();
-			}
+		public tokenize(stream:LineStream):ITokenizationResult {
+			var line= stream.advanceToEOS();
 			this.prevLineContent= line;
 			return { type: '' };
 		}
@@ -309,7 +309,7 @@ suite('Editor Model - Token Iterator', () => {
 	class NState extends AbstractState {
 
 		private n:number;
-		private allResults:modes.ITokenizationResult[];
+		private allResults:ITokenizationResult[];
 
 		constructor(modeId:string, n:number) {
 			super(modeId);
@@ -325,10 +325,12 @@ suite('Editor Model - Token Iterator', () => {
 			return true;
 		}
 
-		public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+		public tokenize(stream:LineStream):ITokenizationResult {
 			var ndash = this.n, value = '';
 			while(!stream.eos() && ndash > 0) {
-				value += stream.next();
+				let chr = stream.peek();
+				stream.advance(1);
+				value += chr;
 				ndash--;
 			}
 			return { type: 'n-' + (this.n - ndash) + '-' + value };

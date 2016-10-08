@@ -10,7 +10,7 @@ import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IContextKey, IContextKeyServiceTarget, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
+import {ContextKeyExpr, IContextKey, IContextKeyServiceTarget, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Cursor} from 'vs/editor/common/controller/cursor';
@@ -27,6 +27,8 @@ import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollect
 import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
 import {hash} from 'vs/base/common/hash';
 import {EditorModeContext} from 'vs/editor/common/modes/editorModeContext';
+import {MenuId, MenuRegistry, IMenuItem} from 'vs/platform/actions/common/actions';
+import {CommandsRegistry} from 'vs/platform/commands/common/commands';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -511,7 +513,30 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		) {
 			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
 		}
+
+		// Generate a unique id to allow the same descriptor.id across multiple editor instances
+		let uniqueId = this.getId() + ':' + descriptor.id;
+
 		let action = new DynamicEditorAction(descriptor, this);
+
+		// Register the command
+		CommandsRegistry.registerCommand(uniqueId, () => action.run());
+
+		if (descriptor.contextMenuGroupId) {
+			let menuItem: IMenuItem = {
+				command: {
+					id: uniqueId,
+					title: descriptor.label
+				},
+				when: ContextKeyExpr.equals('editorId', this.getId()),
+				group: descriptor.contextMenuGroupId,
+				order: descriptor.contextMenuOrder || 0
+			};
+
+			// Register the menu item
+			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
+		}
+
 		this._actions[action.id] = action;
 	}
 

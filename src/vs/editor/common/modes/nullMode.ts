@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IState, IStream, ITokenizationResult, ILineTokens} from 'vs/editor/common/modes';
+import {IState, ILineTokens} from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {Token} from 'vs/editor/common/core/token';
+import {ITokenizationResult} from 'vs/editor/common/modes/abstractState';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 export class NullState implements IState {
 
@@ -41,7 +43,7 @@ export class NullState implements IState {
 		return this.modeId;
 	}
 
-	public tokenize(stream:IStream):ITokenizationResult {
+	public tokenize(stream:LineStream):ITokenizationResult {
 		stream.advanceToEOS();
 		return { type:'' };
 	}

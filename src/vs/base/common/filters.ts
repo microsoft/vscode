@@ -179,13 +179,16 @@ function _matchesCamelCase(word: string, camelCaseWord: string, i: number, j: nu
 	}
 }
 
+interface ICamelCaseAnalysis {
+	upperPercent: number;
+	lowerPercent: number;
+	alphaPercent: number;
+	numericPercent: number;
+}
+
 // Heuristic to avoid computing camel case matcher for words that don't
 // look like camelCaseWords.
-function isCamelCaseWord(word: string): boolean {
-	if (word.length > 60) {
-		return false;
-	}
-
+function analyzeCamelCaseWord(word: string): ICamelCaseAnalysis {
 	let upper = 0, lower = 0, alpha = 0, numeric = 0, code = 0;
 
 	for (let i = 0; i < word.length; i++) {
@@ -202,6 +205,16 @@ function isCamelCaseWord(word: string): boolean {
 	let alphaPercent = alpha / word.length;
 	let numericPercent = numeric / word.length;
 
+	return { upperPercent, lowerPercent, alphaPercent, numericPercent };
+}
+
+function isUpperCaseWord(analysis: ICamelCaseAnalysis): boolean {
+	const { upperPercent, lowerPercent, alphaPercent, numericPercent } = analysis;
+	return lowerPercent === 0 && upperPercent > 0.6;
+}
+
+function isCamelCaseWord(analysis: ICamelCaseAnalysis): boolean {
+	const { upperPercent, lowerPercent, alphaPercent, numericPercent } = analysis;
 	return lowerPercent > 0.2 && upperPercent < 0.8 && alphaPercent > 0.6 && numericPercent < 0.2;
 }
 
@@ -234,8 +247,18 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 		return null;
 	}
 
-	if (!isCamelCaseWord(camelCaseWord)) {
+	if (camelCaseWord.length > 60) {
 		return null;
+	}
+
+	const analysis = analyzeCamelCaseWord(camelCaseWord);
+
+	if (!isCamelCaseWord(analysis)) {
+		if (!isUpperCaseWord(analysis)) {
+			return null;
+		}
+
+		camelCaseWord = camelCaseWord.toLowerCase();
 	}
 
 	let result: IMatch[] = null;

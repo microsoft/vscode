@@ -26,13 +26,6 @@ import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/commo
 import {IMessageService} from 'vs/platform/message/common/message';
 import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
 
-export interface IRawModelData {
-	url: URI;
-	versionId: number;
-	value: editorCommon.IRawText;
-	modeId: string;
-}
-
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
 }

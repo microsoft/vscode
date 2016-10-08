@@ -46,8 +46,6 @@ const builtInExtensions = [
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
-	buildfile.editor,
-	buildfile.languages,
 	buildfile.workbench,
 	buildfile.code
 ]);
@@ -60,8 +58,6 @@ const vscodeResources = [
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur}',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
-	'out-build/vs/base/worker/workerMainCompatibility.html',
-	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/bootstrap/**',

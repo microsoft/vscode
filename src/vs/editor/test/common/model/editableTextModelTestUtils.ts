@@ -7,7 +7,6 @@
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import {ICompatMirrorModelEvents, CompatMirrorModel} from 'vs/editor/common/model/compatMirrorModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Position} from 'vs/editor/common/core/position';
@@ -90,24 +89,8 @@ export function assertSyncedModels(text:string, callback:(model:EditableTextMode
 		assertLineMapping(model, 'model');
 	}
 
-	var mirrorModel1 = new CompatMirrorModel(model.getVersionId(), model.toRawText(), null);
-	assertLineMapping(mirrorModel1, 'mirrorModel1');
-	var mirrorModel1PrevVersionId = model.getVersionId();
-
 	var mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
-
-	model.onDidChangeRawContent((e:editorCommon.IModelContentChangedEvent) => {
-		let versionId = e.versionId;
-		if (versionId < mirrorModel1PrevVersionId) {
-			console.warn('Model version id did not advance between edits (1)');
-		}
-		mirrorModel1PrevVersionId = versionId;
-		let mirrorModelEvents:ICompatMirrorModelEvents = {
-			contentChanged: [e]
-		};
-		mirrorModel1.onEvents(mirrorModelEvents);
-	});
 
 	model.onDidChangeContent((e:editorCommon.IModelContentChangedEvent2) => {
 		let versionId = e.versionId;
@@ -120,17 +103,13 @@ export function assertSyncedModels(text:string, callback:(model:EditableTextMode
 
 	var assertMirrorModels = () => {
 		assertLineMapping(model, 'model');
-		assertLineMapping(mirrorModel1, 'mirrorModel1');
 		model._assertLineNumbersOK();
 		assert.equal(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
 		assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
-		assert.equal(mirrorModel1.getValue(), model.getValue(), 'mirror model 1 text OK');
-		assert.equal(mirrorModel1.getVersionId(), model.getVersionId(), 'mirror model 1 version OK');
 	};
 
 	callback(model, assertMirrorModels);
 
 	model.dispose();
-	mirrorModel1.dispose();
 	mirrorModel2.dispose();
 }
