@@ -66,7 +66,7 @@ function findGitDarwin(): TPromise<IGit> {
 				});
 			}
 
-			if (path !== '/usr/bin/git')	{
+			if (path !== '/usr/bin/git') {
 				return getVersion(path);
 			}
 

@@ -6,10 +6,10 @@
 import { localize } from 'vs/nls';
 import { clipboard } from 'electron';
 import { Marker } from 'vs/workbench/parts/markers/common/markersModel';
-import Constants  from 'vs/workbench/parts/markers/common/constants';
+import Constants from 'vs/workbench/parts/markers/common/constants';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';

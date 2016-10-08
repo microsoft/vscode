@@ -11,17 +11,17 @@ import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
 import arrays = require('vs/base/common/arrays');
-import {compareByScore} from 'vs/base/common/comparers';
+import { compareByScore } from 'vs/base/common/comparers';
 import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
-import {PPromise, TPromise} from 'vs/base/common/winjs.base';
-import {MAX_FILE_SIZE} from 'vs/platform/files/common/files';
-import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/search/node/fileSearch';
-import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/textSearch';
-import {IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine} from './search';
-import {ICachedSearchStats, IProgress} from 'vs/platform/search/common/search';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { MAX_FILE_SIZE } from 'vs/platform/files/common/files';
+import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
+import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
+import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine } from './search';
+import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
 
 export type IRawProgressItem<T> = T | T[] | IProgress;
 

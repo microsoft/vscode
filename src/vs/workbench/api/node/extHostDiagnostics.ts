@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {localize} from 'vs/nls';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {IMarkerData} from 'vs/platform/markers/common/markers';
+import { localize } from 'vs/nls';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
-import {compare} from 'vs/base/common/strings';
+import { compare } from 'vs/base/common/strings';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
-import {MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape} from './extHost.protocol';
-import {DiagnosticSeverity} from './extHostTypes';
+import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape } from './extHost.protocol';
+import { DiagnosticSeverity } from './extHostTypes';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -22,7 +22,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	private _proxy: MainThreadDiagnosticsShape;
 
 	private _isDisposed = false;
-	private _data: {[uri:string]: vscode.Diagnostic[]} = Object.create(null);
+	private _data: { [uri: string]: vscode.Diagnostic[] } = Object.create(null);
 
 	constructor(name: string, proxy: MainThreadDiagnosticsShape) {
 		this._name = name;
@@ -130,7 +130,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 				}
 			}
 
-			entries.push([<URI> uri, marker]);
+			entries.push([<URI>uri, marker]);
 		}
 
 		this._proxy.$changeMany(this.name, entries);
@@ -139,7 +139,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	delete(uri: vscode.Uri): void {
 		this._checkDisposed();
 		delete this._data[uri.toString()];
-		this._proxy.$changeMany(this.name, [[<URI> uri, undefined]]);
+		this._proxy.$changeMany(this.name, [[<URI>uri, undefined]]);
 	}
 
 	clear(): void {

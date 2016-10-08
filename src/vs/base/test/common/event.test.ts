@@ -5,11 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, {Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer} from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
+import Event, { Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 namespace Samples {
 
@@ -32,7 +32,7 @@ namespace Samples {
 
 		onDidChange: Event<string> = this._onDidChange.event;
 
-		setText(value:string) {
+		setText(value: string) {
 			//...
 			this._onDidChange.fire(value);
 		}
@@ -48,14 +48,14 @@ namespace Samples {
 
 		onDidChange = fromEventEmitter<string>(this._eventBus, Document3b._didChange);
 
-		setText(value:string) {
+		setText(value: string) {
 			//...
 			this._eventBus.emit(Document3b._didChange, value);
 		}
 	}
 }
 
-suite('Event',function(){
+suite('Event', function () {
 
 	const counter = new Samples.EventCounter();
 
@@ -91,9 +91,9 @@ suite('Event',function(){
 		assert.equal(counter.count, 2);
 	});
 
-	test('Emitter, bucket', function(){
+	test('Emitter, bucket', function () {
 
-		let bucket:IDisposable[] = [];
+		let bucket: IDisposable[] = [];
 		let doc = new Samples.Document3();
 		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
 
@@ -101,7 +101,7 @@ suite('Event',function(){
 		doc.setText('boo');
 
 		// unhook listener
-		while(bucket.length) {
+		while (bucket.length) {
 			bucket.pop().dispose();
 		}
 
@@ -112,9 +112,9 @@ suite('Event',function(){
 		assert.equal(counter.count, 2);
 	});
 
-	test('wrapEventEmitter, bucket', function(){
+	test('wrapEventEmitter, bucket', function () {
 
-		let bucket:IDisposable[] = [];
+		let bucket: IDisposable[] = [];
 		let doc = new Samples.Document3b();
 		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
 
@@ -122,7 +122,7 @@ suite('Event',function(){
 		doc.setText('boo');
 
 		// unhook listener
-		while(bucket.length) {
+		while (bucket.length) {
 			bucket.pop().dispose();
 		}
 
@@ -133,7 +133,7 @@ suite('Event',function(){
 		assert.equal(counter.count, 2);
 	});
 
-	test('onFirstAdd|onLastRemove', function(){
+	test('onFirstAdd|onLastRemove', function () {
 
 		let firstCount = 0;
 		let lastCount = 0;
@@ -158,17 +158,17 @@ suite('Event',function(){
 		assert.equal(lastCount, 1);
 	});
 
-	test('throwingListener', function() {
+	test('throwingListener', function () {
 		var origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => null);
 
 		try {
 			let a = new Emitter();
 			let hit = false;
-			a.event(function() {
+			a.event(function () {
 				throw 9;
 			});
-			a.event(function() {
+			a.event(function () {
 				hit = true;
 			});
 			a.fire(undefined);
@@ -199,7 +199,7 @@ suite('Event',function(){
 			if (count === 1) {
 				doc.setText('4');
 				assert.deepEqual(keys, ['1', '2', '3']);
-			} else if (count === 2){
+			} else if (count === 2) {
 				assert.deepEqual(keys, ['4']);
 				done();
 			}
@@ -369,14 +369,14 @@ suite('Event utils', () => {
 			assert.deepEqual(result, []);
 
 			const listener = bufferedEvent(num => result.push(num));
-			assert.deepEqual(result, [1,2,3]);
+			assert.deepEqual(result, [1, 2, 3]);
 
 			emitter.fire(4);
-			assert.deepEqual(result, [1,2,3,4]);
+			assert.deepEqual(result, [1, 2, 3, 4]);
 
 			listener.dispose();
 			emitter.fire(5);
-			assert.deepEqual(result, [1,2,3,4]);
+			assert.deepEqual(result, [1, 2, 3, 4]);
 		});
 
 		test('should buffer events on next tick', () => {
@@ -395,11 +395,11 @@ suite('Event utils', () => {
 
 			return TPromise.timeout(10).then(() => {
 				emitter.fire(4);
-				assert.deepEqual(result, [1,2,3,4]);
+				assert.deepEqual(result, [1, 2, 3, 4]);
 
 				listener.dispose();
 				emitter.fire(5);
-				assert.deepEqual(result, [1,2,3,4]);
+				assert.deepEqual(result, [1, 2, 3, 4]);
 			});
 		});
 
@@ -415,7 +415,7 @@ suite('Event utils', () => {
 			assert.deepEqual(result, []);
 
 			bufferedEvent(num => result.push(num));
-			assert.deepEqual(result, [-2,-1,0,1,2,3]);
+			assert.deepEqual(result, [-2, -1, 0, 1, 2, 3]);
 		});
 	});
 

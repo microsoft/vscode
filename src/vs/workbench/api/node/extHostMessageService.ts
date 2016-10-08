@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import Severity from 'vs/base/common/severity';
 import vscode = require('vscode');
-import {MainContext, MainThreadMessageServiceShape} from './extHost.protocol';
+import { MainContext, MainThreadMessageServiceShape } from './extHost.protocol';
 
 export class ExtHostMessageService {
 
@@ -17,7 +17,7 @@ export class ExtHostMessageService {
 		this._proxy = threadService.get(MainContext.MainThreadMessageService);
 	}
 
-	showMessage(severity: Severity, message: string, commands: (string|vscode.MessageItem)[]): Thenable<string|vscode.MessageItem> {
+	showMessage(severity: Severity, message: string, commands: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem> {
 
 		const items: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
 

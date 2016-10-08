@@ -6,29 +6,29 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
-import {isWindows, isLinux} from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
-import {ConfirmResult} from 'vs/workbench/common/editor';
-import {TextFileService as AbstractTextFileService} from 'vs/workbench/services/textfile/browser/textFileService';
-import {IRawTextContent} from 'vs/workbench/services/textfile/common/textfiles';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IFileService, IResolveContentOptions} from 'vs/platform/files/common/files';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ModelBuilder} from 'vs/editor/node/model/modelBuilder';
+import { ConfirmResult } from 'vs/workbench/common/editor';
+import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
+import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IFileService, IResolveContentOptions } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelBuilder } from 'vs/editor/node/model/modelBuilder';
 import product from 'vs/platform/product';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TextFileService extends AbstractTextFileService {
 

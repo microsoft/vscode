@@ -25,7 +25,7 @@ class SimpleEntry extends QuickOpenEntry {
 		return this.label;
 	}
 
-	run(mode:Mode):boolean {
+	run(mode: Mode): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;
 		}
@@ -38,7 +38,7 @@ class SimpleEntry extends QuickOpenEntry {
 
 export class ExtensionsHandler extends QuickOpenHandler {
 
-	constructor(@IViewletService private viewletService: IViewletService) {
+	constructor( @IViewletService private viewletService: IViewletService) {
 		super();
 	}
 
@@ -67,7 +67,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 
 export class GalleryExtensionsHandler extends QuickOpenHandler {
 
-	constructor(@IViewletService private viewletService: IViewletService) {
+	constructor( @IViewletService private viewletService: IViewletService) {
 		super();
 	}
 

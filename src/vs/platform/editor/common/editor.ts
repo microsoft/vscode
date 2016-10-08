@@ -5,10 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 

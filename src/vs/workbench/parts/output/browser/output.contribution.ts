@@ -5,21 +5,21 @@
 
 import 'vs/css!../browser/media/output.contribution';
 import nls = require('vs/nls');
-import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
+import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import platform = require('vs/platform/platform');
-import {MenuId, MenuRegistry, SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {OutputService} from 'vs/workbench/parts/output/browser/outputServices';
-import {ToggleOutputAction, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
-import {OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
+import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { OutputService } from 'vs/workbench/parts/output/browser/outputServices';
+import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
+import { OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService } from 'vs/workbench/parts/output/common/output';
 import panel = require('vs/workbench/browser/panel');
-import {EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);

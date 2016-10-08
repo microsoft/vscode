@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import {ICommandService} from 'vs/platform/commands/common/commands';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class Adapter {
 
@@ -109,7 +109,7 @@ export class Adapter {
 				attributes.additionalProperties = false;
 				attributes.type = 'object';
 				if (!attributes.properties) {
-					attributes.properties = { };
+					attributes.properties = {};
 				}
 				const properties = attributes.properties;
 				properties.type = {

@@ -21,7 +21,7 @@ export class ActiveWindowManager implements IDisposable {
 	private disposables: IDisposable[] = [];
 	private _activeWindowId: number;
 
-	constructor(@IWindowEventService private windowService: IWindowEventService) {
+	constructor( @IWindowEventService private windowService: IWindowEventService) {
 		this.disposables.push(this.windowService.onNewWindowOpen(windowId => this.setActiveWindow(windowId)));
 		this.disposables.push(this.windowService.onWindowFocus(windowId => this.setActiveWindow(windowId)));
 	}
@@ -31,7 +31,7 @@ export class ActiveWindowManager implements IDisposable {
 	}
 
 	public get activeClientId(): string {
-		return `window:${ this._activeWindowId }`;
+		return `window:${this._activeWindowId}`;
 	}
 
 	public dispose() {

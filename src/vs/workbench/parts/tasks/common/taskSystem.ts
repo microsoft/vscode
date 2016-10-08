@@ -121,7 +121,7 @@ export interface TaskDescription {
 	/**
 	 * The problem watchers to use for this task
 	 */
-	problemMatchers?:ProblemMatcher[];
+	problemMatchers?: ProblemMatcher[];
 }
 
 export interface CommandOptions {
@@ -135,7 +135,7 @@ export interface CommandOptions {
 	 * The environment of the executed program or shell. If omitted
 	 * the parent process' environment is used.
 	 */
-	env?: { [key:string]: string; };
+	env?: { [key: string]: string; };
 }
 
 
@@ -147,12 +147,12 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * The command to execute
 	 */
-	command?:string;
+	command?: string;
 
 	/**
 	 * Whether the task is a shell command or not
 	 */
-	isShellCommand?:boolean;
+	isShellCommand?: boolean;
 
 	/**
 	 * Additional command options
@@ -162,12 +162,12 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * General args
 	 */
-	args?:string[];
+	args?: string[];
 
 	/**
 	 * The configured tasks
 	 */
-	tasks?: { [id:string]: TaskDescription; };
+	tasks?: { [id: string]: TaskDescription; };
 }
 
 /**
@@ -178,7 +178,7 @@ export interface TaskRunnerConfiguration extends BaseTaskRunnerConfiguration {
 	/**
 	 * The command to execute. Not optional.
 	 */
-	command:string;
+	command: string;
 }
 
 export interface ITaskSummary {
@@ -242,5 +242,5 @@ export interface TaskConfiguration {
 	/**
 	 * The build system to use. If omitted program is used.
 	 */
-	buildSystem?:string;
+	buildSystem?: string;
 }

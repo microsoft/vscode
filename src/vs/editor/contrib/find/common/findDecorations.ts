@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 export class FindDecorations implements IDisposable {
 
-	private _editor:editorCommon.ICommonCodeEditor;
-	private _decorations:string[];
-	private _findScopeDecorationId:string;
-	private _rangeHighlightDecorationId:string;
-	private _highlightedDecorationId:string;
-	private _startPosition:Position;
+	private _editor: editorCommon.ICommonCodeEditor;
+	private _decorations: string[];
+	private _findScopeDecorationId: string;
+	private _rangeHighlightDecorationId: string;
+	private _highlightedDecorationId: string;
+	private _startPosition: Position;
 
-	constructor(editor:editorCommon.ICommonCodeEditor) {
+	constructor(editor: editorCommon.ICommonCodeEditor) {
 		this._editor = editor;
 		this._decorations = [];
 		this._findScopeDecorationId = null;
@@ -60,12 +60,12 @@ export class FindDecorations implements IDisposable {
 		return this._startPosition;
 	}
 
-	public setStartPosition(newStartPosition:Position): void {
+	public setStartPosition(newStartPosition: Position): void {
 		this._startPosition = newStartPosition;
 		this.setCurrentFindMatch(null);
 	}
 
-	public getCurrentMatchesPosition(desiredRange:Range): number {
+	public getCurrentMatchesPosition(desiredRange: Range): number {
 		for (let i = 0, len = this._decorations.length; i < len; i++) {
 			let range = this._editor.getModel().getDecorationRange(this._decorations[i]);
 			if (desiredRange.equalsRange(range)) {
@@ -75,7 +75,7 @@ export class FindDecorations implements IDisposable {
 		return 1;
 	}
 
-	public setCurrentFindMatch(nextMatch:Range): number {
+	public setCurrentFindMatch(nextMatch: Range): number {
 		let newCurrentDecorationId: string = null;
 		let matchPosition = 0;
 		if (nextMatch) {
@@ -113,7 +113,7 @@ export class FindDecorations implements IDisposable {
 		return matchPosition;
 	}
 
-	public set(matches:Range[], findScope:Range): void {
+	public set(matches: Range[], findScope: Range): void {
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = matches.map((match) => {
 			return {
 				range: match,
@@ -139,7 +139,7 @@ export class FindDecorations implements IDisposable {
 	}
 
 	private _allDecorations(): string[] {
-		let result:string[] = [];
+		let result: string[] = [];
 		result = result.concat(this._decorations);
 		if (this._findScopeDecorationId) {
 			result.push(this._findScopeDecorationId);
@@ -150,7 +150,7 @@ export class FindDecorations implements IDisposable {
 		return result;
 	}
 
-	private static createFindMatchDecorationOptions(isCurrent:boolean): editorCommon.IModelDecorationOptions {
+	private static createFindMatchDecorationOptions(isCurrent: boolean): editorCommon.IModelDecorationOptions {
 		return {
 			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className: isCurrent ? 'currentFindMatch' : 'findMatch',

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IModelDecoration, IRange} from 'vs/editor/common/editorCommon';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {HoverOperation, IHoverComputer} from './hoverOperation';
-import {GlyphHoverWidget} from './hoverWidgets';
-import {$} from 'vs/base/browser/dom';
-import {renderMarkedString} from 'vs/base/browser/htmlContentRenderer';
-import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
+import { IModelDecoration, IRange } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { HoverOperation, IHoverComputer } from './hoverOperation';
+import { GlyphHoverWidget } from './hoverWidgets';
+import { $ } from 'vs/base/browser/dom';
+import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 
 export interface IHoverMessage {
 	value?: string;
@@ -29,7 +29,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	private _lineNumber: number;
 	private _result: IHoverMessage[];
 
-	constructor(editor:ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._lineNumber = -1;
 	}
@@ -96,9 +96,9 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
-			(result:IHoverMessage[]) => this._withResult(result),
+			(result: IHoverMessage[]) => this._withResult(result),
 			null,
-			(result:any) => this._withResult(result)
+			(result: any) => this._withResult(result)
 		);
 
 	}
@@ -139,7 +139,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		super.hide();
 	}
 
-	public _withResult(result:IHoverMessage[]): void {
+	public _withResult(result: IHoverMessage[]): void {
 		this._messages = result;
 
 		if (this._messages.length > 0) {
@@ -160,7 +160,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
 					const modeId = this.modeService.getModeIdForLanguageName(languageAlias);
 					return this.modeService.getOrCreateMode(modeId).then(_ => {
-						return `<div class="code">${ tokenizeToString(value, modeId) }</div>`;
+						return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
 					});
 				}
 			});

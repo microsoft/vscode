@@ -18,8 +18,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import * as markersPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
 
-class StatusUpdater implements IWorkbenchContribution
-{
+class StatusUpdater implements IWorkbenchContribution {
 	static ID = 'vs.markers.statusUpdater';
 
 	private toDispose: lifecycle.IDisposable[];

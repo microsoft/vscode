@@ -6,13 +6,13 @@
 'use strict';
 
 import 'vs/css!./progressbar';
-import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
+import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import assert = require('vs/base/common/assert');
 import browser = require('vs/base/browser/browser');
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import uuid = require('vs/base/common/uuid');
-import {IDisposable,dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const css_done = 'done';
 const css_active = 'active';

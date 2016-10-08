@@ -5,16 +5,16 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
-import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ILineTokens, ITokenizationSupport, TokenizationRegistry} from 'vs/editor/common/modes';
-import {TMState} from 'vs/editor/common/modes/TMState';
-import {LineTokens} from 'vs/editor/common/modes/supports';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IGrammar, Registry, StackElement} from 'vscode-textmate';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
+import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ILineTokens, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
+import { TMState } from 'vs/editor/common/modes/TMState';
+import { LineTokens } from 'vs/editor/common/modes/supports';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IGrammar, Registry, StackElement } from 'vscode-textmate';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
+import { Token } from 'vs/editor/common/core/token';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -27,10 +27,10 @@ export interface ITMSyntaxExtensionPoint {
 let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', <any>{
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
-	defaultSnippets: [ { body: [{ language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'}] }],
+	defaultSnippets: [{ body: [{ language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.' }] }],
 	items: {
 		type: 'object',
-		defaultSnippets: [ { body: { language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'} }],
+		defaultSnippets: [{ body: { language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.' } }],
 		properties: {
 			language: {
 				description: nls.localize('vscode.extension.contributes.grammars.language', 'Language identifier for which this syntax is contributed to.'),
@@ -59,8 +59,8 @@ let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtens
 export class MainProcessTextMateSyntax {
 	private _grammarRegistry: Registry;
 	private _modeService: IModeService;
-	private _scopeNameToFilePath: { [scopeName:string]: string; };
-	private _injections: { [scopeName:string]: string[]; };
+	private _scopeNameToFilePath: { [scopeName: string]: string; };
+	private _injections: { [scopeName: string]: string[]; };
 
 	constructor(
 		@IModeService modeService: IModeService
@@ -70,10 +70,10 @@ export class MainProcessTextMateSyntax {
 		this._injections = {};
 
 		this._grammarRegistry = new Registry({
-			getFilePath: (scopeName:string) => {
+			getFilePath: (scopeName: string) => {
 				return this._scopeNameToFilePath[scopeName];
 			},
-			getInjections: (scopeName:string) => {
+			getInjections: (scopeName: string) => {
 				return this._injections[scopeName];
 			}
 		});
@@ -88,7 +88,7 @@ export class MainProcessTextMateSyntax {
 		});
 	}
 
-	private _handleGrammarExtensionPointUser(extensionFolderPath:string, syntax:ITMSyntaxExtensionPoint, collector: IExtensionMessageCollector): void {
+	private _handleGrammarExtensionPointUser(extensionFolderPath: string, syntax: ITMSyntaxExtensionPoint, collector: IExtensionMessageCollector): void {
 		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return;
@@ -151,7 +151,7 @@ function createTokenizationSupport(modeId: string, grammar: IGrammar): ITokeniza
 	var tokenizer = new Tokenizer(modeId, grammar);
 	return {
 		getInitialState: () => new TMState(modeId, null, null),
-		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState> state, offsetDelta, stopAtOffset)
+		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState>state, offsetDelta, stopAtOffset)
 	};
 }
 
@@ -159,8 +159,8 @@ export class DecodeMap {
 	_decodeMapBrand: void;
 
 	lastAssignedId: number;
-	scopeToTokenIds: { [scope:string]:number[]; };
-	tokenToTokenId: { [token:string]:number; };
+	scopeToTokenIds: { [scope: string]: number[]; };
+	tokenToTokenId: { [token: string]: number; };
 	tokenIdToToken: string[];
 	prevToken: TMTokenDecodeData;
 
@@ -172,7 +172,7 @@ export class DecodeMap {
 		this.prevToken = new TMTokenDecodeData([], []);
 	}
 
-	public getTokenIds(scope:string): number[] {
+	public getTokenIds(scope: string): number[] {
 		let tokens = this.scopeToTokenIds[scope];
 		if (tokens) {
 			return tokens;
@@ -195,7 +195,7 @@ export class DecodeMap {
 		return tokens;
 	}
 
-	public getToken(tokenMap:boolean[]): string {
+	public getToken(tokenMap: boolean[]): string {
 		let result = '';
 		let isFirst = true;
 		for (let i = 1; i <= this.lastAssignedId; i++) {
@@ -219,7 +219,7 @@ export class TMTokenDecodeData {
 	public scopes: string[];
 	public scopeTokensMaps: boolean[][];
 
-	constructor(scopes:string[], scopeTokensMaps:boolean[][]) {
+	constructor(scopes: string[], scopeTokensMaps: boolean[][]) {
 		this.scopes = scopes;
 		this.scopeTokensMaps = scopeTokensMaps;
 	}
@@ -239,7 +239,7 @@ class Tokenizer {
 	private _modeId: string;
 	private _decodeMap: DecodeMap;
 
-	constructor(modeId:string, grammar: IGrammar) {
+	constructor(modeId: string, grammar: IGrammar) {
 		this._modeId = modeId;
 		this._grammar = grammar;
 		this._decodeMap = new DecodeMap();
@@ -261,9 +261,9 @@ class Tokenizer {
 		freshState.setRuleStack(textMateResult.ruleStack);
 
 		// Create the result early and fill in the tokens later
-		let tokens:Token[] = [];
+		let tokens: Token[] = [];
 
-		let lastTokenType:string = null;
+		let lastTokenType: string = null;
 		for (let tokenIndex = 0, len = textMateResult.tokens.length; tokenIndex < len; tokenIndex++) {
 			let token = textMateResult.tokens[tokenIndex];
 			let tokenStartIndex = token.startIndex;

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {MainThreadStatusBarShape} from './extHost.protocol';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { MainThreadStatusBarShape } from './extHost.protocol';
 
 export class MainThreadStatusBar extends MainThreadStatusBarShape {
 	private mapIdToDisposable: { [id: number]: IDisposable };

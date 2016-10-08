@@ -5,19 +5,19 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {HistoryNavigator} from 'vs/base/common/history';
-import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding} from 'vs/editor/contrib/find/common/findModel';
-import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
-import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
-import {RunOnceScheduler, Delayer} from 'vs/base/common/async';
+import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
+import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
+import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
+import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 

@@ -33,9 +33,9 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 		.then(null, (err: NodeJS.ErrnoException) => {
 			if (err.code === 'EEXIST') {
 				return nfcall(fs.stat, path)
-					.then((stat:fs.Stats) => stat.isDirectory
+					.then((stat: fs.Stats) => stat.isDirectory
 						? null
-						: Promise.wrapError(new Error(`'${ path }' exists and is not a directory.`)));
+						: Promise.wrapError(new Error(`'${path}' exists and is not a directory.`)));
 			}
 
 			return TPromise.wrapError<boolean>(err);
@@ -108,7 +108,7 @@ export function readlink(path: string): TPromise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
-export function utimes(path: string, atime:Date, mtime:Date): Promise {
+export function utimes(path: string, atime: Date, mtime: Date): Promise {
 	return nfcall(fs.utimes, path, atime, mtime);
 }
 

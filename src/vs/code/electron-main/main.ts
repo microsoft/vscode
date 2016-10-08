@@ -273,7 +273,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			promise = service.getMainProcessId()
 				.then(processId => {
 					logService.log('Sending some foreground love to the running instance:', processId);
-					
+
 					try {
 						const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
 						allowSetForegroundWindow(processId);

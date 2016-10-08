@@ -5,15 +5,15 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {once} from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { once } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {getPathLabel, IWorkspaceProvider} from 'vs/base/common/labels';
-import {EditorModel, EditorInput, BaseDiffEditorInput, TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID} from 'vs/workbench/common/editor';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
-import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
+import { EditorModel, EditorInput, BaseDiffEditorInput, TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
+import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version

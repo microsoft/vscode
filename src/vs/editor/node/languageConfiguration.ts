@@ -5,15 +5,15 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {parse} from 'vs/base/common/json';
-import {readFile} from 'vs/base/node/pfs';
-import {LanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IAutoClosingPair, IAutoClosingPairConditional} from 'vs/editor/common/modes';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {Registry} from 'vs/platform/platform';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import { parse } from 'vs/base/common/json';
+import { readFile } from 'vs/base/node/pfs';
+import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IAutoClosingPair, IAutoClosingPairConditional } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { Registry } from 'vs/platform/platform';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 type CharacterPair = [string, string];
 
@@ -42,11 +42,11 @@ export class LanguageConfigurationFileHandler {
 		this._modeService.onDidAddModes((modes) => this._handleModes(modes));
 	}
 
-	private _handleModes(modes:string[]): void {
+	private _handleModes(modes: string[]): void {
 		modes.forEach(modeId => this._handleMode(modeId));
 	}
 
-	private _handleMode(modeId:string): void {
+	private _handleMode(modeId: string): void {
 		let disposable = this._modeService.onDidCreateMode((mode) => {
 			if (mode.getId() !== modeId) {
 				return;
@@ -59,7 +59,7 @@ export class LanguageConfigurationFileHandler {
 		});
 	}
 
-	private _handleConfigFile(modeId:string, configFilePath:string): void {
+	private _handleConfigFile(modeId: string, configFilePath: string): void {
 		readFile(configFilePath).then((fileContents) => {
 			var errors = [];
 			var configuration = <ILanguageConfiguration>parse(fileContents.toString(), errors);
@@ -72,9 +72,9 @@ export class LanguageConfigurationFileHandler {
 		});
 	}
 
-	private _handleConfig(modeId:string, configuration:ILanguageConfiguration): void {
+	private _handleConfig(modeId: string, configuration: ILanguageConfiguration): void {
 
-		let richEditConfig:LanguageConfiguration = {};
+		let richEditConfig: LanguageConfiguration = {};
 
 		if (configuration.comments) {
 			richEditConfig.comments = configuration.comments;
@@ -100,7 +100,7 @@ export class LanguageConfigurationFileHandler {
 			if (Array.isArray(pair)) {
 				return { open: pair[0], close: pair[1] };
 			}
-			return <IAutoClosingPairConditional> pair;
+			return <IAutoClosingPairConditional>pair;
 		});
 	}
 }
@@ -112,9 +112,9 @@ const schema: IJSONSchema = {
 			blockComment: ['/*', '*/'],
 			lineComment: '//'
 		},
-		brackets: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
-		autoClosingPairs: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
-		surroundingPairs: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]]
+		brackets: [['(', ')'], ['[', ']'], ['{', '}']],
+		autoClosingPairs: [['(', ')'], ['[', ']'], ['{', '}']],
+		surroundingPairs: [['(', ')'], ['[', ']'], ['{', '}']]
 	},
 	definitions: {
 		openBracket: {
@@ -129,7 +129,7 @@ const schema: IJSONSchema = {
 			type: 'array',
 			items: [{
 				$ref: '#definitions/openBracket'
-			},{
+			}, {
 				$ref: '#definitions/closeBracket'
 			}]
 		}
@@ -149,7 +149,7 @@ const schema: IJSONSchema = {
 					items: [{
 						type: 'string',
 						description: nls.localize('schema.blockComment.begin', 'The character sequence that starts a block comment.')
-					},{
+					}, {
 						type: 'string',
 						description: nls.localize('schema.blockComment.end', 'The character sequence that ends a block comment.')
 					}]
@@ -161,7 +161,7 @@ const schema: IJSONSchema = {
 			}
 		},
 		brackets: {
-			default: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
+			default: [['(', ')'], ['[', ']'], ['{', '}']],
 			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
 			type: 'array',
 			items: {
@@ -169,13 +169,13 @@ const schema: IJSONSchema = {
 			}
 		},
 		autoClosingPairs: {
-			default: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
+			default: [['(', ')'], ['[', ']'], ['{', '}']],
 			description: nls.localize('schema.autoClosingPairs', 'Defines the bracket pairs. When a opening bracket is entered, the closing bracket is inserted automatically.'),
 			type: 'array',
 			items: {
 				oneOf: [{
 					$ref: '#definitions/bracketPair'
-				},{
+				}, {
 					type: 'object',
 					properties: {
 						open: {
@@ -196,13 +196,13 @@ const schema: IJSONSchema = {
 			}
 		},
 		surroundingPairs: {
-			default: [ [ '(', ')' ], [ '[', ']' ] , [ '{', '}' ]],
+			default: [['(', ')'], ['[', ']'], ['{', '}']],
 			description: nls.localize('schema.surroundingPairs', 'Defines the bracket pairs that can be used to surround a selected string.'),
 			type: 'array',
 			items: {
 				oneOf: [{
 					$ref: '#definitions/bracketPair'
-				},{
+				}, {
 					type: 'object',
 					properties: {
 						open: {

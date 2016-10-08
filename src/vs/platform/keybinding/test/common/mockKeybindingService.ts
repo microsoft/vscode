@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {Keybinding} from 'vs/base/common/keybinding';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { Keybinding } from 'vs/base/common/keybinding';
 import Event from 'vs/base/common/event';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKey, IContextKeyService, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
 	private _key: string;

@@ -83,7 +83,7 @@ function createTerminalInstance(instantiationService: TestInstantiationService, 
 	let terminalConfigHelper = new TerminalConfigHelper(platform.platform, configService);
 	return <TerminalInstance>instantiationService.createInstance(TerminalInstance,
 		/*terminalFocusContextKey*/null,
-		/*onExitCallback*/() => {},
+		/*onExitCallback*/() => { },
 		/*configHelper*/terminalConfigHelper,
 		/*container*/null,
 		/*workspace*/null,

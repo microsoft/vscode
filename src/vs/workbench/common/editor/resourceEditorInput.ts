@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {sequence} from 'vs/base/common/async';
-import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
-import {IModel} from 'vs/editor/common/editorCommon';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { sequence } from 'vs/base/common/async';
+import { EditorModel, EditorInput } from 'vs/workbench/common/editor';
+import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { IModel } from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  *

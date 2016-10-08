@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {PrefixSumComputer, PrefixSumIndexOfResult} from 'vs/editor/common/viewModel/prefixSumComputer';
+import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 suite('Editor ViewModel - PrefixSumComputer', () => {
 
 	test('PrefixSumComputer', () => {
-		let indexOfResult:PrefixSumIndexOfResult;
+		let indexOfResult: PrefixSumIndexOfResult;
 
 		var psc = new PrefixSumComputer([1, 1, 2, 1, 3]);
 		assert.equal(psc.getTotalValue(), 8);

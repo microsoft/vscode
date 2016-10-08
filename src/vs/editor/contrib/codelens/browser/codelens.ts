@@ -6,22 +6,22 @@
 'use strict';
 
 import 'vs/css!./codelens';
-import {RunOnceScheduler, asWinJsPromise} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { RunOnceScheduler, asWinJsPromise } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import {format, escape} from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { format, escape } from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {Range} from 'vs/editor/common/core/range';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CodeLensProviderRegistry, ICodeLensSymbol, Command} from 'vs/editor/common/modes';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import { CodeLensProviderRegistry, ICodeLensSymbol, Command } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {ICodeLensData, getCodeLensData} from '../common/codelens';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { ICodeLensData, getCodeLensData } from '../common/codelens';
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {

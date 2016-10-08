@@ -43,21 +43,21 @@ suite('IPC performance', () => {
 		];
 		let i = 0, j = 0;
 		const result = measure(service, 10, 10, 250) // warm-up
-		.then(() => {
-			return (function nextRun() {
-				if (i >= runs.length) {
-					if (++j >= dataSizes.length) {
-						return;
+			.then(() => {
+				return (function nextRun() {
+					if (i >= runs.length) {
+						if (++j >= dataSizes.length) {
+							return;
+						}
+						i = 0;
 					}
-					i = 0;
-				}
-				const run = runs[i++];
-				return measure(service, run.batches, run.size, dataSizes[j])
-				.then(() => {
-					return nextRun();
-				});
-			})();
-		});
+					const run = runs[i++];
+					return measure(service, run.batches, run.size, dataSizes[j])
+						.then(() => {
+							return nextRun();
+						});
+				})();
+			});
 
 		return always(result, () => client.dispose());
 	});
@@ -80,18 +80,18 @@ suite('IPC performance', () => {
 		];
 		let i = 0;
 		const result = measure(service, 10, 10, 250) // warm-up
-		.then(() => {
-			return (function nextRun() {
-				if (i >= runs.length) {
-					return;
-				}
-				const run = runs[i++];
-				return measure(service, run.batches, 1, run.dataSize)
-				.then(() => {
-					return nextRun();
-				});
-			})();
-		});
+			.then(() => {
+				return (function nextRun() {
+					if (i >= runs.length) {
+						return;
+					}
+					const run = runs[i++];
+					return measure(service, run.batches, 1, run.dataSize)
+						.then(() => {
+							return nextRun();
+						});
+				})();
+			});
 
 		return always(result, () => client.dispose());
 	});
@@ -101,14 +101,14 @@ suite('IPC performance', () => {
 		let hits = 0;
 		let count = 0;
 		return service.batchPerf(batches, size, dataSize)
-		.then(() => {
-			console.log(`Batches: ${batches}, size: ${size}, dataSize: ${dataSize}, n: ${batches * size * dataSize}, duration: ${Date.now() - start}`);
-			assert.strictEqual(hits, batches);
-			assert.strictEqual(count, batches * size);
-		}, err => assert.fail(err),
-		batch => {
-			hits++;
-			count += batch.length;
-		});
+			.then(() => {
+				console.log(`Batches: ${batches}, size: ${size}, dataSize: ${dataSize}, n: ${batches * size * dataSize}, duration: ${Date.now() - start}`);
+				assert.strictEqual(hits, batches);
+				assert.strictEqual(count, batches * size);
+			}, err => assert.fail(err),
+			batch => {
+				hits++;
+				count += batch.length;
+			});
 	}
 });

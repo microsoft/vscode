@@ -5,55 +5,55 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import {guessMimeTypes} from 'vs/base/common/mime';
-import Event, {Emitter} from 'vs/base/common/event';
+import { guessMimeTypes } from 'vs/base/common/mime';
+import Event, { Emitter } from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {Action} from 'vs/base/common/actions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { Action } from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import aria = require('vs/base/browser/ui/aria/aria');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {ISuggestion} from 'vs/editor/common/modes';
-import {Position} from 'vs/editor/common/core/position';
-import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IFileService, FileChangesEvent, FileChangeType, EventType} from 'vs/platform/files/common/files';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
-import {TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
+import { ISuggestion } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {RawDebugSession} from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
+import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import {DebugStringEditorInput, DebugErrorEditorInput} from 'vs/workbench/parts/debug/browser/debugEditorInputs';
+import { DebugStringEditorInput, DebugErrorEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import {ConfigurationManager} from 'vs/workbench/parts/debug/node/debugConfigurationManager';
-import {Source} from 'vs/workbench/parts/debug/common/debugSource';
-import {ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
-import {TaskError, TaskErrors} from 'vs/workbench/parts/tasks/common/taskSystem';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IWindowService, IBroadcast} from 'vs/workbench/services/window/electron-browser/windowService';
-import {ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL} from 'vs/workbench/services/thread/electron-browser/threadService';
-import {ipcRenderer as ipc} from 'electron';
-import {Client} from 'vs/base/parts/ipc/node/ipc.cp';
+import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
+import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
+import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
+import { ipcRenderer as ipc } from 'electron';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -391,7 +391,7 @@ export class DebugService implements debug.IDebugService {
 	private loadWatchExpressions(): model.Expression[] {
 		let result: model.Expression[];
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string } ) => {
+			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string }) => {
 				return new model.Expression(watchStoredData.name, false, watchStoredData.id);
 			});
 		} catch (e) { }
@@ -539,57 +539,57 @@ export class DebugService implements debug.IDebugService {
 
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.reloadConfiguration()	// make sure configuration is up to date
-			.then(() => this.extensionService.onReady()
-			.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
-			.then(() => this.configurationManager.resolveInteractiveVariables())
-			.then(resolvedConfiguration => {
-				configuration = resolvedConfiguration;
-				if (!configuration) {
-					return this.configurationManager.openConfigFile(false).then(openend => {
-						if (openend) {
-							this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
-						}
-					});
-				}
-				if (configuration.silentlyAbort) {
-					return;
-				}
+				.then(() => this.extensionService.onReady()
+					.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
+						.then(() => this.configurationManager.resolveInteractiveVariables())
+						.then(resolvedConfiguration => {
+							configuration = resolvedConfiguration;
+							if (!configuration) {
+								return this.configurationManager.openConfigFile(false).then(openend => {
+									if (openend) {
+										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
+									}
+								});
+							}
+							if (configuration.silentlyAbort) {
+								return;
+							}
 
-				configuration.noDebug = noDebug;
-				if (!this.configurationManager.adapter) {
-					return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
-						: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
-							{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
-				}
+							configuration.noDebug = noDebug;
+							if (!this.configurationManager.adapter) {
+								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
+									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration."),
+										{ actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
+							}
 
-				return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
-					const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-					const successExitCode = taskSummary && taskSummary.exitCode === 0;
-					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateSession(configuration);
-					}
+							return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
+								const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+								const successExitCode = taskSummary && taskSummary.exitCode === 0;
+								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+								if (successExitCode || (errorCount === 0 && !failureExitCode)) {
+									return this.doCreateSession(configuration);
+								}
 
-					this.messageService.show(severity.Error, {
-						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-						actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-							this.messageService.hideAll();
-							return this.doCreateSession(configuration);
-						}), CloseAction]
-					});
-				}, (err: TaskError) => {
-					if (err.code !== TaskErrors.NotConfigured) {
-						throw err;
-					}
+								this.messageService.show(severity.Error, {
+									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+									actions: [new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+										this.messageService.hideAll();
+										return this.doCreateSession(configuration);
+									}), CloseAction]
+								});
+							}, (err: TaskError) => {
+								if (err.code !== TaskErrors.NotConfigured) {
+									throw err;
+								}
 
-					this.messageService.show(err.severity, {
-						message: err.message,
-						actions: [this.taskService.configureAction(), CloseAction]
-					});
-				});
-			}))));
+								this.messageService.show(err.severity, {
+									message: err.message,
+									actions: [this.taskService.configureAction(), CloseAction]
+								});
+							});
+						}))));
 	}
 
 	private doCreateSession(configuration: debug.IExtHostConfig): TPromise<any> {
@@ -611,7 +611,7 @@ export class DebugService implements debug.IDebugService {
 					{
 						serverName: 'Debug Telemetry',
 						timeout: 1000 * 60 * 5,
-						args: [`${ publisher }.${ type }`, JSON.stringify(data), aiKey],
+						args: [`${publisher}.${type}`, JSON.stringify(data), aiKey],
 						env: {
 							ELECTRON_RUN_AS_NODE: 1,
 							PIPE_LOGGING: 'true',
@@ -673,7 +673,7 @@ export class DebugService implements debug.IDebugService {
 					breakpointCount: this.model.getBreakpoints().length,
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
-					extensionName: `${ this.configurationManager.adapter.extensionDescription.publisher }.${ this.configurationManager.adapter.extensionDescription.name }`,
+					extensionName: `${this.configurationManager.adapter.extensionDescription.publisher}.${this.configurationManager.adapter.extensionDescription.name}`,
 					isBuiltin: this.configurationManager.adapter.extensionDescription.isBuiltin
 				});
 			}).then(undefined, (error: any) => {

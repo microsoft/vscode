@@ -5,9 +5,9 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import Event, {Emitter} from 'vs/base/common/event';
-import {Registry} from 'vs/platform/platform';
-import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/platform';
+import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 
 // Define extension point ids
 export var Extensions = {
@@ -27,11 +27,11 @@ export class EditorModesRegistry {
 
 	// --- languages
 
-	public registerLanguage(def:ILanguageExtensionPoint): void {
+	public registerLanguage(def: ILanguageExtensionPoint): void {
 		this._languages.push(def);
 		this._onDidAddLanguages.fire([def]);
 	}
-	public registerLanguages(def:ILanguageExtensionPoint[]): void {
+	public registerLanguages(def: ILanguageExtensionPoint[]): void {
 		this._languages = this._languages.concat(def);
 		this._onDidAddLanguages.fire(def);
 	}

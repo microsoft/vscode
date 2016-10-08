@@ -5,9 +5,9 @@
 
 import 'vs/css!./selectBox';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
-import {Widget} from 'vs/base/browser/ui/widget';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 
 export class SelectBox extends Widget {

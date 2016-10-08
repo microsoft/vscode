@@ -45,7 +45,7 @@ export interface IProductConfiguration {
 	licenseUrl: string;
 	privacyStatementUrl: string;
 	npsSurveyUrl: string;
-	checksums: {[path:string]:string;};
+	checksums: { [path: string]: string; };
 	checksumFailMoreInfoUrl: string;
 }
 

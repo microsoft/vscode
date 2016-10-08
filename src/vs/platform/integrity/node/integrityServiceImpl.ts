@@ -7,17 +7,17 @@
 import * as nls from 'vs/nls';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IIntegrityService, IntegrityTestResult, ChecksumPair} from 'vs/platform/integrity/common/integrity';
-import {IMessageService} from 'vs/platform/message/common/message';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platform/integrity/common/integrity';
+import { IMessageService } from 'vs/platform/message/common/message';
 import product from 'vs/platform/product';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import {Action} from 'vs/base/common/actions';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import { Action } from 'vs/base/common/actions';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 interface ILoaderChecksums {
-	[scriptSrc:string]: string;
+	[scriptSrc: string]: string;
 }
 
 
@@ -53,7 +53,7 @@ class IntegrityStorage {
 		return this._value;
 	}
 
-	public set(data:IStorageData): void {
+	public set(data: IStorageData): void {
 		this._value = data;
 		this._storageService.store(IntegrityStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
 	}
@@ -64,7 +64,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	public _serviceBrand: any;
 
 	private _messageService: IMessageService;
-	private _storage:IntegrityStorage;
+	private _storage: IntegrityStorage;
 	private _isPurePromise: TPromise<IntegrityTestResult>;
 
 	constructor(
@@ -157,7 +157,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		});
 	}
 
-	private _resolve(filename:string, expected:string): TPromise<ChecksumPair> {
+	private _resolve(filename: string, expected: string): TPromise<ChecksumPair> {
 		let fileUri = URI.parse(require.toUrl(filename));
 		return new TPromise<ChecksumPair>((c, e, p) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
@@ -169,7 +169,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		});
 	}
 
-	private _computeChecksum(buff:Buffer): string {
+	private _computeChecksum(buff: Buffer): string {
 		let hash = crypto
 			.createHash('md5')
 			.update(buff)
@@ -179,7 +179,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		return hash;
 	}
 
-	private static _createChecksumPair(uri:URI, actual:string, expected:string): ChecksumPair {
+	private static _createChecksumPair(uri: URI, actual: string, expected: string): ChecksumPair {
 		return {
 			uri: uri,
 			actual: actual,

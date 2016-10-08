@@ -5,14 +5,14 @@
 
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface CancellationToken {
 	isCancellationRequested: boolean;
 	onCancellationRequested: Event<any>;
 }
 
-const shortcutEvent: Event<any> = Object.freeze(function(callback, context?) {
+const shortcutEvent: Event<any> = Object.freeze(function (callback, context?) {
 	let handle = setTimeout(callback.bind(context), 0);
 	return { dispose() { clearTimeout(handle); } };
 });

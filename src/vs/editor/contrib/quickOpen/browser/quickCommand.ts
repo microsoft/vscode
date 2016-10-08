@@ -5,16 +5,16 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {matchesFuzzy} from 'vs/base/common/filters';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IEditorAction, ICommonCodeEditor, IEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {BaseEditorQuickOpenAction} from './editorQuickOpen';
-import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { matchesFuzzy } from 'vs/base/common/filters';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorAction, ICommonCodeEditor, IEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { BaseEditorQuickOpenAction } from './editorQuickOpen';
+import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
@@ -85,15 +85,15 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		const keybindingService = accessor.get(IKeybindingService);
 
 		this._show(this.getController(editor), {
-			getModel: (value:string):QuickOpenModel => {
+			getModel: (value: string): QuickOpenModel => {
 				return new QuickOpenModel(this._editorActionsToEntries(keybindingService, editor, value));
 			},
 
-			getAutoFocus: (searchValue:string):IAutoFocus => {
+			getAutoFocus: (searchValue: string): IAutoFocus => {
 				return {
 					autoFocusFirstEntry: true,
 					autoFocusPrefixMatch: searchValue
@@ -109,7 +109,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		return elementAName.localeCompare(elementBName);
 	}
 
-	private _editorActionsToEntries(keybindingService:IKeybindingService, editor:ICommonCodeEditor, searchValue: string): EditorActionCommandEntry[] {
+	private _editorActionsToEntries(keybindingService: IKeybindingService, editor: ICommonCodeEditor, searchValue: string): EditorActionCommandEntry[] {
 		let actions: IEditorAction[] = editor.getSupportedActions();
 		let entries: EditorActionCommandEntry[] = [];
 

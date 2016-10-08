@@ -13,16 +13,16 @@ import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/commo
 
 suite('MarkersModel Test', () => {
 
-	test('getFilteredResource return markers grouped by resource', function() {
-		let marker1= aMarker('res1');
-		let marker2= aMarker('res2');
-		let marker3= aMarker('res1');
-		let marker4= aMarker('res3');
-		let marker5= aMarker('res4');
-		let marker6= aMarker('res2');
-		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+	test('getFilteredResource return markers grouped by resource', function () {
+		let marker1 = aMarker('res1');
+		let marker2 = aMarker('res2');
+		let marker3 = aMarker('res1');
+		let marker4 = aMarker('res3');
+		let marker5 = aMarker('res4');
+		let marker6 = aMarker('res2');
+		let testObject = new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals= testObject.filteredResources;
+		let actuals = testObject.filteredResources;
 
 		assert.equal(4, actuals.length);
 
@@ -45,16 +45,16 @@ suite('MarkersModel Test', () => {
 		assert.ok(hasMarker(actuals[3].markers, marker5));
 	});
 
-	test('sort palces resources with no errors at the end', function() {
-		let marker1= aMarker('a/res1', Severity.Warning);
-		let marker2= aMarker('a/res2');
-		let marker3= aMarker('res4');
-		let marker4= aMarker('b/res3');
-		let marker5= aMarker('res4');
-		let marker6= aMarker('c/res2', Severity.Info);
-		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+	test('sort palces resources with no errors at the end', function () {
+		let marker1 = aMarker('a/res1', Severity.Warning);
+		let marker2 = aMarker('a/res2');
+		let marker3 = aMarker('res4');
+		let marker4 = aMarker('b/res3');
+		let marker5 = aMarker('res4');
+		let marker6 = aMarker('c/res2', Severity.Info);
+		let testObject = new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals= testObject.filteredResources.sort(MarkersModel.compare);
+		let actuals = testObject.filteredResources.sort(MarkersModel.compare);
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res2'));
@@ -64,16 +64,16 @@ suite('MarkersModel Test', () => {
 		assert.ok(compareResource(actuals[4], 'c/res2'));
 	});
 
-	test('sort resources by file path', function() {
-		let marker1= aMarker('a/res1');
-		let marker2= aMarker('a/res2');
-		let marker3= aMarker('res4');
-		let marker4= aMarker('b/res3');
-		let marker5= aMarker('res4');
-		let marker6= aMarker('c/res2');
-		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+	test('sort resources by file path', function () {
+		let marker1 = aMarker('a/res1');
+		let marker2 = aMarker('a/res2');
+		let marker3 = aMarker('res4');
+		let marker4 = aMarker('b/res3');
+		let marker5 = aMarker('res4');
+		let marker6 = aMarker('c/res2');
+		let testObject = new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals= testObject.filteredResources.sort(MarkersModel.compare);
+		let actuals = testObject.filteredResources.sort(MarkersModel.compare);
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res1'));
@@ -83,25 +83,25 @@ suite('MarkersModel Test', () => {
 		assert.ok(compareResource(actuals[4], 'res4'));
 	});
 
-	test('sort markers by severity, line and column', function() {
-		let marker1= aWarningWithRange(8, 1, 9, 3);
-		let marker2= aWarningWithRange(3);
-		let marker3= anErrorWithRange(8, 1, 9, 3);
-		let marker4= anIgnoreWithRange(5);
-		let marker5= anInfoWithRange(8, 1, 8, 4, 'ab');
-		let marker6= anErrorWithRange(3);
-		let marker7= anErrorWithRange(5);
-		let marker8= anInfoWithRange(5);
-		let marker9= anErrorWithRange(8, 1, 8, 4, 'ab');
-		let marker10= anErrorWithRange(10);
-		let marker11= anErrorWithRange(8, 1, 8, 4, 'ba');
-		let marker12= anIgnoreWithRange(3);
-		let marker13= aWarningWithRange(5);
-		let marker14= anErrorWithRange(4);
-		let marker15= anErrorWithRange(8, 2, 8, 4);
-		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
+	test('sort markers by severity, line and column', function () {
+		let marker1 = aWarningWithRange(8, 1, 9, 3);
+		let marker2 = aWarningWithRange(3);
+		let marker3 = anErrorWithRange(8, 1, 9, 3);
+		let marker4 = anIgnoreWithRange(5);
+		let marker5 = anInfoWithRange(8, 1, 8, 4, 'ab');
+		let marker6 = anErrorWithRange(3);
+		let marker7 = anErrorWithRange(5);
+		let marker8 = anInfoWithRange(5);
+		let marker9 = anErrorWithRange(8, 1, 8, 4, 'ab');
+		let marker10 = anErrorWithRange(10);
+		let marker11 = anErrorWithRange(8, 1, 8, 4, 'ba');
+		let marker12 = anIgnoreWithRange(3);
+		let marker13 = aWarningWithRange(5);
+		let marker14 = anErrorWithRange(4);
+		let marker15 = anErrorWithRange(8, 2, 8, 4);
+		let testObject = new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
 
-		let actuals= testObject.filteredResources[0].markers.sort(MarkersModel.compare);
+		let actuals = testObject.filteredResources[0].markers.sort(MarkersModel.compare);
 
 		assert.equal(actuals[0].marker, marker6);
 		assert.equal(actuals[1].marker, marker14);
@@ -127,61 +127,61 @@ suite('MarkersModel Test', () => {
 		assert.equal(`file: 'file:///a/res2'\nseverity: ''\nmessage: 'Ignore message'\nat: '1,2'\nsource: 'Ignore'`, new Marker('', aMarker('a/res2', Severity.Ignore, 1, 2, 1, 8, 'Ignore message', 'Ignore')).toString());
 	});
 
-	function hasMarker(markers:Marker[], marker:IMarker):boolean {
-		return markers.filter((m):boolean => {
+	function hasMarker(markers: Marker[], marker: IMarker): boolean {
+		return markers.filter((m): boolean => {
 			return m.marker === marker;
 		}).length === 1;
 	}
 
-	function compareResource(a:Resource, b:string):boolean {
+	function compareResource(a: Resource, b: string): boolean {
 		return a.uri.toString() === URI.file(b).toString();
 	}
 
-	function anErrorWithRange(startLineNumber:number=10,
-					startColumn:number=5,
-					endLineNumber:number= startLineNumber + 1,
-					endColumn:number=startColumn + 5,
-					message: string = 'some message',
-					):IMarker {
+	function anErrorWithRange(startLineNumber: number = 10,
+		startColumn: number = 5,
+		endLineNumber: number = startLineNumber + 1,
+		endColumn: number = startColumn + 5,
+		message: string = 'some message',
+	): IMarker {
 		return aMarker('some resource', Severity.Error, startLineNumber, startColumn, endLineNumber, endColumn, message);
 	}
 
-	function aWarningWithRange(startLineNumber:number=10,
-					startColumn:number=5,
-					endLineNumber:number= startLineNumber + 1,
-					endColumn:number=startColumn + 5,
-					message: string = 'some message',
-					):IMarker {
+	function aWarningWithRange(startLineNumber: number = 10,
+		startColumn: number = 5,
+		endLineNumber: number = startLineNumber + 1,
+		endColumn: number = startColumn + 5,
+		message: string = 'some message',
+	): IMarker {
 		return aMarker('some resource', Severity.Warning, startLineNumber, startColumn, endLineNumber, endColumn, message);
 	}
 
-	function anInfoWithRange(startLineNumber:number=10,
-					startColumn:number=5,
-					endLineNumber:number= startLineNumber + 1,
-					endColumn:number=startColumn + 5,
-					message: string = 'some message',
-					):IMarker {
+	function anInfoWithRange(startLineNumber: number = 10,
+		startColumn: number = 5,
+		endLineNumber: number = startLineNumber + 1,
+		endColumn: number = startColumn + 5,
+		message: string = 'some message',
+	): IMarker {
 		return aMarker('some resource', Severity.Info, startLineNumber, startColumn, endLineNumber, endColumn, message);
 	}
 
-	function anIgnoreWithRange(startLineNumber:number=10,
-					startColumn:number=5,
-					endLineNumber:number= startLineNumber + 1,
-					endColumn:number=startColumn + 5,
-					message: string = 'some message',
-					):IMarker {
+	function anIgnoreWithRange(startLineNumber: number = 10,
+		startColumn: number = 5,
+		endLineNumber: number = startLineNumber + 1,
+		endColumn: number = startColumn + 5,
+		message: string = 'some message',
+	): IMarker {
 		return aMarker('some resource', Severity.Ignore, startLineNumber, startColumn, endLineNumber, endColumn, message);
 	}
 
-	function aMarker(resource:string='some resource',
-					severity:Severity=Severity.Error,
-					startLineNumber:number=10,
-					startColumn:number=5,
-					endLineNumber:number= startLineNumber + 1,
-					endColumn:number=startColumn + 5,
-					message: string = 'some message',
-					source: string = 'tslint'
-					):IMarker {
+	function aMarker(resource: string = 'some resource',
+		severity: Severity = Severity.Error,
+		startLineNumber: number = 10,
+		startColumn: number = 5,
+		endLineNumber: number = startLineNumber + 1,
+		endColumn: number = startColumn + 5,
+		message: string = 'some message',
+		source: string = 'tslint'
+	): IMarker {
 		return {
 			owner: 'someOwner',
 			resource: URI.file(resource),

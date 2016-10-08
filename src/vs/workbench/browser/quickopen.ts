@@ -5,22 +5,22 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import {Registry} from 'vs/platform/platform';
-import {Action} from 'vs/base/common/actions';
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import { Registry } from 'vs/platform/platform';
+import { Action } from 'vs/base/common/actions';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export class QuickOpenHandler {
 
@@ -311,7 +311,7 @@ class CommandEntry extends QuickOpenEntry {
 			return false;
 		}
 
-		this.quickOpenService.show(`${ this.prefix } ${ this.command.aliases[0]} `);
+		this.quickOpenService.show(`${this.prefix} ${this.command.aliases[0]} `);
 		return false;
 	}
 }

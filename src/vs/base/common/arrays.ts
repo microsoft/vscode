@@ -19,7 +19,7 @@ export function tail<T>(array: T[], n: number = 0): T {
  */
 export function forEach<T>(array: T[], callback: (element: T, remove: Function) => void): void {
 	for (var i = 0, len = array.length; i < len; i++) {
-		callback(array[i], function() {
+		callback(array[i], function () {
 			array.splice(i, 1);
 			i--; len--;
 		});
@@ -261,8 +261,8 @@ export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
 }
 
 export function index<T>(array: T[], indexer: (t: T) => string): { [key: string]: T; };
-export function index<T,R>(array: T[], indexer: (t: T) => string, merger?: (t: T, r: R) => R): { [key: string]: R; };
-export function index<T,R>(array: T[], indexer: (t: T) => string, merger: (t: T, r: R) => R = t => t as any): { [key: string]: R; } {
+export function index<T, R>(array: T[], indexer: (t: T) => string, merger?: (t: T, r: R) => R): { [key: string]: R; };
+export function index<T, R>(array: T[], indexer: (t: T) => string, merger: (t: T, r: R) => R = t => t as any): { [key: string]: R; } {
 	return array.reduce((r, t) => {
 		const key = indexer(t);
 		r[key] = merger(t, r[key]);

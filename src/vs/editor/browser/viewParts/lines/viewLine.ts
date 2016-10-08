@@ -5,20 +5,20 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
-import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
-import {LineParts, createLineParts, getColumnOfLinePartOffset} from 'vs/editor/common/viewLayout/viewLineParts';
-import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
-import {ClassNames} from 'vs/editor/browser/editorBrowser';
-import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
-import {RangeUtil} from 'vs/editor/browser/viewParts/lines/rangeUtil';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {HorizontalRange} from 'vs/editor/common/view/renderingContext';
-import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { LineParts, createLineParts, getColumnOfLinePartOffset } from 'vs/editor/common/viewLayout/viewLineParts';
+import { renderLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { ClassNames } from 'vs/editor/browser/editorBrowser';
+import { IVisibleLineData } from 'vs/editor/browser/view/viewLayer';
+import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 
 export class ViewLine implements IVisibleLineData {
 
-	protected _context:ViewContext;
+	protected _context: ViewContext;
 	private _renderWhitespace: 'none' | 'boundary' | 'all';
 	private _renderControlCharacters: boolean;
 	private _spaceWidth: number;
@@ -32,11 +32,11 @@ export class ViewLine implements IVisibleLineData {
 	private _isInvalid: boolean;
 	private _isMaybeInvalid: boolean;
 
-	protected _charOffsetInPart:number[];
-	private _lastRenderedPartIndex:number;
+	protected _charOffsetInPart: number[];
+	private _lastRenderedPartIndex: number;
 	private _cachedWidth: number;
 
-	constructor(context:ViewContext) {
+	constructor(context: ViewContext) {
 		this._context = context;
 		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		this._renderControlCharacters = this._context.configuration.editor.viewInfo.renderControlCharacters;
@@ -60,7 +60,7 @@ export class ViewLine implements IVisibleLineData {
 		}
 		return this._domNode.domNode;
 	}
-	public setDomNode(domNode:HTMLElement): void {
+	public setDomNode(domNode: HTMLElement): void {
 		this._domNode = createFastDomNode(domNode);
 	}
 
@@ -82,7 +82,7 @@ export class ViewLine implements IVisibleLineData {
 	public onModelDecorationsChanged(): void {
 		this._isMaybeInvalid = true;
 	}
-	public onConfigurationChanged(e:IConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: IConfigurationChangedEvent): void {
 		if (e.viewInfo.renderWhitespace) {
 			this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		}
@@ -101,8 +101,8 @@ export class ViewLine implements IVisibleLineData {
 		this._isInvalid = true;
 	}
 
-	public shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:InlineDecoration[]): boolean {
-		let newLineParts:LineParts = null;
+	public shouldUpdateHTML(startLineNumber: number, lineNumber: number, inlineDecorations: InlineDecoration[]): boolean {
+		let newLineParts: LineParts = null;
 
 		if (this._isMaybeInvalid || this._isInvalid) {
 			// Compute new line parts only if there is some evidence that something might have changed
@@ -134,7 +134,7 @@ export class ViewLine implements IVisibleLineData {
 		return this._isInvalid;
 	}
 
-	public getLineOuterHTML(out:string[], lineNumber:number, deltaTop:number): void {
+	public getLineOuterHTML(out: string[], lineNumber: number, deltaTop: number): void {
 		out.push('<div lineNumber="');
 		out.push(lineNumber.toString());
 		out.push('" style="top:');
@@ -153,7 +153,7 @@ export class ViewLine implements IVisibleLineData {
 		return this._render(lineNumber, this._lineParts);
 	}
 
-	public layoutLine(lineNumber:number, deltaTop:number): void {
+	public layoutLine(lineNumber: number, deltaTop: number): void {
 		this._domNode.setLineNumber(String(lineNumber));
 		this._domNode.setTop(deltaTop);
 		this._domNode.setHeight(this._lineHeight);
@@ -161,7 +161,7 @@ export class ViewLine implements IVisibleLineData {
 
 	// --- end IVisibleLineData
 
-	private _render(lineNumber:number, lineParts:LineParts): string {
+	private _render(lineNumber: number, lineParts: LineParts): string {
 
 		this._cachedWidth = -1;
 
@@ -200,11 +200,11 @@ export class ViewLine implements IVisibleLineData {
 	/**
 	 * Visible ranges for a model range
 	 */
-	public getVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
-		startColumn = startColumn|0; // @perf
-		endColumn = endColumn|0; // @perf
-		clientRectDeltaLeft = clientRectDeltaLeft|0; // @perf
-		const stopRenderingLineAfter = this._stopRenderingLineAfter|0; // @perf
+	public getVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
+		startColumn = startColumn | 0; // @perf
+		endColumn = endColumn | 0; // @perf
+		clientRectDeltaLeft = clientRectDeltaLeft | 0; // @perf
+		const stopRenderingLineAfter = this._stopRenderingLineAfter | 0; // @perf
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
 			// This range is obviously not visible
@@ -222,7 +222,7 @@ export class ViewLine implements IVisibleLineData {
 		return this._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 	}
 
-	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
+	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 		if (startColumn === endColumn) {
 			return this._readRawVisibleRangesForPosition(startColumn, clientRectDeltaLeft, endNode);
 		} else {
@@ -230,7 +230,7 @@ export class ViewLine implements IVisibleLineData {
 		}
 	}
 
-	protected _readRawVisibleRangesForPosition(column:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
+	protected _readRawVisibleRangesForPosition(column: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 
 		if (this._charOffsetInPart.length === 0) {
 			// This line is empty
@@ -243,7 +243,7 @@ export class ViewLine implements IVisibleLineData {
 		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
 	}
 
-	private _readRawVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
+	private _readRawVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 
 		if (startColumn === 1 && endColumn === this._charOffsetInPart.length) {
 			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
@@ -266,7 +266,7 @@ export class ViewLine implements IVisibleLineData {
 	/**
 	 * Returns the column for the text found at a specific offset inside a rendered dom node
 	 */
-	public getColumnOfNodeOffset(lineNumber:number, spanNode:HTMLElement, offset:number): number {
+	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
 		let spanNodeTextContentLength = spanNode.textContent.length;
 
 		let spanIndex = -1;
@@ -290,7 +290,7 @@ export class ViewLine implements IVisibleLineData {
 
 class IEViewLine extends ViewLine {
 
-	constructor(context:ViewContext) {
+	constructor(context: ViewContext) {
 		super(context);
 	}
 
@@ -301,11 +301,11 @@ class IEViewLine extends ViewLine {
 
 class WebKitViewLine extends ViewLine {
 
-	constructor(context:ViewContext) {
+	constructor(context: ViewContext) {
 		super(context);
 	}
 
-	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
+	protected _readVisibleRangesForRange(startColumn: number, endColumn: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
 		let output = super._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 
 		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._charOffsetInPart.length)) {
@@ -338,12 +338,12 @@ class WebKitViewLine extends ViewLine {
 }
 
 
-function findIndexInArrayWithMax(lineParts:LineParts, desiredIndex: number, maxResult:number): number {
+function findIndexInArrayWithMax(lineParts: LineParts, desiredIndex: number, maxResult: number): number {
 	let r = lineParts.findIndexOfOffset(desiredIndex);
 	return r <= maxResult ? r : maxResult;
 }
 
-export let createLine: (context: ViewContext) => ViewLine = (function() {
+export let createLine: (context: ViewContext) => ViewLine = (function () {
 	if (window.screen && window.screen.deviceXDPI && (navigator.userAgent.indexOf('Trident/6.0') >= 0 || navigator.userAgent.indexOf('Trident/5.0') >= 0)) {
 		// IE11 doesn't need the screen.logicalXDPI / screen.deviceXDPI ratio multiplication
 		// for TextRange.getClientRects() anymore

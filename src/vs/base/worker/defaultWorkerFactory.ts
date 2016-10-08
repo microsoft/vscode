@@ -5,9 +5,9 @@
 'use strict';
 
 import * as flags from 'vs/base/common/flags';
-import {logOnceWebWorkerWarning, IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/simpleWorker';
+import { logOnceWebWorkerWarning, IWorker, IWorkerCallback, IWorkerFactory } from 'vs/base/common/worker/simpleWorker';
 
-function defaultGetWorkerUrl(workerId:string, label:string): string {
+function defaultGetWorkerUrl(workerId: string, label: string): string {
 	return require.toUrl('./' + workerId) + '#' + label;
 }
 var getWorkerUrl = flags.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
@@ -19,14 +19,14 @@ var getWorkerUrl = flags.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
  */
 class WebWorker implements IWorker {
 
-	private id:number;
-	private worker:Worker;
+	private id: number;
+	private worker: Worker;
 
-	constructor(moduleId:string, id:number, label:string, onMessageCallback:IWorkerCallback, onErrorCallback:(err:any)=>void) {
+	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
 		this.worker = new Worker(getWorkerUrl('workerMain.js', label));
 		this.postMessage(moduleId);
-		this.worker.onmessage = function (ev:any) {
+		this.worker.onmessage = function (ev: any) {
 			onMessageCallback(ev.data);
 		};
 		if (typeof this.worker.addEventListener === 'function') {
@@ -38,7 +38,7 @@ class WebWorker implements IWorker {
 		return this.id;
 	}
 
-	public postMessage(msg:string): void {
+	public postMessage(msg: string): void {
 		if (this.worker) {
 			this.worker.postMessage(msg);
 		}
@@ -55,14 +55,14 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 	private static LAST_WORKER_ID = 0;
 
 	private _label: string;
-	private _webWorkerFailedBeforeError:any;
+	private _webWorkerFailedBeforeError: any;
 
-	constructor(label:string) {
+	constructor(label: string) {
 		this._label = label;
 		this._webWorkerFailedBeforeError = false;
 	}
 
-	public create(moduleId:string, onMessageCallback:IWorkerCallback, onErrorCallback:(err:any)=>void):IWorker {
+	public create(moduleId: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
 		let workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
 
 		if (this._webWorkerFailedBeforeError) {

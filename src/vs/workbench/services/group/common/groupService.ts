@@ -5,11 +5,11 @@
 
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
-import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorStacksModel, IEditorGroup } from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
-import {EditorInputEvent} from 'vs/workbench/common/editor';
+import { EditorInputEvent } from 'vs/workbench/common/editor';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,

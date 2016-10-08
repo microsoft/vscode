@@ -9,15 +9,17 @@ import { parse, stringify } from 'vs/base/common/marshalling';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import {IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
-	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness} from 'vs/editor/common/editorCommon';
-import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
-import {IDisposable, toDisposable} from 'vs/base/common/lifecycle';
+import {
+	IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
+	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness
+} from 'vs/editor/common/editorCommon';
+import { AbstractCodeEditorService } from 'vs/editor/common/services/abstractCodeEditorService';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
 	private _styleSheet: HTMLStyleElement;
-	private _decorationOptionProviders: {[key:string]:IModelDecorationOptionsProvider};
+	private _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
 
 	constructor(styleSheet = dom.createStyleSheet()) {
 		super();
@@ -25,7 +27,7 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		this._decorationOptionProviders = Object.create(null);
 	}
 
-	public registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
+	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
 		let provider = this._decorationOptionProviders[key];
 		if (!provider) {
 			if (!parentTypeKey) {
@@ -38,7 +40,7 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		provider.refCount++;
 	}
 
-	public removeDecorationType(key:string): void {
+	public removeDecorationType(key: string): void {
 		let provider = this._decorationOptionProviders[key];
 		if (provider) {
 			provider.refCount--;
@@ -50,7 +52,7 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		}
 	}
 
-	public resolveDecorationOptions(decorationTypeKey:string, writable: boolean): IModelDecorationOptions {
+	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions {
 		let provider = this._decorationOptionProviders[decorationTypeKey];
 		if (!provider) {
 			throw new Error('Unknown decoration type key: ' + decorationTypeKey);
@@ -74,7 +76,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 	private _beforeContentClassName: string;
 	private _afterContentClassName: string;
 
-	constructor(styleSheet: HTMLStyleElement, key: string, parentTypeKey: string, options:IDecorationRenderOptions) {
+	constructor(styleSheet: HTMLStyleElement, key: string, parentTypeKey: string, options: IDecorationRenderOptions) {
 		this._parentTypeKey = parentTypeKey;
 		this.refCount = 0;
 
@@ -137,11 +139,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public beforeContentClassName: string;
 	public afterContentClassName: string;
 	public glyphMarginClassName: string;
-	public isWholeLine:boolean;
-	public overviewRuler:IModelDecorationOverviewRulerOptions;
+	public isWholeLine: boolean;
+	public overviewRuler: IModelDecorationOverviewRulerOptions;
 	public stickiness: TrackedRangeStickiness;
 
-	constructor(styleSheet: HTMLStyleElement, key:string, options:IDecorationRenderOptions) {
+	constructor(styleSheet: HTMLStyleElement, key: string, options: IDecorationRenderOptions) {
 		this.refCount = 0;
 
 		var themedOpts = getThemedRenderOptions(options);
@@ -277,7 +279,7 @@ class DecorationRenderHelper {
 	/**
 	 * Build the CSS for decorations styled via `className`.
 	 */
-	public static getCSSTextForModelDecorationClassName(opts:IThemeDecorationRenderOptions): string {
+	public static getCSSTextForModelDecorationClassName(opts: IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
 		DecorationRenderHelper.collectCSSText(opts, ['backgroundColor', 'outline', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
 		DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
@@ -288,7 +290,7 @@ class DecorationRenderHelper {
 	/**
 	 * Build the CSS for decorations styled via `inlineClassName`.
 	 */
-	public static getCSSTextForModelDecorationInlineClassName(opts:IThemeDecorationRenderOptions): string {
+	public static getCSSTextForModelDecorationInlineClassName(opts: IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
 		DecorationRenderHelper.collectCSSText(opts, ['textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
 		return cssTextArr.join('');
@@ -297,7 +299,7 @@ class DecorationRenderHelper {
 	/**
 	 * Build the CSS for decorations styled before or after content.
 	 */
-	public static getCSSTextForModelDecorationContentClassName(opts:IContentDecorationRenderOptions): string {
+	public static getCSSTextForModelDecorationContentClassName(opts: IContentDecorationRenderOptions): string {
 		let cssTextArr = [];
 
 		if (typeof opts !== 'undefined') {
@@ -323,7 +325,7 @@ class DecorationRenderHelper {
 	/**
 	 * Build the CSS for decorations styled via `glpyhMarginClassName`.
 	 */
-	public static getCSSTextForModelDecorationGlyphMarginClassName(opts:IThemeDecorationRenderOptions): string {
+	public static getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
@@ -342,7 +344,7 @@ class DecorationRenderHelper {
 
 	private static border_rules = ['border', 'borderColor', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
 
-	public static collectBorderSettingsCSSText(opts: any, cssTextArr: string[]) : boolean {
+	public static collectBorderSettingsCSSText(opts: any, cssTextArr: string[]): boolean {
 		if (DecorationRenderHelper.collectCSSText(opts, DecorationRenderHelper.border_rules, cssTextArr)) {
 			cssTextArr.push(strings.format('box-sizing: border-box;'));
 			return true;
@@ -350,7 +352,7 @@ class DecorationRenderHelper {
 		return false;
 	}
 
-	private static collectCSSText(opts: any, properties: string[], cssTextArr: string[]) : boolean {
+	private static collectCSSText(opts: any, properties: string[], cssTextArr: string[]): boolean {
 		let lenBefore = cssTextArr.length;
 		for (let property of properties) {
 			if (typeof opts[property] !== 'undefined') {
@@ -363,8 +365,8 @@ class DecorationRenderHelper {
 	/**
 	 * Create CSS rules for `cssTexts` with the generated class names from `ruleType`
 	 */
-	public static createCSSRules(styleSheet: HTMLStyleElement, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType, cssTexts: {light:string, dark:string}): string {
-		function createCSSSelector(themeType:ThemeType, cssText:string) {
+	public static createCSSRules(styleSheet: HTMLStyleElement, key: string, parentKey: string, ruleType: ModelDecorationCSSRuleType, cssTexts: { light: string, dark: string }): string {
+		function createCSSSelector(themeType: ThemeType, cssText: string) {
 			let selector = CSSNameHelper.getSelector(themeType, key, parentKey, ruleType);
 			dom.createCSSRule(selector, cssText, styleSheet);
 		}
@@ -405,7 +407,7 @@ const enum ModelDecorationCSSRuleType {
 
 class CSSNameHelper {
 
-	private static _getSelectorPrefixOf(theme:ThemeType): string {
+	private static _getSelectorPrefixOf(theme: ThemeType): string {
 		if (theme === ThemeType.Light) {
 			return '.monaco-editor.vs';
 		}
@@ -415,11 +417,11 @@ class CSSNameHelper {
 		return '.monaco-editor.hc-black';
 	}
 
-	public static getClassName(key:string, type:ModelDecorationCSSRuleType): string {
+	public static getClassName(key: string, type: ModelDecorationCSSRuleType): string {
 		return 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(themeType:ThemeType, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType): string {
+	public static getSelector(themeType: ThemeType, key: string, parentKey: string, ruleType: ModelDecorationCSSRuleType): string {
 		let selector = this._getSelectorPrefixOf(themeType) + ' .' + this.getClassName(key, ruleType);
 		if (parentKey) {
 			selector = selector + '.' + this.getClassName(parentKey, ruleType);
@@ -432,7 +434,7 @@ class CSSNameHelper {
 		return selector;
 	}
 
-	public static getDeletionSubstring(key:string): string {
+	public static getDeletionSubstring(key: string): string {
 		return '.ced-' + key + '-';
 	}
 }

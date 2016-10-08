@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./overlayWidgets';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {EditorLayoutInfo} from 'vs/editor/common/editorCommon';
-import {ClassNames, IOverlayWidget, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { EditorLayoutInfo } from 'vs/editor/common/editorCommon';
+import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 
 interface IWidgetData {
 	widget: IOverlayWidget;
@@ -19,7 +19,7 @@ interface IWidgetData {
 }
 
 interface IWidgetMap {
-	[key:string]: IWidgetData;
+	[key: string]: IWidgetData;
 }
 
 export class ViewOverlayWidgets extends ViewPart {
@@ -28,11 +28,11 @@ export class ViewOverlayWidgets extends ViewPart {
 	public domNode: HTMLElement;
 
 	private _verticalScrollbarWidth: number;
-	private _horizontalScrollbarHeight:number;
-	private _editorHeight:number;
-	private _editorWidth:number;
+	private _horizontalScrollbarHeight: number;
+	private _editorHeight: number;
+	private _editorWidth: number;
 
-	constructor(context:ViewContext) {
+	constructor(context: ViewContext) {
 		super(context);
 
 		this._widgets = {};
@@ -52,7 +52,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onLayoutChanged(layoutInfo:EditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: EditorLayoutInfo): boolean {
 		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
 		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
 		this._editorHeight = layoutInfo.height;
@@ -77,7 +77,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IOverlayWidget, preference:OverlayWidgetPositionPreference): boolean {
+	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference): boolean {
 		var widgetData = this._widgets[widget.getId()];
 		if (widgetData.preference === preference) {
 			return false;
@@ -136,14 +136,14 @@ export class ViewOverlayWidgets extends ViewPart {
 		}
 	}
 
-	public prepareRender(ctx:IRenderingContext): void {
+	public prepareRender(ctx: IRenderingContext): void {
 		// Nothing to read
 		if (!this.shouldRender()) {
 			throw new Error('I did not ask to render!');
 		}
 	}
 
-	public render(ctx:IRestrictedRenderingContext): void {
+	public render(ctx: IRestrictedRenderingContext): void {
 		StyleMutator.setWidth(this.domNode, this._editorWidth);
 
 		let keys = Object.keys(this._widgets);

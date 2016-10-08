@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import lifecycle = require('vs/base/common/lifecycle');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
-import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 
 interface ProgressState {
 	infinite?: boolean;

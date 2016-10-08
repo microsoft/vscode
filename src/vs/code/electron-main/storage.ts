@@ -26,7 +26,7 @@ export class StorageService implements IStorageService {
 	private dbPath: string;
 	private database: any = null;
 
-	constructor(@IEnvironmentService private environmentService: IEnvironmentService) {
+	constructor( @IEnvironmentService private environmentService: IEnvironmentService) {
 		this.dbPath = path.join(environmentService.userDataPath, 'storage.json');
 	}
 

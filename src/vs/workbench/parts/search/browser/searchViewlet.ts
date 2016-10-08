@@ -7,53 +7,53 @@
 
 import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorType} from 'vs/editor/common/editorCommon';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorType } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
 import { IExpression } from 'vs/base/common/glob';
-import {isFunction} from 'vs/base/common/types';
+import { isFunction } from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import dom = require('vs/base/browser/dom');
-import {IAction, Action} from 'vs/base/common/actions';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
+import { IAction, Action } from 'vs/base/common/actions';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import {ITree} from 'vs/base/parts/tree/browser/tree';
-import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {Scope} from 'vs/workbench/common/memento';
-import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
-import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
-import {Viewlet} from 'vs/workbench/browser/viewlet';
-import {Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent} from 'vs/workbench/parts/search/common/searchModel';
-import {getExcludes, QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import {ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration} from 'vs/platform/search/common/search';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ISearchService} from 'vs/platform/search/common/search';
-import {IProgressService} from 'vs/platform/progress/common/progress';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { Scope } from 'vs/workbench/common/memento';
+import { OpenGlobalSettingsAction } from 'vs/workbench/browser/actions/openSettings';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
+import { FileChangeType, FileChangesEvent, EventType as FileEventType } from 'vs/platform/files/common/files';
+import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent } from 'vs/workbench/parts/search/common/searchModel';
+import { getExcludes, QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
+import { MessageType, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { ISearchService } from 'vs/platform/search/common/search';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import Severity from 'vs/base/common/severity';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 
 export class SearchViewlet extends Viewlet {
@@ -129,7 +129,7 @@ export class SearchViewlet extends Viewlet {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
-		this.viewModel= this.instantiationService.createInstance(SearchModel);
+		this.viewModel = this.instantiationService.createInstance(SearchModel);
 		let builder: Builder;
 		this.domNode = parent.div({
 			'class': 'search-viewlet'
@@ -137,8 +137,8 @@ export class SearchViewlet extends Viewlet {
 			builder = div;
 		});
 
-		builder.div({'class': ['search-widgets-container']}, (div) => {
-			this.searchWidgetsContainer= div;
+		builder.div({ 'class': ['search-widgets-container'] }, (div) => {
+			this.searchWidgetsContainer = div;
 		});
 		this.createSearchWidget(this.searchWidgetsContainer);
 
@@ -240,7 +240,7 @@ export class SearchViewlet extends Viewlet {
 		return TPromise.as(null);
 	}
 
-	public get searchAndReplaceWidget():SearchWidget {
+	public get searchAndReplaceWidget(): SearchWidget {
 		return this.searchWidget;
 	}
 
@@ -250,7 +250,7 @@ export class SearchViewlet extends Viewlet {
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
 
-		this.searchWidget= new SearchWidget(builder, this.contextViewService, {
+		this.searchWidget = new SearchWidget(builder, this.contextViewService, {
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
@@ -269,11 +269,11 @@ export class SearchViewlet extends Viewlet {
 
 		this.toUnbind.push(this.searchWidget.onReplaceToggled(() => this.onReplaceToggled()));
 		this.toUnbind.push(this.searchWidget.onReplaceStateChange((state) => {
-			this.viewModel.replaceActive= state;
+			this.viewModel.replaceActive = state;
 			this.tree.refresh();
 		}));
 		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
-			this.viewModel.replaceString= this.searchWidget.getReplaceValue();
+			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 			this.refreshInputs();
 			this.tree.refresh();
 		}));
@@ -339,18 +339,18 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		let progressRunner= this.progressService.show(100);
+		let progressRunner = this.progressService.show(100);
 
-		let occurrences= this.viewModel.searchResult.count();
-		let fileCount= this.viewModel.searchResult.fileCount();
-		let replaceValue= this.searchWidget.getReplaceValue() || '';
-		let afterReplaceAllMessage= replaceValue ? nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files with {2}.", occurrences, fileCount, replaceValue)
-													: nls.localize('removeAll.message', "Removed {0} occurrences across {1} files.", occurrences, fileCount);
+		let occurrences = this.viewModel.searchResult.count();
+		let fileCount = this.viewModel.searchResult.fileCount();
+		let replaceValue = this.searchWidget.getReplaceValue() || '';
+		let afterReplaceAllMessage = replaceValue ? nls.localize('replaceAll.message', "Replaced {0} occurrences across {1} files with {2}.", occurrences, fileCount, replaceValue)
+			: nls.localize('removeAll.message', "Removed {0} occurrences across {1} files.", occurrences, fileCount);
 
-		let confirmation= {
+		let confirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: replaceValue ? nls.localize('replaceAll.confirmation.message', "Replace {0} occurrences across {1} files with '{2}'?", occurrences, fileCount, replaceValue)
-									: nls.localize('removeAll.confirmation.message', "Remove {0} occurrences across {1} files?", occurrences, fileCount),
+				: nls.localize('removeAll.confirmation.message', "Remove {0} occurrences across {1} files?", occurrences, fileCount),
 			primaryButton: nls.localize('replaceAll.confirm.button', "Replace")
 		};
 
@@ -413,7 +413,7 @@ export class SearchViewlet extends Viewlet {
 				let focusEditor = (keyboard && (<KeyboardEvent>originalEvent).keyCode === KeyCode.Enter) || doubleClick;
 
 				if (element instanceof Match) {
-					let selectedMatch:Match = element;
+					let selectedMatch: Match = element;
 					if (this.currentSelectedFileMatch) {
 						this.currentSelectedFileMatch.setSelectedMatch(null);
 					}
@@ -808,7 +808,7 @@ export class SearchViewlet extends Viewlet {
 			}
 
 			this.onSearchResultsChanged().then(() => autoExpand(true));
-			this.viewModel.replaceString= this.searchWidget.getReplaceValue();
+			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 
 			let hasResults = !this.viewModel.searchResult.isEmpty();
 			this.loading = false;
@@ -938,9 +938,9 @@ export class SearchViewlet extends Viewlet {
 				progressRunner.worked(1);
 			}
 			// Search result tree update
-			let count= this.viewModel.searchResult.fileCount();
+			let count = this.viewModel.searchResult.fileCount();
 			if (visibleMatches !== count) {
-				visibleMatches= count;
+				visibleMatches = count;
 				this.tree.refresh().then(() => {
 					autoExpand(false);
 				}).done(null, errors.onUnexpectedError);
@@ -985,8 +985,8 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
-		let selection= this.getSelectionFrom(element);
-		let resource= element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
+		let selection = this.getSelectionFrom(element);
+		let resource = element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
@@ -1008,17 +1008,17 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private getSelectionFrom(element: FileMatchOrMatch): any {
-		let match: Match= null;
+		let match: Match = null;
 		if (element instanceof Match) {
-			match= element;
+			match = element;
 		}
 		if (element instanceof FileMatch && element.count() > 0) {
-			match= element.matches()[element.matches().length - 1];
+			match = element.matches()[element.matches().length - 1];
 		}
 		if (match) {
-			let range= match.range();
+			let range = match.range();
 			if (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) {
-				let replaceString= match.replaceString;
+				let replaceString = match.replaceString;
 				return {
 					startLineNumber: range.startLineNumber,
 					startColumn: range.startColumn,

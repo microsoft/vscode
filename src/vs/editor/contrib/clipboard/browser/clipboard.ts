@@ -7,34 +7,34 @@
 
 import 'vs/css!./clipboard';
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {findFocusedEditor} from 'vs/editor/common/config/config';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { findFocusedEditor } from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {editorAction, IActionOptions, EditorAction} from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
-function conditionalEditorAction(testCommand:string) {
+function conditionalEditorAction(testCommand: string) {
 	if (!browser.supportsExecCommand(testCommand)) {
-		return () => {};
+		return () => { };
 	}
 	return editorAction;
 }
 
 abstract class ExecCommandAction extends EditorAction {
 
-	private browserCommand:string;
+	private browserCommand: string;
 
-	constructor(browserCommand:string, opts:IActionOptions) {
+	constructor(browserCommand: string, opts: IActionOptions) {
 		super(opts);
 		this.browserCommand = browserCommand;
 	}
 
-	public runCommand(accessor:ServicesAccessor, args: any): void {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
 		let focusedEditor = findFocusedEditor(this.id, accessor, false);
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		if (focusedEditor && focusedEditor.isFocused()) {
@@ -45,7 +45,7 @@ abstract class ExecCommandAction extends EditorAction {
 		document.execCommand(this.browserCommand);
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		editor.focus();
 		document.execCommand(this.browserCommand);
 	}
@@ -72,7 +72,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		if (!browser.enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
@@ -102,7 +102,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		if (!browser.enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}

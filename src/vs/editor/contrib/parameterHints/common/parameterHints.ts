@@ -18,7 +18,7 @@ export const Context = {
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
-export function provideSignatureHelp(model:IReadOnlyModel, position:Position): TPromise<SignatureHelp> {
+export function provideSignatureHelp(model: IReadOnlyModel, position: Position): TPromise<SignatureHelp> {
 	const support = SignatureHelpProviderRegistry.ordered(model)[0];
 
 	if (!support) {

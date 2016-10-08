@@ -14,7 +14,7 @@ import { env, languages, commands, workspace, window, Uri, ExtensionContext, Mem
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
 import * as nls from 'vscode-nls';
-nls.config({locale: env.language});
+nls.config({ locale: env.language });
 
 import * as path from 'path';
 
@@ -350,7 +350,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			}
 		}
 		if (Is.defined(body.queueLength)) {
-			BuildStatus.update( { queueLength: body.queueLength });
+			BuildStatus.update({ queueLength: body.queueLength });
 		}
 	}
 

@@ -6,7 +6,7 @@
 import assert = require('assert');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
-import {Adapter} from 'vs/workbench/parts/debug/node/debugAdapter';
+import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 
 suite('Debug - Adapter', () => {
 	var adapter: Adapter;
@@ -14,7 +14,7 @@ suite('Debug - Adapter', () => {
 	var rawAdapter = {
 		type: 'mock',
 		label: 'Mock Debug',
-		enableBreakpointsFor: { 'languageIds': [ 'markdown' ] },
+		enableBreakpointsFor: { 'languageIds': ['markdown'] },
 		program: './out/mock/mockDebug.js',
 		win: {
 			runtime: 'winRuntime'
@@ -27,7 +27,7 @@ suite('Debug - Adapter', () => {
 		},
 		configurationAttributes: {
 			launch: {
-				required: [ 'program' ],
+				required: ['program'],
 				properties: {
 					program: {
 						'type': 'string',

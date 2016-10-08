@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable} from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper} from 'vs/editor/common/controller/textAreaState';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper } from 'vs/editor/common/controller/textAreaState';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
-	private _event:ClipboardEvent;
+	private _event: ClipboardEvent;
 
-	constructor(event:ClipboardEvent) {
+	constructor(event: ClipboardEvent) {
 		this._event = event;
 	}
 
@@ -29,7 +29,7 @@ class ClipboardEventWrapper implements IClipboardEvent {
 		return false;
 	}
 
-	public setTextData(text:string): void {
+	public setTextData(text: string): void {
 		if (this._event.clipboardData) {
 			this._event.clipboardData.setData('text/plain', text);
 			this._event.preventDefault();
@@ -64,11 +64,11 @@ class KeyboardEventWrapper implements IKeyboardEventWrapper {
 
 	public _actual: IKeyboardEvent;
 
-	constructor(actual:IKeyboardEvent) {
+	constructor(actual: IKeyboardEvent) {
 		this._actual = actual;
 	}
 
-	public equals(keybinding:number): boolean {
+	public equals(keybinding: number): boolean {
 		return this._actual.equals(keybinding);
 	}
 
@@ -129,9 +129,9 @@ export class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 		this._register(dom.addDisposableListener(this._textArea, 'compositionupdate', (e) => this._onCompositionUpdate.fire(e)));
 		this._register(dom.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire(e)));
 		this._register(dom.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
-		this._register(dom.addDisposableListener(this._textArea, 'cut', (e:ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
-		this._register(dom.addDisposableListener(this._textArea, 'copy', (e:ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
-		this._register(dom.addDisposableListener(this._textArea, 'paste', (e:ClipboardEvent) => this._onPaste.fire(new ClipboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(this._textArea, 'cut', (e: ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(this._textArea, 'copy', (e: ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(this._textArea, 'paste', (e: ClipboardEvent) => this._onPaste.fire(new ClipboardEventWrapper(e))));
 	}
 
 	public get actual(): HTMLTextAreaElement {
@@ -143,7 +143,7 @@ export class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 		return this._textArea.value;
 	}
 
-	public setValue(reason:string, value:string): void {
+	public setValue(reason: string, value: string): void {
 		// console.log('reason: ' + reason + ', current value: ' + this._textArea.value + ' => new value: ' + value);
 		this._textArea.value = value;
 	}
@@ -156,7 +156,7 @@ export class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 		return this._textArea.selectionEnd;
 	}
 
-	public setSelectionRange(selectionStart:number, selectionEnd:number): void {
+	public setSelectionRange(selectionStart: number, selectionEnd: number): void {
 		let activeElement = document.activeElement;
 		if (activeElement === this._textArea) {
 			this._textArea.setSelectionRange(selectionStart, selectionEnd);
@@ -165,13 +165,13 @@ export class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 		}
 	}
 
-	private _setSelectionRangeJumpy(selectionStart:number, selectionEnd:number): void {
+	private _setSelectionRangeJumpy(selectionStart: number, selectionEnd: number): void {
 		try {
 			let scrollState = dom.saveParentsScrollTop(this._textArea);
 			this._textArea.focus();
 			this._textArea.setSelectionRange(selectionStart, selectionEnd);
 			dom.restoreParentsScrollTop(this._textArea, scrollState);
-		} catch(e) {
+		} catch (e) {
 			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
 			console.log('an error has been thrown!');
 		}

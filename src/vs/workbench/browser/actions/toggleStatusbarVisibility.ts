@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
+import { Registry } from 'vs/platform/platform';
+import { Action } from 'vs/base/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleStatusbarVisibilityAction extends Action {
 

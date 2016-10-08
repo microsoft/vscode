@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose}  from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * To an event a function with one or zero parameters
@@ -19,7 +19,7 @@ interface Event<T> {
 
 namespace Event {
 	const _disposable = { dispose() { } };
-	export const None: Event<any> = function() { return _disposable; };
+	export const None: Event<any> = function () { return _disposable; };
 }
 
 export default Event;
@@ -69,7 +69,7 @@ export class Emitter<T> {
 	 */
 	get event(): Event<T> {
 		if (!this._event) {
-			this._event = (listener: (e: T) => any,  thisArgs?: any, disposables?: IDisposable[]) => {
+			this._event = (listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]) => {
 				if (!this._callbacks) {
 					this._callbacks = new CallbackList();
 				}
@@ -92,13 +92,13 @@ export class Emitter<T> {
 						result.dispose = Emitter._noop;
 						if (!this._disposed) {
 							this._callbacks.remove(listener, thisArgs);
-							if(this._options && this._options.onLastListenerRemove && this._callbacks.isEmpty()) {
+							if (this._options && this._options.onLastListenerRemove && this._callbacks.isEmpty()) {
 								this._options.onLastListenerRemove(this);
 							}
 						}
 					}
 				};
-				if(Array.isArray(disposables)) {
+				if (Array.isArray(disposables)) {
 					disposables.push(result);
 				}
 
@@ -119,7 +119,7 @@ export class Emitter<T> {
 	}
 
 	dispose() {
-		if(this._callbacks) {
+		if (this._callbacks) {
 			this._callbacks.dispose();
 			this._callbacks = undefined;
 			this._disposed = true;
@@ -154,7 +154,7 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): E
 		const result = emitter.addListener2(eventType, function () {
 			listener.apply(thisArgs, arguments);
 		});
-		if(Array.isArray(disposables)) {
+		if (Array.isArray(disposables)) {
 			disposables.push(result);
 		}
 		return result;
@@ -312,11 +312,11 @@ export interface IChainableEvent<T> {
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
-export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
+export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }
 
-export function filterEvent<T>(event: Event<T>, filter: (e:T)=>boolean): Event<T> {
+export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
 
@@ -324,7 +324,7 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	get event(): Event<T> { return this._event; }
 
-	constructor(private _event: Event<T>) {}
+	constructor(private _event: Event<T>) { }
 
 	map(fn) {
 		return new ChainableEvent(mapEvent(this._event, fn));
