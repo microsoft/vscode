@@ -35,22 +35,22 @@ interface ThemeGlobalSettings {
 
 	activeLinkForeground?: string;
 
-	terminalBlack?: string;
-	terminalRed?: string;
-	terminalGreen?: string;
-	terminalYellow?: string;
-	terminalBlue?: string;
-	terminalMagenta?: string;
-	terminalCyan?: string;
-	terminalWhite?: string;
-	terminalBrightBlack?: string;
-	terminalBrightRed?: string;
-	terminalBrightGreen?: string;
-	terminalBrightYellow?: string;
-	terminalBrightBlue?: string;
-	terminalBrightMagenta?: string;
-	terminalBrightCyan?: string;
-	terminalBrightWhite?: string;
+	ansiBlack?: string;
+	ansiRed?: string;
+	ansiGreen?: string;
+	ansiYellow?: string;
+	ansiBlue?: string;
+	ansiMagenta?: string;
+	ansiCyan?: string;
+	ansiWhite?: string;
+	ansiBrightBlack?: string;
+	ansiBrightRed?: string;
+	ansiBrightGreen?: string;
+	ansiBrightYellow?: string;
+	ansiBrightBlue?: string;
+	ansiBrightMagenta?: string;
+	ansiBrightCyan?: string;
+	ansiBrightWhite?: string;
 }
 
 class Theme {
@@ -190,22 +190,22 @@ export class SearchViewStylesContribution {
 export class TerminalStylesContribution {
 
 	private static ansiColorMap = {
-		terminalBlack: 0,
-		terminalRed: 1,
-		terminalGreen: 2,
-		terminalYellow: 3,
-		terminalBlue: 4,
-		terminalMagenta: 5,
-		terminalCyan: 6,
-		terminalWhite: 7,
-		terminalBrightBlack: 8,
-		terminalBrightRed: 9,
-		terminalBrightGreen: 10,
-		terminalBrightYellow: 11,
-		terminalBrightBlue: 12,
-		terminalBrightMagenta: 13,
-		terminalBrightCyan: 14,
-		terminalBrightWhite: 15
+		ansiBlack: 0,
+		ansiRed: 1,
+		ansiGreen: 2,
+		ansiYellow: 3,
+		ansiBlue: 4,
+		ansiMagenta: 5,
+		ansiCyan: 6,
+		ansiWhite: 7,
+		ansiBrightBlack: 8,
+		ansiBrightRed: 9,
+		ansiBrightGreen: 10,
+		ansiBrightYellow: 11,
+		ansiBrightBlue: 12,
+		ansiBrightMagenta: 13,
+		ansiBrightCyan: 14,
+		ansiBrightWhite: 15
 	};
 
 	/**
@@ -222,7 +222,7 @@ export class TerminalStylesContribution {
 		const theme = new Theme(themeId, themeDocument);
 		if (theme.hasGlobalSettings()) {
 			const keys = Object.keys(theme.getGlobalSettings());
-			keys.filter(key => key.indexOf('terminal') === 0).forEach(key => {
+			keys.filter(key => key.indexOf('ansi') === 0).forEach(key => {
 				if (key in TerminalStylesContribution.ansiColorMap) {
 					const color = theme.getGlobalSettings()[key];
 					const index = TerminalStylesContribution.ansiColorMap[key];
