@@ -15,6 +15,13 @@
 				"label": "Seti (Visual Studio Code)",
 				"path": "./icons/vs-seti-icon-theme.json"
 			}
+		],
+		"themes": [
+			{
+				"label": "Seti (Visual Studio Code)",
+				"uiTheme": "vs-dark",
+				"path": "./themes/Seti.tmTheme"
+			}
 		]
 	}
 }
