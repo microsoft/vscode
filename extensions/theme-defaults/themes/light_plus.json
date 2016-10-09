@@ -23,6 +23,7 @@
 		{
 			"name": "Function declarations",
 			"scope": [
+				"support.function",
 				"entity.name.function",
 				"entity.name.method"
 			],
