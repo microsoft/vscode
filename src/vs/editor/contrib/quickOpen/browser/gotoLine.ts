@@ -7,13 +7,13 @@
 
 import 'vs/css!./gotoLine';
 import * as nls from 'vs/nls';
-import {IContext, QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
+import { IContext, QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
-import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
-import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
+import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -166,13 +166,13 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		this._show(this.getController(editor), {
-			getModel: (value:string):QuickOpenModel => {
+			getModel: (value: string): QuickOpenModel => {
 				return new QuickOpenModel([new GotoLineEntry(value, editor, this.getController(editor))]);
 			},
 
-			getAutoFocus: (searchValue:string):IAutoFocus => {
+			getAutoFocus: (searchValue: string): IAutoFocus => {
 				return {
 					autoFocusFirstEntry: searchValue.length > 0
 				};

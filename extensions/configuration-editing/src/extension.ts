@@ -6,7 +6,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import {getLocation} from 'jsonc-parser';
+import { getLocation } from 'jsonc-parser';
 
 export function activate(context) {
 
@@ -15,7 +15,7 @@ export function activate(context) {
 
 }
 
-function registerKeybindingsCompletions() : vscode.Disposable {
+function registerKeybindingsCompletions(): vscode.Disposable {
 	const commands = vscode.commands.getCommands(true);
 
 	return vscode.languages.registerCompletionItemProvider({ pattern: '**/keybindings.json' }, {

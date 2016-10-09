@@ -7,7 +7,8 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { format } from 'vs/base/common/strings';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { IStatusModel, IStatusSummary, IRawFileStatus, ModelEvents,
+import {
+	IStatusModel, IStatusSummary, IRawFileStatus, ModelEvents,
 	IFileStatus, IStatusGroup, Status, StatusType,
 	IBranch, IRef, IRemote, IModel, IRawStatus
 } from 'vs/workbench/parts/git/common/git';
@@ -218,7 +219,7 @@ export class StatusModel extends EventEmitter implements IStatusModel {
 		var merge: FileStatus[] = [];
 
 		status.forEach(raw => {
-			switch(raw.x + raw.y) {
+			switch (raw.x + raw.y) {
 				case '??': return workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.UNTRACKED));
 				case '!!': return workingTree.push(new FileStatus(raw.path, raw.mimetype, Status.IGNORED));
 				case 'DD': return merge.push(new FileStatus(raw.path, raw.mimetype, Status.BOTH_DELETED));
@@ -266,7 +267,7 @@ export class StatusModel extends EventEmitter implements IStatusModel {
 	}
 
 	getGroups(): IStatusGroup[] {
-		return [ this.mergeStatus, this.indexStatus, this.workingTreeStatus ];
+		return [this.mergeStatus, this.indexStatus, this.workingTreeStatus];
 	}
 
 	find(path: string, type: StatusType): IFileStatus {

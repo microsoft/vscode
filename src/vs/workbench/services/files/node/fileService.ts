@@ -11,16 +11,16 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import {IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IBaseStat, IUpdateContentOptions, FileChangeType, EventType, IImportResult, MAX_FILE_SIZE} from 'vs/platform/files/common/files';
+import { IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, IFileOperationResult, FileOperationResult, IBaseStat, IUpdateContentOptions, FileChangeType, EventType, IImportResult, MAX_FILE_SIZE } from 'vs/platform/files/common/files';
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import baseMime = require('vs/base/common/mime');
 import basePaths = require('vs/base/common/paths');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import extfs = require('vs/base/node/extfs');
-import {nfcall, Limiter, ThrottledDelayer} from 'vs/base/common/async';
+import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 
@@ -28,10 +28,10 @@ import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
 import mime = require('vs/base/node/mime');
 import flow = require('vs/base/node/flow');
-import {FileWatcher as UnixWatcherService} from 'vs/workbench/services/files/node/watcher/unix/watcherService';
-import {FileWatcher as WindowsWatcherService} from 'vs/workbench/services/files/node/watcher/win32/watcherService';
-import {toFileChangesEvent, normalize, IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';
-import {IEventService} from 'vs/platform/event/common/event';
+import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
+import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
+import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { IEventService } from 'vs/platform/event/common/event';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -188,13 +188,7 @@ export class FileService implements IFileService {
 			}
 
 			// 2.) get content
-			return contentResolver(resource, options && options.etag, preferredEncoding).then(content => {
-
-				// set our knowledge about the mime on the content obj
-				content.mime = detected.mimes.join(', ');
-
-				return content;
-			});
+			return contentResolver(resource, options && options.etag, preferredEncoding);
 		}, (error) => {
 
 			// bubble up existing file operation results
@@ -678,7 +672,6 @@ export class StatResolver {
 	private isDirectory: boolean;
 	private mtime: number;
 	private name: string;
-	private mime: string;
 	private etag: string;
 	private size: number;
 	private verboseLogging: boolean;
@@ -690,7 +683,6 @@ export class StatResolver {
 		this.isDirectory = isDirectory;
 		this.mtime = mtime;
 		this.name = paths.basename(resource.fsPath);
-		this.mime = !this.isDirectory ? baseMime.guessMimeTypes(resource.fsPath).join(', ') : void 0;
 		this.etag = etag(size, mtime);
 		this.size = size;
 
@@ -707,8 +699,7 @@ export class StatResolver {
 			name: this.name,
 			etag: this.etag,
 			size: this.size,
-			mtime: this.mtime,
-			mime: this.mime
+			mtime: this.mtime
 		};
 
 		// File Specific Data
@@ -791,8 +782,7 @@ export class StatResolver {
 							name: file,
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),
-							size: fileStat.size,
-							mime: !fileStat.isDirectory() ? baseMime.guessMimeTypes(fileResource.fsPath).join(', ') : void 0
+							size: fileStat.size
 						};
 
 						// Return early for files

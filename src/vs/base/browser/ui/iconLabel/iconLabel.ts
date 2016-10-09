@@ -7,12 +7,12 @@
 
 import 'vs/css!./iconlabel';
 import dom = require('vs/base/browser/dom');
-import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import {IMatch} from 'vs/base/common/filters';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IMatch } from 'vs/base/common/filters';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
-import {IWorkspaceProvider, getPathLabel} from 'vs/base/common/labels';
+import { IWorkspaceProvider, getPathLabel } from 'vs/base/common/labels';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ExtHostHeapServiceShape} from './extHost.protocol';
+import { ExtHostHeapServiceShape } from './extHost.protocol';
 
 export class ExtHostHeapService extends ExtHostHeapServiceShape {
 
@@ -13,7 +13,7 @@ export class ExtHostHeapService extends ExtHostHeapServiceShape {
 	private _data: { [n: number]: any } = Object.create(null);
 	private _callbacks: { [n: number]: Function } = Object.create(null);
 
-	keep(obj:any, callback?:() => any): number {
+	keep(obj: any, callback?: () => any): number {
 		const id = ExtHostHeapService._idPool++;
 		this._data[id] = obj;
 		if (typeof callback === 'function') {

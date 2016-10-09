@@ -5,17 +5,17 @@
 
 'use strict';
 
-import Event, {Emitter, once} from 'vs/base/common/event';
-import {IEditorRegistry, Extensions, EditorInput, getResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning} from 'vs/workbench/common/editor';
+import Event, { Emitter, once } from 'vs/base/common/event';
+import { IEditorRegistry, Extensions, EditorInput, getResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {Registry} from 'vs/platform/platform';
-import {Position, Direction} from 'vs/platform/editor/common/editor';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Registry } from 'vs/platform/platform';
+import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
@@ -59,7 +59,7 @@ export class EditorGroup implements IEditorGroup {
 	private active: EditorInput;  // editor in active state
 
 	private toDispose: IDisposable[];
-	private editorOpenPositioning: string;
+	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
 
 	private _onEditorActivated: Emitter<EditorInput>;
 	private _onEditorOpened: Emitter<EditorInput>;
@@ -114,7 +114,9 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration): void {
-		this.editorOpenPositioning = config && config.workbench && config.workbench.editor && config.workbench.editor.openPositioning;
+		if (config && config.workbench && config.workbench.editor) {
+			this.editorOpenPositioning = config.workbench.editor.openPositioning;
+		}
 	}
 
 	public get id(): GroupIdentifier {

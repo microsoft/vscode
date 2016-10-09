@@ -5,10 +5,10 @@
 
 'use strict';
 
-import {JSONScanner, createScanner as createJSONScanner, SyntaxKind as JSONSyntaxKind} from 'vs/base/common/json';
+import { JSONScanner, createScanner as createJSONScanner, SyntaxKind as JSONSyntaxKind } from 'vs/base/common/json';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 export interface InsertSnippetResult {
 	position: Position;
@@ -18,7 +18,7 @@ export interface InsertSnippetResult {
 
 export class SmartSnippetInserter {
 
-	private static hasOpenBrace(scanner:JSONScanner): boolean {
+	private static hasOpenBrace(scanner: JSONScanner): boolean {
 
 		while (scanner.scan() !== JSONSyntaxKind.EOF) {
 			let kind = scanner.getToken();
@@ -31,7 +31,7 @@ export class SmartSnippetInserter {
 		return false;
 	}
 
-	private static offsetToPosition(model:editorCommon.ITextModel, offset:number): Position {
+	private static offsetToPosition(model: editorCommon.ITextModel, offset: number): Position {
 		let offsetBeforeLine = 0;
 		let eolLength = model.getEOL().length;
 		let lineCount = model.getLineCount();
@@ -53,7 +53,7 @@ export class SmartSnippetInserter {
 		);
 	}
 
-	public static insertSnippet(model:editorCommon.ITextModel, _position:Position): InsertSnippetResult {
+	public static insertSnippet(model: editorCommon.ITextModel, _position: Position): InsertSnippetResult {
 
 		let desiredPosition = model.getValueLengthInRange(new Range(1, 1, _position.lineNumber, _position.column));
 
@@ -71,7 +71,7 @@ export class SmartSnippetInserter {
 		let arrayLevel = 0;
 		let objLevel = 0;
 
-		let checkRangeStatus = (pos:number, state:State) => {
+		let checkRangeStatus = (pos: number, state: State) => {
 			if (state !== State.INVALID && arrayLevel === 1 && objLevel === 0) {
 				currentState = state;
 				lastValidPos = pos;

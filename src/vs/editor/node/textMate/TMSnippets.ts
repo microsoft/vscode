@@ -5,13 +5,13 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {parse} from 'vs/base/common/json';
+import { parse } from 'vs/base/common/json';
 import * as paths from 'vs/base/common/paths';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {readFile} from 'vs/base/node/pfs';
-import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ISnippetsRegistry, Extensions, ISnippet} from 'vs/editor/common/modes/snippetsRegistry';
-import {IModeService} from 'vs/editor/common/services/modeService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { readFile } from 'vs/base/node/pfs';
+import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ISnippetsRegistry, Extensions, ISnippet } from 'vs/editor/common/modes/snippetsRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import platform = require('vs/platform/platform');
 
 export interface ISnippetsExtensionPoint {
@@ -22,10 +22,10 @@ export interface ISnippetsExtensionPoint {
 let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippetsExtensionPoint[]>('snippets', {
 	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes snippets.'),
 	type: 'array',
-	defaultSnippets: [ { body: [{ language: '', path: '' }] }],
+	defaultSnippets: [{ body: [{ language: '', path: '' }] }],
 	items: {
 		type: 'object',
-		defaultSnippets: [ { body: { language: '{{id}}', path: './snippets/{{id}}.json.'} }] ,
+		defaultSnippets: [{ body: { language: '{{id}}', path: './snippets/{{id}}.json.' } }],
 		properties: {
 			language: {
 				description: nls.localize('vscode.extension.contributes.snippets-language', 'Language identifier for which this snippet is contributed to.'),
@@ -42,7 +42,7 @@ let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ISnippets
 export class MainProcessTextMateSnippet {
 	private _modeService: IModeService;
 
-	constructor(@IModeService modeService: IModeService) {
+	constructor( @IModeService modeService: IModeService) {
 		this._modeService = modeService;
 
 		snippetsExtensionPoint.setHandler((extensions) => {

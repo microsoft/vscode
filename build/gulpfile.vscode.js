@@ -39,15 +39,13 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.6.7' },
-	{ name: 'ms-vscode.node-debug2', version: '0.0.6' }
+	{ name: 'ms-vscode.node-debug', version: '1.6.9' },
+	{ name: 'ms-vscode.node-debug2', version: '0.0.7' }
 ];
 
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
-	buildfile.editor,
-	buildfile.languages,
 	buildfile.workbench,
 	buildfile.code
 ]);
@@ -60,8 +58,6 @@ const vscodeResources = [
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur}',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
-	'out-build/vs/base/worker/workerMainCompatibility.html',
-	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/bootstrap/**',
@@ -70,7 +66,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/parts/git/**/*.html',
 	'out-build/vs/workbench/parts/git/**/*.sh',
 	'out-build/vs/workbench/parts/html/browser/webview.html',
-	'out-build/vs/workbench/parts/extensions/electron-browser/media/markdown.css',
+	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',
@@ -268,6 +264,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
 

@@ -68,7 +68,7 @@ class NPSContribution implements IWorkbenchContribution {
 
 		const takeSurveyAction = new Action('nps.takeSurvey', nls.localize('takeSurvey', "Take Survey"), '', true, () => {
 			return telemetryService.getTelemetryInfo().then(info => {
-				shell.openExternal(`${ product.npsSurveyUrl }?o=${ encodeURIComponent(process.platform) }&v=${ encodeURIComponent(pkg.version) }&m=${ encodeURIComponent(info.machineId) }`);
+				shell.openExternal(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
 				storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 				storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 			});
@@ -79,13 +79,13 @@ class NPSContribution implements IWorkbenchContribution {
 			return TPromise.as(null);
 		});
 
-		const neverAgainAction = new Action('nps.never', nls.localize('neverAgain', "Never Show Again"), '', true, () => {
+		const neverAgainAction = new Action('nps.never', nls.localize('neverAgain', "Don't Show Again"), '', true, () => {
 			storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 			return TPromise.as(null);
 		});
 
-		const actions = [neverAgainAction, remindMeLaterAction, takeSurveyAction ];
+		const actions = [neverAgainAction, remindMeLaterAction, takeSurveyAction];
 
 		messageService.show(Severity.Info, { message, actions });
 	}

@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {localize} from 'vs/nls';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { localize } from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
-import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {HtmlInput} from '../common/htmlInput';
-import {HtmlPreviewPart} from 'vs/workbench/parts/html/browser/htmlPreviewPart';
-import {Registry} from 'vs/platform/platform';
-import {EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/common/editor';
-import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { HtmlInput } from '../common/htmlInput';
+import { HtmlPreviewPart } from 'vs/workbench/parts/html/browser/htmlPreviewPart';
+import { Registry } from 'vs/platform/platform';
+import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,

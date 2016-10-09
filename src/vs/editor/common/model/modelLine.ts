@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IReadOnlyLineMarker} from 'vs/editor/common/editorCommon';
-import {IState} from 'vs/editor/common/modes';
-import {TokensBinaryEncoding, DEFLATED_TOKENS_EMPTY_TEXT, DEFLATED_TOKENS_NON_EMPTY_TEXT, TokensBinaryEncodingValues, TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
-import {CharCode} from 'vs/base/common/charCode';
-import {LineTokens} from 'vs/editor/common/core/lineTokens';
+import { IReadOnlyLineMarker } from 'vs/editor/common/editorCommon';
+import { IState } from 'vs/editor/common/modes';
+import { TokensBinaryEncoding, DEFLATED_TOKENS_EMPTY_TEXT, DEFLATED_TOKENS_NON_EMPTY_TEXT, TokensBinaryEncodingValues, TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
+import { Token } from 'vs/editor/common/core/token';
+import { CharCode } from 'vs/base/common/charCode';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -20,18 +20,18 @@ export interface ILineEdit {
 }
 
 export interface ILineMarker extends IReadOnlyLineMarker {
-	id:string;
-	column:number;
-	stickToPreviousCharacter:boolean;
+	id: string;
+	column: number;
+	stickToPreviousCharacter: boolean;
 
-	oldLineNumber:number;
-	oldColumn:number;
+	oldLineNumber: number;
+	oldColumn: number;
 
-	line:ModelLine;
+	line: ModelLine;
 }
 
 export interface IChangedMarkers {
-	[markerId:string]: boolean;
+	[markerId: string]: boolean;
 }
 
 export interface ITextWithMarkers {
@@ -40,24 +40,24 @@ export interface ITextWithMarkers {
 }
 
 interface ITokensAdjuster {
-	adjust(toColumn:number, delta:number, minimumAllowedColumn:number): void;
-	finish(delta:number, lineTextLength:number): void;
+	adjust(toColumn: number, delta: number, minimumAllowedColumn: number): void;
+	finish(delta: number, lineTextLength: number): void;
 }
 
 interface IMarkersAdjuster {
-	adjustDelta(toColumn:number, delta:number, minimumAllowedColumn:number, moveSemantics:MarkerMoveSemantics): void;
-	adjustSet(toColumn:number, newColumn:number, moveSemantics:MarkerMoveSemantics): void;
-	finish(delta:number, lineTextLength:number): void;
+	adjustDelta(toColumn: number, delta: number, minimumAllowedColumn: number, moveSemantics: MarkerMoveSemantics): void;
+	adjustSet(toColumn: number, newColumn: number, moveSemantics: MarkerMoveSemantics): void;
+	finish(delta: number, lineTextLength: number): void;
 }
 
 var NO_OP_TOKENS_ADJUSTER: ITokensAdjuster = {
-	adjust: () => {},
-	finish: () => {}
+	adjust: () => { },
+	finish: () => { }
 };
 var NO_OP_MARKERS_ADJUSTER: IMarkersAdjuster = {
-	adjustDelta: () => {},
-	adjustSet: () => {},
-	finish: () => {}
+	adjustDelta: () => { },
+	adjustSet: () => { },
+	finish: () => { }
 };
 
 const enum MarkerMoveSemantics {
@@ -96,23 +96,23 @@ function computePlusOneIndentLevel(line: string, tabSize: number): number {
 }
 
 export class ModelLine {
-	private _lineNumber:number;
-	public get lineNumber():number { return this._lineNumber; }
+	private _lineNumber: number;
+	public get lineNumber(): number { return this._lineNumber; }
 
-	private _text:string;
-	public get text():string { return this._text; }
+	private _text: string;
+	public get text(): string { return this._text; }
 
 	/**
 	 * bits 31 - 1 => indentLevel
 	 * bit 0 => isInvalid
 	 */
-	private _metadata:number;
+	private _metadata: number;
 
 	public get isInvalid(): boolean {
 		return (this._metadata & 0x00000001) ? true : false;
 	}
 
-	public set isInvalid(value:boolean) {
+	public set isInvalid(value: boolean) {
 		this._metadata = (this._metadata & 0xfffffffe) | (value ? 1 : 0);
 	}
 
@@ -125,11 +125,11 @@ export class ModelLine {
 		return ((this._metadata & 0xfffffffe) >> 1) - 1;
 	}
 
-	private _setPlusOneIndentLevel(value:number): void {
+	private _setPlusOneIndentLevel(value: number): void {
 		this._metadata = (this._metadata & 0x00000001) | ((value & 0xefffffff) << 1);
 	}
 
-	public updateTabSize(tabSize:number): void {
+	public updateTabSize(tabSize: number): void {
 		if (tabSize === 0) {
 			// don't care mark
 			this._metadata = this._metadata & 0x00000001;
@@ -138,13 +138,13 @@ export class ModelLine {
 		}
 	}
 
-	private _state:IState;
+	private _state: IState;
 	private _modeTransitions: ModeTransition[];
 	private _lineTokens: number[];
-	private _markers:ILineMarker[];
+	private _markers: ILineMarker[];
 
-	constructor(lineNumber:number, text:string, tabSize:number) {
-		this._lineNumber = lineNumber|0;
+	constructor(lineNumber: number, text: string, tabSize: number) {
+		this._lineNumber = lineNumber | 0;
 		this._metadata = 0;
 		this._setText(text, tabSize);
 		this._state = null;
@@ -173,7 +173,7 @@ export class ModelLine {
 
 	// --- BEGIN MODE TRANSITIONS
 
-	public getModeTransitions(topLevelModeId:string): ModeTransition[] {
+	public getModeTransitions(topLevelModeId: string): ModeTransition[] {
 		if (this._modeTransitions) {
 			return this._modeTransitions;
 		} else {
@@ -185,16 +185,16 @@ export class ModelLine {
 
 	// --- BEGIN TOKENS
 
-	public setTokens(map: TokensInflatorMap, tokens: Token[], modeTransitions:ModeTransition[]): void {
+	public setTokens(map: TokensInflatorMap, tokens: Token[], modeTransitions: ModeTransition[]): void {
 		this._lineTokens = toLineTokensFromInflated(map, tokens, this._text.length);
 		this._modeTransitions = toModeTransitions(map.topLevelModeId, modeTransitions);
 	}
 
-	private _setLineTokensFromDeflated(tokens:number[]): void {
+	private _setLineTokensFromDeflated(tokens: number[]): void {
 		this._lineTokens = toLineTokensFromDeflated(tokens, this._text.length);
 	}
 
-	public getTokens(map:TokensInflatorMap): LineTokens {
+	public getTokens(map: TokensInflatorMap): LineTokens {
 		const textLength = this._text.length;
 
 		let lineTokens = this._lineTokens;
@@ -222,7 +222,7 @@ export class ModelLine {
 		let tokensIndex = 0;
 		let currentTokenStartIndex = 0;
 
-		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number) => {
+		let adjust = (toColumn: number, delta: number, minimumAllowedColumn: number) => {
 			// console.log('before call: tokensIndex: ' + tokensIndex + ': ' + String(this.getTokens()));
 			// console.log('adjustTokens: ' + toColumn + ' with delta: ' + delta + ' and [' + minimumAllowedColumn + ']');
 			// console.log('currentTokenStartIndex: ' + currentTokenStartIndex);
@@ -262,7 +262,7 @@ export class ModelLine {
 			// console.log('after call: tokensIndex: ' + tokensIndex + ': ' + String(this.getTokens()));
 		};
 
-		let finish = (delta:number, lineTextLength:number) => {
+		let finish = (delta: number, lineTextLength: number) => {
 			adjust(Number.MAX_VALUE, delta, 1);
 		};
 
@@ -272,7 +272,7 @@ export class ModelLine {
 		};
 	}
 
-	private _setText(text:string, tabSize:number): void {
+	private _setText(text: string, tabSize: number): void {
 		this._text = text;
 		if (tabSize === 0) {
 			// don't care mark
@@ -319,7 +319,7 @@ export class ModelLine {
 	// 	return '[' + markers.map(printMarker).join(', ') + ']';
 	// }
 
-	private _createMarkersAdjuster(changedMarkers:IChangedMarkers): IMarkersAdjuster {
+	private _createMarkersAdjuster(changedMarkers: IChangedMarkers): IMarkersAdjuster {
 		if (!this._markers) {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
@@ -336,7 +336,7 @@ export class ModelLine {
 
 		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
-		let adjustMarkerBeforeColumn = (toColumn:number, moveSemantics:MarkerMoveSemantics) => {
+		let adjustMarkerBeforeColumn = (toColumn: number, moveSemantics: MarkerMoveSemantics) => {
 			if (marker.column < toColumn) {
 				return true;
 			}
@@ -352,7 +352,7 @@ export class ModelLine {
 			return marker.stickToPreviousCharacter;
 		};
 
-		let adjustDelta = (toColumn:number, delta:number, minimumAllowedColumn:number, moveSemantics:MarkerMoveSemantics) => {
+		let adjustDelta = (toColumn: number, delta: number, minimumAllowedColumn: number, moveSemantics: MarkerMoveSemantics) => {
 			// console.log('------------------------------');
 			// console.log('adjustDelta called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', moveSemantics: ' + MarkerMoveSemantics[moveSemantics]);
 			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
@@ -377,7 +377,7 @@ export class ModelLine {
 			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 		};
 
-		let adjustSet = (toColumn:number, newColumn:number, moveSemantics:MarkerMoveSemantics) => {
+		let adjustSet = (toColumn: number, newColumn: number, moveSemantics: MarkerMoveSemantics) => {
 			// console.log('------------------------------');
 			// console.log('adjustSet called: toColumn: ' + toColumn + ', newColumn: ' + newColumn + ', moveSemantics: ' + MarkerMoveSemantics[moveSemantics]);
 			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
@@ -399,7 +399,7 @@ export class ModelLine {
 			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 		};
 
-		let finish = (delta:number, lineTextLength:number) => {
+		let finish = (delta: number, lineTextLength: number) => {
 			adjustDelta(Number.MAX_VALUE, delta, 1, MarkerMoveSemantics.MarkerDefined);
 
 			// console.log('------------- FINAL MARKERS: ' + this._printMarkers());
@@ -412,7 +412,7 @@ export class ModelLine {
 		};
 	}
 
-	public applyEdits(changedMarkers: IChangedMarkers, edits:ILineEdit[], tabSize:number): number {
+	public applyEdits(changedMarkers: IChangedMarkers, edits: ILineEdit[], tabSize: number): number {
 		let deltaColumn = 0;
 		let resultText = this._text;
 
@@ -468,7 +468,7 @@ export class ModelLine {
 		return deltaColumn;
 	}
 
-	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean, tabSize:number): ModelLine {
+	public split(changedMarkers: IChangedMarkers, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
 		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this._text.substring(0, splitColumn - 1);
 		var otherText = this._text.substring(splitColumn - 1);
@@ -518,7 +518,7 @@ export class ModelLine {
 		return otherLine;
 	}
 
-	public append(changedMarkers: IChangedMarkers, other:ModelLine, tabSize:number): void {
+	public append(changedMarkers: IChangedMarkers, other: ModelLine, tabSize: number): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		var thisTextLength = this._text.length;
@@ -571,7 +571,7 @@ export class ModelLine {
 		}
 	}
 
-	public addMarker(marker:ILineMarker): void {
+	public addMarker(marker: ILineMarker): void {
 		marker.line = this;
 		if (!this._markers) {
 			this._markers = [marker];
@@ -580,13 +580,13 @@ export class ModelLine {
 		}
 	}
 
-	public addMarkers(markers:ILineMarker[]): void {
+	public addMarkers(markers: ILineMarker[]): void {
 		if (markers.length === 0) {
 			return;
 		}
 
-		var i:number,
-			len:number;
+		var i: number,
+			len: number;
 
 		for (i = 0, len = markers.length; i < len; i++) {
 			markers[i].line = this;
@@ -599,14 +599,14 @@ export class ModelLine {
 		}
 	}
 
-	private static _compareMarkers(a:ILineMarker, b:ILineMarker): number {
+	private static _compareMarkers(a: ILineMarker, b: ILineMarker): number {
 		if (a.column === b.column) {
 			return (a.stickToPreviousCharacter ? 0 : 1) - (b.stickToPreviousCharacter ? 0 : 1);
 		}
 		return a.column - b.column;
 	}
 
-	public removeMarker(marker:ILineMarker): void {
+	public removeMarker(marker: ILineMarker): void {
 		if (!this._markers) {
 			return;
 		}
@@ -620,7 +620,7 @@ export class ModelLine {
 		}
 	}
 
-	public removeMarkers(deleteMarkers: {[markerId:string]:boolean;}): void {
+	public removeMarkers(deleteMarkers: { [markerId: string]: boolean; }): void {
 		if (!this._markers) {
 			return;
 		}
@@ -664,7 +664,7 @@ export class ModelLine {
 		this._lineNumber = newLineNumber;
 	}
 
-	public deleteLine(changedMarkers: IChangedMarkers, setMarkersColumn:number, setMarkersOldLineNumber:number): ILineMarker[] {
+	public deleteLine(changedMarkers: IChangedMarkers, setMarkersColumn: number, setMarkersOldLineNumber: number): ILineMarker[] {
 		// console.log('--> deleteLine: ');
 		if (this._markers) {
 			var markers = this._markers,
@@ -687,7 +687,7 @@ export class ModelLine {
 		return [];
 	}
 
-	private _indexOfMarkerId(markerId:string): number {
+	private _indexOfMarkerId(markerId: string): number {
 		let markers = this._markers;
 		for (let i = 0, len = markers.length; i < len; i++) {
 			if (markers[i].id === markerId) {
@@ -697,7 +697,7 @@ export class ModelLine {
 	}
 }
 
-function toLineTokensFromInflated(map:TokensInflatorMap, tokens:Token[], textLength:number): number[] {
+function toLineTokensFromInflated(map: TokensInflatorMap, tokens: Token[], textLength: number): number[] {
 	if (textLength === 0) {
 		return null;
 	}
@@ -713,7 +713,7 @@ function toLineTokensFromInflated(map:TokensInflatorMap, tokens:Token[], textLen
 	return TokensBinaryEncoding.deflateArr(map, tokens);
 }
 
-function toLineTokensFromDeflated(tokens:number[], textLength:number): number[] {
+function toLineTokensFromDeflated(tokens: number[], textLength: number): number[] {
 	if (textLength === 0) {
 		return null;
 	}
@@ -728,7 +728,7 @@ function toLineTokensFromDeflated(tokens:number[], textLength:number): number[] 
 	return tokens;
 }
 
-function toModeTransitions(topLevelModeId:string, modeTransitions:ModeTransition[]): ModeTransition[] {
+function toModeTransitions(topLevelModeId: string, modeTransitions: ModeTransition[]): ModeTransition[] {
 
 	if (!modeTransitions || modeTransitions.length === 0) {
 		return null;

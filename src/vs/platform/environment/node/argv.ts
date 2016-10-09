@@ -31,6 +31,7 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	'list-extensions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'open-url'?: string | string[];
 }
 
 const options: minimist.Opts = {
@@ -43,7 +44,8 @@ const options: minimist.Opts = {
 		'install-extension',
 		'uninstall-extension',
 		'debugBrkPluginHost',
-		'debugPluginHost'
+		'debugPluginHost',
+		'open-url'
 	],
 	boolean: [
 		'help',
@@ -106,7 +108,7 @@ export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
  * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
  */
 export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
-	let [,, ...args] = processArgv;
+	let [, , ...args] = processArgv;
 
 	if (process.env['VSCODE_DEV']) {
 		args = stripAppPath(args);
@@ -146,7 +148,7 @@ export function formatOptions(options: { [name: string]: string; }, columns: num
 	let argLength = Math.max.apply(null, keys.map(k => k.length)) + 2/*left padding*/ + 1/*right padding*/;
 	if (columns - argLength < 25) {
 		// Use a condensed version on narrow terminals
-		return keys.reduce((r, key) => r.concat([`  ${ key }`, `      ${ options[key] }`]), []).join('\n');
+		return keys.reduce((r, key) => r.concat([`  ${key}`, `      ${options[key]}`]), []).join('\n');
 	}
 	let descriptionColumns = columns - argLength - 1;
 	let result = '';
@@ -164,7 +166,7 @@ export function formatOptions(options: { [name: string]: string; }, columns: num
 	return result;
 }
 
-function wrapText(text: string, columns: number) : string[] {
+function wrapText(text: string, columns: number): string[] {
 	let lines = [];
 	while (text.length) {
 		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
@@ -177,12 +179,12 @@ function wrapText(text: string, columns: number) : string[] {
 
 export function buildHelpMessage(fullName: string, name: string, version: string): string {
 	const columns = (<any>process.stdout).isTTY ? (<any>process.stdout).columns : 80;
-	const executable = `${ name }${ os.platform() === 'win32' ? '.exe' : '' }`;
+	const executable = `${name}${os.platform() === 'win32' ? '.exe' : ''}`;
 
-	return `${ fullName } ${ version }
+	return `${fullName} ${version}
 
-${ localize('usage', "Usage") }: ${ executable } [${ localize('options', "options") }] [${ localize('paths', 'paths') }...]
+${ localize('usage', "Usage")}: ${executable} [${localize('options', "options")}] [${localize('paths', 'paths')}...]
 
-${ localize('optionsUpperCase', "Options") }:
+${ localize('optionsUpperCase', "Options")}:
 ${formatOptions(optionsHelp, columns)}`;
 }

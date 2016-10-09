@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import vscode = require('vscode');
-import {ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape} from './extHost.protocol';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape } from './extHost.protocol';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
@@ -40,9 +40,11 @@ export class ExtHostTerminal implements vscode.Terminal {
 		if (this._processId) {
 			return Promise.resolve<number>(this._processId);
 		}
-		setTimeout(() => {
-			return this.processId;
-		}, 200);
+		return new Promise<number>((resolve) => {
+			setTimeout(() => {
+				this.processId.then(resolve);
+			}, 200);
+		});
 	}
 
 	public sendText(text: string, addNewLine: boolean = true): void {

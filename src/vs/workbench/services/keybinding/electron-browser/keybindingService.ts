@@ -5,26 +5,26 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {Keybinding} from 'vs/base/common/keybinding';
+import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Keybinding } from 'vs/base/common/keybinding';
 import * as platform from 'vs/base/common/platform';
-import {toDisposable} from 'vs/base/common/lifecycle';
-import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
-import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
-import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {IKeybindingRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {Registry} from 'vs/platform/platform';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ConfigWatcher} from 'vs/base/node/config';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { toDisposable } from 'vs/base/common/lifecycle';
+import { IExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { KeybindingService } from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IOSupport } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IKeybindingItem, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { Registry } from 'vs/platform/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { getNativeLabelProvider, getNativeAriaLabelProvider } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { ConfigWatcher } from 'vs/base/node/config';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface ContributedKeyBinding {
 	command: string;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 const _typeof = {
 	number: 'number',
@@ -33,7 +33,7 @@ export function isArray(array: any): array is any[] {
  * @returns whether the provided parameter is a JavaScript String or not.
  */
 export function isString(str: any): str is string {
-	if (typeof (str) === _typeof.string|| str instanceof String) {
+	if (typeof (str) === _typeof.string || str instanceof String) {
 		return true;
 	}
 

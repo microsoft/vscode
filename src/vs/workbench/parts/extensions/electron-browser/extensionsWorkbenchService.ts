@@ -9,17 +9,19 @@ import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
+import { LinkedMap as Map } from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
 import { isUUID } from 'vs/base/common/uuid';
-import { memoize } from 'vs/base/common/decorators';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import {
+	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType
+} from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionTelemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,7 +32,7 @@ import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { readFile } from 'vs/base/node/pfs';
 import { asText } from 'vs/base/node/request';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from './extensions';
+import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, IExtensionsConfiguration, ConfigurationKey } from './extensions';
 import { UpdateAllAction } from './extensionsActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
@@ -50,7 +52,7 @@ class Extension implements IExtension {
 		private stateProvider: IExtensionStateProvider,
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension = null
-	) {}
+	) { }
 
 	get type(): LocalExtensionType {
 		return this.local ? this.local.type : null;
@@ -157,26 +159,8 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.ratingCount : null;
 	}
 
-	isOutdated(): TPromise<boolean> {
-		if (this.type === LocalExtensionType.User) {
-			if (this.gallery && this.gallery.properties.engine) {
-				return this._loadCompatibleGalleryVersion().then(() => this.checkVersion(), () => this.checkVersion());
-			}
-			return TPromise.wrap(this.checkVersion());
-		}
-		return TPromise.wrap(false);
-	}
-
-	@memoize
-	private _loadCompatibleGalleryVersion(): TPromise<void> {
-		return this.galleryService.loadCompatibleVersion(this.gallery).then((compatible) => {
-			this.gallery = compatible;
-			return null;
-		}, error => this.checkVersion());
-	}
-
-	private checkVersion(): boolean {
-		return semver.gt(this.latestVersion, this.version);
+	get outdated(): boolean {
+		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
@@ -215,11 +199,11 @@ class Extension implements IExtension {
 		return this.galleryService.getAsset(readmeUrl).then(asText);
 	}
 
-	get hasChangelog() : boolean {
+	get hasChangelog(): boolean {
 		return !!(this.changelogUrl);
 	}
 
-	getChangelog() : TPromise<string> {
+	getChangelog(): TPromise<string> {
 		const changelogUrl = this.changelogUrl;
 
 		if (!changelogUrl) {
@@ -233,6 +217,35 @@ class Extension implements IExtension {
 		}
 
 		return TPromise.wrapError('not available');
+	}
+
+	get hasDependencies(): boolean {
+		const { local, gallery } = this;
+		if (gallery) {
+			return !!gallery.properties.dependencies.length;
+		}
+		return false;
+	}
+}
+
+class ExtensionDependencies implements IExtensionDependencies {
+
+	constructor(private _extension: Extension, private _map: Map<string, Extension>, private _dependent: IExtensionDependencies = null) { }
+
+	get hasDependencies(): boolean {
+		return this._extension.gallery.properties.dependencies.length > 0;
+	}
+
+	get extension(): IExtension {
+		return this._extension;
+	}
+
+	get dependent(): IExtensionDependencies {
+		return this._dependent;
+	}
+
+	get dependencies(): IExtensionDependencies[] {
+		return this._extension.gallery.properties.dependencies.map(d => new ExtensionDependencies(this._map.get(d), this._map, this));
 	}
 }
 
@@ -273,6 +286,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
 	private syncDelayer: ThrottledDelayer<void>;
+	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
 	private _onChange: Emitter<void> = new Emitter<void>();
@@ -296,6 +310,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		extensionService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
+		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
 
 		chain(urlService.onOpenURL)
 			.filter(uri => /^extension/.test(uri.path))
@@ -339,18 +354,49 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			});
 	}
 
+	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
+		if (!extension.hasDependencies) {
+			return TPromise.wrap(null);
+		}
+
+		return this.galleryService.getAllDependencies((<Extension>extension).gallery)
+			.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension)))
+			.then(extensions => {
+				const map = new Map<string, Extension>();
+				for (const extension of extensions) {
+					map.set(`${extension.publisher}.${extension.name}`, extension);
+				}
+				return new ExtensionDependencies(<Extension>extension, map);
+			});
+	}
+
+	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
+		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
+	}
+
 	private fromGallery(gallery: IGalleryExtension): Extension {
 		const installedByGalleryId = index(this.installed, e => e.local.metadata ? e.local.metadata.id : '');
 		const id = gallery.id;
 		const installed = installedByGalleryId[id];
 
 		if (installed) {
-			installed.gallery = gallery;
-			this._onChange.fire();
+			// Loading the compatible version only there is an engine property
+			// Otherwise falling back to old way so that we will not make many roundtrips
+			if (gallery.properties.engine) {
+				this.galleryService.loadCompatibleVersion(gallery).then(compatible => this.syncLocalWithGalleryExtension(installed, compatible));
+			} else {
+				this.syncLocalWithGalleryExtension(installed, gallery);
+			}
 			return installed;
 		}
 
 		return new Extension(this.galleryService, this.stateProvider, null, gallery);
+	}
+
+	private syncLocalWithGalleryExtension(local: Extension, gallery: IGalleryExtension) {
+		local.gallery = gallery;
+		this._onChange.fire();
+		this.eventuallyAutoUpdateExtensions();
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {
@@ -371,16 +417,28 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.as(null);
 		}
 
-		return this.queryGallery({ ids, pageSize: ids.length }).then(() => {
-			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+		return this.queryGallery({ ids, pageSize: ids.length }) as TPromise<any>;
+	}
 
-			if (!config.autoUpdate) {
-				return;
-			}
+	private eventuallyAutoUpdateExtensions(): void {
+		this.autoUpdateDelayer.trigger(() => this.autoUpdateExtensions())
+			.done(null, err => this.onError(err));
+	}
 
-			const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
-			return action.enabled && action.run();
-		});
+	private autoUpdateExtensions(): TPromise<void> {
+		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+
+		if (!config.autoUpdate) {
+			return TPromise.as(null);
+		}
+
+		const action = this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
+
+		if (!action.enabled) {
+			return TPromise.as(null);
+		}
+
+		return action.run(false);
 	}
 
 	canInstall(extension: IExtension): boolean {
@@ -391,7 +449,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return !!(extension as Extension).gallery;
 	}
 
-	install(extension: string | IExtension): TPromise<void> {
+	install(extension: string | IExtension, promptToInstallDependencies: boolean = true): TPromise<void> {
 		if (typeof extension === 'string') {
 			return this.extensionService.install(extension);
 		}
@@ -407,7 +465,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		return this.extensionService.installFromGallery(gallery);
+		return this.extensionService.installFromGallery(gallery, promptToInstallDependencies);
 	}
 
 	uninstall(extension: IExtension): TPromise<void> {
@@ -568,13 +626,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				}
 
 				const extension = result.firstPage[0];
-				this.openExtension(extension);
+				this.open(extension).done(null, error => this.onError(error));
 			});
-	}
-
-	private openExtension(extension: IExtension): void {
-		this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension))
-			.done(null, err => this.onError(err));
 	}
 
 	dispose(): void {

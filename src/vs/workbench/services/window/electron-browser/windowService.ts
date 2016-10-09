@@ -5,11 +5,11 @@
 
 'use strict';
 
-import {ElectronWindow} from 'vs/workbench/electron-browser/window';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import Event, {Emitter} from 'vs/base/common/event';
+import { ElectronWindow } from 'vs/workbench/electron-browser/window';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import Event, { Emitter } from 'vs/base/common/event';
 
-import {ipcRenderer as ipc, remote} from 'electron';
+import { ipcRenderer as ipc, remote } from 'electron';
 
 const windowId = remote.getCurrentWindow().id;
 

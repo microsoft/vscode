@@ -12,6 +12,8 @@ import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestContext } from 'vs/base/node/request';
 
+export const EXTENSION_IDENTIFIER_PATTERN = '^[a-z0-9A-Z][a-z0-9\-A-Z]*\\.[a-z0-9A-Z][a-z0-9\-A-Z]*$';
+
 export interface ICommand {
 	command: string;
 	title: string;
@@ -21,6 +23,7 @@ export interface ICommand {
 export interface IConfigurationProperty {
 	description: string;
 	type: string | string[];
+	default?: any;
 }
 
 export interface IConfiguration {
@@ -133,17 +136,12 @@ export interface IGalleryExtension {
 	ratingCount: number;
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
-	downloadHeaders: { [key: string]: string; };
-	/** We need this check until all extension in the market place contain engine property */
-	compatibilityChecked: boolean;
-	isCompatible: boolean;
 }
 
 export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
 	publisherDisplayName: string;
-	dependenciesInstalled: boolean;
 }
 
 export enum LocalExtensionType {
@@ -222,7 +220,7 @@ export interface IExtensionManagementService {
 	onDidUninstallExtension: Event<string>;
 
 	install(zipPath: string): TPromise<void>;
-	installFromGallery(extension: IGalleryExtension): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: ILocalExtension): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 }

@@ -6,12 +6,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
-import {addDisposableListener, addClass} from 'vs/base/browser/dom';
-import {isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { isLightTheme, isDarkTheme } from 'vs/platform/theme/common/themes';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -103,7 +103,10 @@ export default class Webview {
 		this._onDidClickLink.dispose();
 		this._onDidLoadContent.dispose();
 		this._disposables = dispose(this._disposables);
-		this._webview.parentElement.removeChild(this._webview);
+
+		if (this._webview.parentElement) {
+			this._webview.parentElement.removeChild(this._webview);
+		}
 	}
 
 	get onDidClickLink(): Event<URI> {
@@ -186,7 +189,7 @@ export default class Webview {
 
 			activeTheme = 'vscode-light';
 
-		} else if (isDarkTheme(themeId)){
+		} else if (isDarkTheme(themeId)) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(121, 121, 121, 0.4);

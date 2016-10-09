@@ -5,9 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {KeyCode as StandaloneKeyCode, Severity as StandaloneSeverity} from 'vs/editor/common/standalone/standaloneBase';
-import {KeyCode as RuntimeKeyCode} from 'vs/base/common/keyCodes';
-import {Keybinding} from 'vs/base/common/keybinding';
+import { KeyCode as StandaloneKeyCode, Severity as StandaloneSeverity } from 'vs/editor/common/standalone/standaloneBase';
+import { KeyCode as RuntimeKeyCode } from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keybinding';
 import RuntimeSeverity from 'vs/base/common/severity';
 
 suite('StandaloneBase', () => {
@@ -141,7 +141,7 @@ suite('KeyCode', () => {
 	test('getUserSettingsKeybindingRegex', () => {
 		let regex = new RegExp(Keybinding.getUserSettingsKeybindingRegex());
 
-		function testIsGood(userSettingsLabel:string, message:string = userSettingsLabel): void {
+		function testIsGood(userSettingsLabel: string, message: string = userSettingsLabel): void {
 			let userSettings = '"' + userSettingsLabel.replace(/\\/g, '\\\\') + '"';
 			let isGood = regex.test(userSettings);
 			assert.ok(isGood, message);

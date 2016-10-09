@@ -8,19 +8,19 @@ import 'vs/css!./findInput';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import {IMessage as InputBoxMessage, IInputValidator, InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
-import {Checkbox} from 'vs/base/browser/ui/checkbox/checkbox';
-import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
-import {Widget} from 'vs/base/browser/ui/widget';
-import Event, {Emitter} from 'vs/base/common/event';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import { IMessage as InputBoxMessage, IInputValidator, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { Widget } from 'vs/base/browser/ui/widget';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export interface IFindInputOptions {
-	placeholder?:string;
-	width?:number;
-	validation?:IInputValidator;
-	label:string;
+	placeholder?: string;
+	width?: number;
+	validation?: IInputValidator;
+	label: string;
 
 	appendCaseSensitiveLabel?: string;
 	appendWholeWordsLabel?: string;
@@ -34,19 +34,19 @@ const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
 export class FindInput extends Widget {
 
-	static OPTION_CHANGE:string = 'optionChange';
+	static OPTION_CHANGE: string = 'optionChange';
 
 	private contextViewProvider: IContextViewProvider;
-	private width:number;
-	private placeholder:string;
-	private validation:IInputValidator;
-	private label:string;
+	private width: number;
+	private placeholder: string;
+	private validation: IInputValidator;
+	private label: string;
 
-	private regex:Checkbox;
-	private wholeWords:Checkbox;
-	private caseSensitive:Checkbox;
+	private regex: Checkbox;
+	private wholeWords: Checkbox;
+	private caseSensitive: Checkbox;
 	public domNode: HTMLElement;
-	public inputBox:InputBox;
+	public inputBox: InputBox;
 
 	private _onDidOptionChange = this._register(new Emitter<boolean>());
 	public onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
@@ -63,7 +63,7 @@ export class FindInput extends Widget {
 	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
 
-	constructor(parent:HTMLElement, contextViewProvider: IContextViewProvider, options?:IFindInputOptions) {
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options?: IFindInputOptions) {
 		super();
 		this.contextViewProvider = contextViewProvider;
 		this.width = options.width || 100;
@@ -79,7 +79,7 @@ export class FindInput extends Widget {
 
 		this.buildDomNode(options.appendCaseSensitiveLabel || '', options.appendWholeWordsLabel || '', options.appendRegexLabel || '');
 
-		if(Boolean(parent)) {
+		if (Boolean(parent)) {
 			parent.appendChild(this.domNode);
 		}
 
@@ -104,7 +104,7 @@ export class FindInput extends Widget {
 		this.caseSensitive.disable();
 	}
 
-	public setEnabled(enabled:boolean): void {
+	public setEnabled(enabled: boolean): void {
 		if (enabled) {
 			this.enable();
 		} else {
@@ -118,7 +118,7 @@ export class FindInput extends Widget {
 		this.focus();
 	}
 
-	public setWidth(newWidth:number): void {
+	public setWidth(newWidth: number): void {
 		this.width = newWidth;
 		this.domNode.style.width = this.width + 'px';
 		this.contextViewProvider.layout();
@@ -129,7 +129,7 @@ export class FindInput extends Widget {
 		return this.inputBox.value;
 	}
 
-	public setValue(value:string): void {
+	public setValue(value: string): void {
 		if (this.inputBox.value !== value) {
 			this.inputBox.value = value;
 		}
@@ -143,29 +143,29 @@ export class FindInput extends Widget {
 		this.inputBox.focus();
 	}
 
-	public getCaseSensitive():boolean {
+	public getCaseSensitive(): boolean {
 		return this.caseSensitive.checked;
 	}
 
-	public setCaseSensitive(value:boolean): void {
+	public setCaseSensitive(value: boolean): void {
 		this.caseSensitive.checked = value;
 		this.setInputWidth();
 	}
 
-	public getWholeWords():boolean {
+	public getWholeWords(): boolean {
 		return this.wholeWords.checked;
 	}
 
-	public setWholeWords(value:boolean): void {
+	public setWholeWords(value: boolean): void {
 		this.wholeWords.checked = value;
 		this.setInputWidth();
 	}
 
-	public getRegex():boolean {
+	public getRegex(): boolean {
 		return this.regex.checked;
 	}
 
-	public setRegex(value:boolean): void {
+	public setRegex(value: boolean): void {
 		this.regex.checked = value;
 		this.setInputWidth();
 	}
@@ -179,7 +179,7 @@ export class FindInput extends Widget {
 		this.inputBox.width = w;
 	}
 
-	private buildDomNode(appendCaseSensitiveLabel:string, appendWholeWordsLabel: string, appendRegexLabel: string): void {
+	private buildDomNode(appendCaseSensitiveLabel: string, appendWholeWordsLabel: string, appendRegexLabel: string): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
 		dom.addClass(this.domNode, 'monaco-findInput');

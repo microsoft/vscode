@@ -12,6 +12,7 @@
 	color: white;
 	font-size: 12px;
 	padding: 0 10px;
+	overflow: hidden;
 }
 
 .monaco-workbench.no-workspace > .part.statusbar {

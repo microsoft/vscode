@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IViewlet} from 'vs/workbench/common/viewlet';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -39,12 +39,20 @@ export interface IExtension {
 	installCount: number;
 	rating: number;
 	ratingCount: number;
-	isOutdated(): TPromise<boolean>;
+	outdated: boolean;
+	hasDependencies: boolean;
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
-	hasChangelog : boolean;
-	getChangelog() : TPromise<string>;
+	hasChangelog: boolean;
+	getChangelog(): TPromise<string>;
+}
+
+export interface IExtensionDependencies {
+	dependencies: IExtensionDependencies[];
+	hasDependencies: boolean;
+	extension: IExtension;
+	dependent: IExtensionDependencies;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -59,8 +67,10 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
 	install(vsix: string): TPromise<void>;
-	install(extension: IExtension): TPromise<void>;
+	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
+	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 }
 
 export const ConfigurationKey = 'extensions';
@@ -68,15 +78,4 @@ export const ConfigurationKey = 'extensions';
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
 	recommendations: string[];
-}
-
-export function filterOutdatedExtensions(extensions: IExtension[]): TPromise<IExtension[]> {
-	const promises: TPromise<IExtension>[] = [];
-	for (const extension of extensions) {
-		if (extension.type === LocalExtensionType.User) {
-			promises.push(extension.isOutdated()
-				.then(outdated => outdated ? extension : null));
-		}
-	}
-	return TPromise.join(promises).then(outDated => outDated.filter(e => !!e));
 }

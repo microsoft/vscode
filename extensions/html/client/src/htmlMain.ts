@@ -6,9 +6,9 @@
 
 import * as path from 'path';
 
-import {languages, ExtensionContext, IndentAction} from 'vscode';
-import {LanguageClient, LanguageClientOptions, ServerOptions, TransportKind} from 'vscode-languageclient';
-import {EMPTY_ELEMENTS} from './htmlEmptyTagsShared';
+import { languages, ExtensionContext, IndentAction } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
+import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -50,7 +50,7 @@ export function activate(context: ExtensionContext) {
 
 	languages.setLanguageConfiguration('html', {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|('(?:[^\\\']*(?:\\.)?)*'?)|[^\s<>={}\[\],]+/,
-		onEnterRules:[
+		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
@@ -65,7 +65,22 @@ export function activate(context: ExtensionContext) {
 
 	languages.setLanguageConfiguration('handlebars', {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|('(?:[^\\\']*(?:\\.)?)*'?)|[^\s<>={}\[\],]+/,
-		onEnterRules:[
+		onEnterRules: [
+			{
+				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				action: { indentAction: IndentAction.IndentOutdent }
+			},
+			{
+				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				action: { indentAction: IndentAction.Indent }
+			}
+		],
+	});
+
+	languages.setLanguageConfiguration('razor', {
+		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|('(?:[^\\\']*(?:\\.)?)*'?)|[^\s<>={}\[\],]+/,
+		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,

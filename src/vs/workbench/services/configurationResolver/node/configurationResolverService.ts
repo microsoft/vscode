@@ -7,15 +7,15 @@ import nls = require('vs/nls');
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import uri from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {sequence} from 'vs/base/common/async';
-import {IStringDictionary} from 'vs/base/common/collections';
-import {IConfigurationResolverService} from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { sequence } from 'vs/base/common/async';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { asFileEditorInput } from 'vs/workbench/common/editor';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -130,10 +130,26 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private resolveConfigVariable(value: string, originalValue: string): string {
-		let regexp = /\$\{config\.(.*?)\}/g;
+		let regexp = /\$\{config\.(.+?)\}/g;
 		return value.replace(regexp, (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration();
-			let newValue = new Function('_', 'try {return _.' + name + ';} catch (ex) { return "";}')(config);
+			let newValue: any;
+			try {
+				const keys: string[] = name.split('.');
+				if (!keys || keys.length <= 0) {
+					return '';
+				}
+				while (keys.length > 1) {
+					const key = keys.shift();
+					if (!config || !config.hasOwnProperty(key)) {
+						return '';
+					}
+					config = config[key];
+				}
+				newValue = config && config.hasOwnProperty(keys[0]) ? config[keys[0]] : '';
+			} catch (e) {
+				return '';
+			}
 			if (types.isString(newValue)) {
 				// Prevent infinite recursion and also support nested references (or tokens)
 				return newValue === originalValue ? '' : this.resolveString(newValue);
@@ -174,7 +190,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	/**
 	 * Resolve all interactive variables in configuration #6569
 	 */
-	public resolveInteractiveVariables(configuration: any, interactiveVariablesMap: { [key: string]: string }): TPromise<any>  {
+	public resolveInteractiveVariables(configuration: any, interactiveVariablesMap: { [key: string]: string }): TPromise<any> {
 		if (!configuration) {
 			return TPromise.as(null);
 		}

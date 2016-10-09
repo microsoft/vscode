@@ -6,24 +6,24 @@
 'use strict';
 
 import 'vs/css!./media/gotoSymbolHandler';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
-import {IEntryRunContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
+import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { TextEditorOptions, EditorOptions } from 'vs/workbench/common/editor';
 import filters = require('vs/base/common/filters');
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
-import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {DocumentSymbolProviderRegistry, SymbolInformation, SymbolKind} from 'vs/editor/common/modes';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
+import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { DocumentSymbolProviderRegistry, SymbolInformation, SymbolKind } from 'vs/editor/common/modes';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -31,7 +31,7 @@ export const SCOPE_PREFIX = ':';
 export class GotoSymbolAction extends QuickOpenAction {
 
 	public static ID = 'workbench.action.gotoSymbol';
-	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol...");
+	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);

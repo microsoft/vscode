@@ -6,11 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
-import {MainThreadCommandsShape} from 'vs/workbench/api/node/extHost.protocol';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {OneGetThreadService} from './testThreadService';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { OneGetThreadService } from './testThreadService';
 
 suite('ExtHostCommands', function () {
 

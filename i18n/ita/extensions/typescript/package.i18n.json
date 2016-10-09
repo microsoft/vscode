@@ -16,6 +16,8 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "Consente di definire se una parentesi graffa di apertura viene o meno inserita su una riga per le funzioni",
 	"javascript.reloadProjects.title": "Ricarica progetto JavaScript",
 	"javascript.validate.enable": "Abilita/Disabilita la convalida JavaScript",
+	"typescript.check.tscVersion": "Verifica se un compilatore TypeScript di installazione globale, ad esempio tsc, è diverso dal servizio di linguaggio TypeScript usato.",
+	"typescript.check.workspaceVersion": "Verifica se nell'area di lavoro è disponibile una versione di TypeScript",
 	"typescript.reloadProjects.title": "Ricarica progetto TypeScript",
 	"typescript.tsdk.desc": "Specifica il percorso della cartella che contiene i file tsserver e lib*.d.ts da usare.",
 	"typescript.tsdk_version.desc": "Specifica la versione di tsserver. È necessario solo se tsserver non viene installato con npm.",

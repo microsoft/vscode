@@ -17,7 +17,7 @@ export interface IMonarchLanguage {
 	/**
 	 * map from string to ILanguageRule[]
 	 */
-	tokenizer: {[name:string]:IMonarchLanguageRule[]};
+	tokenizer: { [name: string]: IMonarchLanguageRule[] };
 	/**
 	 * is the language case insensitive?
 	 */
@@ -49,7 +49,7 @@ export interface IMonarchLanguageRule {
 	/**
 	 * match tokens
 	 */
-	regex?: string|RegExp;
+	regex?: string | RegExp;
 	/**
 	 * action to take on match
 	 */

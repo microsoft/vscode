@@ -432,7 +432,7 @@ declare namespace Electron {
 		dock: Dock;
 	}
 
-	type AppPathName = 'home'|'appData'|'userData'|'temp'|'exe'|'module'|'desktop'|'documents'|'downloads'|'music'|'pictures'|'videos'|'pepperFlashSystemPlugin';
+	type AppPathName = 'home' | 'appData' | 'userData' | 'temp' | 'exe' | 'module' | 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos' | 'pepperFlashSystemPlugin';
 
 	interface ImportCertificateOptions {
 		/**
@@ -1653,7 +1653,7 @@ declare namespace Electron {
 		/**
 		 * The window icon, when omitted on Windows the executable’s icon would be used as window icon.
 		 */
-		icon?: NativeImage|string;
+		icon?: NativeImage | string;
 		/**
 		 * Whether window should be shown when created.
 		 * Default: true.
@@ -1982,7 +1982,7 @@ declare namespace Electron {
 		 * An object you can define that will be sent along with the report.
 		 * Only string properties are sent correctly, nested objects are not supported.
 		 */
-		extra?: {[prop: string]: string};
+		extra?: { [prop: string]: string };
 	}
 
 	interface CrashReport {
@@ -2478,7 +2478,7 @@ declare namespace Electron {
 		 * In Electron for the APIs that take images, you can pass either file paths
 		 * or NativeImage instances. When passing null, an empty image will be used.
 		 */
-		icon?: NativeImage|string;
+		icon?: NativeImage | string;
 		/**
 		 * If false, the menu item will be greyed out and unclickable.
 		 */
@@ -2495,7 +2495,7 @@ declare namespace Electron {
 		 * Should be specified for submenu type menu item, when it's specified the
 		 * type: 'submenu' can be omitted for the menu item
 		 */
-		submenu?: Menu|MenuItemOptions[];
+		submenu?: Menu | MenuItemOptions[];
 		/**
 		 * Unique within a single menu. If defined then it can be used as a reference
 		 * to this item by the position attribute.
@@ -3620,7 +3620,7 @@ declare namespace Electron {
 		/**
 		 * Creates a new tray icon associated with the image.
 		 */
-		new(image: NativeImage|string): Tray;
+		new (image: NativeImage | string): Tray;
 		/**
 		 * Destroys the tray icon immediately.
 		 */
@@ -3628,7 +3628,7 @@ declare namespace Electron {
 		/**
 		 * Sets the image associated with this tray icon.
 		 */
-		setImage(image: NativeImage|string): void;
+		setImage(image: NativeImage | string): void;
 		/**
 		 * Sets the image associated with this tray icon when pressed.
 		 */
@@ -4440,7 +4440,7 @@ declare namespace Electron {
 	 */
 	type StopFindInPageAtion = 'clearSelection' | 'keepSelection' | 'activateSelection';
 
-	type CursorType = 'default' | 'crosshair' | 'pointer' | 'text' | 'wait' | 'help' | 'e-resize' | 'n-resize' | 'ne-resize' | 'nw-resize' | 's-resize' | 'se-resize' | 'sw-resize' | 'w-resize' | 'ns-resize' | 'ew-resize' | 'nesw-resize' | 'nwse-resize' | 'col-resize' | 'row-resize' | 'm-panning' | 'e-panning' | 'n-panning' | 'ne-panning' | 'nw-panning' | 's-panning' | 'se-panning' |'sw-panning' | 'w-panning' | 'move' | 'vertical-text' | 'cell' | 'context-menu' | 'alias' | 'progress' | 'nodrop' | 'copy' | 'none' | 'not-allowed' | 'zoom-in' | 'zoom-out' | 'grab' | 'grabbing' | 'custom';
+	type CursorType = 'default' | 'crosshair' | 'pointer' | 'text' | 'wait' | 'help' | 'e-resize' | 'n-resize' | 'ne-resize' | 'nw-resize' | 's-resize' | 'se-resize' | 'sw-resize' | 'w-resize' | 'ns-resize' | 'ew-resize' | 'nesw-resize' | 'nwse-resize' | 'col-resize' | 'row-resize' | 'm-panning' | 'e-panning' | 'n-panning' | 'ne-panning' | 'nw-panning' | 's-panning' | 'se-panning' | 'sw-panning' | 'w-panning' | 'move' | 'vertical-text' | 'cell' | 'context-menu' | 'alias' | 'progress' | 'nodrop' | 'copy' | 'none' | 'not-allowed' | 'zoom-in' | 'zoom-out' | 'grab' | 'grabbing' | 'custom';
 
 	interface LoadURLOptions {
 		/**
@@ -5256,23 +5256,23 @@ declare namespace Electron {
 	namespace WebViewElement {
 		type Event = ElectronPrivate.GlobalEvent;
 
-		interface LoadCommitEvent extends Event  {
+		interface LoadCommitEvent extends Event {
 			url: string;
 			isMainFrame: boolean;
 		}
 
-		interface DidFailLoadEvent extends Event  {
+		interface DidFailLoadEvent extends Event {
 			errorCode: number;
 			errorDescription: string;
 			validatedURL: string;
 			isMainFrame: boolean;
 		}
 
-		interface DidFrameFinishLoadEvent extends Event  {
+		interface DidFrameFinishLoadEvent extends Event {
 			isMainFrame: boolean;
 		}
 
-		interface DidGetResponseDetails extends Event  {
+		interface DidGetResponseDetails extends Event {
 			status: boolean;
 			newURL: string;
 			originalURL: string;

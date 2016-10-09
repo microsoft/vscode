@@ -5,15 +5,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IENarratorTextAreaState, ISimpleModel, TextAreaState} from 'vs/editor/common/controller/textAreaState';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IRange} from 'vs/editor/common/editorCommon';
-import {MockTextAreaWrapper} from 'vs/editor/test/common/mocks/mockTextAreaWrapper';
+import { IENarratorTextAreaState, ISimpleModel, TextAreaState } from 'vs/editor/common/controller/textAreaState';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference, IRange } from 'vs/editor/common/editorCommon';
+import { MockTextAreaWrapper } from 'vs/editor/test/common/mocks/mockTextAreaWrapper';
 
 suite('TextAreaState', () => {
 
-	function assertTextAreaState(actual:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean, selectionToken:number): void {
+	function assertTextAreaState(actual: TextAreaState, value: string, selectionStart: number, selectionEnd: number, isInOverwriteMode: boolean, selectionToken: number): void {
 		let desired = new IENarratorTextAreaState(null, value, selectionStart, selectionEnd, isInOverwriteMode, selectionToken);
 		assert.ok(desired.equals(actual), desired.toString() + ' == ' + actual.toString());
 	}
@@ -67,7 +67,7 @@ suite('TextAreaState', () => {
 		textArea.dispose();
 	});
 
-	function testDeduceInput(prevState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode: boolean, expected:string, expectedCharReplaceCnt: number): void {
+	function testDeduceInput(prevState: TextAreaState, value: string, selectionStart: number, selectionEnd: number, isInOverwriteMode: boolean, expected: string, expectedCharReplaceCnt: number): void {
 		let textArea = new MockTextAreaWrapper();
 		textArea._value = value;
 		textArea._selectionStart = selectionStart;
@@ -356,7 +356,7 @@ suite('TextAreaState', () => {
 		);
 	});
 
-	function testFromEditorSelectionAndPreviousState(eol:string, lines:string[], range:Range, prevSelectionToken:number): TextAreaState {
+	function testFromEditorSelectionAndPreviousState(eol: string, lines: string[], range: Range, prevSelectionToken: number): TextAreaState {
 		let model = new SimpleModel(lines, eol);
 		let previousState = new IENarratorTextAreaState(null, '', 0, 0, false, prevSelectionToken);
 		return previousState.fromEditorSelection(model, range);
@@ -366,7 +366,7 @@ suite('TextAreaState', () => {
 		let actual = testFromEditorSelectionAndPreviousState('\n', [
 			'Just a line',
 			'And another line'
-		], new Range(1,1,1,1), 0);
+		], new Range(1, 1, 1, 1), 0);
 		assertTextAreaState(actual, 'Just a line', 0, 11, false, 1);
 	});
 
@@ -375,7 +375,7 @@ suite('TextAreaState', () => {
 			'Just a line',
 			'And another line',
 			'And yet another line',
-		], new Range(2,1,2,1), 0);
+		], new Range(2, 1, 2, 1), 0);
 		assertTextAreaState(actual, 'And another line', 0, 16, false, 2);
 	});
 
@@ -388,7 +388,7 @@ suite('TextAreaState', () => {
 			'Just a line',
 			aLongLine,
 			'And yet another line',
-		], new Range(2,500,2,500), 0);
+		], new Range(2, 500, 2, 500), 0);
 		assertTextAreaState(actual, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 0, 201, false, 2);
 	});
 
@@ -401,7 +401,7 @@ suite('TextAreaState', () => {
 			'Just a line',
 			aLongLine,
 			'And yet another line',
-		], new Range(2,500,2,500), 2);
+		], new Range(2, 500, 2, 500), 2);
 		assertTextAreaState(actual, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 100, 100, false, 2);
 	});
 });
@@ -411,16 +411,16 @@ class SimpleModel implements ISimpleModel {
 	private _lines: string[];
 	private _eol: string;
 
-	constructor(lines:string[], eol:string) {
+	constructor(lines: string[], eol: string) {
 		this._lines = lines;
 		this._eol = eol;
 	}
 
-	public getLineMaxColumn(lineNumber:number): number {
+	public getLineMaxColumn(lineNumber: number): number {
 		return this._lines[lineNumber - 1].length + 1;
 	}
 
-	private _getEndOfLine(eol:EndOfLinePreference): string {
+	private _getEndOfLine(eol: EndOfLinePreference): string {
 		switch (eol) {
 			case EndOfLinePreference.LF:
 				return '\n';
@@ -436,7 +436,7 @@ class SimpleModel implements ISimpleModel {
 		return this._eol;
 	}
 
-	public getValueInRange(range:IRange, eol:EndOfLinePreference): string {
+	public getValueInRange(range: IRange, eol: EndOfLinePreference): string {
 		if (Range.isEmpty(range)) {
 			return '';
 		}
@@ -448,7 +448,7 @@ class SimpleModel implements ISimpleModel {
 		var lineEnding = this._getEndOfLine(eol),
 			startLineIndex = range.startLineNumber - 1,
 			endLineIndex = range.endLineNumber - 1,
-			resultLines:string[] = [];
+			resultLines: string[] = [];
 
 		resultLines.push(this._lines[startLineIndex].substring(range.startColumn - 1));
 		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
@@ -459,7 +459,7 @@ class SimpleModel implements ISimpleModel {
 		return resultLines.join(lineEnding);
 	}
 
-	public getModelLineContent(lineNumber:number): string {
+	public getModelLineContent(lineNumber: number): string {
 		return this._lines[lineNumber - 1];
 	}
 
@@ -467,7 +467,7 @@ class SimpleModel implements ISimpleModel {
 		return this._lines.length;
 	}
 
-	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): Position {
+	public convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
 		return new Position(viewLineNumber, viewColumn);
 	}
 }

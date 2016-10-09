@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {Color} from 'vs/base/common/color';
+import { Color } from 'vs/base/common/color';
 import * as assert from 'assert';
 
 suite('Color', () => {

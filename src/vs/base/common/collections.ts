@@ -115,7 +115,7 @@ export function forEach<T>(from: INumberDictionary<T>, callback: (entry: { key: 
 export function forEach<T>(from: any, callback: (entry: { key: any; value: T; }, remove: Function) => any): void {
 	for (var key in from) {
 		if (hasOwnProperty.call(from, key)) {
-			const result = callback({ key: key, value: from[key] }, function() {
+			const result = callback({ key: key, value: from[key] }, function () {
 				delete from[key];
 			});
 			if (result === false) {

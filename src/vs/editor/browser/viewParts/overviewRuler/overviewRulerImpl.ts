@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone} from 'vs/editor/common/editorCommon';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone } from 'vs/editor/common/editorCommon';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
-import {OverviewZoneManager} from 'vs/editor/common/view/overviewZoneManager';
+import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
 
 export class OverviewRulerImpl {
 
@@ -16,13 +16,13 @@ export class OverviewRulerImpl {
 
 	private _canvasLeftOffset: number;
 	private _domNode: HTMLCanvasElement;
-	private _lanesCount:number;
+	private _lanesCount: number;
 	private _zoneManager: OverviewZoneManager;
 	private _canUseTranslate3d: boolean;
 
 	private _zoomListener: IDisposable;
 
-	constructor(canvasLeftOffset:number, cssClassName:string, scrollHeight:number, lineHeight:number, canUseTranslate3d:boolean, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number, canUseTranslate3d: boolean, minimumHeight: number, maximumHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
 		this._canvasLeftOffset = canvasLeftOffset;
 
 		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
@@ -58,7 +58,7 @@ export class OverviewRulerImpl {
 		this._zoneManager = null;
 	}
 
-	public setLayout(position:OverviewRulerPosition, render:boolean): void {
+	public setLayout(position: OverviewRulerPosition, render: boolean): void {
 		StyleMutator.setTop(this._domNode, position.top);
 		StyleMutator.setRight(this._domNode, position.right);
 
@@ -82,7 +82,7 @@ export class OverviewRulerImpl {
 		return this._lanesCount;
 	}
 
-	public setLanesCount(newLanesCount:number, render:boolean): void {
+	public setLanesCount(newLanesCount: number, render: boolean): void {
 		this._lanesCount = newLanesCount;
 
 		if (render) {
@@ -90,7 +90,7 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setUseDarkColor(useDarkColor:boolean, render:boolean): void {
+	public setUseDarkColor(useDarkColor: boolean, render: boolean): void {
 		this._zoneManager.setUseDarkColor(useDarkColor);
 
 		if (render) {
@@ -110,35 +110,35 @@ export class OverviewRulerImpl {
 		return this._zoneManager.getCanvasHeight();
 	}
 
-	public setScrollHeight(scrollHeight:number, render:boolean): void {
+	public setScrollHeight(scrollHeight: number, render: boolean): void {
 		this._zoneManager.setOuterHeight(scrollHeight);
 		if (render) {
 			this.render(true);
 		}
 	}
 
-	public setLineHeight(lineHeight:number, render:boolean): void {
+	public setLineHeight(lineHeight: number, render: boolean): void {
 		this._zoneManager.setLineHeight(lineHeight);
 		if (render) {
 			this.render(true);
 		}
 	}
 
-	public setCanUseTranslate3d(canUseTranslate3d:boolean, render:boolean): void {
+	public setCanUseTranslate3d(canUseTranslate3d: boolean, render: boolean): void {
 		this._canUseTranslate3d = canUseTranslate3d;
 		if (render) {
 			this.render(true);
 		}
 	}
 
-	public setZones(zones:OverviewRulerZone[], render:boolean): void {
+	public setZones(zones: OverviewRulerZone[], render: boolean): void {
 		this._zoneManager.setZones(zones);
 		if (render) {
 			this.render(false);
 		}
 	}
 
-	public render(forceRender:boolean): boolean {
+	public render(forceRender: boolean): boolean {
 		if (!OverviewRulerImpl.hasCanvas) {
 			return false;
 		}
@@ -158,7 +158,7 @@ export class OverviewRulerImpl {
 		let id2Color = this._zoneManager.getId2Color();
 
 		let ctx = this._domNode.getContext('2d');
-		ctx.clearRect (0, 0, width, height);
+		ctx.clearRect(0, 0, width, height);
 
 		if (colorZones.length > 0) {
 			let remainingWidth = width - this._canvasLeftOffset;
@@ -175,13 +175,13 @@ export class OverviewRulerImpl {
 		return true;
 	}
 
-	private _renderOneLane(ctx:CanvasRenderingContext2D, colorZones:ColorZone[], id2Color:string[], w:number): void {
+	private _renderOneLane(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
 
 		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Left | OverviewRulerLane.Center | OverviewRulerLane.Right, this._canvasLeftOffset, w);
 
 	}
 
-	private _renderTwoLanes(ctx:CanvasRenderingContext2D, colorZones:ColorZone[], id2Color:string[], w:number): void {
+	private _renderTwoLanes(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
 
 		let leftWidth = Math.floor(w / 2);
 		let rightWidth = w - leftWidth;
@@ -192,7 +192,7 @@ export class OverviewRulerImpl {
 		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Right, rightOffset, rightWidth);
 	}
 
-	private _renderThreeLanes(ctx:CanvasRenderingContext2D, colorZones:ColorZone[], id2Color:string[], w:number): void {
+	private _renderThreeLanes(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
 
 		let leftWidth = Math.floor(w / 3);
 		let rightWidth = Math.floor(w / 3);
@@ -206,7 +206,7 @@ export class OverviewRulerImpl {
 		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Right, rightOffset, rightWidth);
 	}
 
-	private _renderVerticalPatch(ctx:CanvasRenderingContext2D, colorZones:ColorZone[], id2Color:string[], laneMask:number, xpos:number, width:number): void {
+	private _renderVerticalPatch(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], laneMask: number, xpos: number, width: number): void {
 
 		let currentColorId = 0;
 		let currentFrom = 0;
@@ -224,7 +224,7 @@ export class OverviewRulerImpl {
 			let zoneTo = zone.to;
 
 			if (zoneColorId !== currentColorId) {
-				ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
+				ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
 
 				currentColorId = zoneColorId;
 				ctx.fillStyle = id2Color[currentColorId];
@@ -234,14 +234,14 @@ export class OverviewRulerImpl {
 				if (currentTo >= zoneFrom) {
 					currentTo = Math.max(currentTo, zoneTo);
 				} else {
-					ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
+					ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
 					currentFrom = zoneFrom;
 					currentTo = zoneTo;
 				}
 			}
 		}
 
-		ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
+		ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
 
 	}
 }

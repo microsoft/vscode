@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import {BinaryKeybindings, KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
-import {IOSupport, KeybindingResolver, NormalizedKeybindingItem} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IKeybindingItem} from 'vs/platform/keybinding/common/keybinding';
-import {ContextKeyAndExpr, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { BinaryKeybindings, KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { IOSupport, KeybindingResolver, NormalizedKeybindingItem } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IKeybindingItem } from 'vs/platform/keybinding/common/keybinding';
+import { ContextKeyAndExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 suite('Keybinding Service', () => {
 
-	test('resolve key', function() {
+	test('resolve key', function () {
 		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
 		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem: IKeybindingItem = {
@@ -31,7 +31,7 @@ suite('Keybinding Service', () => {
 		assert.equal(resolver.resolve({ bar: 'bz' }, 0, keybinding), null);
 	});
 
-	test('KbAndExpression.equals', function() {
+	test('KbAndExpression.equals', function () {
 		let a = ContextKeyExpr.and(
 			ContextKeyExpr.has('a1'),
 			ContextKeyExpr.and(ContextKeyExpr.has('and.a')),
@@ -57,15 +57,15 @@ suite('Keybinding Service', () => {
 		assert(a.equals(b), 'expressions should be equal');
 	});
 
-	test('KeybindingResolver.combine simple 1', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine simple 1', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: 'yes2',
 			when: ContextKeyExpr.equals('2', 'b'),
 			keybinding: KeyCode.KEY_B,
@@ -79,8 +79,8 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('KeybindingResolver.combine simple 2', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine simple 2', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -93,7 +93,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: 'yes3',
 			when: ContextKeyExpr.equals('3', 'c'),
 			keybinding: KeyCode.KEY_C,
@@ -108,8 +108,8 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with not matching when', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with not matching when', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -122,7 +122,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: ContextKeyExpr.equals('1', 'b'),
 			keybinding: KeyCode.KEY_A,
@@ -136,8 +136,8 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with not matching keybinding', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with not matching keybinding', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -150,7 +150,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_B,
@@ -164,8 +164,8 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with matching keybinding and when', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with matching keybinding and when', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -178,7 +178,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -191,8 +191,8 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified keybinding', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with unspecified keybinding', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -205,7 +205,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: 0,
@@ -218,8 +218,8 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified when', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with unspecified when', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -232,7 +232,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: null,
 			keybinding: KeyCode.KEY_A,
@@ -245,8 +245,8 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('KeybindingResolver.combine removal with unspecified when and unspecified keybinding', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('KeybindingResolver.combine removal with unspecified when and unspecified keybinding', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: 'yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -259,7 +259,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: null,
 			keybinding: 0,
@@ -272,8 +272,8 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function() {
-		let defaults:IKeybindingItem[] = [{
+	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function () {
+		let defaults: IKeybindingItem[] = [{
 			command: '^yes1',
 			when: ContextKeyExpr.equals('1', 'a'),
 			keybinding: KeyCode.KEY_A,
@@ -286,7 +286,7 @@ suite('Keybinding Service', () => {
 			weight1: 0,
 			weight2: 0
 		}];
-		let overrides:IKeybindingItem[] = [{
+		let overrides: IKeybindingItem[] = [{
 			command: '-yes1',
 			when: null,
 			keybinding: KeyCode.KEY_A,
@@ -299,7 +299,7 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
-	test('normalizeRule', function() {
+	test('normalizeRule', function () {
 		let key1IsTrue = ContextKeyExpr.equals('key1', true);
 		let key1IsNotFalse = ContextKeyExpr.notEquals('key1', false);
 		let key1IsFalse = ContextKeyExpr.equals('key1', false);
@@ -311,7 +311,7 @@ suite('Keybinding Service', () => {
 		assert.ok(key1IsNotTrue.normalize().equals(ContextKeyExpr.not('key1')));
 	});
 
-	test('contextIsEntirelyIncluded', function() {
+	test('contextIsEntirelyIncluded', function () {
 		let assertIsIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
 			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new ContextKeyAndExpr(a), new ContextKeyAndExpr(b)), true);
 		};
@@ -363,7 +363,7 @@ suite('Keybinding Service', () => {
 		assertIsNotIncluded(null, [key2IsTrue]);
 	});
 
-	test('resolve command', function() {
+	test('resolve command', function () {
 
 		let items: IKeybindingItem[] = [
 			// This one will never match because its "when" is always overwritten by another one
@@ -536,7 +536,7 @@ suite('Keybinding Service', () => {
 		testKey('sixth', []);
 	});
 
-	test('contextMatchesRules', function() {
+	test('contextMatchesRules', function () {
 		/* tslint:disable:triple-equals */
 		let context = {
 			'a': true,

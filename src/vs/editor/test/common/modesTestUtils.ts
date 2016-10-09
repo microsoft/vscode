@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Arrays} from 'vs/editor/common/core/arrays';
+import { Arrays } from 'vs/editor/common/core/arrays';
 import * as modes from 'vs/editor/common/modes';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {Token} from 'vs/editor/common/core/token';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
+import { Token } from 'vs/editor/common/core/token';
 
 export interface TokenText {
 	text: string;
@@ -19,7 +19,7 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 	let processedTokens: Token[] = [];
 
 	let indexSoFar = 0;
-	for (let i = 0; i < tokens.length; ++i){
+	for (let i = 0; i < tokens.length; ++i) {
 		processedTokens.push(new Token(indexSoFar, tokens[i].type));
 		line += tokens[i].text;
 		indexSoFar += tokens[i].text.length;
@@ -28,17 +28,17 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 	return new TestLineContext(line, processedTokens, null);
 }
 
-export function createMockLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
+export function createMockLineContext(line: string, tokens: modes.ILineTokens): modes.ILineContext {
 	return new TestLineContext(line, tokens.tokens, tokens.modeTransitions);
 }
 
 class TestLineContext implements modes.ILineContext {
 
 	public modeTransitions: ModeTransition[];
-	private _line:string;
+	private _line: string;
 	private _tokens: Token[];
 
-	constructor(line:string, tokens: Token[], modeTransitions:ModeTransition[]) {
+	constructor(line: string, tokens: Token[], modeTransitions: ModeTransition[]) {
 		this.modeTransitions = modeTransitions;
 		this._line = line;
 		this._tokens = tokens;
@@ -52,15 +52,15 @@ class TestLineContext implements modes.ILineContext {
 		return this._tokens.length;
 	}
 
-	public getTokenStartOffset(tokenIndex:number): number {
+	public getTokenStartOffset(tokenIndex: number): number {
 		return this._tokens[tokenIndex].startIndex;
 	}
 
-	public getTokenType(tokenIndex:number): string {
+	public getTokenType(tokenIndex: number): string {
 		return this._tokens[tokenIndex].type;
 	}
 
-	public findIndexOfOffset(offset:number): number {
+	public findIndexOfOffset(offset: number): number {
 		return Arrays.findIndexInSegmentsArray(this._tokens, offset);
 	}
 }

@@ -5,12 +5,12 @@
 
 'use strict';
 
-import {KeyCode, KeyCodeUtils, KeyMod} from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
-let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
-(function() {
+let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
+(function () {
 	KEY_CODE_MAP[3] = KeyCode.PauseBreak; // VK_CANCEL 0x03 Control-break processing
 	KEY_CODE_MAP[8] = KeyCode.Backspace;
 	KEY_CODE_MAP[9] = KeyCode.Tab;
@@ -148,11 +148,11 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	}
 })();
 
-export function lookupKeyCode(e:KeyboardEvent): KeyCode {
+export function lookupKeyCode(e: KeyboardEvent): KeyCode {
 	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
 }
 
-let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
+let extractKeyCode = function extractKeyCode(e: KeyboardEvent): KeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
@@ -161,13 +161,13 @@ let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
 	return lookupKeyCode(e);
 };
 
-export function setExtractKeyCode(newExtractKeyCode:(e:KeyboardEvent)=>KeyCode): void {
+export function setExtractKeyCode(newExtractKeyCode: (e: KeyboardEvent) => KeyCode): void {
 	extractKeyCode = newExtractKeyCode;
 }
 
 export interface IKeyboardEvent {
-	browserEvent:KeyboardEvent;
-	target:HTMLElement;
+	browserEvent: KeyboardEvent;
+	target: HTMLElement;
 
 	ctrlKey: boolean;
 	shiftKey: boolean;
@@ -176,7 +176,7 @@ export interface IKeyboardEvent {
 	keyCode: KeyCode;
 
 	asKeybinding(): number;
-	equals(keybinding:number): boolean;
+	equals(keybinding: number): boolean;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -200,7 +200,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	private _asKeybinding: number;
 
-	constructor(source:KeyboardEvent) {
+	constructor(source: KeyboardEvent) {
 		let e = <KeyboardEvent>source;
 
 		this.browserEvent = e;
@@ -238,7 +238,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		return this._asKeybinding;
 	}
 
-	public equals(other:number): boolean {
+	public equals(other: number): boolean {
 		return (this._asKeybinding === other);
 	}
 

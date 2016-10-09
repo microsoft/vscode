@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {localize} from 'vs/nls';
-import lifecycle = require('vs/base/common/lifecycle');
+import { localize } from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import Constants from 'vs/workbench/parts/markers/common/constants';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -18,8 +18,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import * as markersPanelActions from 'vs/workbench/parts/markers/browser/markersPanelActions';
 
-class StatusUpdater implements IWorkbenchContribution
-{
+class StatusUpdater implements IWorkbenchContribution {
 	static ID = 'vs.markers.statusUpdater';
 
 	private toDispose: lifecycle.IDisposable[];

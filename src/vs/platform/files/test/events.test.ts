@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import * as Paths from 'vs/base/common/paths';
 import * as Files from 'vs/platform/files/common/files';
-import {Event, PropertyChangeEvent} from 'vs/base/common/events';
+import { Event, PropertyChangeEvent } from 'vs/base/common/events';
 
 let FileChangesEvent = Files.FileChangesEvent;
 

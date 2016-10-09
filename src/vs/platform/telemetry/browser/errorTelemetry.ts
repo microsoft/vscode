@@ -5,12 +5,12 @@
 
 'use strict';
 
-import {binarySearch} from 'vs/base/common/arrays';
-import {globals} from 'vs/base/common/platform';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IDisposable, toDisposable, dispose} from 'vs/base/common/lifecycle';
+import { binarySearch } from 'vs/base/common/arrays';
+import { globals } from 'vs/base/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import Errors = require('vs/base/common/errors');
-import {safeStringify} from 'vs/base/common/objects';
+import { safeStringify } from 'vs/base/common/objects';
 
 interface ErrorEvent {
 	stack: string;

@@ -70,7 +70,7 @@ namespace RunTrigger {
 		onSave: 'onSave',
 		onType: 'onType'
 	};
-	export let from = function(value: string): RunTrigger {
+	export let from = function (value: string): RunTrigger {
 		if (value === 'onType') {
 			return RunTrigger.onType;
 		} else {
@@ -108,7 +108,7 @@ export default class PHPValidationProvider {
 		this.loadConfiguration();
 
 		vscode.workspace.onDidOpenTextDocument(this.triggerValidate, this, subscriptions);
-		vscode.workspace.onDidCloseTextDocument((textDocument)=> {
+		vscode.workspace.onDidCloseTextDocument((textDocument) => {
 			this.diagnosticCollection.delete(textDocument.uri);
 			delete this.delayers[textDocument.uri.toString()];
 		}, null, subscriptions);
@@ -158,7 +158,7 @@ export default class PHPValidationProvider {
 			delayer = new ThrottledDelayer<void>(this.trigger === RunTrigger.onType ? 250 : 0);
 			this.delayers[key] = delayer;
 		}
-		delayer.trigger(() => this.doValidate(textDocument) );
+		delayer.trigger(() => this.doValidate(textDocument));
 	}
 
 	private doValidate(textDocument: vscode.TextDocument): Promise<void> {

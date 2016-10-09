@@ -5,16 +5,16 @@
 'use strict';
 
 import * as assert from 'assert';
-import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
-import {Range} from 'vs/editor/common/core/range';
+import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { Range } from 'vs/editor/common/core/range';
 
 suite('richEditBrackets', () => {
 
-	function findPrevBracketInToken(reversedBracketRegex:RegExp, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
+	function findPrevBracketInToken(reversedBracketRegex: RegExp, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range {
 		return BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, lineText, currentTokenStart, currentTokenEnd);
 	}
 
-	function findNextBracketInToken(forwardBracketRegex:RegExp, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
+	function findNextBracketInToken(forwardBracketRegex: RegExp, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range {
 		return BracketsUtils.findNextBracketInToken(forwardBracketRegex, 1, lineText, currentTokenStart, currentTokenEnd);
 	}
 

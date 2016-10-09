@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
@@ -12,23 +12,24 @@ import labels = require('vs/base/common/labels');
 import * as objects from 'vs/base/common/objects';
 import uuid = require('vs/base/common/uuid');
 import URI from 'vs/base/common/uri';
-import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
-import {IRange} from 'vs/editor/common/editorCommon';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {getIconClasses} from 'vs/workbench/browser/labels';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
-import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
-import {EditorInput, getOutOfWorkspaceEditorResources, IWorkbenchEditorConfiguration} from 'vs/workbench/common/editor';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IQueryOptions, ISearchService, ISearchStats, ISearchQuery} from 'vs/platform/search/common/search';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IRange } from 'vs/editor/common/editorCommon';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
+import { EditorInput, getOutOfWorkspaceEditorResources, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -47,6 +48,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private icon: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
@@ -59,7 +61,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: getIconClasses(this.modeService, this.resource)
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
 	}
 

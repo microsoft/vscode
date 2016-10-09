@@ -7,13 +7,13 @@
 
 import 'vs/css!./viewCursors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames} from 'vs/editor/browser/editorBrowser';
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import {IViewCursorRenderData, ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
-import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {TimeoutTimer, IntervalTimer} from 'vs/base/common/async';
+import { ClassNames } from 'vs/editor/browser/editorBrowser';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 import * as browsers from 'vs/base/browser/browser';
 
 const ANIMATIONS_SUPPORTED = !browsers.isIE9;

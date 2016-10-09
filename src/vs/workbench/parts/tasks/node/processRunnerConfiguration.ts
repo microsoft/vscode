@@ -53,7 +53,7 @@ export interface TaskDescription {
 	/**
 	 * Whether the executed command is kept alive and is watching the file system.
 	 */
-	isWatching?:boolean;
+	isWatching?: boolean;
 
 	/**
 	 * Whether the task should prompt on close for confirmation if running.
@@ -63,7 +63,7 @@ export interface TaskDescription {
 	/**
 	 * Whether this task maps to the default build command.
 	 */
-	isBuildCommand?:boolean;
+	isBuildCommand?: boolean;
 
 	/**
 	 * Whether this task maps to the default test command.
@@ -150,7 +150,7 @@ export interface BaseTaskRunnerConfiguration extends TaskSystem.TaskConfiguratio
 	 * prefix (e.g. /t: for msbuild). This property can be used to control such
 	 * a prefix.
 	 */
-	taskSelector?:string;
+	taskSelector?: string;
 
 	/**
 	 * The problem matcher(s) to used if a global command is exucuted (e.g. no tasks
@@ -239,7 +239,7 @@ export interface ParseResult {
 }
 
 export interface ILogger {
-	log(value:string):void;
+	log(value: string): void;
 }
 
 class ConfigurationParser {
@@ -248,7 +248,7 @@ class ConfigurationParser {
 	private defaultBuildTaskIdentifier: string;
 	private defaultTestTaskIdentifier: string;
 
-	private logger:ILogger;
+	private logger: ILogger;
 	private namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
 
 	constructor(logger: ILogger) {
@@ -300,7 +300,7 @@ class ConfigurationParser {
 		return <TaskSystem.TaskRunnerConfiguration>result;
 	}
 
-	private createGlobals(fileConfig: ExternalTaskRunnerConfiguration) : Globals {
+	private createGlobals(fileConfig: ExternalTaskRunnerConfiguration): Globals {
 		let result = this.parseGlobals(fileConfig);
 		let osGlobals: Globals = null;
 		if (fileConfig.windows && Platform.platform === Platform.Platform.Windows) {
@@ -414,7 +414,7 @@ class ConfigurationParser {
 		if (!Types.isUndefined(fileConfig.isShellCommand)) {
 			result.isShellCommand = fileConfig.isShellCommand;
 		}
-		let argsIsValid:boolean = Types.isUndefined(fileConfig.args);
+		let argsIsValid: boolean = Types.isUndefined(fileConfig.args);
 		if (Types.isStringArray(fileConfig.args)) {
 			argsIsValid = true;
 			result.args = fileConfig.args.slice();
@@ -495,7 +495,7 @@ class ConfigurationParser {
 	}
 
 	private createNamedProblemMatchers(fileConfig: BaseTaskRunnerConfiguration): IStringDictionary<NamedProblemMatcher> {
-		let result:IStringDictionary<NamedProblemMatcher> = Object.create(null);
+		let result: IStringDictionary<NamedProblemMatcher> = Object.create(null);
 		if (!Types.isArray(fileConfig.declares)) {
 			return result;
 		}
@@ -525,8 +525,8 @@ class ConfigurationParser {
 		if (!tasks) {
 			return result;
 		}
-		let defaultBuildTask: {id:string; exact:number;} = { id: null, exact: -1};
-		let defaultTestTask: {id:string; exact:number;} = { id: null, exact: -1};
+		let defaultBuildTask: { id: string; exact: number; } = { id: null, exact: -1 };
+		let defaultTestTask: { id: string; exact: number; } = { id: null, exact: -1 };
 		tasks.forEach((externalTask) => {
 			let taskName = externalTask.taskName;
 			if (!taskName) {

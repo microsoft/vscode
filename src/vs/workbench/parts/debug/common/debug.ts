@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import severity from 'vs/base/common/severity';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
-import {Position} from 'vs/editor/common/core/position';
-import {ISuggestion} from 'vs/editor/common/modes';
-import {Source} from 'vs/workbench/parts/debug/common/debugSource';
-import {Range} from 'vs/editor/common/core/range';
-import {RawContextKey, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { Position } from 'vs/editor/common/core/position';
+import { ISuggestion } from 'vs/editor/common/modes';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { Range } from 'vs/editor/common/core/range';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
@@ -130,6 +130,7 @@ export interface IRawBreakpoint {
 	lineNumber: number;
 	enabled?: boolean;
 	condition?: string;
+	hitCondition?: string;
 }
 
 export interface IBreakpoint extends IEnablement {
@@ -137,6 +138,7 @@ export interface IBreakpoint extends IEnablement {
 	lineNumber: number;
 	desiredLineNumber: number;
 	condition: string;
+	hitCondition: string;
 	verified: boolean;
 	idFromAdapter: number;
 	message: string;
@@ -146,6 +148,7 @@ export interface IFunctionBreakpoint extends IEnablement {
 	name: string;
 	verified: boolean;
 	idFromAdapter: number;
+	hitCondition: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {

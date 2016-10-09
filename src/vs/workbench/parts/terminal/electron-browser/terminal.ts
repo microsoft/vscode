@@ -25,7 +25,7 @@ export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
  * A context key that is set when the integrated terminal has focus.
  */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
-export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED:ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
+export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 

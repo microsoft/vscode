@@ -122,6 +122,7 @@ export class QuickFixModel {
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
+		dispose(this._quickFixOracle);
 	}
 
 	get onDidChangeFixes(): Event<QuickFixComputeEvent> {

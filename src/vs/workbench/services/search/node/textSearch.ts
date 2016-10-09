@@ -11,11 +11,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import * as baseMime from 'vs/base/common/mime';
-import {ILineMatch, IProgress} from 'vs/platform/search/common/search';
-import {detectMimeAndEncodingFromBuffer} from 'vs/base/node/mime';
-import {FileWalker} from 'vs/workbench/services/search/node/fileSearch';
-import {UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode} from 'vs/base/node/encoding';
-import {ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine} from './search';
+import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
+import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
+import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
+import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode } from 'vs/base/node/encoding';
+import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
 
 interface ReadLinesOptions {
 	bufferLength: number;
@@ -45,7 +45,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		this.rootFolders = config.rootFolders;
 		this.extraFiles = config.extraFiles;
 		this.walker = walker;
-		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, {matchCase: config.contentPattern.isCaseSensitive, wholeWord: config.contentPattern.isWordMatch, multiline: false, global: true});
+		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, { matchCase: config.contentPattern.isCaseSensitive, wholeWord: config.contentPattern.isWordMatch, multiline: false, global: true });
 		this.isCanceled = false;
 		this.limitReached = false;
 		this.maxResults = config.maxResults;
@@ -90,7 +90,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 
 		// Walk over the file system
 		this.walker.walk(this.rootFolders, this.extraFiles, result => {
-			const size = result.size ||  1;
+			const size = result.size || 1;
 			this.total += size;
 
 			// If the result is empty or we have reached the limit or we are canceled, ignore it

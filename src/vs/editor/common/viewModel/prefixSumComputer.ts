@@ -10,7 +10,7 @@ export class PrefixSumIndexOfResult {
 	index: number;
 	remainder: number;
 
-	constructor(index:number, remainder:number) {
+	constructor(index: number, remainder: number) {
 		this.index = index;
 		this.remainder = remainder;
 	}
@@ -21,19 +21,19 @@ export class PrefixSumComputer {
 	/**
 	 * values[i] is the value at index i
 	 */
-	private values:number[];
+	private values: number[];
 
 	/**
 	 * prefixSum[i] = SUM(heights[j]), 0 <= j <= i
 	 */
-	private prefixSum:number[];
+	private prefixSum: number[];
 
 	/**
 	 * prefixSum[i], 0 <= i <= prefixSumValidIndex can be trusted
 	 */
-	private prefixSumValidIndex:number;
+	private prefixSumValidIndex: number;
 
-	constructor(values:number[]) {
+	constructor(values: number[]) {
 		this.values = values;
 		this.prefixSum = [];
 		for (let i = 0, len = this.values.length; i < len; i++) {
@@ -46,7 +46,7 @@ export class PrefixSumComputer {
 		return this.values.length;
 	}
 
-	public insertValue(insertIndex:number, value:number): void {
+	public insertValue(insertIndex: number, value: number): void {
 		insertIndex = Math.floor(insertIndex); //@perf
 		value = Math.floor(value); //@perf
 
@@ -82,7 +82,7 @@ export class PrefixSumComputer {
 		return r;
 	}
 
-	public changeValue(index:number, value:number): void {
+	public changeValue(index: number, value: number): void {
 		index = Math.floor(index); //@perf
 		value = Math.floor(value); //@perf
 
@@ -95,7 +95,7 @@ export class PrefixSumComputer {
 		}
 	}
 
-	public removeValues(startIndex:number, cnt:number): void {
+	public removeValues(startIndex: number, cnt: number): void {
 		startIndex = Math.floor(startIndex); //@perf
 		cnt = Math.floor(cnt); //@perf
 
@@ -113,7 +113,7 @@ export class PrefixSumComputer {
 		return this.getAccumulatedValue(this.values.length - 1);
 	}
 
-	public getAccumulatedValue(index:number): number {
+	public getAccumulatedValue(index: number): number {
 		index = Math.floor(index); //@perf
 
 		if (index < 0) {
@@ -140,17 +140,17 @@ export class PrefixSumComputer {
 		return this.prefixSum[index];
 	}
 
-	public getIndexOf(accumulatedValue:number): PrefixSumIndexOfResult {
+	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
 		accumulatedValue = Math.floor(accumulatedValue); //@perf
 
 		let low = 0;
 		let high = this.values.length - 1;
-		let mid:number;
-		let midStop:number;
-		let midStart:number;
+		let mid: number;
+		let midStop: number;
+		let midStart: number;
 
 		while (low <= high) {
-			mid = low + ( (high-low)/2 ) | 0;
+			mid = low + ((high - low) / 2) | 0;
 
 			midStop = this.getAccumulatedValue(mid);
 			midStart = midStop - this.values[mid];

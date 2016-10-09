@@ -16,6 +16,8 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "Definiert, ob eine öffnende geschweifte Klammer in eine neue Zeile für Funktionen eingefügt wird.",
 	"javascript.reloadProjects.title": "JavaScript-Projekt erneut laden",
 	"javascript.validate.enable": "JavaScript-Überprüfung aktivieren/deaktivieren",
+	"typescript.check.tscVersion": "Überprüfen, ob sich ein global installierter TypeScript-Compiler (z. B. tsc) vom verwendeten TypeScript-Sprachdienst unterscheidet.",
+	"typescript.check.workspaceVersion": "Überprüfen, ob eine TypeScript-Version im Arbeitsbereich verfügbar ist",
 	"typescript.reloadProjects.title": "TypeScript-Projekt erneut laden",
 	"typescript.tsdk.desc": "Gibt den Ordnerpfad mit den zu verwendenden tsserver- und lib*.d.ts-Dateien an.",
 	"typescript.tsdk_version.desc": "Gibt die Version von tsserver an. Nur erforderlich, wenn der tsserver nicht mithilfe von npm installiert wird.",

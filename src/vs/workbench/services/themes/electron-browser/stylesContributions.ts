@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IThemeDocument, IThemeSetting, IThemeSettingStyle} from 'vs/workbench/services/themes/common/themeService';
-import {Color} from 'vs/base/common/color';
-import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes';
+import { IThemeDocument, IThemeSetting, IThemeSettingStyle } from 'vs/workbench/services/themes/common/themeService';
+import { Color } from 'vs/base/common/color';
+import { getBaseThemeId, getSyntaxThemeId } from 'vs/platform/theme/common/themes';
 
 interface ThemeGlobalSettings {
 	background?: string;

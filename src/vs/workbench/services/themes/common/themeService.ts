@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');

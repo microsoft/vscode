@@ -5,11 +5,11 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IAction} from 'vs/base/common/actions';
-import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IDebugService, State} from 'vs/workbench/parts/debug/common/debug';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IAction } from 'vs/base/common/actions';
+import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class DebugSelectActionItem extends SelectActionItem {
 
@@ -34,6 +34,7 @@ export class DebugSelectActionItem extends SelectActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 		this.updateOptions(true).done(null, errors.onUnexpectedError);
+		this.enabled = this.debugService.state === State.Inactive;
 	}
 
 	private updateOptions(changeDebugConfiguration: boolean): TPromise<any> {

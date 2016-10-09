@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import {Registry} from 'vs/platform/platform';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {IAction, IActionRunner, Action} from 'vs/base/common/actions';
-import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
-import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/browser/tree';
-import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
-import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
-import {DelayedDragHandler} from 'vs/base/browser/dnd';
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {CollapsibleView, CollapsibleState, FixedCollapsibleView, IView} from 'vs/base/browser/ui/splitview/splitview';
-import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IViewlet} from 'vs/workbench/common/viewlet';
-import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import { Registry } from 'vs/platform/platform';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
+import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ITree, IFocusEvent, ISelectionEvent } from 'vs/base/parts/tree/browser/tree';
+import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { DelayedDragHandler } from 'vs/base/browser/dnd';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { CollapsibleView, CollapsibleState, FixedCollapsibleView, IView } from 'vs/base/browser/ui/splitview/splitview';
+import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 

@@ -5,21 +5,21 @@
 
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKey, IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ICommandHandler} from 'vs/platform/commands/common/commands';
-import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
-import {IEditorContextViewService} from 'vs/editor/browser/standalone/standaloneServices';
-import {CodeEditor} from 'vs/editor/browser/codeEditor';
-import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
-import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { StandaloneKeybindingService } from 'vs/editor/browser/standalone/simpleServices';
+import { IEditorContextViewService } from 'vs/editor/browser/standalone/standaloneServices';
+import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 /**
  * The options to create an editor.
@@ -44,27 +44,27 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
-	addCommand(keybinding:number, handler:ICommandHandler, context:string): string;
+	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-	addAction(descriptor:IActionDescriptor): void;
+	addAction(descriptor: IActionDescriptor): void;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
-	addCommand(keybinding:number, handler:ICommandHandler, context:string): string;
+	addCommand(keybinding: number, handler: ICommandHandler, context: string): string;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
-	addAction(descriptor:IActionDescriptor): void;
+	addAction(descriptor: IActionDescriptor): void;
 }
 
 export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEditor {
 
 	private _standaloneKeybindingService: StandaloneKeybindingService;
-	private _contextViewService:IEditorContextViewService;
-	private _ownsModel:boolean;
+	private _contextViewService: IEditorContextViewService;
+	private _ownsModel: boolean;
 	private _toDispose2: IDisposable[];
 
 	constructor(
-		domElement:HTMLElement,
-		options:IEditorConstructionOptions,
+		domElement: HTMLElement,
+		options: IEditorConstructionOptions,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -112,7 +112,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		this.dispose();
 	}
 
-	public addCommand(keybinding:number, handler:ICommandHandler, context:string): string {
+	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
@@ -128,7 +128,7 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
-	public addAction(descriptor:IActionDescriptor): void {
+	public addAction(descriptor: IActionDescriptor): void {
 		super.addAction(descriptor);
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
@@ -144,14 +144,14 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 		}
 	}
 
-	_attachModel(model:IModel):void {
+	_attachModel(model: IModel): void {
 		super._attachModel(model);
 		if (this._view) {
 			this._contextViewService.setContainer(this._view.domNode);
 		}
 	}
 
-	_postDetachModelCleanup(detachedModel:IModel): void {
+	_postDetachModelCleanup(detachedModel: IModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();
@@ -162,13 +162,13 @@ export class StandaloneEditor extends CodeEditor implements IStandaloneCodeEdito
 
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
-	private _contextViewService:IEditorContextViewService;
+	private _contextViewService: IEditorContextViewService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _toDispose2: IDisposable[];
 
 	constructor(
-		domElement:HTMLElement,
-		options:IDiffEditorConstructionOptions,
+		domElement: HTMLElement,
+		options: IDiffEditorConstructionOptions,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -198,7 +198,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this.dispose();
 	}
 
-	public addCommand(keybinding:number, handler:ICommandHandler, context:string): string {
+	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
@@ -214,14 +214,14 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
-	public addAction(descriptor:IActionDescriptor): void {
+	public addAction(descriptor: IActionDescriptor): void {
 		super.addAction(descriptor);
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add keybinding because the editor is configured with an unrecognized KeybindingService');
 			return null;
 		}
 		if (Array.isArray(descriptor.keybindings)) {
-			var handler:ICommandHandler = (ctx) => {
+			var handler: ICommandHandler = (ctx) => {
 				return this.trigger('keyboard', descriptor.id, null);
 			};
 			descriptor.keybindings.forEach((kb) => {
