@@ -25,7 +25,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		'editor.formatter': {
 			type: 'object',
-			description: localize('editor.formatter', "Define what formatter to use for a language, e.g '{ \"javascript\": \"clang js formatter\"}'")
+			description: localize('editor.formatter', "Define what formatter to use for a language, e.g '{ \"javascript\": \"clang js formatter\"}'"),
+			additionalProperties: {
+				anyOf: [{
+					type: 'string',
+					description: localize('name.string', "The name of a formatter")
+				}, {
+					'type': 'array',
+					default: [],
+					description: localize('name.array', "A sorted list of formatter names.")
+				}]
+			}
 		}
 	}
 });
