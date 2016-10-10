@@ -210,12 +210,12 @@ function packageTask(platform, arch, opts) {
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
 			'!extensions/vscode-colorize-tests/**',
-			...builtInExtensions.map(e => `!extensions/${ e.name }/**`)
 		];
+		builtInExtensions.map(extensionsList.push(e => `!extensions/${ e.name }/**`));
 
 		const extensions = gulp.src(extensionsList, { base: '.' });
 
-		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+		const marketplaceExtensions = es.merge.apply(undefined, builtInExtensions.map(extension => {
 			return ext.src(extension.name, extension.version)
 				.pipe(rename(p => p.dirname = `extensions/${ extension.name }/${ p.dirname }`));
 		}));
