@@ -556,7 +556,7 @@ export function registerContributions(): void {
 			'git.confirmSync': {
 				type: 'boolean',
 				description: nls.localize('confirmSync', "Confirm before synchronizing git repositories."),
-				default: false
+				default: true
 			},
 			'git.countBadge': {
 				type: 'string',
