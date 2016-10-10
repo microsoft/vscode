@@ -279,7 +279,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private startService(resendModels: boolean = false): void {
-		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
+		let modulePath = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
 		let checkGlobalVersion = true;
 		let showVersionStatusItem = false;
 
