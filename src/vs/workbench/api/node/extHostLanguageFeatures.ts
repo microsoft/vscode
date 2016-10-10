@@ -792,8 +792,14 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	// --- formatting
 
 	private static _evilDefaultProviderName(selector: vscode.DocumentSelector): string {
-		const h = hash(JSON.stringify(selector), hash(new Error().stack));
-		return `Unnamed Provider (${h.toString(32)})`;
+		const {stack} = new Error();
+		const id = hash(JSON.stringify(selector), hash(stack)).toString(32);
+
+		const match = /\/extensions\/(.*?)\//m.exec(stack);
+		if (match) {
+			return `Unnamed Provider (${match[1]}, ${id})`;
+		}
+		return `Unnamed Provider (${id})`;
 	}
 
 	registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider, name?: string): vscode.Disposable {

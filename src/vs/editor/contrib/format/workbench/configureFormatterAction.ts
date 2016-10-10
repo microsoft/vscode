@@ -82,9 +82,11 @@ export class ConfigureFormatterAction extends EditorAction {
 					}
 
 				} else if (Array.isArray(languageConfig)) {
-					if (languageConfig.indexOf(pick) < 0) {
-						value[language] = [pick].concat(languageConfig);
+					const idx = languageConfig.indexOf(pick);
+					if (idx >= 0) {
+						languageConfig.splice(idx, 1);
 					}
+					value[language] = [pick].concat(languageConfig);
 				}
 
 				const target = config.workspace
