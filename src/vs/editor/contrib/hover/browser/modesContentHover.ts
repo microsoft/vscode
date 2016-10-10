@@ -35,18 +35,18 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		this._range = null;
 	}
 
-	public setRange(range: Range): void {
+	setRange(range: Range): void {
 		this._range = range;
 		this._result = [];
 	}
 
-	public clearResult(): void {
+	clearResult(): void {
 		this._result = [];
 	}
 
-	public computeAsync(): TPromise<Hover[]> {
+	computeAsync(): TPromise<Hover[]> {
+		const model = this._editor.getModel();
 
-		let model = this._editor.getModel();
 		if (!HoverProviderRegistry.has(model)) {
 			return TPromise.as(null);
 		}
@@ -57,44 +57,47 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		));
 	}
 
-	public computeSync(): Hover[] {
-		var result: Hover[] = [];
-		var lineNumber = this._range.startLineNumber;
+	computeSync(): Hover[] {
+		const lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
 			// Illegal line number => no results
-			return result;
+			return [];
 		}
 
-		var hasHoverContent = (contents: MarkedString | MarkedString[]) => {
+		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
 			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
 		};
 
-		var lineDecorations = this._editor.getLineDecorations(lineNumber);
-		var maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
-		lineDecorations.forEach((d) => {
-			var startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
-			var endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
+		const maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
+		const lineDecorations = this._editor.getLineDecorations(lineNumber);
 
-			if (startColumn <= this._range.startColumn && this._range.endColumn <= endColumn && hasHoverContent(d.options.hoverMessage)) {
-				var obj: Hover = {
-					contents: [],
-					range: new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn)
-				};
-				if (d.options.hoverMessage) {
-					if (Array.isArray(d.options.hoverMessage)) {
-						obj.contents = obj.contents.concat(<MarkedString[]>d.options.hoverMessage);
-					} else {
-						obj.contents.push(<MarkedString>d.options.hoverMessage);
-					}
-				}
-				result.push(obj);
+		const result = lineDecorations.map(d => {
+			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
+			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
+
+			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn || !hasHoverContent(d.options.hoverMessage)) {
+				return null;
 			}
+
+			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
+			let contents: MarkedString[];
+
+			if (d.options.hoverMessage) {
+				if (Array.isArray(d.options.hoverMessage)) {
+					contents = [...d.options.hoverMessage];
+				} else {
+					contents = [d.options.hoverMessage];
+				}
+			}
+
+			return { contents, range };
 		});
-		return result;
+
+		return result.filter(d => !!d);
 	}
 
-	public onResult(result: Hover[], isFromSynchronousComputation: boolean): void {
+	onResult(result: Hover[], isFromSynchronousComputation: boolean): void {
 		// Always put synchronous messages before asynchronous ones
 		if (isFromSynchronousComputation) {
 			this._result = result.concat(this._result);
@@ -103,11 +106,11 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		}
 	}
 
-	public getResult(): Hover[] {
+	getResult(): Hover[] {
 		return this._result.slice(0);
 	}
 
-	public getResultWithLoadingMessage(): Hover[] {
+	getResultWithLoadingMessage(): Hover[] {
 		return this._result.slice(0).concat([this._getLoadingMessage()]);
 	}
 
@@ -121,7 +124,8 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
-	public static ID = 'editor.contrib.modesContentHoverWidget';
+	static ID = 'editor.contrib.modesContentHoverWidget';
+
 	private _messages: Hover[];
 	private _lastRange: Range;
 	private _computer: ModesContentComputer;
@@ -149,12 +153,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
 
-	public onModelDecorationsChanged(): void {
+	onModelDecorationsChanged(): void {
 		if (this._isChangingDecorations) {
 			return;
 		}
@@ -167,7 +171,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	public startShowingAt(range: Range, focus: boolean): void {
+	startShowingAt(range: Range, focus: boolean): void {
 		if (this._lastRange && this._lastRange.equalsRange(range)) {
 			// We have to show the widget at the exact same range as before, so no work is needed
 			return;
@@ -204,7 +208,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._hoverOperation.start();
 	}
 
-	public hide(): void {
+	hide(): void {
 		this._lastRange = null;
 		this._hoverOperation.cancel();
 		super.hide();
@@ -213,7 +217,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = false;
 	}
 
-	public _withResult(result: Hover[], complete: boolean): void {
+	_withResult(result: Hover[], complete: boolean): void {
 		this._messages = result;
 
 		if (this._lastRange && this._messages.length > 0) {
