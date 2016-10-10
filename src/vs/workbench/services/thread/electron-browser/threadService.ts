@@ -6,6 +6,8 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import pkg from 'vs/platform/package';
+import paths = require('vs/base/common/paths');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { stringify } from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
@@ -26,10 +28,16 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
+import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
 export const EXTENSION_TERMINATE_BROADCAST_CHANNEL = 'vscode:extensionTerminate';
+
+const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
+const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../../../..'));
+const BUILTIN_EXTENSIONS_PATH = paths.join(BASE_PATH, 'extensions');
 
 // Enable to see detailed message communication between window and extension host
 const logExtensionHostCommunication = false;
@@ -243,22 +251,64 @@ class ExtensionHostProcessManager {
 		if (this.initializeTimer) {
 			window.clearTimeout(this.initializeTimer);
 		}
-
-		let initPayload = stringify({
-			parentPid: process.pid,
-			environment: {
-				appSettingsHome: this.environmentService.appSettingsHome,
-				disableExtensions: this.environmentService.disableExtensions,
-				userExtensionsHome: this.environmentService.extensionsPath,
-				extensionDevelopmentPath: this.environmentService.extensionDevelopmentPath,
-				extensionTestsPath: this.environmentService.extensionTestsPath
-			},
-			contextService: {
-				workspace: this.contextService.getWorkspace()
-			}
+		this.scanExtensions().then(extensionDescriptors => {
+			let initPayload = stringify({
+				parentPid: process.pid,
+				environment: {
+					appSettingsHome: this.environmentService.appSettingsHome,
+					disableExtensions: this.environmentService.disableExtensions,
+					userExtensionsHome: this.environmentService.extensionsPath,
+					extensionDevelopmentPath: this.environmentService.extensionDevelopmentPath,
+					extensionTestsPath: this.environmentService.extensionTestsPath
+				},
+				contextService: {
+					workspace: this.contextService.getWorkspace()
+				},
+				extensions: extensionDescriptors
+			});
+			this.extensionHostProcessHandle.send(initPayload);
 		});
+	}
 
-		this.extensionHostProcessHandle.send(initPayload);
+	private scanExtensions(): TPromise<IExtensionDescription[]> {
+		const collector = new MessagesCollector();
+		const version = pkg.version;
+		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, BUILTIN_EXTENSIONS_PATH, true);
+		const userExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false);
+		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
+		const isDev = !this.environmentService.isBuilt || !!this.environmentService.extensionDevelopmentPath;
+
+		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
+			let builtinExtensions = extensionDescriptions[0];
+			let userExtensions = extensionDescriptions[1];
+			let developedExtensions = extensionDescriptions[2];
+
+			let result: { [extensionId: string]: IExtensionDescription; } = {};
+			builtinExtensions.forEach((builtinExtension) => {
+				result[builtinExtension.id] = builtinExtension;
+			});
+			userExtensions.forEach((userExtension) => {
+				if (result.hasOwnProperty(userExtension.id)) {
+					collector.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+				}
+				result[userExtension.id] = userExtension;
+			});
+			developedExtensions.forEach(developedExtension => {
+				collector.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
+				if (result.hasOwnProperty(developedExtension.id)) {
+					collector.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+				}
+				result[developedExtension.id] = developedExtension;
+			});
+
+			return Object.keys(result).map(name => result[name]);
+		}).then(null, err => {
+			collector.error('', err);
+			return [];
+		}).then(extensions => {
+			collector.getMessages().forEach(entry => this._handleMessage(entry, isDev));
+			return extensions;
+		});
 	}
 
 	private logExtensionHostMessage(logEntry: ILogEntry) {
@@ -367,6 +417,29 @@ class ExtensionHostProcessManager {
 			}, this.environmentService.extensionDevelopmentPath /* target */);
 
 			event.veto(TPromise.timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
+		}
+	}
+
+	private _handleMessage(message: IMessage, isDev: boolean): void {
+		let messageShown = false;
+		if (message.type === Severity.Error || message.type === Severity.Warning) {
+			if (isDev) {
+				// Only show nasty intrusive messages if doing extension development.
+				this.messageService.show(message.type, (message.source ? '[' + message.source + ']: ' : '') + message.message);
+				messageShown = true;
+			}
+		}
+		if (!messageShown) {
+			switch (message.type) {
+				case Severity.Error:
+					console.error(message);
+					break;
+				case Severity.Warning:
+					console.warn(message);
+					break;
+				default:
+					console.log(message);
+			}
 		}
 	}
 }
