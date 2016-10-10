@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Model } from 'vs/editor/common/model/model';
 import { DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
-import { getDocumentFormattingEdits, FormattingEditProviderPriorities } from 'vs/editor/contrib/format/common/format';
+import { getDocumentFormattingEdits, FormattingPriorities } from 'vs/editor/contrib/format/common/format';
 
 
 suite('Format - Prio', function () {
@@ -48,7 +48,7 @@ suite('Format - Prio', function () {
 
 	test('explict prios', function () {
 
-		const prios = <FormattingEditProviderPriorities>{
+		const prios = <FormattingPriorities>{
 			foolang: 'far'
 		};
 
@@ -77,7 +77,7 @@ suite('Format - Prio', function () {
 
 	test('invalid explict prios, fallback to selector score', function () {
 
-		const prios = <FormattingEditProviderPriorities>{
+		const prios = <FormattingPriorities>{
 			foolang: 'does_not_exist'
 		};
 
