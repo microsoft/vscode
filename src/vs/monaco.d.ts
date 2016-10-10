@@ -4488,7 +4488,7 @@ declare module monaco.languages {
         /**
          * Human readable name of this provider. Used for disambiguation.
          */
-        name: string;
+        name?: string;
         /**
          * Provide formatting edits for a whole document.
          */
@@ -4503,7 +4503,7 @@ declare module monaco.languages {
         /**
          * Human readable name of this provider. Used for disambiguation.
          */
-        name: string;
+        name?: string;
         /**
          * Provide formatting edits for a range in a document.
          *

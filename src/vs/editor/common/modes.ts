@@ -618,7 +618,7 @@ export interface DocumentFormattingEditProvider {
 	/**
 	 * Human readable name of this provider. Used for disambiguation.
 	 */
-	name: string;
+	name?: string;
 
 	/**
 	 * Provide formatting edits for a whole document.
@@ -633,7 +633,7 @@ export interface DocumentRangeFormattingEditProvider {
 	/**
 	 * Human readable name of this provider. Used for disambiguation.
 	 */
-	name: string;
+	name?: string;
 
 	/**
 	 * Provide formatting edits for a range in a document.

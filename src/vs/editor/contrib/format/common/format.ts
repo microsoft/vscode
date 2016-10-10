@@ -6,8 +6,6 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/platform';
 import { illegalArgument } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,41 +16,39 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
+/**
+ * Formatter names to languages (in order)
+ */
 export interface FormattingPriorities {
-	[language: string]: string;
+	[formatterName: string]: string[];
 }
 
 export namespace FormattingPriorities {
 
 	const id = 'editor.formatter';
 
-	Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-		id: 'editor',
-		type: 'object',
-		properties: {
-			[id]: {
-				type: 'object',
-				description: localize(id, "Define what formatter to use for a language, e.g '{ \"javascript\": \"clang js formatter \"}'")
-			}
-		}
-	});
-
 	export function value(service: IConfigurationService): FormattingPriorities {
 		return service.lookup<FormattingPriorities>(id).value;
 	}
 
-	export function pick<T extends { name: string; }>(prios: FormattingPriorities, language: string, providers: T[]): T {
-		const name = prios[language];
-		if (name) {
-			for (const provider of providers) {
-				if (provider.name === name) {
-					return provider;
+	export function pick<T extends { name?: string; }>(prios: FormattingPriorities, language: string, providers: T[]): T {
+
+		let bestProvider = providers[0];
+		let bestIdx = Number.MAX_VALUE;
+
+		for (const provider of providers) {
+			const array = prios[provider.name];
+			if (Array.isArray(array)) {
+				const idx = array.indexOf(language);
+				if (idx >= 0 && bestIdx > idx) {
+					bestProvider = provider;
+					bestIdx = idx;
 				}
 			}
 		}
-		return providers[0];
+
+		return bestProvider;
 	}
 }
 

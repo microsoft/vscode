@@ -49,7 +49,8 @@ suite('Format - Prio', function () {
 	test('explict prios', function () {
 
 		const prios = <FormattingPriorities>{
-			foolang: 'far'
+			far: ['foolang'],
+			boo: ['somelang', 'foolang']
 		};
 
 		let lastName: string;
@@ -75,10 +76,40 @@ suite('Format - Prio', function () {
 		});
 	});
 
+	test('equal explict prios, fallback to selector score', function () {
+
+		const prios = <FormattingPriorities>{
+			far: ['foolang'],
+			boo: ['foolang']
+		};
+
+		let lastName: string;
+
+		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
+			name: 'far',
+			provideDocumentFormattingEdits() {
+				lastName = 'far';
+				return undefined;
+			}
+		}));
+
+		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
+			name: 'boo',
+			provideDocumentFormattingEdits() {
+				lastName = 'boo';
+				return undefined;
+			}
+		}));
+
+		return getDocumentFormattingEdits(model, undefined, prios).then(_ => {
+			assert.equal(lastName, 'boo');
+		});
+	});
+
 	test('invalid explict prios, fallback to selector score', function () {
 
 		const prios = <FormattingPriorities>{
-			foolang: 'does_not_exist'
+			someplugin: ['foolang']
 		};
 
 		let lastName: string;
