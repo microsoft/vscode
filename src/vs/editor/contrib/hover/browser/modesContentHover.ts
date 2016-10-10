@@ -168,11 +168,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	}
 
 	public startShowingAt(range: Range, focus: boolean): void {
-		if (this._lastRange) {
-			if (this._lastRange.equalsRange(range)) {
-				// We have to show the widget at the exact same range as before, so no work is needed
-				return;
-			}
+		if (this._lastRange && this._lastRange.equalsRange(range)) {
+			// We have to show the widget at the exact same range as before, so no work is needed
+			return;
 		}
 
 		this._hoverOperation.cancel();
