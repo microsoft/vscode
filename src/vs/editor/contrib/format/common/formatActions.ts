@@ -13,9 +13,10 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
-import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits } from '../common/format';
+import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, FormattingEditProviderPriorities } from '../common/format';
 import { EditOperationsCommand } from './formatCommand';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -161,18 +162,15 @@ export class FormatAction extends EditorAction {
 
 		const model = editor.getModel();
 		const editorSelection = editor.getSelection();
-		const modelOpts = model.getOptions();
-		const options = {
-			tabSize: modelOpts.tabSize,
-			insertSpaces: modelOpts.insertSpaces,
-		};
+		const {tabSize, insertSpaces} = model.getOptions();
+		const prios = FormattingEditProviderPriorities.value(accessor.get(IConfigurationService));
 
 		let formattingPromise: TPromise<editorCommon.ISingleEditOperation[]>;
 
 		if (editorSelection.isEmpty()) {
-			formattingPromise = getDocumentFormattingEdits(model, options);
+			formattingPromise = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, prios);
 		} else {
-			formattingPromise = getDocumentRangeFormattingEdits(model, editorSelection, options);
+			formattingPromise = getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces }, prios);
 		}
 
 		if (!formattingPromise) {

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { illegalArgument } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
+import { illegalArgument } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { IReadOnlyModel, ISingleEditOperation } from 'vs/editor/common/editorCommon';
@@ -15,9 +15,33 @@ import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProv
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
-	const [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+export interface FormattingEditProviderPriorities {
+	[language: string]: string;
+}
+
+export namespace FormattingEditProviderPriorities {
+	export function value(service: IConfigurationService): FormattingEditProviderPriorities {
+		return service.lookup<FormattingEditProviderPriorities>('editor.formatterPriorities').value;
+	}
+}
+
+function _pick<T extends { name: string; }>(prios: FormattingEditProviderPriorities, language: string, providers: T[]): T {
+	const name = prios[language];
+	if (name) {
+		for (const provider of providers) {
+			if (provider.name === name) {
+				return provider;
+			}
+		}
+	}
+	return providers[0];
+}
+
+export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions, priorities: FormattingEditProviderPriorities = {}): TPromise<ISingleEditOperation[]> {
+
+	const support = _pick(priorities, model.getModeId(), DocumentRangeFormattingEditProviderRegistry.ordered(model));
 
 	if (!support) {
 		return TPromise.as(undefined);
@@ -28,8 +52,10 @@ export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Ra
 	});
 }
 
-export function getDocumentFormattingEdits(model: IReadOnlyModel, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
-	const [support] = DocumentFormattingEditProviderRegistry.ordered(model);
+export function getDocumentFormattingEdits(model: IReadOnlyModel, options: FormattingOptions, priorities: FormattingEditProviderPriorities = {}): TPromise<ISingleEditOperation[]> {
+
+	const support = _pick(priorities, model.getModeId(), DocumentFormattingEditProviderRegistry.ordered(model));
+
 	if (!support) {
 		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options);
 	}
@@ -62,7 +88,8 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', func
 	if (!model) {
 		throw illegalArgument('resource');
 	}
-	return getDocumentRangeFormattingEdits(model, Range.lift(range), options);
+
+	return getDocumentRangeFormattingEdits(model, Range.lift(range), options, FormattingEditProviderPriorities.value(accessor.get(IConfigurationService)));
 });
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
@@ -75,7 +102,8 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', f
 		throw illegalArgument('resource');
 	}
 
-	return getDocumentFormattingEdits(model, options);
+
+	return getDocumentFormattingEdits(model, options, FormattingEditProviderPriorities.value(accessor.get(IConfigurationService)));
 });
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function (model, position, args) {
