@@ -24,7 +24,9 @@
 			"name": "Function declarations",
 			"scope": [
 				"entity.name.function",
-				"entity.name.method"
+				"entity.name.method",
+				"generic.function-call",
+				"support.function"
 			],
 			"settings": {
 				"foreground": "#DCDCAA"
@@ -32,7 +34,10 @@
 		},
 		{
 			"name": "Control flow keywords",
-			"scope": "keyword.control",
+			"scope": [
+				"keyword.control",
+				"keyword.operator"
+			],
 			"settings": {
 				"foreground": "#C586C0"
 			}
