@@ -5,25 +5,21 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Model } from 'vs/editor/common/model/model';
 import { DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getDocumentFormattingEdits, FormattingPriorities } from 'vs/editor/contrib/format/common/format';
 
+let lastName: string;
 
 suite('Format - Prio', function () {
 
 	let model = Model.createFromString('foobar-barfoo-bingbong', undefined, 'foolang');
 	let disposables: IDisposable[] = [];
 
-	teardown(function () {
-		disposables = dispose(disposables);
-	});
-
-	test('selector score', function () {
-
-		let lastName: string;
-
+	setup(function () {
+		lastName = '';
 		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
 			name: 'far',
 			provideDocumentFormattingEdits() {
@@ -31,8 +27,6 @@ suite('Format - Prio', function () {
 				return undefined;
 			}
 		}));
-
-		// comes later -> wins
 		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
 			name: 'boo',
 			provideDocumentFormattingEdits() {
@@ -40,7 +34,14 @@ suite('Format - Prio', function () {
 				return undefined;
 			}
 		}));
+	});
 
+	teardown(function () {
+		disposables = dispose(disposables);
+	});
+
+	test('selector score', function () {
+		// 'boo' registered last
 		return getDocumentFormattingEdits(model, undefined).then(_ => {
 			assert.equal(lastName, 'boo');
 		});
@@ -49,27 +50,8 @@ suite('Format - Prio', function () {
 	test('explict prios', function () {
 
 		const prios = <FormattingPriorities>{
-			far: ['foolang'],
-			boo: ['somelang', 'foolang']
+			foolang: 'far'
 		};
-
-		let lastName: string;
-
-		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
-			name: 'far',
-			provideDocumentFormattingEdits() {
-				lastName = 'far';
-				return undefined;
-			}
-		}));
-
-		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
-			name: 'boo',
-			provideDocumentFormattingEdits() {
-				lastName = 'boo';
-				return undefined;
-			}
-		}));
 
 		return getDocumentFormattingEdits(model, undefined, prios).then(_ => {
 			assert.equal(lastName, 'far');
@@ -79,59 +61,26 @@ suite('Format - Prio', function () {
 	test('equal explict prios, fallback to selector score', function () {
 
 		const prios = <FormattingPriorities>{
-			far: ['foolang'],
-			boo: ['foolang']
+			foolang: ['far', 'boo']
 		};
 
-		let lastName: string;
-
-		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
-			name: 'far',
-			provideDocumentFormattingEdits() {
-				lastName = 'far';
-				return undefined;
-			}
-		}));
-
-		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
-			name: 'boo',
-			provideDocumentFormattingEdits() {
-				lastName = 'boo';
-				return undefined;
-			}
-		}));
-
 		return getDocumentFormattingEdits(model, undefined, prios).then(_ => {
-			assert.equal(lastName, 'boo');
+			assert.equal(lastName, 'far');
 		});
 	});
 
 	test('invalid explict prios, fallback to selector score', function () {
 
-		const prios = <FormattingPriorities>{
-			someplugin: ['foolang']
-		};
-
-		let lastName: string;
-
-		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
-			name: 'far',
-			provideDocumentFormattingEdits() {
-				lastName = 'far';
-				return undefined;
-			}
-		}));
-
-		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
-			name: 'boo',
-			provideDocumentFormattingEdits() {
-				lastName = 'boo';
-				return undefined;
-			}
-		}));
-
-		return getDocumentFormattingEdits(model, undefined, prios).then(_ => {
-			assert.equal(lastName, 'boo');
-		});
+		return TPromise.join([
+			getDocumentFormattingEdits(model, undefined, {
+				foolang: 'some_dead_provider'
+			}).then(_ => {
+				assert.equal(lastName, 'boo');
+			}),
+			getDocumentFormattingEdits(model, undefined, {
+				foolang: ['some_dead_provider', 'far', 'boo']
+			}).then(_ => {
+				assert.equal(lastName, 'far');
+			})]);
 	});
 });

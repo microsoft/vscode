@@ -25,7 +25,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		'editor.formatter': {
 			type: 'object',
-			description: localize('editor.formatter', "Define what formatter to use for a language, e.g '{ \"javascript\": \"clang js formatter \"}'")
+			description: localize('editor.formatter', "Define what formatter to use for a language, e.g '{ \"javascript\": \"clang js formatter\"}'")
 		}
 	}
 });
@@ -70,12 +70,21 @@ export class ConfigureFormatterAction extends EditorAction {
 		return accessor.get(IQuickOpenService).pick(names, { placeHolder: localize('formatterHint', "Select a formatter for '{0}'", language) }).then(pick => {
 			if (pick) {
 
-				if (!config.value) {
-					config.value = { [pick]: [language] };
-				} else if (!Array.isArray(config.value[pick])) {
-					config.value[pick] = [language];
-				} else {
-					config.value[pick].unshift(language);
+				const value = <FormattingPriorities>(config.value || Object.create(null));
+				const languageConfig = value[language];
+
+				if (typeof languageConfig === 'undefined') {
+					value[language] = pick;
+
+				} else if (typeof languageConfig === 'string') {
+					if (languageConfig !== pick) {
+						value[language] = [pick, languageConfig];
+					}
+
+				} else if (Array.isArray(languageConfig)) {
+					if (languageConfig.indexOf(pick) < 0) {
+						value[language] = [pick].concat(languageConfig);
+					}
 				}
 
 				const target = config.workspace
@@ -84,7 +93,7 @@ export class ConfigureFormatterAction extends EditorAction {
 
 				return configurationEditService.writeConfiguration(target, {
 					key: 'editor.formatter',
-					value: config.value
+					value
 				});
 			}
 		});
