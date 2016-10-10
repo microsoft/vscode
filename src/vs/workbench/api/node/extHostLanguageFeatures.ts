@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import { hash } from 'vs/base/common/hash';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -790,7 +791,15 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	// --- formatting
 
+	private static _evilDefaultProviderName(selector: vscode.DocumentSelector): string {
+		const h = hash(JSON.stringify(selector), hash(new Error().stack));
+		return `Unnamed Provider (${h.toString(32)})`;
+	}
+
 	registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider, name?: string): vscode.Disposable {
+		if (!name) {
+			name = ExtHostLanguageFeatures._evilDefaultProviderName(selector);
+		}
 		const handle = this._nextHandle();
 		this._adapter[handle] = new DocumentFormattingAdapter(this._documents, provider);
 		this._proxy.$registerDocumentFormattingSupport(handle, selector, name);
@@ -802,6 +811,9 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	}
 
 	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, name?: string): vscode.Disposable {
+		if (!name) {
+			name = ExtHostLanguageFeatures._evilDefaultProviderName(selector);
+		}
 		const handle = this._nextHandle();
 		this._adapter[handle] = new RangeFormattingAdapter(this._documents, provider);
 		this._proxy.$registerRangeFormattingSupport(handle, selector, name);
