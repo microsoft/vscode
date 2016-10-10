@@ -203,8 +203,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			.then(scopes => scopes.filter(scope => !scope.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
-			// only show if there are no duplicates across scopes
-			.then(expressions => expressions.length === 1 ? expressions[0] : null);
+			// only show if all expressions found have the same value
+			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);
 	}
 
 	private doShow(position: Position, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
