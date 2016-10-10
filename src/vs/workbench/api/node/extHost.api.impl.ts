@@ -377,11 +377,11 @@ export class ExtHostAPIImplementation {
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return languageFeatures.registerWorkspaceSymbolProvider(provider);
 			},
-			registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
-				return languageFeatures.registerDocumentFormattingEditProvider(selector, provider);
+			registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider, name?: string): vscode.Disposable {
+				return languageFeatures.registerDocumentFormattingEditProvider(selector, provider, name);
 			},
-			registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
-				return languageFeatures.registerDocumentRangeFormattingEditProvider(selector, provider);
+			registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, name?: string): vscode.Disposable {
+				return languageFeatures.registerDocumentRangeFormattingEditProvider(selector, provider, name);
 			},
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
 				return languageFeatures.registerOnTypeFormattingEditProvider(selector, provider, [firstTriggerCharacter].concat(moreTriggerCharacters));

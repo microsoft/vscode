@@ -790,10 +790,10 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	// --- formatting
 
-	registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
+	registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider, name?: string): vscode.Disposable {
 		const handle = this._nextHandle();
 		this._adapter[handle] = new DocumentFormattingAdapter(this._documents, provider);
-		this._proxy.$registerDocumentFormattingSupport(handle, selector);
+		this._proxy.$registerDocumentFormattingSupport(handle, selector, name);
 		return this._createDisposable(handle);
 	}
 
@@ -801,10 +801,10 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(resource, options));
 	}
 
-	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
+	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, name?: string): vscode.Disposable {
 		const handle = this._nextHandle();
 		this._adapter[handle] = new RangeFormattingAdapter(this._documents, provider);
-		this._proxy.$registerRangeFormattingSupport(handle, selector);
+		this._proxy.$registerRangeFormattingSupport(handle, selector, name);
 		return this._createDisposable(handle);
 	}
 

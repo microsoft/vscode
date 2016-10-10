@@ -120,8 +120,9 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	// --- formatting
 
-	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector, name: string): TPromise<any> {
 		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(selector, <modes.DocumentFormattingEditProvider>{
+			name,
 			provideDocumentFormattingEdits: (model: IReadOnlyModel, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options));
 			}
@@ -129,8 +130,9 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		return undefined;
 	}
 
-	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector, name): TPromise<any> {
 		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(selector, <modes.DocumentRangeFormattingEditProvider>{
+			name,
 			provideDocumentRangeFormattingEdits: (model: IReadOnlyModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options));
 			}
