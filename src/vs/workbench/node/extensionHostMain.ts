@@ -183,9 +183,9 @@ export class ExtensionHostMain {
 			return TPromise.as(null);
 		}
 
-		let folderPath = workspace.resource.fsPath;
+		const folderPath = workspace.resource.fsPath;
 
-		let desiredFilesMap: {
+		const desiredFilesMap: {
 			[filename: string]: boolean;
 		} = {};
 
@@ -203,21 +203,17 @@ export class ExtensionHostMain {
 			}
 		});
 
-		return TPromise.join(
-			Object.keys(desiredFilesMap).map(
-				(fileName) => pfs.existsWithResult(paths.join(folderPath, fileName), fileName)
-			)
-		).then((fileNames: string[]) => {
-			fileNames.forEach((existingFileName) => {
-				if (!existingFileName) {
-					return;
-				}
+		const fileNames = Object.keys(desiredFilesMap);
 
-				let activationEvent = 'workspaceContains:' + existingFileName;
-				this._extensionService.activateByEvent(activationEvent).then(null, (err) => {
-					console.error(err);
+		return TPromise.join(fileNames.map(f => pfs.exists(paths.join(folderPath, f)))).then(exists => {
+			fileNames
+				.filter((f, i) => exists[i])
+				.forEach(fileName => {
+					const activationEvent = `workspaceContains:${fileName}`;
+
+					this._extensionService.activateByEvent(activationEvent)
+						.done(null, err => console.error(err));
 				});
-			});
 		});
 	}
 

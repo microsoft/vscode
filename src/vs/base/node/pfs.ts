@@ -12,10 +12,6 @@ import { dirname, join } from 'path';
 import { nfcall } from 'vs/base/common/async';
 import fs = require('fs');
 
-export function isRoot(path: string): boolean {
-	return path === dirname(path);
-}
-
 export function readdir(path: string): TPromise<string[]> {
 	return nfcall(extfs.readdir, path);
 }
@@ -41,7 +37,8 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 			return TPromise.wrapError<boolean>(err);
 		});
 
-	if (isRoot(path)) {
+	// is root?
+	if (path === dirname(path)) {
 		return TPromise.as(true);
 	}
 
@@ -84,10 +81,6 @@ export function lstat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.lstat, path);
 }
 
-export function mstat(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
-	return doStatMultiple(paths.slice(0));
-}
-
 export function rename(oldPath: string, newPath: string): Promise {
 	return nfcall(fs.rename, oldPath, newPath);
 }
@@ -108,23 +101,8 @@ export function readlink(path: string): TPromise<string> {
 	return nfcall<string>(fs.readlink, path);
 }
 
-export function utimes(path: string, atime: Date, mtime: Date): Promise {
+export function utimes(path: string, atime: Date, mtime: Date): TPromise<void> {
 	return nfcall(fs.utimes, path, atime, mtime);
-}
-
-function doStatMultiple(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
-	let path = paths.shift();
-	return stat(path).then((value) => {
-		return {
-			path: path,
-			stats: value
-		};
-	}, (err) => {
-		if (paths.length === 0) {
-			return err;
-		}
-		return mstat(paths);
-	});
 }
 
 export function readFile(path: string): TPromise<Buffer>;
@@ -133,15 +111,15 @@ export function readFile(path: string, encoding?: string): TPromise<Buffer | str
 	return nfcall(fs.readFile, path, encoding);
 }
 
-export function writeFile(path: string, data: string, encoding?: string): Promise;
-export function writeFile(path: string, data: NodeBuffer, encoding?: string): Promise;
-export function writeFile(path: string, data: any, encoding: string = 'utf8'): Promise {
+export function writeFile(path: string, data: string, encoding?: string): TPromise<void>;
+export function writeFile(path: string, data: NodeBuffer, encoding?: string): TPromise<void>;
+export function writeFile(path: string, data: any, encoding: string = 'utf8'): TPromise<void> {
 	return nfcall(fs.writeFile, path, data, encoding);
 }
 
-export function writeFileAndFlush(path: string, data: string, encoding?: string): Promise;
-export function writeFileAndFlush(path: string, data: NodeBuffer, encoding?: string): Promise;
-export function writeFileAndFlush(path: string, data: any, encoding: string = 'utf8'): Promise {
+export function writeFileAndFlush(path: string, data: string, encoding?: string): TPromise<void>;
+export function writeFileAndFlush(path: string, data: NodeBuffer, encoding?: string): TPromise<void>;
+export function writeFileAndFlush(path: string, data: any, encoding: string = 'utf8'): TPromise<void> {
 	return nfcall(extfs.writeFileAndFlush, path, data, encoding);
 }
 
@@ -149,18 +127,10 @@ export function writeFileAndFlush(path: string, data: any, encoding: string = 'u
 * Read a dir and return only subfolders
 */
 export function readDirsInDir(dirPath: string): TPromise<string[]> {
-	return readdir(dirPath).then((children) => {
-		return TPromise.join(
-			children.map((child) => dirExistsWithResult(paths.join(dirPath, child), child))
-		).then((subdirs) => {
-			return removeNull(subdirs);
+	return readdir(dirPath).then(children => {
+		return TPromise.join(children.map(c => dirExists(paths.join(dirPath, c)))).then(exists => {
+			return children.filter((_, i) => exists[i]);
 		});
-	});
-}
-
-function dirExistsWithResult<T>(path: string, successResult: T): TPromise<T> {
-	return dirExists(path).then((exists) => {
-		return exists ? successResult : null;
 	});
 }
 
@@ -176,41 +146,4 @@ export function dirExists(path: string): TPromise<boolean> {
 */
 export function fileExists(path: string): TPromise<boolean> {
 	return stat(path).then(stat => stat.isFile(), () => false);
-}
-
-/**
-* Read dir at `path` and return only files matching `pattern`
-*/
-export function readFiles(path: string, pattern: RegExp): TPromise<string[]> {
-	return readdir(path).then((children) => {
-		children = children.filter((child) => {
-			return pattern.test(child);
-		});
-		let fileChildren = children.map((child) => {
-			return fileExistsWithResult(paths.join(path, child), child);
-		});
-		return TPromise.join(fileChildren).then((subdirs) => {
-			return removeNull(subdirs);
-		});
-	});
-}
-
-export function fileExistsWithResult<T>(path: string, successResult: T): TPromise<T> {
-	return fileExists(path).then((exists) => {
-		return exists ? successResult : null;
-	}, (err) => {
-		return TPromise.wrapError(err);
-	});
-}
-
-export function existsWithResult<T>(path: string, successResult: T): TPromise<T> {
-	return exists(path).then((exists) => {
-		return exists ? successResult : null;
-	}, (err) => {
-		return TPromise.wrapError(err);
-	});
-}
-
-function removeNull<T>(arr: T[]): T[] {
-	return arr.filter(item => (item !== null));
 }
