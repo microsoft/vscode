@@ -21,6 +21,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -114,7 +115,12 @@ configurationRegistry.registerConfiguration({
 				ScrollUpTerminalAction.ID,
 				ScrollUpPageTerminalAction.ID,
 				ScrollToTopTerminalAction.ID,
-				ClearTerminalAction.ID
+				ClearTerminalAction.ID,
+				debugActions.StartAction.ID,
+				debugActions.StopAction.ID,
+				debugActions.RunAction.ID,
+				debugActions.RestartAction.ID,
+				debugActions.ContinueAction.ID
 			].sort()
 		}
 	}
