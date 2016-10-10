@@ -649,6 +649,12 @@ export interface DocumentRangeFormattingEditProvider {
  * the formatting-feature.
  */
 export interface OnTypeFormattingEditProvider {
+
+	/**
+	 * Human readable name of this provider. Used for disambiguation.
+	 */
+	name?: string;
+
 	autoFormatTriggerCharacters: string[];
 	/**
 	 * Provide formatting edits after a character has been typed.

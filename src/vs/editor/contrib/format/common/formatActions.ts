@@ -26,64 +26,67 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.autoFormat';
 
-	private editor: editorCommon.ICommonCodeEditor;
-	private callOnDispose: IDisposable[];
-	private callOnModel: IDisposable[];
+	private _editor: editorCommon.ICommonCodeEditor;
+	private _callOnDispose: IDisposable[];
+	private _callOnModel: IDisposable[];
 
-	constructor(editor: editorCommon.ICommonCodeEditor) {
-		this.editor = editor;
-		this.callOnDispose = [];
-		this.callOnModel = [];
+	constructor(
+		editor: editorCommon.ICommonCodeEditor,
+		@IConfigurationService private _configurationService: IConfigurationService
+	) {
+		this._editor = editor;
+		this._callOnDispose = [];
+		this._callOnModel = [];
 
-		this.callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
-		this.callOnDispose.push(editor.onDidChangeModel(() => this.update()));
-		this.callOnDispose.push(editor.onDidChangeModelMode(() => this.update()));
-		this.callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
+		this._callOnDispose.push(editor.onDidChangeConfiguration(() => this._update()));
+		this._callOnDispose.push(editor.onDidChangeModel(() => this._update()));
+		this._callOnDispose.push(editor.onDidChangeModelMode(() => this._update()));
+		this._callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this._update, this));
 	}
 
-	private update(): void {
+	private _update(): void {
 
 		// clean up
-		this.callOnModel = dispose(this.callOnModel);
+		this._callOnModel = dispose(this._callOnModel);
 
 		// we are disabled
-		if (!this.editor.getConfiguration().contribInfo.formatOnType) {
+		if (!this._editor.getConfiguration().contribInfo.formatOnType) {
 			return;
 		}
 
 		// no model
-		if (!this.editor.getModel()) {
+		if (!this._editor.getModel()) {
 			return;
 		}
 
-		var model = this.editor.getModel();
+		const model = this._editor.getModel();
 
 		// no support
-		var [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
+		const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 		if (!support || !support.autoFormatTriggerCharacters) {
 			return;
 		}
 
 		// register typing listeners that will trigger the format
 		support.autoFormatTriggerCharacters.forEach(ch => {
-			this.callOnModel.push(this.editor.addTypingListener(ch, this.trigger.bind(this, ch)));
+			this._callOnModel.push(this._editor.addTypingListener(ch, this._trigger.bind(this, ch)));
 		});
 	}
 
-	private trigger(ch: string): void {
+	private _trigger(ch: string): void {
 
-		if (this.editor.getSelections().length > 1) {
+		if (this._editor.getSelections().length > 1) {
 			return;
 		}
 
-		var model = this.editor.getModel(),
-			position = this.editor.getPosition(),
-			canceled = false;
+		const model = this._editor.getModel();
+		const position = this._editor.getPosition();
+		let canceled = false;
 
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. If so, we won't
 		// apply the format edits
-		var unbind = this.editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
+		var listener = this._editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
 			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
 				// a model.setValue() was called
 				canceled = true;
@@ -102,27 +105,25 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 			if (canceled) {
 				// cancel only once
-				unbind.dispose();
+				listener.dispose();
 			}
 		});
 
-		let modelOpts = model.getOptions();
+		const {tabSize, insertSpaces} = model.getOptions();
+		const prios = FormattingPriorities.value(this._configurationService);
 
-		getOnTypeFormattingEdits(model, position, ch, {
-			tabSize: modelOpts.tabSize,
-			insertSpaces: modelOpts.insertSpaces
-		}).then(edits => {
+		getOnTypeFormattingEdits(model, position, ch, { tabSize, insertSpaces }, prios).then(edits => {
 
-			unbind.dispose();
+			listener.dispose();
 
 			if (canceled || arrays.isFalsyOrEmpty(edits)) {
 				return;
 			}
 
-			this.editor.executeCommand(this.getId(), new EditOperationsCommand(edits, this.editor.getSelection()));
+			this._editor.executeCommand(this.getId(), new EditOperationsCommand(edits, this._editor.getSelection()));
 
 		}, (err) => {
-			unbind.dispose();
+			listener.dispose();
 			throw err;
 		});
 	}
@@ -132,8 +133,8 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.callOnDispose = dispose(this.callOnDispose);
-		this.callOnModel = dispose(this.callOnModel);
+		this._callOnDispose = dispose(this._callOnDispose);
+		this._callOnModel = dispose(this._callOnModel);
 	}
 }
 
