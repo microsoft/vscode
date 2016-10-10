@@ -36,7 +36,7 @@ class StatusUpdater implements IWorkbenchContribution {
 		const stats = this.markerService.getStatistics();
 		const problemCount = stats.errors + stats.warnings + stats.infos + stats.unknowns;
 		if (problemCount > 0) {
-			const badge = new NumberBadge(problemCount, n => localize('errorsAndWarnings', '{0} Errors and Warnings', n));
+			const badge = new NumberBadge(problemCount, n => localize({ comment: ['Argument represents count (number) of errors and warnings.'], key: 'errorsAndWarnings' }, '{0} Errors and Warnings', n));
 			this.activityService.showActivity(Constants.MARKERS_PANEL_ID, badge);
 		} else {
 			this.activityService.showActivity(Constants.MARKERS_PANEL_ID, null);
