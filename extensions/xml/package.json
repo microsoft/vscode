@@ -77,11 +77,14 @@
 		"grammars": [{
 			"language": "xml",
 			"scopeName": "text.xml",
-			"path": "./syntaxes/XML.plist"
+			"path": "./syntaxes/xml.json"
 		}, {
 			"language": "xsl",
 			"scopeName": "text.xml.xsl",
-			"path": "./syntaxes/XSL.plist"
+			"path": "./syntaxes/xsl.json"
 		}]
+	},
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-xml grammars/xml.cson ./syntaxes/xml.json grammars/xsl.cson ./syntaxes/xsl.json"
 	}
 }
