@@ -67,6 +67,11 @@ export class ConfigureFormatterAction extends EditorAction {
 			}
 		}
 
+		// one is like none
+		if (names.length === 1) {
+			names.length = 0;
+		}
+
 		return accessor.get(IQuickOpenService).pick(names, { placeHolder: localize('formatterHint', "Select a formatter for '{0}'", language) }).then(pick => {
 			if (pick) {
 
