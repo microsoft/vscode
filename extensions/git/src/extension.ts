@@ -5,7 +5,15 @@
 
 'use strict';
 
-import * as vscode from 'vscode';
+import { ExtensionContext } from 'vscode';
+import { DirtyDiffDecorator } from './dirtydiff';
 
-export function activate(context: vscode.ExtensionContext) { }
-export function deactivate() { }
+export function activate(context: ExtensionContext) {
+	context.subscriptions.push(
+		new DirtyDiffDecorator()
+	);
+}
+
+export function deactivate() {
+
+}
