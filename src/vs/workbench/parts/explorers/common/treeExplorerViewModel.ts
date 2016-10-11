@@ -1,4 +1,5 @@
-import { TreeExplorerNode } from 'vscode';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { TreeExplorerNode, TreeExplorerNodeProvider } from 'vscode';
 
 export class InternalTreeExplorerNode implements TreeExplorerNode {
 	static idCounter = 1;
@@ -17,4 +18,8 @@ export class InternalTreeExplorerNode implements TreeExplorerNode {
 		this.shouldInitiallyExpand = node.shouldInitiallyExpand;
 		this.onClickCommand = node.onClickCommand;
 	}
+}
+
+export interface InternalTreeExplorerNodeProvider extends TreeExplorerNodeProvider {
+	resolveCommand(node: TreeExplorerNode): TPromise<void>;
 }

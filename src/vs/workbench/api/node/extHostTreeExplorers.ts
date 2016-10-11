@@ -10,6 +10,7 @@ import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, ExtHostTreeExplorersShape, MainThreadTreeExplorersShape } from './extHost.protocol';
 import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 
 export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _proxy: MainThreadTreeExplorersShape;
@@ -19,7 +20,8 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _externalNodeMaps: { [providerId: string]: { [id: number]: TreeExplorerNode }};
 
 	constructor(
-		threadService: IThreadService
+		threadService: IThreadService,
+		private commands: ExtHostCommands
 	) {
 		super();
 
@@ -72,5 +74,21 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 				return internalChild;
 			});
 		}));
+	}
+
+	$resolveCommand(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<void> {
+		const provider = this._treeExplorerNodeProviders[providerId];
+		if (!provider) {
+			throw new Error(`no TreeContentProvider registered with id '${providerId}'`);
+		}
+
+		if (mainThreadNode.onClickCommand) {
+			return TPromise.wrap(this.commands.executeCommand(mainThreadNode.onClickCommand, this._externalNodeMaps[providerId][mainThreadNode.id]).then(() => {
+				// Todo: error handling
+				return null;
+			}));
+		}
+
+		return TPromise.as(null);
 	}
 }

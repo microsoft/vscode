@@ -8,7 +8,7 @@ import { TreeExplorerNode } from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, MainThreadTreeExplorersShape, ExtHostTreeExplorersShape } from './extHost.protocol';
-import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
+import { ITreeExplorerService } from 'vs/workbench/parts/explorers/browser/treeExplorerService';
 import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
 export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
@@ -18,7 +18,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
+		@ITreeExplorerService private treeExplorerViewletService: ITreeExplorerService
 	) {
 		super();
 
@@ -36,6 +36,9 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 			},
 			resolveChildren: (node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> => {
 				return this._proxy.$resolveChildren(providerId, node);
+			},
+			resolveCommand: (node: InternalTreeExplorerNode): TPromise<void> => {
+				return this._proxy.$resolveCommand(providerId, node);
 			}
 		});
 	}

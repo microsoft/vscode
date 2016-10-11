@@ -1,6 +1,6 @@
 'use strict';
 
-import {ITreeExplorerViewletService, TreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
+import {ITreeExplorerService, TreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-registerSingleton(ITreeExplorerViewletService, TreeExplorerViewletService);
+registerSingleton(ITreeExplorerService, TreeExplorerViewletService);

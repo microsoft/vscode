@@ -10,18 +10,17 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IActionRunner } from 'vs/base/common/actions';
 import { IActionProvider, ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITreeExplorerViewletService } from 'vs/workbench/parts/explorers/browser/treeExplorerViewletService';
+import { ITreeExplorerService } from 'vs/workbench/parts/explorers/browser/treeExplorerService';
 
 const providerId = 'pineTree'; // For now
 
 export class TreeDataSource implements IDataSource {
 	constructor(
-		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
+		@ITreeExplorerService private treeExplorerViewletService: ITreeExplorerService
 	) {
 
 	}
@@ -81,7 +80,7 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 export class TreeController extends DefaultController {
 
 	constructor(
-		@ICommandService private commandService: ICommandService,
+		@ITreeExplorerService private treeExplorerViewletService: ITreeExplorerService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 	}
@@ -90,7 +89,7 @@ export class TreeController extends DefaultController {
 		super.onLeftClick(tree, node, event, origin);
 
 		if (node.onClickCommand) {
-			this.commandService.executeCommand(node.onClickCommand).done();
+			this.treeExplorerViewletService.resolveCommand('pineTree', node);
 		}
 
 		return true;
