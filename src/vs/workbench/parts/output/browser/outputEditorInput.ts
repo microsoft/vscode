@@ -7,14 +7,14 @@
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import strings = require('vs/base/common/strings');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {EditorModel} from 'vs/workbench/common/editor';
-import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MODE_ID, IOutputService, MAX_OUTPUT_LENGTH, IOutputChannel} from 'vs/workbench/parts/output/common/output';
-import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { EditorModel } from 'vs/workbench/common/editor';
+import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
+import { OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MODE_ID, IOutputService, MAX_OUTPUT_LENGTH, IOutputChannel } from 'vs/workbench/parts/output/common/output';
+import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 /**
  * Output Editor Input

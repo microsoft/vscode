@@ -6,13 +6,13 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as collections from 'vs/base/common/collections';
 
 export class CodeSnippet implements ICodeSnippet {
 
-	static fromTextmate(template:string):CodeSnippet {
+	static fromTextmate(template: string): CodeSnippet {
 		return TextMateSnippetParser.parse(template);
 	}
 

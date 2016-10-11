@@ -107,11 +107,13 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 
 	// Setup Windows mutex
 	let windowsMutex: Mutex = null;
-	try {
-		const Mutex = (<any>require.__$__nodeRequire('windows-mutex')).Mutex;
-		windowsMutex = new Mutex(product.win32MutexName);
-	} catch (e) {
-		// noop
+	if (platform.isWindows) {
+		try {
+			const Mutex = (<any>require.__$__nodeRequire('windows-mutex')).Mutex;
+			windowsMutex = new Mutex(product.win32MutexName);
+		} catch (e) {
+			// noop
+		}
 	}
 
 	// Register Main IPC services
@@ -266,6 +268,25 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 
+	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
+		let promise = TPromise.as(null);
+		if (platform.isWindows) {
+			promise = service.getMainProcessId()
+				.then(processId => {
+					logService.log('Sending some foreground love to the running instance:', processId);
+
+					try {
+						const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
+						allowSetForegroundWindow(processId);
+					} catch (e) {
+						// noop
+					}
+				});
+		}
+
+		return promise;
+	}
+
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
 			if (platform.isMacintosh) {
@@ -300,7 +321,8 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
 
-					return service.start(environmentService.args, process.env)
+					return allowSetForegroundWindow(service)
+						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
 						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
 				},

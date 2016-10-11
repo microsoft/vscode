@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Keybinding} from 'vs/base/common/keybinding';
+import { Keybinding } from 'vs/base/common/keybinding';
 
 export interface IQuickNavigateConfiguration {
 	keybindings: Keybinding[];

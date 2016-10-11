@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Action, IAction} from 'vs/base/common/actions';
-import {ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Action, IAction } from 'vs/base/common/actions';
+import { ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import types = require('vs/base/common/types');
-import {Builder} from 'vs/base/browser/builder';
-import {Registry} from 'vs/platform/platform';
-import {Panel} from 'vs/workbench/browser/panel';
-import {EditorInput, IFileEditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, Extensions} from 'vs/workbench/common/editor';
-import {IEditor, Position, POSITIONS} from 'vs/platform/editor/common/editor';
-import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
-import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import { Builder } from 'vs/base/browser/builder';
+import { Registry } from 'vs/platform/platform';
+import { Panel } from 'vs/workbench/browser/panel';
+import { EditorInput, IFileEditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, Extensions } from 'vs/workbench/common/editor';
+import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
+import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -215,7 +215,7 @@ class EditorRegistry implements IEditorRegistry {
 	}
 
 	public getEditor(input: EditorInput): EditorDescriptor {
-		const findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[]=> {
+		const findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[] => {
 			const matchingDescriptors: EditorDescriptor[] = [];
 
 			for (let i = 0; i < this.editors.length; i++) {
@@ -290,7 +290,7 @@ class EditorRegistry implements IEditorRegistry {
 		for (let i = 0; i < this.editors.length; i++) {
 			const editor = this.editors[i];
 			const editorInputDescriptors = <SyncDescriptor<EditorInput>[]>editor[INPUT_DESCRIPTORS_PROPERTY];
-			inputClasses.push(...editorInputDescriptors.map(descriptor=> descriptor.ctor));
+			inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
 		}
 
 		return inputClasses;

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EXTENSION_IDENTIFIER_PATTERN} from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 suite('Extension Identifier Pattern', () => {
 

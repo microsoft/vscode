@@ -43,5 +43,3 @@ import 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/indentation/common/indentation';
 
-// include these in the editor bundle because they are widely used by many languages
-import 'vs/editor/common/languages.common';

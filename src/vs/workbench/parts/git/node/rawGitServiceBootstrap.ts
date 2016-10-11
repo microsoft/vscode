@@ -21,7 +21,7 @@ export function createRawGitService(gitPath: string, workspaceRoot: string, defa
 	}
 
 	const gitRootPath = uri.parse(require.toUrl('vs/workbench/parts/git/node')).fsPath;
-	const bootstrapPath = `${ uri.parse(require.toUrl('bootstrap')).fsPath }.js`;
+	const bootstrapPath = `${uri.parse(require.toUrl('bootstrap')).fsPath}.js`;
 	workspaceRoot = normalize(workspaceRoot);
 
 	const env = objects.assign({}, process.env, {

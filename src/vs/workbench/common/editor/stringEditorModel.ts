@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {EditorModel} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
+import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * An editor model whith an in-memory, readonly content that is not backed by any particular resource.

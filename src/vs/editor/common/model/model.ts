@@ -9,17 +9,17 @@ import {
 	EventType, IModel, ITextModelCreationOptions, IModelDecorationsChangedEvent,
 	IModelOptionsChangedEvent, IModelModeChangedEvent, IRawText
 } from 'vs/editor/common/editorCommon';
-import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import {TextModel} from 'vs/editor/common/model/textModel';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {BulkListenerCallback} from 'vs/base/common/eventEmitter';
+import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 
 // The hierarchy is:
 // Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
 
 var MODEL_ID = 0;
 
-var aliveModels:{[modelId:string]:boolean;} = {};
+var aliveModels: { [modelId: string]: boolean; } = {};
 
 // var LAST_CNT = 0;
 // setInterval(() => {
@@ -34,32 +34,32 @@ var aliveModels:{[modelId:string]:boolean;} = {};
 
 export class Model extends EditableTextModel implements IModel {
 
-	public onDidChangeDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable {
+	public onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable {
 		return this.addListener2(EventType.ModelDecorationsChanged, listener);
 	}
-	public onDidChangeOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable {
+	public onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable {
 		return this.addListener2(EventType.ModelOptionsChanged, listener);
 	}
-	public onWillDispose(listener: ()=>void): IDisposable {
+	public onWillDispose(listener: () => void): IDisposable {
 		return this.addListener2(EventType.ModelDispose, listener);
 	}
-	public onDidChangeMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable {
+	public onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable {
 		return this.addListener2(EventType.ModelModeChanged, listener);
 	}
 
-	public addBulkListener(listener:BulkListenerCallback):IDisposable {
+	public addBulkListener(listener: BulkListenerCallback): IDisposable {
 		return super.addBulkListener(listener);
 	}
 
-	public static createFromString(text:string, options:ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageId:string = null, uri:URI = null): Model {
+	public static createFromString(text: string, options: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageId: string = null, uri: URI = null): Model {
 		let rawText = TextModel.toRawText(text, options);
 		return new Model(rawText, languageId, uri);
 	}
 
-	public id:string;
+	public id: string;
 
-	private _associatedResource:URI;
-	private _attachedEditorCount:number;
+	private _associatedResource: URI;
+	private _attachedEditorCount: number;
 
 	/**
 	 * Instantiates a new model
@@ -74,8 +74,8 @@ export class Model extends EditableTextModel implements IModel {
 	 *   The resource associated with this model. If the value is not provided an
 	 *   unique in memory URL is constructed as the associated resource.
 	 */
-	constructor(rawText:IRawText, languageId:string, associatedResource:URI=null) {
-		super([ EventType.ModelDispose ], rawText, languageId);
+	constructor(rawText: IRawText, languageId: string, associatedResource: URI = null) {
+		super([EventType.ModelDispose], rawText, languageId);
 
 		// Generate a new unique model id
 		MODEL_ID++;

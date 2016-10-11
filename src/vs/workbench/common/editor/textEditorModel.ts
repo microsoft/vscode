@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EndOfLinePreference, IModel, IRawText} from 'vs/editor/common/editorCommon';
-import {IMode} from 'vs/editor/common/modes';
-import {EditorModel} from 'vs/workbench/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EndOfLinePreference, IModel, IRawText } from 'vs/editor/common/editorCommon';
+import { IMode } from 'vs/editor/common/modes';
+import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {RawText} from 'vs/editor/common/model/textModel';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { RawText } from 'vs/editor/common/model/textModel';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.

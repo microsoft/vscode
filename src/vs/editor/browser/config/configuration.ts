@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable} from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
-import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {IDimension, FontInfo, BareFontInfo} from 'vs/editor/common/editorCommon';
-import {ElementSizeObserver} from 'vs/editor/browser/config/elementSizeObserver';
-import {FastDomNode} from 'vs/base/browser/styleMutator';
+import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { IDimension, FontInfo, BareFontInfo } from 'vs/editor/common/editorCommon';
+import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
+import { FastDomNode } from 'vs/base/browser/styleMutator';
 
 class CSSBasedConfigurationCache {
 
@@ -48,12 +48,12 @@ class CharWidthReader {
 
 	public get width(): number { return this._width; }
 
-	constructor(chr:string) {
+	constructor(chr: string) {
 		this._chr = chr;
 		this._width = 0;
 	}
 
-	public render(out:HTMLSpanElement): void {
+	public render(out: HTMLSpanElement): void {
 		if (this._chr === ' ') {
 			let htmlString = '&nbsp;';
 			// Repeat character 256 (2^8) times
@@ -71,7 +71,7 @@ class CharWidthReader {
 		}
 	}
 
-	public read(out:HTMLSpanElement): void {
+	public read(out: HTMLSpanElement): void {
 		this._width = out.offsetWidth / 256;
 	}
 }
@@ -148,11 +148,11 @@ class CSSBasedConfiguration extends Disposable {
 		}
 	}
 
-	private static _testElementId(index:number): string {
+	private static _testElementId(index: number): string {
 		return 'editorSizeProvider' + index;
 	}
 
-	private static _createTestElements(bareFontInfo: BareFontInfo, readers:CharWidthReader[]): HTMLElement {
+	private static _createTestElements(bareFontInfo: BareFontInfo, readers: CharWidthReader[]): HTMLElement {
 		let container = document.createElement('div');
 		Configuration.applyFontInfoSlow(container, bareFontInfo);
 		container.style.position = 'absolute';
@@ -174,13 +174,13 @@ class CSSBasedConfiguration extends Disposable {
 		return container;
 	}
 
-	private static _readFromTestElements(readers:CharWidthReader[]): void {
+	private static _readFromTestElements(readers: CharWidthReader[]): void {
 		for (let i = 0, len = readers.length; i < len; i++) {
 			readers[i].read(document.getElementById(this._testElementId(i)));
 		}
 	}
 
-	private static _runReaders(bareFontInfo: BareFontInfo, readers:CharWidthReader[]): void {
+	private static _runReaders(bareFontInfo: BareFontInfo, readers: CharWidthReader[]): void {
 		// Create a test container with all these test elements
 		let testContainer = this._createTestElements(bareFontInfo, readers);
 
@@ -236,7 +236,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.setLineHeight(fontInfo.lineHeight);
 	}
 
-	constructor(options:any, referenceDomElement:HTMLElement = null) {
+	constructor(options: any, referenceDomElement: HTMLElement = null) {
 		super(options, new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => () => this._onCSSBasedConfigurationChanged()));
@@ -256,7 +256,7 @@ export class Configuration extends CommonEditorConfiguration {
 		this._recomputeOptions();
 	}
 
-	public observeReferenceElement(dimension?:IDimension): void {
+	public observeReferenceElement(dimension?: IDimension): void {
 		this._elementSizeObserver.observe(dimension);
 	}
 
@@ -265,7 +265,7 @@ export class Configuration extends CommonEditorConfiguration {
 		super.dispose();
 	}
 
-	protected _getEditorClassName(theme:string, fontLigatures:boolean): string {
+	protected _getEditorClassName(theme: string, fontLigatures: boolean): string {
 		let extra = '';
 		if (browser.isIE11orEarlier) {
 			extra += 'ie ';
@@ -298,7 +298,7 @@ export class Configuration extends CommonEditorConfiguration {
 		return browser.canUseTranslate3d && browser.getZoomLevel() === 0;
 	}
 
-	protected readConfiguration(bareFontInfo:BareFontInfo): FontInfo {
+	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
 		return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 	}
 }

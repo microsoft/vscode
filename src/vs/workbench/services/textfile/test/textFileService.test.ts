@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {workbenchInstantiationService, TestLifecycleService, TestTextFileService} from 'vs/test/utils/servicesTestUtils';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import {ITextFileService} from 'vs/workbench/services/textfile/common/textfiles';
-import {ConfirmResult} from 'vs/workbench/common/editor';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
-import {TextFileEditorModelManager} from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ConfirmResult } from 'vs/workbench/common/editor';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 
 function toResource(path) {
 	return URI.file(paths.join('C:\\', path));

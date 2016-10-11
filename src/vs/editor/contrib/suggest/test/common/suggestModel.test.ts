@@ -7,18 +7,18 @@
 import * as assert from 'assert';
 import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Model} from 'vs/editor/common/model/model';
-import {ICommonCodeEditor, Handler} from 'vs/editor/common/editorCommon';
-import {ISuggestSupport, ISuggestResult, SuggestRegistry} from 'vs/editor/common/modes';
-import {SuggestModel, Context} from 'vs/editor/contrib/suggest/common/suggestModel';
-import {MockCodeEditor, MockScopeLocation} from 'vs/editor/test/common/mocks/mockCodeEditor';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Model } from 'vs/editor/common/model/model';
+import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
+import { ISuggestSupport, ISuggestResult, SuggestRegistry } from 'vs/editor/common/modes';
+import { SuggestModel, Context } from 'vs/editor/contrib/suggest/common/suggestModel';
+import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ITelemetryService, NullTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 function createMockEditor(model: Model): MockCodeEditor {
 	const contextKeyService = new MockKeybindingService();

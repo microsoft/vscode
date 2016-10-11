@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Arrays} from 'vs/editor/common/core/arrays';
+import { Arrays } from 'vs/editor/common/core/arrays';
 
 /**
  * A token on a line.
@@ -12,26 +12,26 @@ import {Arrays} from 'vs/editor/common/core/arrays';
 export class ViewLineToken {
 	_viewLineTokenBrand: void;
 
-	public startIndex:number;
-	public type:string;
+	public startIndex: number;
+	public type: string;
 
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex|0;// @perf
+	constructor(startIndex: number, type: string) {
+		this.startIndex = startIndex | 0;// @perf
 		this.type = type.replace(/[^a-z0-9\-]/gi, ' ');
 	}
 
-	public equals(other:ViewLineToken): boolean {
+	public equals(other: ViewLineToken): boolean {
 		return (
 			this.startIndex === other.startIndex
 			&& this.type === other.type
 		);
 	}
 
-	public static findIndexInSegmentsArray(arr:ViewLineToken[], desiredIndex: number): number {
+	public static findIndexInSegmentsArray(arr: ViewLineToken[], desiredIndex: number): number {
 		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
 	}
 
-	public static equalsArray(a:ViewLineToken[], b:ViewLineToken[]): boolean {
+	public static equalsArray(a: ViewLineToken[], b: ViewLineToken[]): boolean {
 		let aLen = a.length;
 		let bLen = b.length;
 		if (aLen !== bLen) {
@@ -49,14 +49,14 @@ export class ViewLineToken {
 export class ViewLineTokens {
 	_viewLineTokensBrand: void;
 
-	private _lineTokens:ViewLineToken[];
-	private _fauxIndentLength:number;
-	private _textLength:number;
+	private _lineTokens: ViewLineToken[];
+	private _fauxIndentLength: number;
+	private _textLength: number;
 
-	constructor(lineTokens:ViewLineToken[], fauxIndentLength:number, textLength:number) {
+	constructor(lineTokens: ViewLineToken[], fauxIndentLength: number, textLength: number) {
 		this._lineTokens = lineTokens;
-		this._fauxIndentLength = fauxIndentLength|0;
-		this._textLength = textLength|0;
+		this._fauxIndentLength = fauxIndentLength | 0;
+		this._textLength = textLength | 0;
 	}
 
 	public getTokens(): ViewLineToken[] {
@@ -71,7 +71,7 @@ export class ViewLineTokens {
 		return this._textLength;
 	}
 
-	public equals(other:ViewLineTokens): boolean {
+	public equals(other: ViewLineTokens): boolean {
 		return (
 			this._fauxIndentLength === other._fauxIndentLength
 			&& this._textLength === other._textLength
@@ -79,7 +79,7 @@ export class ViewLineTokens {
 		);
 	}
 
-	public findIndexOfOffset(offset:number): number {
+	public findIndexOfOffset(offset: number): number {
 		return ViewLineToken.findIndexInSegmentsArray(this._lineTokens, offset);
 	}
 }

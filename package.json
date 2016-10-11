@@ -89,6 +89,7 @@
     "source-map": "^0.4.4",
     "tslint": "^3.3.0",
     "typescript": "^2.0.3",
+    "typescript-formatter": "3.1.0",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
@@ -108,6 +109,7 @@
     }
   },
   "optionalDependencies": {
+    "windows-foreground-love": "0.1.0",
     "windows-mutex": "^0.2.0",
     "fsevents": "0.3.8"
   }

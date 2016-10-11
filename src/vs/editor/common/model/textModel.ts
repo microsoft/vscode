@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {OrderGuaranteeEventEmitter} from 'vs/base/common/eventEmitter';
+import { OrderGuaranteeEventEmitter } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ModelLine} from 'vs/editor/common/model/modelLine';
-import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
-import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
-import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import {IndentRange, computeRanges} from 'vs/editor/common/model/indentRanges';
-import {CharCode} from 'vs/base/common/charCode';
+import { ModelLine } from 'vs/editor/common/model/modelLine';
+import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
+import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
+import { CharCode } from 'vs/base/common/charCode';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
@@ -31,25 +31,25 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
 	};
 
-	/*protected*/ _lines:ModelLine[];
-	protected _EOL:string;
-	protected _isDisposed:boolean;
-	protected _isDisposing:boolean;
+	/*protected*/ _lines: ModelLine[];
+	protected _EOL: string;
+	protected _isDisposed: boolean;
+	protected _isDisposing: boolean;
 	protected _options: editorCommon.ITextModelResolvedOptions;
 	protected _lineStarts: PrefixSumComputer;
 	private _indentRanges: IndentRange[];
 
-	private _versionId:number;
+	private _versionId: number;
 	/**
 	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
 	 */
 	private _alternativeVersionId: number;
-	private _BOM:string;
+	private _BOM: string;
 
 	private _shouldSimplifyMode: boolean;
 	private _shouldDenyMode: boolean;
 
-	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText) {
+	constructor(allowedEventTypes: string[], rawText: editorCommon.IRawText) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged);
 		super(allowedEventTypes);
 
@@ -75,9 +75,9 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._options;
 	}
 
-	public updateOptions(newOpts:editorCommon.ITextModelUpdateOptions): void {
+	public updateOptions(newOpts: editorCommon.ITextModelUpdateOptions): void {
 		let somethingChanged = false;
-		let changed:editorCommon.IModelOptionsChangedEvent = {
+		let changed: editorCommon.IModelOptionsChangedEvent = {
 			tabSize: false,
 			insertSpaces: false,
 			trimAutoWhitespace: false
@@ -115,7 +115,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	public detectIndentation(defaultInsertSpaces:boolean, defaultTabSize:number): void {
+	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
 		let lines = this._lines.map(line => line.text);
 		let guessedIndentation = guessIndentation(lines, defaultTabSize, defaultInsertSpaces);
 		this.updateOptions({
@@ -124,7 +124,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		});
 	}
 
-	private _normalizeIndentationFromWhitespace(str:string): string {
+	private _normalizeIndentationFromWhitespace(str: string): string {
 		let tabSize = this._options.tabSize;
 		let insertSpaces = this._options.insertSpaces;
 
@@ -153,7 +153,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	public normalizeIndentation(str:string): string {
+	public normalizeIndentation(str: string): string {
 		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
 		if (firstNonWhitespaceIndex === -1) {
 			firstNonWhitespaceIndex = str.length;
@@ -186,7 +186,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	private _ensureLineStarts(): void {
 		if (!this._lineStarts) {
-			const lineStartValues:number[] = [];
+			const lineStartValues: number[] = [];
 			const eolLength = this._EOL.length;
 			for (let i = 0, len = this._lines.length; i < len; i++) {
 				lineStartValues.push(this._lines[i].text.length + eolLength);
@@ -218,12 +218,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._setVersionId(this._versionId + 1);
 	}
 
-	protected _setVersionId(newVersionId:number): void {
+	protected _setVersionId(newVersionId: number): void {
 		this._versionId = newVersionId;
 		this._alternativeVersionId = this._versionId;
 	}
 
-	protected _overwriteAlternativeVersionId(newAlternativeVersionId:number): void {
+	protected _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}
 
@@ -252,8 +252,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	protected _emitContentChanged2(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, rangeLength:number, text:string, isUndoing:boolean, isRedoing:boolean): void {
-		var e:editorCommon.IModelContentChangedEvent2 = {
+	protected _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean): void {
+		var e: editorCommon.IModelContentChangedEvent2 = {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeLength: rangeLength,
 			text: text,
@@ -267,7 +267,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	protected _resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
+	protected _resetValue(e: editorCommon.IModelContentChangedFlushEvent, newValue: editorCommon.IRawText): void {
 		this._constructLines(newValue);
 
 		this._increaseVersionId();
@@ -304,7 +304,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return true;
 	}
 
-	public setValue(value:string): void {
+	public setValue(value: string): void {
 		if (value === null) {
 			// There's nothing to do
 			return;
@@ -320,7 +320,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this.setValueFromRawText(rawText);
 	}
 
-	public setValueFromRawText(newValue:editorCommon.IRawText): void {
+	public setValueFromRawText(newValue: editorCommon.IRawText): void {
 		if (newValue === null) {
 			// There's nothing to do
 			return;
@@ -336,7 +336,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false);
 	}
 
-	public getValue(eol?:editorCommon.EndOfLinePreference, preserveBOM:boolean=false): string {
+	public getValue(eol?: editorCommon.EndOfLinePreference, preserveBOM: boolean = false): string {
 		var fullModelRange = this.getFullModelRange();
 		var fullModelValue = this.getValueInRange(fullModelRange, eol);
 
@@ -358,7 +358,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return fullModelValue;
 	}
 
-	public getEmptiedValueInRange(rawRange:editorCommon.IRange, fillCharacter: string = '', eol:editorCommon.EndOfLinePreference=editorCommon.EndOfLinePreference.TextDefined): string {
+	public getEmptiedValueInRange(rawRange: editorCommon.IRange, fillCharacter: string = '', eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
 		var range = this.validateRange(rawRange);
 
 		if (range.isEmpty()) {
@@ -372,7 +372,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var lineEnding = this._getEndOfLine(eol),
 			startLineIndex = range.startLineNumber - 1,
 			endLineIndex = range.endLineNumber - 1,
-			resultLines:string[] = [];
+			resultLines: string[] = [];
 
 		resultLines.push(this._repeatCharacter(fillCharacter, this._lines[startLineIndex].text.length - range.startColumn + 1));
 		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
@@ -383,7 +383,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return resultLines.join(lineEnding);
 	}
 
-	private _repeatCharacter(fillCharacter:string, count:number): string {
+	private _repeatCharacter(fillCharacter: string, count: number): string {
 		var r = '';
 		for (var i = 0; i < count; i++) {
 			r += fillCharacter;
@@ -391,7 +391,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return r;
 	}
 
-	public getValueInRange(rawRange:editorCommon.IRange, eol:editorCommon.EndOfLinePreference=editorCommon.EndOfLinePreference.TextDefined): string {
+	public getValueInRange(rawRange: editorCommon.IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
 		var range = this.validateRange(rawRange);
 
 		if (range.isEmpty()) {
@@ -405,7 +405,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var lineEnding = this._getEndOfLine(eol),
 			startLineIndex = range.startLineNumber - 1,
 			endLineIndex = range.endLineNumber - 1,
-			resultLines:string[] = [];
+			resultLines: string[] = [];
 
 		resultLines.push(this._lines[startLineIndex].text.substring(range.startColumn - 1));
 		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
@@ -416,7 +416,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return resultLines.join(lineEnding);
 	}
 
-	public getValueLengthInRange(rawRange:editorCommon.IRange, eol:editorCommon.EndOfLinePreference=editorCommon.EndOfLinePreference.TextDefined): number {
+	public getValueLengthInRange(rawRange: editorCommon.IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
 		var range = this.validateRange(rawRange);
 
 		if (range.isEmpty()) {
@@ -456,7 +456,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._lines.length;
 	}
 
-	public getLineContent(lineNumber:number): string {
+	public getLineContent(lineNumber: number): string {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -464,7 +464,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._lines[lineNumber - 1].text;
 	}
 
-	public getIndentLevel(lineNumber:number): number {
+	public getIndentLevel(lineNumber: number): number {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -488,7 +488,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return IndentRange.deepCloneArr(indentRanges);
 	}
 
-	private _toValidLineIndentGuide(lineNumber:number, indentGuide:number): number {
+	private _toValidLineIndentGuide(lineNumber: number, indentGuide: number): number {
 		let lineIndentLevel = this._lines[lineNumber - 1].getIndentLevel();
 		if (lineIndentLevel === -1) {
 			return indentGuide;
@@ -497,7 +497,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return Math.min(maxIndentGuide, indentGuide);
 	}
 
-	public getLineIndentGuide(lineNumber:number): number {
+	public getLineIndentGuide(lineNumber: number): number {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -565,11 +565,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false);
 	}
 
-	public getLineMinColumn(lineNumber:number): number {
+	public getLineMinColumn(lineNumber: number): number {
 		return 1;
 	}
 
-	public getLineMaxColumn(lineNumber:number): number {
+	public getLineMaxColumn(lineNumber: number): number {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -601,7 +601,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result + 2;
 	}
 
-	public validateLineNumber(lineNumber:number): number {
+	public validateLineNumber(lineNumber: number): number {
 		if (lineNumber < 1) {
 			lineNumber = 1;
 		}
@@ -614,7 +614,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	/**
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
-	private _validatePosition(_lineNumber:number, _column:number, strict:boolean): Position {
+	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
 		const lineNumber = Math.floor(typeof _lineNumber === 'number' ? _lineNumber : 1);
 		const column = Math.floor(typeof _column === 'number' ? _column : 1);
 
@@ -648,11 +648,11 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Position(lineNumber, column);
 	}
 
-	public validatePosition(position:editorCommon.IPosition): Position {
+	public validatePosition(position: editorCommon.IPosition): Position {
 		return this._validatePosition(position.lineNumber, position.column, true);
 	}
 
-	public validateRange(_range:editorCommon.IRange): Range {
+	public validateRange(_range: editorCommon.IRange): Range {
 		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
 		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);
 
@@ -693,7 +693,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
 	}
 
-	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number) : Position {
+	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number): Position {
 		return this.getPositionAt(this.getOffsetAt(rawPosition) + offset);
 	}
 
@@ -702,13 +702,13 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	protected _emitModelContentChangedFlushEvent(e:editorCommon.IModelContentChangedFlushEvent): void {
+	protected _emitModelContentChangedFlushEvent(e: editorCommon.IModelContentChangedFlushEvent): void {
 		if (!this._isDisposing) {
 			this.emit(editorCommon.EventType.ModelRawContentChanged, e);
 		}
 	}
 
-	public static toRawText(rawText:string, opts:editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static toRawText(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		// Count the number of lines that end with \r\n
 		var carriageReturnCnt = 0,
 			lastCarriageReturnIndex = -1;
@@ -766,7 +766,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	protected _constructLines(rawText:editorCommon.IRawText): void {
+	protected _constructLines(rawText: editorCommon.IRawText): void {
 		const tabSize = rawText.options.tabSize;
 		let rawLines = rawText.lines;
 		let modelLines: ModelLine[] = [];
@@ -781,7 +781,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._resetIndentRanges();
 	}
 
-	private _getEndOfLine(eol:editorCommon.EndOfLinePreference): string {
+	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {
 		switch (eol) {
 			case editorCommon.EndOfLinePreference.LF:
 				return '\n';
@@ -793,7 +793,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	private static _isMultiline(searchString:string): boolean {
+	private static _isMultiline(searchString: string): boolean {
 		if (!searchString || searchString.length === 0) {
 			return false;
 		}
@@ -821,7 +821,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return false;
 	}
 
-	public static parseSearchRequest(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean): RegExp {
+	public static parseSearchRequest(searchString: string, isRegex: boolean, matchCase: boolean, wholeWord: boolean): RegExp {
 		if (searchString === '') {
 			return null;
 		}
@@ -830,7 +830,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var regex: RegExp = null;
 		var multiline = isRegex && TextModel._isMultiline(searchString);
 		try {
-			regex = strings.createRegExp(searchString, isRegex, {matchCase, wholeWord, multiline, global: true});
+			regex = strings.createRegExp(searchString, isRegex, { matchCase, wholeWord, multiline, global: true });
 		} catch (err) {
 			return null;
 		}
@@ -842,13 +842,13 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return regex;
 	}
 
-	public findMatches(searchString:string, rawSearchScope:any, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount:number = LIMIT_FIND_COUNT): Range[] {
+	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount: number = LIMIT_FIND_COUNT): Range[] {
 		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return [];
 		}
 
-		let searchRange:Range;
+		let searchRange: Range;
 		if (Range.isIRange(rawSearchScope)) {
 			searchRange = this.validateRange(rawSearchScope);
 		} else {
@@ -861,7 +861,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._doFindMatchesLineByLine(searchRange, regex, limitResultCount);
 	}
 
-	private _doFindMatchesMultiline(searchRange:Range, searchRegex:RegExp, limitResultCount:number): Range[] {
+	private _doFindMatchesMultiline(searchRange: Range, searchRegex: RegExp, limitResultCount: number): Range[] {
 		let deltaOffset = this.getOffsetAt(searchRange.getStartPosition());
 		let text = this.getValueInRange(searchRange);
 
@@ -870,7 +870,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		let prevEndOffset = 0;
 		let counter = 0;
 
-		let m:RegExpExecArray;
+		let m: RegExpExecArray;
 		while ((m = searchRegex.exec(text))) {
 			let startOffset = deltaOffset + m.index;
 			let endOffset = startOffset + m[0].length;
@@ -895,8 +895,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	private _doFindMatchesLineByLine(searchRange:Range, searchRegex:RegExp, limitResultCount:number): Range[] {
-		let result:Range[] = [];
+	private _doFindMatchesLineByLine(searchRange: Range, searchRegex: RegExp, limitResultCount: number): Range[] {
+		let result: Range[] = [];
 		let text: string;
 		let counter = 0;
 
@@ -925,7 +925,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	public findNextMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range {
+	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
 		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
@@ -961,7 +961,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return null;
 	}
 
-	private _doFindNextMatchLineByLine(searchStart:Position, searchRegex:RegExp): Range {
+	private _doFindNextMatchLineByLine(searchStart: Position, searchRegex: RegExp): Range {
 		let lineCount = this.getLineCount();
 		let startLineNumber = searchStart.lineNumber;
 		let text: string;
@@ -986,7 +986,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return null;
 	}
 
-	public findPreviousMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range {
+	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range {
 		let regex = TextModel.parseSearchRequest(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
@@ -999,7 +999,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._doFindPreviousMatchLineByLine(searchStart, regex);
 	}
 
-	private _doFindPreviousMatchMultiline(searchStart:Position, searchRegex:RegExp): Range {
+	private _doFindPreviousMatchMultiline(searchStart: Position, searchRegex: RegExp): Range {
 		let matches = this._doFindMatchesMultiline(new Range(1, 1, searchStart.lineNumber, searchStart.column), searchRegex, 10 * LIMIT_FIND_COUNT);
 		if (matches.length > 0) {
 			return matches[matches.length - 1];
@@ -1013,7 +1013,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return null;
 	}
 
-	private _doFindPreviousMatchLineByLine(searchStart:Position, searchRegex:RegExp): Range {
+	private _doFindPreviousMatchLineByLine(searchStart: Position, searchRegex: RegExp): Range {
 		let lineCount = this.getLineCount();
 		let startLineNumber = searchStart.lineNumber;
 		let text: string;
@@ -1045,9 +1045,9 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return m ? new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length) : null;
 	}
 
-	private _findLastMatchInLine(searchRegex:RegExp, text:string, lineNumber:number): Range {
+	private _findLastMatchInLine(searchRegex: RegExp, text: string, lineNumber: number): Range {
 		let bestResult: Range = null;
-		let m:RegExpExecArray;
+		let m: RegExpExecArray;
 		while ((m = searchRegex.exec(text))) {
 			let result = new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length);
 			if (result.equalsRange(bestResult)) {
@@ -1062,8 +1062,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return bestResult;
 	}
 
-	private _findMatchesInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number, counter:number, result:Range[], limitResultCount:number): number {
-		var m:RegExpExecArray;
+	private _findMatchesInLine(searchRegex: RegExp, text: string, lineNumber: number, deltaOffset: number, counter: number, result: Range[], limitResultCount: number): number {
+		var m: RegExpExecArray;
 		// Reset regex to search from the beginning
 		searchRegex.lastIndex = 0;
 		do {
@@ -1084,18 +1084,18 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 					return counter;
 				}
 			}
-		} while(m);
+		} while (m);
 		return counter;
 	}
 }
 
 export class RawText {
 
-	public static fromString(rawText:string, opts:editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+	public static fromString(rawText: string, opts: editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		return TextModel.toRawText(rawText, opts);
 	}
 
-	public static fromStringWithModelOptions(rawText:string, model:editorCommon.IModel): editorCommon.IRawText {
+	public static fromStringWithModelOptions(rawText: string, model: editorCommon.IModel): editorCommon.IRawText {
 		let opts = model.getOptions();
 		return TextModel.toRawText(rawText, {
 			tabSize: opts.tabSize,

@@ -5,10 +5,10 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {Action} from 'vs/base/common/actions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Action } from 'vs/base/common/actions';
 
 export interface IMessageWithAction {
 	message: string;

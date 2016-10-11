@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TokensBinaryEncoding, TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
-import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
+import { TokensBinaryEncoding, TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
+import { ModeTransition } from 'vs/editor/common/core/modeTransition';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 
 export class LineToken {
 	_lineTokenBrand: void;
 
-	private _source:LineTokens;
+	private _source: LineTokens;
 	private _tokenIndex: number;
 	private _modeIndex: number;
 
@@ -22,7 +22,7 @@ export class LineToken {
 	public hasPrev: boolean;
 	public hasNext: boolean;
 
-	constructor(source:LineTokens, tokenIndex:number, modeIndex:number) {
+	constructor(source: LineTokens, tokenIndex: number, modeIndex: number) {
 		this._source = source;
 		this._tokenIndex = tokenIndex;
 		this._modeIndex = modeIndex;
@@ -75,13 +75,13 @@ export class LineToken {
 export class LineTokens {
 	_lineTokensBrand: void;
 
-	private _map:TokensInflatorMap;
-	private _tokens:number[];
-	private _textLength:number;
+	private _map: TokensInflatorMap;
+	private _tokens: number[];
+	private _textLength: number;
 
-	modeTransitions:ModeTransition[];
+	modeTransitions: ModeTransition[];
 
-	constructor(map:TokensInflatorMap, tokens:number[], modeTransitions:ModeTransition[], textLength:number) {
+	constructor(map: TokensInflatorMap, tokens: number[], modeTransitions: ModeTransition[], textLength: number) {
 		this._map = map;
 		this._tokens = tokens;
 		this.modeTransitions = modeTransitions;
@@ -92,22 +92,22 @@ export class LineTokens {
 		return this._tokens.length;
 	}
 
-	public getTokenStartOffset(tokenIndex:number): number {
+	public getTokenStartOffset(tokenIndex: number): number {
 		return TokensBinaryEncoding.getStartIndex(this._tokens[tokenIndex]);
 	}
 
-	public getTokenType(tokenIndex:number): string {
+	public getTokenType(tokenIndex: number): string {
 		return TokensBinaryEncoding.getType(this._map, this._tokens[tokenIndex]);
 	}
 
-	public getTokenEndOffset(tokenIndex:number): number {
+	public getTokenEndOffset(tokenIndex: number): number {
 		if (tokenIndex + 1 < this._tokens.length) {
 			return TokensBinaryEncoding.getStartIndex(this._tokens[tokenIndex + 1]);
 		}
 		return this._textLength;
 	}
 
-	public equals(other:LineTokens): boolean {
+	public equals(other: LineTokens): boolean {
 		if (other instanceof LineTokens) {
 			if (this._map !== other._map) {
 				return false;
@@ -127,11 +127,11 @@ export class LineTokens {
 		}
 	}
 
-	public findTokenIndexAtOffset(offset:number): number {
+	public findTokenIndexAtOffset(offset: number): number {
 		return TokensBinaryEncoding.findIndexOfOffset(this._tokens, offset);
 	}
 
-	public findTokenAtOffset(offset:number): LineToken {
+	public findTokenAtOffset(offset: number): LineToken {
 		if (this._textLength === 0) {
 			return null;
 		}
@@ -158,7 +158,7 @@ export class LineTokens {
 		return TokensBinaryEncoding.inflateArr(this._map, this._tokens);
 	}
 
-	public sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[] {
+	public sliceAndInflate(startOffset: number, endOffset: number, deltaStartIndex: number): ViewLineToken[] {
 		return TokensBinaryEncoding.sliceAndInflate(this._map, this._tokens, startOffset, endOffset, deltaStartIndex);
 	}
 }

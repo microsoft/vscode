@@ -6,11 +6,11 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {EmmetEditorAction, EmmetActionContext} from 'vs/workbench/parts/emmet/node/emmetActions';
+import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/node/emmetActions';
 
-import {ServicesAccessor, editorAction} from 'vs/editor/common/editorCommonExtensions';
-import {EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {IQuickOpenService, IInputOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
+import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { IQuickOpenService, IInputOptions } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 @editorAction
 class UpdateTagAction extends EmmetEditorAction {
@@ -24,7 +24,7 @@ class UpdateTagAction extends EmmetEditorAction {
 		});
 	}
 
-	public runEmmetAction(accessor:ServicesAccessor, ctx: EmmetActionContext) {
+	public runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext) {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		let options: IInputOptions = {
@@ -37,7 +37,7 @@ class UpdateTagAction extends EmmetEditorAction {
 		});
 	}
 
-	private wrapAbbreviation(ctx: EmmetActionContext, tag:string) {
+	private wrapAbbreviation(ctx: EmmetActionContext, tag: string) {
 		if (tag && !ctx.emmet.run('update_tag', ctx.editorAccessor, tag)) {
 			this.noExpansionOccurred(ctx.editor);
 		}

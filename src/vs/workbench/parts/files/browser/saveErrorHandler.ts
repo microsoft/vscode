@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
-import {Action} from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/product';
-import {EditorModel} from 'vs/workbench/common/editor';
-import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {ITextFileService, ISaveErrorHandler, ITextFileEditorModel} from 'vs/workbench/services/textfile/common/textfiles';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, IMessageWithAction, Severity, CancelAction} from 'vs/platform/message/common/message';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {TextFileEditorModel} from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { EditorModel } from 'vs/workbench/common/editor';
+import { EditorInputAction } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { SaveFileAsAction, RevertFileAction, SaveFileAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMessageService, IMessageWithAction, Severity, CancelAction } from 'vs/platform/message/common/message';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {

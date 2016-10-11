@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {IRawText} from 'vs/editor/common/editorCommon';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IEncodingSupport, ConfirmResult} from 'vs/workbench/common/editor';
-import {IFileStat, IBaseStat, IResolveContentOptions} from 'vs/platform/files/common/files';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
+import { IRawText } from 'vs/editor/common/editorCommon';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
+import { IFileStat, IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITextEditorModel } from 'vs/platform/editor/common/editor';
+import { Event as BaseEvent, PropertyChangeEvent } from 'vs/base/common/events';
 
 
 /**

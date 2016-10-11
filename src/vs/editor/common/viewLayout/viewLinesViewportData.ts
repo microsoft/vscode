@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IModelDecoration} from 'vs/editor/common/editorCommon';
-import {IDecorationsViewportData, InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
-import {Range} from 'vs/editor/common/core/range';
+import { IModelDecoration } from 'vs/editor/common/editorCommon';
+import { IDecorationsViewportData, InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { Range } from 'vs/editor/common/core/range';
 
 export interface IPartialViewLinesViewportData {
 	viewportTop: number;
@@ -45,18 +45,18 @@ export class ViewLinesViewportData {
 	/**
 	 * completely visible lines range excluding partially rendered lines. Subset of `visibleRange`.
 	 */
-	completelyVisibleLinesRange:Range;
+	completelyVisibleLinesRange: Range;
 
 	private _decorations: IModelDecoration[];
 	private _inlineDecorations: InlineDecoration[][];
 
-	constructor(partialData:IPartialViewLinesViewportData, visibleRange:Range, completelyVisibleLinesRange: Range, decorationsData:IDecorationsViewportData) {
-		this.viewportTop = partialData.viewportTop|0;
-		this.viewportHeight = partialData.viewportHeight|0;
-		this.bigNumbersDelta = partialData.bigNumbersDelta|0;
-		this.visibleRangesDeltaTop = partialData.visibleRangesDeltaTop|0;
-		this.startLineNumber = partialData.startLineNumber|0;
-		this.endLineNumber = partialData.endLineNumber|0;
+	constructor(partialData: IPartialViewLinesViewportData, visibleRange: Range, completelyVisibleLinesRange: Range, decorationsData: IDecorationsViewportData) {
+		this.viewportTop = partialData.viewportTop | 0;
+		this.viewportHeight = partialData.viewportHeight | 0;
+		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
+		this.visibleRangesDeltaTop = partialData.visibleRangesDeltaTop | 0;
+		this.startLineNumber = partialData.startLineNumber | 0;
+		this.endLineNumber = partialData.endLineNumber | 0;
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
 		this.visibleRange = visibleRange;
 		this.completelyVisibleLinesRange = completelyVisibleLinesRange;
@@ -68,8 +68,8 @@ export class ViewLinesViewportData {
 		return this._decorations;
 	}
 
-	public getInlineDecorationsForLineInViewport(lineNumber:number): InlineDecoration[] {
-		lineNumber = lineNumber|0;
+	public getInlineDecorationsForLineInViewport(lineNumber: number): InlineDecoration[] {
+		lineNumber = lineNumber | 0;
 		return this._inlineDecorations[lineNumber - this.startLineNumber];
 	}
 }

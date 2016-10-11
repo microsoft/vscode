@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Range} from 'vs/editor/common/core/range';
-import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
+import { Range } from 'vs/editor/common/core/range';
+import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 
 suite('Editor Contrib - Snippets', () => {
 

@@ -6,8 +6,8 @@
 'use strict';
 
 import 'vs/css!./leftRightWidget';
-import {Builder, $} from 'vs/base/browser/builder';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IRenderer {
 	(container: HTMLElement): IDisposable;

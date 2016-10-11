@@ -44,7 +44,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService
-	) {}
+	) { }
 
 	get templateId() { return 'extension'; }
 

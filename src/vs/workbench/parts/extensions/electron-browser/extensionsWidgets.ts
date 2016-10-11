@@ -75,9 +75,9 @@ export class InstallWidget implements IDisposable {
 
 		if (this.options.small) {
 			if (installCount > 1000000) {
-				installLabel = `${ Math.floor(installCount / 1000000) }M`;
+				installLabel = `${Math.floor(installCount / 1000000)}M`;
 			} else if (installCount > 1000) {
-				installLabel = `${ Math.floor(installCount / 1000) }K`;
+				installLabel = `${Math.floor(installCount / 1000)}K`;
 			}
 		}
 

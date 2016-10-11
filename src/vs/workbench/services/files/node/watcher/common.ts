@@ -7,7 +7,7 @@
 
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 
 export interface IRawFileChange {
 	type: FileChangeType;
@@ -86,8 +86,8 @@ class EventNormalizer {
 	}
 
 	public normalize(): IRawFileChange[] {
-		let addedChangeEvents:IRawFileChange[] = [];
-		let deletedPaths:string[] = [];
+		let addedChangeEvents: IRawFileChange[] = [];
+		let deletedPaths: string[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder
 		// that got deleted if any. This ensures that we are not producing
@@ -117,7 +117,7 @@ class EventNormalizer {
 		}).concat(addedChangeEvents);
 	}
 
-	private isParent(p:string, candidate:string): boolean {
+	private isParent(p: string, candidate: string): boolean {
 		return p.indexOf(candidate + paths.nativeSep) === 0;
 	}
 }

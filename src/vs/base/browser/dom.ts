@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {TimeoutTimer} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
-import {isObject} from 'vs/base/common/types';
-import {isChrome, isWebKit} from 'vs/base/browser/browser';
-import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {CharCode} from 'vs/base/common/charCode';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { TimeoutTimer } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isObject } from 'vs/base/common/types';
+import { isChrome, isWebKit } from 'vs/base/browser/browser';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { CharCode } from 'vs/base/common/charCode';
 
 export function clearNode(node: HTMLElement) {
 	while (node.firstChild) {

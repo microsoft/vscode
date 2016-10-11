@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, TextEditor} from 'vscode';
+import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, TextEditor } from 'vscode';
 
 const MAX_DECORATORS = 500;
 
@@ -30,7 +30,7 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	let colorsDecorationType = window.createTextEditorDecorationType(decorationType);
 	disposables.push(colorsDecorationType);
 
-	let pendingUpdateRequests : { [key:string]: NodeJS.Timer; } = {};
+	let pendingUpdateRequests: { [key: string]: NodeJS.Timer; } = {};
 
 	// we care about all visible editors
 	window.visibleTextEditors.forEach(editor => {

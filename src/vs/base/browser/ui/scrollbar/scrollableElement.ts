@@ -9,17 +9,17 @@ import 'vs/css!./media/scrollbars';
 import * as Browser from 'vs/base/browser/browser';
 import * as DomUtils from 'vs/base/browser/dom';
 import * as Platform from 'vs/base/common/platform';
-import {StandardMouseWheelEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
-import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
-import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
-import {ScrollableElementCreationOptions, ScrollableElementChangeOptions, ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {Scrollable, ScrollEvent, INewScrollState, ScrollbarVisibility} from 'vs/base/common/scrollable';
-import {Widget} from 'vs/base/browser/ui/widget';
-import {TimeoutTimer} from 'vs/base/common/async';
-import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {ScrollbarHost} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import Event, {Emitter} from 'vs/base/common/event';
+import { StandardMouseWheelEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
+import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
+import { ScrollableElementCreationOptions, ScrollableElementChangeOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Scrollable, ScrollEvent, INewScrollState, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { TimeoutTimer } from 'vs/base/common/async';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import Event, { Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -67,7 +67,7 @@ export class ScrollableElement extends Widget {
 
 		// this._scrollable = this._register(new DelegateScrollable(scrollable, () => this._onScroll()));
 
-		let scrollbarHost:ScrollbarHost = {
+		let scrollbarHost: ScrollbarHost = {
 			onMouseWheel: (mouseWheelEvent: StandardMouseWheelEvent) => this._onMouseWheel(mouseWheelEvent),
 			onDragStart: () => this._onDragStart(),
 			onDragEnd: () => this._onDragEnd(),
@@ -140,7 +140,7 @@ export class ScrollableElement extends Widget {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
 	}
 
-	public updateState(newState:INewScrollState): void {
+	public updateState(newState: INewScrollState): void {
 		this._scrollable.updateState(newState);
 	}
 
@@ -291,7 +291,7 @@ export class ScrollableElement extends Widget {
 		}
 	}
 
-	private _onDidScroll(e:ScrollEvent): void {
+	private _onDidScroll(e: ScrollEvent): void {
 		this._shouldRender = this._horizontalScrollbar.onDidScroll(e) || this._shouldRender;
 		this._shouldRender = this._verticalScrollbar.onDidScroll(e) || this._shouldRender;
 

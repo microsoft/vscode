@@ -12,7 +12,7 @@ import { IExtension } from './extensions';
 
 export class ExtensionsInput extends EditorInput {
 
-	static get ID()  { return 'workbench.extensions.input2'; }
+	static get ID() { return 'workbench.extensions.input2'; }
 	get extension(): IExtension { return this._extension; }
 
 	constructor(private _extension: IExtension) {

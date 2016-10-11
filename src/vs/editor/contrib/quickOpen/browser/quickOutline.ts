@@ -8,17 +8,17 @@
 
 import 'vs/css!./quickOutline';
 import * as nls from 'vs/nls';
-import {matchesFuzzy} from 'vs/base/common/filters';
+import { matchesFuzzy } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {ICommonCodeEditor, IRange, ModeContextKeys, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry} from 'vs/editor/common/modes';
-import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
-import {getDocumentSymbols, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {editorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { ICommonCodeEditor, IRange, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
+import { getDocumentSymbols, IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 let SCOPE_PREFIX = ':';
 
@@ -127,7 +127,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
 
 		let model = editor.getModel();
 
@@ -145,13 +145,13 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	private _run(editor:ICommonCodeEditor, result:SymbolInformation[]): void {
+	private _run(editor: ICommonCodeEditor, result: SymbolInformation[]): void {
 		this._show(this.getController(editor), {
-			getModel: (value:string):QuickOpenModel => {
+			getModel: (value: string): QuickOpenModel => {
 				return new QuickOpenModel(this.toQuickOpenEntries(editor, result, value));
 			},
 
-			getAutoFocus: (searchValue:string):IAutoFocus => {
+			getAutoFocus: (searchValue: string): IAutoFocus => {
 				// Remove any type pattern (:) from search value as needed
 				if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
 					searchValue = searchValue.substr(SCOPE_PREFIX.length);
@@ -165,7 +165,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	private toQuickOpenEntries(editor:ICommonCodeEditor, flattened: SymbolInformation[], searchValue: string): SymbolEntry[] {
+	private toQuickOpenEntries(editor: ICommonCodeEditor, flattened: SymbolInformation[], searchValue: string): SymbolEntry[] {
 		const controller = this.getController(editor);
 
 		let results: SymbolEntry[] = [];

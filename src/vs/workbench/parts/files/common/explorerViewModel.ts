@@ -7,9 +7,9 @@
 
 import assert = require('vs/base/common/assert');
 import URI from 'vs/base/common/uri';
-import {isLinux} from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
-import {IFileStat} from 'vs/platform/files/common/files';
+import { IFileStat } from 'vs/platform/files/common/files';
 
 export enum StatType {
 	FILE,

@@ -5,15 +5,15 @@
 
 'use strict';
 
-import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel} from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol} from 'vs/editor/common/modes';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {asWinJsPromise} from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { asWinJsPromise } from 'vs/base/common/async';
 
 export interface ICodeLensData {
 	symbol: ICodeLensSymbol;
@@ -45,7 +45,7 @@ export function getCodeLensData(model: IModel): TPromise<ICodeLensData[]> {
 	});
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeCodeLensProvider', function(accessor, args) {
+CommonEditorRegistry.registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 
 	const {resource} = args;
 	if (!(resource instanceof URI)) {

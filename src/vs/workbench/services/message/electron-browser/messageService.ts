@@ -5,13 +5,13 @@
 
 'use strict';
 
-import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
-import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
-import {IConfirmation} from 'vs/platform/message/common/message';
-import {isWindows, isLinux} from 'vs/base/common/platform';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
+import { IConfirmation } from 'vs/platform/message/common/message';
+import { isWindows, isLinux } from 'vs/base/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class MessageService extends WorkbenchMessageService {
 

@@ -7,26 +7,26 @@
 import * as nls from 'vs/nls';
 
 export interface IXHROptions {
-	type?:string;
-	url?:string;
-	user?:string;
-	password?:string;
-	responseType?:string;
-	headers?:any;
+	type?: string;
+	url?: string;
+	user?: string;
+	password?: string;
+	responseType?: string;
+	headers?: any;
 	timeout?: number;
 	followRedirects?: number;
-	data?:any;
+	data?: any;
 }
 
 export interface IXHRResponse {
 	responseText: string;
 	status: number;
 
-	readyState : number;
-	getResponseHeader: (header:string) => string;
+	readyState: number;
+	getResponseHeader: (header: string) => string;
 }
 
-export function getErrorStatusDescription(status: number) : string {
+export function getErrorStatusDescription(status: number): string {
 	if (status < 400) {
 		return void 0;
 	}

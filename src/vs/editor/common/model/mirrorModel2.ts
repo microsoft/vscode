@@ -5,8 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {IModelContentChangedEvent2, IPosition, IRange} from 'vs/editor/common/editorCommon';
-import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IModelContentChangedEvent2, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export class MirrorModel2 {
 
@@ -67,7 +67,7 @@ export class MirrorModel2 {
 
 	protected _ensureLineStarts(): void {
 		if (!this._lineStarts) {
-			const lineStartValues:number[] = [];
+			const lineStartValues: number[] = [];
 			const eolLength = this._eol.length;
 			for (let i = 0, len = this._lines.length; i < len; i++) {
 				lineStartValues.push(this._lines[i].length + eolLength);
@@ -79,7 +79,7 @@ export class MirrorModel2 {
 	/**
 	 * All changes to a line's text go through this method
 	 */
-	private _setLineText(lineIndex:number, newValue:string): void {
+	private _setLineText(lineIndex: number, newValue: string): void {
 		this._lines[lineIndex] = newValue;
 		if (this._lineStarts) {
 			// update prefix sum
@@ -116,7 +116,7 @@ export class MirrorModel2 {
 		}
 	}
 
-	private _acceptInsertText(position: IPosition, insertText:string): void {
+	private _acceptInsertText(position: IPosition, insertText: string): void {
 		if (insertText.length === 0) {
 			// Nothing to insert
 			return;
@@ -142,7 +142,7 @@ export class MirrorModel2 {
 		);
 
 		// Insert new lines & store lengths
-		let newLengths:number[] = new Array<number>(insertLines.length - 1);
+		let newLengths: number[] = new Array<number>(insertLines.length - 1);
 		for (let i = 1; i < insertLines.length; i++) {
 			this._lines.splice(position.lineNumber + i - 1, 0, insertLines[i]);
 			newLengths[i - 1] = insertLines[i].length + this._eol.length;

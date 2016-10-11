@@ -6,10 +6,10 @@
 
 import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
-import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
+import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchResultsView';
-import {IFileMatch, ILineMatch} from 'vs/platform/search/common/search';
+import { SearchSorter, SearchDataSource } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { IFileMatch, ILineMatch } from 'vs/platform/search/common/search';
 import { createMockModelService } from 'vs/test/utils/servicesTestUtils';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -63,7 +63,7 @@ suite('Search - Viewlet', () => {
 	});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ILineMatch[]): FileMatch {
-		let rawMatch: IFileMatch= {
+		let rawMatch: IFileMatch = {
 			resource: uri.file('C:\\' + path),
 			lineMatches: lineMatches
 		};

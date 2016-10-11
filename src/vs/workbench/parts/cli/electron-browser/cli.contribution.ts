@@ -55,7 +55,7 @@ class InstallAction extends Action {
 	}
 
 	private get target(): string {
-		return `/usr/local/bin/${ product.applicationName }`;
+		return `/usr/local/bin/${product.applicationName}`;
 	}
 
 	run(): TPromise<void> {
@@ -185,7 +185,7 @@ class UninstallAction extends Action {
 	}
 
 	private get target(): string {
-		return `/usr/local/bin/${ product.applicationName }`;
+		return `/usr/local/bin/${product.applicationName}`;
 	}
 
 	run(): TPromise<void> {

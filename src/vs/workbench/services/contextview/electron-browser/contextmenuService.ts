@@ -5,17 +5,17 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import {IAction} from 'vs/base/common/actions';
-import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
-import {IContextMenuService, IContextMenuDelegate, ContextSubMenu, IEvent} from 'vs/platform/contextview/browser/contextView';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService, IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/platform/contextview/browser/contextView';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-import {remote, webFrame} from 'electron';
+import { remote, webFrame } from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -62,7 +62,7 @@ export class ContextMenuService implements IContextMenuService {
 		});
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: (IAction|ContextSubMenu)[]): Electron.Menu {
+	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[]): Electron.Menu {
 		const menu = new remote.Menu();
 
 		entries.forEach(e => {

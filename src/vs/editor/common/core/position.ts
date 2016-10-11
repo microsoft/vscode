@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPosition} from 'vs/editor/common/editorCommon';
+import { IPosition } from 'vs/editor/common/editorCommon';
 
 /**
  * A position in the editor.
@@ -27,14 +27,14 @@ export class Position {
 	/**
 	 * Test if this position equals other position
 	 */
-	public equals(other:IPosition): boolean {
+	public equals(other: IPosition): boolean {
 		return Position.equals(this, other);
 	}
 
 	/**
 	 * Test if position `a` equals position `b`
 	 */
-	public static equals(a:IPosition, b:IPosition): boolean {
+	public static equals(a: IPosition, b: IPosition): boolean {
 		if (!a && !b) {
 			return true;
 		}
@@ -50,7 +50,7 @@ export class Position {
 	 * Test if this position is before other position.
 	 * If the two positions are equal, the result will be false.
 	 */
-	public isBefore(other:IPosition): boolean {
+	public isBefore(other: IPosition): boolean {
 		return Position.isBefore(this, other);
 	}
 
@@ -58,7 +58,7 @@ export class Position {
 	 * Test if position `a` is before position `b`.
 	 * If the two positions are equal, the result will be false.
 	 */
-	public static isBefore(a:IPosition, b:IPosition): boolean {
+	public static isBefore(a: IPosition, b: IPosition): boolean {
 		if (a.lineNumber < b.lineNumber) {
 			return true;
 		}
@@ -72,7 +72,7 @@ export class Position {
 	 * Test if this position is before other position.
 	 * If the two positions are equal, the result will be true.
 	 */
-	public isBeforeOrEqual(other:IPosition): boolean {
+	public isBeforeOrEqual(other: IPosition): boolean {
 		return Position.isBeforeOrEqual(this, other);
 	}
 
@@ -80,7 +80,7 @@ export class Position {
 	 * Test if position `a` is before position `b`.
 	 * If the two positions are equal, the result will be true.
 	 */
-	public static isBeforeOrEqual(a:IPosition, b:IPosition): boolean {
+	public static isBeforeOrEqual(a: IPosition, b: IPosition): boolean {
 		if (a.lineNumber < b.lineNumber) {
 			return true;
 		}
@@ -109,7 +109,7 @@ export class Position {
 	/**
 	 * Create a `Position` from an `IPosition`.
 	 */
-	public static lift(pos:IPosition): Position {
+	public static lift(pos: IPosition): Position {
 		return new Position(pos.lineNumber, pos.column);
 	}
 

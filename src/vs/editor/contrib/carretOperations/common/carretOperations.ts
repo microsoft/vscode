@@ -5,23 +5,23 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {ICommand, ICommonCodeEditor, EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {IActionOptions, editorAction, EditorAction, ServicesAccessor} from 'vs/editor/common/editorCommonExtensions';
-import {MoveCarretCommand} from './moveCarretCommand';
+import { ICommand, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { IActionOptions, editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { MoveCarretCommand } from './moveCarretCommand';
 
 class MoveCarretAction extends EditorAction {
 
-	private left:boolean;
+	private left: boolean;
 
-	constructor(left:boolean, opts:IActionOptions) {
+	constructor(left: boolean, opts: IActionOptions) {
 		super(opts);
 
 		this.left = left;
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 
-		var commands:ICommand[] = [];
+		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {

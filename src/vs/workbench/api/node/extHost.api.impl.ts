@@ -4,46 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Emitter} from 'vs/base/common/event';
-import {score} from 'vs/editor/common/modes/languageSelector';
+import { Emitter } from 'vs/base/common/event';
+import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as errors from 'vs/base/common/errors';
 import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
-import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
-import {ExtHostDocuments} from 'vs/workbench/api/node/extHostDocuments';
-import {ExtHostDocumentSaveParticipant} from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
-import {ExtHostConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
-import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
-import {ExtHostWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
-import {ExtHostQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
-import {ExtHostHeapService} from 'vs/workbench/api/node/extHostHeapService';
-import {ExtHostStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
-import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
-import {ExtHostOutputService} from 'vs/workbench/api/node/extHostOutputService';
-import {ExtHostTerminalService} from 'vs/workbench/api/node/extHostTerminalService';
-import {ExtHostMessageService} from 'vs/workbench/api/node/extHostMessageService';
-import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
-import {ExtHostLanguages} from 'vs/workbench/api/node/extHostLanguages';
-import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import { ExtHostFileSystemEventService } from 'vs/workbench/api/node/extHostFileSystemEventService';
+import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostQuickOpen } from 'vs/workbench/api/node/extHostQuickOpen';
+import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
+import { ExtHostStatusBar } from 'vs/workbench/api/node/extHostStatusBar';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostOutputService } from 'vs/workbench/api/node/extHostOutputService';
+import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
+import { ExtHostMessageService } from 'vs/workbench/api/node/extHostMessageService';
+import { ExtHostEditors } from 'vs/workbench/api/node/extHostEditors';
+import { ExtHostLanguages } from 'vs/workbench/api/node/extHostLanguages';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
+import { registerApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import Modes = require('vs/editor/common/modes');
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ExtHostExtensionService} from 'vs/workbench/api/node/extHostExtensionService';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {CancellationTokenSource} from 'vs/base/common/cancellation';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import vscode = require('vscode');
 import * as paths from 'vs/base/common/paths';
-import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {MainContext, ExtHostContext, InstanceCollection} from './extHost.protocol';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { MainContext, ExtHostContext, InstanceCollection } from './extHost.protocol';
 
 /**
  * This class implements the API described in vscode.d.ts,
@@ -228,7 +228,7 @@ export class ExtHostAPIImplementation {
 			showTextDocument(document: vscode.TextDocument, column?: vscode.ViewColumn, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
 				return extHostEditors.showTextDocument(document, column, preserveFocus);
 			},
-			createTextEditorDecorationType(options:vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
+			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return extHostEditors.createTextEditorDecorationType(options);
 			},
 			onDidChangeActiveTextEditor: extHostEditors.onDidChangeActiveTextEditor.bind(extHostEditors),
@@ -335,7 +335,7 @@ export class ExtHostAPIImplementation {
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
-			getConfiguration: (section?: string):vscode.WorkspaceConfiguration => {
+			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
 				return extHostConfiguration.getConfiguration(section);
 			}
 		});
@@ -348,7 +348,7 @@ export class ExtHostAPIImplementation {
 				return languages.getLanguages();
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(selector, <any> document.uri, document.languageId);
+				return score(selector, <any>document.uri, document.languageId);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 				return languageFeatures.registerCodeActionProvider(selector, provider);
@@ -395,20 +395,20 @@ export class ExtHostAPIImplementation {
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentLinkProvider(selector, provider);
 			},
-			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration):vscode.Disposable => {
+			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return languageFeatures.setLanguageConfiguration(language, configuration);
 			}
 		};
 
 		this.extensions = {
-			getExtension(extensionId: string):Extension<any> {
+			getExtension(extensionId: string): Extension<any> {
 				let desc = ExtensionsRegistry.getExtensionDescription(extensionId);
 				if (desc) {
-					return new Extension(<ExtHostExtensionService> extensionService, desc);
+					return new Extension(<ExtHostExtensionService>extensionService, desc);
 				}
 			},
-			get all():Extension<any>[] {
-				return ExtensionsRegistry.getAllExtensionDescriptions().map((desc) => new Extension(<ExtHostExtensionService> extensionService, desc));
+			get all(): Extension<any>[] {
+				return ExtensionsRegistry.getAllExtensionDescriptions().map((desc) => new Extension(<ExtHostExtensionService>extensionService, desc));
 			}
 		};
 	}
@@ -422,7 +422,7 @@ class Extension<T> implements vscode.Extension<T> {
 	public extensionPath: string;
 	public packageJSON: any;
 
-	constructor(extensionService:ExtHostExtensionService, description:IExtensionDescription) {
+	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
 		this._extensionService = extensionService;
 		this.id = description.id;
 		this.extensionPath = paths.normalize(description.extensionFolderPath, true);

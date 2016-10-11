@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {binarySearch} from 'vs/base/common/arrays';
-import {ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {SyncDescriptor} from './descriptors';
+import { binarySearch } from 'vs/base/common/arrays';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor } from './descriptors';
 
 type Entry = [ServiceIdentifier<any>, any];
 
@@ -14,7 +14,7 @@ export class ServiceCollection {
 
 	private _entries: Entry[] = [];
 
-	constructor(...entries:[ServiceIdentifier<any>, any][]) {
+	constructor(...entries: [ServiceIdentifier<any>, any][]) {
 		for (let entry of entries) {
 			this.set(entry[0], entry[1]);
 		}

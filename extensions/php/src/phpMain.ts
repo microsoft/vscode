@@ -14,7 +14,7 @@ import { ExtensionContext, languages, env } from 'vscode';
 import * as nls from 'vscode-nls';
 
 export function activate(context: ExtensionContext): any {
-	nls.config({locale: env.language});
+	nls.config({ locale: env.language });
 
 	// add providers
 	context.subscriptions.push(languages.registerCompletionItemProvider('php', new PHPCompletionItemProvider(), '.', '$'));
