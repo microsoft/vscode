@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { IReadOnlyModel, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -25,37 +24,29 @@ export interface FormatterConfiguration {
 	[language: string]: string;
 }
 
-export namespace FormattingPriorities {
+export namespace FormatterConfiguration {
 
 
-	export function getDocumentFormatterConfiguration(service: IConfigurationService): FormatterConfiguration {
-		return getConfigurationValue<FormatterConfiguration>(service.getConfiguration(), 'editor.formatter.document');
+	export function get(service: IConfigurationService): FormatterConfiguration {
+		return getConfigurationValue<FormatterConfiguration>(service.getConfiguration(), 'editor.formatter');
 	}
 
-	export function getDocumentRangeFormatterConfiguration(service: IConfigurationService): FormatterConfiguration {
-		return getConfigurationValue<FormatterConfiguration>(service.getConfiguration(), 'editor.formatter.documentRange');
-	}
-
-	export function pick<T extends { name?: string }>(registry: LanguageFeatureRegistry<T>, model: IReadOnlyModel, config: FormatterConfiguration): T {
-
-		const ordered = registry.ordered(model);
+	export function pick<T extends { name?: string }>(providers: T[], model: IReadOnlyModel, config: FormatterConfiguration): T {
 		const customConfig = config[model.getModeId()];
-
-		if (customConfig) {
-			for (const provider of ordered) {
-				if (provider.name === customConfig) {
-					return provider;
-				}
+		if (!customConfig) {
+			return providers[0];
+		}
+		for (const provider of providers) {
+			if (provider.name === customConfig) {
+				return provider;
 			}
-		} else {
-			return ordered[0];
 		}
 	}
 }
 
 export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions, priorities: FormatterConfiguration = {}): TPromise<ISingleEditOperation[]> {
 
-	const support = FormattingPriorities.pick(DocumentRangeFormattingEditProviderRegistry, model, priorities);
+	const support = FormatterConfiguration.pick(DocumentRangeFormattingEditProviderRegistry.ordered(model), model, priorities);
 	if (!support) {
 		return TPromise.as(undefined);
 	}
@@ -67,7 +58,7 @@ export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Ra
 
 export function getDocumentFormattingEdits(model: IReadOnlyModel, options: FormattingOptions, priorities: FormatterConfiguration = {}): TPromise<ISingleEditOperation[]> {
 
-	const support = FormattingPriorities.pick(DocumentFormattingEditProviderRegistry, model, priorities);
+	const support = FormatterConfiguration.pick(DocumentFormattingEditProviderRegistry.ordered(model), model, priorities);
 	if (!support) {
 		return TPromise.as(undefined);
 	}
@@ -101,7 +92,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', func
 		throw illegalArgument('resource');
 	}
 
-	return getDocumentRangeFormattingEdits(model, Range.lift(range), options, FormattingPriorities.getDocumentRangeFormatterConfiguration(accessor.get(IConfigurationService)));
+	return getDocumentRangeFormattingEdits(model, Range.lift(range), options, FormatterConfiguration.get(accessor.get(IConfigurationService)));
 });
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
@@ -115,7 +106,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', f
 	}
 
 
-	return getDocumentFormattingEdits(model, options, FormattingPriorities.getDocumentFormatterConfiguration(accessor.get(IConfigurationService)));
+	return getDocumentFormattingEdits(model, options, FormatterConfiguration.get(accessor.get(IConfigurationService)));
 });
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function (model, position, args) {

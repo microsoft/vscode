@@ -12,11 +12,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
-import { OnTypeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
-import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, FormattingPriorities } from '../common/format';
+import * as modes from 'vs/editor/common/modes';
+import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, FormatterConfiguration } from '../common/format';
 import { EditOperationsCommand } from './formatCommand';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -38,7 +39,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this.callOnDispose.push(editor.onDidChangeConfiguration(() => this.update()));
 		this.callOnDispose.push(editor.onDidChangeModel(() => this.update()));
 		this.callOnDispose.push(editor.onDidChangeModelMode(() => this.update()));
-		this.callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
+		this.callOnDispose.push(modes.OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
 	}
 
 	private update(): void {
@@ -59,7 +60,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		var model = this.editor.getModel();
 
 		// no support
-		var [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
+		var [support] = modes.OnTypeFormattingEditProviderRegistry.ordered(model);
 		if (!support || !support.autoFormatTriggerCharacters) {
 			return;
 		}
@@ -160,57 +161,95 @@ export class FormatAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 
-		const configService = accessor.get(IConfigurationService);
-		const model = editor.getModel();
-		const editorSelection = editor.getSelection();
-		const {tabSize, insertSpaces} = model.getOptions();
-
-		let formattingPromise: TPromise<editorCommon.ISingleEditOperation[]>;
-
-		if (editorSelection.isEmpty()) {
-
-			if (DocumentFormattingEditProviderRegistry.has(model)) {
-				// format document when there is no selection and document formatters
-				const prios = FormattingPriorities.getDocumentFormatterConfiguration(configService);
-				formattingPromise = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, prios);
-
-			} else {
-				// fallback to range formatter with the full document range
-				const prios = FormattingPriorities.getDocumentRangeFormatterConfiguration(configService);
-				formattingPromise = getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }, prios);
-			}
-
-		} else {
-			const prios = FormattingPriorities.getDocumentRangeFormatterConfiguration(configService);
-			formattingPromise = getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces }, prios);
-		}
+		const formattingPromise = this._format(accessor, editor);
 
 		if (!formattingPromise) {
 			return TPromise.as(void 0);
 		}
 
-		// Capture the state of the editor
+		const editorSelection = editor.getSelection();
 		const state = editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
-		return formattingPromise.then((result: editorCommon.ISingleEditOperation[]) => {
+		return formattingPromise.then(edits => {
 
-			if (!state.validate(editor)) {
+			if (!state.validate(editor) || !edits || edits.length === 0) {
 				return;
 			}
 
-			if (!result || result.length === 0) {
-				return;
-			}
-
-			this.apply(editor, editorSelection, result);
-
+			editor.executeCommand(this.id, new EditOperationsCommand(edits, editorSelection));
 			editor.focus();
 		});
 	}
 
-	public apply(editor: editorCommon.ICommonCodeEditor, editorSelection: Selection, value: editorCommon.ISingleEditOperation[]): void {
-		const command = new EditOperationsCommand(value, editorSelection);
-		editor.executeCommand(this.id, command);
+	private _format(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+
+		const configurationService = accessor.get(IConfigurationService);
+		const choiceService = accessor.get(IChoiceService);
+		const config = FormatterConfiguration.get(configurationService);
+
+		return this._tryFormat(editor.getModel(), editor.getSelection(), config).then(undefined, err => {
+
+			if (err !== 'bad_config') {
+				return TPromise.wrapError(err);
+			}
+
+			const options = [
+				nls.localize('fmt.config.ignore', "Use default"),
+				// nls.localize('fmt.config.delete', "Use default and remove configuration"),
+				nls.localize('fmt.cancel', "Cancel"),
+			];
+
+			return choiceService.choose(Severity.Info, nls.localize('formatter.badConfig', "The configured formatter ({0}) isn't available but there is a default formatter", config[editor.getModel().getModeId()]), options).then(idx => {
+
+				if (idx === 0) {
+					return this._tryFormat(editor.getModel(), editor.getSelection(), {});
+					// } else if (idx === 1) {
+					// 	console.warn('TODO - update config!');
+					// 	return this._tryFormat(editor.getModel(), editor.getSelection(), {});
+				}
+
+			}, err => {
+				// nothing
+			});
+		});
+	}
+
+	private _tryFormat(model: editorCommon.IModel, range: Range, config: FormatterConfiguration): TPromise<editorCommon.ISingleEditOperation[]> {
+
+		const {tabSize, insertSpaces} = model.getOptions();
+
+		if (!range.isEmpty()) {
+			// format selection if applicable
+			if (FormatAction._isBadDocumentRangeFormatterConfig(model, config)) {
+				return TPromise.wrapError('bad_config');
+			}
+
+			return getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }, config);
+
+		} else {
+			// formal full document, make it a special
+			// case of format selection when no document
+			// formatter is available
+			const provider = modes.DocumentFormattingEditProviderRegistry.all(model);
+			const all = (<{ name?: string }[]>provider).concat(modes.DocumentRangeFormattingEditProviderRegistry.all(model));
+			if (all.length === 0) {
+				return;
+			}
+			const pick = FormatterConfiguration.pick(all, model, config);
+			if (!pick) {
+				return TPromise.wrapError('bad_config');
+			}
+			if (all.indexOf(pick) < provider.length) {
+				return getDocumentFormattingEdits(model, { tabSize, insertSpaces }, config);
+			} else {
+				return getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }, config);
+			}
+		}
+	}
+
+	private static _isBadDocumentRangeFormatterConfig(model: editorCommon.IModel, config: FormatterConfiguration): boolean {
+		const all = modes.DocumentRangeFormattingEditProviderRegistry.ordered(model);
+		return all.length > 0 && !FormatterConfiguration.pick(all, model, config);
 	}
 }
