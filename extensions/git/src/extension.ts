@@ -6,11 +6,11 @@
 'use strict';
 
 import { ExtensionContext } from 'vscode';
-import { DirtyDiffDecorator } from './dirtydiff';
+import { DirtyDiff } from './dirtydiff';
 
 export function activate(context: ExtensionContext) {
 	context.subscriptions.push(
-		new DirtyDiffDecorator()
+		new DirtyDiff()
 	);
 }
 
