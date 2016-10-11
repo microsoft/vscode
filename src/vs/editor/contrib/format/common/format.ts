@@ -107,10 +107,8 @@ export function getDocumentFormattingEdits(model: IReadOnlyModel, options: Forma
 	});
 }
 
-export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, priorities: FormattingPriorities = {}): TPromise<ISingleEditOperation[]> {
-
-	const [support] = FormattingPriorities.ordered(OnTypeFormattingEditProviderRegistry, model, priorities);
-
+export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Position, ch: string, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
+	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
 		return TPromise.as(undefined);
 	}
