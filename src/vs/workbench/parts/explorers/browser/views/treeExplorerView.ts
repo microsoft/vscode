@@ -22,10 +22,9 @@ import { ITree, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
-
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 
-import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeViewModel';
+import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
 export class TreeExplorerView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
@@ -51,7 +50,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITreeExplorerViewletService private treeExplorerViewletService: ITreeExplorerViewletService
 	) {
-		super(actionRunner, false, nls.localize('treeExplorerViewletTree', "Tree Explorer Tree Section"), messageService, keybindingService, contextMenuService, headerSize);
+		super(actionRunner, false, nls.localize('treeExplorerViewletTree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.viewletState = viewletState;
 		this._treeName = treeName;
