@@ -69,7 +69,7 @@ export function getDocumentFormattingEdits(model: IReadOnlyModel, options: Forma
 
 	const support = FormattingPriorities.pick(DocumentFormattingEditProviderRegistry, model, priorities);
 	if (!support) {
-		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options, priorities);
+		return TPromise.as(undefined);
 	}
 
 	return asWinJsPromise((token) => {

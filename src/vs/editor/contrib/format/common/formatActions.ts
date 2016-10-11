@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
-import { OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { OnTypeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, FormattingPriorities } from '../common/format';
 import { EditOperationsCommand } from './formatCommand';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -160,6 +160,7 @@ export class FormatAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 
+		const configService = accessor.get(IConfigurationService);
 		const model = editor.getModel();
 		const editorSelection = editor.getSelection();
 		const {tabSize, insertSpaces} = model.getOptions();
@@ -167,10 +168,20 @@ export class FormatAction extends EditorAction {
 		let formattingPromise: TPromise<editorCommon.ISingleEditOperation[]>;
 
 		if (editorSelection.isEmpty()) {
-			const prios = FormattingPriorities.getDocumentFormatterConfiguration(accessor.get(IConfigurationService));
-			formattingPromise = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, prios);
+
+			if (DocumentFormattingEditProviderRegistry.has(model)) {
+				// format document when there is no selection and document formatters
+				const prios = FormattingPriorities.getDocumentFormatterConfiguration(configService);
+				formattingPromise = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, prios);
+
+			} else {
+				// fallback to range formatter with the full document range
+				const prios = FormattingPriorities.getDocumentRangeFormatterConfiguration(configService);
+				formattingPromise = getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }, prios);
+			}
+
 		} else {
-			const prios = FormattingPriorities.getDocumentRangeFormatterConfiguration(accessor.get(IConfigurationService));
+			const prios = FormattingPriorities.getDocumentRangeFormatterConfiguration(configService);
 			formattingPromise = getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces }, prios);
 		}
 
@@ -179,7 +190,7 @@ export class FormatAction extends EditorAction {
 		}
 
 		// Capture the state of the editor
-		var state = editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+		const state = editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
 		return formattingPromise.then((result: editorCommon.ISingleEditOperation[]) => {
