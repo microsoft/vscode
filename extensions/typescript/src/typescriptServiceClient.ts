@@ -491,16 +491,30 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private serviceStarted(resendModels: boolean): void {
+		let configureOptions: Proto.ConfigureRequestArguments = {
+			hostInfo: 'vscode',
+			useOneInferredProject: true
+		};
 		if (this._experimentalAutoBuild && this.storagePath) {
 			try {
 				fs.mkdirSync(this.storagePath);
 			} catch (error) {
 			}
-			this.execute('configure', {
-				autoBuild: true,
-				metaDataDirectory: this.storagePath
-			});
+			configureOptions.autoDiagnostics = true;
+			configureOptions.metaDataDirectory = this.storagePath;
 		}
+		this.execute('configure', configureOptions);
+		let compilerOptions: Proto.ExternalProjectCompilerOptions = {
+			module: Proto.ModuleKind.CommonJS,
+			target: Proto.ScriptTarget.ES5,
+			allowJs: true,
+			allowSyntheticDefaultImports: true
+		};
+		let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
+			options: compilerOptions
+		};
+		this.execute('compilerOptionsForInferredProjects', args);
+
 		if (resendModels) {
 			this.host.populateService();
 		}

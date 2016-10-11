@@ -11,6 +11,7 @@ import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentCh
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient, APIVersion } from '../typescriptService';
 import { Delayer } from '../utils/async';
+import LinkedMap from './linkedMap';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
@@ -110,6 +111,7 @@ export default class BufferSyncSupport {
 
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
+	private emitQueue: LinkedMap<string>;
 
 	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: Map<boolean>, validate: boolean = true) {
 		this.client = client;
@@ -125,12 +127,14 @@ export default class BufferSyncSupport {
 		this.diagnosticDelayer = new Delayer<any>(300);
 
 		this.syncedBuffers = Object.create(null);
+		this.emitQueue = new LinkedMap<string>();
 	}
 
 	public listen(): void {
 		workspace.onDidOpenTextDocument(this.onDidOpenTextDocument, this, this.disposables);
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
+		workspace.onDidSaveTextDocument(this.onDidSaveTextDocument, this, this.disposables);
 		workspace.textDocuments.forEach(this.onDidOpenTextDocument, this);
 	}
 
@@ -203,6 +207,17 @@ export default class BufferSyncSupport {
 			return;
 		}
 		syncedBuffer.onContentChanged(e.contentChanges);
+	}
+
+	private onDidSaveTextDocument(document: TextDocument): void {
+		let filepath: string = this.client.asAbsolutePath(document.uri);
+		if (!filepath) {
+			return;
+		}
+		let syncedBuffer = this.syncedBuffers[filepath];
+		if (!syncedBuffer) {
+			return;
+		}
 	}
 
 	public requestAllDiagnostics() {
