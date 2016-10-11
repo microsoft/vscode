@@ -311,15 +311,17 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.getInitialConfigFileContent().then(content => {
-				if (!content) {
-					return false;
-				}
+			this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
+				.then(adapter => adapter ? adapter.getInitialConfigFileContent() : null)
+				.then(content => {
+					if (!content) {
+						return false;
+					}
 
-				configFileCreated = true;
-				return this.fileService.updateContent(resource, content).then(() => true);
-			}
-			)).then(errorFree => {
+					configFileCreated = true;
+					return this.fileService.updateContent(resource, content).then(() => true);
+				}))
+			.then(errorFree => {
 				if (!errorFree) {
 					return false;
 				}
@@ -334,26 +336,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				}, sideBySide).then(() => true);
 			}, (error) => {
 				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
-			});
-	}
-
-	private getInitialConfigFileContent(): TPromise<string> {
-		return this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
-			.then(adapter => {
-				if (!adapter) {
-					return null;
-				}
-
-				return adapter.getInitialConfigurations().then(configurations => {
-					let editorConfig = this.configurationService.getConfiguration<any>();
-					return JSON.stringify(
-						{
-							version: '0.2.0',
-							configurations: configurations || []
-						},
-						null,
-						editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
-				});
 			});
 	}
 
