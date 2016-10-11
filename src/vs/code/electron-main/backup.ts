@@ -7,7 +7,7 @@
 
 import * as fs from 'original-fs';
 import * as path from 'path';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const IBackupService = createDecorator<IBackupService>('backupService');
@@ -52,11 +52,10 @@ export class BackupService implements IBackupService {
 
 	public pushBackupWorkspaces(workspaces: string[]): void {
 		this.load();
-		if (!this.fileContent.folderWorkspaces) {
-			this.fileContent.folderWorkspaces = {};
-		}
 		workspaces.forEach(workspace => {
-			this.fileContent.folderWorkspaces[workspace] = this.fileContent.folderWorkspaces[workspace] || [];
+			if (!this.fileContent.folderWorkspaces[workspace]) {
+				this.fileContent.folderWorkspaces[workspace] = [];
+			}
 		});
 		this.save();
 	}
@@ -71,6 +70,12 @@ export class BackupService implements IBackupService {
 			this.fileContent = JSON.parse(fs.readFileSync(this.filePath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			this.fileContent = {};
+		}
+		if (Array.isArray(this.fileContent) || typeof this.fileContent !== 'object') {
+			this.fileContent = {};
+		}
+		if (!this.fileContent.folderWorkspaces) {
+			this.fileContent.folderWorkspaces = {};
 		}
 	}
 

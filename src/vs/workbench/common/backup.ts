@@ -10,9 +10,9 @@ import * as crypto from 'crypto';
 import * as fs from 'original-fs';
 import * as arrays from 'vs/base/common/arrays';
 import Uri from 'vs/base/common/uri';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IBackupService} from 'vs/platform/backup/common/backup';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IBackupService } from 'vs/platform/backup/common/backup';
 
 interface IBackupFormat {
 	folderWorkspaces?: {
@@ -59,7 +59,7 @@ export class BackupService implements IBackupService {
 
 	public getBackupFiles(workspace: string): string[] {
 		this.load();
-		return this.fileContent.folderWorkspaces[workspace];
+		return this.fileContent.folderWorkspaces[workspace] || [];
 	}
 
 	public getBackupResource(resource: Uri): Uri {
@@ -91,6 +91,9 @@ export class BackupService implements IBackupService {
 			this.fileContent = JSON.parse(fs.readFileSync(this.workspacesJsonFilePath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			this.fileContent = {};
+		}
+		if (!this.fileContent.folderWorkspaces) {
+			this.fileContent.folderWorkspaces = {};
 		}
 	}
 
