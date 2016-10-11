@@ -267,6 +267,7 @@ export abstract class ExtHostEditorsShape {
 export abstract class ExtHostTreeExplorersShape {
 	$provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> { throw ni(); };
 	$resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> { throw ni(); }
+	$resolveCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {
