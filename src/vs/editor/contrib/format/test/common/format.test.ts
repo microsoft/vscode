@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Model } from 'vs/editor/common/model/model';
 import { DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
-import { getDocumentFormattingEdits, FormattingPriorities } from 'vs/editor/contrib/format/common/format';
+import { getDocumentFormattingEdits, FormatterConfiguration } from 'vs/editor/contrib/format/common/format';
 
 let lastName: string;
 
@@ -24,14 +24,14 @@ suite('Format - Prio', function () {
 			name: 'far',
 			provideDocumentFormattingEdits() {
 				lastName = 'far';
-				return undefined;
+				return [];
 			}
 		}));
 		disposables.push(DocumentFormattingEditProviderRegistry.register('foolang', {
 			name: 'boo',
 			provideDocumentFormattingEdits() {
 				lastName = 'boo';
-				return undefined;
+				return [];
 			}
 		}));
 	});
@@ -49,7 +49,7 @@ suite('Format - Prio', function () {
 
 	test('explict prios', function () {
 
-		const prios = <FormattingPriorities>{
+		const prios = <FormatterConfiguration>{
 			foolang: 'far'
 		};
 
@@ -58,29 +58,15 @@ suite('Format - Prio', function () {
 		});
 	});
 
-	test('equal explict prios, fallback to selector score', function () {
+	test('invalid prio, no formatter', function () {
 
-		const prios = <FormattingPriorities>{
-			foolang: ['far', 'boo']
+		const prios = <FormatterConfiguration>{
+			foolang: 'some_dead_provider'
 		};
 
 		return getDocumentFormattingEdits(model, undefined, prios).then(_ => {
-			assert.equal(lastName, 'far');
+			assert.equal(lastName, '');
+			assert.equal(_, undefined);
 		});
-	});
-
-	test('invalid explict prios, fallback to selector score', function () {
-
-		return TPromise.join([
-			getDocumentFormattingEdits(model, undefined, {
-				foolang: 'some_dead_provider'
-			}).then(_ => {
-				assert.equal(lastName, 'boo');
-			}),
-			getDocumentFormattingEdits(model, undefined, {
-				foolang: ['some_dead_provider', 'far', 'boo']
-			}).then(_ => {
-				assert.equal(lastName, 'far');
-			})]);
 	});
 });

@@ -163,13 +163,14 @@ export class FormatAction extends EditorAction {
 		const model = editor.getModel();
 		const editorSelection = editor.getSelection();
 		const {tabSize, insertSpaces} = model.getOptions();
-		const prios = FormattingPriorities.value(accessor.get(IConfigurationService));
 
 		let formattingPromise: TPromise<editorCommon.ISingleEditOperation[]>;
 
 		if (editorSelection.isEmpty()) {
+			const prios = FormattingPriorities.getDocumentFormatterConfiguration(accessor.get(IConfigurationService));
 			formattingPromise = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, prios);
 		} else {
+			const prios = FormattingPriorities.getDocumentRangeFormatterConfiguration(accessor.get(IConfigurationService));
 			formattingPromise = getDocumentRangeFormattingEdits(model, editorSelection, { tabSize, insertSpaces }, prios);
 		}
 
