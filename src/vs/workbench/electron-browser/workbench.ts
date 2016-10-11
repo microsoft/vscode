@@ -72,12 +72,9 @@ import {MenuService} from 'vs/platform/actions/common/menuService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEnvironmentService} from 'vs/platform/environment/common/environment';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import * as watermark from 'vs/workbench/parts/watermark/watermark';
-
-// These three are used for the macOS inline toolbars option, and can be removed once default
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { IWindowSettings } from 'vs/code/electron-main/window';
+
+import * as watermark from 'vs/workbench/parts/watermark/watermark';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -101,10 +98,6 @@ const Identifiers = {
 	PANEL_PART: 'workbench.parts.panel',
 	EDITOR_PART: 'workbench.parts.editor',
 	STATUSBAR_PART: 'workbench.parts.statusbar'
-};
-
-const ExposedWindowOptions = {
-	USE_INLINE_TOOLBAR: 'use-inline-toolbar'
 };
 
 /**
@@ -163,7 +156,8 @@ export class Workbench implements IPartService {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.container = container;
 
@@ -719,16 +713,14 @@ export class Workbench implements IPartService {
 		this.workbenchContainer = $('.monaco-workbench-container');
 		this.workbench = $().div({ 'class': 'monaco-workbench ' + (isWindows ? 'windows' : isLinux ? 'linux' : 'mac'), id: Identifiers.WORKBENCH_CONTAINER }).appendTo(this.workbenchContainer);
 
-		// Only needed while the option `windowConfig.macOSUseInlineToolbar` exists
+		// Mac specific UI changes
 		if (isMacintosh) {
 			const {serviceCollection} = this.workbenchParams;
-			const configurationService = serviceCollection.get(IConfigurationService) as ConfigurationService<any>;
-			const windowConfig = configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getConfiguration<any>('window');
 			if (windowConfig.macOSUseInlineToolbar) {
-				this.workbench.addClass(ExposedWindowOptions.USE_INLINE_TOOLBAR);
+				this.workbench.addClass('use-inline-toolbar');
 			}
 		}
-
 	}
 
 	private renderWorkbench(): void {
