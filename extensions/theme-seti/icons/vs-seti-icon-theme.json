@@ -826,6 +826,7 @@
 		"LICENSE": "_license",
 		"Procfile": "_heroku",
 		"TODO": "_todo",
+		"TODOs": "_todo",
 		"npm-debug.log": "_npm_ignored"
 	},
 	"languageIds": {
