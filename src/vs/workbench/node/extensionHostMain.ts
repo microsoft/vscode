@@ -67,7 +67,6 @@ export class ExtensionHostMain {
 
 		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
 		const workspaceStoragePath = initData.workspaceStoragePath;
-		console.log(workspaceStoragePath);
 
 		const threadService = new ExtHostThreadService(remoteCom);
 
