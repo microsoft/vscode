@@ -16,8 +16,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 
 	private _treeExplorerNodeProviders: { [providerId: string]: TreeExplorerNodeProvider };
 
-	private _trees: { [providerId: string]: InternalTreeExplorerNode };
-	private _treeNodeMaps: { [providerId: string]: { [id: number]: InternalTreeExplorerNode }};
+	private _externalNodeMaps: { [providerId: string]: { [id: number]: TreeExplorerNode }};
 
 	constructor(
 		threadService: IThreadService
@@ -27,8 +26,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		this._proxy = threadService.get(MainContext.MainThreadExplorers);
 
 		this._treeExplorerNodeProviders = Object.create(null);
-		this._trees = Object.create(null);
-		this._treeNodeMaps = Object.create(null);
+		this._externalNodeMaps = Object.create(null);
 	}
 
 	registerTreeContentProvider(providerId: string, provider: TreeExplorerNodeProvider): Disposable {
@@ -48,14 +46,13 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 			throw new Error(`no TreeContentProvider registered with id '${providerId}'`);
 		}
 
-		return TPromise.wrap(provider.provideRootNode().then(rootNode => {
+		return TPromise.wrap(provider.provideRootNode().then(externalRootNode => {
 			const treeNodeMap = Object.create(null);
-			this._treeNodeMaps[providerId] = treeNodeMap;
+			this._externalNodeMaps[providerId] = treeNodeMap;
 
-			const internalRootNode = new InternalTreeExplorerNode(rootNode);
-			this._trees[providerId] = internalRootNode;
-			this._treeNodeMaps[providerId][internalRootNode.id] = internalRootNode;
-			return this._trees[providerId];
+			const internalRootNode = new InternalTreeExplorerNode(externalRootNode);
+			this._externalNodeMaps[providerId][internalRootNode.id] = externalRootNode;
+			return internalRootNode;
 		}));
 	}
 
@@ -65,13 +62,13 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 			throw new Error(`no TreeContentProvider registered with id '${providerId}'`);
 		}
 
-		const treeNodeMap = this._treeNodeMaps[providerId];
-		const extHostTreeContentNode = treeNodeMap[mainThreadNode.id];
+		const externalNodeMap = this._externalNodeMaps[providerId];
+		const externalNode = externalNodeMap[mainThreadNode.id];
 
-		return TPromise.wrap(provider.resolveChildren(extHostTreeContentNode).then(children => {
+		return TPromise.wrap(provider.resolveChildren(externalNode).then(children => {
 			return children.map(child => {
 				const internalChild = new InternalTreeExplorerNode(child);
-				treeNodeMap[internalChild.id] = internalChild;
+				externalNodeMap[internalChild.id] = externalNode;
 				return internalChild;
 			});
 		}));

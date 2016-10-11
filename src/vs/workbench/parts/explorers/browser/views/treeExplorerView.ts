@@ -24,7 +24,7 @@ import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 
-import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
 export class TreeExplorerView extends CollapsibleViewletView {
 	private workspace: IWorkspace;
@@ -107,7 +107,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 
 	private updateInput(): TPromise<void> {
 		return this.treeExplorerViewletService.provideTreeContent('pineTree').then(tree => {
-			this.tree.setInput(TreeViewNode.create(tree));
+			this.tree.setInput(tree);
 		})
 	}
 
