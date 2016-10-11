@@ -10,6 +10,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IActionRunner } from 'vs/base/common/actions';
 import { IActionProvider, ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -79,12 +80,18 @@ export class TreeRenderer extends ActionsRenderer implements IRenderer {
 
 export class TreeController extends DefaultController {
 
-	constructor() {
+	constructor(
+		@ICommandService private commandService: ICommandService,
+	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ });
 	}
 
 	onLeftClick(tree: ITree, node: InternalTreeExplorerNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		super.onLeftClick(tree, node, event, origin);
+
+		if (node.onClickCommand) {
+			this.commandService.executeCommand(node.onClickCommand).done();
+		}
 
 		return true;
 	}
