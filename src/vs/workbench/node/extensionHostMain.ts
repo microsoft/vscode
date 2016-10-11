@@ -5,9 +5,6 @@
 
 'use strict';
 
-import * as fs from 'fs';
-import * as crypto from 'crypto';
-
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -38,6 +35,7 @@ export interface IInitData {
 		options: any;
 	};
 	extensions: IExtensionDescription[];
+	workspaceStoragePath: string;
 }
 
 const nativeExit = process.exit.bind(process);
@@ -68,7 +66,8 @@ export class ExtensionHostMain {
 		this._extensions = initData.extensions;
 
 		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
-		const workspaceStoragePath = this._getOrCreateWorkspaceStoragePath();
+		const workspaceStoragePath = initData.workspaceStoragePath;
+		console.log(workspaceStoragePath);
 
 		const threadService = new ExtHostThreadService(remoteCom);
 
@@ -78,53 +77,6 @@ export class ExtensionHostMain {
 
 		// Create the ext host API
 		defineAPI(new ExtHostAPIImplementation(threadService, this._extensionService, this._contextService, telemetryService));
-	}
-
-	private _getOrCreateWorkspaceStoragePath(): string {
-		let workspaceStoragePath: string;
-
-		const workspace = this._contextService.getWorkspace();
-
-		function rmkDir(directory: string): boolean {
-			try {
-				fs.mkdirSync(directory);
-				return true;
-			} catch (err) {
-				if (err.code === 'ENOENT') {
-					if (rmkDir(paths.dirname(directory))) {
-						fs.mkdirSync(directory);
-						return true;
-					}
-				} else {
-					return fs.statSync(directory).isDirectory();
-				}
-			}
-		}
-
-		if (workspace) {
-			const hash = crypto.createHash('md5');
-			hash.update(workspace.resource.fsPath);
-			if (workspace.uid) {
-				hash.update(workspace.uid.toString());
-			}
-			workspaceStoragePath = paths.join(this._environment.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
-			if (!fs.existsSync(workspaceStoragePath)) {
-				try {
-					if (rmkDir(workspaceStoragePath)) {
-						fs.writeFileSync(paths.join(workspaceStoragePath, 'meta.json'), JSON.stringify({
-							workspacePath: workspace.resource.fsPath,
-							uid: workspace.uid ? workspace.uid : null
-						}, null, 4));
-					} else {
-						workspaceStoragePath = undefined;
-					}
-				} catch (err) {
-					workspaceStoragePath = undefined;
-				}
-			}
-		}
-
-		return workspaceStoragePath;
 	}
 
 	public start(): TPromise<void> {
