@@ -7,21 +7,21 @@ import nls = require('vs/nls');
 import 'vs/css!../browser/media/breakpointWidget';
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
-import {SelectBox} from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
-import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
-import {CommonEditorRegistry, ServicesAccessor, EditorCommand} from 'vs/editor/common/editorCommonExtensions';
-import {EditorContextKeys, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { CommonEditorRegistry, ServicesAccessor, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import {ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {RawContextKey, IContextKeyService, IContextKey} from 'vs/platform/contextkey/common/contextkey';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import debug = require('vs/workbench/parts/debug/common/debug');
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
 const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
@@ -155,7 +155,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 		});
 	}
 
-	protected runEditorCommand(accessor:ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	protected runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
 		if (BreakpointWidget.INSTANCE) {
 			BreakpointWidget.INSTANCE.dispose();
 		}

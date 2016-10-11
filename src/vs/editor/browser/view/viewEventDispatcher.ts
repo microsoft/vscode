@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EmitterEvent} from 'vs/base/common/eventEmitter';
-import {IViewEventBus, IViewEventHandler} from 'vs/editor/common/view/viewContext';
+import { EmitterEvent } from 'vs/base/common/eventEmitter';
+import { IViewEventBus, IViewEventHandler } from 'vs/editor/common/view/viewContext';
 
 export class ViewEventDispatcher implements IViewEventBus {
 
-	private _eventHandlerGateKeeper:(callback:()=>void)=>void;
-	private _eventHandlers:IViewEventHandler[];
-	private _eventQueue:EmitterEvent[];
-	private _isConsumingQueue:boolean;
+	private _eventHandlerGateKeeper: (callback: () => void) => void;
+	private _eventHandlers: IViewEventHandler[];
+	private _eventQueue: EmitterEvent[];
+	private _isConsumingQueue: boolean;
 
-	constructor(eventHandlerGateKeeper:(callback:()=>void)=>void) {
+	constructor(eventHandlerGateKeeper: (callback: () => void) => void) {
 		this._eventHandlerGateKeeper = eventHandlerGateKeeper;
 		this._eventHandlers = [];
 		this._eventQueue = null;
@@ -30,7 +30,7 @@ export class ViewEventDispatcher implements IViewEventBus {
 		this._eventHandlers.push(eventHandler);
 	}
 
-	public removeEventHandler(eventHandler:IViewEventHandler): void {
+	public removeEventHandler(eventHandler: IViewEventHandler): void {
 		for (let i = 0; i < this._eventHandlers.length; i++) {
 			if (this._eventHandlers[i] === eventHandler) {
 				this._eventHandlers.splice(i, 1);
@@ -39,7 +39,7 @@ export class ViewEventDispatcher implements IViewEventBus {
 		}
 	}
 
-	public emit(eventType:string, data?:any): void {
+	public emit(eventType: string, data?: any): void {
 		let event = new EmitterEvent(eventType, data);
 
 		if (this._eventQueue) {
@@ -53,7 +53,7 @@ export class ViewEventDispatcher implements IViewEventBus {
 		}
 	}
 
-	public emitMany(events:EmitterEvent[]): void {
+	public emitMany(events: EmitterEvent[]): void {
 		if (this._eventQueue) {
 			this._eventQueue = this._eventQueue.concat(events);
 		} else {

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {BoundedLinkedMap, LRUCache, LinkedMap} from 'vs/base/common/map';
+import { BoundedLinkedMap, LRUCache, LinkedMap } from 'vs/base/common/map';
 import * as assert from 'assert';
 
 suite('Map', () => {

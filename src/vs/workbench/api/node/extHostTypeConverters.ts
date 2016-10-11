@@ -16,7 +16,7 @@ import { IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
-import { SaveReason } from 'vs/workbench/parts/files/common/files';
+import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface PositionLike {
 	line: number;

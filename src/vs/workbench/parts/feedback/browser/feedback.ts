@@ -7,16 +7,16 @@
 
 import 'vs/css!./media/feedback';
 import nls = require('vs/nls');
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {Builder, $} from 'vs/base/browser/builder';
-import {Dropdown} from 'vs/base/browser/ui/dropdown/dropdown';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Builder, $ } from 'vs/base/browser/builder';
+import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import product from 'vs/platform/product';
 import * as dom from 'vs/base/browser/dom';
-import {ICommandService} from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';
-import {IIntegrityService} from 'vs/platform/integrity/common/integrity';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 export interface IFeedback {
 	feedback: string;

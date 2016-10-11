@@ -55,7 +55,7 @@ class InstallAction extends Action {
 	}
 
 	private get target(): string {
-		return `/usr/local/bin/${ product.applicationName }`;
+		return `/usr/local/bin/${product.applicationName}`;
 	}
 
 	run(): TPromise<void> {
@@ -72,7 +72,7 @@ class InstallAction extends Action {
 					);
 
 					const resource = URI.file(file);
-					const input = { resource, mime: 'text/x-shellscript' };
+					const input = { resource };
 					const actions = [
 						new Action('inlineEdit', nls.localize('editFile', "Edit '{0}'", file), '', true, () => {
 							return this.editorService.openEditor(input).then(() => {
@@ -185,7 +185,7 @@ class UninstallAction extends Action {
 	}
 
 	private get target(): string {
-		return `/usr/local/bin/${ product.applicationName }`;
+		return `/usr/local/bin/${product.applicationName}`;
 	}
 
 	run(): TPromise<void> {

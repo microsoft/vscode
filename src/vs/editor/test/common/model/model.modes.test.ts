@@ -5,13 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {Model} from 'vs/editor/common/model/model';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Model } from 'vs/editor/common/model/model';
+import { AbstractState, ITokenizationResult } from 'vs/editor/common/modes/abstractState';
 import * as modes from 'vs/editor/common/modes';
-import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import { TokenizationSupport } from 'vs/editor/common/modes/supports/tokenizationSupport';
+import { LineStream } from 'vs/editor/common/modes/lineStream';
 
 // --------- utils
 
@@ -32,20 +33,22 @@ suite('Editor Model - Model Modes 1', () => {
 	let thisModel: Model;
 
 	class ModelState1 extends AbstractState {
-		public makeClone():ModelState1 {
+		public makeClone(): ModelState1 {
 			return this;
 		}
 		public equals(other: modes.IState): boolean {
 			return this === other;
 		}
-		public tokenize(stream:modes.IStream): modes.ITokenizationResult {
-			calledState.calledFor.push(stream.next());
+		public tokenize(stream: LineStream): ITokenizationResult {
+			let chr = stream.peek();
+			stream.advance(1);
+			calledState.calledFor.push(chr);
 			stream.advanceToEOS();
 			return { type: '' };
 		}
 	}
 
-	function checkAndClear(calledState: { calledFor: string[] }, arr:string[]) {
+	function checkAndClear(calledState: { calledFor: string[] }, arr: string[]) {
 		assert.deepEqual(calledState.calledFor, arr);
 		calledState.calledFor = [];
 	}
@@ -173,27 +176,24 @@ suite('Editor Model - Model Modes 2', () => {
 
 	class ModelState2 extends AbstractState {
 
-		private prevLineContent:string;
+		private prevLineContent: string;
 
-		constructor(modeId:string, prevLineContent:string) {
+		constructor(modeId: string, prevLineContent: string) {
 			super(modeId);
 			this.prevLineContent = prevLineContent;
 		}
 
-		public makeClone():ModelState2 {
+		public makeClone(): ModelState2 {
 			return new ModelState2(this.getModeId(), this.prevLineContent);
 		}
 
-		public equals(other: modes.IState):boolean {
+		public equals(other: modes.IState): boolean {
 			return (other instanceof ModelState2) && (this.prevLineContent === (<ModelState2>other).prevLineContent);
 		}
 
-		public tokenize(stream:modes.IStream):modes.ITokenizationResult {
-			var line= '';
-			while (!stream.eos()) {
-				line+= stream.next();
-			}
-			this.prevLineContent= line;
+		public tokenize(stream: LineStream): ITokenizationResult {
+			var line = stream.advanceToEOS();
+			this.prevLineContent = line;
 			return { type: '' };
 		}
 	}
@@ -215,7 +215,7 @@ suite('Editor Model - Model Modes 2', () => {
 		assert.equal(state.prevLineContent, content);
 	}
 
-	function statesEqual(model:Model, states:string[]) {
+	function statesEqual(model: Model, states: string[]) {
 		var i, len = states.length - 1;
 		for (i = 0; i < len; i++) {
 			stateEqual(model._lines[i].getState(), states[i]);
@@ -308,27 +308,29 @@ suite('Editor Model - Token Iterator', () => {
 
 	class NState extends AbstractState {
 
-		private n:number;
-		private allResults:modes.ITokenizationResult[];
+		private n: number;
+		private allResults: ITokenizationResult[];
 
-		constructor(modeId:string, n:number) {
+		constructor(modeId: string, n: number) {
 			super(modeId);
 			this.n = n;
 			this.allResults = null;
 		}
 
-		public makeClone():NState {
+		public makeClone(): NState {
 			return this;
 		}
 
-		public equals(other: modes.IState):boolean {
+		public equals(other: modes.IState): boolean {
 			return true;
 		}
 
-		public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+		public tokenize(stream: LineStream): ITokenizationResult {
 			var ndash = this.n, value = '';
-			while(!stream.eos() && ndash > 0) {
-				value += stream.next();
+			while (!stream.eos() && ndash > 0) {
+				let chr = stream.peek();
+				stream.advance(1);
+				value += chr;
 				ndash--;
 			}
 			return { type: 'n-' + (this.n - ndash) + '-' + value };
@@ -361,9 +363,9 @@ suite('Editor Model - Token Iterator', () => {
 		];
 		thisModel.tokenIterator(new Position(1, 1), (iter) => {
 			var a = [], line = 0;
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				calls++;
-				if(a.length === 0) {
+				if (a.length === 0) {
 					a = ranges.shift();
 					line += 1;
 				}
@@ -379,7 +381,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('all tokens from beginning with next', () => {
 		var n = 0;
 		thisModel.tokenIterator(new Position(1, 1), (iter) => {
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				iter.next();
 				n++;
 			}
@@ -390,7 +392,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('all tokens from beginning with prev', () => {
 		var n = 0;
 		thisModel.tokenIterator(new Position(1, 1), (iter) => {
-			while(iter.hasPrev()) {
+			while (iter.hasPrev()) {
 				iter.prev();
 				n++;
 			}
@@ -401,7 +403,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('all tokens from end with prev', () => {
 		var n = 0;
 		thisModel.tokenIterator(new Position(3, 12), (iter) => {
-			while(iter.hasPrev()) {
+			while (iter.hasPrev()) {
 				iter.prev();
 				n++;
 			}
@@ -412,7 +414,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('all tokens from end with next', () => {
 		var n = 0;
 		thisModel.tokenIterator(new Position(3, 12), (iter) => {
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				iter.next();
 				n++;
 			}
@@ -465,12 +467,12 @@ suite('Editor Model - Token Iterator', () => {
 		var n = 0;
 		var up = [], down = [];
 		thisModel.tokenIterator(new Position(1, 1), (iter) => {
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				var next = iter.next();
 				up.push(next);
 				n++;
 			}
-			while(iter.hasPrev()) {
+			while (iter.hasPrev()) {
 				var prev = iter.prev();
 				down.push(prev);
 				n++;
@@ -479,7 +481,7 @@ suite('Editor Model - Token Iterator', () => {
 		assert.equal(n, 24);
 		assert.equal(up.length, 12);
 		assert.equal(down.length, 12);
-		while(up.length) {
+		while (up.length) {
 			assert.deepEqual(up.pop(), down.shift());
 		}
 	});
@@ -488,12 +490,12 @@ suite('Editor Model - Token Iterator', () => {
 		var n = 0;
 		var up = [], down = [];
 		thisModel.tokenIterator(new Position(3, 12), (iter) => {
-			while(iter.hasPrev()) {
+			while (iter.hasPrev()) {
 				var prev = iter.prev();
 				down.push(prev);
 				n++;
 			}
-			while(iter.hasNext()) {
+			while (iter.hasNext()) {
 				var next = iter.next();
 				up.push(next);
 				n++;
@@ -502,7 +504,7 @@ suite('Editor Model - Token Iterator', () => {
 		assert.equal(n, 24);
 		assert.equal(up.length, 12);
 		assert.equal(down.length, 12);
-		while(up.length) {
+		while (up.length) {
 			assert.deepEqual(up.pop(), down.shift());
 		}
 	});
@@ -518,25 +520,25 @@ suite('Editor Model - Token Iterator', () => {
 		try {
 			illegalIterReference.hasNext();
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 		try {
 			illegalIterReference.next();
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 		try {
 			illegalIterReference.hasPrev();
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 		try {
 			illegalIterReference.prev();
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 	});

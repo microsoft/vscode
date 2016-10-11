@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import Event, { Emitter } from 'vs/base/common/event';
+import { ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 
 export abstract class AbstractCodeEditorService implements ICodeEditorService {
 	public _serviceBrand: any;
@@ -37,7 +37,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		}
 	}
 
-	public get onCodeEditorRemove(): Event<ICommonCodeEditor>{
+	public get onCodeEditorRemove(): Event<ICommonCodeEditor> {
 		return this._onCodeEditorRemove.event;
 	}
 
@@ -69,7 +69,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		return editorWithWidgetFocus;
 	}
 
-	public abstract registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
-	public abstract removeDecorationType(key:string): void;
-	public abstract resolveDecorationOptions(decorationTypeKey:string, writable: boolean): IModelDecorationOptions;
+	public abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
+	public abstract removeDecorationType(key: string): void;
+	public abstract resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions;
 }

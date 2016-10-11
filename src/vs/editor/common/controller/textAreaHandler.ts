@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {RunOnceScheduler} from 'vs/base/common/async';
-import Event, {Emitter} from 'vs/base/common/event';
-import {KeyCode} from 'vs/base/common/keyCodes';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
-import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import Event, { Emitter } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/common/controller/textAreaState';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 
 const enum ReadFromTextArea {
 	Type,
@@ -61,20 +61,20 @@ export class TextAreaHandler extends Disposable {
 	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
 	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
 
-	private Browser:IBrowser;
-	private textArea:ITextAreaWrapper;
-	private model:ISimpleModel;
-	private flushAnyAccumulatedEvents:()=>void;
+	private Browser: IBrowser;
+	private textArea: ITextAreaWrapper;
+	private model: ISimpleModel;
+	private flushAnyAccumulatedEvents: () => void;
 
-	private selection:Range;
-	private selections:Range[];
-	private hasFocus:boolean;
+	private selection: Range;
+	private selections: Range[];
+	private hasFocus: boolean;
 
 	private asyncTriggerCut: RunOnceScheduler;
 
-	private lastCompositionEndTime:number;
+	private lastCompositionEndTime: number;
 
-	private textAreaState:TextAreaState;
+	private textAreaState: TextAreaState;
 	private textareaIsShownAtCursor: boolean;
 
 	private lastCopiedValue: string;
@@ -82,7 +82,7 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(Browser:IBrowser, strategy:TextAreaStrategy, textArea:ITextAreaWrapper, model:ISimpleModel, flushAnyAccumulatedEvents:()=>void) {
+	constructor(Browser: IBrowser, strategy: TextAreaStrategy, textArea: ITextAreaWrapper, model: ISimpleModel, flushAnyAccumulatedEvents: () => void) {
 		super();
 		this.Browser = Browser;
 		this.textArea = textArea;
@@ -219,11 +219,11 @@ export class TextAreaHandler extends Disposable {
 
 	// --- begin event handlers
 
-	public setStrategy(strategy:TextAreaStrategy): void {
+	public setStrategy(strategy: TextAreaStrategy): void {
 		this.textAreaState = this.textAreaState.toStrategy(strategy);
 	}
 
-	public setHasFocus(isFocused:boolean): void {
+	public setHasFocus(isFocused: boolean): void {
 		if (this.hasFocus === isFocused) {
 			// no change
 			return;
@@ -242,7 +242,7 @@ export class TextAreaHandler extends Disposable {
 
 	// --- end event handlers
 
-	private setTextAreaState(reason:string, textAreaState:TextAreaState): void {
+	private setTextAreaState(reason: string, textAreaState: TextAreaState): void {
 		if (!this.hasFocus) {
 			textAreaState = textAreaState.resetSelection();
 		}
@@ -251,7 +251,7 @@ export class TextAreaHandler extends Disposable {
 		this.textAreaState = textAreaState;
 	}
 
-	private _onKeyDownHandler(e:IKeyboardEventWrapper): void {
+	private _onKeyDownHandler(e: IKeyboardEventWrapper): void {
 		if (e.equals(KeyCode.Escape)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
 			// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
@@ -260,7 +260,7 @@ export class TextAreaHandler extends Disposable {
 		this._onKeyDown.fire(e);
 	}
 
-	private _onKeyPressHandler(e:IKeyboardEventWrapper): void {
+	private _onKeyPressHandler(e: IKeyboardEventWrapper): void {
 		if (!this.hasFocus) {
 			// Sometimes, when doing Alt-Tab, in FF, a 'keypress' is sent before a 'focus'
 			return;
@@ -269,8 +269,8 @@ export class TextAreaHandler extends Disposable {
 
 	// ------------- Operations that are always executed asynchronously
 
-	private executePaste(txt:string): void {
-		if(txt === '') {
+	private executePaste(txt: string): void {
+		if (txt === '') {
 			return;
 		}
 
@@ -288,7 +288,7 @@ export class TextAreaHandler extends Disposable {
 		this._writePlaceholderAndSelectTextArea('focusTextArea');
 	}
 
-	private _writePlaceholderAndSelectTextArea(reason:string): void {
+	private _writePlaceholderAndSelectTextArea(reason: string): void {
 		if (!this.textareaIsShownAtCursor) {
 			// Do not write to the textarea if it is visible.
 			if (this.Browser.isIPad) {
@@ -302,7 +302,7 @@ export class TextAreaHandler extends Disposable {
 
 	// ------------- Clipboard operations
 
-	private _ensureClipboardGetsEditorSelection(e:IClipboardEvent): void {
+	private _ensureClipboardGetsEditorSelection(e: IClipboardEvent): void {
 		let whatToCopy = this._getPlainTextToCopy();
 		if (e.canUseTextData()) {
 			e.setTextData(whatToCopy);
@@ -329,7 +329,7 @@ export class TextAreaHandler extends Disposable {
 		let selections = this.selections;
 
 		if (selections.length === 1) {
-			let range:Range = selections[0];
+			let range: Range = selections[0];
 			if (range.isEmpty()) {
 				if (this.Browser.enableEmptySelectionClipboard) {
 					let modelLineNumber = this.model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;

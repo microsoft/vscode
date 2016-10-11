@@ -10,10 +10,10 @@ import nls = require('vs/nls');
 import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {BoundedLinkedMap} from 'vs/base/common/map';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { BoundedLinkedMap } from 'vs/base/common/map';
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes = {

@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IndentAction, CharacterPair} from 'vs/editor/common/modes';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
+import { IndentAction, CharacterPair } from 'vs/editor/common/modes';
+import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 
 suite('OnEnter', () => {
 
@@ -20,7 +20,7 @@ suite('OnEnter', () => {
 			}
 		});
 
-		var testIndentAction = (oneLineAboveText:string, beforeText:string, afterText:string, expected:IndentAction) => {
+		var testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expected: IndentAction) => {
 			var actual = support._actualOnEnter(oneLineAboveText, beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.equal(actual, null);
@@ -45,7 +45,7 @@ suite('OnEnter', () => {
 		var support = new OnEnterSupport(null, null, {
 			brackets: brackets
 		});
-		var testIndentAction = (beforeText:string, afterText:string, expected:IndentAction) => {
+		var testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
 			var actual = support._actualOnEnter('', beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.equal(actual, null);
@@ -100,7 +100,7 @@ suite('OnEnter', () => {
 				}
 			]
 		});
-		var testIndentAction = (beforeText:string, afterText:string, expectedIndentAction:IndentAction, expectedAppendText:string, removeText:number = 0) => {
+		var testIndentAction = (beforeText: string, afterText: string, expectedIndentAction: IndentAction, expectedAppendText: string, removeText: number = 0) => {
 			var actual = support._actualOnEnter('', beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.equal(actual, null, 'isNull:' + beforeText);

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {localize} from 'vs/nls';
+import { localize } from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
-import {ISuggestion} from 'vs/editor/common/modes';
-import {Registry} from 'vs/platform/platform';
+import { IReadOnlyModel, IPosition } from 'vs/editor/common/editorCommon';
+import { ISuggestion } from 'vs/editor/common/modes';
+import { Registry } from 'vs/platform/platform';
 
 export const Extensions = {
 	Snippets: 'base.contributions.snippets'
@@ -128,7 +128,7 @@ class SnippetsRegistry implements ISnippetsRegistry {
 		return result;
 	}
 
-	private static _compareSuggestionsByLabel(a: ISuggestion, b: ISuggestion): number{
+	private static _compareSuggestionsByLabel(a: ISuggestion, b: ISuggestion): number {
 		return strings.compare(a.label, b.label);
 	}
 }
@@ -137,7 +137,7 @@ export interface ISimpleModel {
 	getLineContent(lineNumber): string;
 }
 
-export function getNonWhitespacePrefix(model: ISimpleModel, position: IPosition) : string {
+export function getNonWhitespacePrefix(model: ISimpleModel, position: IPosition): string {
 	/**
 	 * Do not analyze more characters
 	 */

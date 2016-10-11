@@ -19,7 +19,7 @@ var checkNot = (one, other, msg) => {
 
 suite('Objects', () => {
 
-	test('equals', function() {
+	test('equals', function () {
 		check(null, null, 'null');
 		check(undefined, undefined, 'undefined');
 		check(1234, 1234, 'numbers');
@@ -27,7 +27,7 @@ suite('Objects', () => {
 		check('1234', '1234', 'strings');
 		check([], [], 'empty arrays');
 		// check(['', 123], ['', 123], 'arrays');
-		check([[1,2,3], [4,5,6]], [[1,2,3], [4,5,6]], 'nested arrays');
+		check([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]], 'nested arrays');
 		check({}, {}, 'empty objects');
 		check({ a: 1, b: '123' }, { a: 1, b: '123' }, 'objects');
 		check({ a: 1, b: '123' }, { b: '123', a: 1 }, 'objects (key order)');
@@ -51,14 +51,14 @@ suite('Objects', () => {
 
 		checkNot('1234', 1234, 'string !== number');
 
-		checkNot([[1,2,3], [4,5,6]], [[1,2,3], [4,5,6000]], 'arrays');
+		checkNot([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6000]], 'arrays');
 		checkNot({ a: { b: 1, c: 2 }, b: 3 }, { b: 3, a: { b: 9, c: 2 } }, 'objects');
 	});
 
-	test('mixin - array', function() {
+	test('mixin - array', function () {
 
-		var foo:any = {};
-		objects.mixin(foo, { bar: [1,2,3] });
+		var foo: any = {};
+		objects.mixin(foo, { bar: [1, 2, 3] });
 
 		assert(foo.bar);
 		assert(Array.isArray(foo.bar));
@@ -68,12 +68,12 @@ suite('Objects', () => {
 		assert.equal(foo.bar[2], 3);
 	});
 
-	test('mixin - no overwrite', function() {
-		var foo:any = {
+	test('mixin - no overwrite', function () {
+		var foo: any = {
 			bar: '123'
 		};
 
-		var bar:any = {
+		var bar: any = {
 			bar: '456'
 		};
 
@@ -82,16 +82,16 @@ suite('Objects', () => {
 		assert.equal(foo.bar, '123');
 	});
 
-	test('cloneAndChange',() => {
+	test('cloneAndChange', () => {
 		var o1 = { something: 'hello' };
 		var o = {
 			o1: o1,
 			o2: o1
 		};
-		assert.deepEqual(objects.cloneAndChange(o,() => { }), o);
+		assert.deepEqual(objects.cloneAndChange(o, () => { }), o);
 	});
 
-	test('safeStringify', function() {
+	test('safeStringify', function () {
 		var obj1 = {
 			friend: null
 		};
@@ -103,7 +103,7 @@ suite('Objects', () => {
 		obj1.friend = obj2;
 		obj2.friend = obj1;
 
-		var arr:any = [1];
+		var arr: any = [1];
 		arr.push(arr);
 
 		var circular = {
@@ -127,31 +127,33 @@ suite('Objects', () => {
 			a: 42,
 			b: '[Circular]',
 			c: [
-				{friend: {
-					friend: '[Circular]'
-				}},
+				{
+					friend: {
+						friend: '[Circular]'
+					}
+				},
 				'[Circular]'
 			],
 			d: [1, '[Circular]', '[Circular]']
 		});
 	});
 
-	test('derive', function() {
+	test('derive', function () {
 
 		var someValue = 2;
 
-		function Base():void {
+		function Base(): void {
 			//example
 		}
 		(<any>Base).favoriteColor = 'blue';
-		Base.prototype.test = function() { return 42; };
+		Base.prototype.test = function () { return 42; };
 
-		function Child():void {
+		function Child(): void {
 			//example
 		}
-		Child.prototype.test2 = function() { return 43; };
+		Child.prototype.test2 = function () { return 43; };
 		Object.defineProperty(Child.prototype, 'getter', {
-			get: function() { return someValue; },
+			get: function () { return someValue; },
 			enumerable: true,
 			configurable: true
 		});

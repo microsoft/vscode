@@ -11,14 +11,14 @@ export class DeferredTPromise<T> extends TPromise<T> {
 	public canceled = false;
 
 	private completeCallback: TValueCallback<T>;
-	private errorCallback: (err:any)=>void;
+	private errorCallback: (err: any) => void;
 	private progressCallback: ProgressCallback;
 
 	constructor() {
 		super((c, e, p) => {
-			this.completeCallback= c;
-			this.errorCallback= e;
-			this.progressCallback= p;
+			this.completeCallback = c;
+			this.errorCallback = e;
+			this.progressCallback = p;
 		}, () => this.oncancel());
 	}
 
@@ -39,14 +39,14 @@ export class DeferredTPromise<T> extends TPromise<T> {
 	}
 }
 
-export class DeferredPPromise<C,P> extends PPromise<C, P> {
+export class DeferredPPromise<C, P> extends PPromise<C, P> {
 
-	private completeCallback:TValueCallback<C>;
-	private errorCallback:(err:any)=>void;
-	private progressCallback:TProgressCallback<P>;
+	private completeCallback: TValueCallback<C>;
+	private errorCallback: (err: any) => void;
+	private progressCallback: TProgressCallback<P>;
 
-	constructor(init:(complete: TValueCallback<C>, error:(err:any)=>void, progress: TProgressCallback<P>)=>void = (c, e, p) => {}, oncancel?: any) {
-		super((c, e, p) => {this.completeCallback= c; this.errorCallback= e; this.progressCallback= p;}, oncancel ? oncancel : () => this.oncancel);
+	constructor(init: (complete: TValueCallback<C>, error: (err: any) => void, progress: TProgressCallback<P>) => void = (c, e, p) => { }, oncancel?: any) {
+		super((c, e, p) => { this.completeCallback = c; this.errorCallback = e; this.progressCallback = p; }, oncancel ? oncancel : () => this.oncancel);
 	}
 
 	private oncancel(): void {

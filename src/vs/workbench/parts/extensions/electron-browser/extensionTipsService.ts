@@ -5,20 +5,20 @@
 
 import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {match} from 'vs/base/common/glob';
-import {IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN} from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { match } from 'vs/base/common/glob';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionsConfiguration, ConfigurationKey } from './extensions';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModel} from 'vs/editor/common/editorCommon';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from './extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import {Schemas} from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 
 export class ExtensionTipsService implements IExtensionTipsService {
 
@@ -100,7 +100,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		}
 
 		if (uri.scheme === Schemas.inMemory || uri.scheme === Schemas.internal || uri.scheme === Schemas.vscode) {
-				return;
+			return;
 		}
 
 		// re-schedule this bit of the operation to be off

@@ -5,19 +5,19 @@
 
 'use strict';
 
-import {localize} from 'vs/nls';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IMenu, MenuItemAction} from 'vs/platform/actions/common/actions';
-import {IMessageService} from 'vs/platform/message/common/message';
+import { localize } from 'vs/nls';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import {IAction} from 'vs/base/common/actions';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
-import {domEvent} from 'vs/base/browser/event';
-import {Emitter} from 'vs/base/common/event';
+import { IAction } from 'vs/base/common/actions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { domEvent } from 'vs/base/browser/event';
+import { Emitter } from 'vs/base/common/event';
 
 
-export function fillInActions(menu: IMenu, target: IAction[] | { primary: IAction[]; secondary: IAction[];}): void {
+export function fillInActions(menu: IMenu, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }): void {
 	const groups = menu.getActions();
 	if (groups.length === 0) {
 		return;

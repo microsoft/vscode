@@ -4,36 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IModelDecoration, IRange, IPosition} from 'vs/editor/common/editorCommon';
-import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import {Range} from 'vs/editor/common/core/range';
+import { IModelDecoration, IRange, IPosition } from 'vs/editor/common/editorCommon';
+import { ViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { Range } from 'vs/editor/common/core/range';
 
 export interface IRestrictedRenderingContext {
-	linesViewportData:ViewLinesViewportData;
+	linesViewportData: ViewLinesViewportData;
 
-	scrollWidth:number;
-	scrollHeight:number;
+	scrollWidth: number;
+	scrollHeight: number;
 
-	visibleRange:Range;
-	bigNumbersDelta:number;
+	visibleRange: Range;
+	bigNumbersDelta: number;
 
-	viewportTop:number;
-	viewportWidth:number;
-	viewportHeight:number;
-	viewportLeft:number;
+	viewportTop: number;
+	viewportWidth: number;
+	viewportHeight: number;
+	viewportLeft: number;
 
-	getScrolledTopFromAbsoluteTop(absoluteTop:number): number;
-	getViewportVerticalOffsetForLineNumber(lineNumber:number): number;
-	lineIsVisible(lineNumber:number): boolean;
+	getScrolledTopFromAbsoluteTop(absoluteTop: number): number;
+	getViewportVerticalOffsetForLineNumber(lineNumber: number): number;
+	lineIsVisible(lineNumber: number): boolean;
 
 	getDecorationsInViewport(): IModelDecoration[];
 }
 
 export interface IRenderingContext extends IRestrictedRenderingContext {
 
-	linesVisibleRangesForRange(range:IRange, includeNewLines:boolean): LineVisibleRanges[];
+	linesVisibleRangesForRange(range: IRange, includeNewLines: boolean): LineVisibleRanges[];
 
-	visibleRangeForPosition(position:IPosition): VisibleRange;
+	visibleRangeForPosition(position: IPosition): VisibleRange;
 }
 
 export class LineVisibleRanges {
@@ -42,7 +42,7 @@ export class LineVisibleRanges {
 	public lineNumber: number;
 	public ranges: HorizontalRange[];
 
-	constructor(lineNumber:number, ranges:HorizontalRange[]) {
+	constructor(lineNumber: number, ranges: HorizontalRange[]) {
 		this.lineNumber = lineNumber;
 		this.ranges = ranges;
 	}
@@ -51,14 +51,14 @@ export class LineVisibleRanges {
 export class VisibleRange {
 	_visibleRangeBrand: void;
 
-	public top:number;
-	public left:number;
-	public width:number;
+	public top: number;
+	public left: number;
+	public width: number;
 
-	constructor(top:number, left:number, width:number) {
-		this.top = top|0;
-		this.left = left|0;
-		this.width = width|0;
+	constructor(top: number, left: number, width: number) {
+		this.top = top | 0;
+		this.left = left | 0;
+		this.width = width | 0;
 	}
 }
 
@@ -68,8 +68,8 @@ export class HorizontalRange {
 	public left: number;
 	public width: number;
 
-	constructor(left:number, width:number) {
-		this.left = left|0;
-		this.width = width|0;
+	constructor(left: number, width: number) {
+		this.left = left | 0;
+		this.width = width | 0;
 	}
 }

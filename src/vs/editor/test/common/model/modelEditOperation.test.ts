@@ -5,9 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Range} from 'vs/editor/common/core/range';
-import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
+import { Range } from 'vs/editor/common/core/range';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { Model } from 'vs/editor/common/model/model';
 
 suite('Editor Model - Model Edit Operation', () => {
 	var LINE1 = 'My First Line';
@@ -33,7 +33,7 @@ suite('Editor Model - Model Edit Operation', () => {
 		model = null;
 	});
 
-	function createSingleEditOp(text:string, positionLineNumber:number, positionColumn:number, selectionLineNumber:number = positionLineNumber, selectionColumn:number = positionColumn):IIdentifiedSingleEditOperation {
+	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 		var range = new Range(
 			selectionLineNumber,
 			selectionColumn,
@@ -52,7 +52,7 @@ suite('Editor Model - Model Edit Operation', () => {
 		};
 	}
 
-	function assertSingleEditOp(singleEditOp:IIdentifiedSingleEditOperation, editedLines:string[]) {
+	function assertSingleEditOp(singleEditOp: IIdentifiedSingleEditOperation, editedLines: string[]) {
 		var editOp = [singleEditOp];
 
 		var inverseEditOp = model.applyEdits(editOp);

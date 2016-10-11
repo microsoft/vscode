@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import Event, {Emitter} from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import {IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions} from 'vs/editor/common/editorCommon';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Event as BaseEvent} from 'vs/base/common/events';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
-import {IModel} from 'vs/editor/common/editorCommon';
+import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Event as BaseEvent } from 'vs/base/common/events';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IModel } from 'vs/editor/common/editorCommon';
 
 export enum ConfirmResult {
 	SAVE,
@@ -459,7 +459,7 @@ export class EditorOptions implements IEditorOptions {
 	 * Helper to create EditorOptions inline.
 	 */
 	public static create(settings: IEditorOptions): EditorOptions {
-		let options = new EditorOptions();
+		const options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
@@ -537,7 +537,7 @@ export class TextEditorOptions extends EditorOptions {
 			}
 
 			if (input.options.selection) {
-				let selection = input.options.selection;
+				const selection = input.options.selection;
 				options.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
 			}
 
@@ -573,7 +573,7 @@ export class TextEditorOptions extends EditorOptions {
 	 * Helper to create TextEditorOptions inline.
 	 */
 	public static create(settings: ITextEditorOptions): TextEditorOptions {
-		let options = new TextEditorOptions();
+		const options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
@@ -660,7 +660,7 @@ export class TextEditorOptions extends EditorOptions {
 
 			// Select
 			if (!types.isUndefinedOrNull(this.endLineNumber) && !types.isUndefinedOrNull(this.endColumn)) {
-				let range = {
+				const range = {
 					startLineNumber: this.startLineNumber,
 					startColumn: this.startColumn,
 					endLineNumber: this.endLineNumber,
@@ -672,7 +672,7 @@ export class TextEditorOptions extends EditorOptions {
 
 			// Reveal
 			else {
-				let pos = {
+				const pos = {
 					lineNumber: this.startLineNumber,
 					column: this.startColumn
 				};
@@ -705,7 +705,7 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 	 * Helper to create TextDiffEditorOptions inline.
 	 */
 	public static create(settings: ITextDiffEditorOptions): TextDiffEditorOptions {
-		let options = new TextDiffEditorOptions();
+		const options = new TextDiffEditorOptions();
 
 		options.autoRevealFirstChange = settings.autoRevealFirstChange;
 
@@ -746,7 +746,7 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 	}
 
 	// File
-	let fileInput = asFileEditorInput(input, supportDiff);
+	const fileInput = asFileEditorInput(input, supportDiff);
 
 	return fileInput && fileInput.getResource();
 }
@@ -754,7 +754,7 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 // TODO@Ben every editor should have an associated resource
 export function getResource(input: IEditorInput): URI {
 	if (input instanceof EditorInput && typeof (<any>input).getResource === 'function') {
-		let candidate = (<any>input).getResource();
+		const candidate = (<any>input).getResource();
 		if (candidate instanceof URI) {
 			return candidate;
 		}
@@ -795,9 +795,9 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 		obj = (<BaseDiffEditorInput>obj).modifiedInput;
 	}
 
-	let i = <IFileEditorInput>obj;
+	const i = <IFileEditorInput>obj;
 
-	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setEncoding, i.getEncoding, i.getResource) ? i : null;
+	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setEncoding, i.getEncoding, i.getResource, i.setPreferredEncoding) ? i : null;
 }
 
 export interface IStacksModelChangeEvent {
@@ -881,7 +881,7 @@ export interface IWorkbenchEditorConfiguration {
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
-			openPositioning: string;
+			openPositioning: 'left' | 'right' | 'first' | 'last';
 		}
 	};
 }

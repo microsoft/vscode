@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IConfigurationChangedEvent, IPosition, TextEditorCursorStyle} from 'vs/editor/common/editorCommon';
-import {Configuration} from 'vs/editor/browser/config/configuration';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { IConfigurationChangedEvent, IPosition, TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { Configuration } from 'vs/editor/browser/config/configuration';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 
 export interface IViewCursorRenderData {
 	position: IPosition;
@@ -19,19 +19,19 @@ export interface IViewCursorRenderData {
 }
 
 export class ViewCursor {
-	private _context:ViewContext;
+	private _context: ViewContext;
 	private _position: IPosition;
-	private _domNode:FastDomNode;
-	private _positionTop:number;
-	private _positionLeft:number;
-	private _isInEditableRange:boolean;
-	private _isVisible:boolean;
-	private _isInViewport:boolean;
+	private _domNode: FastDomNode;
+	private _positionTop: number;
+	private _positionLeft: number;
+	private _isInEditableRange: boolean;
+	private _isVisible: boolean;
+	private _isInViewport: boolean;
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lastRenderedContent: string;
 	private _lineHeight: number;
 
-	constructor(context:ViewContext, isSecondary:boolean) {
+	constructor(context: ViewContext, isSecondary: boolean) {
 		this._context = context;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -109,7 +109,7 @@ export class ViewCursor {
 		return true;
 	}
 
-	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
@@ -122,7 +122,7 @@ export class ViewCursor {
 		return true;
 	}
 
-	public prepareRender(ctx:IRenderingContext): void {
+	public prepareRender(ctx: IRenderingContext): void {
 		var visibleRange = ctx.visibleRangeForPosition(this._position);
 		if (visibleRange) {
 			this._positionTop = visibleRange.top;
@@ -141,7 +141,7 @@ export class ViewCursor {
 		return '';
 	}
 
-	public render(ctx:IRestrictedRenderingContext): IViewCursorRenderData {
+	public render(ctx: IRestrictedRenderingContext): IViewCursorRenderData {
 		if (this._isInViewport) {
 			let top = this._positionTop + ctx.viewportTop - ctx.bigNumbersDelta;
 			let renderContent = this._getRenderedContent();
@@ -169,7 +169,7 @@ export class ViewCursor {
 		return null;
 	}
 
-	private updatePosition(newPosition:IPosition): void {
+	private updatePosition(newPosition: IPosition): void {
 		this._position = newPosition;
 		this._domNode.domNode.setAttribute('lineNumber', this._position.lineNumber.toString());
 		this._domNode.domNode.setAttribute('column', this._position.column.toString());

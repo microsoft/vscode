@@ -4,24 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorInput, ITextEditorOptions} from 'vs/platform/editor/common/editor';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
-
-export class IRecentlyClosedEditor {
-	editor: IEditorInput;
-	index: number;
-}
 
 export interface IHistoryService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
-	 * Removes and returns the last closed editor if any.
+	 * Re-opens the last closed editor if any.
 	 */
-	popLastClosedEditor(): IRecentlyClosedEditor;
+	reopenLastClosedEditor(): void;
 
 	/**
 	 * Add an entry to the navigation stack of the history.
@@ -51,5 +46,5 @@ export interface IHistoryService {
 	/**
 	 * Get the entire history of opened editors.
 	 */
-	getHistory(): IEditorInput[];
+	getHistory(): (IEditorInput | IResourceInput)[];
 }

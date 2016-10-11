@@ -7,11 +7,11 @@
 import { ParseError, Node, parseTree, findNodeAtLocation, JSONPath, Segment } from 'vs/base/common/json';
 import { Edit, FormattingOptions, format, applyEdit } from 'vs/base/common/jsonFormatter';
 
-export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions) : Edit[] {
+export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
 	return setProperty(text, path, void 0, formattingOptions);
 }
 
-export function setProperty(text: string, path: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number) : Edit[] {
+export function setProperty(text: string, path: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number): Edit[] {
 	let errors: ParseError[] = [];
 	let root = parseTree(text, errors);
 	let parent: Node = void 0;
@@ -24,7 +24,7 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			if (typeof lastSegment === 'string') {
 				value = { [lastSegment]: value };
 			} else {
-				value = [ value ];
+				value = [value];
 			}
 		} else {
 			break;
@@ -38,11 +38,11 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 		}
 		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
 	} else if (parent.type === 'object' && typeof lastSegment === 'string') {
-		let existing = findNodeAtLocation(parent, [ lastSegment ]);
+		let existing = findNodeAtLocation(parent, [lastSegment]);
 		if (existing !== void 0) {
 			if (value === void 0) { // delete
 				let propertyIndex = parent.children.indexOf(existing.parent);
-				let removeBegin : number;
+				let removeBegin: number;
 				let removeEnd = existing.parent.offset + existing.parent.length;
 				if (propertyIndex > 0) {
 					// remove the comma of the previous node
@@ -70,22 +70,22 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			let edit: Edit;
 			if (index > 0) {
 				let previous = parent.children[index - 1];
-				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty};
+				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty };
 			} else if (parent.children.length === 0) {
-				edit = { offset: parent.offset + 1, length: 0, content: newProperty};
+				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
 			} else {
-				edit = { offset: parent.offset + 1, length: 0, content: newProperty + ','};
+				edit = { offset: parent.offset + 1, length: 0, content: newProperty + ',' };
 			}
 			return withFormatting(text, edit, formattingOptions);
 		}
 	} else if (parent.type === 'array' && typeof lastSegment === 'number') {
 		throw new Error('Array modification not supported yet');
 	} else {
-		throw new Error(`Can not add ${typeof lastSegment !== 'number' ? 'index' : 'property' } to parent of type ${parent.type}`);
+		throw new Error(`Can not add ${typeof lastSegment !== 'number' ? 'index' : 'property'} to parent of type ${parent.type}`);
 	}
 }
 
-function withFormatting(text:string, edit: Edit, formattingOptions: FormattingOptions) : Edit[] {
+function withFormatting(text: string, edit: Edit, formattingOptions: FormattingOptions): Edit[] {
 	// apply the edit
 	let newText = applyEdit(text, edit);
 

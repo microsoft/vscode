@@ -6,15 +6,15 @@
 
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
-import {join} from 'vs/base/common/paths';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {workbenchInstantiationService} from 'vs/test/utils/servicesTestUtils';
-import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
-import {UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { join } from 'vs/base/common/paths';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { workbenchInstantiationService } from 'vs/test/utils/servicesTestUtils';
+import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 class ServiceAccessor {
-	constructor(@IUntitledEditorService public untitledEditorService: UntitledEditorService) {
+	constructor( @IUntitledEditorService public untitledEditorService: UntitledEditorService) {
 	}
 }
 

@@ -5,15 +5,15 @@
 'use strict';
 
 import errors = require('vs/base/common/errors');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
-import {MessageList, Severity as BaseSeverity} from 'vs/workbench/services/message/browser/messagelist/messageList';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IMessageService, IChoiceService, IMessageWithAction, IConfirmation, Severity} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import { MessageList, Severity as BaseSeverity } from 'vs/workbench/services/message/browser/messagelist/messageList';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IMessageService, IChoiceService, IMessageWithAction, IConfirmation, Severity } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import Event from 'vs/base/common/event';
-import {Action} from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 
 interface IBufferedMessage {
 	severity: Severity;

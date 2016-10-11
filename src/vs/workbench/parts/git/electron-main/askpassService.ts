@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { ipcMain as ipc, BrowserWindow} from 'electron';
+import { ipcMain as ipc, BrowserWindow } from 'electron';
 import platform = require('vs/base/common/platform');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAskpassService } from 'vs/workbench/parts/git/common/git';

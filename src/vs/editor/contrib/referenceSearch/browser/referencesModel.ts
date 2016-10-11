@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import Event, {fromEventEmitter} from 'vs/base/common/event';
-import {basename, dirname} from 'vs/base/common/paths';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
+import Event, { fromEventEmitter } from 'vs/base/common/event';
+import { basename, dirname } from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import {defaultGenerator} from 'vs/base/common/idGenerator';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {Range} from 'vs/editor/common/core/range';
-import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
-import {Location} from 'vs/editor/common/modes';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { Range } from 'vs/editor/common/core/range';
+import { IModel, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { Location } from 'vs/editor/common/modes';
 
 export class OneReference {
 
@@ -188,7 +188,7 @@ export class ReferencesModel {
 		return this._groups.length === 0;
 	}
 
-	public get references(): OneReference[]{
+	public get references(): OneReference[] {
 		return this._references;
 	}
 

@@ -5,29 +5,29 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod, KeyChord} from 'vs/base/common/keyCodes';
-import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
-import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import {EditorContextKeys, Handler, ICommand, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
-import {CopyLinesCommand} from './copyLinesCommand';
-import {DeleteLinesCommand} from './deleteLinesCommand';
-import {MoveLinesCommand} from './moveLinesCommand';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
+import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { CopyLinesCommand } from './copyLinesCommand';
+import { DeleteLinesCommand } from './deleteLinesCommand';
+import { MoveLinesCommand } from './moveLinesCommand';
 
 // copy lines
 
 abstract class AbstractCopyLinesAction extends EditorAction {
 
-	private down:boolean;
+	private down: boolean;
 
-	constructor(down:boolean, opts:IActionOptions) {
+	constructor(down: boolean, opts: IActionOptions) {
 		super(opts);
 		this.down = down;
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 
-		var commands:ICommand[] = [];
+		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
@@ -76,16 +76,16 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 
 abstract class AbstractMoveLinesAction extends EditorAction {
 
-	private down:boolean;
+	private down: boolean;
 
-	constructor(down:boolean, opts:IActionOptions) {
+	constructor(down: boolean, opts: IActionOptions) {
 		super(opts);
 		this.down = down;
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 
-		var commands:ICommand[] = [];
+		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
@@ -131,14 +131,14 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 }
 
 abstract class AbstractSortLinesAction extends EditorAction {
-	private descending:boolean;
+	private descending: boolean;
 
-	constructor(descending:boolean, opts:IActionOptions) {
+	constructor(descending: boolean, opts: IActionOptions) {
 		super(opts);
 		this.descending = descending;
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 
 		if (!SortLinesCommand.canRun(editor.getModel(), editor.getSelection(), this.descending)) {
 			return;
@@ -192,7 +192,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 
 		var command = new TrimTrailingWhitespaceCommand(editor.getSelection());
 
@@ -203,15 +203,15 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 // delete lines
 
 interface IDeleteLinesOperation {
-	startLineNumber:number;
-	endLineNumber:number;
-	positionColumn:number;
+	startLineNumber: number;
+	endLineNumber: number;
+	positionColumn: number;
 }
 
 abstract class AbstractRemoveLinesAction extends EditorAction {
-	_getLinesToRemove(editor:ICommonCodeEditor): IDeleteLinesOperation[] {
+	_getLinesToRemove(editor: ICommonCodeEditor): IDeleteLinesOperation[] {
 		// Construct delete operations
-		var operations:IDeleteLinesOperation[] = editor.getSelections().map((s) => {
+		var operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
 
 			var endLineNumber = s.endLineNumber;
 			if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
@@ -231,7 +231,7 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 		});
 
 		// Merge delete operations on consecutive lines
-		var mergedOperations:IDeleteLinesOperation[] = [];
+		var mergedOperations: IDeleteLinesOperation[] = [];
 		var previousOperation = operations[0];
 		for (var i = 1; i < operations.length; i++) {
 			if (previousOperation.endLineNumber + 1 === operations[i].startLineNumber) {
@@ -266,12 +266,12 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 
 		var ops = this._getLinesToRemove(editor);
 
 		// Finally, construct the delete lines commands
-		var commands:ICommand[] = ops.map((op) => {
+		var commands: ICommand[] = ops.map((op) => {
 			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
 		});
 

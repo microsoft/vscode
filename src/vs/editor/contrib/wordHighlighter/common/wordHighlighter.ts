@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {sequence, asWinJsPromise} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Range} from 'vs/editor/common/core/range';
+import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, commonEditorContribution} from 'vs/editor/common/editorCommonExtensions';
-import {DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {Position} from 'vs/editor/common/core/position';
+import { CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Position } from 'vs/editor/common/core/position';
 
-export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position):TPromise<DocumentHighlight[]> {
+export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
 	let foundResult = false;
@@ -52,19 +52,19 @@ class WordHighlighter {
 	private _decorationIds: string[];
 	private toUnhook: IDisposable[];
 
-	private workerRequestTokenId:number = 0;
-	private workerRequest:TPromise<DocumentHighlight[]> = null;
-	private workerRequestCompleted:boolean = false;
-	private workerRequestValue:DocumentHighlight[] = [];
+	private workerRequestTokenId: number = 0;
+	private workerRequest: TPromise<DocumentHighlight[]> = null;
+	private workerRequestCompleted: boolean = false;
+	private workerRequestValue: DocumentHighlight[] = [];
 
-	private lastCursorPositionChangeTime:number = 0;
-	private renderDecorationsTimer:number = -1;
+	private lastCursorPositionChangeTime: number = 0;
+	private renderDecorationsTimer: number = -1;
 
-	constructor(editor:editorCommon.ICommonCodeEditor) {
+	constructor(editor: editorCommon.ICommonCodeEditor) {
 		this.editor = editor;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
-		this.toUnhook.push(editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
+		this.toUnhook.push(editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
 			this._onPositionChanged(e);
 		}));
 		this.toUnhook.push(editor.onDidChangeModel((e) => {
@@ -117,7 +117,7 @@ class WordHighlighter {
 		}
 	}
 
-	private _onPositionChanged(e:editorCommon.ICursorPositionChangedEvent): void {
+	private _onPositionChanged(e: editorCommon.ICursorPositionChangedEvent): void {
 
 		// ignore typing & other
 		if (e.reason !== editorCommon.CursorChangeReason.Explicit) {
@@ -126,7 +126,7 @@ class WordHighlighter {
 		}
 
 		// no providers for this model
-		if(!DocumentHighlightProviderRegistry.has(this.model)) {
+		if (!DocumentHighlightProviderRegistry.has(this.model)) {
 			this._stopAll();
 			return;
 		}
@@ -165,10 +165,10 @@ class WordHighlighter {
 
 		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
 		// (Same symbol)
-		for(var i = 0, len = this._decorationIds.length; !workerRequestIsValid && i < len; i++) {
+		for (var i = 0, len = this._decorationIds.length; !workerRequestIsValid && i < len; i++) {
 			var range = this.model.getDecorationRange(this._decorationIds[i]);
-			if(range && range.startLineNumber === lineNumber) {
-				if(range.startColumn <= startColumn && range.endColumn >= endColumn) {
+			if (range && range.startLineNumber === lineNumber) {
+				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
 					workerRequestIsValid = true;
 				}
 			}
@@ -234,12 +234,12 @@ class WordHighlighter {
 
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
-		var decorations:editorCommon.IModelDeltaDecoration[] = [];
-		for(var i = 0, len = this.workerRequestValue.length; i < len; i++) {
+		var decorations: editorCommon.IModelDeltaDecoration[] = [];
+		for (var i = 0, len = this.workerRequestValue.length; i < len; i++) {
 			var info = this.workerRequestValue[i];
 			var color = '#A0A0A0';
 
-			let className:string;
+			let className: string;
 			if (info.kind === DocumentHighlightKind.Write) {
 				className = 'wordHighlightStrong';
 			} else if (info.kind === DocumentHighlightKind.Text) {
@@ -278,7 +278,7 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
 	private wordHighligher: WordHighlighter;
 
-	constructor(editor:editorCommon.ICommonCodeEditor) {
+	constructor(editor: editorCommon.ICommonCodeEditor) {
 		this.wordHighligher = new WordHighlighter(editor);
 	}
 

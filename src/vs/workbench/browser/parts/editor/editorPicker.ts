@@ -5,26 +5,26 @@
 'use strict';
 
 import 'vs/css!./media/editorpicker';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import {IIconLabelOptions} from 'vs/base/browser/ui/iconLabel/iconLabel';
-import {IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import scorer = require('vs/base/common/scorer');
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {getIconClasses} from 'vs/workbench/browser/labels';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {Position} from 'vs/platform/editor/common/editor';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {EditorInput, asFileEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { Position } from 'vs/platform/editor/common/editor';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { EditorInput, asFileEditorInput, IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;

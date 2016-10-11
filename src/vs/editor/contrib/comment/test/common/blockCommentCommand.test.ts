@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Selection} from 'vs/editor/common/core/selection';
-import {BlockCommentCommand} from 'vs/editor/contrib/comment/common/blockCommentCommand';
-import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
-import {CommentMode} from 'vs/editor/test/common/testModes';
+import { Selection } from 'vs/editor/common/core/selection';
+import { BlockCommentCommand } from 'vs/editor/contrib/comment/common/blockCommentCommand';
+import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import { CommentMode } from 'vs/editor/test/common/testModes';
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });

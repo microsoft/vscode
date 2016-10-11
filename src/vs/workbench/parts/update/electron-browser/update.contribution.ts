@@ -11,7 +11,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
@@ -26,8 +26,8 @@ import * as semver from 'semver';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
 const LinkAction = (id: string, message: string, licenseUrl: string) => new Action(
 	id, message, null, true,
@@ -53,15 +53,15 @@ export class UpdateContribution implements IWorkbenchContribution {
 			setTimeout(() => {
 				this.instantiationService.invokeFunction(loadReleaseNotes, pkg.version)
 					.then(
-						text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, pkg.version, text)),
-						() => {
-							messageService.show(Severity.Info, {
-								message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
-								actions: [
-									this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction),
-									CloseAction
-								]
-							});
+					text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, pkg.version, text)),
+					() => {
+						messageService.show(Severity.Info, {
+							message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
+							actions: [
+								this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction),
+								CloseAction
+							]
+						});
 					});
 			}, 0);
 		}

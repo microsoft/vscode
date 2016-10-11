@@ -4,46 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
-import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
-import {TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
-import {Range} from 'vs/editor/common/core/range';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StyleMutator } from 'vs/base/browser/styleMutator';
+import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
+import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
+import { TextAreaStrategy } from 'vs/editor/common/controller/textAreaState';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IViewController} from 'vs/editor/browser/editorBrowser';
-import {Configuration} from 'vs/editor/browser/config/configuration';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {VisibleRange} from 'vs/editor/common/view/renderingContext';
-import {TextAreaWrapper} from 'vs/editor/browser/controller/input/textAreaWrapper';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { IViewController } from 'vs/editor/browser/editorBrowser';
+import { Configuration } from 'vs/editor/browser/config/configuration';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { VisibleRange } from 'vs/editor/common/view/renderingContext';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 
 export interface IKeyboardHandlerHelper {
-	viewDomNode:HTMLElement;
-	textArea:HTMLTextAreaElement;
-	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): VisibleRange;
+	viewDomNode: HTMLElement;
+	textArea: HTMLTextAreaElement;
+	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): VisibleRange;
 	flushAnyAccumulatedEvents(): void;
 }
 
 export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
-	private _context:ViewContext;
-	private viewController:IViewController;
-	private viewHelper:IKeyboardHandlerHelper;
-	private textArea:TextAreaWrapper;
-	private textAreaHandler:TextAreaHandler;
-	private _toDispose:IDisposable[];
+	private _context: ViewContext;
+	private viewController: IViewController;
+	private viewHelper: IKeyboardHandlerHelper;
+	private textArea: TextAreaWrapper;
+	private textAreaHandler: TextAreaHandler;
+	private _toDispose: IDisposable[];
 
-	private contentLeft:number;
-	private contentWidth:number;
-	private scrollLeft:number;
+	private contentLeft: number;
+	private contentWidth: number;
+	private scrollLeft: number;
 
-	private visibleRange:VisibleRange;
+	private visibleRange: VisibleRange;
 
-	constructor(context:ViewContext, viewController:IViewController, viewHelper:IKeyboardHandlerHelper) {
+	constructor(context: ViewContext, viewController: IViewController, viewHelper: IKeyboardHandlerHelper) {
 		super();
 
 		this._context = context;
@@ -74,7 +74,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let lineNumber = e.showAtLineNumber;
 			let column = e.showAtColumn;
 
-			let revealPositionEvent:editorCommon.IViewRevealRangeEvent = {
+			let revealPositionEvent: editorCommon.IViewRevealRangeEvent = {
 				range: new Range(lineNumber, column, lineNumber, column),
 				verticalType: editorCommon.VerticalRevealType.Simple,
 				revealHorizontal: true,
@@ -171,7 +171,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
 		if (this.visibleRange) {
 			StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
@@ -180,18 +180,18 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onViewFocusChanged(isFocused:boolean): boolean {
+	public onViewFocusChanged(isFocused: boolean): boolean {
 		this.textAreaHandler.setHasFocus(isFocused);
 		return false;
 	}
 
-	private _lastCursorSelectionChanged:editorCommon.IViewCursorSelectionChangedEvent = null;
-	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	private _lastCursorSelectionChanged: editorCommon.IViewCursorSelectionChangedEvent = null;
+	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		this._lastCursorSelectionChanged = e;
 		return false;
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
 		this.contentLeft = layoutInfo.contentLeft;
 		this.contentWidth = layoutInfo.contentWidth;
 		return false;

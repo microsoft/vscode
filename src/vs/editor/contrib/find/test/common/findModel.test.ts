@@ -5,18 +5,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Cursor} from 'vs/editor/common/controller/cursor';
-import {Position} from 'vs/editor/common/core/position';
-import {Selection} from 'vs/editor/common/core/selection';
-import {Range} from 'vs/editor/common/core/range';
-import {Handler, ICommonCodeEditor, IRange} from 'vs/editor/common/editorCommon';
-import {FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
-import {FindReplaceState} from 'vs/editor/contrib/find/common/findState';
-import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
+import { Handler, ICommonCodeEditor, IRange } from 'vs/editor/common/editorCommon';
+import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/common/findModel';
+import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 suite('FindModel', () => {
 
-	function findTest(testName:string, callback:(editor:ICommonCodeEditor, cursor:Cursor)=>void): void {
+	function findTest(testName: string, callback: (editor: ICommonCodeEditor, cursor: Cursor) => void): void {
 		test(testName, () => {
 			withMockCodeEditor([
 				'// my cool header',
@@ -35,11 +35,11 @@ suite('FindModel', () => {
 		});
 	}
 
-	function fromRange(rng:IRange): number[] {
+	function fromRange(rng: IRange): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
-	function _getFindState(editor:ICommonCodeEditor) {
+	function _getFindState(editor: ICommonCodeEditor) {
 		let model = editor.getModel();
 		let currentFindMatches: IRange[] = [];
 		let allFindMatches: IRange[] = [];
@@ -62,18 +62,18 @@ suite('FindModel', () => {
 		};
 	}
 
-	function assertFindState(editor:ICommonCodeEditor, cursor:number[], highlighted:number[], findDecorations:number[][]): void {
+	function assertFindState(editor: ICommonCodeEditor, cursor: number[], highlighted: number[], findDecorations: number[][]): void {
 		assert.deepEqual(fromRange(editor.getSelection()), cursor, 'cursor');
 
 		let expectedState = {
-			highlighted: highlighted ? [ highlighted ] : [],
+			highlighted: highlighted ? [highlighted] : [],
 			findDecorations: findDecorations
 		};
 		assert.deepEqual(_getFindState(editor), expectedState, 'state');
 	}
 
 	findTest('incremental find from beginning of file', (editor, cursor) => {
-		editor.setPosition({ lineNumber: 1, column: 1});
+		editor.setPosition({ lineNumber: 1, column: 1 });
 		let findState = new FindReplaceState();
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
@@ -192,7 +192,7 @@ suite('FindModel', () => {
 		);
 
 		// simulate adding a search scope
-		findState.change({ searchScope: new Range(8,1,10,1) }, true);
+		findState.change({ searchScope: new Range(8, 1, 10, 1) }, true);
 		assertFindState(
 			editor,
 			[8, 14, 8, 19],
@@ -425,7 +425,7 @@ suite('FindModel', () => {
 
 	findTest('find model next stays in scope', (editor, cursor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7,1,9,1) }, false);
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 9, 1) }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -563,7 +563,7 @@ suite('FindModel', () => {
 
 	findTest('find model prev stays in scope', (editor, cursor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7,1,9,1) }, false);
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 9, 1) }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -919,15 +919,15 @@ suite('FindModel', () => {
 			[1, 1, 1, 1],
 			null,
 			[
-				[ 1, 1,  1, 18],
-				[ 2, 1,  2, 18],
-				[ 3, 1,  3, 20],
-				[ 4, 1,  4, 1],
-				[ 5, 1,  5, 13],
-				[ 6, 1,  6, 43],
-				[ 7, 1,  7, 41],
-				[ 8, 1,  8, 41],
-				[ 9, 1,  9, 40],
+				[1, 1, 1, 18],
+				[2, 1, 2, 18],
+				[3, 1, 3, 20],
+				[4, 1, 4, 1],
+				[5, 1, 5, 13],
+				[6, 1, 6, 43],
+				[7, 1, 7, 41],
+				[8, 1, 8, 41],
+				[9, 1, 9, 40],
 				[10, 1, 10, 2],
 				[11, 1, 11, 17],
 				[12, 1, 12, 1],
@@ -948,15 +948,15 @@ suite('FindModel', () => {
 			[1, 1, 1, 1],
 			null,
 			[
-				[ 1, 1,  1, 18],
-				[ 2, 1,  2, 18],
-				[ 3, 1,  3, 20],
-				[ 4, 1,  4, 1],
-				[ 5, 1,  5, 13],
-				[ 6, 1,  6, 43],
-				[ 7, 1,  7, 41],
-				[ 8, 1,  8, 41],
-				[ 9, 1,  9, 40],
+				[1, 1, 1, 18],
+				[2, 1, 2, 18],
+				[3, 1, 3, 20],
+				[4, 1, 4, 1],
+				[5, 1, 5, 13],
+				[6, 1, 6, 43],
+				[7, 1, 7, 41],
+				[8, 1, 8, 41],
+				[9, 1, 9, 40],
 				[10, 1, 10, 2],
 				[11, 1, 11, 17],
 				[12, 1, 12, 1],
@@ -966,18 +966,18 @@ suite('FindModel', () => {
 		findModel.moveToNextMatch();
 		assertFindState(
 			editor,
-			[ 1, 1,  1, 18],
-			[ 1, 1,  1, 18],
+			[1, 1, 1, 18],
+			[1, 1, 1, 18],
 			[
-				[ 1, 1,  1, 18],
-				[ 2, 1,  2, 18],
-				[ 3, 1,  3, 20],
-				[ 4, 1,  4, 1],
-				[ 5, 1,  5, 13],
-				[ 6, 1,  6, 43],
-				[ 7, 1,  7, 41],
-				[ 8, 1,  8, 41],
-				[ 9, 1,  9, 40],
+				[1, 1, 1, 18],
+				[2, 1, 2, 18],
+				[3, 1, 3, 20],
+				[4, 1, 4, 1],
+				[5, 1, 5, 13],
+				[6, 1, 6, 43],
+				[7, 1, 7, 41],
+				[8, 1, 8, 41],
+				[9, 1, 9, 40],
 				[10, 1, 10, 2],
 				[11, 1, 11, 17],
 				[12, 1, 12, 1],
@@ -987,18 +987,18 @@ suite('FindModel', () => {
 		findModel.moveToNextMatch();
 		assertFindState(
 			editor,
-			[ 2, 1,  2, 18],
-			[ 2, 1,  2, 18],
+			[2, 1, 2, 18],
+			[2, 1, 2, 18],
 			[
-				[ 1, 1,  1, 18],
-				[ 2, 1,  2, 18],
-				[ 3, 1,  3, 20],
-				[ 4, 1,  4, 1],
-				[ 5, 1,  5, 13],
-				[ 6, 1,  6, 43],
-				[ 7, 1,  7, 41],
-				[ 8, 1,  8, 41],
-				[ 9, 1,  9, 40],
+				[1, 1, 1, 18],
+				[2, 1, 2, 18],
+				[3, 1, 3, 20],
+				[4, 1, 4, 1],
+				[5, 1, 5, 13],
+				[6, 1, 6, 43],
+				[7, 1, 7, 41],
+				[8, 1, 8, 41],
+				[9, 1, 9, 40],
 				[10, 1, 10, 2],
 				[11, 1, 11, 17],
 				[12, 1, 12, 1],
@@ -1019,15 +1019,15 @@ suite('FindModel', () => {
 			[1, 1, 1, 1],
 			null,
 			[
-				[ 1, 1,  1, 18],
-				[ 2, 1,  2, 18],
-				[ 3, 1,  3, 20],
-				[ 4, 1,  4, 1],
-				[ 5, 1,  5, 13],
-				[ 6, 1,  6, 43],
-				[ 7, 1,  7, 41],
-				[ 8, 1,  8, 41],
-				[ 9, 1,  9, 40],
+				[1, 1, 1, 18],
+				[2, 1, 2, 18],
+				[3, 1, 3, 20],
+				[4, 1, 4, 1],
+				[5, 1, 5, 13],
+				[6, 1, 6, 43],
+				[7, 1, 7, 41],
+				[8, 1, 8, 41],
+				[9, 1, 9, 40],
 				[10, 1, 10, 2],
 				[11, 1, 11, 17],
 				[12, 1, 12, 1],
@@ -1040,15 +1040,15 @@ suite('FindModel', () => {
 			[12, 1, 12, 1],
 			[12, 1, 12, 1],
 			[
-				[ 1, 1,  1, 18],
-				[ 2, 1,  2, 18],
-				[ 3, 1,  3, 20],
-				[ 4, 1,  4, 1],
-				[ 5, 1,  5, 13],
-				[ 6, 1,  6, 43],
-				[ 7, 1,  7, 41],
-				[ 8, 1,  8, 41],
-				[ 9, 1,  9, 40],
+				[1, 1, 1, 18],
+				[2, 1, 2, 18],
+				[3, 1, 3, 20],
+				[4, 1, 4, 1],
+				[5, 1, 5, 13],
+				[6, 1, 6, 43],
+				[7, 1, 7, 41],
+				[8, 1, 8, 41],
+				[9, 1, 9, 40],
 				[10, 1, 10, 2],
 				[11, 1, 11, 17],
 				[12, 1, 12, 1],
@@ -1061,15 +1061,15 @@ suite('FindModel', () => {
 			[11, 1, 11, 17],
 			[11, 1, 11, 17],
 			[
-				[ 1, 1,  1, 18],
-				[ 2, 1,  2, 18],
-				[ 3, 1,  3, 20],
-				[ 4, 1,  4, 1],
-				[ 5, 1,  5, 13],
-				[ 6, 1,  6, 43],
-				[ 7, 1,  7, 41],
-				[ 8, 1,  8, 41],
-				[ 9, 1,  9, 40],
+				[1, 1, 1, 18],
+				[2, 1, 2, 18],
+				[3, 1, 3, 20],
+				[4, 1, 4, 1],
+				[5, 1, 5, 13],
+				[6, 1, 6, 43],
+				[7, 1, 7, 41],
+				[8, 1, 8, 41],
+				[9, 1, 9, 40],
 				[10, 1, 10, 2],
 				[11, 1, 11, 17],
 				[12, 1, 12, 1],
@@ -1220,7 +1220,7 @@ suite('FindModel', () => {
 			editor,
 			[6, 16, 6, 16],
 			null,
-			[ ]
+			[]
 		);
 		assert.equal(editor.getModel().getLineContent(6), '    cout << "hi world, hi!" << endl;');
 
@@ -1331,7 +1331,7 @@ suite('FindModel', () => {
 			editor,
 			[6, 17, 6, 17],
 			null,
-			[ ]
+			[]
 		);
 		assert.equal(editor.getModel().getLineContent(6), '    cout << "hi world, hi!" << endl;');
 		assert.equal(editor.getModel().getLineContent(7), '    cout << "hi world again" << endl;');
@@ -1625,7 +1625,7 @@ suite('FindModel', () => {
 
 	findTest('replace when search string has look ahed regex', (editor, cursor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex:true }, false);
+		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -1681,7 +1681,7 @@ suite('FindModel', () => {
 			editor,
 			[8, 16, 8, 16],
 			null,
-			[ ]
+			[]
 		);
 		assert.equal(editor.getModel().getLineContent(8), '    cout << "hi world again" << endl;');
 
@@ -1691,7 +1691,7 @@ suite('FindModel', () => {
 
 	findTest('replace when search string has look ahed regex and cursor is at the last find match', (editor, cursor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex:true }, false);
+		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		cursor.trigger('mouse', Handler.MoveTo, {
@@ -1752,7 +1752,7 @@ suite('FindModel', () => {
 			editor,
 			[7, 16, 7, 16],
 			null,
-			[ ]
+			[]
 		);
 		assert.equal(editor.getModel().getLineContent(7), '    cout << "hi world again" << endl;');
 
@@ -1762,7 +1762,7 @@ suite('FindModel', () => {
 
 	findTest('replaceAll when search string has look ahed regex', (editor, cursor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex:true }, false);
+		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -1786,7 +1786,7 @@ suite('FindModel', () => {
 			editor,
 			[1, 1, 1, 1],
 			null,
-			[ ]
+			[]
 		);
 
 		findModel.dispose();
@@ -1795,7 +1795,7 @@ suite('FindModel', () => {
 
 	findTest('replace when search string has look ahed regex and replace string has capturing groups', (editor, cursor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hel(lo)(?=\\sworld)', replaceString: 'hi$1', isRegex:true }, false);
+		findState.change({ searchString: 'hel(lo)(?=\\sworld)', replaceString: 'hi$1', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -1851,7 +1851,7 @@ suite('FindModel', () => {
 			editor,
 			[8, 18, 8, 18],
 			null,
-			[ ]
+			[]
 		);
 		assert.equal(editor.getModel().getLineContent(8), '    cout << "hilo world again" << endl;');
 
@@ -1861,7 +1861,7 @@ suite('FindModel', () => {
 
 	findTest('replaceAll when search string has look ahed regex and replace string has capturing groups', (editor, cursor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'wo(rl)d(?=.*;$)', replaceString: 'gi$1', isRegex:true }, false);
+		findState.change({ searchString: 'wo(rl)d(?=.*;$)', replaceString: 'gi$1', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -1887,7 +1887,7 @@ suite('FindModel', () => {
 			editor,
 			[1, 1, 1, 1],
 			null,
-			[ ]
+			[]
 		);
 
 		findModel.dispose();
@@ -1896,7 +1896,7 @@ suite('FindModel', () => {
 
 	findTest('replaceAll when search string is multiline and has look ahed regex and replace string has capturing groups', (editor, cursor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'wo(rl)d(.*;\\n)(?=.*hello)', replaceString: 'gi$1$2', isRegex:true, matchCase:true }, false);
+		findState.change({ searchString: 'wo(rl)d(.*;\\n)(?=.*hello)', replaceString: 'gi$1$2', isRegex: true, matchCase: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -1918,7 +1918,7 @@ suite('FindModel', () => {
 			editor,
 			[1, 1, 1, 1],
 			null,
-			[ ]
+			[]
 		);
 
 		findModel.dispose();

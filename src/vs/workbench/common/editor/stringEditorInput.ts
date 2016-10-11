@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {PLAINTEXT_MODE_ID} from 'vs/editor/common/modes/modesRegistry';
-import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { EditorModel, EditorInput } from 'vs/workbench/common/editor';
+import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * A read-only text editor input whos contents are made of the provided value and mode ID.

@@ -5,11 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
-import {IModelDeltaDecoration, IRange, TrackedRangeStickiness} from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IModelDeltaDecoration, IRange, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { Model } from 'vs/editor/common/model/model';
 
 // --------- utils
 
@@ -78,7 +78,7 @@ suite('Editor Model - Model Decorations', () => {
 
 	// --------- Model Decorations
 
-	var thisModel:Model;
+	var thisModel: Model;
 
 	setup(() => {
 		var text =
@@ -403,7 +403,7 @@ export interface ILightWeightDecoration {
 
 suite('deltaDecorations', () => {
 
-	function decoration(id:string, startLineNumber:number, startColumn:number, endLineNumber:number, endColum:number): ILightWeightDecoration {
+	function decoration(id: string, startLineNumber: number, startColumn: number, endLineNumber: number, endColum: number): ILightWeightDecoration {
 		return {
 			id: id,
 			range: {
@@ -415,7 +415,7 @@ suite('deltaDecorations', () => {
 		};
 	}
 
-	function toModelDeltaDecoration(dec:ILightWeightDecoration): IModelDeltaDecoration {
+	function toModelDeltaDecoration(dec: ILightWeightDecoration): IModelDeltaDecoration {
 		return {
 			range: dec.range,
 			options: {
@@ -424,7 +424,7 @@ suite('deltaDecorations', () => {
 		};
 	}
 
-	function strcmp(a:string, b:string): number {
+	function strcmp(a: string, b: string): number {
 		if (a === b) {
 			return 0;
 		}
@@ -434,7 +434,7 @@ suite('deltaDecorations', () => {
 		return 1;
 	}
 
-	function readModelDecorations(model:Model, ids:string[]): ILightWeightDecoration[] {
+	function readModelDecorations(model: Model, ids: string[]): ILightWeightDecoration[] {
 		return ids.map((id) => {
 			return {
 				range: model.getDecorationRange(id),
@@ -443,7 +443,7 @@ suite('deltaDecorations', () => {
 		});
 	}
 
-	function testDeltaDecorations(text:string[], decorations:ILightWeightDecoration[], newDecorations:ILightWeightDecoration[]): void {
+	function testDeltaDecorations(text: string[], decorations: ILightWeightDecoration[], newDecorations: ILightWeightDecoration[]): void {
 
 		var model = Model.createFromString(text.join('\n'));
 
@@ -473,7 +473,7 @@ suite('deltaDecorations', () => {
 		model.dispose();
 	}
 
-	function range(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number): Range {
+	function range(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number): Range {
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
@@ -488,8 +488,8 @@ suite('deltaDecorations', () => {
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1,1,1,12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2,1,2,13));
+		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
 
 		model.dispose();
 	});
@@ -618,16 +618,16 @@ suite('deltaDecorations', () => {
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1,1,1,12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2,1,2,13));
+		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
 
 		ids = model.deltaDecorations(ids, [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1,1,1,12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2,1,2,13));
+		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
 
 		model.dispose();
 	});

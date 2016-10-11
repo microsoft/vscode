@@ -5,10 +5,10 @@
 'use strict';
 
 import * as appInsights from 'applicationinsights';
-import {isObject} from 'vs/base/common/types';
-import {safeStringify, mixin} from 'vs/base/common/objects';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ITelemetryAppender} from '../common/telemetry';
+import { isObject } from 'vs/base/common/types';
+import { safeStringify, mixin } from 'vs/base/common/objects';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITelemetryAppender } from '../common/telemetry';
 
 let _initialized = false;
 
@@ -100,12 +100,12 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		};
 	}
 
-	private static _flaten(obj: any, result: {[key: string]: any }, order: number = 0, prefix?: string): void {
+	private static _flaten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
 		if (!obj) {
 			return;
 		}
 
-		for(var item of Object.getOwnPropertyNames(obj)){
+		for (var item of Object.getOwnPropertyNames(obj)) {
 			const value = obj[item];
 			const index = prefix ? prefix + item : item;
 

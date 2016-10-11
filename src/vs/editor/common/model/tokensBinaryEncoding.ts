@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
-import {Token} from 'vs/editor/common/core/token';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { Token } from 'vs/editor/common/core/token';
 
 export const enum TokensBinaryEncodingValues {
 	START_INDEX_MASK = 0xffffffff,
@@ -17,31 +17,31 @@ export const enum TokensBinaryEncodingValues {
 }
 
 const DEFAULT_VIEW_TOKEN = new ViewLineToken(0, '');
-const INFLATED_TOKENS_EMPTY_TEXT:ViewLineToken[] = [];
-export const DEFLATED_TOKENS_EMPTY_TEXT:number[] = [];
-const INFLATED_TOKENS_NON_EMPTY_TEXT:ViewLineToken[] = [DEFAULT_VIEW_TOKEN];
-export const DEFLATED_TOKENS_NON_EMPTY_TEXT:number[] = [0];
+const INFLATED_TOKENS_EMPTY_TEXT: ViewLineToken[] = [];
+export const DEFLATED_TOKENS_EMPTY_TEXT: number[] = [];
+const INFLATED_TOKENS_NON_EMPTY_TEXT: ViewLineToken[] = [DEFAULT_VIEW_TOKEN];
+export const DEFLATED_TOKENS_NON_EMPTY_TEXT: number[] = [0];
 
 export class TokensInflatorMap {
 	_tokensInflatorMapBrand: void;
 
 	public topLevelModeId: string;
-	public _inflate:string[];
+	public _inflate: string[];
 
 	public _deflate: {
-		[token:string]:number;
+		[token: string]: number;
 	};
 
 	constructor(topLevelModeId: string) {
 		this.topLevelModeId = topLevelModeId;
-		this._inflate = [ '' ];
+		this._inflate = [''];
 		this._deflate = { '': 0 };
 	}
 }
 
 export class TokensBinaryEncoding {
 
-	public static deflateArr(map:TokensInflatorMap, tokens:Token[]): number[] {
+	public static deflateArr(map: TokensInflatorMap, tokens: Token[]): number[] {
 		if (tokens.length === 0) {
 			return DEFLATED_TOKENS_EMPTY_TEXT;
 		}
@@ -49,15 +49,15 @@ export class TokensBinaryEncoding {
 			return DEFLATED_TOKENS_NON_EMPTY_TEXT;
 		}
 
-		var i:number,
-			len:number,
-			deflatedToken:number,
-			deflated:number,
-			token:Token,
+		var i: number,
+			len: number,
+			deflatedToken: number,
+			deflated: number,
+			token: Token,
 			inflateMap = map._inflate,
 			deflateMap = map._deflate,
-			prevStartIndex:number = -1,
-			result:number[] = new Array(tokens.length);
+			prevStartIndex: number = -1,
+			result: number[] = new Array(tokens.length);
 
 		for (i = 0, len = tokens.length; i < len; i++) {
 			token = tokens[i];
@@ -101,11 +101,11 @@ export class TokensBinaryEncoding {
 		return result;
 	}
 
-	public static getStartIndex(binaryEncodedToken:number): number {
+	public static getStartIndex(binaryEncodedToken: number): number {
 		return (binaryEncodedToken / TokensBinaryEncodingValues.START_INDEX_OFFSET) & TokensBinaryEncodingValues.START_INDEX_MASK;
 	}
 
-	public static getType(map:TokensInflatorMap, binaryEncodedToken:number): string {
+	public static getType(map: TokensInflatorMap, binaryEncodedToken: number): string {
 		var deflatedType = (binaryEncodedToken / TokensBinaryEncodingValues.TYPE_OFFSET) & TokensBinaryEncodingValues.TYPE_MASK;
 		if (deflatedType === 0) {
 			return strings.empty;
@@ -113,7 +113,7 @@ export class TokensBinaryEncoding {
 		return map._inflate[deflatedType];
 	}
 
-	public static inflateArr(map:TokensInflatorMap, binaryEncodedTokens:number[]): ViewLineToken[] {
+	public static inflateArr(map: TokensInflatorMap, binaryEncodedTokens: number[]): ViewLineToken[] {
 		if (binaryEncodedTokens.length === 0) {
 			return INFLATED_TOKENS_EMPTY_TEXT;
 		}
@@ -136,11 +136,11 @@ export class TokensBinaryEncoding {
 		return result;
 	}
 
-	public static findIndexOfOffset(binaryEncodedTokens:number[], offset:number): number {
+	public static findIndexOfOffset(binaryEncodedTokens: number[], offset: number): number {
 		return this.findIndexInSegmentsArray(binaryEncodedTokens, offset);
 	}
 
-	public static sliceAndInflate(map:TokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[] {
+	public static sliceAndInflate(map: TokensInflatorMap, binaryEncodedTokens: number[], startOffset: number, endOffset: number, deltaStartIndex: number): ViewLineToken[] {
 		if (binaryEncodedTokens.length === 0) {
 			return INFLATED_TOKENS_EMPTY_TEXT;
 		}
@@ -173,16 +173,16 @@ export class TokensBinaryEncoding {
 		return result;
 	}
 
-	private static findIndexInSegmentsArray(arr:number[], desiredIndex: number):number {
+	private static findIndexInSegmentsArray(arr: number[], desiredIndex: number): number {
 
 		var low = 0,
 			high = arr.length - 1,
-			mid:number,
-			value:number;
+			mid: number,
+			value: number;
 
 		while (low < high) {
 
-			mid = low + Math.ceil((high - low)/2);
+			mid = low + Math.ceil((high - low) / 2);
 
 			value = arr[mid] & 0xffffffff;
 

@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IComposite} from 'vs/workbench/common/composite';
+import { IComposite } from 'vs/workbench/common/composite';
 
 export interface IPanel extends IComposite { }

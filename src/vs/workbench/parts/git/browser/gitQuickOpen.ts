@@ -34,7 +34,7 @@ class AbstractRefEntry extends QuickOpenEntry {
 	getDescription(): string { return ''; }
 	getAriaLabel(): string { return localize('refAriaLabel', "{0}, git", this.getLabel()); }
 
-	run(mode: Mode, context: IContext):boolean {
+	run(mode: Mode, context: IContext): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;
 		}
@@ -111,7 +111,7 @@ class BranchEntry extends QuickOpenEntry {
 	getAriaLabel(): string { return localize({ key: 'branchAriaLabel', comment: ['the branch name'] }, "{0}, git branch", this.getLabel()); }
 	getDescription(): string { return localize('createBranch', "Create branch {0}", this.name); }
 
-	run(mode: Mode, context: IContext):boolean {
+	run(mode: Mode, context: IContext): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;
 		}
@@ -246,7 +246,7 @@ class BranchCommand implements ICommand {
 
 export class GitCommandQuickOpenHandler extends CommandQuickOpenHandler {
 
-	constructor(@IQuickOpenService quickOpenService: IQuickOpenService, @IGitService gitService: IGitService, @IMessageService messageService: IMessageService) {
+	constructor( @IQuickOpenService quickOpenService: IQuickOpenService, @IGitService gitService: IGitService, @IMessageService messageService: IMessageService) {
 		super(quickOpenService, {
 			prefix: 'git',
 			commands: [

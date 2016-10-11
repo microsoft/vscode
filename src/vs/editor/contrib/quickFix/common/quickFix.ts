@@ -5,16 +5,16 @@
 
 'use strict';
 
-import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IdGenerator} from 'vs/base/common/idGenerator';
-import {Range} from 'vs/editor/common/core/range';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {CodeActionProviderRegistry, CodeAction, CodeActionProvider} from 'vs/editor/common/modes';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {asWinJsPromise} from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { Range } from 'vs/editor/common/core/range';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { CodeActionProviderRegistry, CodeAction, CodeActionProvider } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { asWinJsPromise } from 'vs/base/common/async';
 
 export interface IQuickFix2 extends CodeAction {
 	support: CodeActionProvider;
@@ -48,7 +48,7 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<IQ
 	return TPromise.join(promises).then(() => quickFixes);
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', function(accessor, args) {
+CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
 
 	const {resource, range} = args;
 	if (!(resource instanceof URI) || !Range.isIRange(range)) {

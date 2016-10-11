@@ -27,7 +27,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { ExtensionsInput } from './extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension } from './extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from './extensions';
+import { Renderer, DataSource, Controller } from './dependenciesViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITemplateData } from './extensionsList';
 import { RatingsWidget, InstallWidget } from './extensionsWidgets';
@@ -38,19 +39,20 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, BuiltinStatusLabelAction } from './extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { Keybinding } from 'vs/base/common/keybinding';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css') }" >
+				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
 			</head>
-			<body>${ body }</body>
+			<body>${ body}</body>
 		</html>`;
 }
 
@@ -98,7 +100,8 @@ class NavBar {
 const NavbarSection = {
 	Readme: 'readme',
 	Contributions: 'contributions',
-	Changelog: 'changelog'
+	Changelog: 'changelog',
+	Dependencies: 'dependencies'
 };
 
 interface ILayoutParticipant {
@@ -127,6 +130,7 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionReadme: Cache<string>;
 	private extensionChangelog: Cache<string>;
 	private extensionManifest: Cache<IExtensionManifest>;
+	private extensionDependencies: Cache<IExtensionDependencies>;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
@@ -152,6 +156,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
+		this.extensionDependencies = null;
 	}
 
 	createEditor(parent: Builder): void {
@@ -164,15 +169,15 @@ export class ExtensionEditor extends BaseEditor {
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
-		this.name = append(title, $('span.name.clickable'));
-		this.identifier = append(title, $('span.identifier'));
+		this.name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
+		this.identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
 
 		const subtitle = append(details, $('.subtitle'));
-		this.publisher = append(subtitle, $('span.publisher.clickable'));
+		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
 
-		this.installCount = append(subtitle, $('span.install'));
+		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count") }));
 
-		this.rating = append(subtitle, $('span.rating.clickable'));
+		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating") }));
 
 		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
@@ -205,6 +210,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionReadme = new Cache(() => extension.getReadme());
 		this.extensionChangelog = new Cache(() => extension.getChangelog());
 		this.extensionManifest = new Cache(() => extension.getManifest());
+		this.extensionDependencies = new Cache(() => this.extensionsWorkbenchService.loadDependencies(extension));
 
 		const onError = once(domEvent(this.icon, 'error'));
 		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
@@ -216,14 +222,14 @@ export class ExtensionEditor extends BaseEditor {
 		this.description.textContent = extension.description;
 
 		if (product.extensionsGallery) {
-			const extensionUrl = `${ product.extensionsGallery.itemUrl }?itemName=${ extension.publisher }.${ extension.name }`;
+			const extensionUrl = `${product.extensionsGallery.itemUrl}?itemName=${extension.publisher}.${extension.name}`;
 
 			this.name.onclick = finalHandler(() => shell.openExternal(extensionUrl));
-			this.rating.onclick = finalHandler(() => shell.openExternal(`${ extensionUrl }#review-details`));
+			this.rating.onclick = finalHandler(() => shell.openExternal(`${extensionUrl}#review-details`));
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
-					.done(viewlet => viewlet.search(`publisher:"${ extension.publisherDisplayName }"`));
+					.done(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
 			});
 
 			if (extension.licenseUrl) {
@@ -263,6 +269,9 @@ export class ExtensionEditor extends BaseEditor {
 		if (extension.hasChangelog) {
 			this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
 		}
+		if (extension.hasDependencies) {
+			this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
+		}
 
 		this.content.innerHTML = '';
 
@@ -270,10 +279,13 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private onNavbarChange(extension: IExtension, id: string): void {
+		this.contentDisposables = dispose(this.contentDisposables);
+		this.content.innerHTML = '';
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme();
 			case NavbarSection.Contributions: return this.openContributions();
 			case NavbarSection.Changelog: return this.openChangelog();
+			case NavbarSection.Dependencies: return this.openDependencies();
 		}
 	}
 
@@ -311,8 +323,6 @@ export class ExtensionEditor extends BaseEditor {
 	private openContributions() {
 		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
-				this.content.innerHTML = '';
-
 				const content = $('div', { class: 'subcontent' });
 				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
 				append(this.content, scrollableContent.getDomNode());
@@ -331,6 +341,44 @@ export class ExtensionEditor extends BaseEditor {
 
 				scrollableContent.scanDomNode();
 			}));
+	}
+
+	private openDependencies() {
+		addClass(this.content, 'loading');
+		this.extensionDependencies.get().then(extensionDependencies => {
+			removeClass(this.content, 'loading');
+
+			const content = $('div', { class: 'subcontent' });
+			const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+			append(this.content, scrollableContent.getDomNode());
+			this.contentDisposables.push(scrollableContent);
+
+			const tree = ExtensionEditor.renderDependencies(content, extensionDependencies, this.instantiationService);
+			const layout = () => {
+				scrollableContent.scanDomNode();
+				tree.layout(scrollableContent.getHeight());
+			};
+			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+			this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+			this.contentDisposables.push(tree);
+			scrollableContent.scanDomNode();
+		});
+	}
+
+	private static renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies, instantiationService: IInstantiationService): Tree {
+		const renderer = new Renderer();
+		const controller = instantiationService.createInstance(Controller);
+		const tree = new Tree(container, {
+			dataSource: new DataSource(),
+			renderer,
+			controller
+		}, {
+				indentPixels: 40,
+				twistiePixels: 20
+			});
+		tree.setInput(extensionDependencies);
+		return tree;
 	}
 
 	private static renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): void {
@@ -552,7 +600,7 @@ export class ExtensionEditor extends BaseEditor {
 	private keybindingToLabel(rawKeyBinding: IKeyBinding): string {
 		let key: string;
 
-		switch(process.platform) {
+		switch (process.platform) {
 			case 'win32': key = rawKeyBinding.win; break;
 			case 'linux': key = rawKeyBinding.linux; break;
 			case 'darwin': key = rawKeyBinding.mac; break;
@@ -562,10 +610,7 @@ export class ExtensionEditor extends BaseEditor {
 		return this.keybindingService.getLabelFor(keyBinding);
 	}
 
-	private loadContents(loadingTask: ()=>TPromise<any>): void {
-		this.contentDisposables = dispose(this.contentDisposables);
-
-		this.content.innerHTML = '';
+	private loadContents(loadingTask: () => TPromise<any>): void {
 		addClass(this.content, 'loading');
 
 		let promise = loadingTask();

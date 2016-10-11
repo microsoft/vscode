@@ -20,21 +20,21 @@ export class CharacterClassifier<T> {
 
 	private _defaultValue: T;
 
-	constructor(defaultValue:T) {
+	constructor(defaultValue: T) {
 		this._defaultValue = defaultValue;
 		this._asciiMap = CharacterClassifier._createAsciiMap(defaultValue);
 		this._map = [];
 	}
 
-	private static _createAsciiMap<T>(defaultValue:T): T[] {
-		let asciiMap:T[] = [];
+	private static _createAsciiMap<T>(defaultValue: T): T[] {
+		let asciiMap: T[] = [];
 		for (let i = 0; i < 256; i++) {
 			asciiMap[i] = defaultValue;
 		}
 		return asciiMap;
 	}
 
-	public set(charCode:number, value:T): void {
+	public set(charCode: number, value: T): void {
 		if (charCode >= 0 && charCode < 256) {
 			this._asciiMap[charCode] = value;
 		} else {
@@ -42,7 +42,7 @@ export class CharacterClassifier<T> {
 		}
 	}
 
-	public get(charCode:number): T {
+	public get(charCode: number): T {
 		if (charCode >= 0 && charCode < 256) {
 			return this._asciiMap[charCode];
 		} else {
