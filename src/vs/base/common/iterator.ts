@@ -70,7 +70,7 @@ export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T>
 
 export class MappedIterator<T, R> implements IIterator<R> {
 
-	constructor(protected iterator: IIterator<T>, protected fn: (item:T)=>R) {
+	constructor(protected iterator: IIterator<T>, protected fn: (item: T) => R) {
 		// noop
 	}
 
@@ -87,7 +87,7 @@ export interface INavigator<T> extends IIterator<T> {
 
 export class MappedNavigator<T, R> extends MappedIterator<T, R> implements INavigator<R> {
 
-	constructor(protected navigator: INavigator<T>, fn: (item:T)=>R) {
+	constructor(protected navigator: INavigator<T>, fn: (item: T) => R) {
 		super(navigator, fn);
 	}
 

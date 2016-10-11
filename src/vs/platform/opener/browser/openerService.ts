@@ -5,13 +5,13 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {parse} from 'vs/base/common/marshalling';
-import {Schemas} from 'vs/base/common/network';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {normalize} from 'vs/base/common/paths';
-import {ICommandService, CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {IOpenerService} from 'vs/platform/opener/common/opener';
+import { parse } from 'vs/base/common/marshalling';
+import { Schemas } from 'vs/base/common/network';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { normalize } from 'vs/base/common/paths';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class OpenerService implements IOpenerService {
 

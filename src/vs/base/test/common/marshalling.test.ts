@@ -6,14 +6,14 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {parse, stringify} from 'vs/base/common/marshalling';
+import { parse, stringify } from 'vs/base/common/marshalling';
 
 suite('Marshalling', () => {
 
-	test('RegExp', function() {
+	test('RegExp', function () {
 		let value = /foo/img;
 		let raw = stringify(value);
-		let clone = <RegExp> parse(raw);
+		let clone = <RegExp>parse(raw);
 
 		assert.equal(value.source, clone.source);
 		assert.equal(value.global, clone.global);
@@ -24,7 +24,7 @@ suite('Marshalling', () => {
 	test('URI', function () {
 		let value = URI.from({ scheme: 'file', authority: 'server', path: '/shares/c#files', query: 'q', fragment: 'f' });
 		let raw = stringify(value);
-		let clone = <URI> parse(raw);
+		let clone = <URI>parse(raw);
 
 		assert.equal(value.scheme, clone.scheme);
 		assert.equal(value.authority, clone.authority);

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Registry} from 'vs/platform/platform';
+import { Registry } from 'vs/platform/platform';
 import types = require('vs/base/common/types');
-import {IConfigurationNode, IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export function setNode(root: any, key: string, value: any): void {
 	const segments = key.split('.');

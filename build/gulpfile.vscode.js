@@ -39,15 +39,13 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.6.8' },
+	{ name: 'ms-vscode.node-debug', version: '1.7.1' },
 	{ name: 'ms-vscode.node-debug2', version: '0.0.7' }
 ];
 
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
-	buildfile.editor,
-	buildfile.languages,
 	buildfile.workbench,
 	buildfile.code
 ]);
@@ -60,8 +58,6 @@ const vscodeResources = [
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur}',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
-	'out-build/vs/base/worker/workerMainCompatibility.html',
-	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/bootstrap/**',
@@ -94,7 +90,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	out: 'out-vscode'
 }));
 
-const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${ commit }/core`;
+const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
 gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', baseUrl));
 
@@ -153,7 +149,7 @@ const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'
  */
 function computeChecksums(out, filenames) {
 	var result = {};
-	filenames.forEach(function(filename) {
+	filenames.forEach(function (filename) {
 		var fullPath = path.join(process.cwd(), out, filename);
 		result[filename] = computeChecksum(fullPath);
 	});
@@ -214,29 +210,23 @@ function packageTask(platform, arch, opts) {
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
 			'!extensions/vscode-colorize-tests/**',
-			...builtInExtensions.map(e => `!extensions/${ e.name }/**`)
+			...builtInExtensions.map(e => `!extensions/${e.name}/**`)
 		];
 
-		const extensions = gulp.src(extensionsList, { base: '.' });
-
-		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
-			return ext.src(extension.name, extension.version)
-				.pipe(rename(p => p.dirname = `extensions/${ extension.name }/${ p.dirname }`));
-		}));
-
-		const allExtensions = es.merge(
-			extensions,
-			marketplaceExtensions
-		);
-
 		const nlsFilter = filter('**/*.nls.json', { restore: true });
-
-		const sources = es.merge(src, allExtensions)
+		const extensions = gulp.src(extensionsList, { base: '.' })
 			// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
 			.pipe(nlsFilter)
 			.pipe(buffer())
 			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
-			.pipe(nlsFilter.restore)
+			.pipe(nlsFilter.restore);
+
+		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+			return ext.src(extension.name, extension.version)
+				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+		}));
+
+		const sources = es.merge(src, extensions, marketplaceExtensions)
 			.pipe(filter(['**', '!**/*.js.map']))
 			.pipe(util.handleAzureJson({ platform }));
 
@@ -268,6 +258,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
 
@@ -343,7 +334,7 @@ gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], p
 gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
 		.pipe(es.mapSync(f => {
-			f.path = `${ f.base }/core/${ f.relative }`;
+			f.path = `${f.base}/core/${f.relative}`;
 			return f;
 		}));
 

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import {IEntryRunContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {KeyMod} from 'vs/base/common/keyCodes';
-import {QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
-import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel} from 'vs/editor/common/editorCommon';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { TextEditorOptions, EditorOptions } from 'vs/workbench/common/editor';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const GOTO_LINE_PREFIX = ':';
 

@@ -6,10 +6,10 @@
 
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEditorService, ITextEditorModel, IResourceInput} from 'vs/platform/editor/common/editor';
-import {ICommandService, NullCommandService, CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {OpenerService} from 'vs/platform/opener/browser/openerService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IEditorService, ITextEditorModel, IResourceInput } from 'vs/platform/editor/common/editor';
+import { ICommandService, NullCommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { OpenerService } from 'vs/platform/opener/browser/openerService';
 
 suite('OpenerService', function () {
 

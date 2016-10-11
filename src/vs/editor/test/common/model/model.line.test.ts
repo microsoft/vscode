@@ -5,13 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {LineTokens} from 'vs/editor/common/core/lineTokens';
-import {ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
-import {LineMarker} from 'vs/editor/common/model/textModelWithMarkers';
-import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
-import {Token} from 'vs/editor/common/core/token';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { ModelLine, ILineEdit, ILineMarker } from 'vs/editor/common/model/modelLine';
+import { LineMarker } from 'vs/editor/common/model/textModelWithMarkers';
+import { TokensInflatorMap } from 'vs/editor/common/model/tokensBinaryEncoding';
+import { Token } from 'vs/editor/common/core/token';
 
-function assertLineTokens(actual:LineTokens, expected:Token[]): void {
+function assertLineTokens(actual: LineTokens, expected: Token[]): void {
 	var inflatedActual = actual.inflate();
 	assert.deepEqual(inflatedActual, expected, 'Line tokens are equal');
 }
@@ -19,7 +19,7 @@ function assertLineTokens(actual:LineTokens, expected:Token[]): void {
 const NO_TAB_SIZE = 0;
 
 suite('ModelLine - getIndentLevel', () => {
-	function assertIndentLevel(text:string, expected:number, tabSize:number = 4): void {
+	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
 		let modelLine = new ModelLine(1, text, tabSize);
 		let actual = modelLine.getIndentLevel();
 		assert.equal(actual, expected, text);
@@ -45,13 +45,13 @@ suite('ModelLine - getIndentLevel', () => {
 
 suite('Editor Model - modelLine.applyEdits text', () => {
 
-	function testEdits(initial:string, edits:ILineEdit[], expected:string): void {
+	function testEdits(initial: string, edits: ILineEdit[], expected: string): void {
 		var line = new ModelLine(1, initial, NO_TAB_SIZE);
 		line.applyEdits({}, edits, NO_TAB_SIZE);
 		assert.equal(line.text, expected);
 	}
 
-	function editOp(startColumn: number, endColumn: number, text:string): ILineEdit {
+	function editOp(startColumn: number, endColumn: number, text: string): ILineEdit {
 		return {
 			startColumn: startColumn,
 			endColumn: endColumn,
@@ -192,7 +192,7 @@ suite('Editor Model - modelLine.applyEdits text', () => {
 
 suite('Editor Model - modelLine.split text', () => {
 
-	function testLineSplit(initial:string, splitColumn:number, expected1:string, expected2:string): void {
+	function testLineSplit(initial: string, splitColumn: number, expected1: string, expected2: string): void {
 		var line = new ModelLine(1, initial, NO_TAB_SIZE);
 		var newLine = line.split({}, splitColumn, false, NO_TAB_SIZE);
 		assert.equal(line.text, expected1);
@@ -229,7 +229,7 @@ suite('Editor Model - modelLine.split text', () => {
 
 suite('Editor Model - modelLine.append text', () => {
 
-	function testLineAppend(a:string, b:string, expected:string): void {
+	function testLineAppend(a: string, b: string, expected: string): void {
 		var line1 = new ModelLine(1, a, NO_TAB_SIZE);
 		var line2 = new ModelLine(2, b, NO_TAB_SIZE);
 		line1.append({}, line2, NO_TAB_SIZE);
@@ -262,7 +262,7 @@ suite('Editor Model - modelLine.append text', () => {
 });
 
 suite('Editor Model - modelLine.applyEdits text & tokens', () => {
-	function testLineEditTokens(initialText:string, initialTokens: Token[], edits:ILineEdit[], expectedText:string, expectedTokens: Token[]): void {
+	function testLineEditTokens(initialText: string, initialTokens: Token[], edits: ILineEdit[], expectedText: string, expectedTokens: Token[]): void {
 		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		let map = new TokensInflatorMap(null);
 		line.setTokens(map, initialTokens, []);
@@ -278,10 +278,10 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		let map = new TokensInflatorMap(null);
 		line.setTokens(map, [new Token(0, 'bar')], []);
 
-		line.applyEdits({}, [{startColumn:1, endColumn:10, text:'', forceMoveMarkers: false}], NO_TAB_SIZE);
+		line.applyEdits({}, [{ startColumn: 1, endColumn: 10, text: '', forceMoveMarkers: false }], NO_TAB_SIZE);
 		line.setTokens(map, [], []);
 
-		line.applyEdits({}, [{startColumn:1, endColumn:1, text:'a', forceMoveMarkers: false}], NO_TAB_SIZE);
+		line.applyEdits({}, [{ startColumn: 1, endColumn: 1, text: 'a', forceMoveMarkers: false }], NO_TAB_SIZE);
 		assertLineTokens(line.getTokens(map), [new Token(0, '')]);
 	});
 
@@ -547,8 +547,8 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'abchellodefghij',
 			[
-				new Token( 0, '1'),
-				new Token( 8, '2'),
+				new Token(0, '1'),
+				new Token(8, '2'),
 				new Token(11, '3')
 			]
 		);
@@ -794,8 +794,8 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 				new Token(0, 'hello'),
 				new Token(2, ''),
 				new Token(3, 'world'),
-				new Token(8, '' ),
-				new Token(10, '' ),
+				new Token(8, ''),
+				new Token(10, ''),
 			]
 		);
 	});
@@ -834,7 +834,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 });
 
 suite('Editor Model - modelLine.split text & tokens', () => {
-	function testLineSplitTokens(initialText:string, initialTokens: Token[], splitColumn:number, expectedText1:string, expectedText2:string, expectedTokens: Token[]): void {
+	function testLineSplitTokens(initialText: string, initialTokens: Token[], splitColumn: number, expectedText1: string, expectedText2: string, expectedTokens: Token[]): void {
 		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		let map = new TokensInflatorMap(null);
 		line.setTokens(map, initialTokens, []);
@@ -917,7 +917,7 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 });
 
 suite('Editor Model - modelLine.append text & tokens', () => {
-	function testLineAppendTokens(aText:string, aTokens: Token[], bText:string, bTokens:Token[], expectedText:string, expectedTokens:Token[]): void {
+	function testLineAppendTokens(aText: string, aTokens: Token[], bText: string, bTokens: Token[], expectedText: string, expectedTokens: Token[]): void {
 		let inflator = new TokensInflatorMap(null);
 
 		let a = new ModelLine(1, aText, NO_TAB_SIZE);
@@ -1049,7 +1049,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker: ILineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
@@ -1057,7 +1057,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 		};
 	}
 
-	function testLineEditMarkers(initialText:string, initialMarkers: LineMarker[], edits:ILineEdit[], expectedText:string, expectedChangedMarkers:number[], _expectedMarkers: LineMarker[]): void {
+	function testLineEditMarkers(initialText: string, initialMarkers: LineMarker[], edits: ILineEdit[], expectedText: string, expectedChangedMarkers: number[], _expectedMarkers: LineMarker[]): void {
 		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		line.addMarkers(initialMarkers);
 
@@ -1095,7 +1095,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'abcabcd efgh',
-			[2,3,4,5,6,7,8],
+			[2, 3, 4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 4, false),
@@ -1129,7 +1129,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'aabcbcd efgh',
-			[4,5,6,7,8],
+			[4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1163,7 +1163,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'ababccd efgh',
-			[5,6,7,8],
+			[5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1197,7 +1197,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'abcdabc efgh',
-			[6,7,8],
+			[6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1265,7 +1265,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'aabcd efgh',
-			[2,3,4,5,6,7,8],
+			[2, 3, 4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 2, false),
@@ -1299,7 +1299,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'aabcd efgh',
-			[4,5,6,7,8],
+			[4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1333,7 +1333,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'abacd efgh',
-			[5,6,7,8],
+			[5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1367,7 +1367,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'abcda efgh',
-			[6,7,8],
+			[6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1511,7 +1511,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'bcd efgh',
-			[3,4,5,6,7,8],
+			[3, 4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1545,7 +1545,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'd efgh',
-			[3,4,5,6,7,8],
+			[3, 4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1579,7 +1579,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'abcdefgh',
-			[7,8],
+			[7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -1618,7 +1618,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			'aacd efgh',
-			[2,3,4],
+			[2, 3, 4],
 			[
 				marker(1, 1, true),
 				marker(2, 2, false),
@@ -1680,7 +1680,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			' - Hello, how are things',
-			[1,2,3,4],
+			[1, 2, 3, 4],
 			[
 				marker(1, 4, false),
 				marker(2, 9, true),
@@ -1716,7 +1716,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 				forceMoveMarkers: false
 			}],
 			' - Hello, how are things',
-			[1,2,3,4],
+			[1, 2, 3, 4],
 			[
 				marker(1, 4, false),
 				marker(2, 9, true),
@@ -1865,7 +1865,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker: ILineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
@@ -1873,7 +1873,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 		};
 	}
 
-	function testLineSplitMarkers(initialText:string, initialMarkers: LineMarker[], splitColumn:number, forceMoveMarkers:boolean, expectedText1:string, expectedText2:string, expectedChangedMarkers:number[], _expectedMarkers1: LineMarker[], _expectedMarkers2: LineMarker[]): void {
+	function testLineSplitMarkers(initialText: string, initialMarkers: LineMarker[], splitColumn: number, forceMoveMarkers: boolean, expectedText1: string, expectedText2: string, expectedChangedMarkers: number[], _expectedMarkers1: LineMarker[], _expectedMarkers2: LineMarker[]): void {
 		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
 		line.addMarkers(initialMarkers);
 
@@ -1913,7 +1913,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 			false,
 			'',
 			'abcd efgh',
-			[2,3,4,5,6,7,8],
+			[2, 3, 4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true)
 			],
@@ -1946,7 +1946,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 			true,
 			'',
 			'abcd efgh',
-			[1,2,3,4,5,6,7,8],
+			[1, 2, 3, 4, 5, 6, 7, 8],
 			[],
 			[
 				marker(1, 1, true),
@@ -2011,7 +2011,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 			false,
 			'a',
 			'bcd efgh',
-			[4,5,6,7,8],
+			[4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -2044,7 +2044,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 			false,
 			'ab',
 			'cd efgh',
-			[5,6,7,8],
+			[5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -2077,7 +2077,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 			false,
 			'abcd',
 			' efgh',
-			[6,7,8],
+			[6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -2110,7 +2110,7 @@ suite('Editor Model - modelLine.split text & markers', () => {
 			false,
 			'abcd ',
 			'efgh',
-			[7,8],
+			[7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -2133,7 +2133,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 		return new LineMarker(String(id), column, stickToPreviousCharacter);
 	}
 
-	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
+	function toLightWeightMarker(marker: ILineMarker): ILightWeightMarker {
 		return {
 			id: marker.id,
 			column: marker.column,
@@ -2141,7 +2141,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 		};
 	}
 
-	function testLinePrependMarkers(aText:string, aMarkers: LineMarker[], bText:string, bMarkers: LineMarker[], expectedText:string, expectedChangedMarkers:number[], _expectedMarkers: LineMarker[]): void {
+	function testLinePrependMarkers(aText: string, aMarkers: LineMarker[], bText: string, bMarkers: LineMarker[], expectedText: string, expectedChangedMarkers: number[], _expectedMarkers: LineMarker[]): void {
 		let a = new ModelLine(1, aText, NO_TAB_SIZE);
 		a.addMarkers(aMarkers);
 
@@ -2210,7 +2210,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 				marker(8, 10, false),
 			],
 			'abcd efgh',
-			[1,2,3,4,5,6,7,8],
+			[1, 2, 3, 4, 5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -2241,7 +2241,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 				marker(8, 6, false),
 			],
 			'abcd efgh',
-			[5,6,7,8],
+			[5, 6, 7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),
@@ -2272,7 +2272,7 @@ suite('Editor Model - modelLine.append text & markers', () => {
 				marker(8, 4, false),
 			],
 			'abcd efgh',
-			[7,8],
+			[7, 8],
 			[
 				marker(1, 1, true),
 				marker(2, 1, false),

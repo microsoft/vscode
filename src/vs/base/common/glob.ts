@@ -7,8 +7,8 @@
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import {BoundedLinkedMap} from 'vs/base/common/map';
-import {CharCode} from 'vs/base/common/charCode';
+import { BoundedLinkedMap } from 'vs/base/common/map';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
@@ -240,11 +240,11 @@ interface ParsedExpressionPattern {
 
 const CACHE = new BoundedLinkedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
 
-const FALSE = function() {
+const FALSE = function () {
 	return false;
 };
 
-const NULL = function(): string {
+const NULL = function (): string {
 	return null;
 };
 
@@ -316,7 +316,7 @@ function trivia2(base: string, originalPattern: string): ParsedStringPattern {
 }
 
 // repetition of common patterns (see above) {**/*.txt,**/*.png}
-function trivia3 (pattern: string, options: IGlobOptions): ParsedStringPattern {
+function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 	const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1).split(',')
 		.map(pattern => parsePattern(pattern, options))
 		.filter(pattern => pattern !== NULL), pattern);

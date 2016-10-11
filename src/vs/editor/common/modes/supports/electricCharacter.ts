@@ -6,9 +6,9 @@
 
 import * as strings from 'vs/base/common/strings';
 import * as modes from 'vs/editor/common/modes';
-import {handleEvent, ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
-import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
-import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { handleEvent, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
+import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { LanguageConfigurationRegistryImpl } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
@@ -32,22 +32,22 @@ export class BracketElectricCharacterSupport implements modes.IRichEditElectricC
 	private contribution: IBracketElectricCharacterContribution;
 	private brackets: Brackets;
 
-	constructor(registry:LanguageConfigurationRegistryImpl, modeId: string, brackets: modes.IRichEditBrackets, autoClosePairs: modes.IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution) {
+	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, brackets: modes.IRichEditBrackets, autoClosePairs: modes.IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution) {
 		this._registry = registry;
 		this._modeId = modeId;
 		this.contribution = contribution || {};
 		this.brackets = new Brackets(modeId, brackets, autoClosePairs, this.contribution.docComment);
 	}
 
-	public getElectricCharacters(): string[]{
+	public getElectricCharacters(): string[] {
 		if (Array.isArray(this.contribution.embeddedElectricCharacters)) {
 			return this.contribution.embeddedElectricCharacters.concat(this.brackets.getElectricCharacters());
 		}
 		return this.brackets.getElectricCharacters();
 	}
 
-	public onElectricCharacter(context:modes.ILineContext, offset:number): modes.IElectricAction {
-		return handleEvent(context, offset, (nestedModeId:string, context:modes.ILineContext, offset:number) => {
+	public onElectricCharacter(context: modes.ILineContext, offset: number): modes.IElectricAction {
+		return handleEvent(context, offset, (nestedModeId: string, context: modes.ILineContext, offset: number) => {
 			if (this._modeId === nestedModeId) {
 				return this.brackets.onElectricCharacter(context, offset);
 			}
@@ -78,7 +78,7 @@ export class Brackets {
 		}
 	}
 
-	public getElectricCharacters():string[] {
+	public getElectricCharacters(): string[] {
 		var result: string[] = [];
 
 		if (this._richEditBrackets) {
@@ -181,7 +181,7 @@ export class Brackets {
 
 			// check if the full open bracket matches
 			let lastTokenIndex = context.findIndexOfOffset(offset);
-			if (line.substring(context.getTokenStartOffset(lastTokenIndex), offset+1/* include electric char*/) !== pair.open) {
+			if (line.substring(context.getTokenStartOffset(lastTokenIndex), offset + 1/* include electric char*/) !== pair.open) {
 				continue;
 			}
 
@@ -193,7 +193,7 @@ export class Brackets {
 				}
 			}
 
-			return { appendText: pair.close};
+			return { appendText: pair.close };
 		}
 
 	}

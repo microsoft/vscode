@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {CharCode} from 'vs/base/common/charCode';
+import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * Compute the diff in spaces between two line's indentation.
  */
-function spacesDiff(a:string, aLength:number, b:string, bLength:number): number {
+function spacesDiff(a: string, aLength: number, b: string, bLength: number): number {
 
 	// This can go both ways (e.g.):
 	//  - a: "\t"
 	//  - b: "\t    "
 	//  => This should count 1 tab and 4 spaces
 
-	let i:number;
+	let i: number;
 
 	for (i = 0; i < aLength && i < bLength; i++) {
 		let aCharCode = a.charCodeAt(i);
@@ -80,7 +80,7 @@ export interface IGuessedIndentation {
 	insertSpaces: boolean;
 }
 
-export function guessIndentation(lines:string[], defaultTabSize:number, defaultInsertSpaces:boolean): IGuessedIndentation {
+export function guessIndentation(lines: string[], defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
 
@@ -90,7 +90,7 @@ export function guessIndentation(lines:string[], defaultTabSize:number, defaultI
 	const ALLOWED_TAB_SIZE_GUESSES = [2, 4, 6, 8];	// limit guesses for `tabSize` to 2, 4, 6 or 8.
 	const MAX_ALLOWED_TAB_SIZE_GUESS = 8;			// max(2,4,6,8) = 8
 
-	let spacesDiffCount = [0,0,0,0,0,0,0,0,0];		// `tabSize` scores
+	let spacesDiffCount = [0, 0, 0, 0, 0, 0, 0, 0, 0];		// `tabSize` scores
 
 	for (let i = 0, len = lines.length; i < len; i++) {
 		let currentLineText = lines[i];

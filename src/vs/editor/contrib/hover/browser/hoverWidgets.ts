@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {KeyCode} from 'vs/base/common/keyCodes';
-import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {toggleClass} from 'vs/base/browser/dom';
-import {Position} from 'vs/editor/common/core/position';
-import {IPosition, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { toggleClass } from 'vs/base/browser/dom';
+import { Position } from 'vs/editor/common/core/position';
+import { IPosition, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {Widget} from 'vs/base/browser/ui/widget';
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 
@@ -61,7 +61,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 			}
 		});
 
-		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
+		this._register(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.updateFont();
 			}
@@ -82,7 +82,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		return this._containerDomNode;
 	}
 
-	public showAt(position:IPosition, focus: boolean): void {
+	public showAt(position: IPosition, focus: boolean): void {
 		// Position has changed
 		this._showAtPosition = new Position(position.lineNumber, position.column);
 		this.isVisible = true;
@@ -110,7 +110,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		}
 	}
 
-	public getPosition():editorBrowser.IContentWidgetPosition {
+	public getPosition(): editorBrowser.IContentWidgetPosition {
 		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
@@ -148,7 +148,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	private updateMaxHeight(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 
-		this._domNode.style.maxHeight = `${ height }px`;
+		this._domNode.style.maxHeight = `${height}px`;
 	}
 }
 
@@ -173,7 +173,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 
 		this._showAtLineNumber = -1;
 
-		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
+		this._register(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.updateFont();
 			}
@@ -213,8 +213,8 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		const nodeHeight = this._domNode.clientHeight;
 		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
 
-		this._domNode.style.left = `${ editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth }px`;
-		this._domNode.style.top = `${ Math.max(Math.round(top), 0) }px`;
+		this._domNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
+		this._domNode.style.top = `${Math.max(Math.round(top), 0)}px`;
 	}
 
 	public hide(): void {
@@ -224,7 +224,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this.isVisible = false;
 	}
 
-	public getPosition():editorBrowser.IOverlayWidgetPosition {
+	public getPosition(): editorBrowser.IOverlayWidgetPosition {
 		return null;
 	}
 

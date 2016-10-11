@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
-import Event, {Emitter} from 'vs/base/common/event';
-import {IEditor} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {Registry} from 'vs/platform/platform';
-import {EditorOptions} from 'vs/workbench/common/editor';
-import {IOutputEvent, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
-import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {OutputLinkProvider} from 'vs/workbench/parts/output/common/outputLinkProvider';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IEditor } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { Registry } from 'vs/platform/platform';
+import { EditorOptions } from 'vs/workbench/common/editor';
+import { IOutputEvent, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH } from 'vs/workbench/parts/output/common/output';
+import { OutputEditorInput } from 'vs/workbench/parts/output/browser/outputEditorInput';
+import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { OutputLinkProvider } from 'vs/workbench/parts/output/common/outputLinkProvider';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -38,7 +38,7 @@ export class OutputService implements IOutputService {
 		@IStorageService private storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPanelService private panelService: IPanelService,
-		@IWorkspaceContextService contextService:IWorkspaceContextService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService
 	) {
 		this._onOutput = new Emitter<IOutputEvent>();

@@ -148,7 +148,7 @@ export function assign(destination: any, ...sources: any[]): any {
 	return destination;
 }
 
-export function toObject<T,R>(arr: T[], keyMap: (T) => string, valueMap: (T) => R = x => x): { [key: string]: R } {
+export function toObject<T, R>(arr: T[], keyMap: (T) => string, valueMap: (T) => R = x => x): { [key: string]: R } {
 	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: valueMap(d) }), Object.create(null));
 }
 
@@ -182,13 +182,13 @@ export function equals(one: any, other: any): boolean {
 			}
 		}
 	} else {
-		var oneKeys:string[] = [];
+		var oneKeys: string[] = [];
 
 		for (key in one) {
 			oneKeys.push(key);
 		}
 		oneKeys.sort();
-		var otherKeys:string[] = [];
+		var otherKeys: string[] = [];
 		for (key in other) {
 			otherKeys.push(key);
 		}
@@ -288,7 +288,7 @@ export function safeStringify(obj: any): string {
 	});
 }
 
-export function getOrDefault<T,R>(obj: T, fn: (obj: T) => R, defaultValue: R = null): R {
+export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R, defaultValue: R = null): R {
 	const result = fn(obj);
 	return typeof result === 'undefined' ? defaultValue : result;
 }

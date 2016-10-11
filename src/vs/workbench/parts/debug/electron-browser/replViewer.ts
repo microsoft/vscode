@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import actions = require('vs/base/common/actions');
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
-import {isMacintosh} from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import keyboard = require('vs/base/browser/keyboardEvent');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import dom = require('vs/base/browser/dom');
@@ -18,15 +18,15 @@ import mouse = require('vs/base/browser/mouseEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import debugviewer = require('vs/workbench/parts/debug/electron-browser/debugViewer');
 import debugactions = require('vs/workbench/parts/debug/browser/debugActions');
-import {CopyAction} from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 

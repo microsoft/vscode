@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import {ParsedArgs} from 'vs/platform/environment/node/argv';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/package';
@@ -37,11 +37,11 @@ function getIPCHandleBaseName(): string {
 	// by making the socket unique over the logged in user
 	let userId = getUniqueUserId();
 	if (userId) {
-		name += `-${ userId }`;
+		name += `-${userId}`;
 	}
 
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${ name }`;
+		return `\\\\.\\pipe\\${name}`;
 	}
 
 	return path.join(os.tmpdir(), name);
@@ -85,7 +85,7 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get extensionTestsPath(): string { return this._args.extensionTestsPath ? path.normalize(this._args.extensionTestsPath) : this._args.extensionTestsPath; }
 
-	get disableExtensions(): boolean { return this._args['disable-extensions'];  }
+	get disableExtensions(): boolean { return this._args['disable-extensions']; }
 
 	@memoize
 	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }
@@ -97,12 +97,12 @@ export class EnvironmentService implements IEnvironmentService {
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	@memoize
-	get mainIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }${ IPCHandleSuffix }`; }
+	get mainIPCHandle(): string { return `${IPCHandlePrefix}-${pkg.version}${IPCHandleSuffix}`; }
 
 	@memoize
-	get sharedIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }-shared${ IPCHandleSuffix }`; }
+	get sharedIPCHandle(): string { return `${IPCHandlePrefix}-${pkg.version}-shared${IPCHandleSuffix}`; }
 
-	constructor(private _args: ParsedArgs, private _execPath: string) {}
+	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {

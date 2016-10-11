@@ -5,13 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {Selection} from 'vs/editor/common/core/selection';
-import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {SnippetController} from 'vs/editor/contrib/snippet/common/snippetController';
-import {MockCodeEditor, withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
-import {Cursor} from 'vs/editor/common/controller/cursor';
+import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
+import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 
 class TestSnippetController extends SnippetController {
 
@@ -198,7 +198,7 @@ suite('SnippetController', () => {
 			editor.setPosition({ lineNumber: 4, column: 2 });
 			snippetController.run(codeSnippet, 0, 0, false);
 
-			editor.setPosition({lineNumber:1, column: 1});
+			editor.setPosition({ lineNumber: 1, column: 1 });
 
 			assert.equal(snippetController.isInSnippetMode(), false);
 		});

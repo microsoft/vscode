@@ -7,9 +7,9 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import errors = require('vs/base/common/errors');
-import {IFileService} from 'vs/platform/files/common/files';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class WorkspaceStats {
 	constructor(

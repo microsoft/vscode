@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {IModeConfiguration, IOneCursorState, IViewModelHelper, OneCursor} from 'vs/editor/common/controller/oneCursor';
-import {Selection} from 'vs/editor/common/core/selection';
-import {IConfiguration, IModel, ISelection} from 'vs/editor/common/editorCommon';
-import {IAutoClosingPair} from 'vs/editor/common/modes';
-import {Position} from 'vs/editor/common/core/position';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModeConfiguration, IOneCursorState, IViewModelHelper, OneCursor } from 'vs/editor/common/controller/oneCursor';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IConfiguration, IModel, ISelection } from 'vs/editor/common/editorCommon';
+import { IAutoClosingPair } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ICursorCollectionState {
 	primary: IOneCursorState;
@@ -30,9 +30,9 @@ export class CursorCollection {
 	// An index which identifies the last cursor that was added / moved (think Ctrl+drag)
 	private lastAddedCursorIndex: number;
 
-	private viewModelHelper:IViewModelHelper;
+	private viewModelHelper: IViewModelHelper;
 
-	constructor(editorId: number, model: IModel, configuration: IConfiguration, viewModelHelper:IViewModelHelper) {
+	constructor(editorId: number, model: IModel, configuration: IConfiguration, viewModelHelper: IViewModelHelper) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
@@ -175,7 +175,7 @@ export class CursorCollection {
 	}
 
 	public duplicateCursors(): void {
-		var newCursors:OneCursor[] = [];
+		var newCursors: OneCursor[] = [];
 
 		newCursors.push(this.primaryCursor.duplicate());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
@@ -239,7 +239,7 @@ export class CursorCollection {
 			return;
 		}
 		var cursors = this.getAll();
-		var sortedCursors:{
+		var sortedCursors: {
 			index: number;
 			selection: Selection;
 			viewSelection: Selection;
@@ -282,7 +282,7 @@ export class CursorCollection {
 					var winnerSelectionIsLTR = (winnerSelection.selectionStartLineNumber === winnerSelection.startLineNumber && winnerSelection.selectionStartColumn === winnerSelection.startColumn);
 
 					// Give more importance to the last added cursor (think Ctrl-dragging + hitting another cursor)
-					var resultingSelectionIsLTR:boolean;
+					var resultingSelectionIsLTR: boolean;
 					if (looserIndex === this.lastAddedCursorIndex) {
 						resultingSelectionIsLTR = looserSelectionIsLTR;
 						this.lastAddedCursorIndex = winnerIndex;
@@ -333,7 +333,7 @@ export class CursorCollection {
 			let electricChars: string[] = null;
 			try {
 				electricChars = electricCharSupport.getElectricCharacters();
-			} catch(e) {
+			} catch (e) {
 				onUnexpectedError(e);
 				electricChars = null;
 			}
@@ -349,7 +349,7 @@ export class CursorCollection {
 			let autoClosingPairs: IAutoClosingPair[];
 			try {
 				autoClosingPairs = characterPairSupport.getAutoClosingPairs();
-			} catch(e) {
+			} catch (e) {
 				onUnexpectedError(e);
 				autoClosingPairs = null;
 			}
@@ -363,7 +363,7 @@ export class CursorCollection {
 			let surroundingPairs: IAutoClosingPair[];
 			try {
 				surroundingPairs = characterPairSupport.getSurroundingPairs();
-			} catch(e) {
+			} catch (e) {
 				onUnexpectedError(e);
 				surroundingPairs = null;
 			}

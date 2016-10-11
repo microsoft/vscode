@@ -109,9 +109,9 @@ export class Renderer implements IRenderer {
 
 export class Controller extends DefaultController {
 
-	constructor(@IContextMenuService private contextMenuService: IContextMenuService,
-				@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService,
-				@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IContextMenuService private contextMenuService: IContextMenuService,
+		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 
 		this.downKeyBindingDispatcher.set(OpenExtensionToSideAction.KEY_BINDING.value, (tree: ITree, event: any) => { this.openExtension(tree.getFocus(), true); });
@@ -140,7 +140,7 @@ export class Controller extends DefaultController {
 
 			getActions: () => {
 				return TPromise.as([this.instantiationService.createInstance(OpenExtensionAction),
-									this.instantiationService.createInstance(OpenExtensionToSideAction)]);
+				this.instantiationService.createInstance(OpenExtensionToSideAction)]);
 			},
 
 			getActionItem: () => null,
@@ -194,7 +194,7 @@ class OpenExtensionAction extends Action {
 	public static ID = 'extensions.action.open';
 	public static KEY_BINDING = new Keybinding(KeyCode.Enter);
 
-	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super(OpenExtensionAction.ID, localize('extensions.open', "Open"));
 	}
 
@@ -209,8 +209,8 @@ class OpenExtensionToSideAction extends Action {
 	public static ID = 'extensions.action.openSide';
 	public static KEY_BINDING = new Keybinding(KeyMod.WinCtrl | KeyCode.Enter);
 
-	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
-				@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(OpenExtensionToSideAction.ID, localize('extensions.openSide', "Open to the Side"));
 		this.updateEnablement();
 	}

@@ -5,24 +5,24 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {Position} from 'vs/editor/common/core/position';
-import {Selection} from 'vs/editor/common/core/selection';
-import {Range} from 'vs/editor/common/core/range';
-import {IRange} from 'vs/editor/common/editorCommon';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction
 } from 'vs/editor/contrib/find/common/findController';
-import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
-import {HistoryNavigator} from 'vs/base/common/history';
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
 
-	protected _start(opts:IFindStartOptions): void {
+	protected _start(opts: IFindStartOptions): void {
 		super._start(opts);
 
 		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
@@ -41,7 +41,7 @@ class TestFindController extends CommonFindController {
 
 suite('FindController', () => {
 
-	function fromRange(rng:IRange): number[] {
+	function fromRange(rng: IRange): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
@@ -236,7 +236,7 @@ suite('FindController', () => {
 			findController.getState().change({ searchString: '2' }, false);
 			findController.getState().change({ searchString: '3' }, false);
 
-			setTimeout(function() {
+			setTimeout(function () {
 				assert.deepEqual(['3'], toArray(findController.getHistory()));
 				done();
 			}, 500);

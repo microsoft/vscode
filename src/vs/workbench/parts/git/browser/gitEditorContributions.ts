@@ -31,7 +31,7 @@ class MergeDecoratorBoundToModel extends Disposable {
 	constructor(
 		private editor: ICodeEditor,
 		private model: IModel,
-		private filePath:string,
+		private filePath: string,
 		private gitService: IGitService
 	) {
 		super();
@@ -76,7 +76,7 @@ export class MergeDecorator extends Disposable implements IEditorContribution {
 
 	static ID = 'vs.git.editor.merge.decorator';
 
-	static DECORATION_OPTIONS:IModelDecorationOptions = {
+	static DECORATION_OPTIONS: IModelDecorationOptions = {
 		className: 'git-merge-control-decoration',
 		isWholeLine: true,
 		overviewRuler: {
@@ -92,7 +92,7 @@ export class MergeDecorator extends Disposable implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IGitService private gitService: IGitService,
-		@IWorkspaceContextService private contextService : IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super();
 

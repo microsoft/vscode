@@ -9,7 +9,7 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import Async = require('vs/base/common/async');
 
 suite('Async', () => {
-	test('Throttler - non async', function(done) {
+	test('Throttler - non async', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.as(++count);
@@ -26,7 +26,7 @@ suite('Async', () => {
 		]).done(() => done());
 	});
 
-	test('Throttler', function(done) {
+	test('Throttler', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.timeout(0).then(() => {
@@ -53,7 +53,7 @@ suite('Async', () => {
 		});
 	});
 
-	test('Throttler - cancel should not cancel other promises', function(done) {
+	test('Throttler - cancel should not cancel other promises', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.timeout(0).then(() => {
@@ -74,7 +74,7 @@ suite('Async', () => {
 		p1.cancel();
 	});
 
-	test('Throttler - cancel the first queued promise should not cancel other promises', function(done) {
+	test('Throttler - cancel the first queued promise should not cancel other promises', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.timeout(0).then(() => {
@@ -95,7 +95,7 @@ suite('Async', () => {
 		p2.cancel();
 	});
 
-	test('Throttler - cancel in the middle should not cancel other promises', function(done) {
+	test('Throttler - cancel in the middle should not cancel other promises', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.timeout(0).then(() => {
@@ -116,7 +116,7 @@ suite('Async', () => {
 		p3.cancel();
 	});
 
-	test('Throttler - last factory should be the one getting called', function(done) {
+	test('Throttler - last factory should be the one getting called', function (done) {
 		var factoryFactory = (n: number) => () => {
 			return TPromise.timeout(0).then(() => n);
 		};
@@ -132,7 +132,7 @@ suite('Async', () => {
 		Promise.join(promises).done(() => done());
 	});
 
-	test('Throttler - progress should work', function(done) {
+	test('Throttler - progress should work', function (done) {
 		var order = 0;
 		var factory = () => new Promise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
@@ -157,7 +157,7 @@ suite('Async', () => {
 		});
 	});
 
-	test('Delayer', function(done) {
+	test('Delayer', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.as(++count);
@@ -183,7 +183,7 @@ suite('Async', () => {
 		});
 	});
 
-	test('Delayer - simple cancel', function(done) {
+	test('Delayer - simple cancel', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.as(++count);
@@ -204,7 +204,7 @@ suite('Async', () => {
 		assert(!delayer.isTriggered());
 	});
 
-	test('Delayer - cancel should cancel all calls to trigger', function(done) {
+	test('Delayer - cancel should cancel all calls to trigger', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.as(++count);
@@ -232,7 +232,7 @@ suite('Async', () => {
 		});
 	});
 
-	test('Delayer - trigger, cancel, then trigger again', function(done) {
+	test('Delayer - trigger, cancel, then trigger again', function (done) {
 		var count = 0;
 		var factory = () => {
 			return TPromise.as(++count);
@@ -282,7 +282,7 @@ suite('Async', () => {
 		assert(delayer.isTriggered());
 	});
 
-	test('Delayer - last task should be the one getting called', function(done) {
+	test('Delayer - last task should be the one getting called', function (done) {
 		var factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};
@@ -304,7 +304,7 @@ suite('Async', () => {
 		assert(delayer.isTriggered());
 	});
 
-	test('Delayer - progress should work', function(done) {
+	test('Delayer - progress should work', function (done) {
 		var order = 0;
 		var factory = () => new Promise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
@@ -329,7 +329,7 @@ suite('Async', () => {
 		});
 	});
 
-	test('ThrottledDelayer - progress should work', function(done) {
+	test('ThrottledDelayer - progress should work', function (done) {
 		var order = 0;
 		var factory = () => new Promise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
@@ -354,7 +354,7 @@ suite('Async', () => {
 		});
 	});
 
-	test('Sequence', function(done) {
+	test('Sequence', function (done) {
 		var factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};
@@ -365,7 +365,7 @@ suite('Async', () => {
 			factoryFactory(3),
 			factoryFactory(4),
 			factoryFactory(5),
-		]).then((result)=>{
+		]).then((result) => {
 			assert.equal(5, result.length);
 			assert.equal(1, result[0]);
 			assert.equal(2, result[1]);
@@ -376,14 +376,14 @@ suite('Async', () => {
 		});
 	});
 
-	test('Limiter - sync', function(done) {
+	test('Limiter - sync', function (done) {
 		var factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};
 
 		var limiter = new Async.Limiter(1);
 
-		var promises:Promise[] = [];
+		var promises: Promise[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		Promise.join(promises).then((res) => {
@@ -400,13 +400,13 @@ suite('Async', () => {
 		}).done(() => done());
 	});
 
-	test('Limiter - async', function(done) {
+	test('Limiter - async', function (done) {
 		var factoryFactory = (n: number) => () => {
 			return TPromise.timeout(0).then(() => n);
 		};
 
 		var limiter = new Async.Limiter(1);
-		var promises:Promise[] = [];
+		var promises: Promise[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		Promise.join(promises).then((res) => {
@@ -423,7 +423,7 @@ suite('Async', () => {
 		}).done(() => done());
 	});
 
-	test('Limiter - assert degree of paralellism', function(done) {
+	test('Limiter - assert degree of paralellism', function (done) {
 		var activePromises = 0;
 		var factoryFactory = (n: number) => () => {
 			activePromises++;
@@ -433,7 +433,7 @@ suite('Async', () => {
 
 		var limiter = new Async.Limiter(5);
 
-		var promises:Promise[] = [];
+		var promises: Promise[] = [];
 		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
 
 		Promise.join(promises).then((res) => {

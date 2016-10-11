@@ -5,7 +5,7 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Promise} from 'vs/base/common/winjs.base';
+import { Promise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
@@ -33,27 +33,27 @@ export interface IIPCOptions {
 	/**
 	 * Time in millies before killing the ipc process. The next request after killing will start it again.
 	 */
-	timeout?:number;
+	timeout?: number;
 
 	/**
 	 * Arguments to the module to execute.
 	 */
-	args?:string[];
+	args?: string[];
 
 	/**
 	 * Environment key-value pairs to be passed to the process that gets spawned for the ipc.
 	 */
-	env?:any;
+	env?: any;
 
 	/**
 	 * Allows to assign a debug port for debugging the application executed.
 	 */
-	debug?:number;
+	debug?: number;
 
 	/**
 	 * Allows to assign a debug port for debugging the application and breaking it on the first line.
 	 */
-	debugBrk?:number;
+	debugBrk?: number;
 }
 
 export class Client implements IChannelClient, IDisposable {

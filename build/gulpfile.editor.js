@@ -30,7 +30,7 @@ var editorEntryPoints = [
 		prepend: [ 'vs/loader.js' ],
 		append: [ 'vs/base/worker/workerMain' ],
 		dest: 'vs/base/worker/workerMain.js'
-	},
+	}
 ];
 
 var editorResources = [

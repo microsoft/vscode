@@ -5,16 +5,16 @@
 
 'use strict';
 
-import {illegalArgument} from 'vs/base/common/errors';
+import { illegalArgument } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Range} from 'vs/editor/common/core/range';
-import {IReadOnlyModel, ISingleEditOperation} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions} from 'vs/editor/common/modes';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {asWinJsPromise} from 'vs/base/common/async';
-import {Position} from 'vs/editor/common/core/position';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Range } from 'vs/editor/common/core/range';
+import { IReadOnlyModel, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { Position } from 'vs/editor/common/core/position';
 
 export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: FormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
@@ -53,7 +53,7 @@ export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Positi
 	});
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', function(accessor, args) {
+CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args) {
 	const {resource, range, options} = args;
 	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
@@ -65,7 +65,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', func
 	return getDocumentRangeFormattingEdits(model, Range.lift(range), options);
 });
 
-CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', function(accessor, args) {
+CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
 	const {resource, options} = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument('resource');
@@ -78,7 +78,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', f
 	return getDocumentFormattingEdits(model, options);
 });
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function(model, position, args) {
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function (model, position, args) {
 	const {ch, options } = args;
 	if (typeof ch !== 'string') {
 		throw illegalArgument('ch');

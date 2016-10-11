@@ -6,9 +6,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind} from 'vscode';
-import {join} from 'path';
-import {cleanUp, pathEquals} from './utils';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
+import { join } from 'path';
+import { cleanUp, pathEquals } from './utils';
 
 suite('window namespace tests', () => {
 
@@ -88,7 +88,7 @@ suite('window namespace tests', () => {
 		const file30Path = join(workspace.rootPath, './30linefile.ts');
 
 		let finished = false;
-		let failOncePlease = (err:Error) => {
+		let failOncePlease = (err: Error) => {
 			if (finished) {
 				return;
 			}
@@ -127,13 +127,13 @@ suite('window namespace tests', () => {
 		workspace.openTextDocument(file10Path).then((doc) => {
 			return window.showTextDocument(doc, ViewColumn.One);
 		}).then((editor10line) => {
-			editor10line.selection = new Selection(new Position(9,0), new Position(9, 0));
+			editor10line.selection = new Selection(new Position(9, 0), new Position(9, 0));
 		}).then(() => {
 			return workspace.openTextDocument(file30Path);
 		}).then((doc) => {
 			return window.showTextDocument(doc, ViewColumn.One);
 		}).then((editor30line) => {
-			editor30line.selection = new Selection(new Position(29,0), new Position(29, 0));
+			editor30line.selection = new Selection(new Position(29, 0), new Position(29, 0));
 		}).then(() => {
 			return workspace.openTextDocument(file10Path);
 		}).then((doc) => {

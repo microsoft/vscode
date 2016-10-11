@@ -10,10 +10,10 @@ import path = require('path');
 import os = require('os');
 import assert = require('assert');
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {FileService, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
-import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
-import {nfcall} from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { FileService, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
+import { EventType, FileChangesEvent, FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { nfcall } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
-import {IViewlet} from 'vs/workbench/common/viewlet';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export const IViewletService = createDecorator<IViewletService>('viewletService');
 
 export interface IViewletService {
-	_serviceBrand : ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	onDidViewletOpen: Event<IViewlet>;
 

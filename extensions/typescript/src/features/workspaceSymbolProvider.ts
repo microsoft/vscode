@@ -7,7 +7,7 @@
 
 import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, Location, CancellationToken } from 'vscode';
 
-import * as Proto  from '../protocol';
+import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 let _kindMapping: { [kind: string]: SymbolKind } = Object.create(null);
@@ -28,7 +28,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		this.modeId = modeId;
 	}
 
-	public provideWorkspaceSymbols(search: string, token :CancellationToken): Promise<SymbolInformation[]> {
+	public provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
 		// typescript wants to have a resource even when asking
 		// general questions so we check the active editor. If this
 		// doesn't match we take the first TS document.
@@ -54,14 +54,14 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
 
-		let args:Proto.NavtoRequestArgs = {
+		let args: Proto.NavtoRequestArgs = {
 			file: this.client.asAbsolutePath(uri),
 			searchValue: search
 		};
 		if (!args.file) {
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
-		return this.client.execute('navto', args, token).then((response):SymbolInformation[] => {
+		return this.client.execute('navto', args, token).then((response): SymbolInformation[] => {
 			let data = response.body;
 			if (data) {
 				let result: SymbolInformation[] = [];

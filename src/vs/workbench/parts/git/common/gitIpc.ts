@@ -8,10 +8,12 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import Event from 'vs/base/common/event';
-import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials,
-	ServiceState, IRawFileStatus, IBranch, RefType, IRef, IRemote, ICommit } from './git';
+import {
+	IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials,
+	ServiceState, IRawFileStatus, IBranch, RefType, IRef, IRemote, ICommit
+} from './git';
 
-type ISerializer<A,B> = { to(a: A): B; from(b: B): A; };
+type ISerializer<A, B> = { to(a: A): B; from(b: B): A; };
 
 export type IPCRawFileStatus = [string, string, string, string, string];
 const RawFileStatusSerializer: ISerializer<IRawFileStatus, IPCRawFileStatus> = {
@@ -186,11 +188,11 @@ export class GitChannelClient implements IRawGitService {
 		return this.channel.call('undo').then(RawStatusSerializer.from);
 	}
 
-	reset(treeish:string, hard?: boolean): TPromise<IRawStatus> {
+	reset(treeish: string, hard?: boolean): TPromise<IRawStatus> {
 		return this.channel.call('reset', [treeish, hard]).then(RawStatusSerializer.from);
 	}
 
-	revertFiles(treeish:string, filePaths?: string[]): TPromise<IRawStatus> {
+	revertFiles(treeish: string, filePaths?: string[]): TPromise<IRawStatus> {
 		return this.channel.call('revertFiles', [treeish, filePaths]).then(RawStatusSerializer.from);
 	}
 
@@ -202,7 +204,7 @@ export class GitChannelClient implements IRawGitService {
 		return this.channel.call('pull', rebase).then(RawStatusSerializer.from);
 	}
 
-	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> {
+	push(remote?: string, name?: string, options?: IPushOptions): TPromise<IRawStatus> {
 		return this.channel.call('push', [remote, name, options]).then(RawStatusSerializer.from);
 	}
 
@@ -210,7 +212,7 @@ export class GitChannelClient implements IRawGitService {
 		return this.channel.call('sync').then(RawStatusSerializer.from);
 	}
 
-	commit(message:string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> {
+	commit(message: string, amend?: boolean, stage?: boolean, signoff?: boolean): TPromise<IRawStatus> {
 		return this.channel.call('commit', [message, amend, stage, signoff]).then(RawStatusSerializer.from);
 	}
 

@@ -1,34 +1,51 @@
 {
-    "name": "gitmode",
-    "version": "0.1.0",
-	"publisher": "vscode",
-	"engines": { "vscode": "*" },
-    "contributes": {
-        "languages": [
-            {
-                "id": "git-commit",
-                "aliases": ["Git Commit Message", "git-commit"],
-                "filenames": ["COMMIT_EDITMSG", "MERGE_MSG"],
-                "configuration": "./git-commit.language-configuration.json"
-            },
-            {
-                "id": "git-rebase",
-                "aliases": ["Git Rebase Message", "git-rebase"],
-                "filenames": ["git-rebase-todo"],
-                "configuration": "./git-rebase.language-configuration.json"
-            }
-        ],
-        "grammars": [
-            {
-                "language": "git-commit",
-                "scopeName": "text.git-commit",
-                "path": "./syntaxes/git-commit.tmLanguage"
-            },
-            {
-                "language": "git-rebase",
-                "scopeName": "text.git-rebase",
-                "path": "./syntaxes/git-rebase.tmLanguage"
-            }
-        ]
-    }
+	"name": "git",
+	"displayName": "git",
+	"description": "Git",
+	"version": "0.0.1",
+	"publisher": "joaomoreno",
+	"engines": {
+		"vscode": "^1.5.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"*"
+	],
+	"main": "./out/extension",
+	"contributes": {
+		"commands": [],
+		"languages": [
+			{
+				"id": "git-commit",
+				"aliases": ["Git Commit Message", "git-commit"],
+				"filenames": ["COMMIT_EDITMSG", "MERGE_MSG"],
+				"configuration": "./git-commit.language-configuration.json"
+			},
+			{
+				"id": "git-rebase",
+				"aliases": ["Git Rebase Message", "git-rebase"],
+				"filenames": ["git-rebase-todo"],
+				"configuration": "./git-rebase.language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "git-commit",
+				"scopeName": "text.git-commit",
+				"path": "./syntaxes/git-commit.tmLanguage"
+			},
+			{
+				"language": "git-rebase",
+				"scopeName": "text.git-rebase",
+				"path": "./syntaxes/git-rebase.tmLanguage"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "tsc -p ./",
+		"compile": "tsc -watch -p ./",
+		"postinstall": "node ./node_modules/vscode/bin/install"
+	}
 }

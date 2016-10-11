@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Arrays} from 'vs/editor/common/core/arrays';
+import { Arrays } from 'vs/editor/common/core/arrays';
 
 export class Token {
 	_tokenBrand: void;
 
-	public startIndex:number;
-	public type:string;
+	public startIndex: number;
+	public type: string;
 
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex|0;// @perf
+	constructor(startIndex: number, type: string) {
+		this.startIndex = startIndex | 0;// @perf
 		this.type = type;
 	}
 
@@ -21,18 +21,18 @@ export class Token {
 		return '(' + this.startIndex + ', ' + this.type + ')';
 	}
 
-	public equals(other:Token): boolean {
+	public equals(other: Token): boolean {
 		return (
 			this.startIndex === other.startIndex
 			&& this.type === other.type
 		);
 	}
 
-	public static findIndexInSegmentsArray(arr:Token[], desiredIndex: number): number {
+	public static findIndexInSegmentsArray(arr: Token[], desiredIndex: number): number {
 		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
 	}
 
-	public static equalsArray(a:Token[], b:Token[]): boolean {
+	public static equalsArray(a: Token[], b: Token[]): boolean {
 		let aLen = a.length;
 		let bLen = b.length;
 		if (aLen !== bLen) {
