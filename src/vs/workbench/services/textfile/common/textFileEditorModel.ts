@@ -272,7 +272,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						return this.createTextEditorModel(restoreContent.value, content.resource).then(() => {
 							this.createTextEditorModelPromise = null;
 
-							this.setDirty(true); // Ensure we are not tracking a stale state
+							// TODO: This does not set the dirty indicator immediately, making it look like the file is not actually dirty
+							this.setDirty(true);
 							this.toDispose.push(this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e)));
 
 							return this;
