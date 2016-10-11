@@ -53,7 +53,15 @@ export interface IPickOptions {
 	 */
 	matchOnDetail?: boolean;
 
+	/**
+	 * an optional flag to indicate that we ignore loss of window focus
+	 */
 	ignoreFocusLost?: boolean;
+
+	/**
+	 * an optional string that serves as the initial text fillout
+	 */
+	initialValue?: string;
 }
 
 export interface IInputOptions {
@@ -78,6 +86,9 @@ export interface IInputOptions {
 	 */
 	password?: boolean;
 
+	/**
+	 * an optional flag to indicate that we ignore loss of window focus
+	 */
 	ignoreFocusLost?: boolean;
 
 	/**

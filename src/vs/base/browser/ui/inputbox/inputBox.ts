@@ -22,6 +22,7 @@ const $ = dom.$;
 
 export interface IInputOptions {
 	placeholder?: string;
+	initialValue?: string;
 	ariaLabel?: string;
 	type?: string;
 	validationOptions?: IInputValidationOptions;
@@ -64,6 +65,7 @@ export class InputBox extends Widget {
 	private options: IInputOptions;
 	private message: IMessage;
 	private placeholder: string;
+	private initialValue: string;
 	private ariaLabel: string;
 	private validation: IInputValidator;
 	private showValidationMessage: boolean;
@@ -83,7 +85,7 @@ export class InputBox extends Widget {
 		this.options = options || Object.create(null);
 		this.message = null;
 		this.cachedHeight = null;
-		this.placeholder = this.options.placeholder || '';
+		this.placeholder = this.options.placeholder;
 		this.ariaLabel = this.options.ariaLabel || '';
 
 		if (this.options.validationOptions) {
@@ -115,9 +117,14 @@ export class InputBox extends Widget {
 			this.input.setAttribute('aria-label', this.ariaLabel);
 		}
 
-		if (this.placeholder) {
+		// Don't allow inputValue and placeholder for aesthetic reasons
+		if (!this.initialValue && this.placeholder) {
 			this.input.setAttribute('placeholder', this.placeholder);
 			this.input.title = this.placeholder;
+		}
+
+		if (this.initialValue) {
+			this.input.setAttribute('value', this.initialValue);
 		}
 
 		this.oninput(this.input, () => this.onValueChange());
