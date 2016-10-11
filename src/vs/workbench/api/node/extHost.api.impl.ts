@@ -18,7 +18,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { ExtHostExplorers } from 'vs/workbench/api/node/extHostExplorers';
+import { ExtHostTreeExplorers } from 'vs/workbench/api/node/extHostTreeExplorers';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostQuickOpen } from 'vs/workbench/api/node/extHostQuickOpen';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -66,7 +66,7 @@ export function createApiFactory(threadService: IThreadService, extensionService
 	const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set<ExtHostDocuments>(new ExtHostDocuments(threadService));
 	const extHostDocumentSaveParticipant = col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 	const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocuments));
-	const extHostExplorers = col.define(ExtHostContext.ExtHostExplorers).set<ExtHostExplorers>(new ExtHostExplorers(threadService));
+	const extHostExplorers = col.define(ExtHostContext.ExtHostExplorers).set<ExtHostTreeExplorers>(new ExtHostTreeExplorers(threadService));
 	const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostEditors, extHostHeapService));
 	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration)));
 	const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
@@ -335,7 +335,7 @@ export function createApiFactory(threadService: IThreadService, extensionService
 			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocumentSaveParticipant.onWillSaveTextDocumentEvent(listener, thisArgs, disposables);
 			},
-			registerTreeContentProvider(providerId: string, provider: vscode.TreeContentProvider) {
+			registerTreeExplorerNodeProvider(providerId: string, provider: vscode.TreeExplorerNodeProvider) {
 				return extHostExplorers.registerTreeContentProvider(providerId, provider);
 			},
 			onDidChangeConfiguration: (listener: () => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {

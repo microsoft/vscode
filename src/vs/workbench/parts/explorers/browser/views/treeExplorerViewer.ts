@@ -3,7 +3,7 @@ import { $, Builder } from 'vs/base/browser/builder';
 
 import { ITree, IDataSource, IRenderer, IElementCallback } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeViewModel';
+import { TreeViewNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 

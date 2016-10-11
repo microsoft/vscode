@@ -34,7 +34,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IApplyEditsOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditorsTracker';
 
-import { ExtHostTreeNode } from 'vs/workbench/api/node/extHostExplorers';
+import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
 export interface InstanceSetter<T> {
 	set<R extends T>(instance: T): R;
@@ -117,7 +117,7 @@ export abstract class MainThreadEditorsShape {
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 }
 
-export abstract class MainThreadExplorersShape {
+export abstract class MainThreadTreeExplorersShape {
 	$registerTreeContentProvider(treeContentProviderId: string): void { throw ni(); }
 	$unregisterTreeContentProvider(treeContentProviderId: string): void { throw ni(); }
 }
@@ -264,9 +264,9 @@ export abstract class ExtHostEditorsShape {
 	$acceptTextEditorRemove(id: string): void { throw ni(); }
 }
 
-export abstract class ExtHostExplorersShape {
-	$provideTreeContent(treeContentProviderId: string): TPromise<ExtHostTreeNode> { throw ni(); };
-	$resolveChildren(treeContentProviderId: string, node: ExtHostTreeNode): TPromise<ExtHostTreeNode[]> { throw ni(); }
+export abstract class ExtHostTreeExplorersShape {
+	$provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> { throw ni(); };
+	$resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {
@@ -343,7 +343,7 @@ export const MainContext = {
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', MainThreadDocumentsShape),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', MainThreadEditorsShape),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors', MainThreadErrorsShape),
-	MainThreadExplorers: createMainId<MainThreadExplorersShape>('MainThreadExplorers', MainThreadExplorersShape),
+	MainThreadExplorers: createMainId<MainThreadTreeExplorersShape>('MainThreadExplorers', MainThreadTreeExplorersShape),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures', MainThreadLanguageFeaturesShape),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages', MainThreadLanguagesShape),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService', MainThreadMessageServiceShape),
@@ -364,7 +364,7 @@ export const ExtHostContext = {
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments', ExtHostDocumentsShape),
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant', ExtHostDocumentSaveParticipantShape),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ExtHostEditorsShape),
-	ExtHostExplorers: createExtId<ExtHostExplorersShape>('ExtHostExplorers',ExtHostExplorersShape),
+	ExtHostExplorers: createExtId<ExtHostTreeExplorersShape>('ExtHostExplorers',ExtHostTreeExplorersShape),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService', ExtHostFileSystemEventServiceShape),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor', ExtHostHeapServiceShape),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ExtHostLanguageFeaturesShape),
