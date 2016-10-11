@@ -66,9 +66,9 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		const externalNode = externalNodeMap[mainThreadNode.id];
 
 		return TPromise.wrap(provider.resolveChildren(externalNode).then(children => {
-			return children.map(child => {
-				const internalChild = new InternalTreeExplorerNode(child);
-				externalNodeMap[internalChild.id] = externalNode;
+			return children.map(externalChild => {
+				const internalChild = new InternalTreeExplorerNode(externalChild);
+				externalNodeMap[internalChild.id] = externalChild;
 				return internalChild;
 			});
 		}));
