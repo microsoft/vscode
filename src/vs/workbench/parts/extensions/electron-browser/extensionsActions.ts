@@ -496,9 +496,10 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, null, true);
+		super(id, label, null, !!contextService.getWorkspace());
 	}
 
 	run(): TPromise<void> {
@@ -598,7 +599,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
 	) {
-		super(id, label, null, true);
+		super(id, label, null, !!contextService.getWorkspace());
 	}
 
 	public run(event: any): TPromise<any> {
