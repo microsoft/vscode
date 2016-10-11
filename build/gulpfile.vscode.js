@@ -90,7 +90,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	out: 'out-vscode'
 }));
 
-const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${ commit }/core`;
+const baseUrl = `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`;
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
 gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', baseUrl));
 
@@ -149,7 +149,7 @@ const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'
  */
 function computeChecksums(out, filenames) {
 	var result = {};
-	filenames.forEach(function(filename) {
+	filenames.forEach(function (filename) {
 		var fullPath = path.join(process.cwd(), out, filename);
 		result[filename] = computeChecksum(fullPath);
 	});
@@ -210,29 +210,23 @@ function packageTask(platform, arch, opts) {
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
 			'!extensions/vscode-colorize-tests/**',
-			...builtInExtensions.map(e => `!extensions/${ e.name }/**`)
+			...builtInExtensions.map(e => `!extensions/${e.name}/**`)
 		];
 
-		const extensions = gulp.src(extensionsList, { base: '.' });
-
-		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
-			return ext.src(extension.name, extension.version)
-				.pipe(rename(p => p.dirname = `extensions/${ extension.name }/${ p.dirname }`));
-		}));
-
-		const allExtensions = es.merge(
-			extensions,
-			marketplaceExtensions
-		);
-
 		const nlsFilter = filter('**/*.nls.json', { restore: true });
-
-		const sources = es.merge(src, allExtensions)
+		const extensions = gulp.src(extensionsList, { base: '.' })
 			// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
 			.pipe(nlsFilter)
 			.pipe(buffer())
 			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
-			.pipe(nlsFilter.restore)
+			.pipe(nlsFilter.restore);
+
+		const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+			return ext.src(extension.name, extension.version)
+				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+		}));
+
+		const sources = es.merge(src, extensions, marketplaceExtensions)
 			.pipe(filter(['**', '!**/*.js.map']))
 			.pipe(util.handleAzureJson({ platform }));
 
@@ -340,7 +334,7 @@ gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], p
 gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
 		.pipe(es.mapSync(f => {
-			f.path = `${ f.base }/core/${ f.relative }`;
+			f.path = `${f.base}/core/${f.relative}`;
 			return f;
 		}));
 
