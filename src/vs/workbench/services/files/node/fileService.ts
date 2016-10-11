@@ -135,10 +135,12 @@ export class FileService implements IFileService {
 
 		// Configuration changes
 		this.toUnbind = [];
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+		if (this.configurationService) {
+			this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-		this.onConfigurationChange(configuration);
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+			this.onConfigurationChange(configuration);
+		}
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {

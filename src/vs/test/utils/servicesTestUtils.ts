@@ -579,8 +579,16 @@ export const TestFileService = {
 		});
 	},
 
+	discardBackup: function (resource: URI) {
+		return TPromise.as(void 0);
+	},
+
 	discardBackups: function () {
 		return TPromise.as(void 0);
+	},
+
+	isHotExitEnabled: function () {
+		return false;
 	}
 };
 
