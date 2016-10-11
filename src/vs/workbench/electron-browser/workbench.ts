@@ -174,7 +174,7 @@ export class Workbench implements IPartService {
 
 		// Restore any backups if they exist
 		options.filesToRestore = this.backupService.getBackupFiles(workspace.resource.fsPath).map(filePath => {
-			return { resource: Uri.file(filePath) };
+			return { resource: Uri.file(filePath), options: { pinned: true } };
 		});
 
 		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0) || (options.filesToRestore.length > 0);
@@ -328,7 +328,7 @@ export class Workbench implements IPartService {
 				let filesToRestoreInputPromise = filesToRestore.map(resourceInput => this.editorService.createInput(resourceInput, true));
 				return TPromise.join<EditorInput>(filesToOpenInputPromise.concat(filesToRestoreInputPromise)).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
-					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
+					options.push(...filesToOpen.concat(filesToRestore).map(resourceInput => TextEditorOptions.from(resourceInput)));
 
 					return inputs.map((input, index) => { return { input, options: options[index] }; });
 				});
