@@ -140,10 +140,14 @@ export interface ITerminalInstance {
 	scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */
 	scrollDownPage(): void;
+	/** Scroll the terminal buffer to the bottom. */
+	scrollToBottom(): void;
 	/** Scroll the terminal buffer up 1 line. */
 	scrollUpLine(): void;
 	/** Scroll the terminal buffer up 1 page. */
 	scrollUpPage(): void;
+	/** Scroll the terminal buffer to the top. */
+	scrollToTop(): void;
 
 	/**
 	 * Clears the terminal buffer, leaving only the prompt line.

@@ -225,7 +225,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public scrollDownPage(): void {
-		this._xterm.scrollDisp(this._xterm.rows - 1);
+		this._xterm.scrollPages(1);
+	}
+
+	public scrollToBottom(): void {
+		this._xterm.scrollToBottom();
 	}
 
 	public scrollUpLine(): void {
@@ -233,7 +237,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public scrollUpPage(): void {
-		this._xterm.scrollDisp(-(this._xterm.rows - 1));
+		this._xterm.scrollPages(-1);
+	}
+
+	public scrollToTop(): void {
+		this._xterm.scrollToTop();
 	}
 
 	public clear(): void {
