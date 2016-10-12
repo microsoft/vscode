@@ -60,6 +60,10 @@ export default class LanguageFeatureRegistry<T> {
 		};
 	}
 
+	entries(): [LanguageSelector, T][] {
+		return this._entries.map(entry => <[LanguageSelector, T]>[entry.selector, entry.provider]);
+	}
+
 	has(model: IReadOnlyModel): boolean {
 		return this.all(model).length > 0;
 	}

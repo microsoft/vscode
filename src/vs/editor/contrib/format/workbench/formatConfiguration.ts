@@ -5,13 +5,16 @@
 'use strict';
 
 import { localize } from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { LanguageSelector } from 'vs/editor/common/modes/languageSelector';
 
 // register schema stub for 'editor.formatter'
 
@@ -32,35 +35,72 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	}
 });
 
+function matchOnLanguageOnly(selector: LanguageSelector, language: string): boolean {
+	if (Array.isArray(selector)) {
+		return selector.some(sel => matchOnLanguageOnly(sel, language));
+	} else if (typeof selector === 'string') {
+		return selector === '*' || selector === language;
+	} else {
+		return !selector.language || matchOnLanguageOnly(selector.language, language);
+	}
+}
 
 CommandsRegistry.registerCommand('editor.formatter.config', accessor => {
 
-	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-	if (!editor) {
-		return;
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const modeService = accessor.get(IModeService);
+	const quickOpenService = accessor.get(IQuickOpenService);
+
+	function getLanguageId() {
+		const editor = codeEditorService.getFocusedCodeEditor();
+		if (editor && editor.getModel()) {
+			return TPromise.as(editor.getModel().getModeId());
+		} else {
+			const picks = modeService.getRegisteredModes().map(id => {
+				return {
+					id,
+					label: modeService.getLanguageName(id)
+				};
+			});
+			return quickOpenService.pick(picks, { placeHolder: localize('pick.lang', "Select a language") }).then(pick => {
+				if (pick) {
+					return pick.id;
+				}
+			});
+		}
+	};
+
+	function selectProvider(language: string) {
+		const picks: IPickOpenEntry[] = [];
+
+		// all range formatter
+		for (const [selector, provider] of DocumentRangeFormattingEditProviderRegistry.entries()) {
+			if (matchOnLanguageOnly(selector, language)) {
+				picks.push({ label: provider.name });
+			}
+		}
+		const {length} = picks;
+		if (length > 0) {
+			picks[0].separator = { label: localize('rangeFormatter', "Document & Selection Formatter") };
+		}
+
+		// all document formatters
+		for (const [selector, provider] of DocumentFormattingEditProviderRegistry.entries()) {
+			if (matchOnLanguageOnly(selector, language)) {
+				picks.push({ label: provider.name });
+			}
+		}
+		if (length !== picks.length) {
+			picks[length].separator = { label: localize('docFormatter', "Document Formatter") };
+		}
+
+		return quickOpenService.pick(picks, { placeHolder: localize('pick.fmt', "Select formatter for {0}", modeService.getLanguageName(language)) });
 	}
 
-	const picks: IPickOpenEntry[] = [];
-
-	// all range formatter
-	for (const provider of DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel())) {
-		picks.push({ label: provider.name });
-	}
-	const {length} = picks;
-	if (length > 0) {
-		picks[0].separator = { label: localize('rangeFormatter', "Document & Selection Formatter") };
-	}
-
-	// all document formatters
-	for (const provider of DocumentFormattingEditProviderRegistry.ordered(editor.getModel())) {
-		picks.push({ label: provider.name });
-	}
-	if (length !== picks.length) {
-		picks[length].separator = { label: localize('docFormatter', "Document Formatter") };
-	}
-
-	return accessor.get(IQuickOpenService).pick(picks).then(pick => {
-		console.log(pick);
+	return getLanguageId().then(language => {
+		if (language) {
+			return selectProvider(language);
+		}
 	});
 });
 
