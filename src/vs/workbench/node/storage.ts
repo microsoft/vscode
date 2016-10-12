@@ -7,14 +7,12 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/common/paths';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ConfigWatcher } from 'vs/base/node/config';
 
 // Browser localStorage interface
 export interface IStorage {
@@ -200,7 +198,7 @@ export class Storage implements IStorageService {
 
 	public getStoragePath(scope: StorageScope): string {
 		if (StorageScope.GLOBAL === scope) {
-			return void 0;
+			return this.environmentService.appSettingsHome;
 		}
 
 		const workspace = this.contextService.getWorkspace();
@@ -253,18 +251,6 @@ export class Storage implements IStorageService {
 		}
 
 		return this.workspaceStoragePath;
-	}
-
-	getStorageData<T>(module: string, scope: StorageScope = StorageScope.GLOBAL, defaultValue: T = Object.create(null)): T {
-		const storagePath = this.getStoragePath(scope);
-		if (!storagePath) {
-			return defaultValue;
-		}
-		const path = paths.join(storagePath, module + '.json');
-		const storageData = new StorageData<T>(path, defaultValue);
-		const data: T = storageData.getData();
-		storageData.dispose();
-		return data;
 	}
 
 	private toStorageKey(key: string, scope: StorageScope): string {
@@ -320,20 +306,3 @@ export class InMemoryLocalStorage implements IStorage {
 }
 
 export const inMemoryLocalStorageInstance = new InMemoryLocalStorage();
-
-export class StorageData<T> implements IDisposable {
-
-	private _rawConfig: ConfigWatcher<T>;
-
-	constructor(path: string, defaultValue: T) {
-		this._rawConfig = new ConfigWatcher(path, { changeBufferDelay: 300, defaultConfig: defaultValue });
-	}
-
-	public getData(): T {
-		return this._rawConfig.getConfig();
-	}
-
-	public dispose() {
-		this._rawConfig.dispose();
-	}
-}

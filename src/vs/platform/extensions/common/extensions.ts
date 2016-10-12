@@ -7,6 +7,7 @@
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { StorageScope } from 'vs/platform/storage/common/storage';
 
 export interface IExtensionDescription {
 	id: string;
@@ -61,4 +62,16 @@ export interface IExtensionService {
 	 * Get information about extensions status.
 	 */
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
+}
+
+export interface IExtensionsStorageData {
+	disabled?: string[];
+}
+
+export const IExtensionsRuntimeService = createDecorator<IExtensionsRuntimeService>('extensionsRuntimeService');
+
+export interface IExtensionsRuntimeService {
+	_serviceBrand: any;
+	getStoragePath(scope: StorageScope): string;
+	getDisabledExtensions(scope?: StorageScope): string[];
 }

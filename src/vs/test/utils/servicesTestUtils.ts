@@ -309,10 +309,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		return this.storage.getStoragePath(scope);
 	}
 
-	getStorageData<T>(module: string, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: T): T {
-		return this.storage.getStorageData(module, scope, defaultValue);
-	}
-
 }
 
 export class TestEditorGroupService implements IEditorGroupService {

@@ -93,7 +93,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private extensionsPath: string;
 	private obsoletePath: string;
 	private obsoleteFileLimiter: Limiter<void>;
-	private disposables: IDisposable[];
+	private disposables: IDisposable[] = [];
 
 	private _onInstallExtension = new Emitter<InstallExtensionEvent>();
 	onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
