@@ -20,7 +20,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/co
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from './extensions';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
-import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, UpdateAllAction, OpenExtensionsFolderAction, ConfigureWorkspaceRecommendedExtensionsAction, InstallVSIXAction } from './extensionsActions';
+import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, UpdateAllAction, OpenExtensionsFolderAction, ConfigureWorkspaceRecommendedExtensionsAction, OpenWorkspaceExtensionsStorageFile, OpenGlobalExtensionsStorageFile, InstallVSIXAction } from './extensionsActions';
 import { ExtensionsInput } from './extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
@@ -28,7 +28,7 @@ import { StatusUpdater } from './extensionsViewlet';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
-import { Schema, SchemaId } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
+import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId, ExtensionsStorageSchema, ExtensionsStorageSchemaId } from 'vs/workbench/parts/extensions/electron-browser/extensionsFileTemplate';
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
@@ -119,6 +119,12 @@ actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Ex
 const openExtensionsFileActionDescriptor = new SyncActionDescriptor(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(openExtensionsFileActionDescriptor, 'Extensions: Open Extensions File', ExtensionsLabel);
 
+const disableExtensionsActionDescriptor = new SyncActionDescriptor(OpenGlobalExtensionsStorageFile, OpenGlobalExtensionsStorageFile.ID, localize('disableGlobalExtensions', "Disable Extensions"));
+actionRegistry.registerWorkbenchAction(disableExtensionsActionDescriptor, 'Extensions: Disable Extensions', ExtensionsLabel);
+
+const disableWorkspaceExtensionsActionDescriptor = new SyncActionDescriptor(OpenWorkspaceExtensionsStorageFile, OpenWorkspaceExtensionsStorageFile.ID, localize('disableWorkspaceExtensions', "Disable Extensions (Workspace)"));
+actionRegistry.registerWorkbenchAction(disableWorkspaceExtensionsActionDescriptor, 'Extensions: Disable Extensions (Workspace)', ExtensionsLabel);
+
 const installVSIXActionDescriptor = new SyncActionDescriptor(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
 actionRegistry.registerWorkbenchAction(installVSIXActionDescriptor, 'Extensions: Install from VSIX...', ExtensionsLabel);
 
@@ -138,4 +144,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	});
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
-jsonRegistry.registerSchema(SchemaId, Schema);
+jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
+jsonRegistry.registerSchema(ExtensionsStorageSchemaId, ExtensionsStorageSchema);
