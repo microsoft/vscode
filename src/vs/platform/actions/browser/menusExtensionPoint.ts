@@ -212,7 +212,7 @@ namespace schema {
 	// --- treeExplorers contribution point
 
 	export interface IExplorer {
-		treeContentProviderId: string;
+		treeExplorerNodeProviderId: string;
 		treeLabel: string;
 		icon: IUserFriendlyIcon;
 	}
@@ -222,7 +222,7 @@ namespace schema {
 		type: 'object',
 		properties: {
 			treeContentProviderId: {
-				description: localize('vscode.extension.contributes.explorer.treeContentProviderId', 'Unique id used to identify provider registered through vscode.workspace.registerTreeContentProvider'),
+				description: localize('vscode.extension.contributes.explorer.treeExplorerNodeProviderId', 'Unique id used to identify provider registered through vscode.workspace.registerTreeExplorerNodeProvider'),
 				type: 'string'
 			},
 			treeLabel: {
@@ -342,17 +342,17 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 	let baseOrder = 200;
 
 	for (let extension of extensions) {
-		const { treeContentProviderId, treeLabel, icon } = extension.value;
+		const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
 
 		const getIconRule = (iconPath) => { return `background-image: url('${iconPath}')`; };
 		if (icon) {
 			if (typeof icon === 'string') {
-				const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeContentProviderId}`;
+				const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
 				const iconPath = join(extension.description.extensionFolderPath, icon);
 				createCSSRule(iconClass, getIconRule(iconPath));
 			} else {
-				const lightIconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeContentProviderId}`;
-				const darkIconClass = `.vs-dark .monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeContentProviderId}`;
+				const lightIconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
+				const darkIconClass = `.vs-dark .monaco-workbench > .activitybar .monaco-action-bar .action-label.${treeExplorerNodeProviderId}`;
 				createCSSRule(lightIconClass, getIconRule(icon.light));
 				createCSSRule(darkIconClass, getIconRule(icon.dark));
 			}
@@ -361,9 +361,9 @@ ExtensionsRegistry.registerExtensionPoint<schema.IExplorer>('explorer', schema.e
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
 			'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
 			'TreeExplorerViewlet',
-			'workbench.view.customTreeExplorerViewlet.' + treeContentProviderId,
+			'workbench.view.customTreeExplorerViewlet.' + treeExplorerNodeProviderId,
 			treeLabel,
-			treeContentProviderId,
+			treeExplorerNodeProviderId,
 			baseOrder++
 		));
 	}
