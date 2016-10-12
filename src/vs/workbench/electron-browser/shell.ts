@@ -82,6 +82,7 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
+import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 
 // self registering services
 import 'vs/platform/opener/browser/opener.contribution';
@@ -290,7 +291,8 @@ export class WorkbenchShell {
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 
-		this.threadService = instantiationService.createInstance(MainThreadService);
+		const extensionHostProcessWorker = this.startExtensionHost(instantiationService);
+		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
 		const extensionService = instantiationService.createInstance(MainProcessExtensionService);
@@ -449,6 +451,12 @@ export class WorkbenchShell {
 
 		this.contextViewService.layout();
 		this.workbench.layout();
+	}
+
+	private startExtensionHost(instantiationService: InstantiationService): ExtensionHostProcessWorker {
+		const extensionHostProcessWorker: ExtensionHostProcessWorker = <ExtensionHostProcessWorker>instantiationService.createInstance(ExtensionHostProcessWorker);
+		extensionHostProcessWorker.start();
+		return extensionHostProcessWorker;
 	}
 
 	public joinCreation(): TPromise<boolean> {

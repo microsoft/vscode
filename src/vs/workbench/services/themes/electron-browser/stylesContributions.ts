@@ -34,6 +34,23 @@ interface ThemeGlobalSettings {
 	referenceHighlight?: string;
 
 	activeLinkForeground?: string;
+
+	ansiBlack?: string;
+	ansiRed?: string;
+	ansiGreen?: string;
+	ansiYellow?: string;
+	ansiBlue?: string;
+	ansiMagenta?: string;
+	ansiCyan?: string;
+	ansiWhite?: string;
+	ansiBrightBlack?: string;
+	ansiBrightRed?: string;
+	ansiBrightGreen?: string;
+	ansiBrightYellow?: string;
+	ansiBrightBlue?: string;
+	ansiBrightMagenta?: string;
+	ansiBrightCyan?: string;
+	ansiBrightWhite?: string;
 }
 
 class Theme {
@@ -169,6 +186,57 @@ export class SearchViewStylesContribution {
 		}
 	}
 }
+
+export class TerminalStylesContribution {
+
+	private static ansiColorMap = {
+		ansiBlack: 0,
+		ansiRed: 1,
+		ansiGreen: 2,
+		ansiYellow: 3,
+		ansiBlue: 4,
+		ansiMagenta: 5,
+		ansiCyan: 6,
+		ansiWhite: 7,
+		ansiBrightBlack: 8,
+		ansiBrightRed: 9,
+		ansiBrightGreen: 10,
+		ansiBrightYellow: 11,
+		ansiBrightBlue: 12,
+		ansiBrightMagenta: 13,
+		ansiBrightCyan: 14,
+		ansiBrightWhite: 15
+	};
+
+	/**
+	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
+	 */
+	private _convertHexCssColorToRgba(hex: string, alpha: number): string {
+		const r = parseInt(hex.substr(1, 2), 16);
+		const g = parseInt(hex.substr(3, 2), 16);
+		const b = parseInt(hex.substr(5, 2), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}
+
+	public contributeStyles(themeId: string, themeDocument: IThemeDocument, cssRules: string[]): void {
+		const theme = new Theme(themeId, themeDocument);
+		if (theme.hasGlobalSettings()) {
+			const keys = Object.keys(theme.getGlobalSettings());
+			keys.filter(key => key.indexOf('ansi') === 0).forEach(key => {
+				if (key in TerminalStylesContribution.ansiColorMap) {
+					const color = theme.getGlobalSettings()[key];
+					const index = TerminalStylesContribution.ansiColorMap[key];
+					const rgba = this._convertHexCssColorToRgba(color, 0.996);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }`);
+					cssRules.push(`.${theme.getSelector()} .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`);
+				}
+			});
+		}
+	}
+}
+
 
 abstract class EditorStyleRules extends StyleRules {
 

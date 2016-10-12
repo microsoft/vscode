@@ -29,6 +29,8 @@ import { IGitService, IFileStatus, Status, StatusType, ServiceState, IModel, IBr
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import { IWindowService } from 'vs/workbench/services/window/electron-browser/windowService';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -1090,7 +1092,9 @@ export class SyncAction extends GitAction {
 
 	constructor(id: string, label: string,
 		@IGitService gitService: IGitService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label, 'git-action sync', gitService);
 	}
@@ -1119,12 +1123,39 @@ export class SyncAction extends GitAction {
 			return TPromise.as(null);
 		}
 
-		const config = this.configurationService.getConfiguration<IGitConfiguration>('git');
+		const shouldPrompt = this.configurationService.getConfiguration<IGitConfiguration>('git').confirmSync;
 
-		if (config.confirmSync && !window.confirm(nls.localize('sureSync', "Are you sure you want to synchronize your git repository?"))) {
-			return TPromise.as(null);
+		if (!shouldPrompt) {
+			return this.sync();
 		}
 
+		const model = this.gitService.getModel();
+		const HEAD = model.getHEAD();
+		const window = this.windowService.getWindow();
+		const choice = window.showMessageBox({
+			title: SyncAction.LABEL,
+			message: nls.localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream),
+			type: 'warning',
+			detail: nls.localize('do you want to continue', "Are you sure you want to continue?"),
+			buttons: [nls.localize('ok', "OK"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")],
+			noLink: true,
+			cancelId: 1
+		});
+
+		switch (choice) {
+			case 0:
+				return this.sync();
+			case 1:
+				return TPromise.as(null);
+			case 2:
+				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'git.confirmSync', value: false })
+					.then(() => this.sync());
+			default:
+				return TPromise.as(null);
+		}
+	}
+
+	private sync(): TPromise<any> {
 		return this.gitService.sync().then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 				return Promise.wrapError(errors.create(nls.localize('authFailed', "Authentication failed on the git remote.")));

@@ -137,9 +137,9 @@ export class TerminalConfigHelper {
 		if (fontSize <= 0) {
 			fontSize = DefaultConfig.editor.fontSize;
 		}
-		let lineHeight = this.toInteger(terminalConfig.lineHeight, DEFAULT_LINE_HEIGHT);
+		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
 
-		return this._measureFont(fontFamily, fontSize, lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : lineHeight);
+		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
 	public getFontLigaturesEnabled(): boolean {

@@ -5,12 +5,14 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import strings = require('vs/base/common/strings');
 import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class Adapter {
@@ -29,6 +31,7 @@ export class Adapter {
 
 	constructor(public rawAdapter: debug.IRawAdapter, public extensionDescription: IExtensionDescription,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		if (rawAdapter.windows) {
@@ -80,15 +83,29 @@ export class Adapter {
 		this.aiKey = rawAdapter.aiKey;
 	}
 
-	public getInitialConfigurations(): TPromise<string | any[]> {
+	public getInitialConfigFileContent(): TPromise<string> {
+		const editorConfig = this.configurationService.getConfiguration<any>();
 		if (typeof this.initialConfigurations === 'string') {
 			// Contributed initialConfigurations is a command that needs to be invoked
-			// Debug adapter will dynamically provide the initial conifguraiton
-			return this.commandService.executeCommand<string>(<string>this.initialConfigurations)
-				.then(result => JSON.parse(result));
+			// Debug adapter will dynamically provide the full launch.json
+			return this.commandService.executeCommand<string>(<string>this.initialConfigurations).then(content => {
+				// Debug adapter returned the full content of the launch.json - return it after format
+				if (editorConfig.editor.insertSpaces) {
+					content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
+				}
+
+				return content;
+			});
 		}
 
-		return TPromise.as(this.initialConfigurations);
+		return TPromise.as(JSON.stringify(
+			{
+				version: '0.2.0',
+				configurations: this.initialConfigurations || []
+			},
+			null,
+			editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t'
+		));
 	};
 
 	public get label() {

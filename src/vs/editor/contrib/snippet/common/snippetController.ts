@@ -494,8 +494,10 @@ export class SnippetController {
 			this._inSnippetMode.set(true);
 			this._currentController = new InsertSnippetController(this._editor, prepared.adaptedSnippet, prepared.typeRange.startLineNumber, initialAlternativeVersionId, () => {
 				this._inSnippetMode.reset();
-				this._currentController.dispose();
-				this._currentController = null;
+				if (this._currentController) {
+					this._currentController.dispose();
+					this._currentController = null;
+				}
 			});
 		}
 	}

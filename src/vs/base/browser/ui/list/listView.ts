@@ -175,7 +175,9 @@ export class ListView<T> implements IDisposable {
 		rangesToInsert.forEach(range => each(range, i => this.insertItemInDOM(this.items[i], i)));
 		rangesToRemove.forEach(range => each(range, i => this.removeItemFromDOM(this.items[i])));
 
-		this.rowsContainer.style.transform = `translate3d(0px, -${renderTop}px, 0px)`;
+		const transform = `translate3d(0px, -${renderTop}px, 0px)`;
+		this.rowsContainer.style.transform = transform;
+		this.rowsContainer.style.webkitTransform = transform;
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
 	}

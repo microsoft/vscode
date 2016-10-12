@@ -218,6 +218,7 @@ export class SearchService implements IRawSearchService {
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(paths.nativeSep) >= 0;
 		let cached: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>;
+		let wasResolved: boolean;
 		for (let previousSearch in cache.resultsToSearchCache) {
 
 			// If we narrow down, we might be able to reuse the cached results
@@ -226,7 +227,10 @@ export class SearchService implements IRawSearchService {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
-				cached = this.preventCancellation(cache.resultsToSearchCache[previousSearch]);
+				const c = cache.resultsToSearchCache[previousSearch];
+				c.then(() => { wasResolved = false; });
+				wasResolved = true;
+				cached = this.preventCancellation(c);
 				break;
 			}
 		}
@@ -236,7 +240,6 @@ export class SearchService implements IRawSearchService {
 		}
 
 		return new PPromise<[ISerializedSearchComplete, IRawFileMatch[], CacheStats], IProgress>((c, e, p) => {
-			let wasResolved = true;
 			cached.then(([complete, cachedEntries]) => {
 				const cacheFilterStartTime = Date.now();
 
@@ -260,7 +263,6 @@ export class SearchService implements IRawSearchService {
 					cacheFilterResultCount: cachedEntries.length
 				}]);
 			}, e, p);
-			wasResolved = false;
 		}, () => {
 			cached.cancel();
 		});

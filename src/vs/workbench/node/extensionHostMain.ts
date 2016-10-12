@@ -5,15 +5,10 @@
 
 'use strict';
 
-import * as fs from 'fs';
-import * as crypto from 'crypto';
-
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import pkg from 'vs/platform/package';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtHostAPIImplementation, defineAPI } from 'vs/workbench/api/node/extHost.api.impl';
@@ -21,13 +16,8 @@ import { IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteC
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
-import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
-
-const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
-const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
-const BUILTIN_EXTENSIONS_PATH = paths.join(BASE_PATH, 'extensions');
 
 export interface IEnvironment {
 	appSettingsHome: string;
@@ -44,6 +34,8 @@ export interface IInitData {
 		workspace: any;
 		options: any;
 	};
+	extensions: IExtensionDescription[];
+	workspaceStoragePath: string;
 }
 
 const nativeExit = process.exit.bind(process);
@@ -65,14 +57,16 @@ export class ExtensionHostMain {
 	private _contextService: IWorkspaceContextService;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
+	private _extensions: IExtensionDescription[];
 
 	constructor(remoteCom: IMainProcessExtHostIPC, initData: IInitData) {
 		this._isTerminating = false;
 
 		this._environment = initData.environment;
+		this._extensions = initData.extensions;
 
 		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
-		const workspaceStoragePath = this._getOrCreateWorkspaceStoragePath();
+		const workspaceStoragePath = initData.workspaceStoragePath;
 
 		const threadService = new ExtHostThreadService(remoteCom);
 
@@ -80,69 +74,12 @@ export class ExtensionHostMain {
 
 		this._extensionService = new ExtHostExtensionService(threadService, telemetryService, { _serviceBrand: 'optionalArgs', workspaceStoragePath });
 
-		// Connect to shared process services
-		/*
-		const channel = sharedProcessClient.getChannel<IExtensionManagementChannel>('extensions');
-		const extensionsService = new ExtensionManagementChannelClient(channel);
-		if (false && false) {
-			// TODO: what to do with the ExtensionManagementChannelClient?
-			console.log(extensionsService);
-		}
-		*/
-
 		// Create the ext host API
 		defineAPI(new ExtHostAPIImplementation(threadService, this._extensionService, this._contextService, telemetryService));
 	}
 
-	private _getOrCreateWorkspaceStoragePath(): string {
-		let workspaceStoragePath: string;
-
-		const workspace = this._contextService.getWorkspace();
-
-		function rmkDir(directory: string): boolean {
-			try {
-				fs.mkdirSync(directory);
-				return true;
-			} catch (err) {
-				if (err.code === 'ENOENT') {
-					if (rmkDir(paths.dirname(directory))) {
-						fs.mkdirSync(directory);
-						return true;
-					}
-				} else {
-					return fs.statSync(directory).isDirectory();
-				}
-			}
-		}
-
-		if (workspace) {
-			const hash = crypto.createHash('md5');
-			hash.update(workspace.resource.fsPath);
-			if (workspace.uid) {
-				hash.update(workspace.uid.toString());
-			}
-			workspaceStoragePath = paths.join(this._environment.appSettingsHome, 'workspaceStorage', hash.digest('hex'));
-			if (!fs.existsSync(workspaceStoragePath)) {
-				try {
-					if (rmkDir(workspaceStoragePath)) {
-						fs.writeFileSync(paths.join(workspaceStoragePath, 'meta.json'), JSON.stringify({
-							workspacePath: workspace.resource.fsPath,
-							uid: workspace.uid ? workspace.uid : null
-						}, null, 4));
-					} else {
-						workspaceStoragePath = undefined;
-					}
-				} catch (err) {
-					workspaceStoragePath = undefined;
-				}
-			}
-		}
-
-		return workspaceStoragePath;
-	}
-
 	public start(): TPromise<void> {
-		return this.readExtensions();
+		return this.registerExtensions();
 	}
 
 	public terminate(): void {
@@ -177,53 +114,10 @@ export class ExtensionHostMain {
 		}, 1000);
 	}
 
-	private readExtensions(): TPromise<void> {
-		let collector = new MessagesCollector();
-
-		return ExtensionHostMain.scanExtensions(collector, BUILTIN_EXTENSIONS_PATH, !this._environment.disableExtensions ? this._environment.userExtensionsHome : void 0, !this._environment.disableExtensions ? this._environment.extensionDevelopmentPath : void 0, pkg.version)
-			.then(null, err => {
-				collector.error('', err);
-				return [];
-			})
-			.then(extensions => {
-				// Register & Signal done
-				ExtensionsRegistry.registerExtensions(extensions);
-				this._extensionService.registrationDone(collector.getMessages());
-			})
-			.then(() => this.handleEagerExtensions())
-			.then(() => this.handleExtensionTests());
-	}
-
-	private static scanExtensions(collector: MessagesCollector, builtinExtensionsPath: string, userInstallPath: string, extensionDevelopmentPath: string, version: string): TPromise<IExtensionDescription[]> {
-		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, builtinExtensionsPath, true);
-		const userExtensions = !userInstallPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, userInstallPath, false);
-		const developedExtensions = !extensionDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, extensionDevelopmentPath, false);
-
-		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then((_: IExtensionDescription[][]) => {
-			let builtinExtensions = _[0];
-			let userExtensions = _[1];
-			let developedExtensions = _[2];
-
-			let result: { [extensionId: string]: IExtensionDescription; } = {};
-			builtinExtensions.forEach((builtinExtension) => {
-				result[builtinExtension.id] = builtinExtension;
-			});
-			userExtensions.forEach((userExtension) => {
-				if (result.hasOwnProperty(userExtension.id)) {
-					collector.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
-				}
-				result[userExtension.id] = userExtension;
-			});
-			developedExtensions.forEach(developedExtension => {
-				collector.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
-				if (result.hasOwnProperty(developedExtension.id)) {
-					collector.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
-				}
-				result[developedExtension.id] = developedExtension;
-			});
-
-			return Object.keys(result).map(name => result[name]);
-		});
+	private registerExtensions(): TPromise<void> {
+		ExtensionsRegistry.registerExtensions(this._extensions);
+		this._extensionService.registrationDone([]);
+		return this.handleEagerExtensions().then(() => this.handleExtensionTests());
 	}
 
 	// Handle "eager" activation extensions
@@ -240,9 +134,9 @@ export class ExtensionHostMain {
 			return TPromise.as(null);
 		}
 
-		let folderPath = workspace.resource.fsPath;
+		const folderPath = workspace.resource.fsPath;
 
-		let desiredFilesMap: {
+		const desiredFilesMap: {
 			[filename: string]: boolean;
 		} = {};
 
@@ -260,21 +154,17 @@ export class ExtensionHostMain {
 			}
 		});
 
-		return TPromise.join(
-			Object.keys(desiredFilesMap).map(
-				(fileName) => pfs.existsWithResult(paths.join(folderPath, fileName), fileName)
-			)
-		).then((fileNames: string[]) => {
-			fileNames.forEach((existingFileName) => {
-				if (!existingFileName) {
-					return;
-				}
+		const fileNames = Object.keys(desiredFilesMap);
 
-				let activationEvent = 'workspaceContains:' + existingFileName;
-				this._extensionService.activateByEvent(activationEvent).then(null, (err) => {
-					console.error(err);
+		return TPromise.join(fileNames.map(f => pfs.exists(paths.join(folderPath, f)))).then(exists => {
+			fileNames
+				.filter((f, i) => exists[i])
+				.forEach(fileName => {
+					const activationEvent = `workspaceContains:${fileName}`;
+
+					this._extensionService.activateByEvent(activationEvent)
+						.done(null, err => console.error(err));
 				});
-			});
 		});
 	}
 
