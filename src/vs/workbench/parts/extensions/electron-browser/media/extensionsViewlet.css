@@ -103,6 +103,20 @@
 	display: none;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .header > .state.installed {
+	background: #478E4B;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	/*display: inline-block;*/
+	display: none;
+	margin-left: 5px;
+}
+
+.extensions-viewlet > .extensions .extension.disabled > .details > .header > .state.installed {
+	background: #5f5f5f;
+}
+
 .extensions-viewlet > .extensions .extension > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
@@ -132,6 +146,13 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+}
+
+.extensions-viewlet > .extensions .extension.disabled > .icon,
+.extensions-viewlet > .extensions .extension.disabled > .details > .header,
+.extensions-viewlet > .extensions .extension.disabled > .details > .description,
+.extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
+	opacity: 0.5;
 }
 
 .extensions-badge.progress-badge > .badge-content {
