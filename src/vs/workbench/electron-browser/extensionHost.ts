@@ -24,8 +24,7 @@ import { ipcRenderer as ipc } from 'electron';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
-import { IExtensionsStorageData, ExtensionsStorageModule } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionDescription, IMessage, IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -71,7 +70,8 @@ export class ExtensionHostProcessWorker {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this.isExtensionDevelopmentHost = !!environmentService.extensionDevelopmentPath;
@@ -268,17 +268,10 @@ export class ExtensionHostProcessWorker {
 
 	private getUserExtensions(version: string, collector: MessagesCollector): TPromise<IExtensionDescription[]> {
 		return ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false)
-			.then(extensionDescriptions => this.getDisabledExtensions()
-				.then(disabledExtensions => extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1)));
-	}
-
-	private getDisabledExtensions(): TPromise<string[]> {
-		return this.getWorkspaceDisabledExtensions();
-	}
-
-	private getWorkspaceDisabledExtensions(): TPromise<string[]> {
-		const extensionsData = this.storageService.getStorageData<IExtensionsStorageData>(ExtensionsStorageModule, StorageScope.WORKSPACE, {});
-		return TPromise.wrap(extensionsData.disabledExtensions || []);
+			.then(extensionDescriptions => {
+				const disabledExtensions = this.extensionsRuntimeService.getDisabledExtensions();
+				return disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.indexOf(`${e.publisher}.${e.name}`) === -1) : extensionDescriptions;
+			});
 	}
 
 	private logExtensionHostMessage(logEntry: ILogEntry) {

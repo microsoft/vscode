@@ -65,7 +65,8 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRuntimeService } from 'vs/platform/extensions/node/extensions';
 import { MainThreadModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -290,6 +291,9 @@ export class WorkbenchShell {
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		serviceCollection.set(ILifecycleService, lifecycleService);
+
+		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
+		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
 
 		const extensionHostProcessWorker = this.startExtensionHost(instantiationService);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);

@@ -235,8 +235,3 @@ export interface IExtensionTipsService {
 
 export const ExtensionsLabel = nls.localize('extensions', "Extensions");
 export const ExtensionsChannelId = 'extensions';
-
-export const ExtensionsStorageModule = 'extensions';
-export interface IExtensionsStorageData {
-	disabledExtensions?: string[];
-}
