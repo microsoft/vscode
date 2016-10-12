@@ -14,6 +14,9 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 
 	_serviceBrand: any;
 
+	private workspaceStorage: ExtensionsStorage;
+	private globalStorage: ExtensionsStorage;
+
 	constructor(
 		@IStorageService private storageService: IStorageService
 	) {
@@ -34,19 +37,49 @@ export class ExtensionsRuntimeService implements IExtensionsRuntimeService {
 	}
 
 	private getData(scope: StorageScope): IExtensionsStorageData {
+		const extensionsStorage = this.getStorage(scope);
+		return extensionsStorage ? extensionsStorage.data : {};
+	}
+
+	private getStorage(scope: StorageScope): ExtensionsStorage {
 		const path = this.getPath(scope);
 		if (path) {
-			const extensionsStorage = new ExtensionsStorage(path);
-			const data = extensionsStorage.data;
-			extensionsStorage.dispose();
-			return data;
+			if (StorageScope.WORKSPACE === scope) {
+				return this.getWorkspaceStorage(path);
+			}
+			return this.getGlobalStorage(path);
 		}
-		return {};
+		return null;
+	}
+
+	private getGlobalStorage(path: string): ExtensionsStorage {
+		if (!this.globalStorage) {
+			this.globalStorage = new ExtensionsStorage(path);
+		}
+		return this.globalStorage;
+	}
+
+	private getWorkspaceStorage(path: string): ExtensionsStorage {
+		if (!this.workspaceStorage) {
+			this.workspaceStorage = new ExtensionsStorage(path);
+		}
+		return this.workspaceStorage;
 	}
 
 	private getPath(scope: StorageScope): string {
 		const path = this.storageService.getStoragePath(scope);
 		return path ? paths.join(path, 'extensions.json') : void 0;
+	}
+
+	public dispose() {
+		if (this.workspaceStorage) {
+			this.workspaceStorage.dispose();
+			this.workspaceStorage = null;
+		}
+		if (this.globalStorage) {
+			this.globalStorage.dispose();
+			this.globalStorage = null;
+		}
 	}
 }
 
