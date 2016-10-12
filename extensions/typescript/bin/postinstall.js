@@ -9,9 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const toDelete = new Set(['tsc.js', 'tsserverlibrary.js', 'typescript.js', 'typescriptServices.js']);
 
-// delete unused typescript stuff
-const root = path.dirname(require.resolve('typescript'));
-
+const root = path.join(__dirname, '..', 'node_modules', 'typescript', 'lib');
 for (let name of fs.readdirSync(root)) {
 	if (name === 'lib.d.ts' || name.match(/^lib\..*\.d\.ts$/)) {
 		continue;

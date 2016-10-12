@@ -873,7 +873,7 @@ export interface OpenExternalProjectRequest extends Request {
 /**
  * Arguments to OpenExternalProjectRequest request
  */
-type OpenExternalProjectArgs = ExternalProject;
+export type OpenExternalProjectArgs = ExternalProject;
 
 /**
  * Request to open multiple external projects
