@@ -381,6 +381,30 @@ export class ShowInstalledExtensionsAction extends Action {
 	}
 }
 
+export class ShowDisabledExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showDisabledExtensions';
+	static LABEL = localize('showDisabledExtensions', "Show Disabled Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, 'null', true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@disabled ');
+				viewlet.focus();
+			});
+	}
+}
+
 export class ClearExtensionsInputAction extends ShowInstalledExtensionsAction {
 
 	static ID = 'workbench.extensions.action.clearExtensionsInput';
@@ -590,7 +614,7 @@ export class OpenExtensionsFolderAction extends Action {
 export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
-	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Workspace Recommended Extensions");
+	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
 
 	constructor(
 		id: string,
