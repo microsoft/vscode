@@ -243,7 +243,7 @@ export class FormatAction extends EditorAction {
 			if (all.indexOf(pick) < provider.length) {
 				return getDocumentFormattingEdits(model, { tabSize, insertSpaces }, config);
 			} else {
-				return getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }, config);
+				return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), { tabSize, insertSpaces }, config);
 			}
 		}
 	}
