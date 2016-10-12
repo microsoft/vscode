@@ -91,8 +91,8 @@ declare module 'vscode' {
 	}
 
 	export interface SCMDelegate {
-		commitCommand: string;
-		clickCommand: string;
+		commitCommand?: string;
+		clickCommand?: string;
 		dragCommand?: string;
 		getOriginalResource?(uri: Uri): Uri | Thenable<Uri>;
 	}

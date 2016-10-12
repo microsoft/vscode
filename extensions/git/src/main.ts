@@ -5,11 +5,26 @@
 
 'use strict';
 
-import { scm, ExtensionContext } from 'vscode';
+import { findGit } from './git';
+import { scm, ExtensionContext, workspace } from 'vscode';
+
+export function log(...args: any[]): void {
+	console.log.apply(console, ['git:', ...args]);
+}
 
 export function activate(context: ExtensionContext): any {
-	const provider = scm.createSCMProvider('git', null);
-	context.subscriptions.push(provider);
+	const pathHint = workspace.getConfiguration('git').get<string>('path');
 
-	console.log(provider);
+	findGit(pathHint).then(info => {
+		log(`Using git ${info.version} from ${info.path}`);
+
+		const provider = scm.createSCMProvider('git', {
+			// getOriginalResource: uri => {
+			// 	return uri;
+			// }
+		});
+		context.subscriptions.push(provider);
+
+		// return new Git({ gitPath: info.path, version: info.version });
+	});
 }
