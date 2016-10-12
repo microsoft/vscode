@@ -20,7 +20,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/co
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from './extensions';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService';
-import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, UpdateAllAction, OpenExtensionsFolderAction, ConfigureWorkspaceRecommendedExtensionsAction, OpenWorkspaceExtensionsStorageFile, OpenGlobalExtensionsStorageFile, InstallVSIXAction } from './extensionsActions';
+import { OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, OpenExtensionsFolderAction, ConfigureWorkspaceRecommendedExtensionsAction, OpenWorkspaceExtensionsStorageFile, OpenGlobalExtensionsStorageFile, InstallVSIXAction } from './extensionsActions';
 import { ExtensionsInput } from './extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from './extensionEditor';
@@ -110,6 +110,9 @@ actionRegistry.registerWorkbenchAction(popularActionDescriptor, 'Extensions: Sho
 const installedActionDescriptor = new SyncActionDescriptor(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(installedActionDescriptor, 'Extensions: Show Installed Extensions', ExtensionsLabel);
 
+const disabledActionDescriptor = new SyncActionDescriptor(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL);
+actionRegistry.registerWorkbenchAction(disabledActionDescriptor, 'Extensions: Show Disabled Extensions', ExtensionsLabel);
+
 const updateAllActionDescriptor = new SyncActionDescriptor(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL);
 actionRegistry.registerWorkbenchAction(updateAllActionDescriptor, 'Extensions: Update All Extensions', ExtensionsLabel);
 
@@ -119,11 +122,11 @@ actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Ex
 const openExtensionsFileActionDescriptor = new SyncActionDescriptor(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(openExtensionsFileActionDescriptor, 'Extensions: Open Extensions File', ExtensionsLabel);
 
-const disableExtensionsActionDescriptor = new SyncActionDescriptor(OpenGlobalExtensionsStorageFile, OpenGlobalExtensionsStorageFile.ID, localize('disableGlobalExtensions', "Disable Extensions"));
-actionRegistry.registerWorkbenchAction(disableExtensionsActionDescriptor, 'Extensions: Disable Extensions', ExtensionsLabel);
+const disableExtensionsActionDescriptor = new SyncActionDescriptor(OpenGlobalExtensionsStorageFile, OpenGlobalExtensionsStorageFile.ID, localize('disableGlobalExtensions', "Configure Disabled Extensions"));
+actionRegistry.registerWorkbenchAction(disableExtensionsActionDescriptor, 'Extensions: Configure Disabled Extensions', ExtensionsLabel);
 
-const disableWorkspaceExtensionsActionDescriptor = new SyncActionDescriptor(OpenWorkspaceExtensionsStorageFile, OpenWorkspaceExtensionsStorageFile.ID, localize('disableWorkspaceExtensions', "Disable Extensions (Workspace)"));
-actionRegistry.registerWorkbenchAction(disableWorkspaceExtensionsActionDescriptor, 'Extensions: Disable Extensions (Workspace)', ExtensionsLabel);
+const disableWorkspaceExtensionsActionDescriptor = new SyncActionDescriptor(OpenWorkspaceExtensionsStorageFile, OpenWorkspaceExtensionsStorageFile.ID, localize('disableWorkspaceExtensions', "Configure Disabled Extensions (Workspace)"));
+actionRegistry.registerWorkbenchAction(disableWorkspaceExtensionsActionDescriptor, 'Extensions: Configure Disabled Extensions (Workspace)', ExtensionsLabel);
 
 const installVSIXActionDescriptor = new SyncActionDescriptor(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
 actionRegistry.registerWorkbenchAction(installVSIXActionDescriptor, 'Extensions: Install from VSIX...', ExtensionsLabel);
