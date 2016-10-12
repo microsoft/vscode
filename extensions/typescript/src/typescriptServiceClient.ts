@@ -454,7 +454,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							options.execArgv = [`--debug=${port}`];
 						}
 					}
-					electron.fork(modulePath, [], options, (err: any, childProcess: cp.ChildProcess) => {
+					electron.fork(modulePath, ['--useSingleInferredProject'], options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
 							this.error('Starting TSServer failed with error.', err);
@@ -492,8 +492,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private serviceStarted(resendModels: boolean): void {
 		let configureOptions: Proto.ConfigureRequestArguments = {
-			hostInfo: 'vscode',
-			useOneInferredProject: true
+			hostInfo: 'vscode'
 		};
 		if (this._experimentalAutoBuild && this.storagePath) {
 			try {
@@ -506,9 +505,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.execute('configure', configureOptions);
 		let compilerOptions: Proto.ExternalProjectCompilerOptions = {
 			module: Proto.ModuleKind.CommonJS,
-			target: Proto.ScriptTarget.ES5,
+			target: Proto.ScriptTarget.ES6,
+			allowSyntheticDefaultImports: true,
 			allowJs: true,
-			allowSyntheticDefaultImports: true
 		};
 		let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
 			options: compilerOptions
