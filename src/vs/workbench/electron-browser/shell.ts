@@ -294,6 +294,7 @@ export class WorkbenchShell {
 
 		const extensionsRuntimeService = instantiationService.createInstance(ExtensionsRuntimeService);
 		serviceCollection.set(IExtensionsRuntimeService, extensionsRuntimeService);
+		disposables.add(extensionsRuntimeService);
 
 		const extensionHostProcessWorker = this.startExtensionHost(instantiationService);
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
