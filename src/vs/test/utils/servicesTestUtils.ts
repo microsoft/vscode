@@ -305,8 +305,12 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		return this.storage.getBoolean(key, scope, defaultValue);
 	}
 
-	getWorkspaceStoragePath(): string {
-		return this.storage.getWorkspaceStoragePath();
+	getStoragePath(scope: StorageScope = StorageScope.GLOBAL): string {
+		return this.storage.getStoragePath(scope);
+	}
+
+	getStorageData<T>(module: string, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: T): T {
+		return this.storage.getStorageData(module, scope, defaultValue);
 	}
 
 }
