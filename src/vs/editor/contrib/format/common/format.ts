@@ -26,9 +26,10 @@ export interface FormatterConfiguration {
 
 export namespace FormatterConfiguration {
 
+	export const key = 'editor.formatter';
 
 	export function get(service: IConfigurationService): FormatterConfiguration {
-		return getConfigurationValue<FormatterConfiguration>(service.getConfiguration(), 'editor.formatter');
+		return getConfigurationValue<FormatterConfiguration>(service.getConfiguration(), key);
 	}
 
 	export function pick<T extends { name?: string }>(providers: T[], model: IReadOnlyModel, config: FormatterConfiguration): T {

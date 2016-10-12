@@ -7,6 +7,8 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
@@ -15,6 +17,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { LanguageSelector } from 'vs/editor/common/modes/languageSelector';
+import { FormatterConfiguration } from 'vs/editor/contrib/format/common/format';
 
 // register schema stub for 'editor.formatter'
 
@@ -50,6 +53,8 @@ CommandsRegistry.registerCommand('editor.formatter.config', accessor => {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const modeService = accessor.get(IModeService);
 	const quickOpenService = accessor.get(IQuickOpenService);
+	const configService = accessor.get(IWorkspaceConfigurationService);
+	const configEditService = accessor.get(IConfigurationEditingService);
 
 	function getLanguageId() {
 		const editor = codeEditorService.getFocusedCodeEditor();
@@ -98,9 +103,25 @@ CommandsRegistry.registerCommand('editor.formatter.config', accessor => {
 	}
 
 	return getLanguageId().then(language => {
-		if (language) {
-			return selectProvider(language);
+		if (!language) {
+			return;
 		}
+		return selectProvider(language).then(name => {
+			if (!name) {
+				return;
+			}
+
+			const config = configService.lookup<FormatterConfiguration>(FormatterConfiguration.key);
+			const target = config.workspace ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+
+			const value = config.value;
+			value[language] = name.label;
+
+			return configEditService.writeConfiguration(target, {
+				key: FormatterConfiguration.key,
+				value
+			});
+		});
 	});
 });
 
