@@ -62,13 +62,24 @@ export interface IStorageService {
 	 */
 	getBoolean(key: string, scope?: StorageScope, defaultValue?: boolean): boolean;
 
+	// TODO:sandy: Following APIs are implemented only for Workspace scope. Yet to implement for
+	// global scope.
+
 	/**
-	 * An absolute file path of a workspace specific directory in which private state
-	 * can be stored as JSON data in separate modules.
+	 * Returns an absolute file path in which private state can be stored as JSON data
+	 * in separate modules.
+	 *
+	 * For workspace scope {StorageScope.WORKSPACE}, a workspace specific directory
+	 * under global scope is returned.
 	 *
 	 * NOTE: This is not the same as the local storage used by the other APIs.
 	 */
-	getWorkspaceStoragePath(): string;
+	getStoragePath(scope: StorageScope): string;
+
+	/**
+	 * Returns the data stored for the given module in the storage path {#getStoragePath()}
+	 */
+	getStorageData<T>(module: string, scope?: StorageScope, defaultValue?: T): T;
 }
 
 export enum StorageScope {
@@ -93,5 +104,6 @@ export const NullStorageService: IStorageService = {
 	get(a, b, defaultValue) { return defaultValue; },
 	getInteger(a, b, defaultValue) { return defaultValue; },
 	getBoolean(a, b, defaultValue) { return defaultValue; },
-	getWorkspaceStoragePath() { return void 0; }
+	getStoragePath() { return void 0; },
+	getStorageData<T>(module: string, scope?: StorageScope, defaultValue?: T) { return defaultValue; }
 };

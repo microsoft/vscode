@@ -5,9 +5,7 @@
 
 'use strict';
 
-import * as fs from 'fs';
 import * as nls from 'vs/nls';
-import * as json from 'vs/base/common/json';
 import pkg from 'vs/platform/package';
 import paths = require('vs/base/common/paths');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -27,11 +25,11 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
-import { IExtensionsStorageData, ExtensionsStorageFile } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionsStorageData, ExtensionsStorageModule } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -220,7 +218,7 @@ export class ExtensionHostProcessWorker {
 				contextService: {
 					workspace: this.contextService.getWorkspace()
 				},
-				workspaceStoragePath: this.storageService.getWorkspaceStoragePath(),
+				workspaceStoragePath: this.storageService.getStoragePath(StorageScope.WORKSPACE),
 				extensions: extensionDescriptors
 			});
 			this.extensionHostProcessHandle.send(initPayload);
@@ -279,25 +277,8 @@ export class ExtensionHostProcessWorker {
 	}
 
 	private getWorkspaceDisabledExtensions(): TPromise<string[]> {
-		const workspaceStoragePath = this.storageService.getWorkspaceStoragePath();
-		if (!workspaceStoragePath) {
-			return TPromise.wrap([]);
-		}
-
-		return new TPromise<string[]>((c, e) => {
-			fs.readFile(paths.join(workspaceStoragePath, ExtensionsStorageFile), (error, raw) => {
-				let result = [];
-				if (!error) {
-					try {
-						const extensionsData: IExtensionsStorageData = json.parse(raw.toString());
-						result = extensionsData.disabledExtensions || [];
-					} catch (error) {
-						// Ignore parsing errors
-					}
-				}
-				return c(result);
-			});
-		});
+		const extensionsData = this.storageService.getStorageData<IExtensionsStorageData>(ExtensionsStorageModule, StorageScope.WORKSPACE, {});
+		return TPromise.wrap(extensionsData.disabledExtensions || []);
 	}
 
 	private logExtensionHostMessage(logEntry: ILogEntry) {
