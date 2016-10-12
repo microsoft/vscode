@@ -61,6 +61,14 @@ export interface IStorageService {
 	 * The optional scope argument allows to define the scope of the operation.
 	 */
 	getBoolean(key: string, scope?: StorageScope, defaultValue?: boolean): boolean;
+
+	/**
+	 * An absolute file path of a workspace specific directory in which private state
+	 * can be stored as JSON data in separate modules.
+	 *
+	 * NOTE: This is not the same as the local storage used by the other APIs.
+	 */
+	getWorkspaceStoragePath(): string;
 }
 
 export enum StorageScope {
@@ -85,4 +93,5 @@ export const NullStorageService: IStorageService = {
 	get(a, b, defaultValue) { return defaultValue; },
 	getInteger(a, b, defaultValue) { return defaultValue; },
 	getBoolean(a, b, defaultValue) { return defaultValue; },
+	getWorkspaceStoragePath() { return void 0; }
 };
