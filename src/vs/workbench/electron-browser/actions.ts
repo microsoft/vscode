@@ -581,7 +581,8 @@ Steps to Reproduce:
 		let tableHeader = `| Extension | Author | Version |
 | --- | --- | --- |`;
 		const table = extensions.map(e => {
-			return `| ${e.manifest.name} | ${e.manifest.publisher} | ${e.manifest.version} |`;
+			const marketplaceLink = `https://marketplace.visualstudio.com/items?itemName=${e.manifest.publisher}.${e.manifest.name}`;
+			return `| [${e.manifest.name}](${marketplaceLink}) | ${e.manifest.publisher} | ${e.manifest.version} |`;
 		}).join('\n');
 
 		return tableHeader + '\n' + table;
