@@ -24,7 +24,7 @@ import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/qui
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/platform';
 import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -1038,6 +1038,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private resource: URI;
 	private label: string;
 	private description: string;
+	private dirty: boolean;
 
 	constructor(
 		input: IEditorInput | IResourceInput,
@@ -1056,16 +1057,22 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			this.resource = getUntitledOrFileResource(input);
 			this.label = input.getName();
 			this.description = input.getDescription();
+			this.dirty = input.isDirty();
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = paths.basename(resourceInput.resource.fsPath);
 			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
+			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
+
+			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
+			}
 		}
 	}
 
 	public getIcon(): string {
-		return this.resource && this.textFileService.isDirty(this.resource) ? 'dirty' : '';
+		return this.dirty ? 'dirty' : '';
 	}
 
 	public getLabel(): string {
