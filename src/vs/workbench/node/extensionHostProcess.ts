@@ -16,6 +16,7 @@ interface IRendererConnection {
 	initData: IInitData;
 }
 
+var _isTerminating;
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
 let onTerminate = function () {
@@ -32,6 +33,11 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			let msg = marshalling.parse(raw);
 
 			const remoteCom = createIPC(data => {
+				// Needed to avoid EPIPE errors in process.send below when a channel is closed
+				if (_isTerminating === true) {
+					return;
+				}
+
 				process.send(data);
 				stats.push(data.length);
 			});
@@ -40,6 +46,7 @@ function connectToRenderer(): TPromise<IRendererConnection> {
 			process.on('message', (msg) => {
 				if (msg.type === '__$terminate') {
 					onTerminate();
+					_isTerminating = true;
 					return;
 				}
 				remoteCom.handle(msg);
