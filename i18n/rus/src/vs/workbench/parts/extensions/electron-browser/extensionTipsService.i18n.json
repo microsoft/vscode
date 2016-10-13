@@ -7,5 +7,6 @@
 	"close": "Закрыть",
 	"neverShowAgain": "Больше не показывать",
 	"reallyRecommended": "Рекомендуется установить расширение \"{0}\".",
-	"showRecommendations": "Показать рекомендации"
+	"showRecommendations": "Показать рекомендации",
+	"workspaceRecommended": "Эта рабочая область включает рекомендации по расширениям."
 }

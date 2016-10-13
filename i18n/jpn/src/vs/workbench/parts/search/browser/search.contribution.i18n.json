@@ -9,10 +9,10 @@
 	"exclude.when": "一致するファイルの兄弟を追加的に検査します。一致するファイル名の変数として $(basename) を使用します。",
 	"findInFolder": "フォルダー内を検索",
 	"name": "検索",
-	"openAnythingHandlerDescription": "名前でファイルを開く",
-	"openSymbolDescriptionNormal": "名前で任意のシンボルを開く",
-	"search.quickOpen.includeSymbols": "グローバル シンボル検索の結果を、クイック オープンの結果ファイルに含めるように構成します。",
+	"openAnythingHandlerDescription": "ファイルに移動する",
+	"openSymbolDescriptionNormal": "ワークスペース内のシンボルへ移動",
+	"search.quickOpen.includeSymbols": "グローバル シンボル検索の結果を、Quick Open の結果ファイルに含めるように構成します。",
 	"searchConfigurationTitle": "検索",
-	"showTriggerActions": "シンボルをすべて表示",
+	"showTriggerActions": "ワークスペース内のシンボルへ移動...",
 	"view": "表示"
 }

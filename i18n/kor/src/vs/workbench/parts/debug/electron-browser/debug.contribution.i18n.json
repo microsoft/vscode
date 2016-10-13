@@ -6,8 +6,10 @@
 {
 	"debug": "디버그",
 	"debugCategory": "디버그",
+	"debugErrorEditor": "디버그 오류",
 	"debugPanel": "디버그 콘솔",
 	"launchConfigDoesNotExist": "시작 구성 '{0}'이(가) 없습니다.",
+	"toggleDebugPanel": "디버그 콘솔",
 	"toggleDebugViewlet": "디버그 표시",
 	"view": "보기"
 }
