@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/quickopen';
-import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Dimension, withElementById } from 'vs/base/browser/builder';
@@ -16,6 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
+import { Action } from 'vs/base/common/actions';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -1109,5 +1109,45 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		}
 
 		return false;
+	}
+}
+
+export class RemoveFromEditorHistoryAction extends Action {
+
+	public static ID = 'workbench.action.removeFromEditorHistory';
+	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From Editor History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IHistoryService private historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		interface IHistoryPickEntry extends IFilePickOpenEntry {
+			input: IEditorInput | IResourceInput;
+		}
+
+		const history = this.historyService.getHistory();
+		const picks: IHistoryPickEntry[] = history.map(h => {
+			const entry = this.instantiationService.createInstance(EditorHistoryEntry, h);
+
+			return <IHistoryPickEntry>{
+				input: h,
+				resource: entry.getResource(),
+				label: entry.getLabel(),
+				description: entry.getDescription()
+			};
+		});
+
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor entry to remove from history"), autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(pick => {
+			if (pick) {
+				this.historyService.remove(pick.input);
+			}
+		});
 	}
 }
