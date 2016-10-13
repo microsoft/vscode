@@ -14,7 +14,6 @@ import { Reader } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, OutputChannel, Memento, MessageItem } from 'vscode';
 import * as Proto from './protocol';
-import * as ProtoAdd from './protocolAdditions';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
 import * as VersionStatus from './utils/versionStatus';
@@ -506,18 +505,18 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				fs.mkdirSync(this.storagePath);
 			} catch (error) {
 			}
-			configureOptions.autoDiagnostics = true;
-			configureOptions.metaDataDirectory = this.storagePath;
+			// configureOptions.autoDiagnostics = true;
+			// configureOptions.metaDataDirectory = this.storagePath;
 		}
 		this.execute('configure', configureOptions);
 		if (this.apiVersion.has206Features()) {
-			let compilerOptions: ProtoAdd.ExternalProjectCompilerOptions = {
-				module: ProtoAdd.ModuleKind.CommonJS,
-				target: ProtoAdd.ScriptTarget.ES6,
+			let compilerOptions: Proto.ExternalProjectCompilerOptions = {
+				module: Proto.ModuleKind.CommonJS,
+				target: Proto.ScriptTarget.ES6,
 				allowSyntheticDefaultImports: true,
 				allowJs: true,
 			};
-			let args: ProtoAdd.SetCompilerOptionsForInferredProjectsArgs = {
+			let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
 				options: compilerOptions
 			};
 			this.execute('compilerOptionsForInferredProjects', args).then(null, (err) => {

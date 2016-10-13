@@ -20,8 +20,6 @@ import * as path from 'path';
 
 import * as Proto from './protocol';
 
-import * as Is from './utils/is';
-
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
 
@@ -349,9 +347,11 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 			}
 		}
+		/*
 		if (Is.defined(body.queueLength)) {
 			BuildStatus.update({ queueLength: body.queueLength });
 		}
+		*/
 	}
 
 	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
