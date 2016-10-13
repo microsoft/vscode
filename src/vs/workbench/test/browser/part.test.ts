@@ -12,7 +12,7 @@ import * as Types from 'vs/base/common/types';
 import * as TestUtils from 'vs/test/utils/servicesTestUtils';
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Storage, InMemoryLocalStorage } from 'vs/workbench/common/storage';
+import { Storage, InMemoryLocalStorage } from 'vs/workbench/node/storage';
 
 class MyPart extends Part {
 
@@ -105,7 +105,7 @@ suite('Workbench Part', () => {
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
 		context = new WorkspaceContextService(TestUtils.TestWorkspace);
-		storage = new Storage(new InMemoryLocalStorage(), null, context);
+		storage = new Storage(new InMemoryLocalStorage(), null, context, TestUtils.TestEnvironmentService);
 	});
 
 	teardown(() => {

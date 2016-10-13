@@ -38,6 +38,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from './extensionsInput';
+import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -46,6 +47,7 @@ interface IExtensionStateProvider {
 class Extension implements IExtension {
 
 	public needsRestart = false;
+	private _disabled = false;
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
@@ -161,6 +163,14 @@ class Extension implements IExtension {
 
 	get outdated(): boolean {
 		return this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+	}
+
+	get disabled(): boolean {
+		return this._disabled;
+	}
+
+	set disabled(disabled: boolean) {
+		this._disabled = disabled;
 	}
 
 	get telemetryData(): any {
@@ -300,7 +310,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
-		@IURLService urlService: IURLService
+		@IURLService urlService: IURLService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -328,12 +339,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	queryLocal(): TPromise<IExtension[]> {
+		const disabled = this.extensionsRuntimeService.getDisabledExtensions();
 		return this.extensionService.getInstalled().then(result => {
 			const installedById = index(this.installed, e => e.local.id);
 
 			this.installed = result.map(local => {
 				const extension = installedById[local.id] || new Extension(this.galleryService, this.stateProvider, local);
 				extension.local = local;
+				extension.disabled = local.type === LocalExtensionType.User && disabled.indexOf(`${extension.publisher}.${extension.name}`) !== -1;
 				return extension;
 			});
 

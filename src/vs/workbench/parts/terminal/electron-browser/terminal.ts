@@ -39,7 +39,8 @@ export interface ITerminalConfiguration {
 			},
 			shellArgs: {
 				linux: string[],
-				osx: string[]
+				osx: string[],
+				windows: string[]
 			},
 			cursorBlinking: boolean,
 			fontFamily: string,

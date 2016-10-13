@@ -40,6 +40,7 @@ export interface IExtension {
 	rating: number;
 	ratingCount: number;
 	outdated: boolean;
+	disabled: boolean;
 	hasDependencies: boolean;
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;
