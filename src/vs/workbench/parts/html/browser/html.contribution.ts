@@ -37,7 +37,11 @@ CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor) {
 		const lineNumber = Math.floor(Math.random() * editor.getModel().getLineCount());
 		console.log('ADDED at ' + lineNumber);
 
-		HtmlZoneController.getInstance(editor).addZone(lineNumber);
+		HtmlZoneController.getInstance(editor).addZone(lineNumber, `
+			<body style="background-color: pink;">
+				<h4>Hello World</h4>
+			</body>
+		`);
 	}
 });
 
