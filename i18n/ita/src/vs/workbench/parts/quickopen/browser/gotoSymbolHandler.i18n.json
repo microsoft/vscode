@@ -14,7 +14,7 @@
 	"enum": "enumerazioni ({0})",
 	"file": "file ({0})",
 	"function": "funzioni ({0})",
-	"gotoSymbol": "Vai al simbolo...",
+	"gotoSymbol": "Vai al simbolo nel file...",
 	"gotoSymbolHandlerAriaLabel": "Digitare per ridurre il numero di simboli dell'editor attualmente attivo.",
 	"interface": "interfacce ({0})",
 	"key": "chiavi ({0})",

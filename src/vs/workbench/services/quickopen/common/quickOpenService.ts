@@ -53,6 +53,9 @@ export interface IPickOptions {
 	 */
 	matchOnDetail?: boolean;
 
+	/**
+	 * an optional flag to not close the picker on focus lost
+	 */
 	ignoreFocusLost?: boolean;
 }
 

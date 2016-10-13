@@ -6,8 +6,10 @@
 {
 	"debug": "Déboguer",
 	"debugCategory": "Déboguer",
+	"debugErrorEditor": "Erreur de débogage",
 	"debugPanel": "Console de débogage",
 	"launchConfigDoesNotExist": "La configuration de lancement '{0}' n'existe pas.",
+	"toggleDebugPanel": "Console de débogage",
 	"toggleDebugViewlet": "Afficher le débogage",
 	"view": "Affichage"
 }

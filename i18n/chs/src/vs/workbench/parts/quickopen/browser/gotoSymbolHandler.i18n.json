@@ -14,7 +14,7 @@
 	"enum": "枚举({0})",
 	"file": "文件({0})",
 	"function": "函数({0})",
-	"gotoSymbol": "转到符号...",
+	"gotoSymbol": "转到文件中的符号...",
 	"gotoSymbolHandlerAriaLabel": "键入以减少当前活动编辑器的符号",
 	"interface": "接口({0})",
 	"key": "键({0})",

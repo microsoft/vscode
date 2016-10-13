@@ -18,6 +18,7 @@
 	"openRecentPlaceHolder": "Selezionare un percorso da aprire (tenere premuto CTRL per aprirlo in una nuova finestra)",
 	"openRecentPlaceHolderMac": "Selezionare un percorso (tenere premuto CMD per aprirlo in una nuova finestra)",
 	"reloadWindow": "Ricarica finestra",
+	"reportIssues": "Segnala problemi",
 	"switchWindow": "Cambia finestra",
 	"switchWindowPlaceHolder": "Selezionare una finestra",
 	"toggleDevTools": "Attiva/Disattiva strumenti di sviluppo",

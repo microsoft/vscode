@@ -16,6 +16,8 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "Определяет, помещается ли открывающая фигурная скобка в новую строку для функций",
 	"javascript.reloadProjects.title": "Перезагрузка проекта JavaScript",
 	"javascript.validate.enable": "Включить или отключить проверку JavaScript",
+	"typescript.check.tscVersion": "Проверка отличия компилятора TypeScript глобальной установки (например, tsc) от используемой языковой службы TypeScript.",
+	"typescript.check.workspaceVersion": "Проверка наличия версии TypeScript в рабочей области",
 	"typescript.reloadProjects.title": "Перезагрузка проекта TypeScript",
 	"typescript.tsdk.desc": "Указывает путь к папке, содержащей файлы tsserver и lib*.d.ts, которые необходимо использовать.",
 	"typescript.tsdk_version.desc": "Указывает версию tsserver. Требуется, только если tsserver не установлен с помощью npm.",

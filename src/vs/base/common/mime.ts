@@ -143,7 +143,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	let patternMatch: ITextMimeAssociationItem;
 	let extensionMatch: ITextMimeAssociationItem;
 
-	for (let i = 0; i < associations.length; i++) {
+	for (var i = 0; i < associations.length; i++) {
 		let association = associations[i];
 
 		// First exact name match
@@ -243,17 +243,13 @@ export function isUnspecific(mime: string[] | string): boolean {
 }
 
 export function suggestFilename(langId: string, prefix: string): string {
-	for (let i = 0; i < registeredAssociations.length; i++) {
+	for (var i = 0; i < registeredAssociations.length; i++) {
 		let association = registeredAssociations[i];
 		if (association.userConfigured) {
 			continue; // only support registered ones
 		}
 
 		if (association.id === langId && association.extension) {
-			if (langId && langId.toLowerCase() === 'xml') {
-				return prefix + '.xml'; // https://github.com/Microsoft/vscode/issues/13577
-			}
-
 			return prefix + association.extension;
 		}
 	}

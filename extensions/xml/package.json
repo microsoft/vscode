@@ -7,6 +7,8 @@
 		"languages": [{
 			"id": "xml",
 			"extensions": [
+				".xml",
+				".xsd",
 				".ascx",
 				".atom",
 				".axml",
@@ -56,9 +58,7 @@
 				".xib",
 				".xlf",
 				".xliff",
-				".xml",
 				".xpdl",
-				".xsd",
 				".xul",
 				".xoml"
 			],

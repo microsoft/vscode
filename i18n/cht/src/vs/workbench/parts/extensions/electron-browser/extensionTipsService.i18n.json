@@ -7,5 +7,6 @@
 	"close": "關閉",
 	"neverShowAgain": "不要再顯示",
 	"reallyRecommended": "建議您安裝 '{0}' 擴充功能。",
-	"showRecommendations": "顯示建議"
+	"showRecommendations": "顯示建議",
+	"workspaceRecommended": "此工作區具有擴充功能建議。"
 }

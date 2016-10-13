@@ -7,5 +7,6 @@
 	"close": "Cerrar",
 	"neverShowAgain": "No volver a mostrar",
 	"reallyRecommended": "Se recomienda instalar la extensión '{0}'.",
-	"showRecommendations": "Mostrar recomendaciones"
+	"showRecommendations": "Mostrar recomendaciones",
+	"workspaceRecommended": "Esta área de trabajo tiene recomendaciones de extensión."
 }

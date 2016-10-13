@@ -236,7 +236,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		if (/@disabled/i.test(value)) {
 			return this.extensionsWorkbenchService.queryLocal()
-				.then(result => result.filter(e => e.disabled))
+				.then(result => result.filter(e => e.state === ExtensionState.Disabled))
 				.then(result => new PagedModel(result));
 		}
 

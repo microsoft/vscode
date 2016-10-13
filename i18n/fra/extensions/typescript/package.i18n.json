@@ -16,6 +16,8 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "Définit si une accolade ouvrante dans une fonction est placée ou non sur une nouvelle ligne",
 	"javascript.reloadProjects.title": "Recharger le projet JavaScript",
 	"javascript.validate.enable": "Activer/désactiver la validation JavaScript",
+	"typescript.check.tscVersion": "Vérifiez si un compilateur TypeScript installé globalement (par exemple tsc) est différent du service de langage TypeScript.",
+	"typescript.check.workspaceVersion": "Vérifier si une version de TypeScript est disponible dans l'espace de travail",
 	"typescript.reloadProjects.title": "Recharger le projet TypeScript",
 	"typescript.tsdk.desc": "Spécifie le chemin de dossier contenant les fichiers tsserver et lib*.d.ts à utiliser.",
 	"typescript.tsdk_version.desc": "Spécifie la version de tsserver. Uniquement nécessaire si tsserver n'est pas installé via npm.",
