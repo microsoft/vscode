@@ -23,7 +23,6 @@ export function activate(context) {
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
 		if (vscode.window.activeTextEditor && event.document === vscode.window.activeTextEditor.document) {
-			console.log('hello there');
 			updateLaunchJsonDecorations(vscode.window.activeTextEditor);
 		}
 	}, null, context.subscriptions));
