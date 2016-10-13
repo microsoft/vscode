@@ -41,6 +41,7 @@ export interface IExtension {
 	ratingCount: number;
 	outdated: boolean;
 	disabled: boolean;
+	disabledInWorkspace: boolean;
 	hasDependencies: boolean;
 	telemetryData: any;
 	getManifest(): TPromise<IExtensionManifest>;

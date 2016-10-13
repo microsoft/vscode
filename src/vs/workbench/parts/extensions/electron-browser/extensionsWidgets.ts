@@ -5,10 +5,11 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService } from './extensions';
-import { append, $, addClass } from 'vs/base/browser/dom';
+import { IExtension, IExtensionsWorkbenchService, ExtensionState } from './extensions';
+import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
 
 export interface IOptions {
 	extension?: IExtension;
@@ -33,6 +34,44 @@ export class Label implements IDisposable {
 
 	private render(): void {
 		this.element.textContent = this.extension ? this.fn(this.extension) : '';
+	}
+
+	dispose(): void {
+		this.listener = dispose(this.listener);
+	}
+}
+
+export class StatusWidget implements IDisposable {
+
+	private listener: IDisposable;
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.render(); }
+
+	constructor(
+		private container: HTMLElement,
+		private options: IOptions = {},
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		this._extension = options.extension;
+		this.render();
+		this.listener = extensionsWorkbenchService.onChange(this.render, this);
+	}
+
+	private render(): void {
+		this.container.innerHTML = '';
+		if (!this.extension) {
+			return;
+		}
+
+		const status = append(this.container, $('span.extension-status'));
+		const installed = this.extension.state === ExtensionState.Installed;
+		toggleClass(status, 'disabled', this.extension.disabled);
+		toggleClass(status, 'active', installed && !this.extension.disabled);
+
+		status.title = this.extension.disabledInWorkspace ? localize('disabledWorkspace', "Disabled (Workspace)")
+			: this.extension.disabled ? localize('disabled', "Disabled")
+				: installed ? localize('active', "Active") : '';
 	}
 
 	dispose(): void {

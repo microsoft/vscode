@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -17,8 +16,7 @@ import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension } from './extensions';
 import { CombinedInstallAction, UpdateAction, EnableAction, BuiltinStatusLabelAction } from './extensionsActions';
-import { ExtensionState } from './extensions';
-import { Label, RatingsWidget, InstallWidget } from './extensionsWidgets';
+import { Label, RatingsWidget, InstallWidget, StatusWidget } from './extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
 
 export interface ITemplateData {
@@ -27,7 +25,7 @@ export interface ITemplateData {
 	name: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
-	state: HTMLElement;
+	status: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
 	extension: IExtension;
@@ -60,7 +58,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
-		const state = append(header, $('span.state'));
+		const status = append(header, $(''));
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
@@ -71,6 +69,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
+		const statusWidget = this.instantiationService.createInstance(StatusWidget, status);
 
 		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
@@ -81,7 +80,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposables = [versionWidget, installCountWidget, ratingsWidget, installAction, builtinStatusAction, updateAction, restartAction, actionbar];
 
 		return {
-			element, icon, name, state, installCount, ratings, author, description, disposables,
+			element, icon, name, installCount, ratings, status, author, description, disposables,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				versionWidget.extension = extension;
@@ -91,6 +90,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				installAction.extension = extension;
 				updateAction.extension = extension;
 				restartAction.extension = extension;
+				statusWidget.extension = extension;
 			}
 		};
 	}
@@ -132,10 +132,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.extension = extension;
-
-		const installed = extension.state === ExtensionState.Installed;
-		toggleClass(data.state, 'installed', installed);
-		data.state.title = extension.disabled ? localize('disabled', "Disabled") : installed ? localize('active', "Active") : '';
 	}
 
 	disposeTemplate(data: ITemplateData): void {
