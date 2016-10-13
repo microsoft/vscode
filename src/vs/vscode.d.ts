@@ -1349,19 +1349,13 @@ declare module 'vscode' {
 	}
 
 	export interface TreeExplorerNodeProvider<T> {
-		contentProvider: TreeExplorerNodeContentProvider<T>;
-		provideRootNode(): Thenable<T>;
-		resolveChildren(node: T): Thenable<T[]>;
-	}
+		provideRootNode(): T | Thenable<T>;
+		resolveChildren(node: T): T | Thenable<T[]>;
 
-	export interface TreeExplorerNodeContentProvider<T> {
-		provideNodeContent(node: T): TreeExplorerNodeContent;
-	}
-
-	export interface TreeExplorerNodeContent {
-		label: string;
-		shouldInitiallyExpand: boolean;
-		clickCommand?: string;
+		getLabel?(node: T): string;
+		getShouldInitiallyExpand?(node: T): boolean;
+		getHasChildren?(node: T): boolean;
+		getClickCommand?(node: T): string;
 	}
 
 	/**
