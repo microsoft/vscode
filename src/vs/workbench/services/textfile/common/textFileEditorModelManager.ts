@@ -65,8 +65,9 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 	private registerListeners(): void {
 
-		// Editors changing
+		// Editors changing/closing
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(() => this.onEditorClosed()));
 
 		// File changes
 		this.toUnbind.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
@@ -77,6 +78,10 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	}
 
 	private onEditorsChanged(): void {
+		this.disposeUnusedModels();
+	}
+
+	private onEditorClosed(): void {
 		this.disposeUnusedModels();
 	}
 
