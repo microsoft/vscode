@@ -11,9 +11,10 @@
 		"vscode": "*"
 	},
 	"dependencies": {
+		"semver": "4.3.6",
 		"vscode-extension-telemetry": "^0.0.5",
 		"vscode-nls": "^2.0.1",
-		"typescript": "^2.0.6-insiders.20161007"
+		"typescript": "2.0.3"
 	},
 	"scripts": {
 		"postinstall": "node ./bin/postinstall",
@@ -76,6 +77,11 @@
 					"type": ["string", "null"],
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
+				},
+				"typescript.experimentalAutomaticTypeAcquisition": {
+					"type": "boolean",
+					"default": false,
+					"description": "%typescript.experimentalAutomaticTypeAcquisition.desc%"
 				},
 				"typescript.check.workspaceVersion" :{
 					"type": "boolean",
