@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -112,8 +112,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		removeClass(data.element, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
-
-		toggleClass(data.element, 'disabled', extension.disabled);
 
 		const onError = once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
