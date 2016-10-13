@@ -20,7 +20,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, EditorInputEvent, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions } from 'vs/workbench/common/editor';
 import { SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState } from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { GroupArrangement } from 'vs/workbench/services/group/common/groupService';
@@ -85,7 +85,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private previewEditors: boolean;
 
 	private _onEditorsChanged: Emitter<void>;
-	private _onEditorOpening: Emitter<EditorInputEvent>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
 
@@ -110,7 +109,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		super(id);
 
 		this._onEditorsChanged = new Emitter<void>();
-		this._onEditorOpening = new Emitter<EditorInputEvent>();
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 
@@ -171,10 +169,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this._onEditorsChanged.event;
 	}
 
-	public get onEditorOpening(): Event<EditorInputEvent> {
-		return this._onEditorOpening.event;
-	}
-
 	public get onEditorsMoved(): Event<void> {
 		return this._onEditorsMoved.event;
 	}
@@ -200,13 +194,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			Object.keys(this.mapEditorInstantiationPromiseToEditor[position]).length > 0 ||	// pending editor load
 			this.sideBySideControl.isDragging()												// pending editor DND
 		) {
-			return TPromise.as<BaseEditor>(null);
-		}
-
-		// Emit early open event to allow for veto
-		const event = new EditorInputEvent(input);
-		this._onEditorOpening.fire(event);
-		if (event.isPrevented()) {
 			return TPromise.as<BaseEditor>(null);
 		}
 
@@ -1137,7 +1124,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Emitters
 		this._onEditorsChanged.dispose();
-		this._onEditorOpening.dispose();
 		this._onEditorsMoved.dispose();
 		this._onEditorOpenFail.dispose();
 
