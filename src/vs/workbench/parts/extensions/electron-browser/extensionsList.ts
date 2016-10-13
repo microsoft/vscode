@@ -69,7 +69,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
-		const statusWidget = this.instantiationService.createInstance(StatusWidget, status);
+		const statusWidget = this.instantiationService.createInstance(StatusWidget, status, null);
 
 		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
