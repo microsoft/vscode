@@ -19,6 +19,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
+// TODO: This file cannot depend on native node modules
+import fs = require('fs');
+
 /**
  * An editor input to be used for untitled text buffers.
  */
@@ -28,6 +31,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	public static SCHEMA: string = 'untitled';
 
 	private resource: URI;
+	private restoreResource: URI;
 	private hasAssociatedFilePath: boolean;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
@@ -46,7 +50,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
-
+		console.log('UntitledEditorInput constructor', resource, hasAssociatedFilePath, modeId);
 		this.resource = resource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
@@ -64,6 +68,10 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	public setRestoreResource(resource: URI): void {
+		this.restoreResource = resource;
 	}
 
 	public getName(): string {
@@ -140,7 +148,11 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	private createModel(): UntitledEditorModel {
-		const content = '';
+		let content = '';
+		if (this.restoreResource) {
+			// TODO: This loading should probably go through fileService, fs cannot be a dependency in common/
+			content = fs.readFileSync(this.restoreResource.fsPath, 'utf8');
+		}
 		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model

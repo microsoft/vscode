@@ -46,7 +46,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		super(value, modeId, resource, modeService, modelService);
 
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
-		this.dirty = hasAssociatedFilePath; // untitled associated to file path are dirty right away
+		this.dirty = hasAssociatedFilePath || value !== ''; // untitled associated to file path are dirty right away
 
 		this._onDidChangeDirty = new Emitter<void>();
 		this._onDidChangeEncoding = new Emitter<void>();

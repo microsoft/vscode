@@ -176,8 +176,16 @@ export class Workbench implements IPartService {
 		options.filesToRestore = this.backupService.getBackupFiles(workspace.resource.fsPath).map(filePath => {
 			return { resource: Uri.file(filePath), options: { pinned: true } };
 		});
+		options.untitledFilesToRestore = this.backupService.getBackupUntitledFiles(workspace.resource.fsPath).map(untitledFilePath => {
+			return { resource: Uri.from({ path: untitledFilePath, scheme: 'untitled' }), options: { pinned: true } };
+		});
 
-		this.hasFilesToCreateOpenOrDiff = (options.filesToCreate && options.filesToCreate.length > 0) || (options.filesToOpen && options.filesToOpen.length > 0) || (options.filesToDiff && options.filesToDiff.length > 0) || (options.filesToRestore.length > 0);
+		this.hasFilesToCreateOpenOrDiff =
+			(options.filesToCreate && options.filesToCreate.length > 0) ||
+			(options.filesToOpen && options.filesToOpen.length > 0) ||
+			(options.filesToDiff && options.filesToDiff.length > 0) ||
+			(options.filesToRestore.length > 0) ||
+			(options.untitledFilesToRestore.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
@@ -305,6 +313,7 @@ export class Workbench implements IPartService {
 			const filesToCreate = wbopt.filesToCreate || [];
 			const filesToOpen = wbopt.filesToOpen || [];
 			const filesToRestore = wbopt.filesToRestore || [];
+			const untitledFilesToRestore = wbopt.untitledFilesToRestore || [];
 			const filesToDiff = wbopt.filesToDiff;
 
 			// Files to diff is exclusive
@@ -323,9 +332,14 @@ export class Workbench implements IPartService {
 				inputs.push(...filesToCreate.map(resourceInput => this.untitledEditorService.createOrGet(resourceInput.resource)));
 				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
+				// Files to restore
+				inputs.push(...untitledFilesToRestore.map(resourceInput => this.untitledEditorService.createOrGet(null, null, resourceInput.resource)));
+				options.push(...untitledFilesToRestore.map(r => null)); // fill empty options for files to create because we dont have options there
+
 				// Files to open
 				let filesToOpenInputPromise = filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput));
 				let filesToRestoreInputPromise = filesToRestore.map(resourceInput => this.editorService.createInput(resourceInput, true));
+
 				return TPromise.join<EditorInput>(filesToOpenInputPromise.concat(filesToRestoreInputPromise)).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
 					options.push(...filesToOpen.concat(filesToRestore).map(resourceInput => TextEditorOptions.from(resourceInput)));
