@@ -45,6 +45,33 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('editor, onDidChangeVisibleTextEditors', () => {
+
+		let eventCounter = 0;
+		let reg = window.onDidChangeVisibleTextEditors(editor => {
+			eventCounter += 1;
+		});
+
+		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
+				assert.equal(eventCounter, 1);
+				return doc;
+			});
+		}).then(doc => {
+			return window.showTextDocument(doc, ViewColumn.Two).then(editor => {
+				assert.equal(eventCounter, 2);
+				return doc;
+			});
+		}).then(doc => {
+			return window.showTextDocument(doc, ViewColumn.Three).then(editor => {
+				assert.equal(eventCounter, 3);
+				return doc;
+			});
+		}).then(doc => {
+			reg.dispose();
+		});
+	});
+
 	test('editor, onDidChangeTextEditorViewColumn', () => {
 
 		let actualEvent: TextEditorViewColumnChangeEvent;

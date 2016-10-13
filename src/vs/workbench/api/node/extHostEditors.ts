@@ -6,6 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { readonly, illegalArgument } from 'vs/base/common/errors';
+import { equals as arrayEquals } from 'vs/base/common/arrays';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -32,6 +33,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	private _editors: { [id: string]: ExtHostTextEditor };
 	private _proxy: MainThreadEditorsShape;
 	private _onDidChangeActiveTextEditor: Emitter<vscode.TextEditor>;
+	private _onDidChangeVisibleTextEditors: Emitter<vscode.TextEditor[]>;
 	private _extHostDocuments: ExtHostDocuments;
 	private _activeEditorId: string;
 	private _visibleEditorIds: string[];
@@ -53,6 +55,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		this._extHostDocuments = extHostDocuments;
 		this._proxy = threadService.get(MainContext.MainThreadEditors);
 		this._onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor>();
+		this._onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
 		this._editors = Object.create(null);
 
 		this._visibleEditorIds = [];
@@ -68,6 +71,10 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 
 	get onDidChangeActiveTextEditor(): Event<vscode.TextEditor> {
 		return this._onDidChangeActiveTextEditor && this._onDidChangeActiveTextEditor.event;
+	}
+
+	get onDidChangeVisibleTextEditors(): Event<vscode.TextEditor[]> {
+		return this._onDidChangeVisibleTextEditors && this._onDidChangeVisibleTextEditors.event;
 	}
 
 	showTextDocument(document: TextDocument, column: ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
@@ -115,14 +122,25 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	}
 
 	$acceptActiveEditorAndVisibleEditors(id: string, visibleIds: string[]): void {
-		this._visibleEditorIds = visibleIds;
+		let visibleChanged = false;
+		let activeChanged = false;
 
-		if (this._activeEditorId === id) {
-			// nothing to do
-			return;
+		if (!arrayEquals(this._visibleEditorIds, visibleIds)) {
+			this._visibleEditorIds = visibleIds;
+			visibleChanged = true;
 		}
-		this._activeEditorId = id;
-		this._onDidChangeActiveTextEditor.fire(this.getActiveTextEditor());
+
+		if (this._activeEditorId !== id) {
+			this._activeEditorId = id;
+			activeChanged = true;
+		}
+
+		if (visibleChanged) {
+			this._onDidChangeVisibleTextEditors.fire(this.getVisibleTextEditors());
+		}
+		if (activeChanged) {
+			this._onDidChangeActiveTextEditor.fire(this.getActiveTextEditor());
+		}
 	}
 
 	$acceptEditorPositionData(data: ITextEditorPositionData): void {

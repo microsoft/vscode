@@ -362,27 +362,28 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private scanExtensions(root: string, type: LocalExtensionType): TPromise<ILocalExtension[]> {
 		const limiter = new Limiter(10);
 
+		return this.scanExtensionFolders(root)
+			.then(extensionIds => Promise.join(extensionIds.map(id => {
+				const extensionPath = path.join(root, id);
+
+				const each = () => pfs.readdir(extensionPath).then(children => {
+					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
+					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
+
+					return readManifest(extensionPath)
+						.then<ILocalExtension>(({ manifest, metadata }) => ({ type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl }));
+				}).then(null, () => null);
+
+				return limiter.queue(each);
+			})))
+			.then(result => result.filter(a => !!a));
+	}
+
+	private scanExtensionFolders(root: string): TPromise<string[]> {
 		return this.getObsoleteExtensions()
-			.then(obsolete => {
-				return pfs.readdir(root)
-					.then(extensions => extensions.filter(id => !obsolete[id]))
-					.then<ILocalExtension[]>(extensionIds => Promise.join(extensionIds.map(id => {
-						const extensionPath = path.join(root, id);
-
-						const each = () => pfs.readdir(extensionPath).then(children => {
-							const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-							const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
-							const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-							const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
-
-							return readManifest(extensionPath)
-								.then<ILocalExtension>(({ manifest, metadata }) => ({ type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl }));
-						}).then(null, () => null);
-
-						return limiter.queue(each);
-					})))
-					.then(result => result.filter(a => !!a));
-			});
+			.then(obsolete => pfs.readdir(root).then(extensions => extensions.filter(id => !obsolete[id])));
 	}
 
 	removeDeprecatedExtensions(): TPromise<any> {
@@ -394,7 +395,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private removeOutdatedExtensions(): TPromise<any> {
 		return this.getOutdatedExtensionIds()
-			.then(extensions => extensions.map(e => getExtensionId(e.manifest, e.manifest.version)))
 			.then(extensionIds => this.removeExtensions(extensionIds));
 	}
 
@@ -411,10 +411,19 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		}));
 	}
 
-	private getOutdatedExtensionIds(): TPromise<ILocalExtension[]> {
-		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User)
-			.then(extensions => values(groupBy(extensions, p => `${p.manifest.publisher}.${p.manifest.name}`)))
-			.then(versions => flatten(versions.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
+	private getOutdatedExtensionIds(): TPromise<string[]> {
+		return this.scanExtensionFolders(this.extensionsPath)
+			.then(folders => {
+				const galleryFolders = folders
+					.map(folder => ({ folder, match: /^([^.]+\..+)-(\d+\.\d+\.\d+)$/.exec(folder) }))
+					.filter(({ match }) => !!match)
+					.map(({ folder, match }) => ({ folder, id: match[1], version: match[2] }));
+
+				const byId = values(groupBy(galleryFolders, p => p.id));
+
+				return flatten(byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version)).slice(1)))
+					.map(a => a.folder);
+			});
 	}
 
 	private isObsolete(id: string): TPromise<boolean> {
