@@ -6,7 +6,6 @@
 'use strict';
 
 import * as fs from 'original-fs';
-import * as path from 'path';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -27,13 +26,11 @@ interface IBackupFormat {
 
 export class BackupService implements IBackupService {
 
-	private filePath: string;
 	private fileContent: IBackupFormat;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		this.filePath = path.join(environmentService.userDataPath, 'Backups', 'workspaces.json');
 	}
 
 	public getBackupWorkspaces(): string[] {
@@ -67,7 +64,7 @@ export class BackupService implements IBackupService {
 
 	private load(): void {
 		try {
-			this.fileContent = JSON.parse(fs.readFileSync(this.filePath).toString()); // invalid JSON or permission issue can happen here
+			this.fileContent = JSON.parse(fs.readFileSync(this.environmentService.backupWorkspacesPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			this.fileContent = {};
 		}
@@ -81,7 +78,7 @@ export class BackupService implements IBackupService {
 
 	private save(): void {
 		try {
-			fs.writeFileSync(this.filePath, JSON.stringify(this.fileContent));
+			fs.writeFileSync(this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent));
 		} catch (error) {
 		}
 	}
