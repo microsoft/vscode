@@ -1,0 +1,52 @@
+{
+	"iconDefinitions": {
+		"_folder_dark": {
+			"iconPath": "./images/Folder_16x_inverse.svg"
+		},
+		"_folder_open_dark": {
+			"iconPath": "./images/FolderOpen_16x_inverse.svg"
+		},
+		"_file_dark": {
+			"iconPath": "./images/Document_16x_inverse.svg"
+		},
+		"_folder_light": {
+			"iconPath": "./images/Folder_16x.svg"
+		},
+		"_folder_open_light": {
+			"iconPath": "./images/FolderOpen_16x.svg"
+		},
+		"_file_light": {
+			"iconPath": "./images/Document_16x.svg"
+		}
+	},
+
+	"folderExpanded": "_folder_open_dark",
+	"folder": "_folder_dark",
+	"file": "_file_dark",
+	"fileExtensions": {
+		// icons by file extension
+	},
+	"fileNames": {
+		// icons by file name
+	},
+	"languageIds": {
+		// icons by language id
+	},
+	"light": {
+		"folderExpanded": "_folder_open_light",
+		"folder": "_folder_light",
+		"file": "_file_light",
+		"fileExtensions": {
+			// icons by file extension
+		},
+		"fileNames": {
+			// icons by file name
+		},
+		"languageIds": {
+			// icons by language id
+		}
+	},
+	"highContrast": {
+		// overrides for high contrast
+	}
+}
