@@ -119,14 +119,12 @@ export abstract class TextFileService implements ITextFileService {
 
 		// If hot exit is enabled then save the dirty files in the workspace and then exit
 		if (this.configuredHotExit) {
-			// TODO: Check if dirty
-			// TODO: Do a last minute backup if required
-			// TODO: There may be a better way of verifying that only a single window is open?
 			// Only remove the workspace from the backup service if it's not the last one or it's not dirty
 			if (this.backupService.getBackupWorkspaces().length > 1 || this.getDirty().length === 0) {
 				this.backupService.removeWorkspace(this.contextService.getWorkspace().resource.fsPath);
 			} else {
-				return false; // the backup will be restored, no veto
+				// TODO: Better error handling here? Perhaps present confirm if there was an error?
+				return this.backupAll().then(() => false); // the backup will be restored, no veto
 			}
 		}
 
@@ -381,6 +379,54 @@ export abstract class TextFileService implements ITextFileService {
 			return {
 				results: Object.keys(mapResourceToResult).map(k => mapResourceToResult[k])
 			};
+		});
+	}
+
+	/**
+	 * Performs an immedate backup of all dirty file and untitled models.
+	 */
+	private backupAll(): TPromise<void> {
+		const toBackup = this.getDirty();
+
+		// split up between files and untitled
+		const filesToBackup: URI[] = [];
+		const untitledToBackup: URI[] = [];
+		toBackup.forEach(s => {
+			if (s.scheme === 'file') {
+				filesToBackup.push(s);
+			} else if (s.scheme === 'untitled') {
+				untitledToBackup.push(s);
+			}
+		});
+
+		return this.doBackupAll(filesToBackup, untitledToBackup);
+	}
+
+	private doBackupAll(fileResources: URI[], untitledResources: URI[]): TPromise<void> {
+		// Handle file resources first
+		const dirtyFileModels = this.getDirtyFileModels(fileResources);
+
+		const mapResourceToResult: { [resource: string]: IResult } = Object.create(null);
+		dirtyFileModels.forEach(m => {
+			mapResourceToResult[m.getResource().toString()] = {
+				source: m.getResource()
+			};
+		});
+
+		return TPromise.join(dirtyFileModels.map(model => {
+			return model.backup().then(() => {
+				mapResourceToResult[model.getResource().toString()].success = true;
+			});
+		})).then(result => {
+			// Handle untitled resources
+			const untitledModelPromises = untitledResources.map(untitledResource => this.untitledEditorService.get(untitledResource))
+				.filter(untitled => !!untitled)
+				.map(untitled => untitled.resolve());
+
+			return TPromise.join(untitledModelPromises).then(untitledModels => {
+				const untitledBackupPromises = untitledModels.map(model => model.backup());
+				return TPromise.join(untitledBackupPromises).then(() => void 0);
+			});
 		});
 	}
 

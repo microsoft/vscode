@@ -193,9 +193,17 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this.fileService.discardBackup(this.resource);
 	}
 
-	private doBackup(): TPromise<void> {
+	public backup(): TPromise<void> {
+		return this.doBackup(true);
+	}
+
+	private doBackup(immediate?: boolean): TPromise<void> {
 		// Cancel any currently running backups to make this the one that succeeds
 		this.cancelBackupPromises();
+
+		if (immediate) {
+			return this.fileService.backupFile(this.resource, this.getValue()).then(f => void 0);
+		}
 
 		// Create new backup promise and keep it
 		const promise = TPromise.timeout(1000).then(() => {

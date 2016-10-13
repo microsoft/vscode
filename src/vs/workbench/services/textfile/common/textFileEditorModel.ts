@@ -412,9 +412,21 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private doBackup(): TPromise<void> {
+	public backup(): TPromise<void> {
+		if (!this.dirty) {
+			return TPromise.as<void>(null);
+		}
+
+		return this.doBackup(true);
+	}
+
+	private doBackup(immediate?: boolean): TPromise<void> {
 		// Cancel any currently running backups to make this the one that succeeds
 		this.cancelBackupPromises();
+
+		if (immediate) {
+			return this.fileService.backupFile(this.resource, this.getValue()).then(f => void 0);
+		}
 
 		// Create new backup promise and keep it
 		const promise = TPromise.timeout(1000).then(() => {
