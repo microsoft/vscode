@@ -18,7 +18,6 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activityService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -38,7 +37,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
