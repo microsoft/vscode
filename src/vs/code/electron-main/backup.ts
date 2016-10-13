@@ -37,12 +37,12 @@ export class BackupService implements IBackupService {
 		if (!this.fileContent) {
 			this.load();
 		}
-		return Object.keys(this.fileContent.folderWorkspaces || {});
+		return Object.keys(this.fileContent.folderWorkspaces || Object.create(null));
 	}
 
 	public clearBackupWorkspaces(): void {
 		this.fileContent = {
-			folderWorkspaces: {}
+			folderWorkspaces: Object.create(null)
 		};
 		this.save();
 	}
@@ -66,13 +66,13 @@ export class BackupService implements IBackupService {
 		try {
 			this.fileContent = JSON.parse(fs.readFileSync(this.environmentService.backupWorkspacesPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
-			this.fileContent = {};
+			this.fileContent = Object.create(null);
 		}
 		if (Array.isArray(this.fileContent) || typeof this.fileContent !== 'object') {
-			this.fileContent = {};
+			this.fileContent = Object.create(null);
 		}
 		if (!this.fileContent.folderWorkspaces) {
-			this.fileContent.folderWorkspaces = {};
+			this.fileContent.folderWorkspaces = Object.create(null);
 		}
 	}
 
