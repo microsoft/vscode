@@ -63,7 +63,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 
 	private client: ITypescriptServiceClient;
 	private config: Configuration;
-	private formatOptions: { [key: string]: Proto.FormatOptions; };
+	private formatOptions: { [key: string]: Proto.FormatCodeSettings; };
 
 	public constructor(client: ITypescriptServiceClient) {
 		this.client = client;
@@ -80,7 +80,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 		}
 	}
 
-	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatOptions> {
+	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatCodeSettings> {
 		let key = document.uri.toString();
 		let currentOptions = this.formatOptions[key];
 		if (currentOptions && currentOptions.tabSize === options.tabSize && currentOptions.indentSize === options.tabSize && currentOptions.convertTabsToSpaces === options.insertSpaces) {
@@ -161,7 +161,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			edit.newText);
 	}
 
-	private getFormatOptions(options: FormattingOptions): Proto.FormatOptions {
+	private getFormatOptions(options: FormattingOptions): Proto.FormatCodeSettings {
 		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,

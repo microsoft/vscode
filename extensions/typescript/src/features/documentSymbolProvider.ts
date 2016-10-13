@@ -8,7 +8,6 @@
 import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Range, Location, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
-import * as ProtoAdd from '../protocolAdditions';
 import * as PConst from '../protocol.const';
 import { ITypescriptServiceClient } from '../typescriptService';
 
@@ -66,7 +65,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			}
 		}
 
-		function convertNavTree(bucket: SymbolInformation[], item: ProtoAdd.NavigationTree, containerLabel?: string): void {
+		function convertNavTree(bucket: SymbolInformation[], item: Proto.NavigationTree, containerLabel?: string): void {
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind] || SymbolKind.Variable,
 				containerLabel,
