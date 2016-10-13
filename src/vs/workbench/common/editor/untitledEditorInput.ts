@@ -19,9 +19,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-// TODO: This file cannot depend on native node modules
-import fs = require('fs');
-
 /**
  * An editor input to be used for untitled text buffers.
  */
@@ -50,7 +47,6 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
-		console.log('UntitledEditorInput constructor', resource, hasAssociatedFilePath, modeId);
 		this.resource = resource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
@@ -138,21 +134,25 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 			return TPromise.as(this.cachedModel);
 		}
 
-		// Otherwise Create Model and load
-		const model = this.createModel();
-		return model.load().then((resolvedModel: UntitledEditorModel) => {
-			this.cachedModel = resolvedModel;
+		// Otherwise Create Model and load, restoring from backup if necessary
+		let restorePromise: TPromise<string>;
+		if (this.restoreResource) {
+			restorePromise = this.textFileService.resolveTextContent(this.restoreResource).then(rawTextContent => rawTextContent.value.lines.join('\n'));
+		} else {
+			restorePromise = TPromise.as('');
+		}
 
-			return this.cachedModel;
+		return restorePromise.then(content => {
+			const model = this.createModel(content);
+			return model.load().then((resolvedModel: UntitledEditorModel) => {
+				this.cachedModel = resolvedModel;
+
+				return this.cachedModel;
+			});
 		});
 	}
 
-	private createModel(): UntitledEditorModel {
-		let content = '';
-		if (this.restoreResource) {
-			// TODO: This loading should probably go through fileService, fs cannot be a dependency in common/
-			content = fs.readFileSync(this.restoreResource.fsPath, 'utf8');
-		}
+	private createModel(content: string): UntitledEditorModel {
 		const model = this.instantiationService.createInstance(UntitledEditorModel, content, this.modeId, this.resource, this.hasAssociatedFilePath);
 
 		// re-emit some events from the model
