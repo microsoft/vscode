@@ -24,4 +24,5 @@ export interface IOptions {
 	filesToDiff?: IResourceInput[];
 
 	filesToRestore?: IResourceInput[];
+	untitledFilesToRestore?: IResourceInput[];
 }

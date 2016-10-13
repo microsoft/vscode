@@ -62,9 +62,22 @@ export class BackupService implements IBackupService {
 		return this.fileContent.folderWorkspaces[workspace] || [];
 	}
 
+	public getBackupUntitledFiles(workspace: string): string[] {
+		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
+		const untitledDir = path.join(this.environmentService.userDataPath, 'Backups', workspaceHash, 'untitled');
+		try {
+			const untitledFiles = fs.readdirSync(untitledDir).map(file => path.join(untitledDir, file));
+			console.log('untitledFiles', untitledFiles);
+			return untitledFiles;
+		} catch (ex) {
+			console.log('untitled backups do not exist');
+			return [];
+		}
+	}
+
 	public getBackupResource(resource: Uri): Uri {
 
-		let workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
+		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
 		const backupPath = path.join(this.environmentService.userDataPath, 'Backups', workspaceHash, resource.scheme, backupName);
 		console.log('getBackupResource ' + Uri.file(backupPath));

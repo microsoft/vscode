@@ -459,10 +459,8 @@ export class FileService implements IFileService {
 
 	public backupFile(resource: uri, content: string): TPromise<IFileStat> {
 		if (resource.scheme === 'file') {
-			// TODO: Persist hash -> file map on disk (json file?)
-
+			this.backupService.registerBackupFile(resource);
 		}
-		this.backupService.registerBackupFile(resource);
 		const backupResource = this.getBackupPath(resource);
 		console.log(`Backing up to ${backupResource.fsPath}`);
 		return this.updateContent(backupResource, content);
