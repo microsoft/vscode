@@ -1348,12 +1348,17 @@ declare module 'vscode' {
 		provideTextDocumentContent(uri: Uri, token: CancellationToken): string | Thenable<string>;
 	}
 
-	export interface TreeExplorerNodeProvider {
-		provideRootNode(): Thenable<TreeExplorerNode>;
-		resolveChildren(node: TreeExplorerNode): Thenable<TreeExplorerNode[]>;
+	export interface TreeExplorerNodeProvider<T> {
+		contentProvider: TreeExplorerNodeContentProvider<T>;
+		provideRootNode(): Thenable<T>;
+		resolveChildren(node: T): Thenable<T[]>;
 	}
 
-	export interface TreeExplorerNode {
+	export interface TreeExplorerNodeContentProvider<T> {
+		provideNodeContent(node: T): TreeExplorerNodeContent;
+	}
+
+	export interface TreeExplorerNodeContent {
 		label: string;
 		shouldInitiallyExpand: boolean;
 		onClickCommand?: string;
@@ -3815,14 +3820,14 @@ declare module 'vscode' {
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
 		/**
-		 * Register a tree content provider, used as a data source
+		 * Register a tree explorer node provider, used as a data source
 		 * for custom tree explorers.
 		 *
 		 * @param providerId A unique id that identifies the provider.
 		 * @param provider A [TreeContentProvider](#TreeContentProvider)
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider): Disposable;
+		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is opened.
