@@ -12,6 +12,11 @@ import { IEditor } from 'vs/platform/editor/common/editor';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
+ * Mime type used by the output editor.
+ */
+export const OUTPUT_MIME = 'text/x-code-output';
+
+/**
  * Id used by the output editor.
  */
 export const OUTPUT_MODE_ID = 'Log';
