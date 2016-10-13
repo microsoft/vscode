@@ -39,6 +39,7 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from './extensionsInput';
 import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { StorageScope } from 'vs/platform/storage/common/storage';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -48,6 +49,7 @@ class Extension implements IExtension {
 
 	public needsRestart = false;
 	private _disabled = false;
+	private _disabledInWorkspace = false;
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
@@ -169,8 +171,16 @@ class Extension implements IExtension {
 		return this._disabled;
 	}
 
-	set disabled(disabled: boolean) {
+	setDisabled(disabled: boolean) {
 		this._disabled = disabled;
+	}
+
+	get disabledInWorkspace(): boolean {
+		return this._disabledInWorkspace;
+	}
+
+	setDisabledInWorkspace(disabled: boolean) {
+		this._disabledInWorkspace = disabled;
 	}
 
 	get telemetryData(): any {
@@ -340,13 +350,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	queryLocal(): TPromise<IExtension[]> {
 		const disabled = this.extensionsRuntimeService.getDisabledExtensions();
+		const workspaceDisabled = this.extensionsRuntimeService.getDisabledExtensions(StorageScope.WORKSPACE);
 		return this.extensionService.getInstalled().then(result => {
 			const installedById = index(this.installed, e => e.local.id);
 
 			this.installed = result.map(local => {
 				const extension = installedById[local.id] || new Extension(this.galleryService, this.stateProvider, local);
 				extension.local = local;
-				extension.disabled = local.type === LocalExtensionType.User && disabled.indexOf(`${extension.publisher}.${extension.name}`) !== -1;
+				extension.setDisabled(local.type === LocalExtensionType.User && disabled.indexOf(`${extension.publisher}.${extension.name}`) !== -1);
+				extension.setDisabledInWorkspace(extension.disabled && workspaceDisabled.indexOf(`${extension.publisher}.${extension.name}`) !== -1);
 				return extension;
 			});
 

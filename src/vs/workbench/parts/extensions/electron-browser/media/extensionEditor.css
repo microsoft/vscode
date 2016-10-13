@@ -35,7 +35,7 @@
 
 .extension-editor > .header > .details > .title {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 }
 
 .extension-editor > .header > .details > .title > .name {
@@ -56,6 +56,12 @@
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .title .extension-status {
+	width: 10px;
+	height: 10px;
+	margin-left: 10px;
 }
 
 .extension-editor > .header > .details > .subtitle {
