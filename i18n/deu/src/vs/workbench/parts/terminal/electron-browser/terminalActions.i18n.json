@@ -15,8 +15,10 @@
 	"workbench.action.terminal.new.short": "Neues Terminal",
 	"workbench.action.terminal.paste": "In aktives Terminal einfügen",
 	"workbench.action.terminal.runSelectedText": "Ausgewählten Text im aktiven Terminal ausführen",
-	"workbench.action.terminal.scrollDown": "Nach unten scrollen",
-	"workbench.action.terminal.scrollUp": "Nach oben scrollen",
+	"workbench.action.terminal.scrollDown": "Nach unten scrollen (Zeile)",
+	"workbench.action.terminal.scrollDownPage": "Nach unten scrollen (Seite)",
+	"workbench.action.terminal.scrollUp": "Nach oben scrollen (Zeile)",
+	"workbench.action.terminal.scrollUpPage": "Nach oben scrollen (Seite)",
 	"workbench.action.terminal.switchTerminalInstance": "Terminalinstanz umschalten",
 	"workbench.action.terminal.toggleTerminal": "Integriertes Terminal umschalten"
 }

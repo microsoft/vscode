@@ -17,6 +17,7 @@
 	"terminal.integrated.shell.windows": "Chemin de l'interpréteur de commandes utilisé par le terminal sur Windows. Quand vous vous servez des interpréteurs de commandes fournis avec Windows (cmd, PowerShell ou Bash sur Ubuntu), préférez C:Windowssysnative à C:WindowsSystem32 pour utiliser les versions 64 bits.",
 	"terminal.integrated.shellArgs.linux": "Arguments de ligne de commande à utiliser sur le terminal Linux.",
 	"terminal.integrated.shellArgs.osx": "Arguments de ligne de commande à utiliser sur le terminal OS X.",
+	"terminalCategory": "Terminal",
 	"terminalIntegratedConfigurationTitle": "Terminal intégré",
 	"viewCategory": "Affichage"
 }

@@ -16,6 +16,8 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "定义左大括号是否针对函数而放置在新的一行",
 	"javascript.reloadProjects.title": "重新加载 JavaScript 项目",
 	"javascript.validate.enable": "启用/禁用 JavaScript 验证",
+	"typescript.check.tscVersion": "检查全局安装的 TypeScript 编译器(例如 tsc )是否不同于使用的 TypeScript 语言服务。",
+	"typescript.check.workspaceVersion": "检查工作区中的 TypeScript 版本是否可用",
 	"typescript.reloadProjects.title": "重新加载 TypeScript 项目",
 	"typescript.tsdk.desc": "指定包含要使用的 tsserver 和 lib*.d.ts 文件的文件夹路径。",
 	"typescript.tsdk_version.desc": "指定 tsserver 的版本。仅在未使用 npm 安装 tsserver 时需要。",

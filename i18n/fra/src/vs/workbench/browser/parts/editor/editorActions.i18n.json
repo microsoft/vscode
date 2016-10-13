@@ -13,6 +13,7 @@
 	"closeEditorsToTheRight": "Fermer les éditeurs situés à droite",
 	"closeOtherEditorsInGroup": "Fermer les autres éditeurs",
 	"evenEditorGroups": "Même largeur pour le groupe d'éditeurs",
+	"focusActiveEditorGroup": "Placer le focus sur le groupe d'éditeurs d'actifs",
 	"focusFirstEditorGroup": "Focus sur le groupe d'éditeurs de gauche",
 	"focusLastEditorInStack": "Ouvrir le dernier éditeur du groupe",
 	"focusNextGroup": "Focus sur le groupe suivant",

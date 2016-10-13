@@ -7,5 +7,6 @@
 	"close": "关闭",
 	"neverShowAgain": "不再显示",
 	"reallyRecommended": "建议安装“{0}”扩展。",
-	"showRecommendations": "显示建议"
+	"showRecommendations": "显示建议",
+	"workspaceRecommended": "此工作区具有扩展建议。"
 }

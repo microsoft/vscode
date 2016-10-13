@@ -14,7 +14,7 @@
 	"enum": "열거형({0})",
 	"file": "파일({0})",
 	"function": "함수({0})",
-	"gotoSymbol": "기호 이동...",
+	"gotoSymbol": "파일의 기호로 이동...",
 	"gotoSymbolHandlerAriaLabel": "입력하여 현재 활성화된 편집기의 기호를 축소합니다.",
 	"interface": "인터페이스({0})",
 	"key": "키({0})",

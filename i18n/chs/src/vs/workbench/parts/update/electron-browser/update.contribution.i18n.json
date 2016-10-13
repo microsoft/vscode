@@ -9,6 +9,7 @@
 	"license": "读取许可证",
 	"licenseChanged": "我们的许可条款已更改，请检查它们。",
 	"neverShowAgain": "不再显示",
+	"read the release notes": "欢迎使用 {0} v{1}! 是否要阅读发布说明?",
 	"readmore": "阅读更多内容",
-	"releaseNotes": "欢迎使用 {0} v{1}! 是否要阅读发布说明?"
+	"release notes": "发行说明"
 }

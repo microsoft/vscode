@@ -10,7 +10,11 @@
 	"RemoveAction.label": "削除",
 	"file.replaceAll.label": "すべて置換",
 	"findInFolder": "フォルダー内を検索",
+	"focusNextInputbox": "次の入力ボックスにフォーカス",
+	"focusPreviousInputbox": "前の入力ボックスにフォーカス",
 	"match.replace.label": "置換",
+	"nextSearchTerm": "次の検索語句を表示",
+	"previousSearchTerm": "前の検索語句を表示",
 	"replaceInFiles": "複数のファイルで置換",
 	"showSearchViewlet": "検索の表示"
 }

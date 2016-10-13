@@ -6,6 +6,6 @@
 {
 	"closePanel": "닫기",
 	"focusPanel": "패널로 포커스 이동",
-	"togglePanel": "패널 표시 유형 설정/해제",
+	"togglePanel": "패널 설정/해제",
 	"view": "보기"
 }

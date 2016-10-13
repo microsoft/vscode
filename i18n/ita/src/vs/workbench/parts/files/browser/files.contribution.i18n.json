@@ -19,6 +19,7 @@
 	"files.exclude.boolean": "Criterio GLOB da usare per trovare percorsi file. Impostare su True o False per abilitare o disabilitare il criterio.",
 	"files.exclude.when": "Controllo aggiuntivo sugli elementi di pari livello di un file corrispondente. Usare $(basename) come variabile del nome file corrispondente.",
 	"filesConfigurationTitle": "File",
+	"formatOnSave": "Formatta un file durante il salvataggio. Deve essere disponibile un formattatore, il file non deve essere salvato automaticamente e l'editor non deve essere in fase di chiusura.",
 	"openEditorsVisible": "Numero di editor visualizzati nel riquadro degli editor aperti. Impostarlo su 0 per nascondere il riquadro.",
 	"showExplorerViewlet": "Mostra Esplora risorse",
 	"textFileEditor": "Editor file di testo",
