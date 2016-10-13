@@ -17,6 +17,8 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { HtmlZoneController } from './htmlEditorZone';
 
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
@@ -26,6 +28,18 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 	[new SyncDescriptor(HtmlInput)]);
 
 // --- Register Commands
+
+
+CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor) {
+	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	if (editor) {
+
+		const lineNumber = Math.floor(Math.random() * editor.getModel().getLineCount());
+		console.log('ADDED at ' + lineNumber);
+
+		HtmlZoneController.getInstance(editor).addZone(lineNumber);
+	}
+});
 
 CommandsRegistry.registerCommand('_workbench.previewHtml', function (accessor: ServicesAccessor, resource: URI | string, position?: EditorPosition, label?: string) {
 

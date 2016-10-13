@@ -49,7 +49,7 @@ export default class Webview {
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
-	constructor(private _parent: HTMLElement, private _styleElement: Element) {
+	constructor(parent: HTMLElement, private _styleElement: Element) {
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
@@ -96,7 +96,9 @@ export default class Webview {
 			})
 		];
 
-		this._parent.appendChild(this._webview);
+		if (parent) {
+			parent.appendChild(this._webview);
+		}
 	}
 
 	dispose(): void {
@@ -107,6 +109,10 @@ export default class Webview {
 		if (this._webview.parentElement) {
 			this._webview.parentElement.removeChild(this._webview);
 		}
+	}
+
+	get domNode(): HTMLElement {
+		return this._webview;
 	}
 
 	get onDidClickLink(): Event<URI> {
