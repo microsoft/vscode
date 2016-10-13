@@ -8,14 +8,14 @@ export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
 
 	label: string;
 	shouldInitiallyExpand: boolean;
-	onClickCommand: string;
+	clickCommand: string;
 
 	constructor(node: TreeExplorerNodeContent) {
 		this.id = InternalTreeExplorerNode.idCounter++;
 
 		this.label = node.label;
 		this.shouldInitiallyExpand = node.shouldInitiallyExpand;
-		this.onClickCommand = node.onClickCommand;
+		this.clickCommand = node.clickCommand;
 	}
 }
 
