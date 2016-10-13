@@ -83,9 +83,9 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 			throw new Error(`no TreeContentProvider registered with id '${providerId}'`);
 		}
 
-		if (mainThreadNode.onClickCommand) {
+		if (mainThreadNode.clickCommand) {
 			const externalNode = this._externalNodeMaps[providerId][mainThreadNode.id];
-			return TPromise.wrap(this.commands.executeCommand(mainThreadNode.onClickCommand, externalNode).then(() => {
+			return TPromise.wrap(this.commands.executeCommand(mainThreadNode.clickCommand, externalNode).then(() => {
 				return null;
 			}));
 		}

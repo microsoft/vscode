@@ -88,7 +88,7 @@ export class TreeController extends DefaultController {
 	onLeftClick(tree: ITree, node: InternalTreeExplorerNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		super.onLeftClick(tree, node, event, origin);
 
-		if (node.onClickCommand) {
+		if (node.clickCommand) {
 			this.treeExplorerViewletService.resolveCommand('pineTree', node);
 		}
 

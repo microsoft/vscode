@@ -1361,7 +1361,7 @@ declare module 'vscode' {
 	export interface TreeExplorerNodeContent {
 		label: string;
 		shouldInitiallyExpand: boolean;
-		onClickCommand?: string;
+		clickCommand?: string;
 	}
 
 	/**
