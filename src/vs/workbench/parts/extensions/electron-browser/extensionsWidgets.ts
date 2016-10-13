@@ -10,6 +10,8 @@ import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, ExtensionState } from './extensions';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
+import { IExtensionsRuntimeService } from 'vs/platform/extensions/common/extensions';
+import { StorageScope } from 'vs/platform/storage/common/storage';
 
 export interface IOptions {
 	extension?: IExtension;
@@ -50,7 +52,8 @@ export class StatusWidget implements IDisposable {
 	constructor(
 		private container: HTMLElement,
 		private _extension: IExtension,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionsRuntimeService private extensionsRuntimeService: IExtensionsRuntimeService
 	) {
 		this.render();
 		this.listener = extensionsWorkbenchService.onChange(this.render, this);
@@ -63,12 +66,15 @@ export class StatusWidget implements IDisposable {
 		}
 
 		const status = append(this.container, $('span.extension-status'));
-		const installed = this.extension.state === ExtensionState.Installed;
-		toggleClass(status, 'disabled', this.extension.disabled);
-		toggleClass(status, 'active', installed && !this.extension.disabled);
+		const state = this.extension.state;
+		const installed = state === ExtensionState.Installed;
+		const disabled = state === ExtensionState.Disabled;
+		const disabledInWorkspace = this.extensionsRuntimeService.getDisabledExtensions(StorageScope.WORKSPACE).indexOf(this.extension.identifier) !== -1;
+		toggleClass(status, 'disabled', disabled);
+		toggleClass(status, 'active', installed);
 
-		status.title = this.extension.disabledInWorkspace ? localize('disabledWorkspace', "Disabled (Workspace)")
-			: this.extension.disabled ? localize('disabled', "Disabled")
+		status.title = disabledInWorkspace ? localize('disabledWorkspace', "Disabled (Workspace)")
+			: disabled ? localize('disabled', "Disabled")
 				: installed ? localize('active', "Active") : '';
 	}
 
