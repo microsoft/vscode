@@ -6,6 +6,7 @@
 
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
+import { onUnexpectedPromiseError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -18,6 +19,8 @@ import { EditOperationsCommand } from './formatCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -184,6 +187,8 @@ export class FormatAction extends EditorAction {
 
 	private _format(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
 
+		const commandService = accessor.get(ICommandService);
+		const modeService = accessor.get(IModeService);
 		const configurationService = accessor.get(IConfigurationService);
 		const choiceService = accessor.get(IChoiceService);
 		const config = FormatterConfiguration.get(configurationService);
@@ -195,18 +200,19 @@ export class FormatAction extends EditorAction {
 			}
 
 			const options = [
+				nls.localize('fmt.config.update', "Update configuration"),
 				nls.localize('fmt.config.ignore', "Use default"),
-				// nls.localize('fmt.config.delete', "Use default and remove configuration"),
 				nls.localize('fmt.cancel', "Cancel"),
 			];
 
-			return choiceService.choose(Severity.Info, nls.localize('formatter.badConfig', "The configured formatter ({0}) isn't available but there is a default formatter", config[editor.getModel().getModeId()]), options).then(idx => {
+			return choiceService.choose(Severity.Info, nls.localize('formatter.badConfig', "The configured formatter for {0} isn't available", modeService.getLanguageName(editor.getModel().getModeId())), options).then(idx => {
 
 				if (idx === 0) {
+					editor.focus();
+					commandService.executeCommand('editor.formatter.config').then(undefined, onUnexpectedPromiseError);
+
+				} else if (idx === 1) {
 					return this._tryFormat(editor.getModel(), editor.getSelection(), {});
-					// } else if (idx === 1) {
-					// 	console.warn('TODO - update config!');
-					// 	return this._tryFormat(editor.getModel(), editor.getSelection(), {});
 				}
 
 			}, err => {

@@ -75,6 +75,12 @@ CommandsRegistry.registerCommand('editor.formatter.config', accessor => {
 		}
 	};
 
+	const metaPickRemove: IPickOpenEntry = {
+		id: 'remove',
+		label: localize('config.remove', "Remove configuration"),
+		separator: { border: true }
+	};
+
 	function selectProvider(language: string) {
 		const picks: IPickOpenEntry[] = [];
 
@@ -99,6 +105,9 @@ CommandsRegistry.registerCommand('editor.formatter.config', accessor => {
 			picks[length].separator = { label: localize('docFormatter', "Document Formatter") };
 		}
 
+		// meta picks
+		picks.push(metaPickRemove);
+
 		return quickOpenService.pick(picks, { placeHolder: localize('pick.fmt', "Select formatter for {0}", modeService.getLanguageName(language)) });
 	}
 
@@ -106,8 +115,8 @@ CommandsRegistry.registerCommand('editor.formatter.config', accessor => {
 		if (!language) {
 			return;
 		}
-		return selectProvider(language).then(name => {
-			if (!name) {
+		return selectProvider(language).then(pick => {
+			if (!pick) {
 				return;
 			}
 
@@ -115,7 +124,11 @@ CommandsRegistry.registerCommand('editor.formatter.config', accessor => {
 			const target = config.workspace ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 
 			const value = config.value;
-			value[language] = name.label;
+			if (pick === metaPickRemove) {
+				delete value[language];
+			} else {
+				value[language] = pick.label;
+			}
 
 			return configEditService.writeConfiguration(target, {
 				key: FormatterConfiguration.key,
