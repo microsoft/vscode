@@ -148,7 +148,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 
 	public input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
-
 		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
 			this.pickOpenWidget.hide(HideReason.CANCELED);
 		}
@@ -181,6 +180,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						if (currentValidation) {
 							currentValidation.cancel();
 						}
+
 						currentValidation = TPromise.timeout(100).then(() => {
 							return options.validateInput(value).then(message => {
 								currentDecoration = !!message ? Severity.Error : void 0;
@@ -189,6 +189,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 									currentPick = newPick;
 									resolve(new TPromise(init));
 								}
+
 								return !message;
 							});
 						}, err => {
