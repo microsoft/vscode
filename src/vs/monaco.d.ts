@@ -1263,6 +1263,10 @@ declare module monaco.editor {
          */
         snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
         /**
+         * Copying without a selection copies the current line.
+         */
+        emptySelectionClipboard?: boolean;
+        /**
          * Enable tab completion. Defaults to 'false'
          */
         tabCompletion?: boolean;
@@ -1458,6 +1462,7 @@ declare module monaco.editor {
         readonly suggestOnTriggerCharacters: boolean;
         readonly acceptSuggestionOnEnter: boolean;
         readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+        readonly emptySelectionClipboard: boolean;
         readonly tabCompletion: boolean;
         readonly wordBasedSuggestions: boolean;
         readonly suggestFontSize: number;

@@ -403,6 +403,10 @@ export interface IEditorOptions {
 	 */
 	snippetSuggestions?: 'top' | 'bottom' | 'inline' | 'none';
 	/**
+	 * Copying without a selection copies the current line.
+	 */
+	emptySelectionClipboard?: boolean;
+	/**
 	 * Enable tab completion. Defaults to 'false'
 	 */
 	tabCompletion?: boolean;
@@ -862,6 +866,7 @@ export class EditorContribOptions {
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+	readonly emptySelectionClipboard: boolean;
 	readonly tabCompletion: boolean;
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
@@ -885,6 +890,7 @@ export class EditorContribOptions {
 		suggestOnTriggerCharacters: boolean;
 		acceptSuggestionOnEnter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
+		emptySelectionClipboard: boolean;
 		tabCompletion: boolean;
 		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
@@ -904,6 +910,7 @@ export class EditorContribOptions {
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
 		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
 		this.snippetSuggestions = source.snippetSuggestions;
+		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.tabCompletion = source.tabCompletion;
 		this.wordBasedSuggestions = source.wordBasedSuggestions;
 		this.suggestFontSize = source.suggestFontSize;
@@ -929,6 +936,7 @@ export class EditorContribOptions {
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
 			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
 			&& this.snippetSuggestions === other.snippetSuggestions
+			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.tabCompletion === other.tabCompletion
 			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.suggestFontSize === other.suggestFontSize

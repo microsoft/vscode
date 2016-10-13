@@ -310,6 +310,7 @@ class InternalEditorOptionsHelper {
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
 			snippetSuggestions: opts.snippetSuggestions,
+			emptySelectionClipboard: opts.emptySelectionClipboard,
 			tabCompletion: opts.tabCompletion,
 			wordBasedSuggestions: opts.wordBasedSuggestions,
 			suggestFontSize: opts.suggestFontSize,
@@ -761,6 +762,11 @@ let editorConfiguration: IConfigurationNode = {
 			'enum': ['top', 'bottom', 'inline', 'none'],
 			'default': DefaultConfig.editor.snippetSuggestions,
 			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
+		},
+		'editor.emptySelectionClipboard': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.emptySelectionClipboard,
+			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
