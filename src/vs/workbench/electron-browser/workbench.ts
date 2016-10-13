@@ -177,7 +177,7 @@ export class Workbench implements IPartService {
 			return { resource: Uri.file(filePath), options: { pinned: true } };
 		});
 		options.untitledFilesToRestore = this.backupService.getBackupUntitledFiles(workspace.resource.fsPath).map(untitledFilePath => {
-			return { resource: Uri.from({ path: untitledFilePath, scheme: 'untitled' }), options: { pinned: true } };
+			return { resource: Uri.file(untitledFilePath), options: { pinned: true } };
 		});
 
 		this.hasFilesToCreateOpenOrDiff =
