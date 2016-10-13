@@ -23,6 +23,9 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
+	backupHome: string;
+	backupWorkspacesPath: string;
+
 	disableExtensions: boolean;
 	extensionsPath: string;
 	extensionDevelopmentPath: string;

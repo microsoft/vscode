@@ -25,14 +25,12 @@ export class BackupService implements IBackupService {
 	public _serviceBrand: any;
 
 	private workspaceResource: Uri;
-	private workspacesJsonFilePath: string;
 	private fileContent: IBackupFormat;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		this.workspacesJsonFilePath = path.join(environmentService.userDataPath, 'Backups', 'workspaces.json');
 		this.workspaceResource = contextService.getWorkspace().resource;
 	}
 
@@ -64,7 +62,7 @@ export class BackupService implements IBackupService {
 
 	public getBackupUntitledFiles(workspace: string): string[] {
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
-		const untitledDir = path.join(this.environmentService.userDataPath, 'Backups', workspaceHash, 'untitled');
+		const untitledDir = path.join(this.environmentService.backupHome, workspaceHash, 'untitled');
 		try {
 			const untitledFiles = fs.readdirSync(untitledDir).map(file => path.join(untitledDir, file));
 			console.log('untitledFiles', untitledFiles);
@@ -79,7 +77,7 @@ export class BackupService implements IBackupService {
 
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
-		const backupPath = path.join(this.environmentService.userDataPath, 'Backups', workspaceHash, resource.scheme, backupName);
+		const backupPath = path.join(this.environmentService.backupHome, workspaceHash, resource.scheme, backupName);
 		console.log('getBackupResource ' + Uri.file(backupPath));
 		return Uri.file(backupPath);
 	}
@@ -101,7 +99,7 @@ export class BackupService implements IBackupService {
 
 	private load(): void {
 		try {
-			this.fileContent = JSON.parse(fs.readFileSync(this.workspacesJsonFilePath).toString()); // invalid JSON or permission issue can happen here
+			this.fileContent = JSON.parse(fs.readFileSync(this.environmentService.backupWorkspacesPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			this.fileContent = {};
 		}
@@ -112,7 +110,7 @@ export class BackupService implements IBackupService {
 
 	private save(): void {
 		try {
-			fs.writeFileSync(this.workspacesJsonFilePath, JSON.stringify(this.fileContent));
+			fs.writeFileSync(this.environmentService.backupWorkspacesPath, JSON.stringify(this.fileContent));
 		} catch (error) {
 		}
 	}
