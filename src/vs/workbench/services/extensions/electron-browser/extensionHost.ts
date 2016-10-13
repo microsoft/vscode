@@ -35,7 +35,7 @@ export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
 export const EXTENSION_TERMINATE_BROADCAST_CHANNEL = 'vscode:extensionTerminate';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
-const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
+const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../../../..'));
 const BUILTIN_EXTENSIONS_PATH = paths.join(BASE_PATH, 'extensions');
 
 export interface ILogEntry {
