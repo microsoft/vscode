@@ -9,7 +9,7 @@ import * as fs from 'fs';
 
 import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient, APIVersion } from '../typescriptService';
+import { ITypescriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import LinkedMap from './linkedMap';
 
@@ -43,7 +43,7 @@ class SyncedBuffer {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 		};
-		if (this.client.apiVersion === APIVersion.v2_0_0) {
+		if (this.client.apiVersion.has203Features()) {
 			// we have no extension. So check the mode and
 			// set the script kind accordningly.
 			const ext = path.extname(this.filepath);
