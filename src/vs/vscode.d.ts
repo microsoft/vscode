@@ -3837,8 +3837,7 @@ declare namespace vscode {
 		 *
 		 * When a section-identifier is provided only that part of the configuration
 		 * is returned. Dots in the section-identifier are interpreted as child-access,
-		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting.doIt') === true`.
-		 *
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
 		 *
 		 * @param section A dot-separated identifier.
 		 * @return The full workspace configuration or a subset.
