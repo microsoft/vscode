@@ -1,17 +1,16 @@
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TreeExplorerNode, TreeExplorerNodeProvider } from 'vscode';
+import { TreeExplorerNodeContent, TreeExplorerNodeProvider } from 'vscode';
 
-export class InternalTreeExplorerNode implements TreeExplorerNode {
+export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
 	static idCounter = 1;
 
 	id: number;
 
-	// Property on TreeContentNode
 	label: string;
 	shouldInitiallyExpand: boolean;
 	onClickCommand: string;
 
-	constructor(node: TreeExplorerNode) {
+	constructor(node: TreeExplorerNodeContent) {
 		this.id = InternalTreeExplorerNode.idCounter++;
 
 		this.label = node.label;
@@ -20,6 +19,8 @@ export class InternalTreeExplorerNode implements TreeExplorerNode {
 	}
 }
 
-export interface InternalTreeExplorerNodeProvider extends TreeExplorerNodeProvider {
-	resolveCommand(node: TreeExplorerNode): TPromise<void>;
+export interface InternalTreeExplorerNodeProvider {
+	resolveCommand(node: TreeExplorerNodeContent): TPromise<void>;
+	provideRootNode(): Thenable<InternalTreeExplorerNode>;
+	resolveChildren(node: InternalTreeExplorerNode): Thenable<InternalTreeExplorerNode[]>;
 }

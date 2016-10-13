@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TreeExplorerNode } from 'vscode';
+import { TreeExplorerNodeContent } from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, MainThreadTreeExplorersShape, ExtHostTreeExplorersShape } from './extHost.protocol';
@@ -18,7 +18,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 
 	constructor(
 		@IThreadService threadService: IThreadService,
-		@ITreeExplorerService private treeExplorerViewletService: ITreeExplorerService
+		@ITreeExplorerService private treeExplorerService: ITreeExplorerService
 	) {
 		super();
 
@@ -27,7 +27,7 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	}
 
 	$registerTreeContentProvider(providerId: string): void {
-		this.treeExplorerViewletService.registerTreeContentProvider(providerId, {
+		this.treeExplorerService.registerTreeContentProvider(providerId, {
 			provideRootNode: (): TPromise<InternalTreeExplorerNode> => {
 				return this._proxy.$provideRootNode(providerId).then(treeContent => {
 					this._treeContents[providerId] = treeContent;

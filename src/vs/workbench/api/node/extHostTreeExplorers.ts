@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TreeExplorerNode, TreeExplorerNodeProvider } from 'vscode';
+import { TreeExplorerNodeContent, TreeExplorerNodeProvider } from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -15,9 +15,8 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _proxy: MainThreadTreeExplorersShape;
 
-	private _treeExplorerNodeProviders: { [providerId: string]: TreeExplorerNodeProvider };
-
-	private _externalNodeMaps: { [providerId: string]: { [id: number]: TreeExplorerNode }};
+	private _treeExplorerNodeProviders: { [providerId: string]: TreeExplorerNodeProvider<any> };
+	private _externalNodeMaps: { [providerId: string]: { [id: number]: TreeExplorerNodeContent }};
 
 	constructor(
 		threadService: IThreadService,
@@ -31,7 +30,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		this._externalNodeMaps = Object.create(null);
 	}
 
-	registerTreeContentProvider(providerId: string, provider: TreeExplorerNodeProvider): Disposable {
+	registerTreeContentProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable {
 		this._proxy.$registerTreeContentProvider(providerId);
 		this._treeExplorerNodeProviders[providerId] = provider;
 
@@ -52,7 +51,8 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 			const treeNodeMap = Object.create(null);
 			this._externalNodeMaps[providerId] = treeNodeMap;
 
-			const internalRootNode = new InternalTreeExplorerNode(externalRootNode);
+			const externalNodeContent = provider.contentProvider.provideNodeContent(externalRootNode);
+			const internalRootNode = new InternalTreeExplorerNode(externalNodeContent);
 			this._externalNodeMaps[providerId][internalRootNode.id] = externalRootNode;
 			return internalRootNode;
 		}));
@@ -69,7 +69,8 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 
 		return TPromise.wrap(provider.resolveChildren(externalNode).then(children => {
 			return children.map(externalChild => {
-				const internalChild = new InternalTreeExplorerNode(externalChild);
+				const externalChildContent = provider.contentProvider.provideNodeContent(externalChild);
+				const internalChild = new InternalTreeExplorerNode(externalChildContent);
 				externalNodeMap[internalChild.id] = externalChild;
 				return internalChild;
 			});
@@ -83,8 +84,8 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		}
 
 		if (mainThreadNode.onClickCommand) {
-			return TPromise.wrap(this.commands.executeCommand(mainThreadNode.onClickCommand, this._externalNodeMaps[providerId][mainThreadNode.id]).then(() => {
-				// Todo: error handling
+			const externalNode = this._externalNodeMaps[providerId][mainThreadNode.id];
+			return TPromise.wrap(this.commands.executeCommand(mainThreadNode.onClickCommand, externalNode).then(() => {
 				return null;
 			}));
 		}
