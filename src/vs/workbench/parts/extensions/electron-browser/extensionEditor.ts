@@ -220,7 +220,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.name.textContent = extension.displayName;
 		this.identifier.textContent = `${extension.publisher}.${extension.name}`;
-		this.transientDisposables.push(this.instantiationService.createInstance(StatusWidget, this.status, { extension }));
+		this.transientDisposables.push(this.instantiationService.createInstance(StatusWidget, this.status, extension));
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;

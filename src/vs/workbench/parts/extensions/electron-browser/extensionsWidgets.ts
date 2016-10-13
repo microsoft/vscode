@@ -44,16 +44,14 @@ export class Label implements IDisposable {
 export class StatusWidget implements IDisposable {
 
 	private listener: IDisposable;
-	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.render(); }
 
 	constructor(
 		private container: HTMLElement,
-		private options: IOptions = {},
+		private _extension: IExtension,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		this._extension = options.extension;
 		this.render();
 		this.listener = extensionsWorkbenchService.onChange(this.render, this);
 	}
