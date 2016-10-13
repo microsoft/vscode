@@ -13,6 +13,7 @@
 	"closeEditorsToTheRight": "Закрыть редакторы справа",
 	"closeOtherEditorsInGroup": "Закрыть другие редакторы",
 	"evenEditorGroups": "Уравнять ширину групп редакторов",
+	"focusActiveEditorGroup": "Сфокусироваться на активной группе редактора",
 	"focusFirstEditorGroup": "Фокус на группу редакторов слева",
 	"focusLastEditorInStack": "Открыть последний редактор в группе",
 	"focusNextGroup": "Фокус на следующую группу",

@@ -14,7 +14,7 @@
 	"enum": "列舉 ({0})",
 	"file": "檔案 ({0})",
 	"function": "函式 ({0})",
-	"gotoSymbol": "移至符號...",
+	"gotoSymbol": "前往檔案中的符號...",
 	"gotoSymbolHandlerAriaLabel": "輸入以縮小目前使用中編輯器的符號範圍。",
 	"interface": "介面 ({0})",
 	"key": "索引鍵 ({0})",

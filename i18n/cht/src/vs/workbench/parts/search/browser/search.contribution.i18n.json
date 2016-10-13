@@ -9,10 +9,10 @@
 	"exclude.when": "在相符檔案同層級上額外的檢查。請使用 $(basename) 作為相符檔案名稱的變數。",
 	"findInFolder": "在資料夾中尋找",
 	"name": "搜尋",
-	"openAnythingHandlerDescription": "依名稱開啟檔案",
-	"openSymbolDescriptionNormal": "開啟任何符號 (依名稱)",
-	"search.quickOpen.includeSymbols": "設定以將全域符號搜尋的結果納入快速開啟的檔案結果中。",
+	"openAnythingHandlerDescription": "前往檔案",
+	"openSymbolDescriptionNormal": "前往工作區中的符號",
+	"search.quickOpen.includeSymbols": "設定以將全域符號搜尋的結果納入 Quick Open 的檔案結果中。",
 	"searchConfigurationTitle": "搜尋",
-	"showTriggerActions": "顯示所有符號",
+	"showTriggerActions": "前往工作區中的符號...",
 	"view": "檢視"
 }

@@ -95,6 +95,7 @@
 	"miToggleOutput": "&&Output",
 	"miTogglePanel": "Attiva/Disattiva &&pannello",
 	"miToggleRenderControlCharacters": "Attiva/Disattiva &&caratteri di controllo",
+	"miToggleRenderWhitespace": "Attiva/Disattiva rendering &&spazi vuoti",
 	"miToggleSidebar": "Attiva/Disattiva &&barra laterale",
 	"miToggleStatusbar": "Attiva/Disattiva &&barra di stato",
 	"miToggleWordWrap": "Attiva/Disattiva &&ritorno a capo automatico",
