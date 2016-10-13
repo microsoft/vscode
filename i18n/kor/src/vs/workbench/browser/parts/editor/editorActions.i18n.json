@@ -13,6 +13,7 @@
 	"closeEditorsToTheRight": "오른쪽에 있는 편집기 닫기",
 	"closeOtherEditorsInGroup": "다른 편집기 닫기",
 	"evenEditorGroups": "균등한 편집기 그룹 너비",
+	"focusActiveEditorGroup": "활성 편집기 그룹에 포커스",
 	"focusFirstEditorGroup": "왼쪽 편집기 그룹으로 포커스 이동",
 	"focusLastEditorInStack": "그룹의 마지막 편집기 열기",
 	"focusNextGroup": "다음 그룹으로 포커스 이동",

@@ -9,10 +9,10 @@
 	"exclude.when": "对匹配文件的同级文件的其他检查。使用 $(basename) 作为匹配文件名的变量。",
 	"findInFolder": "在文件夹中查找",
 	"name": "搜索",
-	"openAnythingHandlerDescription": "按名称打开文件",
-	"openSymbolDescriptionNormal": "按名称打开任意符号",
-	"search.quickOpen.includeSymbols": "配置为在速启文件结果中包括全局符号搜索的结果。",
+	"openAnythingHandlerDescription": "转到文件",
+	"openSymbolDescriptionNormal": "转到工作区中的符号",
+	"search.quickOpen.includeSymbols": "配置为在 Quick Open 文件结果中包括全局符号搜索的结果。",
 	"searchConfigurationTitle": "搜索",
-	"showTriggerActions": "显示所有符号",
+	"showTriggerActions": "转到工作区中的符号...",
 	"view": "查看"
 }

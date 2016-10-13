@@ -16,6 +16,8 @@
 	"format.placeOpenBraceOnNewLineForFunctions": "함수의 새 줄에 여는 중괄호를 넣을지 정의합니다.",
 	"javascript.reloadProjects.title": "JavaScript 프로젝트 다시 로드",
 	"javascript.validate.enable": "JavaScript 유효성 검사 사용/사용 안 함",
+	"typescript.check.tscVersion": "전역 설치 TypeScript 컴파일러(예: tsc)가 사용된 TypeScript 언어 서비스와 다른지 확인하세요.",
+	"typescript.check.workspaceVersion": "TypeScript 버전을 작업 영역에서 사용할 수 있는지 확인하세요.",
 	"typescript.reloadProjects.title": "TypeScript 프로젝트 다시 로드",
 	"typescript.tsdk.desc": "사용할 tsserver 및 lib*.d.ts 파일이 들어 있는 폴더 경로를 지정합니다.",
 	"typescript.tsdk_version.desc": "tsserver의 버전을 지정합니다. tsserver가 npm을 사용하여 설치되지 않은 경우에만 필요합니다.",

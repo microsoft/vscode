@@ -14,13 +14,12 @@
 	"serverCouldNotBeStarted": "Non è stato possibile avviare il server di linguaggio TypeScript. Messaggio di errore: {0}",
 	"serverDied": "Il servizio di linguaggio Typescript è stato arrestato in modo imprevisto per cinque volte negli ultimi cinque minuti. Provare ad aprire una segnalazione bug.",
 	"serverDiedAfterStart": "Il servizio di linguaggio TypeScript è stato arrestato in modo imprevisto per cinque volte dopo che è stato avviato e non verrà riavviato. Aprire una segnalazione bug.",
-	"tsversion20": "Visual Studio Code 1.6 include TypeScript versione 2.0.3. Per usare una versione precedente di TypeScript, impostare l'opzione 'typescript.tsdk'.",
 	"updateGlobalWorkspaceCheck": "L'impostazione utente 'typescript.check.workspaceVersion' è stata aggiornata ed è ora false",
 	"updateLocalWorkspaceCheck": "L'impostazione dell'area di lavoro 'typescript.check.workspaceVersion' è stata aggiornata ed è ora false",
 	"updateTscCheck": "L'impostazione utente 'typescript.check.tscVersion' è stata aggiornata ed è ora false",
 	"updatedtsdk": "L'impostazione dell'area di lavoro 'typescript.tsdk' è stata aggiornata ed è ora {0}",
 	"use": "Usa l'area di lavoro ({0})",
-	"useBundled": "Usa {0}",
+	"useBundled": "Usa la versione in bundle ({0})",
 	"versionMismatch": "È stata rilevato un errore di corrispondenza tra la versione del compilatore tsc installato globalmente ({0}) e quella del servizio di linguaggio di VS Code ({1}). Questo potrebbe causare errori di compilazione incoerente.",
 	"versionNumber.custom": "personalizzato"
 }

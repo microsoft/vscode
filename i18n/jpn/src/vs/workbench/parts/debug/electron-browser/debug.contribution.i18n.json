@@ -6,8 +6,10 @@
 {
 	"debug": "デバッグ",
 	"debugCategory": "デバッグ",
+	"debugErrorEditor": "デバッグ エラー",
 	"debugPanel": "デバッグ コンソール",
 	"launchConfigDoesNotExist": "起動の構成 '{0}' がありません。",
+	"toggleDebugPanel": "デバッグ コンソール",
 	"toggleDebugViewlet": "デバッグの表示",
 	"view": "表示"
 }
