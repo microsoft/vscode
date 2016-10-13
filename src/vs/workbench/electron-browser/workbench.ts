@@ -105,12 +105,12 @@ const Identifiers = {
  */
 export class Workbench implements IPartService {
 
-	private static statusbarHiddenSettingKey = 'workbench.statusbar.hidden';
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
 	private static sidebarRestoreSettingKey = 'workbench.sidebar.restore';
 	private static panelHiddenSettingKey = 'workbench.panel.hidden';
 
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 
 	public _serviceBrand: any;
 
@@ -447,7 +447,8 @@ export class Workbench implements IPartService {
 		this.sideBarPosition = (sideBarPosition === 'right') ? Position.RIGHT : Position.LEFT;
 
 		// Statusbar visibility
-		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.GLOBAL, false);
+		const statusBarVisible = this.configurationService.lookup<string>(Workbench.statusbarVisibleConfigurationKey).value;
+		this.statusBarHidden = !statusBarVisible;
 	}
 
 	/**
@@ -517,15 +518,13 @@ export class Workbench implements IPartService {
 		return this.statusBarHidden;
 	}
 
-	public setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.statusBarHidden = hidden;
 
 		// Layout
 		if (!skipLayout) {
 			this.workbenchLayout.layout(true);
 		}
-
-		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false');
 	}
 
 	public isSideBarHidden(): boolean {
@@ -696,10 +695,14 @@ export class Workbench implements IPartService {
 
 	private onDidUpdateConfiguration(): void {
 		const newSidebarPositionValue = this.configurationService.lookup<string>(Workbench.sidebarPositionConfigurationKey).value;
-		const newSidebarPosition = newSidebarPositionValue === 'right' ? Position.RIGHT : Position.LEFT;
-
+		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
 		if (newSidebarPosition !== this.getSideBarPosition()) {
 			this.setSideBarPosition(newSidebarPosition);
+		}
+
+		const newStatusbarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.statusbarVisibleConfigurationKey).value;
+		if (newStatusbarHiddenValue !== this.isStatusBarHidden()) {
+			this.setStatusBarHidden(newStatusbarHiddenValue);
 		}
 	}
 

@@ -238,8 +238,6 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
-	public setStatusBarHidden(hidden: boolean): void { }
-
 	public isSideBarHidden(): boolean {
 		return false;
 	}
