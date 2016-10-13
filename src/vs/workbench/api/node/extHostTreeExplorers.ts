@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TreeExplorerNodeContent, TreeExplorerNodeProvider } from 'vscode';
+import { TreeExplorerNodeProvider } from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, ExtHostTreeExplorersShape, MainThreadTreeExplorersShape } from './extHost.protocol';
-import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { InternalTreeExplorerNode, TreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 
 export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _proxy: MainThreadTreeExplorersShape;
 
 	private _treeExplorerNodeProviders: { [providerId: string]: TreeExplorerNodeProvider<any> };
-	private _externalNodeMaps: { [providerId: string]: { [id: number]: TreeExplorerNodeContent }};
+	private _externalNodeMaps: { [providerId: string]: { [id: number]: any }};
 
 	constructor(
 		threadService: IThreadService,
@@ -51,8 +51,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 			const treeNodeMap = Object.create(null);
 			this._externalNodeMaps[providerId] = treeNodeMap;
 
-			const externalNodeContent = provider.contentProvider.provideNodeContent(externalRootNode);
-			const internalRootNode = new InternalTreeExplorerNode(externalNodeContent);
+			const internalRootNode = new InternalTreeExplorerNode(externalRootNode, provider);
 			this._externalNodeMaps[providerId][internalRootNode.id] = externalRootNode;
 			return internalRootNode;
 		}));
@@ -69,8 +68,7 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 
 		return TPromise.wrap(provider.resolveChildren(externalNode).then(children => {
 			return children.map(externalChild => {
-				const externalChildContent = provider.contentProvider.provideNodeContent(externalChild);
-				const internalChild = new InternalTreeExplorerNode(externalChildContent);
+				const internalChild = new InternalTreeExplorerNode(externalChild, provider);
 				externalNodeMap[internalChild.id] = externalChild;
 				return internalChild;
 			});
