@@ -11,6 +11,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { MainContext, ExtHostTreeExplorersShape, MainThreadTreeExplorersShape } from './extHost.protocol';
 import { InternalTreeExplorerNode, TreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { asWinJsPromise } from 'vs/base/common/async';
 
 export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 	private _proxy: MainThreadTreeExplorersShape;
@@ -47,14 +48,14 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 			throw new Error(`no TreeContentProvider registered with id '${providerId}'`);
 		}
 
-		return TPromise.wrap(provider.provideRootNode().then(externalRootNode => {
+		return asWinJsPromise(() => provider.provideRootNode()).then(externalRootNode => {
 			const treeNodeMap = Object.create(null);
 			this._externalNodeMaps[providerId] = treeNodeMap;
 
 			const internalRootNode = new InternalTreeExplorerNode(externalRootNode, provider);
 			this._externalNodeMaps[providerId][internalRootNode.id] = externalRootNode;
 			return internalRootNode;
-		}));
+		});
 	}
 
 	$resolveChildren(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
@@ -66,13 +67,13 @@ export class ExtHostTreeExplorers extends ExtHostTreeExplorersShape {
 		const externalNodeMap = this._externalNodeMaps[providerId];
 		const externalNode = externalNodeMap[mainThreadNode.id];
 
-		return TPromise.wrap(provider.resolveChildren(externalNode).then(children => {
+		return asWinJsPromise(() => provider.resolveChildren(externalNode)).then(children => {
 			return children.map(externalChild => {
 				const internalChild = new InternalTreeExplorerNode(externalChild, provider);
 				externalNodeMap[internalChild.id] = externalChild;
 				return internalChild;
 			});
-		}));
+		});
 	}
 
 	$resolveCommand(providerId: string, mainThreadNode: InternalTreeExplorerNode): TPromise<void> {
