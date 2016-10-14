@@ -18,6 +18,8 @@ interface Configuration {
 	insertSpaceAfterFunctionKeywordForAnonymousFunctions: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: boolean;
 	placeOpenBraceOnNewLineForFunctions: boolean;
 	placeOpenBraceOnNewLineForControlBlocks: boolean;
 }
@@ -30,6 +32,8 @@ namespace Configuration {
 	export const insertSpaceAfterFunctionKeywordForAnonymousFunctions: string = 'insertSpaceAfterFunctionKeywordForAnonymousFunctions';
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis';
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets';
+	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
+	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
 	export const placeOpenBraceOnNewLineForFunctions: string = 'placeOpenBraceOnNewLineForFunctions';
 	export const placeOpenBraceOnNewLineForControlBlocks: string = 'placeOpenBraceOnNewLineForControlBlocks';
 
@@ -53,6 +57,8 @@ namespace Configuration {
 		result.insertSpaceAfterFunctionKeywordForAnonymousFunctions = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = false;
 		result.placeOpenBraceOnNewLineForFunctions = false;
 		result.placeOpenBraceOnNewLineForControlBlocks = false;
 		return result;
@@ -175,6 +181,8 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			insertSpaceAfterFunctionKeywordForAnonymousFunctions: this.config.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
+			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
 			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks
 		};

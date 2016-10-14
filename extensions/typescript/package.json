@@ -81,7 +81,7 @@
 				"typescript.experimentalAutomaticTypeAcquisition": {
 					"type": "boolean",
 					"default": false,
-					"description": "%typescript.experimentalAutomaticTypeAcquisition.desc%"
+					"description": "%typescript.experimentalAutomaticTypeAcquisition%"
 				},
 				"typescript.check.workspaceVersion" :{
 					"type": "boolean",
@@ -144,6 +144,16 @@
 					"default": false,
 					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
 				},
+				"typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
+					"type": "boolean",
+					"default": false,
+					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%"
+				},
+				"typescript.format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": {
+					"type": "boolean",
+					"default": false,
+					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
+				},
 				"typescript.format.placeOpenBraceOnNewLineForFunctions": {
 					"type": "boolean",
 					"default": false,
@@ -193,6 +203,16 @@
 					"type": "boolean",
 					"default": false,
 					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
+				},
+				"javascript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
+					"type": "boolean",
+					"default": false,
+					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%"
+				},
+				"javascript.format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": {
+					"type": "boolean",
+					"default": false,
+					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
 				},
 				"javascript.format.placeOpenBraceOnNewLineForFunctions": {
 					"type": "boolean",
