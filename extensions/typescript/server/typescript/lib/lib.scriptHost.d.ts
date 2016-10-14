@@ -279,7 +279,7 @@ interface VBArray<T> {
     ubound(dimension?: number): number;
 
     /**
-     * Returns a Javascript array with all the elements in the VBArray. If there are multiple dimensions,
+     * Returns a JavaScript array with all the elements in the VBArray. If there are multiple dimensions,
      * each successive dimension is appended to the end of the array.
      * Example: [[1,2,3],[4,5,6]] becomes [1,2,3,4,5,6]
      */

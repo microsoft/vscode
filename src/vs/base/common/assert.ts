@@ -5,7 +5,7 @@
 'use strict';
 
 /**
- * Throws an error with the provided message if the provided value does not evaluate to a true Javascript value.
+ * Throws an error with the provided message if the provided value does not evaluate to a true JavaScript value.
  */
 export function ok(value?: any, message?: string) {
 	if (!value || value === null) {
