@@ -816,7 +816,7 @@
 					"match": "[_$[:alpha:]][_$[:alnum:]]*",
 					"captures": {
 						"0": {
-							"name": "entity.name.class.js"
+							"name": "entity.name.type.class.js"
 						}
 					}
 				},

@@ -812,7 +812,7 @@
 					"match": "[_$[:alpha:]][_$[:alnum:]]*",
 					"captures": {
 						"0": {
-							"name": "entity.name.class.ts"
+							"name": "entity.name.type.class.ts"
 						}
 					}
 				},

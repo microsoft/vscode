@@ -7,7 +7,6 @@
 			"scope": [
 				"meta.return-type",
 				"support.type",
-				"entity.name.class",
 				"entity.name.type",
 				"storage.type.cs",
 				"storage.type.java"

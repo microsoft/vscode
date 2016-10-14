@@ -63,12 +63,6 @@
 			}
 		},
 		{
-			"scope": "entity.name.class",
-			"settings": {
-				"foreground": "#d4d4d4"
-			}
-		},
-		{
 			"scope": "entity.name.selector",
 			"settings": {
 				"foreground": "#d7ba7d"

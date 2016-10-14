@@ -368,7 +368,7 @@
 .monaco-editor.vs .token.entity.name							{ color: #800000; }
 .monaco-editor.vs .token.entity.name.tag						{ color: #800000; }
 .monaco-editor.vs .token.entity.name.function					{ color: #444444; }
-.monaco-editor.vs .token.entity.name.class						{ color: #2B91AF; }
+.monaco-editor.vs .token.entity.name.type						{ color: #2B91AF; }
 .monaco-editor.vs .token.entity.name.selector					{ color: #800000; }
 .monaco-editor.vs .token.entity.other.selector					{ color: #800000; }
 .monaco-editor.vs .token.entity.other.attribute-name			{ color: red; }
@@ -497,7 +497,7 @@
 .monaco-editor.vs-dark .token.entity.name						{ color: #569CD6; }
 .monaco-editor.vs-dark .token.entity.name.tag					{ color: #569CD6; }
 .monaco-editor.vs-dark .token.entity.name.function				{ color: #DCDCAA; }
-.monaco-editor.vs-dark .token.entity.name.class					{ color: #4EC9B0; }
+.monaco-editor.vs-dark .token.entity.name.type					{ color: #4EC9B0; }
 .monaco-editor.vs-dark .token.entity.name.selector				{ color: #569CD6; }
 
 .monaco-editor.vs-dark .token.entity.other.selector				{ color: #569CD6; }
@@ -626,7 +626,7 @@
 .monaco-editor.hc-black .token.entity.name						{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.name.tag					{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.name.function				{ color: #DCDCAA; }
-.monaco-editor.hc-black .token.entity.name.class				{ color: #4EC9B0; }
+.monaco-editor.hc-black .token.entity.name.type					{ color: #4EC9B0; }
 .monaco-editor.hc-black .token.entity.name.selector				{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.other.selector			{ color: #569CD6; }
 .monaco-editor.hc-black .token.entity.other.attribute-name		{ color: #9CDCFE; }
