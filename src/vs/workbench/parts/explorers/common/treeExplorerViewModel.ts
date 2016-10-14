@@ -6,18 +6,26 @@ export class InternalTreeExplorerNode implements TreeExplorerNodeContent {
 
 	id: number;
 
-	label: string;
-	hasChildren: boolean;
-	shouldInitiallyExpand: boolean;
-	clickCommand: string;
+	label: string = 'label';
+	hasChildren: boolean = true;
+	shouldInitiallyExpand: boolean = false;
+	clickCommand: string = null;
 
 	constructor(node: any, provider: TreeExplorerNodeProvider<any>) {
 		this.id = InternalTreeExplorerNode.idCounter++;
 
-		this.label = provider.getLabel(node);
-		this.hasChildren = provider.getHasChildren(node);
-		this.shouldInitiallyExpand = provider.getShouldInitiallyExpand(node);
-		this.clickCommand = provider.getClickCommand(node);
+		if (provider.getLabel) {
+			this.label = provider.getLabel(node);
+		}
+		if (provider.getHasChildren) {
+			this.hasChildren = provider.getHasChildren(node);
+		}
+		if (provider.getShouldInitiallyExpand) {
+			this.shouldInitiallyExpand = provider.getShouldInitiallyExpand(node);
+		}
+		if (provider.getClickCommand) {
+			this.clickCommand = provider.getClickCommand(node);
+		}
 	}
 }
 
