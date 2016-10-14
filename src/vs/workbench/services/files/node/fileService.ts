@@ -463,17 +463,36 @@ export class FileService implements IFileService {
 			this.backupService.registerResourceForBackup(resource);
 		}
 		const backupResource = this.getBackupPath(resource);
+
+		// Hot exit is disabled for empty workspaces
+		if (!backupResource) {
+			return TPromise.as(null);
+		}
+
 		console.log(`Backing up to ${backupResource.fsPath}`);
 		return this.updateContent(backupResource, content);
 	}
 
 	public discardBackup(resource: uri): TPromise<void> {
 		this.backupService.deregisterResourceForBackup(resource);
-		return this.del(this.getBackupPath(resource));
+		const backupResource = this.getBackupPath(resource);
+
+		// Hot exit is disabled for empty workspaces
+		if (!backupResource) {
+			return TPromise.as(null);
+		}
+
+		return this.del(backupResource);
 	}
 
 	public discardBackups(): TPromise<void> {
-		return this.del(uri.file(this.getBackupRoot()));
+		// Hot exit is disabled for empty workspaces
+		const backupRootPath = this.getBackupRootPath();
+		if (!backupRootPath) {
+			return TPromise.as(void 0);
+		}
+
+		return this.del(uri.file(backupRootPath));
 	}
 
 	public isHotExitEnabled(): boolean {
@@ -483,13 +502,25 @@ export class FileService implements IFileService {
 	// Helpers
 
 	private getBackupPath(resource: uri): uri {
+		// Hot exit is disabled for empty workspaces
+		const backupRootPath = this.getBackupRootPath();
+		if (!backupRootPath) {
+			return null;
+		}
+
 		const backupName = crypto.createHash('md5').update(resource.fsPath).digest('hex');
-		const backupPath = paths.join(this.getBackupRoot(), resource.scheme, backupName);
+		const backupPath = paths.join(backupRootPath, resource.scheme, backupName);
 		return uri.file(backupPath);
 	}
 
-	private getBackupRoot(): string {
-		let workspaceHash = crypto.createHash('md5').update(this.contextService.getWorkspace().resource.fsPath).digest('hex');
+	private getBackupRootPath(): string {
+		// Hot exit is disabled for empty workspaces
+		const workspace = this.contextService.getWorkspace();
+		if (!workspace) {
+			return null;
+		}
+
+		const workspaceHash = crypto.createHash('md5').update(workspace.resource.fsPath).digest('hex');
 		return paths.join(this.environmentService.userDataPath, 'Backups', workspaceHash);
 	}
 

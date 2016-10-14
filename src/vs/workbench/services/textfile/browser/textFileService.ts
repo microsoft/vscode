@@ -231,7 +231,8 @@ export abstract class TextFileService implements ITextFileService {
 			this.saveAll().done(null, errors.onUnexpectedError);
 		}
 
-		this.configuredHotExit = configuration && configuration.files && configuration.files.hotExit;
+		// Hot exit is disabled for empty workspaces
+		this.configuredHotExit = this.contextService.getWorkspace() && configuration && configuration.files && configuration.files.hotExit;
 
 		// Check for change in files associations
 		const filesAssociation = configuration && configuration.files && configuration.files.associations;

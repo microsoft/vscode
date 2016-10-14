@@ -172,20 +172,22 @@ export class Workbench implements IPartService {
 			serviceCollection
 		};
 
-		// Restore any backups if they exist
-		options.filesToRestore = this.backupService.getWorkspaceTextFilesWithBackups(workspace.resource.fsPath).map(filePath => {
-			return { resource: Uri.file(filePath), options: { pinned: true } };
-		});
-		options.untitledFilesToRestore = this.backupService.getWorkspaceUntitledFileBackups(workspace.resource.fsPath).map(untitledFilePath => {
-			return { resource: Uri.file(untitledFilePath), options: { pinned: true } };
-		});
+		// Restore any backups if they exist for this workspace (empty workspaces are not supported yet)
+		if (workspace) {
+			options.filesToRestore = this.backupService.getWorkspaceTextFilesWithBackups(workspace.resource.fsPath).map(filePath => {
+				return { resource: Uri.file(filePath), options: { pinned: true } };
+			});
+			options.untitledFilesToRestore = this.backupService.getWorkspaceUntitledFileBackups(workspace.resource.fsPath).map(untitledFilePath => {
+				return { resource: Uri.file(untitledFilePath), options: { pinned: true } };
+			});
+		}
 
 		this.hasFilesToCreateOpenOrDiff =
 			(options.filesToCreate && options.filesToCreate.length > 0) ||
 			(options.filesToOpen && options.filesToOpen.length > 0) ||
 			(options.filesToDiff && options.filesToDiff.length > 0) ||
-			(options.filesToRestore.length > 0) ||
-			(options.untitledFilesToRestore.length > 0);
+			(options.filesToRestore && options.filesToRestore.length > 0) ||
+			(options.untitledFilesToRestore && options.untitledFilesToRestore.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
