@@ -12,10 +12,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 export const IBackupService = createDecorator<IBackupService>('backupService');
 
 export interface IBackupService {
-	getBackupWorkspaces(): string[];
-	clearBackupWorkspaces(): void;
-	pushBackupWorkspaces(workspaces: string[]): void;
-	getBackupFiles(workspace: string): string[];
+	getWorkspaceBackupPaths(): string[];
+	clearWorkspaceBackupPaths(): void;
+	pushWorkspaceBackupPath(workspaces: string[]): void;
+	getWorkspaceBackupFiles(workspace: string): string[];
 }
 
 interface IBackupFormat {
@@ -33,21 +33,21 @@ export class BackupService implements IBackupService {
 	) {
 	}
 
-	public getBackupWorkspaces(): string[] {
+	public getWorkspaceBackupPaths(): string[] {
 		if (!this.fileContent) {
 			this.load();
 		}
 		return Object.keys(this.fileContent.folderWorkspaces || Object.create(null));
 	}
 
-	public clearBackupWorkspaces(): void {
+	public clearWorkspaceBackupPaths(): void {
 		this.fileContent = {
 			folderWorkspaces: Object.create(null)
 		};
 		this.save();
 	}
 
-	public pushBackupWorkspaces(workspaces: string[]): void {
+	public pushWorkspaceBackupPath(workspaces: string[]): void {
 		this.load();
 		workspaces.forEach(workspace => {
 			if (!this.fileContent.folderWorkspaces[workspace]) {
@@ -57,7 +57,7 @@ export class BackupService implements IBackupService {
 		this.save();
 	}
 
-	public getBackupFiles(workspace: string): string[] {
+	public getWorkspaceBackupFiles(workspace: string): string[] {
 		this.load();
 		return this.fileContent.folderWorkspaces[workspace];
 	}

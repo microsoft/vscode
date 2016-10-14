@@ -34,19 +34,19 @@ export class BackupService implements IBackupService {
 		this.workspaceResource = contextService.getWorkspace().resource;
 	}
 
-	public getBackupWorkspaces(): string[] {
+	public getWorkspaceBackupPaths(): string[] {
 		this.load();
 		return Object.keys(this.fileContent.folderWorkspaces || Object.create(null));
 	}
 
-	public clearBackupWorkspaces(): void {
+	public clearWorkspaceBackupPaths(): void {
 		this.fileContent = {
 			folderWorkspaces: Object.create(null)
 		};
 		this.save();
 	}
 
-	public removeWorkspace(workspace: string): void {
+	public removeWorkspaceBackupPath(workspace: string): void {
 		this.load();
 		if (!this.fileContent.folderWorkspaces) {
 			return;
@@ -55,12 +55,12 @@ export class BackupService implements IBackupService {
 		this.save();
 	}
 
-	public getBackupFiles(workspace: string): string[] {
+	public getWorkspaceTextFilesWithBackups(workspace: string): string[] {
 		this.load();
 		return this.fileContent.folderWorkspaces[workspace] || [];
 	}
 
-	public getBackupUntitledFiles(workspace: string): string[] {
+	public getWorkspaceUntitledFileBackups(workspace: string): string[] {
 		const workspaceHash = crypto.createHash('md5').update(this.workspaceResource.fsPath).digest('hex');
 		const untitledDir = path.join(this.environmentService.backupHome, workspaceHash, 'untitled');
 		try {
@@ -82,7 +82,7 @@ export class BackupService implements IBackupService {
 		return Uri.file(backupPath);
 	}
 
-	public registerBackupFile(resource: Uri): void {
+	public registerResourceForBackup(resource: Uri): void {
 		this.load();
 		if (arrays.contains(this.fileContent.folderWorkspaces[this.workspaceResource.fsPath], resource.fsPath)) {
 			return;
@@ -91,7 +91,7 @@ export class BackupService implements IBackupService {
 		this.save();
 	}
 
-	public deregisterBackupFile(resource: Uri): void {
+	public deregisterResourceForBackup(resource: Uri): void {
 		this.load();
 		this.fileContent.folderWorkspaces[this.workspaceResource.fsPath] = this.fileContent.folderWorkspaces[this.workspaceResource.fsPath].filter(value => value !== resource.fsPath);
 		this.save();
