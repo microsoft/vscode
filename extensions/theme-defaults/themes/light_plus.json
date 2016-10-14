@@ -5,11 +5,8 @@
 		{
 			"name": "Types declaration and references",
 			"scope": [
-				"meta.type.name",
 				"meta.return.type",
 				"meta.return-type",
-				"meta.cast",
-				"meta.type.annotation",
 				"support.type",
 				"entity.name.class",
 				"entity.name.type",
@@ -40,7 +37,6 @@
 		{
 			"name": "Parameter name",
 			"scope": [
-				"meta.parameter.type.variable",
 				"variable.parameter",
 				"variable",
 				"variable.name"
