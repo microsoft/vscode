@@ -95,7 +95,7 @@ suite('Debug - Model', () => {
 
 	test('threads multiple wtih allThreadsStopped', () => {
 		const mockDebugService = new MockDebugService();
-		const sessionStub = sinon.spy(mockDebugService.getActiveSession(), 'stackTrace');
+		const sessionStub = sinon.spy(mockDebugService.activeSession, 'stackTrace');
 
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
@@ -181,7 +181,7 @@ suite('Debug - Model', () => {
 
 	test('threads mutltiple without allThreadsStopped', () => {
 		const mockDebugService = new MockDebugService();
-		const sessionStub = sinon.spy(mockDebugService.getActiveSession(), 'stackTrace');
+		const sessionStub = sinon.spy(mockDebugService.activeSession, 'stackTrace');
 
 		const stoppedThreadId = 1;
 		const stoppedThreadName = 'stoppedThread';

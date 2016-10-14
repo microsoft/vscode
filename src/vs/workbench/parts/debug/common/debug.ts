@@ -407,7 +407,7 @@ export interface IDebugService {
 	/**
 	 * Returns the active debug session or null if debug is inactive.
 	 */
-	getActiveSession(): IRawDebugSession;
+	activeSession: IRawDebugSession;
 
 	/**
 	 * Gets the current debug model.
