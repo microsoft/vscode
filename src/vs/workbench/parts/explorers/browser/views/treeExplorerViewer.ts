@@ -30,7 +30,7 @@ export class TreeDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, node: InternalTreeExplorerNode): boolean {
-		return true;
+		return node.hasChildren;
 	}
 
 	getChildren(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
