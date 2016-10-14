@@ -6,12 +6,11 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { getLocation } from 'jsonc-parser';
+import { getLocation, visit } from 'jsonc-parser';
 import * as path from 'path';
 
 const decoration = vscode.window.createTextEditorDecorationType({
-	color: '#b1b1b1',
-	isWholeLine: true
+	color: '#b1b1b1'
 });
 
 export function activate(context) {
@@ -51,12 +50,20 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor) {
 	}
 
 	const ranges = [];
-	for (let i = 0; i < editor.document.lineCount; i++) {
-		const line = editor.document.lineAt(i);
-		if (line.text.indexOf('\"version\"') >= 0 || line.text.indexOf('\"type\"') >= 0 || line.text.indexOf('\"request\"') >= 0) {
-			ranges.push(new vscode.Range(line.range.start, line.range.start));
+	let addPropertyAndValue = false;
+	visit(editor.document.getText(), {
+		onObjectProperty: (property, offset, length) => {
+			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request';
+			if (addPropertyAndValue) {
+				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
+			}
+		},
+		onLiteralValue: (value, offset, length) => {
+			if (addPropertyAndValue) {
+				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
+			}
 		}
-	}
+	});
 
 	editor.setDecorations(decoration, ranges);
 }
