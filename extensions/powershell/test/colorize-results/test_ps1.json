@@ -256,8 +256,8 @@
 		"c": "New-Object",
 		"t": "function.powershell.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1367,8 +1367,8 @@
 		"c": "Write-Host",
 		"t": "function.powershell.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1499,8 +1499,8 @@
 		"c": "Test-IsAdmin",
 		"t": "function.interpolated.powershell.simple.source.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1554,8 +1554,8 @@
 		"c": "Write-Host",
 		"t": "function.powershell.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1730,8 +1730,8 @@
 		"c": "Split-Path",
 		"t": "function.powershell.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -1873,8 +1873,8 @@
 		"c": "Test-Path",
 		"t": "function.interpolated.powershell.simple.source.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -2335,8 +2335,8 @@
 		"c": "Invoke-Environment",
 		"t": "function.powershell.support",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function rgb(220, 220, 170)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function rgb(121, 94, 38)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"

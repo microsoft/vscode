@@ -5,7 +5,8 @@
 		{
 			"name": "Function declarations",
 			"scope": [
-				"entity.name.function"
+				"entity.name.function",
+				"support.function"
 			],
 			"settings": {
 				"foreground": "#DCDCAA"
