@@ -69,8 +69,8 @@
 		"c": "Array",
 		"t": "builtin.class.expr.meta.support.tsx.var",
 		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.class rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.class rgb(38, 127, 153)",
 			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
@@ -179,8 +179,8 @@
 		"c": "Array",
 		"t": "builtin.children.class.embedded.expr.expression.jsx.meta.support.tag.tsx.var.without-attributes",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.tag rgb(128, 128, 128)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.tag rgb(128, 0, 0)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.class rgb(78, 201, 176)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.class rgb(38, 127, 153)",
 			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.tag rgb(128, 128, 128)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.tag rgb(128, 0, 0)",
 			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.tag rgb(128, 128, 128)"

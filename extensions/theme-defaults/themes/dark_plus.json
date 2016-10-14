@@ -3,9 +3,19 @@
 	"include": "./dark_vs.json",
 	"settings": [
 		{
+			"name": "Function declarations",
+			"scope": [
+				"entity.name.function"
+			],
+			"settings": {
+				"foreground": "#DCDCAA"
+			}
+		},
+		{
 			"name": "Types declaration and references",
 			"scope": [
 				"meta.return-type",
+				"support.class",
 				"support.type",
 				"entity.name.type",
 				"storage.type.cs",
@@ -20,19 +30,13 @@
 			"scope": [
 				"meta.return.type",
 				"meta.type.cast.expr",
-				"meta.type.new.expr"
+				"meta.type.new.expr",
+				"support.constant.math",
+				"support.constant.dom",
+				"support.constant.json"
 			],
 			"settings": {
 				"foreground": "#4EC9B0"
-			}
-		},
-		{
-			"name": "Function declarations",
-			"scope": [
-				"entity.name.function"
-			],
-			"settings": {
-				"foreground": "#DCDCAA"
 			}
 		},
 		{
@@ -47,7 +51,8 @@
 			"scope": [
 				"variable.parameter",
 				"variable",
-				"variable.name"
+				"variable.name",
+				"support.variable"
 			],
 			"settings": {
 				"foreground": "#9CDCFE"
