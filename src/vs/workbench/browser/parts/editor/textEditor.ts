@@ -118,7 +118,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected getCodeEditorOptions(): IEditorOptions {
 		return {
 			overviewRulerLanes: 3,
-			glyphMargin: true,
 			lineNumbersMinChars: 3,
 			theme: this.themeService.getColorTheme()
 		};
