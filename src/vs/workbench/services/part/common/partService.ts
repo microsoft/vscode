@@ -81,6 +81,12 @@ export interface IPartService {
 	setPanelHidden(hidden: boolean): void;
 
 	/**
+	 * Maximizes the panel height if the panel is not already maximized.
+	 * Shrinks the panel to the default starting size if the panel is maximized.
+	 */
+	toggleMaximizedPanel(): void;
+
+	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;

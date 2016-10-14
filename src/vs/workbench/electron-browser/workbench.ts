@@ -613,6 +613,10 @@ export class Workbench implements IPartService {
 		this.storageService.store(Workbench.panelHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 
+	public toggleMaximizedPanel(): void {
+		this.workbenchLayout.layout(true, true);
+	}
+
 	public getSideBarPosition(): Position {
 		return this.sideBarPosition;
 	}

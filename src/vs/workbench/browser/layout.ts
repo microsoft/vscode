@@ -297,7 +297,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		};
 	}
 
-	public layout(forceStyleReCompute?: boolean): void {
+	public layout(forceStyleReCompute?: boolean, toggleMaximizedPanel?: boolean): void {
 		if (forceStyleReCompute) {
 			this.computeStyle();
 			this.editor.getLayout().computeStyle();
@@ -338,12 +338,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Panel part
 		let panelHeight: number;
+		const maxPanelHeight = sidebarSize.height - DEFAULT_MIN_EDITOR_PART_HEIGHT;
 		if (isPanelHidden) {
 			panelHeight = 0;
 		} else if (this.panelHeight > 0) {
-			panelHeight = Math.min(sidebarSize.height - DEFAULT_MIN_EDITOR_PART_HEIGHT, Math.max(this.computedStyles.panel.minHeight, this.panelHeight));
+			panelHeight = Math.min(maxPanelHeight, Math.max(this.computedStyles.panel.minHeight, this.panelHeight));
 		} else {
 			panelHeight = sidebarSize.height * 0.4;
+		}
+		if (toggleMaximizedPanel) {
+			panelHeight = panelHeight === maxPanelHeight ? sidebarSize.height * 0.4 : maxPanelHeight;
 		}
 		const panelDimension = new Dimension(this.workbenchSize.width - sidebarSize.width - activityBarSize.width, panelHeight);
 		this.panelWidth = panelDimension.width;
