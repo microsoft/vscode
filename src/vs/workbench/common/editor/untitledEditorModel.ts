@@ -163,10 +163,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 		if (this.fileService.isHotExitEnabled()) {
 			if (this.dirty) {
-				console.log('backup');
 				this.doBackup();
 			} else {
-				console.log('discard');
 				this.fileService.discardBackup(this.resource);
 			}
 		}
@@ -189,7 +187,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		this._onDidChangeEncoding.dispose();
 
 		this.cancelBackupPromises();
-		console.log('discard');
 		this.fileService.discardBackup(this.resource);
 	}
 
