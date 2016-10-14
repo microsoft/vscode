@@ -10,7 +10,6 @@ import * as crypto from 'crypto';
 import * as fs from 'original-fs';
 import * as arrays from 'vs/base/common/arrays';
 import Uri from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 
@@ -28,21 +27,12 @@ export class BackupService implements IBackupService {
 	private fileContent: IBackupFormat;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService contextService?: IWorkspaceContextService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		// IWorkspaceContextService will not exist on the main process
-		if (!contextService) {
-			return;
-		}
+	}
 
-		// Hot exit is disabled for empty workspaces
-		const workspace = contextService.getWorkspace();
-		if (!workspace) {
-			return;
-		}
-
-		this.workspaceResource = workspace.resource;
+	public setCurrentWorkspace(resource: Uri): void {
+		this.workspaceResource = resource;
 	}
 
 	public getWorkspaceBackupPaths(): string[] {
