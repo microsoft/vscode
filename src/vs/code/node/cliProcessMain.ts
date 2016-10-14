@@ -38,7 +38,7 @@ const useId = localize('useId', "Make sure you use the full extension ID, includ
 
 function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 	if (withVersion) {
-		return `${manifest.publisher}.${manifest.name} v${manifest.version}`;
+		return `${manifest.publisher}.${manifest.name}@${manifest.version}`;
 	} else {
 		return `${manifest.publisher}.${manifest.name}`;
 	}

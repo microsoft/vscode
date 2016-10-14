@@ -138,7 +138,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
 	'--extensionHomePath': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
-	'--show-versions': localize('showVersions', "Show version of installed extension. Requires --list-extension."),
+	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
 	'--install-extension <ext>': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension <ext>': localize('uninstallExtension', "Uninstalls an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
