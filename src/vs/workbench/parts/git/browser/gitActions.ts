@@ -1238,7 +1238,7 @@ export class UndoLastCommitAction extends GitAction {
 	}
 
 	protected isEnabled(): boolean {
-		if (!this.gitService) {
+		if (!super.isEnabled()) {
 			return false;
 		}
 
@@ -1246,7 +1246,14 @@ export class UndoLastCommitAction extends GitAction {
 			return false;
 		}
 
-		var status = this.gitService.getModel().getStatus();
+		const model = this.gitService.getModel();
+		const HEAD = model.getHEAD();
+
+		if (!HEAD || !HEAD.commit) {
+			return false;
+		}
+
+		const status = model.getStatus();
 
 		return status.getIndexStatus().all().length === 0
 			&& status.getWorkingTreeStatus().all().length === 0;
