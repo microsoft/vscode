@@ -5,7 +5,6 @@
 		{
 			"name": "Types declaration and references",
 			"scope": [
-				"meta.return.type",
 				"meta.return-type",
 				"support.type",
 				"entity.name.class",
@@ -18,10 +17,20 @@
 			}
 		},
 		{
+			"name": "Types declaration and references, TS grammar specific",
+			"scope": [
+				"meta.return.type",
+				"meta.type.cast.expr",
+				"meta.type.new.expr"
+			],
+			"settings": {
+				"foreground": "#267f99"
+			}
+		},
+		{
 			"name": "Function declarations",
 			"scope": [
-				"entity.name.function",
-				"entity.name.method"
+				"entity.name.function"
 			],
 			"settings": {
 				"foreground": "#795E26"
