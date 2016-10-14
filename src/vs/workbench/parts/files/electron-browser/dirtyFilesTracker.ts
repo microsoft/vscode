@@ -66,7 +66,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	}
 
 	private onUntitledDidChangeDirty(resource: URI): void {
-
 		const gotDirty = this.untitledEditorService.isDirty(resource);
 
 		if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
