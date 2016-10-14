@@ -58,14 +58,9 @@ suite('Processes', () => {
 				sender.send(msg);
 				sender.send(msg);
 				sender.send(msg);
-			} else {
-				assert.equal(msgFromChild, msg);
-				counter++;
-				
-				if (counter === 3) {
-					child.kill();
-					done();
-				}
+			} else if (msgFromChild === 'done') {
+				child.kill();
+				done();
 			}
 		});
 	});

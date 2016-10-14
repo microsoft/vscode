@@ -11,6 +11,9 @@ const sender = processes.createBufferedSender(process);
 
 process.on('message', msg => {
 	sender.send(msg);
+	sender.send(msg);
+	sender.send(msg);
+	sender.send('done');
 });
 
 sender.send('ready');
