@@ -28,7 +28,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction } from './gitActions';
+import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PushToRemoteAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, BaseStageAction, BaseUnstageAction } from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 
@@ -634,6 +634,7 @@ workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalO
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenInEditorAction, GlobalOpenInEditorAction.ID, GlobalOpenInEditorAction.LABEL), 'Git: Open File', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullAction, PullAction.ID, PullAction.LABEL), 'Git: Pull', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushAction, PushAction.ID, PushAction.LABEL), 'Git: Push', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushToRemoteAction, PushToRemoteAction.ID, PushToRemoteAction.LABEL), 'Git: Push to...', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SyncAction, SyncAction.ID, SyncAction.LABEL), 'Git: Sync', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PublishAction, PublishAction.ID, PublishAction.LABEL), 'Git: Publish', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitBranchAction, StartGitBranchAction.ID, StartGitBranchAction.LABEL), 'Git: Branch', category);
