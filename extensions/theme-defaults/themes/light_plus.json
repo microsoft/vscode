@@ -5,7 +5,8 @@
 		{
 			"name": "Function declarations",
 			"scope": [
-				"entity.name.function"
+				"entity.name.function",
+				"support.function"
 			],
 			"settings": {
 				"foreground": "#795E26"
@@ -56,6 +57,18 @@
 			],
 			"settings": {
 				"foreground": "#001080"
+			}
+		},
+		{
+			"name": "CSS property value",
+			"scope": [
+				"support.property-value",
+				"constant.rgb-value",
+				"support.property-value.scss",
+				"constant.rgb-value.scss"
+			],
+			"settings": {
+				"foreground": "#0451a5"
 			}
 		}
 	]
