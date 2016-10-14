@@ -29,9 +29,12 @@ export class BackupService implements IBackupService {
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService?: IWorkspaceContextService
 	) {
-		this.workspaceResource = contextService.getWorkspace().resource;
+		// IWorkspaceContextService will not exist on the main process
+		if (contextService) {
+			this.workspaceResource = contextService.getWorkspace().resource;
+		}
 	}
 
 	public getWorkspaceBackupPaths(): string[] {
@@ -43,6 +46,16 @@ export class BackupService implements IBackupService {
 		this.fileContent = {
 			folderWorkspaces: Object.create(null)
 		};
+		this.save();
+	}
+
+	public pushWorkspaceBackupPaths(workspaces: string[]): void {
+		this.load();
+		workspaces.forEach(workspace => {
+			if (!this.fileContent.folderWorkspaces[workspace]) {
+				this.fileContent.folderWorkspaces[workspace] = [];
+			}
+		});
 		this.save();
 	}
 

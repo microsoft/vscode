@@ -26,6 +26,13 @@ export interface IBackupService {
 	clearWorkspaceBackupPaths(): void;
 
 	/**
+	 * Pushes workspace backup paths to be tracked for restoration.
+	 *
+	 * @param workspaces The workspaces to add.
+	 */
+	pushWorkspaceBackupPaths(workspaces: string[]): void;
+
+	/**
 	 * Removes a workspace backup path being tracked for restoration, deregistering all associated
 	 * resources for backup.
 	 *
