@@ -291,8 +291,8 @@
 			}
 		},
 		{
-			"name": "coloring of the TS this",
-			"scope": "variable.this",
+			"name": "this.self",
+			"scope": "variable.language",
 			"settings": {
 				"foreground": "#0000ff"
 			}

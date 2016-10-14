@@ -7,10 +7,10 @@ To update to the latest version:
 Migration notes and todos:
 
 - differentiate variable and function declarations from references
-  - functions now use 'entity.function.name'.
-     - My understanding of the textmate spec is that entity should be used for declarations, but other JS grammars also use it for references
-	 - I suggest we use a new scope segment 'reference' to sigmal a reference and 'declaration' for a declaration.
-  - variables use 'variable' through ot which is common practice
-    - I suggest we use a new scope segment 'reference' to sigmal a reference and 'declaration' for a declaration.
+	- I suggest we use a new scope segment 'function-call' to sigmal a function references, and 'definition' to the declaration. Alternative is to use 'support.function' everywhere.
+  - I suggest we use a new scope segment 'definition' to the variable declarations. Haven't yet found a scope for references that other grammars use.
 
-- return.type -> return-type
+- rename scope to return.type to return-type, which is already used in other grammars
+- rename entity.name.class to entity.name.type.class which is used in all other grammars I've seen
+
+- do we really want to have the list of all the 'library' types (Math, Dom...). It adds a lot of size to the grammar, lots of special rules and is not really correct as it depends on the JavaScript runtime which types are present.
