@@ -197,6 +197,12 @@ export enum State {
 	RunningNoDebug
 }
 
+// Service config
+
+export interface IDebugConfiguration {
+	allowBreakpointsEverywhere: boolean;
+}
+
 // service interfaces
 
 export interface IGlobalConfig {
