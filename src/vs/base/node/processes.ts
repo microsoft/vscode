@@ -448,3 +448,44 @@ export class StreamProcess extends AbstractProcess<StreamData> {
 		}
 	}
 }
+
+export interface ISender {
+	send: (msg: any) => void;
+}
+
+// Wrapper around process.send() that will buffer any messages if the internal node.js
+// buffer is filled with messages and only continue sending messages when the internal
+// buffer is free again to consume messages.
+// Workaround for https://github.com/nodejs/node/issues/7657 (IPC can freeze process)
+export function createBufferedSender(childProcess: ChildProcess | NodeJS.Process): ISender {
+	let msgBuffer = [];
+	let useBuffer = false;
+
+	const send = function (msg: any): void {
+		if (useBuffer) {
+			msgBuffer.push(msg); // add to the buffer if the process cannot handle more messages
+			return;
+		}
+
+		let result = childProcess.send(msg, error => {
+			if (error) {
+				console.error(error); // unlikely to happen, best we can do is log this error
+			}
+
+			useBuffer = false; // we are good again to send directly without buffer
+
+			// now send all the messages that we have in our buffer and did not send yet
+			if (msgBuffer.length > 0) {
+				const msgBufferCopy = msgBuffer.slice(0);
+				msgBuffer = [];
+				msgBufferCopy.forEach(entry => send(entry));
+			}
+		});
+
+		if (!result) {
+			useBuffer = true; // the process indicates that it could not directly consume the message so we need to use our buffer next time
+		}
+	};
+
+	return { send };
+}
