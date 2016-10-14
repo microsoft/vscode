@@ -20,7 +20,7 @@ import product from 'vs/platform/product';
 import pkg from 'vs/platform/package';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
-import { BackupService } from 'vs/workbench/common/backup';
+import { BackupService } from 'vs/platform/backup/node/backupService';
 import { IBackupService } from 'vs/platform/backup/common/backup';
 import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { Storage, inMemoryLocalStorageInstance } from 'vs/workbench/node/storage';
