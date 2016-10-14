@@ -221,7 +221,7 @@ export interface IEditorOptions {
 	lineNumbersMinChars?: number;
 	/**
 	 * Enable the rendering of the glyph margin.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	glyphMargin?: boolean;
 	/**
