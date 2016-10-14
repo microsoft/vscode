@@ -447,12 +447,12 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void[]> {
+	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
 		this.model.addBreakpoints(rawBreakpoints);
 		const uris = arrays.distinct(rawBreakpoints, raw => raw.uri.toString()).map(raw => raw.uri);
 		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, rbp.uri.fsPath)));
 
-		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri)));
+		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri))).then(() => void 0);
 	}
 
 	public removeBreakpoints(id?: string): TPromise<any> {

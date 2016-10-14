@@ -317,7 +317,7 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void[]>;
+	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
