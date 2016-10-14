@@ -5,7 +5,7 @@
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
 	"typescript.tsdk_version.desc": "Specifies the version of the tsserver. Only necessary if the tsserver is not installed using npm.",
-	"typescript.experimentalAutomaticTypeAcquisition.desc": "Specifies whether the TyepScript language service should automatically aquire type definition files. Requirs TypeScript >= 2.0.6",
+	"typescript.experimentalAutomaticTypeAcquisition": "Enable automatic type acquisition. Requirs TypeScript >= 2.0.6 and a restart after changing it.",
 	"typescript.check.workspaceVersion": "Check if a TypeScript version is available in the workspace",
 	"typescript.check.tscVersion": "Check if a global install TypeScript compiler (e.g. tsc) differs from the used TypeScript language service.",
 	"typescript.tsserver.trace": "Enables tracing of messages send to the TS server",
@@ -18,6 +18,8 @@
 	"format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": "Defines space handling after function keyword for anonymous functions",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Defines space handling after opening and before closing non empty parenthesis",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Defines space handling after opening and before closing non empty brackets",
+	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Defines space handling after opening and before closing template string braces. Requirs TypeScript >= 2.0.6",
+	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Defines space handling after opening and before closing JSX expression braces. Requirs TypeScript >= 2.0.6",
 	"format.placeOpenBraceOnNewLineForFunctions": "Defines whether an open brace is put onto a new line for functions or not",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Defines whether an open brace is put onto a new line for control blocks or not",
 	"javascript.validate.enable": "Enable / disable JavaScript validation"
