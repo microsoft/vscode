@@ -201,6 +201,7 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
+	openExplorerOnEnd: boolean;
 }
 
 // service interfaces
