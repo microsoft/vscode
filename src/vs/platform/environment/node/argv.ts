@@ -142,6 +142,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--install-extension <ext>': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension <ext>': localize('uninstallExtension', "Uninstalls an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
+	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
